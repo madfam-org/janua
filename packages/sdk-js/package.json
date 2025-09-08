@@ -1,0 +1,54 @@
+{
+  "name": "@plinto/sdk",
+  "version": "0.1.0",
+  "description": "Plinto JavaScript/TypeScript SDK",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "jest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "jose": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "jest": "^29.7.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {
+    "zod": "^3.22.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aureolabs/plinto"
+  },
+  "keywords": [
+    "plinto",
+    "identity",
+    "authentication",
+    "jwt",
+    "passkeys",
+    "webauthn"
+  ],
+  "author": "Aureo Labs",
+  "license": "MIT"
+}

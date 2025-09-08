@@ -1,0 +1,130 @@
+"""
+Application configuration
+"""
+
+from typing import List, Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, validator
+
+
+class Settings(BaseSettings):
+    """
+    Application settings with environment variable support
+    """
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False
+    )
+    
+    # Application
+    VERSION: str = "0.1.0"
+    DEBUG: bool = Field(default=False)
+    ENVIRONMENT: str = Field(default="development", pattern="^(development|staging|production)$")
+    BASE_URL: str = Field(default="https://plinto.dev")
+    
+    # Database
+    DATABASE_URL: str = Field(
+        default="postgresql://postgres:postgres@localhost:5432/plinto",
+        description="PostgreSQL connection URL"
+    )
+    DATABASE_POOL_SIZE: int = Field(default=20)
+    DATABASE_MAX_OVERFLOW: int = Field(default=10)
+    DATABASE_POOL_TIMEOUT: int = Field(default=30)
+    AUTO_MIGRATE: bool = Field(default=False)
+    
+    # Redis
+    REDIS_URL: str = Field(
+        default="redis://localhost:6379/0",
+        description="Redis connection URL"
+    )
+    REDIS_POOL_SIZE: int = Field(default=10)
+    REDIS_DECODE_RESPONSES: bool = Field(default=True)
+    
+    # JWT
+    JWT_SECRET_KEY: Optional[str] = Field(default=None)
+    JWT_ALGORITHM: str = Field(default="RS256")
+    JWT_ISSUER: str = Field(default="https://plinto.dev")
+    JWT_AUDIENCE: str = Field(default="plinto.dev")
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=15)
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
+    
+    # Security
+    SECRET_KEY: str = Field(default="change-this-in-production")
+    BCRYPT_ROUNDS: int = Field(default=12)
+    PASSWORD_MIN_LENGTH: int = Field(default=12)
+    PASSWORD_REQUIRE_UPPERCASE: bool = Field(default=True)
+    PASSWORD_REQUIRE_LOWERCASE: bool = Field(default=True)
+    PASSWORD_REQUIRE_NUMBERS: bool = Field(default=True)
+    PASSWORD_REQUIRE_SPECIAL: bool = Field(default=True)
+    
+    # CORS
+    CORS_ORIGINS: List[str] = Field(
+        default=["http://localhost:3000", "https://plinto.dev"]
+    )
+    
+    # Rate limiting
+    RATE_LIMIT_ENABLED: bool = Field(default=True)
+    RATE_LIMIT_PER_MINUTE: int = Field(default=60)
+    RATE_LIMIT_PER_HOUR: int = Field(default=1000)
+    
+    # Email
+    EMAIL_ENABLED: bool = Field(default=False)
+    EMAIL_PROVIDER: str = Field(default="sendgrid", pattern="^(sendgrid|ses|smtp)$")
+    EMAIL_FROM_ADDRESS: str = Field(default="noreply@plinto.dev")
+    EMAIL_FROM_NAME: str = Field(default="Plinto")
+    SENDGRID_API_KEY: Optional[str] = Field(default=None)
+    
+    # WebAuthn
+    WEBAUTHN_RP_ID: str = Field(default="plinto.dev")
+    WEBAUTHN_RP_NAME: str = Field(default="Plinto")
+    WEBAUTHN_ORIGIN: str = Field(default="https://plinto.dev")
+    WEBAUTHN_TIMEOUT: int = Field(default=60000)  # milliseconds
+    
+    # Cloudflare
+    CLOUDFLARE_TURNSTILE_SECRET: Optional[str] = Field(default=None)
+    CLOUDFLARE_ACCOUNT_ID: Optional[str] = Field(default=None)
+    CLOUDFLARE_R2_ACCESS_KEY: Optional[str] = Field(default=None)
+    CLOUDFLARE_R2_SECRET_KEY: Optional[str] = Field(default=None)
+    CLOUDFLARE_R2_BUCKET: str = Field(default="plinto-audit")
+    
+    # Monitoring
+    SENTRY_DSN: Optional[str] = Field(default=None)
+    OPENTELEMETRY_ENABLED: bool = Field(default=False)
+    OPENTELEMETRY_ENDPOINT: Optional[str] = Field(default=None)
+    
+    # Features
+    ENABLE_DOCS: bool = Field(default=True)
+    ENABLE_METRICS: bool = Field(default=True)
+    ENABLE_WEBHOOKS: bool = Field(default=True)
+    ENABLE_AUDIT: bool = Field(default=True)
+    ENABLE_SSO: bool = Field(default=False)
+    ENABLE_SCIM: bool = Field(default=False)
+    
+    # Limits
+    MAX_ORGANIZATIONS_PER_IDENTITY: int = Field(default=10)
+    MAX_SESSIONS_PER_IDENTITY: int = Field(default=5)
+    MAX_PASSKEYS_PER_IDENTITY: int = Field(default=10)
+    MAX_WEBHOOKS_PER_TENANT: int = Field(default=10)
+    
+    @validator("JWT_SECRET_KEY", pre=True)
+    def validate_jwt_secret(cls, v, values):
+        if values.get("ENVIRONMENT") == "production" and not v:
+            raise ValueError("JWT_SECRET_KEY must be set in production")
+        return v or "development-secret-key"
+    
+    @validator("SECRET_KEY", pre=True)
+    def validate_secret_key(cls, v, values):
+        if values.get("ENVIRONMENT") == "production" and v == "change-this-in-production":
+            raise ValueError("SECRET_KEY must be changed in production")
+        return v
+    
+    @validator("CORS_ORIGINS", pre=True)
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",")]
+        return v
+
+
+# Create settings instance
+settings = Settings()
