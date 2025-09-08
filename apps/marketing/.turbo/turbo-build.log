@@ -1,0 +1,35 @@
+$ next build
+   ▲ Next.js 14.0.4
+
+   Creating an optimized production build ...
+Failed to compile.
+
+./app/page.tsx
+Module not found: Can't resolve '@/components/sections/hero'
+
+https://nextjs.org/docs/messages/module-not-found
+
+./app/page.tsx
+Module not found: Can't resolve '@/components/sections/trust'
+
+https://nextjs.org/docs/messages/module-not-found
+
+./app/page.tsx
+Module not found: Can't resolve '@/components/sections/features'
+
+https://nextjs.org/docs/messages/module-not-found
+
+./app/page.tsx
+Module not found: Can't resolve '@/components/sections/developer-experience'
+
+https://nextjs.org/docs/messages/module-not-found
+
+./app/page.tsx
+Module not found: Can't resolve '@/components/sections/playground'
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+> Build failed because of webpack errors
+error Command failed with exit code 1.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.

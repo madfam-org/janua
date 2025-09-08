@@ -303,7 +303,7 @@ export class PlintoClient {
    */
   private async request<T = any>(
     path: string,
-    options: RequestInit = {}
+    options: Omit<RequestInit, 'body'> & { body?: any } = {}
   ): Promise<T> {
     const url = `${this.config.baseUrl}${path}`
     
