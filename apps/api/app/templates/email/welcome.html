@@ -1,0 +1,69 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<h2 style="color: #1f2937; margin: 0 0 20px 0;">Welcome to Plinto! 🎉</h2>
+
+<p style="margin: 0 0 20px 0;">
+    Hi {{ user_name }},
+</p>
+
+<p style="margin: 0 0 20px 0;">
+    Congratulations! Your Plinto account has been successfully created. You're now part of a secure identity platform trusted by thousands of organizations worldwide.
+</p>
+
+<div class="info">
+    <strong>Your Account Details:</strong><br>
+    Email: {{ user_email }}<br>
+    Organization: {{ organization_name }}<br>
+    Plan: {{ plan_name }}<br>
+    Account ID: {{ account_id }}
+</div>
+
+<h3 style="color: #1f2937; margin: 30px 0 15px 0;">Get Started with Plinto</h3>
+
+<p style="margin: 0 0 20px 0;">Here are your next steps to get the most out of Plinto:</p>
+
+<ol style="margin: 0 0 20px 0; padding-left: 20px;">
+    <li style="margin-bottom: 10px;">
+        <strong>Set up two-factor authentication</strong><br>
+        <span style="color: #6b7280; font-size: 14px;">Add an extra layer of security to your account</span>
+    </li>
+    <li style="margin-bottom: 10px;">
+        <strong>Configure your organization</strong><br>
+        <span style="color: #6b7280; font-size: 14px;">Invite team members and set up roles and permissions</span>
+    </li>
+    <li style="margin-bottom: 10px;">
+        <strong>Integrate with your application</strong><br>
+        <span style="color: #6b7280; font-size: 14px;">Use our SDKs to add authentication to your apps</span>
+    </li>
+    <li style="margin-bottom: 10px;">
+        <strong>Enable passkeys</strong><br>
+        <span style="color: #6b7280; font-size: 14px;">Set up passwordless authentication for better security</span>
+    </li>
+</ol>
+
+<div style="text-align: center;">
+    <a href="{{ dashboard_link }}" class="button">Go to Dashboard</a>
+</div>
+
+<div style="background-color: #f9fafb; border-radius: 6px; padding: 20px; margin: 30px 0;">
+    <h4 style="margin: 0 0 10px 0; color: #1f2937;">Need Help?</h4>
+    <p style="margin: 0 0 10px 0; font-size: 14px;">
+        Our team is here to help you succeed with Plinto:
+    </p>
+    <ul style="margin: 10px 0 0 0; padding-left: 20px; font-size: 14px;">
+        <li><a href="https://docs.plinto.dev" style="color: #3b82f6;">Documentation</a> - Guides and API references</li>
+        <li><a href="https://plinto.dev/support" style="color: #3b82f6;">Support Center</a> - Get help from our team</li>
+        <li><a href="https://github.com/plinto" style="color: #3b82f6;">GitHub</a> - Code examples and SDKs</li>
+    </ul>
+</div>
+
+<p style="margin: 20px 0 0 0; color: #6b7280; font-size: 14px;">
+    Thank you for choosing Plinto. We're excited to be part of your security journey!
+</p>
+
+<p style="margin: 20px 0 0 0;">
+    Best regards,<br>
+    <strong>The Plinto Team</strong>
+</p>
+{% endblock %}

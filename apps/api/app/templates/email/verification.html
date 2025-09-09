@@ -1,0 +1,40 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<h2 style="color: #1f2937; margin: 0 0 20px 0;">Verify Your Email Address</h2>
+
+<p style="margin: 0 0 20px 0;">
+    Hi {{ user_name }},
+</p>
+
+<p style="margin: 0 0 20px 0;">
+    Welcome to Plinto! Please verify your email address to complete your account setup and gain access to all features.
+</p>
+
+<div class="code-box">
+    <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">
+        Your verification code:
+    </p>
+    <div class="code">{{ verification_code }}</div>
+    <p style="margin: 10px 0 0 0; color: #6b7280; font-size: 12px;">
+        This code expires in 15 minutes
+    </p>
+</div>
+
+<p style="margin: 0 0 20px 0; text-align: center;">
+    Or click the button below to verify your email:
+</p>
+
+<div style="text-align: center;">
+    <a href="{{ verification_link }}" class="button">Verify Email Address</a>
+</div>
+
+<div class="info">
+    <strong>Why verify your email?</strong><br>
+    Email verification helps us ensure the security of your account and enables important features like password recovery and security notifications.
+</div>
+
+<p style="margin: 20px 0 0 0; color: #6b7280; font-size: 14px;">
+    If you didn't create an account with Plinto, you can safely ignore this email.
+</p>
+{% endblock %}

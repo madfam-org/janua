@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ subject }}</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            background-color: #f7f7f7;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .email-wrapper {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: #ffffff;
+            padding: 30px;
+            text-align: center;
+        }
+        .logo {
+            display: inline-block;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            background-color: #3b82f6;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 20px 0;
+        }
+        .button:hover {
+            background-color: #2563eb;
+        }
+        .footer {
+            background-color: #f9fafb;
+            padding: 20px 30px;
+            text-align: center;
+            font-size: 12px;
+            color: #6b7280;
+            border-top: 1px solid #e5e7eb;
+        }
+        .footer a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        .code-box {
+            background-color: #f3f4f6;
+            border: 2px dashed #d1d5db;
+            border-radius: 6px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .code {
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            color: #1f2937;
+            font-family: 'Courier New', monospace;
+        }
+        .warning {
+            background-color: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .info {
+            background-color: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="email-wrapper">
+            <div class="header">
+                <div class="logo">
+                    <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M20 4L4 12V20C4 28.84 9.94 36.74 18 38.86C18.64 38.96 19.32 39 20 39C20.68 39 21.36 38.96 22 38.86C30.06 36.74 36 28.84 36 20V12L20 4Z" fill="white" fill-opacity="0.9"/>
+                        <path d="M20 14C21.1 14 22 14.9 22 16V20C22 21.1 21.1 22 20 22C18.9 22 18 21.1 18 20V16C18 14.9 18.9 14 20 14ZM20 24C21.1 24 22 24.9 22 26C22 27.1 21.1 28 20 28C18.9 28 18 27.1 18 26C18 24.9 18.9 24 20 24Z" fill="#3b82f6"/>
+                    </svg>
+                </div>
+                <h1 style="margin: 0; font-size: 24px; font-weight: 600;">Plinto</h1>
+                <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Secure Identity Platform</p>
+            </div>
+            
+            <div class="content">
+                {% block content %}
+                {% endblock %}
+            </div>
+            
+            <div class="footer">
+                <p style="margin: 0 0 10px 0;">
+                    © {{ current_year }} Plinto by Aureo Labs. All rights reserved.
+                </p>
+                <p style="margin: 0 0 10px 0;">
+                    <a href="https://plinto.dev/privacy">Privacy Policy</a> • 
+                    <a href="https://plinto.dev/terms">Terms of Service</a> • 
+                    <a href="https://plinto.dev/support">Support</a>
+                </p>
+                <p style="margin: 0; color: #9ca3af; font-size: 11px;">
+                    You received this email because you have an account with Plinto.
+                    <br>
+                    Aureo Labs (MADFAM) • Mexico City, Mexico
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
