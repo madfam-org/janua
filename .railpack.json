@@ -1,0 +1,21 @@
+{
+  "version": "1",
+  "monorepo": {
+    "type": "yarn",
+    "rootDirectory": ".",
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ]
+  },
+  "build": {
+    "command": "yarn install --frozen-lockfile && yarn build",
+    "outputDirectory": "."
+  },
+  "start": {
+    "command": "yarn start"
+  },
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
