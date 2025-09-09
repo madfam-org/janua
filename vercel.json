@@ -1,0 +1,33 @@
+{
+  "buildCommand": "yarn build",
+  "outputDirectory": "apps/marketing/.next",
+  "installCommand": "yarn install --frozen-lockfile",
+  "framework": "nextjs",
+  "github": {
+    "enabled": false
+  },
+  "functions": {
+    "pages/api/**/*.js": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    }
+  ]
+}
