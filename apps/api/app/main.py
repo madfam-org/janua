@@ -9,7 +9,8 @@ import structlog
 import time
 
 from app.config import settings
-from app.auth.router import router as auth_router
+# Temporarily disabled for debugging
+# from app.auth.router import router as auth_router
 from app.core.database import init_db
 from app.core.redis import init_redis
 from app.core.errors import (
@@ -138,11 +139,15 @@ async def ready_check():
 @app.get("/.well-known/jwks.json")
 async def get_jwks():
     """Return JSON Web Key Set for token verification"""
-    # Return empty JWKS until proper JWT key management is implemented
-    # This maintains OpenID Connect compliance without requiring complex JWT setup
-    return {
-        "keys": []
-    }
+    try:
+        # Return empty JWKS until proper JWT key management is implemented
+        # This maintains OpenID Connect compliance without requiring complex JWT setup
+        return {
+            "keys": []
+        }
+    except Exception:
+        # Fallback response to prevent any errors
+        return {"keys": []}
 
 
 # OpenID Configuration
@@ -164,8 +169,8 @@ async def get_openid_configuration():
     }
 
 
-# Include routers
-app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
+# Include routers - temporarily disabled for debugging
+# app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 
 
 # Register error handlers
