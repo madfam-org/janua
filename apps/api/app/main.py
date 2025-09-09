@@ -138,17 +138,11 @@ async def ready_check():
 @app.get("/.well-known/jwks.json")
 async def get_jwks():
     """Return JSON Web Key Set for token verification"""
-    try:
-        # For now, return empty JWKS until proper JWT key management is implemented
-        # This prevents the 500 error while maintaining OpenID Connect compliance
-        return {
-            "keys": []
-        }
-    except Exception as e:
-        logger.error("JWKS endpoint error", error=str(e))
-        return {
-            "keys": []
-        }
+    # Return empty JWKS until proper JWT key management is implemented
+    # This maintains OpenID Connect compliance without requiring complex JWT setup
+    return {
+        "keys": []
+    }
 
 
 # OpenID Configuration
