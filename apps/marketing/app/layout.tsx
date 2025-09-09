@@ -5,6 +5,7 @@ import '../styles/globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://plinto.dev'),
   title: 'Plinto - Edge-Fast Identity Platform',
   description: 'Secure substrate for identity. Edge-fast verification with full control. The modern alternative to Auth0 and Clerk.',
   keywords: ['identity', 'authentication', 'auth', 'JWT', 'passkeys', 'WebAuthn', 'edge computing'],
