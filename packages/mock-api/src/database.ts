@@ -159,6 +159,10 @@ class MockDatabase {
     return true;
   }
 
+  getAllUsers(): User[] {
+    return Array.from(this.users.values());
+  }
+
   // Session methods
   createSession(userId: string, token: string, refreshToken: string): Session {
     const session: Session = {
@@ -269,6 +273,45 @@ class MockDatabase {
 
   getOrganization(id: string): Organization | null {
     return this.organizations.get(id) || null;
+  }
+
+  getOrganizationById(id: string): Organization | null {
+    return this.organizations.get(id) || null;
+  }
+
+  updateOrganization(id: string, data: Partial<Organization>): Organization | null {
+    const org = this.organizations.get(id);
+    if (!org) return null;
+    
+    Object.assign(org, data, { updated_at: new Date().toISOString() });
+    this.organizations.set(id, org);
+    return org;
+  }
+
+  deleteOrganization(id: string): boolean {
+    return this.organizations.delete(id);
+  }
+
+  getOrganizationMembers(orgId: string): OrganizationMember[] {
+    const members: OrganizationMember[] = [];
+    for (const member of this.organizationMembers.values()) {
+      if (member.organization_id === orgId) {
+        members.push(member);
+      }
+    }
+    return members;
+  }
+
+  addOrganizationMember(orgId: string, userId: string, role: string = 'member'): OrganizationMember {
+    const member: OrganizationMember = {
+      id: uuidv4(),
+      organization_id: orgId,
+      user_id: userId,
+      role,
+      joined_at: new Date().toISOString()
+    };
+    this.organizationMembers.set(member.id, member);
+    return member;
   }
 
   // Token methods

@@ -14,11 +14,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     
     // Create environment-aware Plinto client
     const client = new PlintoClient({
-      issuer: apiConfig.apiUrl,
-      clientId: 'demo-client',
-      redirectUri: typeof window !== 'undefined' ? window.location.origin : '',
-      timeout: apiConfig.timeout,
-      retries: apiConfig.retries,
+      apiKey: 'demo-api-key',
+      tenantId: 'demo-tenant',
+      baseUrl: apiConfig.apiUrl,
     })
 
     setPlintoClient(client)

@@ -19,8 +19,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@plinto/sdk": "workspace:*",
-    "@plinto/ui": "workspace:*",
+    "@plinto/sdk": "*",
+    "@plinto/ui": "*",
     "@radix-ui/react-checkbox": "^1.0.4",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-dropdown-menu": "^2.0.6",

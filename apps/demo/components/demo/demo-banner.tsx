@@ -10,7 +10,7 @@ export function DemoBanner() {
   const [dismissed, setDismissed] = useState(false)
   const { isDemo, showDemoNotice, mounted } = useEnvironment()
 
-  if (!mounted || !isDemo || !showDemoNotice() || dismissed) {
+  if (!mounted || !isDemo || !showDemoNotice?.() || dismissed) {
     return null
   }
 

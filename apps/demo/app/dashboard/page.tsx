@@ -124,7 +124,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex items-center space-x-4">
                 <span className="text-xl font-bold text-gray-900 dark:text-white">Plinto Dashboard</span>
-                {mounted && isDemo && showDemoNotice() && (
+                {mounted && isDemo && showDemoNotice?.() && (
                   <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs font-medium rounded">
                     DEMO
                   </span>

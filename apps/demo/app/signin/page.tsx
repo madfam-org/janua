@@ -28,7 +28,7 @@ export default function SignInPage() {
 
   // Auto-fill demo credentials in demo mode
   useEffect(() => {
-    if (mounted && isDemo && shouldAutoSignIn() && hasDemoCredentials()) {
+    if (mounted && isDemo && shouldAutoSignIn?.() && hasDemoCredentials?.()) {
       setEmail(demoCredentials.email)
       setPassword(demoCredentials.password)
     }
@@ -68,7 +68,7 @@ export default function SignInPage() {
   }
 
   const handleDemoLogin = async () => {
-    if (!isDemo || !hasDemoCredentials()) return
+    if (!isDemo || !hasDemoCredentials?.()) return
     
     setEmail(demoCredentials.email)
     setPassword(demoCredentials.password)
@@ -105,7 +105,7 @@ export default function SignInPage() {
             <CardDescription>Sign in to your account to continue</CardDescription>
           </CardHeader>
           <CardContent>
-            {mounted && isDemo && showDemoNotice() && (
+            {mounted && isDemo && showDemoNotice?.() && (
               <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <div className="flex items-start gap-3">
                   <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
@@ -260,7 +260,7 @@ export default function SignInPage() {
           </CardFooter>
         </Card>
 
-{mounted && isDemo && hasDemoCredentials() && (
+{mounted && isDemo && hasDemoCredentials?.() && (
           <p className="mt-8 text-center text-xs text-gray-500">
             Demo credentials: {demoCredentials.email} / {demoCredentials.password}
           </p>
