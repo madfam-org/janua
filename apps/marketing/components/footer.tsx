@@ -15,12 +15,12 @@ const navigation = {
     { name: 'Changelog', href: '/changelog' }
   ],
   developers: [
-    { name: 'Documentation', href: '/docs' },
-    { name: 'API Reference', href: '/api' },
-    { name: 'SDKs', href: '/sdks' },
-    { name: 'Examples', href: '/examples' },
+    { name: 'Documentation', href: 'https://docs.plinto.dev' },
+    { name: 'API Reference', href: 'https://docs.plinto.dev/api' },
+    { name: 'SDKs', href: 'https://docs.plinto.dev/sdks' },
+    { name: 'Examples', href: 'https://docs.plinto.dev/examples' },
     { name: 'Playground', href: '#playground' },
-    { name: 'Status', href: '/status' }
+    { name: 'Status', href: 'https://status.plinto.dev' }
   ],
   solutions: [
     { name: 'E-commerce', href: '/solutions/ecommerce' },
@@ -50,17 +50,17 @@ const navigation = {
 const socialLinks = [
   {
     name: 'Twitter',
-    href: 'https://twitter.com/plinto',
+    href: 'https://twitter.com/getplinto',
     icon: Twitter
   },
   {
     name: 'GitHub',
-    href: 'https://github.com/plinto',
+    href: 'https://github.com/aureolabs/plinto',
     icon: Github
   },
   {
     name: 'LinkedIn',
-    href: 'https://linkedin.com/company/plinto',
+    href: 'https://linkedin.com/company/plinto-dev',
     icon: Linkedin
   },
   {

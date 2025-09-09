@@ -21,9 +21,9 @@ const navigation = [
     name: 'Developers',
     href: '#',
     children: [
-      { name: 'Documentation', href: '/docs' },
-      { name: 'API Reference', href: '/api' },
-      { name: 'SDKs', href: '/sdks' },
+      { name: 'Documentation', href: 'https://docs.plinto.dev' },
+      { name: 'API Reference', href: 'https://docs.plinto.dev/api' },
+      { name: 'SDKs', href: 'https://docs.plinto.dev/sdks' },
       { name: 'Playground', href: '#playground' }
     ]
   },
@@ -117,10 +117,10 @@ export function Navigation() {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center space-x-4">
-            <Link href="/sign-in">
+            <Link href="https://app.plinto.dev/auth/signin">
               <Button variant="ghost">Sign In</Button>
             </Link>
-            <Link href="/sign-up">
+            <Link href="https://app.plinto.dev/auth/signup">
               <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
                 Start Free
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -179,12 +179,12 @@ export function Navigation() {
               ))}
               
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
-                <Link href="/sign-in" className="block">
+                <Link href="https://app.plinto.dev/auth/signin" className="block">
                   <Button variant="outline" className="w-full">
                     Sign In
                   </Button>
                 </Link>
-                <Link href="/sign-up" className="block">
+                <Link href="https://app.plinto.dev/auth/signup" className="block">
                   <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600">
                     Start Free
                     <ArrowRight className="ml-2 h-4 w-4" />

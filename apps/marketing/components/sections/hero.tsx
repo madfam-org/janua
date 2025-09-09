@@ -68,7 +68,7 @@ export function HeroSection() {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="mt-10 flex flex-col sm:flex-row gap-4 justify-center"
           >
-            <Link href="/sign-up">
+            <Link href="https://app.plinto.dev/auth/signup">
               <Button size="lg" className="text-lg px-8 py-6 w-full sm:w-auto">
                 Start Building
                 <ArrowRight className="ml-2 h-5 w-5" />

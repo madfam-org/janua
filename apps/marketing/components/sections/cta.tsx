@@ -47,7 +47,7 @@ export function CTASection() {
           viewport={{ once: true }}
           transition={{ duration: 0.3, delay: 0.1 }}
         >
-          <Link href="/sign-up">
+          <Link href="https://app.plinto.dev/auth/signup">
             <Button 
               size="lg" 
               className="text-lg px-10 py-6 bg-white text-blue-600 hover:bg-gray-100"
@@ -67,13 +67,13 @@ export function CTASection() {
           className="mt-8 flex flex-wrap gap-6 justify-center text-sm"
         >
           <Link 
-            href="/demo" 
+            href="https://demo.plinto.dev" 
             className="text-white/80 hover:text-white underline underline-offset-4"
           >
             Schedule a demo
           </Link>
           <Link 
-            href="/docs" 
+            href="https://docs.plinto.dev" 
             className="text-white/80 hover:text-white underline underline-offset-4"
           >
             Read documentation

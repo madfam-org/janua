@@ -276,10 +276,10 @@ const decision = await plinto.policies.evaluate({
         </p>
         <div className="flex gap-4 justify-center">
           <Button variant="outline" asChild>
-            <a href="/docs/quickstart">View Quickstart</a>
+            <a href="https://docs.plinto.dev/quickstart">View Quickstart</a>
           </Button>
           <Button asChild>
-            <a href="/sign-up">Create Free Account</a>
+            <a href="https://app.plinto.dev/auth/signup">Create Free Account</a>
           </Button>
         </div>
       </motion.div>

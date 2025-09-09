@@ -246,19 +246,19 @@ export function ComparisonSection() {
         </p>
         <div className="flex gap-4 justify-center">
           <a
-            href="/docs/migration/clerk"
+            href="https://docs.plinto.dev/migration/clerk"
             className="text-blue-600 dark:text-blue-400 hover:underline"
           >
             Migrate from Clerk →
           </a>
           <a
-            href="/docs/migration/auth0"
+            href="https://docs.plinto.dev/migration/auth0"
             className="text-blue-600 dark:text-blue-400 hover:underline"
           >
             Migrate from Auth0 →
           </a>
           <a
-            href="/docs/migration/supabase"
+            href="https://docs.plinto.dev/migration/supabase"
             className="text-blue-600 dark:text-blue-400 hover:underline"
           >
             Migrate from Supabase →
