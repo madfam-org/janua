@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 import structlog
 import time
 
@@ -10,6 +11,12 @@ from app.config import settings
 from app.auth.router import router as auth_router
 from app.core.database import init_db
 from app.core.redis import init_redis
+from app.core.errors import (
+    PlintoAPIException,
+    plinto_exception_handler,
+    validation_exception_handler,
+    generic_exception_handler
+)
 
 logger = structlog.get_logger()
 
@@ -114,19 +121,7 @@ async def get_openid_configuration():
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 
 
-# Error handlers
-@app.exception_handler(404)
-async def not_found_handler(request: Request, exc):
-    return JSONResponse(
-        status_code=404,
-        content={"error": "Not found"}
-    )
-
-
-@app.exception_handler(500)
-async def internal_error_handler(request: Request, exc):
-    logger.error("Internal server error", exc_info=exc)
-    return JSONResponse(
-        status_code=500,
-        content={"error": "Internal server error"}
-    )
+# Register error handlers
+app.add_exception_handler(PlintoAPIException, plinto_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
