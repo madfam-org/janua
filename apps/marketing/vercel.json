@@ -1,17 +1,19 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "yarn workspace @plinto/marketing build",
-  "installCommand": "yarn install --frozen-lockfile",
-  "outputDirectory": "apps/marketing/.next",
   "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "cd ../.. && yarn install --frozen-lockfile",
   "git": {
     "deploymentEnabled": {
       "main": false
     }
   },
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./apps/marketing/",
+  "github": {
+    "enabled": true,
+    "autoAlias": false
+  },
   "functions": {
-    "apps/marketing/app/api/**/*.js": {
+    "app/api/**/*.js": {
       "runtime": "nodejs20.x"
     }
   },
@@ -24,7 +26,7 @@
           "value": "nosniff"
         },
         {
-          "key": "X-Frame-Options", 
+          "key": "X-Frame-Options",
           "value": "DENY"
         },
         {
@@ -37,5 +39,9 @@
         }
       ]
     }
-  ]
+  ],
+  "env": {
+    "NEXT_PUBLIC_APP_URL": "https://plinto.dev",
+    "NEXT_PUBLIC_API_URL": "https://api.plinto.dev"
+  }
 }
