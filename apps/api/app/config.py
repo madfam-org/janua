@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     DEBUG: bool = Field(default=False)
     ENVIRONMENT: str = Field(default="development", pattern="^(development|staging|production)$")
     BASE_URL: str = Field(default="https://plinto.dev")
+    INTERNAL_BASE_URL: Optional[str] = Field(default=None, description="Internal service URL for Railway private networking")
     
     # Database
     DATABASE_URL: str = Field(
@@ -124,6 +125,14 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v
+    
+    @property
+    def service_url(self) -> str:
+        """
+        Returns internal URL for service-to-service communication if available,
+        otherwise falls back to public BASE_URL
+        """
+        return self.INTERNAL_BASE_URL or self.BASE_URL
 
 
 # Create settings instance
