@@ -7,6 +7,12 @@
       "outputs": ["dist/**", ".next/**", "build/**"],
       "env": ["NODE_ENV", "NEXT_PUBLIC_*", "DATABASE_URL", "REDIS_URL"]
     },
+    "start": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "persistent": true,
+      "env": ["NODE_ENV", "PORT", "NEXT_PUBLIC_*", "DATABASE_URL", "REDIS_URL"]
+    },
     "dev": {
       "cache": false,
       "persistent": true

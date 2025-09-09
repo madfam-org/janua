@@ -9,7 +9,7 @@ cmds = ["cd ../.. && yarn install --frozen-lockfile"]
 cmds = ["cd ../.. && yarn workspace @plinto/marketing build"]
 
 [start]
-cmd = "yarn start"
+cmd = "next start"
 
 [variables]
 NODE_ENV = "production"

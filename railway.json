@@ -5,7 +5,7 @@
     "buildCommand": "yarn install --frozen-lockfile && yarn build"
   },
   "deploy": {
-    "startCommand": "yarn start",
+    "startCommand": "yarn workspace @plinto/marketing start",
     "healthcheckPath": "/health",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
