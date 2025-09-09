@@ -36,7 +36,7 @@ jobs:
         
         RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$VERCEL_DEPLOY_HOOK" \
           -H "Content-Type: application/json" \
-          -d "{\"ref\":\"$GITHUB_SHA\",\"message\":\"GitHub Actions deploy from commit $GITHUB_SHA\"}")
+          -d "{\"ref\":\"$GITHUB_SHA\",\"message\":\"GitHub Actions deploy from commit $GITHUB_SHA\",\"target\":\"production\"}")
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         BODY=$(echo "$RESPONSE" | head -n -1)
