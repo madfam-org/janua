@@ -20,6 +20,8 @@
 * [Contributing](#contributing)
 * [License](#license)
 
+> 📚 **Full documentation available in [`/docs`](./docs/README.md)** - Architecture, API specs, guides, and more.
+
 ---
 
 ## What is Plinto?
