@@ -18,6 +18,7 @@ except ImportError:
 
 from app.config import settings
 from app.auth.router import router as auth_router
+from app.users.router import router as users_router
 from app.core.database import init_db
 from app.core.redis import init_redis
 from app.core.errors import (
@@ -231,6 +232,7 @@ async def get_openid_configuration():
 
 # Include routers
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(users_router, prefix="/api/v1/users", tags=["users"])
 
 
 # Register error handlers
