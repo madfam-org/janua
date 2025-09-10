@@ -77,6 +77,28 @@ class Settings(BaseSettings):
     EMAIL_FROM_NAME: str = Field(default="Plinto")
     SENDGRID_API_KEY: Optional[str] = Field(default=None)
     
+    # SMTP Configuration (for development/self-hosted)
+    SMTP_HOST: Optional[str] = Field(default=None)
+    SMTP_PORT: int = Field(default=587)
+    SMTP_USERNAME: Optional[str] = Field(default=None)
+    SMTP_PASSWORD: Optional[str] = Field(default=None)
+    SMTP_TLS: bool = Field(default=True)
+    
+    # Email aliases for easier access
+    FROM_EMAIL: Optional[str] = Field(default=None)
+    FROM_NAME: Optional[str] = Field(default=None)
+    SUPPORT_EMAIL: Optional[str] = Field(default=None)
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Set email aliases if not explicitly provided
+        if not self.FROM_EMAIL:
+            self.FROM_EMAIL = self.EMAIL_FROM_ADDRESS
+        if not self.FROM_NAME:
+            self.FROM_NAME = self.EMAIL_FROM_NAME
+        if not self.SUPPORT_EMAIL:
+            self.SUPPORT_EMAIL = self.EMAIL_FROM_ADDRESS
+    
     # WebAuthn
     WEBAUTHN_RP_ID: str = Field(default="plinto.dev")
     WEBAUTHN_RP_NAME: str = Field(default="Plinto")

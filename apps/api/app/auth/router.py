@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.redis import get_redis, RateLimiter, SessionStore
 # Temporarily disabled for debugging
 # from app.services.auth_service import AuthService
+from app.services.email_service import get_email_service
 from app.models.user import User
 
 logger = structlog.get_logger()
@@ -120,8 +121,18 @@ async def signup(
             'updated_at': datetime.utcnow()
         })()
         
-        # TODO: Send verification email
-        # await EmailService.send_verification_email(user.email, verification_token)
+        # Send verification email
+        email_service = get_email_service(redis)
+        try:
+            verification_token = await email_service.send_verification_email(
+                email=user_mock.email,
+                user_name=user_mock.name,
+                user_id=str(user_mock.id)
+            )
+            logger.info(f"Verification email sent to {user_mock.email}")
+        except Exception as e:
+            logger.error(f"Failed to send verification email: {e}")
+            # Continue with signup even if email fails for alpha
         
         return UserResponse(
             id=str(user_mock.id),
@@ -281,15 +292,42 @@ async def get_current_user(
 @router.post("/verify-email")
 async def verify_email(
     request: VerifyEmailRequest,
-    db=Depends(get_db)
+    db=Depends(get_db),
+    redis=Depends(get_redis)
 ):
     """Verify email address with token"""
-    # TODO: Implement email verification
-    # - Validate verification token
-    # - Update user email_verified status
-    # - Send confirmation
-    
-    return {"message": "Email verified successfully"}
+    try:
+        # Validate verification token
+        email_service = get_email_service(redis)
+        token_info = await email_service.verify_email_token(request.token)
+        
+        # For alpha: Just return success since we don't have full user management yet
+        # TODO: In production, update user email_verified status in database
+        
+        # Send welcome email after verification
+        try:
+            await email_service.send_welcome_email(
+                email=token_info['email'],
+                user_name=token_info.get('user_name')
+            )
+        except Exception as e:
+            logger.error(f"Failed to send welcome email: {e}")
+            # Continue even if welcome email fails
+        
+        logger.info(f"Email verification successful for {token_info['email']}")
+        
+        return {
+            "message": "Email verified successfully",
+            "email": token_info['email'],
+            "verified_at": token_info['created_at']
+        }
+        
+    except Exception as e:
+        logger.error(f"Email verification failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token"
+        )
 
 
 @router.post("/forgot-password")
@@ -312,10 +350,17 @@ async def forgot_password(
             detail="Too many password reset requests"
         )
     
-    # TODO: Implement password reset
-    # - Check if user exists
-    # - Generate reset token
-    # - Send reset email
+    # For alpha: Send password reset email regardless of user existence (security best practice)
+    email_service = get_email_service(redis)
+    try:
+        reset_token = await email_service.send_password_reset_email(
+            email=request.email,
+            user_name=request.email.split("@")[0]  # Use email prefix as name for alpha
+        )
+        logger.info(f"Password reset email sent to {request.email}")
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {e}")
+        # Always return success for security (don't reveal if email exists)
     
     return {"message": "Password reset email sent if account exists"}
 

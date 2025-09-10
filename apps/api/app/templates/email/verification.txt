@@ -1,0 +1,19 @@
+Hi {{ user_name }},
+
+Welcome to Plinto! Please verify your email address to complete your account setup and gain access to all features.
+
+Verify your email by clicking this link:
+{{ verification_url }}
+
+This verification link expires in 24 hours.
+
+Why verify your email?
+Email verification helps us ensure the security of your account and enables important features like password recovery and security notifications.
+
+If you didn't create an account with Plinto, you can safely ignore this email.
+
+Need help? Contact us at {{ support_email }}
+
+---
+Plinto Team
+{{ base_url }}
