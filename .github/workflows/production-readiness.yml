@@ -1,0 +1,284 @@
+name: Production Readiness Check
+
+on:
+  schedule:
+    # Run daily at 9 AM UTC
+    - cron: '0 9 * * *'
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Run in verbose mode'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.11'
+  MIN_ALPHA_SCORE: 60
+  MIN_BETA_SCORE: 80
+
+jobs:
+  readiness-check:
+    name: Production Readiness Assessment
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          yarn install --frozen-lockfile
+          cd apps/api
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+          cd ../..
+      
+      - name: Run Production Readiness Check
+        id: readiness
+        run: |
+          chmod +x scripts/production-readiness-check.sh
+          
+          # Run the check and capture output
+          if bash scripts/production-readiness-check.sh > readiness-output.txt 2>&1; then
+            READY_STATUS="passing"
+          else
+            READY_STATUS="failing"
+          fi
+          
+          # Extract score from output
+          SCORE=$(grep "Overall Score:" readiness-output.txt | grep -oE '[0-9]+' | head -1)
+          
+          # Determine readiness level
+          if [ "$SCORE" -ge "$MIN_BETA_SCORE" ]; then
+            READINESS="beta-ready"
+            COLOR="green"
+          elif [ "$SCORE" -ge "$MIN_ALPHA_SCORE" ]; then
+            READINESS="alpha-ready"
+            COLOR="yellow"
+          else
+            READINESS="not-ready"
+            COLOR="red"
+          fi
+          
+          # Set outputs
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "readiness=$READINESS" >> $GITHUB_OUTPUT
+          echo "status=$READY_STATUS" >> $GITHUB_OUTPUT
+          echo "color=$COLOR" >> $GITHUB_OUTPUT
+          
+          # Show output
+          cat readiness-output.txt
+      
+      - name: Generate Readiness Report
+        if: always()
+        run: |
+          cat > readiness-summary.md << EOF
+          # Production Readiness Report
+          
+          **Date:** $(date)
+          **Score:** ${{ steps.readiness.outputs.score }}%
+          **Status:** ${{ steps.readiness.outputs.readiness }}
+          
+          ## Summary
+          EOF
+          
+          # Extract key sections from output
+          grep -A 5 "READINESS VERDICT" readiness-output.txt >> readiness-summary.md || true
+          echo "" >> readiness-summary.md
+          grep -A 10 "Key Recommendations:" readiness-output.txt >> readiness-summary.md || true
+          
+          echo "Report generated: readiness-summary.md"
+      
+      - name: Upload Readiness Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: readiness-report-${{ github.run_number }}
+          path: |
+            readiness-output.txt
+            readiness-summary.md
+            production-readiness-report-*.json
+      
+      - name: Update README Badge
+        if: github.ref == 'refs/heads/main'
+        run: |
+          SCORE="${{ steps.readiness.outputs.score }}"
+          COLOR="${{ steps.readiness.outputs.color }}"
+          
+          # Create badge URL
+          BADGE_URL="https://img.shields.io/badge/Production%20Readiness-${SCORE}%25-${COLOR}"
+          
+          # Update README if badge exists, otherwise suggest adding it
+          if grep -q "Production%20Readiness" README.md; then
+            sed -i "s|https://img.shields.io/badge/Production%20Readiness-[0-9]*%25-[a-z]*|${BADGE_URL}|" README.md
+            echo "README badge updated"
+          else
+            echo "Add this badge to your README.md:"
+            echo "![Production Readiness](${BADGE_URL})"
+          fi
+      
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const score = '${{ steps.readiness.outputs.score }}';
+            const readiness = '${{ steps.readiness.outputs.readiness }}';
+            const status = score >= 60 ? '✅' : '⚠️';
+            
+            const comment = `## ${status} Production Readiness Check
+            
+            **Score:** ${score}%
+            **Status:** ${readiness}
+            
+            ${score < 60 ? '⚠️ **Warning:** This PR reduces production readiness below alpha threshold.' : ''}
+            ${score >= 80 ? '🎉 **Great!** Platform is beta-ready!' : ''}
+            
+            View full report in the [workflow artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+      
+      - name: Slack Notification
+        if: always() && github.ref == 'refs/heads/main'
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -n "$SLACK_WEBHOOK" ]; then
+            SCORE="${{ steps.readiness.outputs.score }}"
+            STATUS="${{ steps.readiness.outputs.readiness }}"
+            
+            if [ "$SCORE" -lt 60 ]; then
+              EMOJI="🔴"
+              MESSAGE="Production readiness dropped below alpha threshold!"
+            elif [ "$SCORE" -lt 80 ]; then
+              EMOJI="🟡"
+              MESSAGE="Platform is alpha-ready but not yet beta-ready."
+            else
+              EMOJI="🟢"
+              MESSAGE="Platform is beta-ready!"
+            fi
+            
+            curl -X POST $SLACK_WEBHOOK \
+              -H 'Content-Type: application/json' \
+              -d "{
+                \"text\": \"$EMOJI Production Readiness: ${SCORE}%\",
+                \"attachments\": [{
+                  \"color\": \"${{ steps.readiness.outputs.color }}\",
+                  \"title\": \"Production Readiness Report\",
+                  \"text\": \"$MESSAGE\",
+                  \"fields\": [
+                    {\"title\": \"Score\", \"value\": \"${SCORE}%\", \"short\": true},
+                    {\"title\": \"Status\", \"value\": \"$STATUS\", \"short\": true}
+                  ],
+                  \"footer\": \"Plinto Platform\",
+                  \"footer_icon\": \"https://github.com/favicon.ico\",
+                  \"ts\": $(date +%s)
+                }]
+              }"
+          fi
+        continue-on-error: true
+      
+      - name: Create Issue if Critical
+        if: steps.readiness.outputs.score < 40 && github.ref == 'refs/heads/main'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const score = ${{ steps.readiness.outputs.score }};
+            
+            // Check if issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'production-readiness,critical',
+              state: 'open'
+            });
+            
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: '🚨 Critical: Production Readiness Below 40%',
+                body: `## Production Readiness Critical Alert
+                
+                The production readiness score has dropped to **${score}%**, which is critically low.
+                
+                ### Immediate Actions Required:
+                1. Review the [latest readiness report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+                2. Address critical failures immediately
+                3. Do not onboard any users until score is above 60%
+                
+                ### Key Areas Needing Attention:
+                - [ ] Deploy to production environment
+                - [ ] Implement security features
+                - [ ] Setup monitoring and alerting
+                - [ ] Create test coverage
+                
+                cc: @team-leads`,
+                labels: ['production-readiness', 'critical', 'priority-p0']
+              });
+            }
+        continue-on-error: true
+
+  readiness-trends:
+    name: Track Readiness Trends
+    runs-on: ubuntu-latest
+    needs: readiness-check
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Current Report
+        uses: actions/download-artifact@v4
+        with:
+          name: readiness-report-${{ github.run_number }}
+      
+      - name: Update Trends Data
+        run: |
+          # Create trends directory if it doesn't exist
+          mkdir -p .metrics
+          
+          # Add current score to trends
+          echo "$(date +%Y-%m-%d),${{ needs.readiness-check.outputs.score }}" >> .metrics/readiness-trends.csv
+          
+          # Keep only last 30 days
+          tail -30 .metrics/readiness-trends.csv > .metrics/readiness-trends.tmp
+          mv .metrics/readiness-trends.tmp .metrics/readiness-trends.csv
+          
+          # Generate trend analysis
+          if [ -f .metrics/readiness-trends.csv ]; then
+            echo "## Readiness Trend (Last 30 Days)" > .metrics/trend-analysis.md
+            echo '```' >> .metrics/trend-analysis.md
+            cat .metrics/readiness-trends.csv | tail -7 >> .metrics/trend-analysis.md
+            echo '```' >> .metrics/trend-analysis.md
+          fi
+      
+      - name: Commit Trends
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .metrics/
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update production readiness trends [skip ci]"
+          git push
+        continue-on-error: true

@@ -1,0 +1,377 @@
+# Plinto Platform Monitoring Dashboard Configuration
+# This configuration can be used with Grafana, DataDog, or NewRelic
+
+apiVersion: v1
+kind: MonitoringDashboard
+metadata:
+  name: plinto-production-dashboard
+  namespace: monitoring
+  
+dashboards:
+  # Main Overview Dashboard
+  - name: "Plinto Platform Overview"
+    uid: "plinto-overview"
+    refresh: "30s"
+    panels:
+      
+      # Key Metrics Row
+      - title: "Service Health"
+        type: "stat"
+        gridPos: { h: 4, w: 6, x: 0, y: 0 }
+        targets:
+          - metric: "api.health.status"
+            query: "sum(up{job='plinto-api'})"
+            thresholds:
+              - value: 0
+                color: "red"
+              - value: 1
+                color: "green"
+      
+      - title: "Current Users"
+        type: "stat"
+        gridPos: { h: 4, w: 6, x: 6, y: 0 }
+        targets:
+          - metric: "api.users.active"
+            query: "sum(rate(api_active_users[5m]))"
+      
+      - title: "API Requests/min"
+        type: "stat"
+        gridPos: { h: 4, w: 6, x: 12, y: 0 }
+        targets:
+          - metric: "api.requests.rate"
+            query: "sum(rate(http_requests_total[1m]))"
+      
+      - title: "Error Rate"
+        type: "stat"
+        gridPos: { h: 4, w: 6, x: 18, y: 0 }
+        targets:
+          - metric: "api.errors.rate"
+            query: "sum(rate(http_requests_total{status=~'5..'}[5m]))"
+            thresholds:
+              - value: 0.01
+                color: "green"
+              - value: 0.05
+                color: "yellow"
+              - value: 0.1
+                color: "red"
+      
+      # Performance Metrics Row
+      - title: "API Response Time (p50)"
+        type: "graph"
+        gridPos: { h: 8, w: 12, x: 0, y: 4 }
+        targets:
+          - metric: "api.latency.p50"
+            query: "histogram_quantile(0.5, http_request_duration_seconds_bucket)"
+            legendFormat: "p50"
+          - metric: "api.latency.p95"
+            query: "histogram_quantile(0.95, http_request_duration_seconds_bucket)"
+            legendFormat: "p95"
+          - metric: "api.latency.p99"
+            query: "histogram_quantile(0.99, http_request_duration_seconds_bucket)"
+            legendFormat: "p99"
+      
+      - title: "Database Performance"
+        type: "graph"
+        gridPos: { h: 8, w: 12, x: 12, y: 4 }
+        targets:
+          - metric: "db.query.duration"
+            query: "avg(pg_stat_statements_mean_exec_time_seconds)"
+            legendFormat: "Avg Query Time"
+          - metric: "db.connections.active"
+            query: "sum(pg_stat_activity_count)"
+            legendFormat: "Active Connections"
+      
+      # Infrastructure Row
+      - title: "CPU Usage"
+        type: "graph"
+        gridPos: { h: 6, w: 8, x: 0, y: 12 }
+        targets:
+          - metric: "system.cpu.usage"
+            query: "avg(rate(container_cpu_usage_seconds_total[5m])) * 100"
+            legendFormat: "{{ pod }}"
+        thresholds:
+          - value: 50
+            color: "yellow"
+          - value: 80
+            color: "red"
+      
+      - title: "Memory Usage"
+        type: "graph"
+        gridPos: { h: 6, w: 8, x: 8, y: 12 }
+        targets:
+          - metric: "system.memory.usage"
+            query: "sum(container_memory_usage_bytes) / sum(container_spec_memory_limit_bytes) * 100"
+            legendFormat: "{{ pod }}"
+        thresholds:
+          - value: 70
+            color: "yellow"
+          - value: 90
+            color: "red"
+      
+      - title: "Disk I/O"
+        type: "graph"
+        gridPos: { h: 6, w: 8, x: 16, y: 12 }
+        targets:
+          - metric: "system.disk.read"
+            query: "rate(container_fs_reads_bytes_total[5m])"
+            legendFormat: "Read"
+          - metric: "system.disk.write"
+            query: "rate(container_fs_writes_bytes_total[5m])"
+            legendFormat: "Write"
+      
+      # Business Metrics Row
+      - title: "User Registrations"
+        type: "graph"
+        gridPos: { h: 6, w: 12, x: 0, y: 18 }
+        targets:
+          - metric: "business.users.registrations"
+            query: "sum(rate(user_registrations_total[1h]))"
+            legendFormat: "New Users/hour"
+      
+      - title: "Authentication Success Rate"
+        type: "graph"
+        gridPos: { h: 6, w: 12, x: 12, y: 18 }
+        targets:
+          - metric: "business.auth.success_rate"
+            query: "sum(rate(auth_success_total[5m])) / sum(rate(auth_attempts_total[5m])) * 100"
+            legendFormat: "Success Rate %"
+
+  # Security Dashboard
+  - name: "Security Monitoring"
+    uid: "plinto-security"
+    refresh: "10s"
+    panels:
+      
+      - title: "Failed Login Attempts"
+        type: "graph"
+        gridPos: { h: 8, w: 12, x: 0, y: 0 }
+        targets:
+          - metric: "security.auth.failed"
+            query: "sum(rate(auth_failed_total[5m])) by (reason)"
+            legendFormat: "{{ reason }}"
+      
+      - title: "Rate Limit Violations"
+        type: "graph"
+        gridPos: { h: 8, w: 12, x: 12, y: 0 }
+        targets:
+          - metric: "security.ratelimit.exceeded"
+            query: "sum(rate(ratelimit_exceeded_total[5m])) by (endpoint)"
+            legendFormat: "{{ endpoint }}"
+      
+      - title: "Suspicious IPs"
+        type: "table"
+        gridPos: { h: 8, w: 24, x: 0, y: 8 }
+        targets:
+          - metric: "security.suspicious.ips"
+            query: "topk(10, sum by (ip) (rate(suspicious_activity_total[1h])))"
+
+  # Database Dashboard
+  - name: "Database Performance"
+    uid: "plinto-database"
+    refresh: "30s"
+    panels:
+      
+      - title: "Query Performance"
+        type: "table"
+        gridPos: { h: 10, w: 24, x: 0, y: 0 }
+        targets:
+          - metric: "db.queries.slow"
+            query: |
+              SELECT query, 
+                     calls,
+                     mean_exec_time,
+                     max_exec_time,
+                     total_exec_time
+              FROM pg_stat_statements
+              ORDER BY mean_exec_time DESC
+              LIMIT 10
+      
+      - title: "Connection Pool"
+        type: "graph"
+        gridPos: { h: 8, w: 12, x: 0, y: 10 }
+        targets:
+          - metric: "db.pool.active"
+            query: "pg_stat_activity_count{state='active'}"
+            legendFormat: "Active"
+          - metric: "db.pool.idle"
+            query: "pg_stat_activity_count{state='idle'}"
+            legendFormat: "Idle"
+          - metric: "db.pool.waiting"
+            query: "pg_stat_activity_count{state='idle in transaction'}"
+            legendFormat: "Waiting"
+      
+      - title: "Cache Hit Ratio"
+        type: "stat"
+        gridPos: { h: 8, w: 12, x: 12, y: 10 }
+        targets:
+          - metric: "db.cache.hit_ratio"
+            query: "pg_stat_database_blks_hit / (pg_stat_database_blks_hit + pg_stat_database_blks_read) * 100"
+            thresholds:
+              - value: 90
+                color: "green"
+              - value: 80
+                color: "yellow"
+              - value: 70
+                color: "red"
+
+# Alert Rules
+alerts:
+  - name: "API Down"
+    condition: "api.health.status == 0"
+    duration: "1m"
+    severity: "critical"
+    annotations:
+      summary: "API is not responding"
+      description: "The Plinto API has been down for more than 1 minute"
+    notifications:
+      - channel: "pagerduty"
+      - channel: "slack-incidents"
+  
+  - name: "High Error Rate"
+    condition: "api.errors.rate > 0.1"
+    duration: "5m"
+    severity: "warning"
+    annotations:
+      summary: "Error rate exceeds 10%"
+      description: "API error rate is {{ $value }}% over the last 5 minutes"
+    notifications:
+      - channel: "slack-alerts"
+  
+  - name: "Database Connection Pool Exhausted"
+    condition: "db.pool.active >= 90"
+    duration: "2m"
+    severity: "critical"
+    annotations:
+      summary: "Database connection pool nearly exhausted"
+      description: "Active connections: {{ $value }}/100"
+    notifications:
+      - channel: "pagerduty"
+  
+  - name: "High Memory Usage"
+    condition: "system.memory.usage > 90"
+    duration: "5m"
+    severity: "warning"
+    annotations:
+      summary: "Memory usage exceeds 90%"
+      description: "Container memory usage is {{ $value }}%"
+    notifications:
+      - channel: "slack-alerts"
+  
+  - name: "Suspicious Activity"
+    condition: "security.auth.failed > 100"
+    duration: "5m"
+    severity: "warning"
+    annotations:
+      summary: "High number of failed login attempts"
+      description: "{{ $value }} failed login attempts in the last 5 minutes"
+    notifications:
+      - channel: "security-team"
+
+# Data Sources
+datasources:
+  - name: "Prometheus"
+    type: "prometheus"
+    url: "http://prometheus:9090"
+    access: "proxy"
+    isDefault: true
+  
+  - name: "PostgreSQL"
+    type: "postgres"
+    url: "postgres://plinto:password@db:5432/plinto"
+    access: "proxy"
+    jsonData:
+      sslmode: "require"
+      postgresVersion: 15
+  
+  - name: "Redis"
+    type: "redis-datasource"
+    url: "redis://redis:6379"
+    access: "proxy"
+  
+  - name: "Elasticsearch"
+    type: "elasticsearch"
+    url: "http://elasticsearch:9200"
+    access: "proxy"
+    jsonData:
+      esVersion: "7.10.0"
+      timeField: "@timestamp"
+
+# Notification Channels
+notification_channels:
+  - name: "slack-incidents"
+    type: "slack"
+    settings:
+      url: "${SLACK_WEBHOOK_URL}"
+      channel: "#incidents"
+      username: "Plinto Monitoring"
+  
+  - name: "slack-alerts"
+    type: "slack"
+    settings:
+      url: "${SLACK_WEBHOOK_URL}"
+      channel: "#alerts"
+      username: "Plinto Monitoring"
+  
+  - name: "pagerduty"
+    type: "pagerduty"
+    settings:
+      integrationKey: "${PAGERDUTY_KEY}"
+      severity: "critical"
+  
+  - name: "security-team"
+    type: "email"
+    settings:
+      addresses:
+        - "security@plinto.dev"
+      subject: "Security Alert: {{ .GroupLabels.alertname }}"
+
+# Service Level Objectives (SLOs)
+slos:
+  - name: "API Availability"
+    target: 99.9
+    window: "30d"
+    query: "sum(up{job='plinto-api'})"
+    
+  - name: "API Latency"
+    target: 95
+    window: "30d"
+    query: "histogram_quantile(0.95, http_request_duration_seconds_bucket) < 0.5"
+    
+  - name: "Authentication Success"
+    target: 99.5
+    window: "7d"
+    query: "sum(rate(auth_success_total[5m])) / sum(rate(auth_attempts_total[5m])) * 100"
+
+# Custom Metrics to Collect
+custom_metrics:
+  - name: "user_registrations_total"
+    type: "counter"
+    help: "Total number of user registrations"
+    labels: ["plan", "source"]
+  
+  - name: "auth_attempts_total"
+    type: "counter"
+    help: "Total authentication attempts"
+    labels: ["method", "result"]
+  
+  - name: "api_request_duration_seconds"
+    type: "histogram"
+    help: "API request duration"
+    labels: ["method", "endpoint", "status"]
+    buckets: [0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10]
+  
+  - name: "database_query_duration_seconds"
+    type: "histogram"
+    help: "Database query duration"
+    labels: ["query_type", "table"]
+    buckets: [0.001, 0.01, 0.1, 0.5, 1, 5]
+  
+  - name: "cache_operations_total"
+    type: "counter"
+    help: "Cache operations"
+    labels: ["operation", "result"]
+  
+  - name: "business_revenue_total"
+    type: "counter"
+    help: "Total revenue"
+    labels: ["plan", "currency"]

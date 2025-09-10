@@ -7,6 +7,14 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy import text
 import structlog
 import time
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+    from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+    SENTRY_AVAILABLE = True
+except ImportError:
+    SENTRY_AVAILABLE = False
 
 from app.config import settings
 from app.auth.router import router as auth_router
@@ -18,8 +26,32 @@ from app.core.errors import (
     validation_exception_handler,
     generic_exception_handler
 )
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.middleware.rate_limit import RateLimitMiddleware
 
 logger = structlog.get_logger()
+
+# Initialize Sentry for error tracking
+if SENTRY_AVAILABLE and settings.ENVIRONMENT in ["production", "staging"]:
+    sentry_dsn = getattr(settings, "SENTRY_DSN", None)
+    if sentry_dsn:
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            environment=settings.ENVIRONMENT,
+            integrations=[
+                FastApiIntegration(transaction_style="endpoint"),
+                StarletteIntegration(transaction_style="endpoint"),
+                SqlalchemyIntegration(),
+            ],
+            traces_sample_rate=0.1,  # 10% of transactions for performance monitoring
+            profiles_sample_rate=0.1,  # 10% of transactions for profiling
+            send_default_pii=False,  # Don't send personally identifiable information
+            attach_stacktrace=True,
+            before_send=lambda event, hint: event if settings.ENVIRONMENT == "production" else None,
+        )
+        logger.info("Sentry error tracking initialized")
+    else:
+        logger.warning("Sentry DSN not configured - error tracking disabled")
 
 
 @asynccontextmanager
@@ -49,13 +81,38 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Middleware
+# Security headers middleware (add first so it applies to all responses)
+app.add_middleware(SecurityHeadersMiddleware, strict=settings.ENVIRONMENT == "production")
+
+# Rate limiting middleware
+app.add_middleware(RateLimitMiddleware)
+
+# CORS middleware - properly configured for production
+cors_origins = [
+    "https://plinto.dev",
+    "https://www.plinto.dev",
+    "https://app.plinto.dev",
+    "https://demo.plinto.dev",
+    "https://docs.plinto.dev",
+    "https://admin.plinto.dev",
+]
+
+if settings.ENVIRONMENT == "development":
+    cors_origins.extend([
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://localhost:4000",
+        "http://localhost:8000",
+    ])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
 )
 
 # Configure allowed hosts - be permissive for Railway health checks

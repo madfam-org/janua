@@ -175,16 +175,23 @@ async def signin(
     #     password=request.password
     # )
     
-    # Mock authentication for now
-    if request.password == "admin123":  # Simple mock authentication
-        # Mock session tokens
-        access_token = "mock_access_token_123"
-        refresh_token = "mock_refresh_token_456"
-    else:
+    # For alpha: Basic authentication check
+    # TODO: Implement proper authentication with database
+    # For now, we'll accept any valid email/password format
+    # This is temporary for alpha testing
+    
+    if not request.email or not request.password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password (use 'admin123' for testing)"
+            detail="Invalid email or password"
         )
+    
+    # Generate temporary session tokens for alpha
+    import hashlib
+    import time
+    token_base = f"{request.email}:{time.time()}"
+    access_token = hashlib.sha256(f"access_{token_base}".encode()).hexdigest()[:32]
+    refresh_token = hashlib.sha256(f"refresh_{token_base}".encode()).hexdigest()[:32]
     
     # Set secure cookies for web apps
     if settings.SECURE_COOKIES:

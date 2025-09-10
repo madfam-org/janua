@@ -41,13 +41,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def __init__(
         self,
-        app: ASGIApp,
+        app: ASGIApp = None,
         redis_client: Optional[redis.Redis] = None,
         default_limit: int = 100,
         window_seconds: int = 60,
         enable_tenant_limits: bool = True
     ):
-        super().__init__(app)
+        if app:
+            super().__init__(app)
+        else:
+            # Allow instantiation without app for testing
+            self.app = None
         self.redis_client = redis_client
         self.default_limit = default_limit
         self.window_seconds = window_seconds
