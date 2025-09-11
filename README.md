@@ -287,4 +287,5 @@ Plinto is in **private alpha**. If you’re a design partner or MADFAM internal:
 ## License
 
 © **Aureo Labs** (a **MADFAM** company). All rights reserved during alpha
-Commercial and open‑core options will be announced at GA.
+
+Commercial and open‑core options will be announced at GA
