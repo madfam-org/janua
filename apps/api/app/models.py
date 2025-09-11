@@ -2,7 +2,7 @@
 Database models for Plinto API
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, ForeignKey, Table, JSON, Enum as SQLEnum
+from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, ForeignKey, Table, JSON, Enum as SQLEnum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
@@ -72,15 +72,20 @@ class User(Base):
     display_name = Column(String(200), nullable=True)
     profile_image_url = Column(String(500), nullable=True)
     bio = Column(Text, nullable=True)
+    phone_number = Column(String(20), nullable=True)
+    phone_verified = Column(Boolean, default=False)
+    timezone = Column(String(50), nullable=True)
+    locale = Column(String(10), nullable=True)
     
     # Status and metadata
     status = Column(SQLEnum(UserStatus), default=UserStatus.ACTIVE)
-    metadata = Column(JSON, default=dict)
+    user_metadata = Column(JSON, default=dict)
     
     # Security
     mfa_enabled = Column(Boolean, default=False)
     mfa_secret = Column(String(255), nullable=True)
     mfa_backup_codes = Column(JSON, default=list)
+    is_admin = Column(Boolean, default=False)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -95,6 +100,7 @@ class User(Base):
     magic_links = relationship("MagicLink", back_populates="user", cascade="all, delete-orphan")
     password_resets = relationship("PasswordReset", back_populates="user", cascade="all, delete-orphan")
     email_verifications = relationship("EmailVerification", back_populates="user", cascade="all, delete-orphan")
+    webhook_endpoints = relationship("WebhookEndpoint", back_populates="user", cascade="all, delete-orphan")
     organizations = relationship("Organization", secondary=organization_members, back_populates="members")
     owned_organizations = relationship("Organization", back_populates="owner")
     invitations_sent = relationship("OrganizationInvitation", foreign_keys="OrganizationInvitation.invited_by", back_populates="inviter")
@@ -118,11 +124,13 @@ class Session(Base):
     
     # Status
     status = Column(SQLEnum(SessionStatus), default=SessionStatus.ACTIVE)
+    revoked = Column(Boolean, default=False)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     expires_at = Column(DateTime(timezone=True), nullable=False)
     last_active_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_activity_at = Column(DateTime(timezone=True), server_default=func.now())
     revoked_at = Column(DateTime(timezone=True), nullable=True)
     
     # Relationships
@@ -156,8 +164,7 @@ class OAuthAccount(Base):
     
     # Unique constraint for provider + provider_user_id
     __table_args__ = (
-        Column('unique_provider_account', String, unique=True, 
-                computed="provider || ':' || provider_user_id"),
+        UniqueConstraint('provider', 'provider_user_id', name='unique_provider_account'),
     )
 
 
@@ -260,7 +267,7 @@ class Organization(Base):
     
     # Settings
     settings = Column(JSON, default=dict)
-    metadata = Column(JSON, default=dict)
+    org_metadata = Column(JSON, default=dict)
     
     # Billing
     billing_email = Column(String(255), nullable=True)
@@ -275,6 +282,7 @@ class Organization(Base):
     members = relationship("User", secondary=organization_members, back_populates="organizations")
     invitations = relationship("OrganizationInvitation", back_populates="organization", cascade="all, delete-orphan")
     roles = relationship("OrganizationCustomRole", back_populates="organization", cascade="all, delete-orphan")
+    webhook_endpoints = relationship("WebhookEndpoint", back_populates="organization", cascade="all, delete-orphan")
 
 
 class OrganizationInvitation(Base):
@@ -343,3 +351,59 @@ class ActivityLog(Base):
     
     # Relationships
     user = relationship("User", back_populates="activity_logs")
+    
+
+class WebhookEndpoint(Base):
+    """Webhook endpoint configuration"""
+    __tablename__ = "webhook_endpoints"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True)
+    url = Column(String(500), nullable=False)
+    secret = Column(String(255), nullable=False)
+    events = Column(ARRAY(String), nullable=False)  # List of subscribed event types
+    is_active = Column(Boolean, default=True)
+    description = Column(String(500), nullable=True)
+    headers = Column(JSON, nullable=True)  # Custom headers to include
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="webhook_endpoints")
+    organization = relationship("Organization", back_populates="webhook_endpoints")
+    deliveries = relationship("WebhookDelivery", back_populates="endpoint", cascade="all, delete-orphan")
+
+
+class WebhookEvent(Base):
+    """Webhook event record"""
+    __tablename__ = "webhook_events"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    type = Column(String(100), nullable=False, index=True)
+    data = Column(JSON, nullable=False)
+    user_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    organization_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    deliveries = relationship("WebhookDelivery", back_populates="event", cascade="all, delete-orphan")
+
+
+class WebhookDelivery(Base):
+    """Webhook delivery attempt record"""
+    __tablename__ = "webhook_deliveries"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    webhook_endpoint_id = Column(UUID(as_uuid=True), ForeignKey("webhook_endpoints.id", ondelete="CASCADE"), nullable=False)
+    webhook_event_id = Column(UUID(as_uuid=True), ForeignKey("webhook_events.id", ondelete="CASCADE"), nullable=False)
+    status_code = Column(Integer, nullable=True)
+    response_body = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    attempt = Column(Integer, default=1)
+    delivered_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    endpoint = relationship("WebhookEndpoint", back_populates="deliveries")
+    event = relationship("WebhookEvent", back_populates="deliveries")

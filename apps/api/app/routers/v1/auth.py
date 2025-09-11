@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from app.database import get_db
-from app.models import User, UserStatus, EmailVerification, PasswordReset, MagicLink, ActivityLog
+from app.models import User, UserStatus, EmailVerification, PasswordReset, MagicLink, ActivityLog, Session as UserSession
 from app.services.auth import AuthService
 from app.services.email import EmailService
 from app.config import settings
@@ -21,6 +21,10 @@ from app.config import settings
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer()
+
+# Include OAuth sub-router
+from app.routers.v1 import oauth
+router.include_router(oauth.router)
 
 
 # Request/Response Models
@@ -487,8 +491,8 @@ async def verify_email(
 
 @router.post("/email/resend-verification")
 async def resend_verification_email(
-    current_user: User = Depends(get_current_user),
     background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Resend verification email"""

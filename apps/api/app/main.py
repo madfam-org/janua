@@ -11,7 +11,18 @@ import logging
 
 from app.config import settings
 from app.database import init_database
-from app.routers.v1 import auth as auth_v1
+from app.routers.v1 import (
+    auth as auth_v1,
+    oauth as oauth_v1,
+    health as health_v1,
+    users as users_v1,
+    sessions as sessions_v1,
+    organizations as organizations_v1,
+    mfa as mfa_v1,
+    passkeys as passkeys_v1,
+    admin as admin_v1,
+    webhooks as webhooks_v1
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO if settings.DEBUG else logging.WARNING)
@@ -281,7 +292,16 @@ def api_status():
     }
 
 # Include v1 routers
+app.include_router(health_v1.router, prefix="/api/v1")
 app.include_router(auth_v1.router, prefix="/api/v1")
+app.include_router(oauth_v1.router, prefix="/api/v1")
+app.include_router(users_v1.router, prefix="/api/v1")
+app.include_router(sessions_v1.router, prefix="/api/v1")
+app.include_router(organizations_v1.router, prefix="/api/v1")
+app.include_router(mfa_v1.router, prefix="/api/v1")
+app.include_router(passkeys_v1.router, prefix="/api/v1")
+app.include_router(admin_v1.router, prefix="/api/v1")
+app.include_router(webhooks_v1.router, prefix="/api/v1")
 
 # Initialize database on startup
 @app.on_event("startup")

@@ -19,10 +19,14 @@ class Settings(BaseSettings):
     
     # Application
     VERSION: str = "0.1.0"
+    APP_NAME: str = Field(default="Plinto")
     DEBUG: bool = Field(default=False)
     ENVIRONMENT: str = Field(default="development", pattern="^(development|staging|production|test)$")
     BASE_URL: str = Field(default="https://plinto.dev")
     INTERNAL_BASE_URL: Optional[str] = Field(default=None, description="Internal service URL for Railway private networking")
+    DOMAIN: str = Field(default="localhost")
+    UPLOAD_DIR: str = Field(default="/tmp/uploads")
+    FRONTEND_URL: Optional[str] = Field(default="http://localhost:3000")
     
     # Database
     DATABASE_URL: str = Field(
@@ -124,6 +128,11 @@ class Settings(BaseSettings):
     ENABLE_AUDIT: bool = Field(default=True)
     ENABLE_SSO: bool = Field(default=False)
     ENABLE_SCIM: bool = Field(default=False)
+    ENABLE_SIGNUPS: bool = Field(default=True)
+    ENABLE_MAGIC_LINKS: bool = Field(default=True)
+    ENABLE_OAUTH: bool = Field(default=True)
+    ENABLE_MFA: bool = Field(default=True)
+    ENABLE_ORGANIZATIONS: bool = Field(default=True)
     
     # Limits
     MAX_ORGANIZATIONS_PER_IDENTITY: int = Field(default=10)

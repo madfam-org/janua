@@ -8,7 +8,7 @@ from sqlalchemy.pool import NullPool
 import logging
 
 from app.config import settings
-from app.models import Base
+from app.models import Base  # Import from models.py, not models/__init__.py
 
 logger = logging.getLogger(__name__)
 

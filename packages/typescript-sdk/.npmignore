@@ -1,0 +1,51 @@
+# Source files
+src/
+rollup.config.js
+tsconfig.json
+
+# Development dependencies
+node_modules/
+
+# Development files
+*.test.ts
+*.spec.ts
+__tests__/
+coverage/
+
+# Build artifacts (except dist)
+*.tsbuildinfo
+
+# Documentation (included via files field)
+# docs/
+
+# Configuration files
+.eslintrc.*
+.prettierrc.*
+jest.config.*
+
+# Environment files
+.env*
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Version control
+.git/
+.gitignore
+
+# CI/CD
+.github/
+.circleci/
+
+# Other
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
