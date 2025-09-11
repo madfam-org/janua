@@ -1,0 +1,66 @@
+{
+  "name": "@plinto/react",
+  "version": "0.1.0",
+  "description": "Official Plinto SDK for React applications",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "plinto",
+    "react",
+    "authentication",
+    "auth",
+    "hooks",
+    "spa",
+    "user-management"
+  ],
+  "author": "Plinto Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plinto/plinto",
+    "directory": "packages/react-sdk"
+  },
+  "homepage": "https://plinto.dev",
+  "bugs": {
+    "url": "https://github.com/plinto/plinto/issues"
+  },
+  "dependencies": {
+    "@plinto/js": "^0.1.0"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "react": "^18.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

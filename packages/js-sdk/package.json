@@ -1,0 +1,67 @@
+{
+  "name": "@plinto/js",
+  "version": "0.1.0",
+  "description": "Official Plinto JavaScript SDK for authentication and user management",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "plinto",
+    "authentication",
+    "auth",
+    "identity",
+    "user-management",
+    "jwt",
+    "passkeys",
+    "webauthn"
+  ],
+  "author": "Plinto Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/plinto/plinto",
+    "directory": "packages/js-sdk"
+  },
+  "homepage": "https://plinto.dev",
+  "bugs": {
+    "url": "https://github.com/plinto/plinto/issues"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "peerDependencies": {
+    "typescript": ">=4.5.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
