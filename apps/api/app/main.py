@@ -21,7 +21,8 @@ from app.routers.v1 import (
     mfa as mfa_v1,
     passkeys as passkeys_v1,
     admin as admin_v1,
-    webhooks as webhooks_v1
+    webhooks as webhooks_v1,
+    sso as sso_v1
 )
 
 # Set up logging
@@ -302,6 +303,7 @@ app.include_router(mfa_v1.router, prefix="/api/v1")
 app.include_router(passkeys_v1.router, prefix="/api/v1")
 app.include_router(admin_v1.router, prefix="/api/v1")
 app.include_router(webhooks_v1.router, prefix="/api/v1")
+app.include_router(sso_v1.router, prefix="/api/v1")
 
 # Initialize database on startup
 @app.on_event("startup")
