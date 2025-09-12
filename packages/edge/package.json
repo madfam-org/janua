@@ -1,15 +1,15 @@
 {
-  "name": "@plinto/react-sdk-deprecated",
+  "name": "@plinto/edge",
   "version": "0.1.0",
-  "description": "Official Plinto SDK for React applications",
+  "description": "Edge-fast JWT verification for Cloudflare Workers and Edge environments",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.js"
     }
   },
   "files": [
@@ -20,42 +20,33 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest",
-    "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "plinto",
-    "react",
-    "authentication",
-    "auth",
-    "hooks",
-    "spa",
-    "user-management"
+    "edge",
+    "jwt",
+    "verification",
+    "cloudflare",
+    "workers",
+    "edge-computing"
   ],
   "author": "Plinto Team",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/plinto/plinto",
-    "directory": "packages/react-sdk"
-  },
-  "homepage": "https://plinto.dev",
-  "bugs": {
-    "url": "https://github.com/plinto/plinto/issues"
-  },
-  "dependencies": {
-    "@plinto/js": "^0.1.0"
-  },
-  "peerDependencies": {
-    "react": ">=16.8.0",
-    "react-dom": ">=16.8.0"
+    "directory": "packages/edge"
   },
   "devDependencies": {
-    "@types/react": "^18.0.0",
-    "react": "^18.0.0",
+    "@cloudflare/workers-types": "^4.0.0",
+    "@types/node": "^20.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
     "vitest": "^1.0.0"
+  },
+  "dependencies": {
+    "jose": "^5.2.0"
   },
   "engines": {
     "node": ">=14.0.0"

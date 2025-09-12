@@ -1,0 +1,879 @@
+Metadata-Version: 2.4
+Name: plinto-sdk
+Version: 1.0.0
+Summary: Official Python SDK for Plinto Authentication and Identity Platform
+Home-page: https://github.com/plinto/plinto
+Author: Plinto Team
+Author-email: Plinto Team <support@plinto.com>
+Maintainer-email: Plinto Team <support@plinto.com>
+License: MIT
+Project-URL: Homepage, https://plinto.com
+Project-URL: Documentation, https://docs.plinto.com/sdk/python
+Project-URL: Repository, https://github.com/plinto/plinto
+Project-URL: Bug Tracker, https://github.com/plinto/plinto/issues
+Project-URL: Changelog, https://github.com/plinto/plinto/blob/main/CHANGELOG.md
+Keywords: authentication,identity,oauth,mfa,passkeys,webhooks
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Security
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: System :: Systems Administration :: Authentication/Directory
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: httpx>=0.25.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: PyJWT>=2.8.0
+Provides-Extra: mfa
+Requires-Dist: qrcode[pil]>=7.4.0; extra == "mfa"
+Provides-Extra: passkeys
+Requires-Dist: webauthn>=1.11.0; extra == "passkeys"
+Provides-Extra: all
+Requires-Dist: qrcode[pil]>=7.4.0; extra == "all"
+Requires-Dist: webauthn>=1.11.0; extra == "all"
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: black>=23.0.0; extra == "dev"
+Requires-Dist: isort>=5.12.0; extra == "dev"
+Requires-Dist: mypy>=1.5.0; extra == "dev"
+Requires-Dist: flake8>=6.0.0; extra == "dev"
+Requires-Dist: pre-commit>=3.0.0; extra == "dev"
+Dynamic: author
+Dynamic: home-page
+Dynamic: requires-python
+
+# Plinto Python SDK
+
+Official Python SDK for Plinto - Modern authentication and user management platform.
+
+## Installation
+
+```bash
+pip install plinto-sdk
+```
+
+For additional features:
+
+```bash
+# MFA support with QR codes
+pip install plinto-sdk[mfa]
+
+# Passkey/WebAuthn support
+pip install plinto-sdk[passkeys]
+
+# All optional features
+pip install plinto-sdk[all]
+
+# Development dependencies
+pip install plinto-sdk[dev]
+```
+
+## Quick Start
+
+```python
+import asyncio
+from plinto import PlintoClient, SignUpRequest, SignInRequest, UserUpdateRequest
+
+async def main():
+    # Initialize the client
+    async with PlintoClient(base_url="https://api.plinto.com") as client:
+        
+        # Sign up a new user
+        response = await client.auth.sign_up(SignUpRequest(
+            email="user@example.com",
+            password="secure-password123",
+            first_name="John",
+            last_name="Doe",
+            username="johndoe"
+        ))
+        
+        print(f"User created: {response.user.email}")
+        print(f"Access token: {response.tokens.access_token[:20]}...")
+        
+        # Client automatically stores tokens for subsequent requests
+        
+        # Get current user
+        current_user = await client.auth.get_current_user()
+        print(f"Logged in as: {current_user.email}")
+        
+        # Update user profile
+        updated_user = await client.users.update_current_user(UserUpdateRequest(
+            first_name="Jane",
+            bio="Software developer",
+            user_metadata={"theme": "dark", "timezone": "UTC"}
+        ))
+        
+        # List user sessions
+        sessions = await client.users.list_sessions()
+        print(f"Active sessions: {len(sessions.sessions)}")
+        
+        # Sign out
+        await client.auth.sign_out()
+
+# Run the example
+asyncio.run(main())
+```
+
+## Features
+
+- 🔐 **Complete Authentication**: Email/password, magic links, OAuth, passkeys
+- 👤 **User Management**: Profiles, metadata, sessions, avatar uploads
+- 🏢 **Organizations**: Multi-tenant support with roles and permissions
+- 🔑 **Passkeys/WebAuthn**: Passwordless authentication with biometrics
+- 🔒 **MFA Support**: TOTP-based two-factor authentication
+- 🌐 **OAuth Providers**: Google, GitHub, Microsoft, Apple support
+- 📧 **Magic Links**: Passwordless email authentication
+- 🎣 **Webhooks**: Real-time event notifications with signature verification
+- 🛡️ **Admin Operations**: User management, system monitoring, activity logs
+- 🔄 **Token Management**: Automatic refresh and secure storage
+- 🚀 **Async/Await**: Full async support with modern Python patterns
+- 📝 **Type Safety**: Complete type annotations with Pydantic models
+- ⚡ **Error Handling**: Comprehensive exception handling and retry logic
+- 🔌 **HTTP Client**: Production-ready client with rate limiting and timeouts
+
+## Environment Setup
+
+Set environment variables for easy configuration:
+
+```bash
+export PLINTO_BASE_URL="https://api.plinto.com"
+export PLINTO_API_KEY="your-api-key-here"  # Optional for public operations
+```
+
+Or create a `.env` file:
+
+```
+PLINTO_BASE_URL=https://api.plinto.com
+PLINTO_API_KEY=your-api-key-here
+```
+
+## API Reference
+
+### Client Initialization
+
+```python
+from plinto import PlintoClient
+
+# Method 1: Direct initialization
+client = PlintoClient(
+    base_url="https://api.plinto.com",
+    api_key="your-api-key",  # Optional
+    timeout=30,              # Request timeout
+    max_retries=3,           # Max retry attempts
+    retry_delay=1.0          # Delay between retries
+)
+
+# Method 2: From environment variables
+client = PlintoClient.from_environment()
+
+# Method 3: Context manager (recommended)
+async with PlintoClient(base_url="https://api.plinto.com") as client:
+    # Use client here
+    pass
+```
+
+### Authentication
+
+```python
+from plinto import SignUpRequest, SignInRequest, MagicLinkRequest, OAuthProvider
+
+# Sign up
+response = await client.auth.sign_up(SignUpRequest(
+    email="user@example.com",
+    password="secure-password123",
+    first_name="John",
+    last_name="Doe",
+    username="johndoe"
+))
+
+# Sign in with email/password
+response = await client.auth.sign_in(SignInRequest(
+    email="user@example.com",
+    password="secure-password123"
+))
+
+# Sign in with username/password
+response = await client.auth.sign_in(SignInRequest(
+    username="johndoe",
+    password="secure-password123"
+))
+
+# Sign out
+await client.auth.sign_out()
+
+# Password reset flow
+await client.auth.forgot_password(ForgotPasswordRequest(
+    email="user@example.com"
+))
+await client.auth.reset_password(ResetPasswordRequest(
+    token="reset-token-from-email",
+    new_password="new-secure-password"
+))
+
+# Magic link authentication
+await client.auth.send_magic_link(MagicLinkRequest(
+    email="user@example.com",
+    redirect_url="https://myapp.com/auth/callback"
+))
+response = await client.auth.verify_magic_link("magic-link-token")
+
+# OAuth authentication
+oauth_url = await client.auth.get_oauth_authorization_url(
+    provider=OAuthProvider.GOOGLE,
+    redirect_uri="https://myapp.com/auth/oauth/callback",
+    scopes=["email", "profile"]
+)
+
+# Link OAuth account to existing user
+link_url = await client.auth.link_oauth_account(OAuthProvider.GITHUB)
+
+# Unlink OAuth account
+await client.auth.unlink_oauth_account(OAuthProvider.GOOGLE)
+```
+
+### Multi-Factor Authentication (MFA)
+
+```python
+from plinto import MFAEnableRequest, MFAVerifyRequest, MFADisableRequest
+
+# Check MFA status
+mfa_status = await client.auth.get_mfa_status()
+print(f"MFA enabled: {mfa_status.enabled}")
+
+# Enable MFA (returns QR code and backup codes)
+mfa_setup = await client.auth.enable_mfa(MFAEnableRequest(
+    password="user-password"
+))
+print(f"QR Code: {mfa_setup.qr_code}")
+print(f"Backup codes: {mfa_setup.backup_codes}")
+
+# Verify MFA setup with TOTP code
+await client.auth.verify_mfa(MFAVerifyRequest(code="123456"))
+
+# Validate MFA code (for testing)
+result = await client.auth.validate_mfa_code("123456")
+print(f"Valid: {result['valid']}")
+
+# Regenerate backup codes
+new_codes = await client.auth.regenerate_backup_codes("user-password")
+
+# Disable MFA
+await client.auth.disable_mfa(MFADisableRequest(
+    password="user-password",
+    code="123456"  # Current TOTP or backup code
+))
+```
+
+### Passkeys (WebAuthn)
+
+```python
+from plinto import PasskeyRegisterRequest, PasskeyUpdateRequest
+
+# Get registration options
+options = await client.auth.get_passkey_registration_options(
+    authenticator_attachment="platform"  # or "cross-platform"
+)
+
+# Register passkey (after user completes WebAuthn ceremony)
+await client.auth.verify_passkey_registration(PasskeyRegisterRequest(
+    credential=webauthn_credential_data,
+    name="My iPhone Touch ID"
+))
+
+# List user's passkeys
+passkeys = await client.auth.list_passkeys()
+for passkey in passkeys:
+    print(f"{passkey.name} - Last used: {passkey.last_used_at}")
+
+# Update passkey name
+await client.auth.update_passkey(
+    passkey_id="passkey-id",
+    request=PasskeyUpdateRequest(name="My Updated Passkey")
+)
+
+# Delete passkey
+await client.auth.delete_passkey("passkey-id", password="user-password")
+
+# Authenticate with passkey
+auth_options = await client.auth.get_passkey_auth_options()
+# ... user completes WebAuthn authentication ...
+response = await client.auth.verify_passkey_authentication(
+    credential=webauthn_credential,
+    challenge=auth_options["challenge"]
+)
+```
+
+### User Management
+
+```python
+from plinto import UserUpdateRequest
+
+# Get current user
+user = await client.users.get_current_user()
+
+# Update user profile
+updated_user = await client.users.update_current_user(UserUpdateRequest(
+    first_name="Jane",
+    bio="Software engineer",
+    timezone="America/New_York",
+    user_metadata={"theme": "dark", "notifications": True}
+))
+
+# Upload avatar
+with open("avatar.jpg", "rb") as f:
+    avatar_data = f.read()
+
+result = await client.users.upload_avatar(
+    file_data=avatar_data,
+    filename="avatar.jpg",
+    content_type="image/jpeg"
+)
+print(f"Avatar URL: {result['profile_image_url']}")
+
+# Delete avatar
+await client.users.delete_avatar()
+
+# List user sessions
+sessions = await client.users.list_sessions()
+for session in sessions.sessions:
+    print(f"{'🟢 Current' if session.is_current else '⚪ Other'} "
+          f"{session.browser} on {session.os}")
+
+# Revoke specific session
+await client.users.revoke_session("session-id")
+
+# Revoke all other sessions
+result = await client.users.revoke_all_sessions()
+print(f"Revoked {result['revoked_count']} sessions")
+
+# Get security alerts
+alerts = await client.users.get_security_alerts()
+for alert in alerts['alerts']:
+    print(f"{alert['type']}: {alert['message']}")
+
+# Delete current user account
+await client.users.delete_current_user(password="user-password")
+```
+
+### Organization Management
+
+```python
+from plinto import (
+    OrganizationCreateRequest, 
+    OrganizationUpdateRequest,
+    OrganizationInviteRequest,
+    OrganizationRole
+)
+
+# Create organization
+org = await client.organizations.create_organization(
+    OrganizationCreateRequest(
+        name="Acme Corporation",
+        slug="acme-corp",
+        description="Leading provider of innovative solutions",
+        billing_email="billing@acme.com"
+    )
+)
+
+# List user's organizations
+orgs = await client.organizations.list_organizations()
+for org in orgs:
+    print(f"{org.name} - Role: {org.user_role}")
+
+# Update organization
+updated_org = await client.organizations.update_organization(
+    org_id=org.id,
+    request=OrganizationUpdateRequest(
+        description="Updated description",
+        settings={"feature_flags": {"new_ui": True}}
+    )
+)
+
+# Invite member
+await client.organizations.invite_member(
+    org_id=org.id,
+    request=OrganizationInviteRequest(
+        email="teammate@example.com",
+        role=OrganizationRole.MEMBER,
+        message="Welcome to our team!"
+    )
+)
+
+# List members
+members = await client.organizations.list_members(org.id)
+for member in members:
+    print(f"{member.email} - {member.role}")
+
+# Update member role
+await client.organizations.update_member_role(
+    org_id=org.id,
+    user_id="user-id",
+    role=OrganizationRole.ADMIN
+)
+
+# Remove member
+await client.organizations.remove_member(org_id, user_id)
+
+# Accept invitation
+await client.organizations.accept_invitation("invitation-token")
+
+# Transfer ownership
+await client.organizations.transfer_ownership(org_id, new_owner_id)
+```
+
+### Webhook Management
+
+```python
+from plinto import (
+    WebhookEndpointCreateRequest,
+    WebhookEndpointUpdateRequest,
+    WebhookEventType
+)
+
+# Create webhook endpoint
+webhook = await client.webhooks.create_endpoint(
+    WebhookEndpointCreateRequest(
+        url="https://myapp.com/webhooks/plinto",
+        events=[
+            WebhookEventType.USER_CREATED,
+            WebhookEventType.USER_SIGNED_IN,
+            WebhookEventType.ORGANIZATION_CREATED
+        ],
+        description="Main webhook endpoint",
+        headers={"X-API-Key": "secret-key"}
+    )
+)
+
+# List webhooks
+webhooks = await client.webhooks.list_endpoints()
+for webhook in webhooks.endpoints:
+    print(f"{webhook.url} - {len(webhook.events)} events")
+
+# Update webhook
+updated_webhook = await client.webhooks.update_endpoint(
+    endpoint_id=webhook.id,
+    request=WebhookEndpointUpdateRequest(
+        is_active=False,
+        events=[WebhookEventType.USER_CREATED]
+    )
+)
+
+# Test webhook
+await client.webhooks.test_endpoint(webhook.id)
+
+# Get webhook statistics
+stats = await client.webhooks.get_endpoint_stats(webhook.id, days=30)
+print(f"Success rate: {stats['success_rate']:.1%}")
+
+# Regenerate webhook secret
+updated_webhook = await client.webhooks.regenerate_secret(webhook.id)
+
+# Verify webhook signature (in your webhook handler)
+from plinto import validate_webhook_signature
+
+def handle_webhook(request):
+    payload = request.body
+    signature = request.headers.get("X-Plinto-Signature")
+    timestamp = request.headers.get("X-Plinto-Timestamp")
+    
+    if validate_webhook_signature(payload, signature, webhook_secret, timestamp):
+        # Process webhook
+        webhook_data = json.loads(payload)
+        print(f"Received: {webhook_data['type']}")
+    else:
+        return {"error": "Invalid signature"}, 401
+```
+
+### Admin Operations
+
+```python
+from plinto import UserStatus
+
+# Get system statistics
+stats = await client.admin.get_stats()
+print(f"Total users: {stats.total_users}")
+print(f"Active users: {stats.active_users}")
+
+# Get system health
+health = await client.admin.get_system_health()
+print(f"System status: {health.status}")
+print(f"Database: {health.database}")
+
+# List all users (admin only)
+users = await client.admin.list_all_users(
+    page=1,
+    per_page=50,
+    status=UserStatus.ACTIVE,
+    search="example.com"
+)
+
+# Update user status
+await client.admin.update_user(
+    user_id="user-id",
+    status=UserStatus.SUSPENDED,
+    email_verified=True
+)
+
+# Delete user
+await client.admin.delete_user("user-id", permanent=False)
+
+# Get activity logs
+logs = await client.admin.get_activity_logs(
+    page=1,
+    per_page=100,
+    action="signin",
+    start_date=datetime(2024, 1, 1),
+    end_date=datetime(2024, 12, 31)
+)
+
+# Revoke all sessions for a user
+await client.admin.revoke_all_sessions(user_id="user-id")
+
+# Toggle maintenance mode
+await client.admin.toggle_maintenance_mode(
+    enabled=True,
+    message="System maintenance in progress"
+)
+```
+
+## Error Handling
+
+The SDK provides comprehensive error handling with specific exception types:
+
+```python
+from plinto import (
+    PlintoError,
+    AuthenticationError,
+    ValidationError,
+    NotFoundError,
+    PermissionError,
+    RateLimitError,
+    NetworkError,
+    ServerError
+)
+
+try:
+    # Authentication operations
+    await client.auth.sign_in(SignInRequest(
+        email="user@example.com", 
+        password="wrong-password"
+    ))
+    
+except AuthenticationError as e:
+    print(f"❌ Authentication failed: {e.message}")
+    print(f"Status code: {e.status_code}")
+    
+except ValidationError as e:
+    print(f"❌ Validation failed: {e.message}")
+    if e.field_errors:
+        for field, error in e.field_errors.items():
+            print(f"  {field}: {error}")
+            
+except RateLimitError as e:
+    print(f"❌ Rate limited: {e.message}")
+    if e.retry_after:
+        print(f"Retry after {e.retry_after} seconds")
+        
+except NotFoundError as e:
+    print(f"❌ Resource not found: {e.message}")
+    
+except PermissionError as e:
+    print(f"❌ Permission denied: {e.message}")
+    
+except NetworkError as e:
+    print(f"❌ Network error: {e.message}")
+    if e.original_error:
+        print(f"Original error: {e.original_error}")
+        
+except ServerError as e:
+    print(f"❌ Server error: {e.message}")
+    print(f"Status code: {e.status_code}")
+    
+except PlintoError as e:
+    # Catch-all for any other Plinto API errors
+    print(f"❌ API error: {e.message}")
+    print(f"Status code: {e.status_code}")
+    print(f"Response data: {e.response_data}")
+```
+
+## Type Safety
+
+The SDK uses Pydantic v2 for complete type safety and validation:
+
+```python
+from plinto import User, SignUpRequest, UserUpdateRequest
+from typing import Optional
+
+# All request models are validated
+try:
+    request = SignUpRequest(
+        email="invalid-email",  # ❌ Will raise ValidationError
+        password="short"        # ❌ Will raise ValidationError (too short)
+    )
+except ValidationError as e:
+    print(f"Validation errors: {e.field_errors}")
+
+# Correct usage
+request = SignUpRequest(
+    email="user@example.com",
+    password="secure-password123",
+    first_name="John",
+    last_name="Doe"
+)
+
+# All response models are typed
+user: User = await client.users.get_current_user()
+print(f"Email verified: {user.email_verified}")  # ✅ Type-safe
+print(f"MFA enabled: {user.mfa_enabled}")        # ✅ Type-safe
+
+# Optional fields are properly typed
+bio: Optional[str] = user.bio
+if bio:
+    print(f"Bio: {bio}")
+
+# IDE autocomplete and type checking work perfectly
+sessions = await client.users.list_sessions()
+for session in sessions.sessions:
+    # All attributes are type-checked
+    created: datetime = session.created_at
+    is_current: bool = session.is_current
+```
+
+## Context Manager Usage
+
+Always use the async context manager for automatic resource cleanup:
+
+```python
+# ✅ Recommended: Context manager
+async with PlintoClient(base_url="https://api.plinto.com") as client:
+    user = await client.users.get_current_user()
+    # Client automatically closes connections when exiting
+
+# ✅ Alternative: Manual cleanup
+client = PlintoClient(base_url="https://api.plinto.com")
+try:
+    user = await client.users.get_current_user()
+finally:
+    await client.close()  # Important: Always close!
+
+# ❌ Don't do this: No cleanup
+client = PlintoClient(base_url="https://api.plinto.com")
+user = await client.users.get_current_user()
+# Connections may leak!
+```
+
+## Configuration Best Practices
+
+### Environment Variables
+
+```bash
+# Required
+export PLINTO_BASE_URL="https://api.plinto.com"
+
+# Optional (for server-side operations)
+export PLINTO_API_KEY="your-secret-api-key"
+
+# Optional tuning
+export PLINTO_TIMEOUT="30"
+export PLINTO_MAX_RETRIES="3"
+export PLINTO_RETRY_DELAY="1.0"
+```
+
+### Multiple Environments
+
+```python
+import os
+from plinto import PlintoClient
+
+# Development
+dev_client = PlintoClient(
+    base_url="https://api-dev.plinto.com",
+    api_key=os.getenv("PLINTO_DEV_API_KEY")
+)
+
+# Production
+prod_client = PlintoClient(
+    base_url="https://api.plinto.com",
+    api_key=os.getenv("PLINTO_PROD_API_KEY"),
+    timeout=60,  # Longer timeout for production
+    max_retries=5
+)
+
+# From environment (reads PLINTO_* env vars)
+client = PlintoClient.from_environment()
+```
+
+## Testing
+
+Example test setup with pytest:
+
+```python
+import pytest
+from plinto import PlintoClient, SignUpRequest
+from plinto.exceptions import ValidationError
+
+@pytest.fixture
+async def client():
+    async with PlintoClient(base_url="https://api-test.plinto.com") as client:
+        yield client
+
+@pytest.mark.asyncio
+async def test_sign_up_validation(client):
+    """Test sign up input validation"""
+    with pytest.raises(ValidationError) as exc_info:
+        await client.auth.sign_up(SignUpRequest(
+            email="invalid-email",
+            password="short"
+        ))
+    
+    assert "email" in exc_info.value.field_errors
+    assert "password" in exc_info.value.field_errors
+
+@pytest.mark.asyncio
+async def test_user_profile_update(client):
+    """Test user profile update"""
+    # Assuming user is authenticated
+    user = await client.users.get_current_user()
+    assert user.email is not None
+    
+    updated = await client.users.update_current_user(
+        UserUpdateRequest(first_name="Test User")
+    )
+    assert updated.first_name == "Test User"
+```
+
+## Requirements
+
+- **Python**: 3.8+ (3.11+ recommended)
+- **httpx**: >=0.25.0 (async HTTP client)
+- **pydantic**: >=2.0.0 (data validation)
+- **PyJWT**: >=2.8.0 (JWT token handling)
+
+### Optional Dependencies
+
+- **qrcode[pil]**: >=7.4.0 (for MFA QR code generation)
+- **webauthn**: >=1.11.0 (for passkey/WebAuthn support)
+
+## Performance Tips
+
+1. **Use Context Managers**: Always use `async with` to ensure proper cleanup
+2. **Reuse Clients**: Create one client instance and reuse it across requests
+3. **Configure Timeouts**: Set appropriate timeouts for your use case
+4. **Handle Rate Limits**: Implement exponential backoff for rate limit errors
+5. **Batch Operations**: Use bulk operations when available
+
+```python
+# ✅ Good: Reuse client
+async with PlintoClient.from_environment() as client:
+    users = []
+    for email in user_emails:
+        user = await client.users.get_user_by_email(email)
+        users.append(user)
+
+# ✅ Better: Use admin bulk operations if available
+async with PlintoClient.from_environment() as client:
+    users = await client.admin.list_all_users(
+        search_emails=user_emails
+    )
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Connection Errors**
+   ```python
+   # Check base URL and network connectivity
+   client = PlintoClient(base_url="https://api.plinto.com")
+   health = await client.admin.get_system_health()  # Admin endpoint
+   ```
+
+2. **Authentication Errors**
+   ```python
+   # Verify API key and check token expiration
+   if client.is_token_expired():
+       await client.auth.refresh_token()
+   ```
+
+3. **Rate Limiting**
+   ```python
+   from plinto import RateLimitError
+   import asyncio
+   
+   try:
+       await client.auth.sign_in(request)
+   except RateLimitError as e:
+       if e.retry_after:
+           await asyncio.sleep(e.retry_after)
+           # Retry the request
+   ```
+
+### Debug Mode
+
+Enable debug logging to troubleshoot issues:
+
+```python
+import logging
+from plinto import PlintoClient
+
+# Enable debug logging
+logging.basicConfig(level=logging.DEBUG)
+
+# The HTTP client will log all requests/responses
+async with PlintoClient(base_url="https://api.plinto.com") as client:
+    await client.auth.sign_in(request)
+```
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/plinto/plinto-python-sdk.git
+cd plinto-python-sdk
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run linting
+black plinto/
+isort plinto/
+flake8 plinto/
+mypy plinto/
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Support
+
+- **Documentation**: [docs.plinto.com](https://docs.plinto.com)
+- **API Reference**: [api.plinto.com/docs](https://api.plinto.com/docs)
+- **GitHub Issues**: [Report bugs and request features](https://github.com/plinto/plinto/issues)
+- **Discord Community**: [Join our Discord](https://discord.gg/plinto)
+- **Email Support**: [support@plinto.com](mailto:support@plinto.com)
+
+---
+
+**Made with ❤️ by the Plinto Team**

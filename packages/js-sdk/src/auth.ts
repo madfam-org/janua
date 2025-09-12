@@ -62,7 +62,7 @@ export class AuthClient {
     
     this.storage.set('user', JSON.stringify(user));
     this.storage.set('session', JSON.stringify(session));
-    this.storage.set('tokens', JSON.stringify(tokens), tokens.expiresIn);
+    this.storage.set('tokens', JSON.stringify(tokens));
     
     this.setAuthHeader(tokens.accessToken);
     this.scheduleTokenRefresh(tokens);
@@ -134,7 +134,7 @@ export class AuthClient {
       refreshToken,
     });
 
-    this.storage.set('tokens', JSON.stringify(tokens), tokens.expiresIn);
+    this.storage.set('tokens', JSON.stringify(tokens));
     this.setAuthHeader(tokens.accessToken);
     this.scheduleTokenRefresh(tokens);
 
@@ -230,7 +230,7 @@ export class AuthClient {
     if (storedTokens) {
       const existingTokens = JSON.parse(storedTokens);
       const updatedTokens = { ...existingTokens, ...tokens };
-      this.storage.set('tokens', JSON.stringify(updatedTokens), updatedTokens.expiresIn);
+      this.storage.set('tokens', JSON.stringify(updatedTokens));
       this.setAuthHeader(updatedTokens.accessToken);
       this.scheduleTokenRefresh(updatedTokens);
     }

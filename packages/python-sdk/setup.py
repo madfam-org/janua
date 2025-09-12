@@ -29,8 +29,7 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
     ],
-    package_dir={"": "src"},
-    packages=find_packages(where="src"),
+    packages=["plinto"],
     python_requires=">=3.7",
     install_requires=[
         "httpx>=0.24.0",
