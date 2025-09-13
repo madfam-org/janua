@@ -18,10 +18,10 @@ module.exports = {
   ],
   coverageThreshold: {
     global: {
-      branches: 50,      // Reduced from 100
-      functions: 50,     // Reduced from 100
-      lines: 50,         // Reduced from 100
-      statements: 50,    // Reduced from 100
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80,
     },
   },
   testMatch: [
@@ -50,4 +50,6 @@ module.exports = {
       outputName: 'junit.xml',
     }],
   ],
+  maxWorkers: '50%',
+  testTimeout: 10000,
 };

@@ -110,6 +110,14 @@ export type {
   TokenData
 } from './types';
 
+// Export enums as values too
+export {
+  UserStatus,
+  OrganizationRole,
+  OAuthProvider,
+  WebhookEventType
+} from './types';
+
 // Error exports
 export {
   // Base error
@@ -365,5 +373,6 @@ export function createClientWithPreset(
   overrides: Partial<PlintoConfig> = {}
 ): PlintoClient {
   const presetConfig = presets[preset];
+  const { createClient } = require('./client');
   return createClient({ ...presetConfig, ...overrides });
 }

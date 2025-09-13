@@ -7,12 +7,12 @@ import type {
   AdminStatsResponse,
   SystemHealthResponse,
   User,
-  UserStatus,
   Organization,
   PaginatedResponse,
   UserListParams,
   OrganizationListParams
 } from './types';
+import { UserStatus } from './types';
 import { ValidationError, PermissionError } from './errors';
 import { ValidationUtils } from './utils';
 
@@ -119,7 +119,7 @@ export class Admin {
       updated_at: string;
       last_sign_in_at?: string;
     }>>('/api/v1/admin/users', {
-      params
+      params: params || {}
     });
 
     // Since the API returns an array, we need to simulate pagination
@@ -147,7 +147,7 @@ export class Admin {
       email_verified?: boolean;
     }
   ): Promise<{ message: string }> {
-    if (!ValidationUtils.isValidUUID(userId)) {
+    if (!ValidationUtils.isValidUuid(userId)) {
       throw new ValidationError('Invalid user ID format');
     }
 
@@ -164,7 +164,7 @@ export class Admin {
    * Delete user as admin
    */
   async deleteUser(userId: string, permanent = false): Promise<{ message: string }> {
-    if (!ValidationUtils.isValidUUID(userId)) {
+    if (!ValidationUtils.isValidUuid(userId)) {
       throw new ValidationError('Invalid user ID format');
     }
 
@@ -212,7 +212,7 @@ export class Admin {
       created_at: string;
       updated_at: string;
     }>>('/api/v1/admin/organizations', {
-      params
+      params: params || {}
     });
 
     // Since the API returns an array, we need to simulate pagination
@@ -233,7 +233,7 @@ export class Admin {
    * Delete organization as admin
    */
   async deleteOrganization(organizationId: string): Promise<{ message: string }> {
-    if (!ValidationUtils.isValidUUID(organizationId)) {
+    if (!ValidationUtils.isValidUuid(organizationId)) {
       throw new ValidationError('Invalid organization ID format');
     }
 
@@ -272,7 +272,7 @@ export class Admin {
       throw new ValidationError('Per page must be between 1 and 200');
     }
 
-    if (options?.user_id && !ValidationUtils.isValidUUID(options.user_id)) {
+    if (options?.user_id && !ValidationUtils.isValidUuid(options.user_id)) {
       throw new ValidationError('Invalid user ID format');
     }
 
@@ -317,7 +317,7 @@ export class Admin {
    * Revoke all sessions (optionally for specific user)
    */
   async revokeAllSessions(userId?: string): Promise<{ message: string }> {
-    if (userId && !ValidationUtils.isValidUUID(userId)) {
+    if (userId && !ValidationUtils.isValidUuid(userId)) {
       throw new ValidationError('Invalid user ID format');
     }
 

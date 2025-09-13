@@ -26,13 +26,18 @@ import type {
   Passkey
 } from './types';
 import { AuthenticationError, ValidationError } from './errors';
-import { ValidationUtils } from './utils';
+import { ValidationUtils, TokenManager } from './utils';
 
 /**
  * Authentication operations
  */
 export class Auth {
-  constructor(private http: HttpClient) {}
+  constructor(
+    private http: HttpClient,
+    private tokenManager: TokenManager,
+    private onSignIn?: () => void,
+    private onSignOut?: () => void
+  ) {}
 
   /**
    * Sign up a new user
@@ -54,8 +59,30 @@ export class Auth {
       throw new ValidationError('Invalid username format');
     }
 
-    const response = await this.http.post<AuthResponse>('/api/v1/auth/signup', request);
-    return response.data;
+    const response = await this.http.post<AuthResponse>('/api/v1/auth/register', request);
+    
+    // Store tokens
+    if (response.data.access_token && response.data.refresh_token) {
+      await this.tokenManager.setTokens({
+        access_token: response.data.access_token,
+        refresh_token: response.data.refresh_token,
+        expires_in: response.data.expires_in
+      });
+    }
+    
+    // Call onSignIn callback if it exists
+    if (this.onSignIn) {
+      this.onSignIn({ user: response.data.user });
+    }
+    
+    return {
+      user: response.data.user,
+      tokens: {
+        access_token: response.data.access_token,
+        refresh_token: response.data.refresh_token,
+        expires_in: response.data.expires_in
+      }
+    } as AuthResponse;
   }
 
   /**
@@ -75,25 +102,80 @@ export class Auth {
       throw new ValidationError('Invalid username format');
     }
 
-    const response = await this.http.post<AuthResponse>('/api/v1/auth/signin', request);
-    return response.data;
+    const response = await this.http.post<AuthResponse>('/api/v1/auth/login', request);
+    
+    // Store tokens
+    if (response.data.access_token && response.data.refresh_token) {
+      await this.tokenManager.setTokens({
+        access_token: response.data.access_token,
+        refresh_token: response.data.refresh_token,
+        expires_in: response.data.expires_in
+      });
+    }
+    
+    // Call onSignIn callback if it exists
+    if (this.onSignIn) {
+      this.onSignIn({ user: response.data.user });
+    }
+    
+    return {
+      user: response.data.user,
+      tokens: {
+        access_token: response.data.access_token,
+        refresh_token: response.data.refresh_token,
+        expires_in: response.data.expires_in
+      }
+    } as AuthResponse;
   }
 
   /**
    * Sign out current user
    */
   async signOut(): Promise<void> {
-    await this.http.post('/api/v1/auth/signout');
+    try {
+      const refreshToken = await this.tokenManager.getRefreshToken();
+      await this.http.post('/api/v1/auth/logout', { refresh_token: refreshToken });
+    } catch {
+      // Continue with sign out even if API call fails
+    } finally {
+      await this.tokenManager.clearTokens();
+      // Call onSignOut callback if it exists
+      if (this.onSignOut) {
+        this.onSignOut();
+      }
+    }
   }
 
   /**
    * Refresh access token
    */
-  async refreshToken(request: RefreshTokenRequest): Promise<TokenResponse> {
+  async refreshToken(request?: RefreshTokenRequest): Promise<TokenResponse> {
+    // If no request provided, get refresh token from tokenManager
+    if (!request) {
+      const refreshToken = await this.tokenManager.getRefreshToken();
+      if (!refreshToken) {
+        throw new AuthenticationError('No refresh token available');
+      }
+      request = { refresh_token: refreshToken };
+    }
+    
     const response = await this.http.post<TokenResponse>('/api/v1/auth/refresh', request, {
       skipAuth: true
     });
-    return response.data;
+    
+    // Store new tokens
+    if (response.data.access_token && response.data.refresh_token) {
+      await this.tokenManager.setTokens({
+        access_token: response.data.access_token,
+        refresh_token: response.data.refresh_token,
+        expires_in: (response.data as any).expires_in
+      });
+    }
+    
+    return {
+      access_token: response.data.access_token,
+      refresh_token: response.data.refresh_token
+    } as TokenResponse;
   }
 
   /**
@@ -101,6 +183,14 @@ export class Auth {
    */
   async getCurrentUser(): Promise<User> {
     const response = await this.http.get<User>('/api/v1/auth/me');
+    return response.data;
+  }
+
+  /**
+   * Update user profile
+   */
+  async updateProfile(updates: UpdateProfileRequest): Promise<User> {
+    const response = await this.http.patch<User>('/api/v1/auth/profile', updates);
     return response.data;
   }
 
@@ -113,6 +203,22 @@ export class Auth {
     }
 
     const response = await this.http.post<{ message: string }>('/api/v1/auth/password/forgot', request, {
+      skipAuth: true
+    });
+    return response.data;
+  }
+
+  /**
+   * Request password reset email
+   */
+  async requestPasswordReset(email: string): Promise<{ message: string }> {
+    if (!ValidationUtils.isValidEmail(email)) {
+      throw new ValidationError('Invalid email format');
+    }
+
+    const response = await this.http.post<{ message: string }>('/api/v1/auth/password/reset-request', {
+      email
+    }, {
       skipAuth: true
     });
     return response.data;
@@ -303,6 +409,9 @@ export class Auth {
   /**
    * Initiate OAuth authorization flow
    */
+  // Alias for backward compatibility
+  signInWithOAuth = this.initiateOAuth;
+
   async initiateOAuth(
     provider: OAuthProvider,
     options?: {

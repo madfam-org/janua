@@ -345,6 +345,7 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
  * Axios adapter for environments that prefer axios
  */
 export class AxiosHttpClient extends EventEmitter<SdkEventMap> {
+  private axiosLib: any;
   private axios: any;
   private tokenManager: TokenManager;
   private refreshPromise: Promise<void> | null = null;
@@ -356,7 +357,7 @@ export class AxiosHttpClient extends EventEmitter<SdkEventMap> {
     
     try {
       // Try to import axios
-      this.axios = require('axios');
+      this.axiosLib = require('axios');
       this.setupAxiosInstance(config);
     } catch (error) {
       throw new Error('Axios is not available. Please install axios or use the default fetch client.');
@@ -364,7 +365,7 @@ export class AxiosHttpClient extends EventEmitter<SdkEventMap> {
   }
 
   private setupAxiosInstance(config: PlintoConfig): void {
-    this.axios = this.axios.create({
+    this.axios = this.axiosLib.create({
       baseURL: config.baseURL,
       timeout: config.timeout || 30000,
       headers: {

@@ -57,75 +57,101 @@ export class Base64Url {
  */
 export class JwtUtils {
   /**
-   * Decode JWT token without verification
+   * Decode JWT without verification
    */
   static decode(token: string): any {
     try {
       const parts = token.split('.');
       if (parts.length !== 3) {
-        throw new TokenError('Invalid JWT format');
+        throw new Error('Invalid token format');
       }
-
+      
       const payload = Base64Url.decode(parts[1]);
       return JSON.parse(payload);
     } catch (error) {
-      throw new TokenError('Failed to decode JWT token', { originalError: error });
+      throw new TokenError('Failed to decode token');
+    }
+  }
+
+  /**
+   * Parse JWT token (alias for decode)
+   */
+  static parseToken(token: string): { header: any; payload: any; signature: string } {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        throw new Error('Invalid token format');
+      }
+      
+      const header = JSON.parse(Base64Url.decode(parts[0]));
+      const payload = JSON.parse(Base64Url.decode(parts[1]));
+      const signature = parts[2];
+      
+      return { header, payload, signature };
+    } catch (error) {
+      throw new TokenError('Failed to parse token');
     }
   }
 
   /**
    * Get token expiration time
    */
-  static getExpiration(token: string): number {
-    const payload = this.decode(token);
-    if (!payload.exp) {
-      throw new TokenError('Token does not have expiration time');
+  static getExpiration(token: string): Date | null {
+    const payload = JwtUtils.decode(token);
+    if (payload.exp) {
+      return new Date(payload.exp * 1000);
     }
-    return payload.exp * 1000; // Convert to milliseconds
+    return null;
   }
 
   /**
    * Check if token is expired
    */
-  static isExpired(token: string, bufferSeconds = 30): boolean {
+  static isExpired(token: string | { exp?: number }): boolean {
     try {
-      const expiration = this.getExpiration(token);
-      const now = Date.now();
-      const buffer = bufferSeconds * 1000;
-      return expiration <= (now + buffer);
+      const payload = typeof token === 'string' ? JwtUtils.decode(token) : token;
+      if (!payload.exp) {
+        return false; // No expiration means never expires
+      }
+      
+      return Date.now() >= payload.exp * 1000;
     } catch {
-      return true; // Treat invalid tokens as expired
+      return true; // If we can't decode, consider it expired
     }
   }
 
   /**
-   * Get time until token expires (in milliseconds)
+   * Get time until token expiration in seconds
    */
   static getTimeUntilExpiration(token: string): number {
-    const expiration = this.getExpiration(token);
-    return Math.max(0, expiration - Date.now());
+    const expiration = JwtUtils.getExpiration(token);
+    return expiration ? Math.max(0, expiration.getTime() - Date.now()) / 1000 : Infinity;
   }
 
   /**
-   * Extract user ID from token
+   * Get time to expiry (alias for getTimeUntilExpiration)
    */
-  static getUserId(token: string): string {
-    const payload = this.decode(token);
-    if (!payload.sub) {
-      throw new TokenError('Token does not contain user ID');
+  static getTimeToExpiry(payload: { exp?: number }): number {
+    if (!payload.exp) {
+      return Infinity;
     }
-    return payload.sub;
+    return Math.max(0, payload.exp - Math.floor(Date.now() / 1000));
   }
 
   /**
-   * Extract JTI (JWT ID) from token
+   * Get user ID from token
    */
-  static getJti(token: string): string {
-    const payload = this.decode(token);
-    if (!payload.jti) {
-      throw new TokenError('Token does not contain JTI');
-    }
-    return payload.jti;
+  static getUserId(token: string): string | null {
+    const payload = JwtUtils.decode(token);
+    return payload.sub || payload.user_id || null;
+  }
+
+  /**
+   * Get JWT ID
+   */
+  static getJti(token: string): string | null {
+    const payload = JwtUtils.decode(token);
+    return payload.jti || null;
   }
 }
 
@@ -142,22 +168,34 @@ export interface TokenStorage {
  * Browser localStorage implementation
  */
 export class LocalTokenStorage implements TokenStorage {
-  getItem(key: string): string | null {
-    if (typeof localStorage === 'undefined') {
-      return null;
+  async getItem(key: string): Promise<string | null> {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        return localStorage.getItem(key);
+      }
+    } catch {
+      // Silently handle errors
     }
-    return localStorage.getItem(key);
+    return null;
   }
 
-  setItem(key: string, value: string): void {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(key, value);
+  async setItem(key: string, value: string): Promise<void> {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, value);
+      }
+    } catch {
+      // Silently handle errors (e.g., quota exceeded)
     }
   }
 
-  removeItem(key: string): void {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem(key);
+  async removeItem(key: string): Promise<void> {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(key);
+      }
+    } catch {
+      // Silently handle errors
     }
   }
 }
@@ -285,6 +323,12 @@ export class TokenManager {
       return false;
     }
 
+    // Check if the expires_at timestamp has passed
+    if (tokenData.expires_at && tokenData.expires_at < Date.now()) {
+      return false;
+    }
+
+    // Also check if the JWT itself is expired
     return !JwtUtils.isExpired(tokenData.access_token);
   }
 
@@ -299,110 +343,135 @@ export class TokenManager {
     ]);
   }
 }
-
 /**
- * Date and time utilities
+ * Date utility functions
  */
 export class DateUtils {
   /**
-   * Convert ISO date string to Date object
+   * Check if a timestamp is expired
    */
-  static fromISOString(isoString: string): Date {
-    return new Date(isoString);
+  static isExpired(timestamp: number): boolean {
+    return Date.now() > timestamp;
   }
 
   /**
-   * Convert Date object to ISO string
+   * Format date to ISO string
    */
-  static toISOString(date: Date): string {
+  static formatISO(date: Date): string {
     return date.toISOString();
   }
 
   /**
-   * Get current timestamp in milliseconds
+   * Parse ISO string to date
    */
-  static now(): number {
-    return Date.now();
-  }
-
-  /**
-   * Check if date is in the past
-   */
-  static isPast(date: Date | string): boolean {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    return dateObj.getTime() < Date.now();
-  }
-
-  /**
-   * Check if date is in the future
-   */
-  static isFuture(date: Date | string): boolean {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    return dateObj.getTime() > Date.now();
-  }
-
-  /**
-   * Format date for display
-   */
-  static formatRelative(date: Date | string): string {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    const now = new Date();
-    const diffMs = now.getTime() - dateObj.getTime();
-    const diffSecs = Math.floor(diffMs / 1000);
-    const diffMins = Math.floor(diffSecs / 60);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffSecs < 60) return 'just now';
-    if (diffMins < 60) return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
-    
-    return dateObj.toLocaleDateString();
+  static parseISO(isoString: string): Date {
+    return new Date(isoString);
   }
 }
 
 /**
- * URL and query parameter utilities
+ * URL utility functions
  */
 export class UrlUtils {
   /**
-   * Build URL with query parameters
+   * Parse query string to object
    */
-  static buildUrl(baseUrl: string, path: string, params?: Record<string, any>): string {
-    const url = new URL(path, baseUrl);
+  static parseQueryString(queryString: string): Record<string, string> {
+    if (!queryString) return {};
     
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          if (Array.isArray(value)) {
-            value.forEach(v => url.searchParams.append(key, String(v)));
-          } else {
-            url.searchParams.set(key, String(value));
-          }
+    return queryString
+      .replace(/^\?/, '')
+      .split('&')
+      .reduce((acc, pair) => {
+        const [key, value] = pair.split('=');
+        if (key) {
+          acc[decodeURIComponent(key)] = decodeURIComponent(value || '');
         }
-      });
-    }
-    
-    return url.toString();
+        return acc;
+      }, {} as Record<string, string>);
   }
 
   /**
-   * Parse query parameters from URL
+   * Build query string from object
    */
-  static parseQueryParams(url: string): Record<string, string> {
-    const urlObj = new URL(url);
-    const params: Record<string, string> = {};
+  static buildQueryString(params: Record<string, any>): string {
+    const searchParams = new URLSearchParams();
     
-    urlObj.searchParams.forEach((value, key) => {
-      params[key] = value;
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, String(value));
+      }
     });
     
-    return params;
+    return searchParams.toString();
   }
 
   /**
-   * Validate URL format
+   * Build URL with path and optional query parameters
+   */
+  static buildUrl(baseUrl: string, path?: string, params?: Record<string, any>): string {
+    // Remove trailing slash from baseUrl
+    const cleanBase = baseUrl.replace(/\/$/, '');
+    
+    // Remove leading slash from path and handle empty path
+    const cleanPath = path ? path.replace(/^\//, '') : '';
+    
+    // Build the URL
+    let url = cleanPath ? `${cleanBase}/${cleanPath}` : cleanBase;
+    
+    // Add query parameters if provided
+    if (params && Object.keys(params).length > 0) {
+      const queryString = this.buildQueryString(params);
+      url = `${url}?${queryString}`;
+    }
+    
+    return url;
+  }
+}
+
+/**
+ * Validation utility functions
+ */
+export class ValidationUtils {
+  /**
+   * Validate email address
+   */
+  static isValidEmail(email: string): boolean {
+    // More strict email regex that doesn't allow consecutive dots
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+    
+    // Additional check for consecutive dots
+    if (email.includes('..')) {
+      return false;
+    }
+    
+    return emailRegex.test(email);
+  }
+
+  /**
+   * Validate password strength
+   */
+  static isValidPassword(password: string): boolean {
+    // At least 8 characters, one uppercase, one lowercase, one number
+    // Allow special characters
+    const hasMinLength = password.length >= 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    
+    return hasMinLength && hasUpperCase && hasLowerCase && hasNumber;
+  }
+
+  /**
+   * Validate UUID
+   */
+  static isValidUuid(uuid: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(uuid);
+  }
+
+  /**
+   * Validate URL
    */
   static isValidUrl(url: string): boolean {
     try {
@@ -412,44 +481,31 @@ export class UrlUtils {
       return false;
     }
   }
-}
 
-/**
- * Validation utilities
- */
-export class ValidationUtils {
   /**
-   * Validate email format
+   * Validate slug format
    */
-  static isValidEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+  static isValidSlug(slug: string): boolean {
+    // Slug should only contain lowercase letters, numbers, and hyphens
+    // Should not start or end with a hyphen
+    const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    return slugRegex.test(slug);
   }
 
-  /**
-   * Validate password strength
-   */
   static validatePassword(password: string): { isValid: boolean; errors: string[] } {
     const errors: string[] = [];
     
     if (password.length < 8) {
       errors.push('Password must be at least 8 characters long');
     }
-    
-    if (!/[a-z]/.test(password)) {
-      errors.push('Password must contain at least one lowercase letter');
-    }
-    
     if (!/[A-Z]/.test(password)) {
       errors.push('Password must contain at least one uppercase letter');
     }
-    
-    if (!/\d/.test(password)) {
-      errors.push('Password must contain at least one number');
+    if (!/[a-z]/.test(password)) {
+      errors.push('Password must contain at least one lowercase letter');
     }
-    
-    if (!/[^a-zA-Z0-9]/.test(password)) {
-      errors.push('Password must contain at least one special character');
+    if (!/[0-9]/.test(password)) {
+      errors.push('Password must contain at least one number');
     }
     
     return {
@@ -458,119 +514,37 @@ export class ValidationUtils {
     };
   }
 
-  /**
-   * Validate UUID format
-   */
-  static isValidUUID(uuid: string): boolean {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(uuid);
-  }
-
-  /**
-   * Validate username format
-   */
   static isValidUsername(username: string): boolean {
-    const usernameRegex = /^[a-zA-Z0-9_-]{3,50}$/;
+    // Username should be 3-30 characters, alphanumeric with underscores
+    const usernameRegex = /^[a-zA-Z0-9_]{3,30}$/;
     return usernameRegex.test(username);
   }
-
-  /**
-   * Validate organization slug
-   */
-  static isValidSlug(slug: string): boolean {
-    const slugRegex = /^[a-z0-9-]+$/;
-    return slugRegex.test(slug) && slug.length >= 1 && slug.length <= 100;
-  }
 }
 
-/**
- * Webhook signature validation
- */
-export class WebhookUtils {
-  /**
-   * Verify webhook signature
-   */
-  static async verifySignature(
-    payload: string,
-    signature: string,
-    secret: string
-  ): Promise<boolean> {
-    try {
-      let computedSignature: string;
-      
-      if (typeof crypto !== 'undefined' && crypto.subtle) {
-        // Browser environment with Web Crypto API
-        const encoder = new TextEncoder();
-        const keyData = encoder.encode(secret);
-        const payloadData = encoder.encode(payload);
-        
-        const cryptoKey = await crypto.subtle.importKey(
-          'raw',
-          keyData,
-          { name: 'HMAC', hash: 'SHA-256' },
-          false,
-          ['sign']
-        );
-        
-        const signatureBuffer = await crypto.subtle.sign('HMAC', cryptoKey, payloadData);
-        const signatureArray = new Uint8Array(signatureBuffer);
-        computedSignature = 'sha256=' + Array.from(signatureArray)
-          .map(b => b.toString(16).padStart(2, '0'))
-          .join('');
-      } else {
-        // Node.js environment
-        const crypto = require('crypto');
-        const hmac = crypto.createHmac('sha256', secret);
-        hmac.update(payload);
-        computedSignature = 'sha256=' + hmac.digest('hex');
-      }
-      
-      return this.safeCompare(signature, computedSignature);
-    } catch (error) {
-      return false;
-    }
-  }
-
-  /**
-   * Safe string comparison to prevent timing attacks
-   */
-  private static safeCompare(a: string, b: string): boolean {
-    if (a.length !== b.length) {
-      return false;
-    }
-    
-    let result = 0;
-    for (let i = 0; i < a.length; i++) {
-      result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-    }
-    
-    return result === 0;
-  }
-}
-
-/**
- * Environment detection utilities
- */
 export class EnvUtils {
   /**
    * Check if running in browser environment
    */
   static isBrowser(): boolean {
-    return typeof window !== 'undefined' && typeof document !== 'undefined';
+    // Check for real browser, not jsdom
+    return typeof window !== 'undefined' && 
+           typeof document !== 'undefined' &&
+           !!(window as any).navigator &&
+           !(window as any).navigator.userAgent?.includes('jsdom');
   }
 
   /**
    * Check if running in Node.js environment
    */
   static isNode(): boolean {
-    return typeof process !== 'undefined' && process.versions && process.versions.node;
+    return typeof process !== 'undefined' && process.versions && typeof process.versions.node === 'string';
   }
 
   /**
    * Check if running in web worker
    */
   static isWebWorker(): boolean {
-    return typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope;
+    return typeof WorkerGlobalScope !== 'undefined' && typeof self !== 'undefined';
   }
 
   /**

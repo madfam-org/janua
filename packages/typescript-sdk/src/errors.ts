@@ -53,9 +53,9 @@ export class PlintoError extends Error {
     // Map common HTTP status codes to specific error classes
     switch (status_code) {
       case 400:
-        return new ValidationError(message, details);
+        return new ValidationError(message, undefined, details);
       case 401:
-        return new AuthenticationError(message, details);
+        return new AuthenticationError(message, undefined, undefined, details);
       case 403:
         return new PermissionError(message, details);
       case 404:
@@ -63,7 +63,7 @@ export class PlintoError extends Error {
       case 409:
         return new ConflictError(message, details);
       case 429:
-        return new RateLimitError(message, details);
+        return new RateLimitError(message, undefined, details);
       case 500:
       case 502:
       case 503:
@@ -79,8 +79,8 @@ export class PlintoError extends Error {
  * Authentication related errors (401)
  */
 export class AuthenticationError extends PlintoError {
-  constructor(message = 'Authentication failed', details?: Record<string, any>) {
-    super(message, 'AUTHENTICATION_ERROR', 401, details);
+  constructor(message = 'Authentication failed', code?: string, statusCode?: number, details?: Record<string, any>) {
+    super(message, code || 'AUTHENTICATION_ERROR', statusCode || 401, details);
     this.name = 'AuthenticationError';
   }
 }
@@ -100,18 +100,17 @@ export class PermissionError extends PlintoError {
  */
 export class ValidationError extends PlintoError {
   public readonly field?: string;
-  public readonly violations?: Record<string, string[]>;
+  public readonly violations?: Array<{field: string, message: string}>;
 
-  constructor(message = 'Validation failed', details?: Record<string, any>) {
+  constructor(message = 'Validation failed', violations?: Array<{field: string, message: string}>, details?: Record<string, any>) {
     super(message, 'VALIDATION_ERROR', 400, details);
     this.name = 'ValidationError';
+    
+    this.violations = violations || [];
     
     // Extract field-specific validation errors if available
     if (details?.field) {
       this.field = details.field;
-    }
-    if (details?.violations) {
-      this.violations = details.violations;
     }
   }
 }
@@ -123,7 +122,7 @@ export class NotFoundError extends PlintoError {
   public readonly resource?: string;
 
   constructor(message = 'Resource not found', details?: Record<string, any>) {
-    super(message, 'NOT_FOUND_ERROR', 404, details);
+    super(message, 'NOT_FOUND', 404, details);
     this.name = 'NotFoundError';
     
     if (details?.resource) {
@@ -137,7 +136,7 @@ export class NotFoundError extends PlintoError {
  */
 export class ConflictError extends PlintoError {
   constructor(message = 'Resource conflict', details?: Record<string, any>) {
-    super(message, 'CONFLICT_ERROR', 409, details);
+    super(message, 'CONFLICT', 409, details);
     this.name = 'ConflictError';
   }
 }
@@ -149,15 +148,14 @@ export class RateLimitError extends PlintoError {
   public readonly rateLimitInfo?: RateLimitInfo;
   public readonly retryAfter?: number;
 
-  constructor(message = 'Rate limit exceeded', details?: Record<string, any>) {
-    super(message, 'RATE_LIMIT_ERROR', 429, details);
+  constructor(message = 'Rate limit exceeded', rateLimitInfo?: RateLimitInfo, details?: Record<string, any>) {
+    super(message, 'RATE_LIMIT_EXCEEDED', 429, details);
     this.name = 'RateLimitError';
     
-    if (details?.rateLimitInfo) {
-      this.rateLimitInfo = details.rateLimitInfo;
-    }
-    if (details?.retry_after) {
-      this.retryAfter = details.retry_after;
+    this.rateLimitInfo = rateLimitInfo;
+    
+    if (rateLimitInfo?.retry_after) {
+      this.retryAfter = rateLimitInfo.retry_after;
     }
   }
 }
@@ -180,12 +178,12 @@ export class ServerError extends PlintoError {
  * Network related errors
  */
 export class NetworkError extends PlintoError {
-  public readonly originalError?: Error;
+  public readonly cause?: Error;
 
-  constructor(message = 'Network error', originalError?: Error) {
-    super(message, 'NETWORK_ERROR');
+  constructor(message = 'Network error', cause?: Error, details?: Record<string, any>) {
+    super(message, 'NETWORK_ERROR', undefined, details);
     this.name = 'NetworkError';
-    this.originalError = originalError;
+    this.cause = cause;
   }
 }
 
@@ -276,6 +274,47 @@ export class PasskeyError extends PlintoError {
  * Error handler utility functions
  */
 export class ErrorHandler {
+  private logger?: {
+    error: (...args: any[]) => void;
+    warn: (...args: any[]) => void;
+    info: (...args: any[]) => void;
+  };
+
+  constructor(logger?: {
+    error: (...args: any[]) => void;
+    warn: (...args: any[]) => void;
+    info: (...args: any[]) => void;
+  }) {
+    this.logger = logger;
+  }
+
+  /**
+   * Handle errors and log appropriately
+   */
+  handleError(error: any): void {
+    if (!this.logger) return;
+
+    if (error instanceof AuthenticationError) {
+      this.logger.error('Authentication error:', error);
+    } else if (error instanceof ValidationError) {
+      this.logger.error('Validation error:', error);
+    } else if (error instanceof PermissionError) {
+      this.logger.error('Permission error:', error);
+    } else if (error instanceof NotFoundError) {
+      this.logger.error('Not found error:', error);
+    } else if (error instanceof RateLimitError) {
+      this.logger.error('Rate limit error:', error);
+    } else if (error instanceof ServerError) {
+      this.logger.error('Server error:', error);
+    } else if (error instanceof NetworkError) {
+      this.logger.error('Network error:', error);
+    } else if (error instanceof PlintoError) {
+      this.logger.error('Plinto error:', error);
+    } else {
+      this.logger.error('Unknown error:', error);
+    }
+  }
+
   /**
    * Check if error is a specific type
    */

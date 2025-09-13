@@ -1,23 +1,24 @@
-// Jest configuration for TypeScript SDK package
+// Standard Jest configuration template for packages
 module.exports = {
   preset: '../../jest.preset.js',
   testEnvironment: 'jsdom',
-  displayName: 'typescript-sdk',
+  displayName: 'PACKAGE_NAME', // Replace with actual package name
   
   // Setup files
   setupFilesAfterEnv: [
     '<rootDir>/../../tests/setup.js',
-    '<rootDir>/src/__tests__/setup.ts',
-  ],
+    '<rootDir>/src/__tests__/setup.ts', // Package-specific setup if exists
+  ].filter(Boolean),
   
   // Module name mapping
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@plinto/(.*)$': '<rootDir>/../../packages/$1/src',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+    '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$': 'jest-transform-stub',
   },
   
-  // Test patterns - exclude setup files
+  // Test patterns
   testMatch: [
     '<rootDir>/src/**/__tests__/**/*.[jt]s?(x)',
     '<rootDir>/src/**/?(*.)+(spec|test).[jt]s?(x)',
@@ -28,15 +29,15 @@ module.exports = {
     '/node_modules/',
     '/dist/',
     '/build/',
-    '/__tests__/setup\\.(ts|js)$',
+    '/.next/',
   ],
   
   // Coverage configuration
   collectCoverageFrom: [
     'src/**/*.{js,jsx,ts,tsx}',
     '!src/**/*.d.ts',
-    '!src/**/index.{js,jsx,ts,tsx}',
-    '!src/**/__tests__/setup.{js,ts}',
+    '!src/**/*.stories.{js,jsx,ts,tsx}',
+    '!src/**/index.{js,jsx,ts,tsx}', // Usually just re-exports
   ],
   
   coverageThreshold: {
@@ -54,5 +55,13 @@ module.exports = {
       tsconfig: '<rootDir>/tsconfig.json',
       isolatedModules: true,
     }],
+  },
+  
+  // Module resolution
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
+  
+  // Test environment options
+  testEnvironmentOptions: {
+    customExportConditions: [''],
   },
 };

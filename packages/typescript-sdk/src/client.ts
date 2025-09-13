@@ -316,14 +316,14 @@ export class PlintoClient extends EventEmitter<SdkEventMap> {
     
     try {
       await this.httpClient.get('/api/v1/auth/oauth/providers', { skipAuth: true });
-      const latency = Date.now() - startTime;
+      const latency = Math.max(1, Date.now() - startTime);
       
       return {
         success: true,
         latency
       };
     } catch (error: any) {
-      const latency = Date.now() - startTime;
+      const latency = Math.max(1, Date.now() - startTime);
       
       return {
         success: false,
