@@ -6,7 +6,8 @@
   "description": "Secure substrate for identity - Edge-fast verification with full control",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "!packages/react-native-sdk"
   ],
   "scripts": {
     "dev": "turbo run dev",
