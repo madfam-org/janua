@@ -1,0 +1,377 @@
+# Plinto Platform - Production Deployment Configuration
+# Phase 3: Production Deployment & Validation
+# Enterprise-grade Kubernetes deployment with zero-downtime patterns
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: plinto-production
+  labels:
+    app: plinto
+    environment: production
+    version: "1.0.0"
+
+---
+# ConfigMap for production configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plinto-config
+  namespace: plinto-production
+data:
+  ENVIRONMENT: "production"
+  DEBUG: "false"
+  ENABLE_DOCS: "false"
+  LOG_LEVEL: "INFO"
+  CORS_ORIGINS: "https://plinto.dev,https://dashboard.plinto.dev,https://docs.plinto.dev"
+  TRUSTED_HOSTS: "plinto.dev,*.plinto.dev"
+  # Database configuration
+  DATABASE_POOL_SIZE: "20"
+  DATABASE_MAX_OVERFLOW: "30"
+  DATABASE_POOL_TIMEOUT: "30"
+  DATABASE_POOL_RECYCLE: "1800"
+  # Performance settings
+  CACHE_DEFAULT_TTL: "300"
+  PERFORMANCE_MONITORING: "true"
+  SLOW_QUERY_THRESHOLD_MS: "100"
+  # Enterprise features
+  ENABLE_ORGANIZATIONS: "true"
+  ENABLE_SCIM: "true"
+  ENABLE_WEBHOOKS: "true"
+  ENABLE_SSO: "true"
+  ENABLE_MFA: "true"
+  ENABLE_AUDIT_LOGS: "true"
+
+---
+# Secret for sensitive configuration
+apiVersion: v1
+kind: Secret
+metadata:
+  name: plinto-secrets
+  namespace: plinto-production
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://plinto:REPLACE_WITH_ACTUAL_PASSWORD@postgres-service:5432/plinto"
+  REDIS_URL: "redis://:REPLACE_WITH_ACTUAL_PASSWORD@redis-service:6379/0"
+  JWT_SECRET_KEY: "REPLACE_WITH_ACTUAL_JWT_SECRET"
+  SECRET_KEY: "REPLACE_WITH_ACTUAL_SECRET_KEY"
+  SENDGRID_API_KEY: "REPLACE_WITH_ACTUAL_SENDGRID_KEY"
+  SENTRY_DSN: "REPLACE_WITH_ACTUAL_SENTRY_DSN"
+  GRAFANA_PASSWORD: "REPLACE_WITH_ACTUAL_GRAFANA_PASSWORD"
+
+---
+# API Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plinto-api
+  namespace: plinto-production
+  labels:
+    app: plinto-api
+    component: backend
+    version: "1.0.0"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Zero-downtime deployment
+  selector:
+    matchLabels:
+      app: plinto-api
+  template:
+    metadata:
+      labels:
+        app: plinto-api
+        component: backend
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics/performance"
+    spec:
+      # Security Context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      
+      # Init Container for Database Migrations
+      initContainers:
+      - name: database-migration
+        image: plinto/api:latest
+        command: ["python", "-m", "alembic", "upgrade", "head"]
+        envFrom:
+        - configMapRef:
+            name: plinto-config
+        - secretRef:
+            name: plinto-secrets
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      
+      containers:
+      - name: api
+        image: plinto/api:latest
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        
+        # Environment Configuration
+        envFrom:
+        - configMapRef:
+            name: plinto-config
+        - secretRef:
+            name: plinto-secrets
+        
+        # Resource Limits and Requests
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        
+        # Health Checks
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        
+        # Startup Probe (for slower startup)
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 12  # 2 minutes max startup time
+        
+        # Security Context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        
+        # Volume Mounts (for read-only filesystem)
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+        - name: cache-volume
+          mountPath: /app/.cache
+      
+      # Volumes
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}
+      - name: cache-volume
+        emptyDir: {}
+      
+      # Node Selection and Anti-Affinity
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - plinto-api
+              topologyKey: kubernetes.io/hostname
+      
+      # Termination Grace Period
+      terminationGracePeriodSeconds: 60
+
+---
+# API Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: plinto-api-service
+  namespace: plinto-production
+  labels:
+    app: plinto-api
+    component: backend
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: plinto-api
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: plinto-api-hpa
+  namespace: plinto-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: plinto-api
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: plinto-api-pdb
+  namespace: plinto-production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: plinto-api
+
+---
+# Network Policy (Security)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: plinto-api-netpol
+  namespace: plinto-production
+spec:
+  podSelector:
+    matchLabels:
+      app: plinto-api
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: plinto-ingress
+    - podSelector:
+        matchLabels:
+          app: plinto-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  - to: []  # Allow all outbound for external services (SendGrid, etc.)
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+
+---
+# Ingress for API
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plinto-api-ingress
+  namespace: plinto-production
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    nginx.ingress.kubernetes.io/rate-limit: "60"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Permissions-Policy: geolocation=(), microphone=(), camera=()";
+spec:
+  tls:
+  - hosts:
+    - api.plinto.dev
+    secretName: plinto-api-tls
+  rules:
+  - host: api.plinto.dev
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: plinto-api-service
+            port:
+              number: 80

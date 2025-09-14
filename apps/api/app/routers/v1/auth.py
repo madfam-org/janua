@@ -12,11 +12,17 @@ import secrets
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
 from app.database import get_db
 from app.models import User, UserStatus, EmailVerification, PasswordReset, MagicLink, ActivityLog, Session as UserSession
 from app.services.auth import AuthService
 from app.services.email import EmailService
 from app.config import settings
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -152,6 +158,7 @@ def log_activity(db: Session, user_id: str, action: str, details: Dict = None, r
 
 # Authentication endpoints
 @router.post("/signup", response_model=SignInResponse)
+@limiter.limit("3/minute")  # Strict rate limiting for signup
 async def sign_up(
     request: SignUpRequest,
     req: Request,
@@ -241,6 +248,7 @@ async def sign_up(
 
 
 @router.post("/signin", response_model=SignInResponse)
+@limiter.limit("5/minute")  # Rate limiting for signin attempts
 async def sign_in(
     request: SignInRequest,
     req: Request,
@@ -360,6 +368,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/password/forgot")
+@limiter.limit("3/hour")  # Strict rate limiting for password reset requests
 async def forgot_password(
     request: ForgotPasswordRequest,
     background_tasks: BackgroundTasks,
@@ -490,6 +499,7 @@ async def verify_email(
 
 
 @router.post("/email/resend-verification")
+@limiter.limit("5/hour")  # Rate limiting for email verification requests
 async def resend_verification_email(
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
@@ -524,6 +534,7 @@ async def resend_verification_email(
 
 
 @router.post("/magic-link")
+@limiter.limit("5/hour")  # Rate limiting for magic link requests
 async def send_magic_link(
     request: MagicLinkRequest,
     background_tasks: BackgroundTasks,
