@@ -3,26 +3,39 @@ Simplified Beta Authentication System
 Minimal viable authentication for beta launch while complex system is debugged
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 import hashlib
+from passlib.context import CryptContext
 import jwt
 import secrets
 from datetime import datetime, timedelta
 import structlog
+import os
 
 logger = structlog.get_logger()
+
+# Secure password hashing context
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=12  # Strong rounds for security
+)
 
 # Simple in-memory storage for beta (replace with database later)
 BETA_USERS = {}
 BETA_SESSIONS = {}
 
 # Simple JWT settings
-JWT_SECRET = "beta-secret-key-change-in-production"
+# Use environment variable for JWT secret
+JWT_SECRET = os.getenv("JWT_SECRET_KEY", "beta-secret-key-change-in-production")
 JWT_ALGORITHM = "HS256"
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 class BetaSignUpRequest(BaseModel):
     email: EmailStr
@@ -45,12 +58,12 @@ class BetaUserResponse(BaseModel):
     created_at: str
 
 def hash_password(password: str) -> str:
-    """Simple password hashing for beta"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password using bcrypt with salt"""
+    return pwd_context.hash(password)
 
 def verify_password(password: str, hashed: str) -> bool:
-    """Verify password against hash"""
-    return hashlib.sha256(password.encode()).hexdigest() == hashed
+    """Verify password against bcrypt hash"""
+    return pwd_context.verify(password, hashed)
 
 def create_access_token(data: dict) -> str:
     """Create JWT access token"""
@@ -70,18 +83,19 @@ def beta_auth_status():
     }
 
 @router.post("/beta/signup", response_model=BetaUserResponse)
-def beta_signup(request: BetaSignUpRequest):
+@limiter.limit("5/minute")
+def beta_signup(request: Request, signup_request: BetaSignUpRequest):
     """Beta user registration"""
     try:
         # Check if user exists
-        if request.email in BETA_USERS:
+        if signup_request.email in BETA_USERS:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User already exists"
             )
         
         # Simple password validation
-        if len(request.password) < 8:
+        if len(signup_request.password) < 8:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Password must be at least 8 characters"
@@ -91,21 +105,21 @@ def beta_signup(request: BetaSignUpRequest):
         user_id = secrets.token_hex(16)
         user_data = {
             "id": user_id,
-            "email": request.email,
-            "name": request.name,
-            "password_hash": hash_password(request.password),
+            "email": signup_request.email,
+            "name": signup_request.name,
+            "password_hash": hash_password(signup_request.password),
             "created_at": datetime.utcnow().isoformat(),
             "email_verified": True  # Auto-verify for beta
         }
         
-        BETA_USERS[request.email] = user_data
+        BETA_USERS[signup_request.email] = user_data
         
-        logger.info(f"Beta user created: {request.email}")
+        logger.info(f"Beta user created: {signup_request.email}")
         
         return BetaUserResponse(
             id=user_id,
-            email=request.email,
-            name=request.name,
+            email=signup_request.email,
+            name=signup_request.name,
             created_at=user_data["created_at"]
         )
         
@@ -119,11 +133,12 @@ def beta_signup(request: BetaSignUpRequest):
         )
 
 @router.post("/beta/signin", response_model=BetaTokenResponse)
-def beta_signin(request: BetaSignInRequest):
+@limiter.limit("10/minute")
+def beta_signin(request: Request, signin_request: BetaSignInRequest):
     """Beta user authentication"""
     try:
         # Find user
-        user_data = BETA_USERS.get(request.email)
+        user_data = BETA_USERS.get(signin_request.email)
         if not user_data:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -131,7 +146,7 @@ def beta_signin(request: BetaSignInRequest):
             )
         
         # Verify password
-        if not verify_password(request.password, user_data["password_hash"]):
+        if not verify_password(signin_request.password, user_data["password_hash"]):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password"
@@ -140,7 +155,7 @@ def beta_signin(request: BetaSignInRequest):
         # Create access token
         token_data = {
             "sub": user_data["id"],
-            "email": request.email,
+            "email": signin_request.email,
             "name": user_data["name"]
         }
         access_token = create_access_token(token_data)
@@ -149,11 +164,11 @@ def beta_signin(request: BetaSignInRequest):
         session_id = secrets.token_hex(16)
         BETA_SESSIONS[session_id] = {
             "user_id": user_data["id"],
-            "email": request.email,
+            "email": signin_request.email,
             "created_at": datetime.utcnow().isoformat()
         }
         
-        logger.info(f"Beta user signed in: {request.email}")
+        logger.info(f"Beta user signed in: {signin_request.email}")
         
         return BetaTokenResponse(
             access_token=access_token,

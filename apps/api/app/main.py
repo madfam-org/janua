@@ -1,7 +1,23 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.exceptions import RequestValidationError
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 import hashlib
+from passlib.context import CryptContext
+
+# Secure password hashing context
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=12  # Strong rounds for security
+)
 import secrets
 import os
 import redis.asyncio as redis
@@ -10,7 +26,14 @@ from datetime import datetime
 import logging
 
 from app.config import settings
-from app.database import init_database
+from app.core.database_manager import init_database, close_database, get_database_health
+from app.core.error_handling import (
+    ErrorHandlingMiddleware,
+    APIException,
+    api_exception_handler,
+    validation_exception_handler,
+    http_exception_handler
+)
 from app.routers.v1 import (
     auth as auth_v1,
     oauth as oauth_v1,
@@ -34,7 +57,8 @@ from app.routers.v1 import (
 logging.basicConfig(level=logging.INFO if settings.DEBUG else logging.WARNING)
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(
     title="Plinto API",
     version="1.0.0",
@@ -42,6 +66,45 @@ app = FastAPI(
     docs_url="/docs" if settings.ENABLE_DOCS else None,
     redoc_url="/redoc" if settings.ENABLE_DOCS else None
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add comprehensive error handling
+app.add_exception_handler(APIException, api_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+
+# Security Headers Middleware
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Security headers for A+ SSL rating
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers["Server"] = "Plinto-API"  # Hide server version info
+        
+        return response
+
+# Add security middleware (order matters - add these first)
+if not settings.DEBUG:
+    # Only redirect to HTTPS in production
+    app.add_middleware(HTTPSRedirectMiddleware)
+
+# Add trusted host middleware 
+allowed_hosts = ["plinto.dev", "*.plinto.dev", "plinto-api.railway.app", "localhost", "127.0.0.1"]
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+
+# Add security headers middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Add comprehensive error handling middleware (add last so it catches everything)
+app.add_middleware(ErrorHandlingMiddleware)
 
 # Configure CORS
 app.add_middleware(
@@ -70,12 +133,14 @@ async def get_redis_client():
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
     return redis.from_url(redis_url, decode_responses=True)
 
-# Utility functions
+# Secure password hashing functions
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password using bcrypt with salt"""
+    return pwd_context.hash(password)
 
 def verify_password(password: str, hashed: str) -> bool:
-    return hashlib.sha256(password.encode()).hexdigest() == hashed
+    """Verify password against bcrypt hash"""
+    return pwd_context.verify(password, hashed)
 
 # Root endpoint
 @app.get("/")
@@ -87,11 +152,18 @@ def root():
 def health_check():
     return {"status": "healthy"}
 
-# Infrastructure connectivity test using direct connections
+# Infrastructure connectivity test using database manager
 @app.get("/ready")
 async def ready_check():
-    checks = {"status": "ready", "database": False, "redis": False}
-    
+    checks = {"status": "ready", "database": {}, "redis": False}
+
+    # Test Database with health manager
+    try:
+        db_health = await get_database_health()
+        checks["database"] = db_health
+    except Exception as e:
+        checks["database"] = {"healthy": False, "error": str(e)}
+
     # Test Redis with direct connection
     try:
         redis_client = await get_redis_client()
@@ -99,44 +171,37 @@ async def ready_check():
         checks["redis"] = True
         await redis_client.close()
     except:
-        pass
-    
-    # Test PostgreSQL with direct connection
-    try:
-        db_url = os.getenv("DATABASE_URL")
-        if db_url and db_url.startswith("postgresql://"):
-            # Fix URL for asyncpg
-            db_url = db_url.replace("postgresql://", "postgresql://", 1)
-            conn = await asyncpg.connect(db_url)
-            await conn.execute("SELECT 1")
-            checks["database"] = True
-            await conn.close()
-    except:
-        pass
-    
+        checks["redis"] = False
+
+    # Overall status
+    checks["status"] = "ready" if (
+        checks["database"].get("healthy", False) and checks["redis"]
+    ) else "degraded"
+
     return checks
 
 # Beta authentication with direct Redis operations
 @app.post("/beta/signup")
-async def beta_signup(request: SignUpRequest):
+@limiter.limit("5/minute")
+async def beta_signup(request: Request, signup_request: SignUpRequest):
     try:
         # Validate
-        if len(request.password) < 8:
+        if len(signup_request.password) < 8:
             raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
         
         # Try Redis first, fallback to memory
         user_id = secrets.token_hex(16)
         user_data = {
             "id": user_id,
-            "email": request.email,
-            "name": request.name,
-            "password_hash": hash_password(request.password),
+            "email": signup_request.email,
+            "name": signup_request.name,
+            "password_hash": hash_password(signup_request.password),
             "created_at": datetime.utcnow().isoformat()
         }
         
         try:
             redis_client = await get_redis_client()
-            user_key = f"beta_user:{request.email}"
+            user_key = f"beta_user:{signup_request.email}"
             
             # Check if exists
             if await redis_client.exists(user_key):
@@ -150,23 +215,23 @@ async def beta_signup(request: SignUpRequest):
             
             return {
                 "id": user_id,
-                "email": request.email,
-                "name": request.name,
+                "email": signup_request.email,
+                "name": signup_request.name,
                 "message": "User created in Railway Redis",
                 "storage": "redis"
             }
             
         except Exception as redis_error:
             # Fallback to memory storage
-            if request.email in BETA_USERS:
+            if signup_request.email in BETA_USERS:
                 raise HTTPException(status_code=400, detail="User already exists")
             
-            BETA_USERS[request.email] = user_data
+            BETA_USERS[signup_request.email] = user_data
             
             return {
                 "id": user_id,
-                "email": request.email,
-                "name": request.name,
+                "email": signup_request.email,
+                "name": signup_request.name,
                 "message": "User created in memory (Redis fallback)",
                 "storage": "memory"
             }
@@ -177,7 +242,8 @@ async def beta_signup(request: SignUpRequest):
         raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
 
 @app.post("/beta/signin")
-async def beta_signin(request: SignInRequest):
+@limiter.limit("10/minute")
+async def beta_signin(request: Request, signin_request: SignInRequest):
     try:
         user_data = None
         storage_type = "unknown"
@@ -185,7 +251,7 @@ async def beta_signin(request: SignInRequest):
         # Try Redis first
         try:
             redis_client = await get_redis_client()
-            user_key = f"beta_user:{request.email}"
+            user_key = f"beta_user:{signin_request.email}"
             user_data = await redis_client.hgetall(user_key)
             await redis_client.close()
             
@@ -194,7 +260,7 @@ async def beta_signin(request: SignInRequest):
             
         except:
             # Fallback to memory
-            user_data = BETA_USERS.get(request.email)
+            user_data = BETA_USERS.get(signin_request.email)
             if user_data:
                 storage_type = "memory"
         
@@ -202,7 +268,7 @@ async def beta_signin(request: SignInRequest):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Verify password
-        if not verify_password(request.password, user_data["password_hash"]):
+        if not verify_password(signin_request.password, user_data["password_hash"]):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Create simple token
@@ -319,11 +385,20 @@ app.include_router(localization_v1.router, prefix="/api/v1")
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting Plinto API...")
-    if settings.AUTO_MIGRATE:
-        logger.info("Initializing database tables...")
-        init_database()
+    try:
+        await init_database()
+        logger.info("Database manager initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+        raise
     logger.info("Plinto API started successfully")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Shutting down Plinto API...")
+    try:
+        await close_database()
+        logger.info("Database connections closed")
+    except Exception as e:
+        logger.error(f"Error during database shutdown: {e}")
+    logger.info("Plinto API shutdown complete")

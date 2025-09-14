@@ -3,7 +3,7 @@ Database models for Plinto API
 """
 
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, ForeignKey, Table, JSON, Enum as SQLEnum, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.sql import func
 from datetime import datetime
