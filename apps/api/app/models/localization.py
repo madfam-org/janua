@@ -10,7 +10,7 @@ from datetime import datetime
 import uuid
 import enum
 
-from app.models import Base
+from ..models import Base
 
 
 class LocaleStatus(enum.Enum):
