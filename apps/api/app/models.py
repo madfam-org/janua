@@ -402,7 +402,7 @@ class WebhookEvent(Base):
 class WebhookDelivery(Base):
     """Webhook delivery attempt record"""
     __tablename__ = "webhook_deliveries"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     webhook_endpoint_id = Column(UUID(as_uuid=True), ForeignKey("webhook_endpoints.id", ondelete="CASCADE"), nullable=False)
     webhook_event_id = Column(UUID(as_uuid=True), ForeignKey("webhook_events.id", ondelete="CASCADE"), nullable=False)
@@ -412,7 +412,11 @@ class WebhookDelivery(Base):
     attempt = Column(Integer, default=1)
     delivered_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Relationships
     endpoint = relationship("WebhookEndpoint", back_populates="deliveries")
     event = relationship("WebhookEvent", back_populates="deliveries")
+
+
+# Backward compatibility alias for migration period
+organization_members = OrganizationMember.__table__

@@ -93,7 +93,7 @@ class BrandingConfigurationResponse(BaseModel):
 
 class CustomDomainCreate(BaseModel):
     """Create custom domain request"""
-    domain: str = Field(..., regex=r'^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$')
+    domain: str = Field(..., pattern=r'^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$')
     subdomain: Optional[str] = None
 
 

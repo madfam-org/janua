@@ -1,10 +1,13 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { global-error } from './global-error'
+import GlobalError from './global-error'
 
-describe('global-error', () => {
+describe('GlobalError', () => {
   it('should render without crashing', () => {
-    render(<global-error />)
-    expect(screen.getByTestId('global-error')).toBeInTheDocument()
+    const mockError = new Error('Test error')
+    const mockReset = jest.fn()
+
+    render(<GlobalError error={mockError} reset={mockReset} />)
+    expect(screen.getByText('Something went wrong!')).toBeInTheDocument()
   })
 })

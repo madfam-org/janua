@@ -1,6 +1,20 @@
 // Global test setup
 require('@testing-library/jest-dom');
 
+// Ensure React is available in test environment
+const React = require('react');
+const ReactDOM = require('react-dom');
+global.React = React;
+global.ReactDOM = ReactDOM;
+
+// Mock React 18's createRoot for React DOM
+if (!ReactDOM.createRoot) {
+  ReactDOM.createRoot = () => ({
+    render: ReactDOM.render,
+    unmount: ReactDOM.unmountComponentAtNode,
+  });
+}
+
 // Mock environment variables
 process.env.NODE_ENV = 'test';
 process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3000/api';
@@ -11,6 +25,64 @@ process.env.PLINTO_ENV = 'test';
 
 // Mock fetch globally
 global.fetch = jest.fn();
+
+// Mock browser APIs for JSDOM environment
+global.IntersectionObserver = class IntersectionObserver {
+  constructor() {}
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
+global.ResizeObserver = class ResizeObserver {
+  constructor() {}
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
+// Mock matchMedia
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: jest.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(), // deprecated
+    removeListener: jest.fn(), // deprecated
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+  })),
+});
+
+// Mock window.scrollTo
+Object.defineProperty(window, 'scrollTo', {
+  value: jest.fn(),
+  writable: true
+});
+
+// Mock localStorage
+Object.defineProperty(window, 'localStorage', {
+  value: {
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+    clear: jest.fn(),
+  },
+  writable: true,
+});
+
+// Mock sessionStorage
+Object.defineProperty(window, 'sessionStorage', {
+  value: {
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+    clear: jest.fn(),
+  },
+  writable: true,
+});
 
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
@@ -42,7 +114,9 @@ beforeAll(() => {
   console.error = (...args) => {
     if (
       typeof args[0] === 'string' &&
-      args[0].includes('Warning: ReactDOM.render')
+      (args[0].includes('Warning: ReactDOM.render') ||
+       args[0].includes('Warning: Invalid hook call') ||
+       args[0].includes('IntersectionObserver is not defined'))
     ) {
       return;
     }

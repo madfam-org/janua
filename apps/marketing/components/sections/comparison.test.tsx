@@ -13,6 +13,8 @@ describe('ComparisonSection', () => {
   it('should render comparison content', () => {
     render(<ComparisonSection />)
     // Test that the component renders basic comparison elements
-    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getByText('Built different. Performs better.')).toBeInTheDocument()
+    expect(screen.getByText('Plinto')).toBeInTheDocument()
+    expect(screen.getByText('Performance')).toBeInTheDocument()
   })
 })

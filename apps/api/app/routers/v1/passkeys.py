@@ -35,7 +35,7 @@ router = APIRouter(prefix="/passkeys", tags=["passkeys"])
 
 class PasskeyRegisterOptionsRequest(BaseModel):
     """Passkey registration options request"""
-    authenticator_attachment: Optional[str] = Field(None, regex="^(platform|cross-platform)$")
+    authenticator_attachment: Optional[str] = Field(None, pattern="^(platform|cross-platform)$")
 
 
 class PasskeyRegisterRequest(BaseModel):

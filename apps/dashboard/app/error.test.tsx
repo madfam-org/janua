@@ -1,10 +1,13 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { error } from './error'
+import Error from './error'
 
-describe('error', () => {
+describe('Error', () => {
   it('should render without crashing', () => {
-    render(<error />)
-    expect(screen.getByTestId('error')).toBeInTheDocument()
+    const mockError = new Error('Test error')
+    const mockReset = jest.fn()
+
+    render(<Error error={mockError} reset={mockReset} />)
+    expect(screen.getByText('Something went wrong')).toBeInTheDocument()
   })
 })

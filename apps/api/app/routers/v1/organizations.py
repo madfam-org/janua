@@ -27,7 +27,7 @@ router = APIRouter(prefix="/organizations", tags=["organizations"])
 class OrganizationCreateRequest(BaseModel):
     """Organization creation request"""
     name: str = Field(..., min_length=1, max_length=200)
-    slug: str = Field(..., min_length=1, max_length=100, regex="^[a-z0-9-]+$")
+    slug: str = Field(..., min_length=1, max_length=100, pattern="^[a-z0-9-]+$")
     description: Optional[str] = Field(None, max_length=1000)
     billing_email: Optional[str] = None
     
@@ -661,7 +661,7 @@ async def accept_invitation(
 @router.get("/{org_id}/invitations", response_model=List[OrganizationInvitationResponse])
 async def list_invitations(
     org_id: str,
-    status: Optional[str] = Query(None, regex="^(pending|accepted|expired)$"),
+    status: Optional[str] = Query(None, pattern="^(pending|accepted|expired)$"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
