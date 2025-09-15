@@ -11,9 +11,11 @@ from enum import Enum
 import psutil
 import aiohttp
 
-from app.core.config import settings
-from app.core.logging import logger
+from app.config import settings
+import logging
 from app.core.redis import get_redis
+
+logger = logging.getLogger(__name__)
 
 
 class MetricType(str, Enum):
