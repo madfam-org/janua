@@ -17,7 +17,9 @@ export class EnvUtils {
    * Check if running in Node.js environment
    */
   static isNode(): boolean {
-    return typeof process !== 'undefined' && process.versions && process.versions.node;
+    return typeof process !== 'undefined' &&
+           typeof process.versions === 'object' &&
+           typeof process.versions.node === 'string';
   }
 
   /**
@@ -47,12 +49,12 @@ export class EnvUtils {
    * Get appropriate storage based on environment
    */
   static getDefaultStorage(): TokenStorage {
-    if (this.isBrowser()) {
-      // Prefer localStorage in browser
-      return new LocalTokenStorage();
-    } else if (this.isNode()) {
+    if (this.isNode()) {
       // Use memory storage in Node.js
       return new MemoryTokenStorage();
+    } else if (this.isBrowser()) {
+      // Prefer localStorage in browser
+      return new LocalTokenStorage();
     } else if (this.isWebWorker()) {
       // Use memory storage in Web Workers
       return new MemoryTokenStorage();

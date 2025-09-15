@@ -354,9 +354,8 @@ export class Users {
    */
   getProfileCompletionPercentage(user: User): number {
     const fields = [
-      'email_verified',
       'first_name',
-      'last_name',
+      'last_name', 
       'display_name',
       'bio',
       'timezone',
@@ -368,7 +367,13 @@ export class Users {
       return value !== null && value !== undefined && value !== '';
     });
     
-    return Math.round((completedFields.length / fields.length) * 100);
+    // Email verification counts as a separate completion requirement
+    const emailVerified = user.email_verified === true;
+    
+    const totalFields = fields.length + 1; // +1 for email verification
+    const completedCount = completedFields.length + (emailVerified ? 1 : 0);
+    
+    return Math.round((completedCount / totalFields) * 100);
   }
 
   /**
@@ -393,7 +398,7 @@ export class Users {
   /**
    * Format user for display
    */
-  formatUser(user: User): {
+  formatUser(user: User): User & {
     displayName: string;
     initials: string;
     profileComplete: boolean;
@@ -401,6 +406,7 @@ export class Users {
     missingFields: string[];
   } {
     return {
+      ...user,
       displayName: this.getDisplayName(user),
       initials: this.getInitials(user),
       profileComplete: this.isProfileComplete(user),

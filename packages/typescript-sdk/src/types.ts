@@ -469,3 +469,16 @@ export interface RateLimitInfo {
   reset: number;
   retry_after?: number;
 }
+
+// Parameter type aliases for backward compatibility
+export type SignUpParams = SignUpRequest;
+export type SignInParams = SignInRequest;
+export type MFAParams = {
+  challenge_id: string;
+  code: string;
+  method: string;
+};
+export type OAuthParams = {
+  provider: string;
+  redirect_uri: string;
+};

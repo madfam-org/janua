@@ -8,22 +8,28 @@ export class EventEmitter<T extends Record<string, any> = Record<string, any>> {
   /**
    * Subscribe to an event
    */
-  on<K extends keyof T>(event: K, listener: (data: T[K]) => void): void {
+  on<K extends keyof T>(event: K, listener: (data: T[K]) => void): () => void {
     if (!this.events.has(event)) {
       this.events.set(event, new Set());
     }
     this.events.get(event)!.add(listener);
+
+    // Return unsubscribe function
+    return () => this.off(event, listener);
   }
 
   /**
    * Subscribe to an event once
    */
-  once<K extends keyof T>(event: K, listener: (data: T[K]) => void): void {
+  once<K extends keyof T>(event: K, listener: (data: T[K]) => void): () => void {
     const onceWrapper = (data: T[K]) => {
       listener(data);
       this.off(event, onceWrapper);
     };
     this.on(event, onceWrapper);
+    
+    // Return unsubscribe function
+    return () => this.off(event, onceWrapper);
   }
 
   /**

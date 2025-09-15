@@ -3,6 +3,7 @@
  */
 
 import { Auth } from '../../auth';
+import { AuthenticationError } from '../../errors';
 import { HttpClient } from '../../http-client';
 import { TokenManager } from '../../utils';
 import { userFixtures, tokenFixtures } from '../../../../../tests/fixtures/data';
@@ -106,15 +107,7 @@ describe('Auth - Magic Link Operations', () => {
 
     it('should handle expired magic link', async () => {
       const token = 'expired_token_123';
-      const mockError = {
-        response: {
-          status: 400,
-          data: {
-            error: 'Token expired',
-            message: 'The magic link has expired. Please request a new one.'
-          }
-        }
-      };
+      const mockError = new Error('Token expired');
 
       mockHttpClient.post.mockRejectedValue(mockError);
 
@@ -125,15 +118,7 @@ describe('Auth - Magic Link Operations', () => {
 
     it('should handle invalid magic link', async () => {
       const token = 'invalid_token_123';
-      const mockError = {
-        response: {
-          status: 400,
-          data: {
-            error: 'Invalid token',
-            message: 'The magic link is invalid. Please request a new one.'
-          }
-        }
-      };
+      const mockError = new Error('Invalid token');
 
       mockHttpClient.post.mockRejectedValue(mockError);
 
@@ -210,7 +195,7 @@ describe('Auth - Magic Link Operations', () => {
       });
 
       it('should return null if not authenticated', async () => {
-        mockHttpClient.get.mockRejectedValue(new Error('Not authenticated'));
+        mockHttpClient.get.mockRejectedValue(new AuthenticationError('Not authenticated'));
 
         const result = await auth.getCurrentUser();
 

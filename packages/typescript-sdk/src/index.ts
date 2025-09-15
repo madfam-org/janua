@@ -10,6 +10,9 @@
 export { PlintoClient, createClient } from './client';
 export { default } from './client';
 
+// Import createClient for local use
+import { createClient } from './client';
+
 // Module exports
 export { Auth } from './auth';
 export { Users } from './users';

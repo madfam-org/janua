@@ -57,6 +57,8 @@ export class RetryUtils {
       }
     }
 
+    // This line should never be reached due to the logic above,
+    // but TypeScript requires it for exhaustiveness
     throw lastError;
   }
 
@@ -86,6 +88,11 @@ export class RetryUtils {
    * Check if error is retryable
    */
   static isRetryableError(error: any): boolean {
+    // Handle null/undefined errors
+    if (!error) {
+      return false;
+    }
+
     // Network errors
     if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
       return true;

@@ -40,44 +40,24 @@ describe('Auth - OAuth Operations', () => {
   });
 
   describe('signInWithOAuth', () => {
-    it('should sign in with OAuth successfully', async () => {
-      const provider = 'google';
-      const request = {
-        code: 'oauth_code_123',
-        state: 'state_123'
+    it('should initiate OAuth authorization', async () => {
+      const params = {
+        provider: 'google',
+        redirect_uri: 'http://localhost:3000/auth/callback'
       };
 
       const mockResponse = {
-        user: userFixtures.verifiedUser,
-        access_token: tokenFixtures.validAccessToken,
-        refresh_token: tokenFixtures.validRefreshToken,
-        expires_in: 3600,
-        token_type: 'bearer' as const
+        authorization_url: 'https://accounts.google.com/oauth/authorize?...'
       };
 
       mockHttpClient.get.mockResolvedValue({ data: mockResponse });
 
-      const result = await auth.signInWithOAuth(provider, request);
+      const result = await auth.signInWithOAuth(params);
 
-      expect(mockHttpClient.get).toHaveBeenCalledWith(`/api/v1/auth/oauth/callback/${provider}`, {
-        params: request,
-        skipAuth: true
+      expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/auth/oauth/authorize', {
+        params
       });
-      expect(mockTokenManager.setTokens).toHaveBeenCalledWith({
-        access_token: mockResponse.access_token,
-        refresh_token: mockResponse.refresh_token,
-        expires_at: expect.any(Number)
-      });
-      expect(mockOnSignIn).toHaveBeenCalledWith({ user: mockResponse.user });
-      expect(result).toEqual({
-        user: mockResponse.user,
-        tokens: {
-          access_token: mockResponse.access_token,
-          refresh_token: mockResponse.refresh_token,
-          expires_in: mockResponse.expires_in,
-          token_type: mockResponse.token_type
-        }
-      });
+      expect(result).toEqual(mockResponse);
     });
   });
 
@@ -96,7 +76,7 @@ describe('Auth - OAuth Operations', () => {
         }
       ];
 
-      mockHttpClient.get.mockResolvedValue({ data: mockProviders });
+      mockHttpClient.get.mockResolvedValue({ data: { providers: mockProviders } });
 
       const result = await auth.getOAuthProviders();
 

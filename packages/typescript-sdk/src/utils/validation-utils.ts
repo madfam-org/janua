@@ -7,7 +7,40 @@ export class ValidationUtils {
    * Validate email format
    */
   static isValidEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // More strict email validation - reject invalid formats
+    if (!email || email.length < 5 || email.length > 254) {
+      return false;
+    }
+
+    // Reject emails that start or end with special characters
+    if (email.startsWith('@') || email.endsWith('@') || email.startsWith('.') || email.endsWith('.')) {
+      return false;
+    }
+
+    // Reject emails with consecutive dots
+    if (email.includes('..')) {
+      return false;
+    }
+
+    // Must have exactly one @ symbol
+    const atCount = (email.match(/@/g) || []).length;
+    if (atCount !== 1) {
+      return false;
+    }
+
+    const [localPart, domainPart] = email.split('@');
+
+    // Check local part
+    if (!localPart || localPart.length === 0 || localPart.length > 64) {
+      return false;
+    }
+
+    // Check domain part
+    if (!domainPart || domainPart.length === 0 || !domainPart.includes('.')) {
+      return false;
+    }
+
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
     return emailRegex.test(email);
   }
 
@@ -15,7 +48,31 @@ export class ValidationUtils {
    * Validate password strength
    */
   static isValidPassword(password: string): boolean {
-    return password.length >= 8;
+    if (!password || password.length < 8) {
+      return false;
+    }
+
+    // Must contain at least one uppercase letter
+    if (!/[A-Z]/.test(password)) {
+      return false;
+    }
+
+    // Must contain at least one lowercase letter
+    if (!/[a-z]/.test(password)) {
+      return false;
+    }
+
+    // Must contain at least one number
+    if (!/[0-9]/.test(password)) {
+      return false;
+    }
+
+    // Must contain at least one special character
+    if (!/[!@#$%^&*(),.?\":{}|<>]/.test(password)) {
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -89,6 +146,16 @@ export class ValidationUtils {
   static isValidUuid(uuid: string): boolean {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     return uuidRegex.test(uuid);
+  }
+
+  /**
+   * Validate slug format (lowercase letters, numbers, and hyphens only)
+   */
+  static isValidSlug(slug: string): boolean {
+    // Slug must be 1-100 characters, lowercase letters, numbers, and hyphens only
+    // Cannot start or end with hyphen
+    const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    return slug.length >= 1 && slug.length <= 100 && slugRegex.test(slug);
   }
 
   /**

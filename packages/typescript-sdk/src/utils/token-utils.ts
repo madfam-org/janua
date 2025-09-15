@@ -2,6 +2,8 @@
  * Token-related utilities for JWT handling and token storage
  */
 
+import { TokenError } from '../errors';
+
 /**
  * Base64URL encoding/decoding utilities
  */
@@ -28,44 +30,37 @@ export class Base64Url {
  * JWT parsing and validation utilities
  */
 export class JwtUtils {
-  static parseToken(token: string): any {
+  static parseToken(token: string): { header: any; payload: any; signature: string } {
     const parts = token.split('.');
     if (parts.length !== 3) {
-      throw new Error('Invalid JWT format');
+      throw new TokenError('Invalid JWT format');
     }
 
     try {
-      const payload = Base64Url.decode(parts[1]);
-      return JSON.parse(payload);
+      const header = JSON.parse(Base64Url.decode(parts[0]));
+      const payload = JSON.parse(Base64Url.decode(parts[1]));
+      const signature = parts[2];
+      
+      return { header, payload, signature };
     } catch (error) {
-      throw new Error('Failed to parse JWT payload');
+      throw new TokenError('Failed to parse JWT payload');
     }
   }
 
-  static isExpired(token: string): boolean {
-    try {
-      const payload = this.parseToken(token);
-      if (!payload.exp) {
-        return false; // No expiration claim
-      }
-      return Date.now() >= payload.exp * 1000;
-    } catch {
-      return true; // Consider invalid tokens as expired
+  static isExpired(payload: any): boolean {
+    if (!payload || !payload.exp) {
+      return false; // No expiration claim
     }
+    return Date.now() >= payload.exp * 1000;
   }
 
-  static getTimeToExpiry(token: string): number {
-    try {
-      const payload = this.parseToken(token);
-      if (!payload.exp) {
-        return Infinity; // No expiration
-      }
-      const expiryMs = payload.exp * 1000;
-      const now = Date.now();
-      return Math.max(0, Math.floor((expiryMs - now) / 1000));
-    } catch {
-      return 0;
+  static getTimeToExpiry(payload: any): number {
+    if (!payload || !payload.exp) {
+      return Infinity; // No expiration
     }
+    const expiryMs = payload.exp * 1000;
+    const now = Date.now();
+    return Math.max(0, Math.floor((expiryMs - now) / 1000));
   }
 }
 
@@ -205,5 +200,27 @@ export class TokenManager {
 
     const expiryTime = parseInt(expiresAt, 10);
     return Date.now() < expiryTime;
+  }
+
+  async getTokenData(): Promise<{
+    access_token: string;
+    refresh_token: string;
+    expires_at: number;
+  } | null> {
+    const [accessToken, refreshToken, expiresAt] = await Promise.all([
+      this.getAccessToken(),
+      this.getRefreshToken(),
+      this.storage.getItem(this.EXPIRES_AT_KEY)
+    ]);
+
+    if (!accessToken || !refreshToken || !expiresAt) {
+      return null;
+    }
+
+    return {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_at: parseInt(expiresAt, 10)
+    };
   }
 }
