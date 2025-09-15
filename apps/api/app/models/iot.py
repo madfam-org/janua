@@ -10,7 +10,7 @@ from datetime import datetime
 import uuid
 import enum
 
-from .models import Base
+from app.models import Base
 
 
 class DeviceType(enum.Enum):
