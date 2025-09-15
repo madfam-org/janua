@@ -9,11 +9,11 @@ from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 import logging
 
-from ..database import get_db
+from app.database import get_db
 from app.dependencies import get_current_user, require_admin
-from ..models import User, Organization
-from ..models.sso import SSOConfiguration, SSOProvider, SSOStatus
-from ..services.sso_service import SSOService
+from app.models import User, Organization
+from app.models.sso import SSOConfiguration, SSOProvider, SSOStatus
+from app.services.sso_service import SSOService
 
 logger = logging.getLogger(__name__)
 
