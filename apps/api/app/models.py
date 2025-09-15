@@ -44,6 +44,13 @@ class OAuthProvider(enum.Enum):
     LINKEDIN = "linkedin"
 
 
+class WebhookStatus(enum.Enum):
+    PENDING = "pending"
+    DELIVERED = "delivered"
+    FAILED = "failed"
+    RETRYING = "retrying"
+
+
 # Association tables for many-to-many relationships
 # organization_members table replaced by OrganizationMember model class
 
