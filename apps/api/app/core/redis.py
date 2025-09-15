@@ -1,4 +1,5 @@
 from typing import Optional
+from typing import Optional
 import redis.asyncio as redis
 import structlog
 

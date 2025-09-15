@@ -120,6 +120,9 @@ class Settings(BaseSettings):
     SENTRY_DSN: Optional[str] = Field(default=None)
     OPENTELEMETRY_ENABLED: bool = Field(default=False)
     OPENTELEMETRY_ENDPOINT: Optional[str] = Field(default=None)
+    MONITORING_ENDPOINT: Optional[str] = Field(default=None, description="External monitoring service endpoint")
+    MONITORING_API_KEY: Optional[str] = Field(default=None, description="API key for monitoring service")
+    ALERT_WEBHOOK_URL: Optional[str] = Field(default=None, description="Webhook URL for sending alerts")
     
     # Features
     ENABLE_DOCS: bool = Field(default=True)

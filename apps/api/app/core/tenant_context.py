@@ -95,6 +95,19 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         """Extract tenant context from request and propagate it"""
+        
+        # Skip tenant extraction for public endpoints
+        public_paths = [
+            "/health", "/ready", "/", "/docs", "/redoc", "/openapi.json",
+            "/metrics", "/metrics/performance", "/metrics/scalability",
+            "/.well-known", "/api/status", "/beta"
+        ]
+        
+        # Check if this is a public endpoint
+        for public_path in public_paths:
+            if request.url.path == public_path or request.url.path.startswith(f"{public_path}/"):
+                # Process request without tenant context
+                return await call_next(request)
 
         try:
             # Extract tenant from various sources
@@ -114,12 +127,16 @@ class TenantMiddleware(BaseHTTPMiddleware):
             # 2. Check JWT token for tenant information
             auth_header = request.headers.get("authorization")
             if auth_header and auth_header.startswith("Bearer "):
-                token = auth_header.split(" ")[1]
-                payload = verify_access_token(token)
-                if payload:
-                    tenant_id = payload.get("tid")  # Tenant ID
-                    organization_id = payload.get("oid")  # Organization ID
-                    user_id = payload.get("sub")  # User ID
+                try:
+                    token = auth_header.split(" ")[1]
+                    payload = verify_access_token(token)
+                    if payload:
+                        tenant_id = payload.get("tid")  # Tenant ID
+                        organization_id = payload.get("oid")  # Organization ID
+                        user_id = payload.get("sub")  # User ID
+                except Exception:
+                    # Token verification failed, continue without tenant context
+                    pass
 
             # 3. Check X-Tenant-ID header (for service-to-service calls)
             if not tenant_id:
