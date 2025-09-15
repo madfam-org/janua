@@ -6,14 +6,12 @@ import type { HttpClient } from './http-client';
 import type {
   AdminStatsResponse,
   SystemHealthResponse,
-  User,
-  Organization,
   PaginatedResponse,
   UserListParams,
   OrganizationListParams
 } from './types';
 import { UserStatus } from './types';
-import { ValidationError, PermissionError } from './errors';
+import { ValidationError } from './errors';
 import { ValidationUtils } from './utils';
 
 /**
@@ -294,7 +292,7 @@ export class Admin {
       user_agent?: string;
       created_at: string;
     }>>('/api/v1/admin/activity-logs', {
-      params: options
+      params: options || {}
     });
 
     // Since the API returns an array, we need to simulate pagination
@@ -502,8 +500,4 @@ export class Admin {
   /**
    * Validate admin permissions
    */
-  private validateAdminPermissions(): void {
-    // This would typically be handled by the HTTP client middleware
-    // but we can add an explicit check here for better error messages
-  }
 }
