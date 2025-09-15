@@ -44,7 +44,7 @@ from app.routers.v1 import (
     passkeys as passkeys_v1,
     admin as admin_v1,
     webhooks as webhooks_v1,
-    sso as sso_v1,
+    # sso as sso_v1,  # TODO: Re-enable once dependency injection is configured
     migration as migration_v1,
     white_label as white_label_v1,
     compliance as compliance_v1,
@@ -505,7 +505,8 @@ app.include_router(mfa_v1.router, prefix="/api/v1")
 app.include_router(passkeys_v1.router, prefix="/api/v1")
 app.include_router(admin_v1.router, prefix="/api/v1")
 app.include_router(webhooks_v1.router, prefix="/api/v1")
-app.include_router(sso_v1.router, prefix="/api/v1")
+# TODO: Re-enable SSO router once dependency injection is properly configured
+# app.include_router(sso_v1.router, prefix="/api/v1")
 app.include_router(migration_v1.router, prefix="/api/v1")
 app.include_router(white_label_v1.router, prefix="/api/v1")
 app.include_router(compliance_v1.router, prefix="/api/v1")

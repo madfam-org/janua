@@ -109,8 +109,14 @@ class SSOTestRequest(BaseModel):
     configuration_id: str
 
 
-# Initialize SSO service
-sso_service = SSOService()
+# SSO service dependency
+def get_sso_service() -> SSOService:
+    """
+    Create SSO service instance with dependencies.
+    This is a placeholder - in production, inject actual db, cache, and jwt_service
+    """
+    # TODO: Replace with actual dependency injection
+    return None  # Will be properly initialized when dependencies are available
 
 
 @router.post("/configurations", response_model=SSOConfigurationResponse)
