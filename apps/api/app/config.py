@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     JWT_AUDIENCE: str = Field(default="plinto.dev")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=15)
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
+    # Aliases for compatibility
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=15)
+    ALGORITHM: str = Field(default="HS256")
     
     # Security
     SECRET_KEY: str = Field(default="change-this-in-production")
