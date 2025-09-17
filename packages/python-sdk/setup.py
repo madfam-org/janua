@@ -5,19 +5,20 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="plinto",
-    version="0.1.0",
+    version="1.0.0",
     author="Plinto Team",
-    author_email="support@plinto.dev",
+    author_email="team@plinto.dev",
     description="Official Python SDK for Plinto - Modern authentication and user management platform",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/plinto/plinto",
+    url="https://github.com/madfam-io/plinto",
     project_urls={
-        "Bug Tracker": "https://github.com/plinto/plinto/issues",
-        "Documentation": "https://docs.plinto.dev",
+        "Bug Tracker": "https://github.com/madfam-io/plinto/issues",
+        "Documentation": "https://docs.plinto.dev/sdks/python",
+        "Source Code": "https://github.com/madfam-io/plinto/tree/main/packages/python-sdk",
     },
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "License :: OSI Approved :: MIT License",
