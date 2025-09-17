@@ -18,6 +18,7 @@ import { Users } from './users';
 import { Organizations } from './organizations';
 import { Webhooks } from './webhooks';
 import { Admin } from './admin';
+import { EnterpriseFeatures, FEATURES, type LicenseInfo } from './enterprise';
 
 /**
  * Main Plinto SDK client class
@@ -34,6 +35,10 @@ export class PlintoClient extends EventEmitter<SdkEventMap> {
   public readonly webhooks: Webhooks;
   public readonly admin: Admin;
 
+  // Enterprise features
+  private enterprise: EnterpriseFeatures;
+  private licenseInfo?: LicenseInfo;
+
   constructor(config: Partial<PlintoConfig> = {}) {
     super();
     
@@ -46,6 +51,12 @@ export class PlintoClient extends EventEmitter<SdkEventMap> {
     // Initialize HTTP client
     this.httpClient = this.createHttpClient();
     
+    // Initialize enterprise features
+    this.enterprise = new EnterpriseFeatures({
+      licenseKey: (config as any).licenseKey,
+      apiUrl: this.config.baseURL
+    });
+
     // Initialize modules
     this.auth = new Auth(
       this.httpClient,
@@ -57,9 +68,14 @@ export class PlintoClient extends EventEmitter<SdkEventMap> {
     this.organizations = new Organizations(this.httpClient);
     this.webhooks = new Webhooks(this.httpClient);
     this.admin = new Admin(this.httpClient);
-    
+
     // Set up event forwarding
     this.setupEventForwarding();
+
+    // Validate license on initialization if provided
+    if ((config as any).licenseKey) {
+      this.validateLicense().catch(console.warn);
+    }
     
     // Auto-refresh tokens if enabled
     if (this.config.autoRefreshTokens) {
@@ -282,6 +298,92 @@ export class PlintoClient extends EventEmitter<SdkEventMap> {
    */
   disableDebug(): void {
     this.config.debug = false;
+  }
+
+  // Enterprise Methods
+
+  /**
+   * Set or update license key
+   */
+  setLicenseKey(key: string): void {
+    this.enterprise.setLicenseKey(key);
+    this.licenseInfo = undefined;
+  }
+
+  /**
+   * Validate current license
+   */
+  async validateLicense(): Promise<LicenseInfo> {
+    this.licenseInfo = await this.enterprise.validateLicense();
+    return this.licenseInfo;
+  }
+
+  /**
+   * Get current license info
+   */
+  getLicenseInfo(): LicenseInfo | undefined {
+    return this.licenseInfo;
+  }
+
+  /**
+   * Check if a feature is available
+   */
+  async hasFeature(feature: keyof typeof FEATURES | string): Promise<boolean> {
+    const featureKey = typeof feature === 'string' && feature in FEATURES
+      ? FEATURES[feature as keyof typeof FEATURES]
+      : feature;
+    return await this.enterprise.hasFeature(featureKey);
+  }
+
+  /**
+   * Enable SSO (Enterprise feature)
+   */
+  async enableSSO(type: 'saml' | 'oidc', config: any): Promise<any> {
+    const featureKey = type === 'saml' ? FEATURES.SSO_SAML : FEATURES.SSO_OIDC;
+    await this.enterprise.requireEnterprise(featureKey);
+    return await this.httpClient.post('/v1/enterprise/sso/configure', {
+      type,
+      config
+    });
+  }
+
+  /**
+   * Get audit logs (Enterprise feature)
+   */
+  async getAuditLogs(params?: any): Promise<any> {
+    await this.enterprise.requireEnterprise(FEATURES.AUDIT_LOGS);
+    return await this.httpClient.get('/v1/enterprise/audit-logs', { params });
+  }
+
+  /**
+   * Create custom role (Enterprise feature)
+   */
+  async createCustomRole(role: any): Promise<any> {
+    await this.enterprise.requireEnterprise(FEATURES.CUSTOM_ROLES);
+    return await this.httpClient.post('/v1/enterprise/roles', role);
+  }
+
+  /**
+   * Enable white labeling (Enterprise feature)
+   */
+  async configureWhiteLabeling(config: any): Promise<any> {
+    await this.enterprise.requireEnterprise(FEATURES.WHITE_LABELING);
+    return await this.httpClient.post('/v1/enterprise/white-label', config);
+  }
+
+  /**
+   * Get compliance reports (Enterprise feature)
+   */
+  async getComplianceReport(type: string): Promise<any> {
+    await this.enterprise.requireEnterprise(FEATURES.COMPLIANCE_REPORTS);
+    return await this.httpClient.get(`/v1/enterprise/compliance/${type}`);
+  }
+
+  /**
+   * Check rate limits for current operation
+   */
+  async checkRateLimit(operation: string): Promise<any> {
+    return await this.enterprise.checkRateLimit(operation);
   }
 
   // Event Methods (inherited from EventEmitter but with typed interface)

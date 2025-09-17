@@ -1,0 +1,55 @@
+name: plinto_flutter
+description: Official Flutter SDK for Plinto Identity Platform with support for iOS, Android, and Web platforms
+version: 1.0.0
+homepage: https://plinto.dev
+repository: https://github.com/madfam-io/plinto
+issue_tracker: https://github.com/madfam-io/plinto/issues
+documentation: https://docs.plinto.dev/sdks/flutter
+
+environment:
+  sdk: '>=2.17.0 <4.0.0'
+  flutter: '>=3.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.1.0
+  flutter_secure_storage: ^9.0.0
+  local_auth: ^2.1.6
+  webview_flutter: ^4.4.0
+  crypto: ^3.0.3
+  jwt_decoder: ^2.0.1
+  url_launcher: ^6.1.14
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  mockito: ^5.4.3
+  build_runner: ^2.4.6
+
+platforms:
+  android:
+  ios:
+  web:
+  macos:
+  windows:
+  linux:
+
+topics:
+  - authentication
+  - identity
+  - oauth
+  - sso
+  - mfa
+
+screenshots:
+  - description: 'Sign in screen with multiple auth options'
+    path: screenshots/signin.png
+  - description: 'Biometric authentication'
+    path: screenshots/biometric.png
+  - description: 'User profile management'
+    path: screenshots/profile.png
+
+funding:
+  - https://plinto.dev/pricing

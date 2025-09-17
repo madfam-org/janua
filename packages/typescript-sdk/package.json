@@ -51,10 +51,15 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/plinto/plinto"
+    "url": "https://github.com/madfam-io/plinto.git",
+    "directory": "packages/typescript-sdk"
   },
   "bugs": {
-    "url": "https://github.com/plinto/plinto/issues"
+    "url": "https://github.com/madfam-io/plinto/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "homepage": "https://plinto.dev",
   "devDependencies": {

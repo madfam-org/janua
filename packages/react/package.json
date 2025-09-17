@@ -1,9 +1,15 @@
 {
   "name": "@plinto/react",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "Official Plinto SDK for React applications",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -20,7 +26,7 @@
     "test:watch": "jest --config jest.config.js --watch"
   },
   "dependencies": {
-    "@plinto/typescript-sdk": "*"
+    "@plinto/typescript-sdk": "^1.0.0"
   },
   "peerDependencies": {
     "react": "^18.0.0",
@@ -38,5 +44,32 @@
     "ts-jest": "^29.1.1",
     "tsup": "^8.0.0",
     "typescript": "^5.3.0"
+  },
+  "keywords": [
+    "plinto",
+    "react",
+    "authentication",
+    "auth",
+    "hooks",
+    "components",
+    "sso",
+    "oauth",
+    "mfa",
+    "passkeys"
+  ],
+  "author": "Plinto Team <team@plinto.dev>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/madfam-io/plinto.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/madfam-io/plinto/issues"
+  },
+  "homepage": "https://plinto.dev",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

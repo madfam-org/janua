@@ -1,6 +1,6 @@
 {
   "name": "@plinto/vue",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Official Plinto SDK for Vue 3 applications",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -36,15 +36,15 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/plinto/plinto",
+    "url": "https://github.com/madfam-io/plinto.git",
     "directory": "packages/vue-sdk"
   },
   "homepage": "https://plinto.dev",
   "bugs": {
-    "url": "https://github.com/plinto/plinto/issues"
+    "url": "https://github.com/madfam-io/plinto/issues"
   },
   "dependencies": {
-    "@plinto/typescript-sdk": "*"
+    "@plinto/typescript-sdk": "^1.0.0"
   },
   "peerDependencies": {
     "vue": "^3.0.0"
