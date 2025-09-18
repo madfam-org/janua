@@ -29,6 +29,7 @@ python-postmark==0.6.0
 
 # Utilities
 structlog==24.1.0
+webauthn==2.0.0
 slowapi==0.1.9
 httpx==0.25.2
 python-dateutil==2.8.2
