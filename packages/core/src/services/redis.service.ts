@@ -281,6 +281,10 @@ export class RedisService extends EventEmitter {
     const serialized = values.map(v => JSON.stringify(v));
     return await this.client.rpush(key, ...serialized);
   }
+
+  async ltrim(key: string, start: number, stop: number): Promise<string> {
+    return await this.client.ltrim(key, start, stop);
+  }
   
   async lpop<T>(key: string): Promise<T | null> {
     const data = await this.client.lpop(key);
@@ -357,7 +361,11 @@ export class RedisService extends EventEmitter {
   async incrby(key: string, increment: number): Promise<number> {
     return await this.client.incrby(key, increment);
   }
-  
+
+  async hincrby(key: string, field: string, increment: number): Promise<number> {
+    return await this.client.hincrby(key, field, increment);
+  }
+
   async decrby(key: string, decrement: number): Promise<number> {
     return await this.client.decrby(key, decrement);
   }

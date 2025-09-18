@@ -530,7 +530,7 @@ export class RateLimiterService extends EventEmitter {
         violations = violations.filter(v => v.key === filters.key);
       }
       if (filters.since) {
-        violations = violations.filter(v => v.timestamp >= filters.since);
+        violations = violations.filter(v => v.timestamp >= filters.since!);
       }
       if (filters.limit_config_id) {
         violations = violations.filter(v => v.limit_config_id === filters.limit_config_id);

@@ -143,7 +143,7 @@ The dashboard leverages the shared design system:
 
 ```tsx
 import { Button, Card, Input, Select } from '@plinto/ui';
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 ```
 
 ### Dashboard-Specific Components

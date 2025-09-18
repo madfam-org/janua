@@ -166,7 +166,7 @@ For teams ready to go live:
 
 #### React Application
 ```tsx
-import { PlintoProvider, usePlinto } from '@plinto/react';
+import { PlintoProvider, usePlinto } from '@plinto/react-sdk';
 
 function App() {
   return (

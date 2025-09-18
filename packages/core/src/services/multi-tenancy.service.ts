@@ -462,7 +462,12 @@ export class MultiTenancyService extends EventEmitter {
     window: number = 60
   ): Promise<{ allowed: boolean; remaining: number; reset_at: number }> {
     const key = `ratelimit:tenant:${tenantId}:${resource}`;
-    return this.redis.checkRateLimit(key, limit, window);
+    const result = await this.redis.checkRateLimit(key, limit, window);
+    return {
+      allowed: result.allowed,
+      remaining: result.remaining,
+      reset_at: result.resetAt
+    };
   }
   
   // Usage Tracking

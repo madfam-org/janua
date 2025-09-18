@@ -32,12 +32,12 @@ export default function SDKsPage() {
             stable
           />
           <SDKCard
-            name="@plinto/react"
+            name="@plinto/react-sdk"
             description="React hooks and components for authentication"
             version="1.1.8"
             href="/sdks/javascript/react"
             githubUrl="https://github.com/plinto/plinto-react"
-            installCommand="npm install @plinto/react"
+            installCommand="npm install @plinto/react-sdk"
             features={["React Hooks", "Context Provider", "Auth Components", "TypeScript Support"]}
             stable
           />
@@ -169,12 +169,12 @@ export default function SDKsPage() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <SDKCard
-            name="@plinto/react-native"
+            name="@plinto/react-sdk-native"
             description="React Native SDK with biometric authentication"
             version="0.7.0"
             href="/sdks/mobile/react-native"
             githubUrl="https://github.com/plinto/plinto-react-native"
-            installCommand="npm install @plinto/react-native"
+            installCommand="npm install @plinto/react-sdk-native"
             features={["Biometric Auth", "Keychain Storage", "Deep Linking", "Push Notifications"]}
             beta
           />
@@ -265,7 +265,7 @@ export default function SDKsPage() {
                   React SPA
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  @plinto/react
+                  @plinto/react-sdk
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   Single-page applications

@@ -653,7 +653,7 @@ export class OrganizationMembersService extends EventEmitter {
         members = members.filter(m => m.status === filters.status);
       }
       if (filters.team) {
-        members = members.filter(m => m.teams.includes(filters.team));
+        members = members.filter(m => m.teams.includes(filters.team!));
       }
       if (filters.access_level) {
         members = members.filter(m => m.access_level === filters.access_level);

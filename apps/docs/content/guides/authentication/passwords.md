@@ -362,7 +362,7 @@ async def change_password(
 
 ```jsx
 import React, { useState } from 'react'
-import { usePlinto } from '@plinto/react'
+import { usePlinto } from '@plinto/react-sdk'
 import { EyeIcon, EyeOffIcon } from '@heroicons/react/24/outline'
 
 function PasswordAuth() {

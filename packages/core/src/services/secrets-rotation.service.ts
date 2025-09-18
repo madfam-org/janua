@@ -48,14 +48,31 @@ export class SecretsRotationService extends EventEmitter {
    * Initialize rotation schedules from configuration
    */
   private async initializeRotationSchedules(): Promise<void> {
-    const rotationConfigs = this.config.get<RotationConfig[]>('secrets.rotation');
-    
-    for (const config of rotationConfigs) {
-      await this.scheduleRotation(config);
-    }
+    try {
+      const rotationConfig = this.config.get('secrets');
+      if (!rotationConfig || typeof rotationConfig !== 'object') {
+        console.log('No secrets rotation configuration found, skipping initialization');
+        return;
+      }
 
-    // Set up monitoring
-    this.startHealthCheck();
+      const rotation = (rotationConfig as any).rotation;
+      if (!rotation || !Array.isArray(rotation)) {
+        console.log('No rotation schedules configured');
+        return;
+      }
+
+      const rotationConfigs = rotation as RotationConfig[];
+      
+      for (const config of rotationConfigs) {
+        await this.scheduleRotation(config);
+      }
+
+      // Set up monitoring
+      this.startHealthCheck();
+    } catch (error) {
+      console.error('Failed to initialize rotation schedules:', error);
+      this.emit('initialization:error', error as Error);
+    }
   }
 
   /**
@@ -76,7 +93,7 @@ export class SecretsRotationService extends EventEmitter {
           await this.rotateSecret(config);
         } catch (error) {
           this.emit('rotation:error', { config, error });
-          await this.handleRotationError(config, error);
+          await this.handleRotationError(config, error as Error);
         }
       },
       null,
@@ -88,6 +105,15 @@ export class SecretsRotationService extends EventEmitter {
     
     await this.audit.log({
       action: 'secret_rotation_scheduled',
+      actor: {
+        id: 'system',
+        type: 'system'
+      },
+      resource: {
+        type: 'secret',
+        id: config.keyType
+      },
+      outcome: 'success',
       details: {
         keyType: config.keyType,
         interval: config.rotationInterval
@@ -132,6 +158,15 @@ export class SecretsRotationService extends EventEmitter {
     // Audit the rotation
     await this.audit.log({
       action: 'secret_rotated',
+      actor: {
+        id: 'system',
+        type: 'system'
+      },
+      resource: {
+        type: 'secret',
+        id: config.keyType
+      },
+      outcome: 'success',
       details: {
         keyType: config.keyType,
         oldVersion: oldSecret?.version,
@@ -275,6 +310,15 @@ export class SecretsRotationService extends EventEmitter {
 
     await this.audit.log({
       action: 'old_keys_deactivated',
+      actor: {
+        id: 'system',
+        type: 'system'
+      },
+      resource: {
+        type: 'secret',
+        id: keyType
+      },
+      outcome: 'success',
       details: {
         keyType,
         count: oldKeys.length
@@ -316,7 +360,15 @@ export class SecretsRotationService extends EventEmitter {
   private async handleRotationError(config: RotationConfig, error: any): Promise<void> {
     await this.audit.log({
       action: 'secret_rotation_failed',
-      level: 'error',
+      actor: {
+        id: 'system',
+        type: 'system'
+      },
+      resource: {
+        type: 'secret',
+        id: config.keyType
+      },
+      outcome: 'failure',
       details: {
         keyType: config.keyType,
         error: error.message
@@ -380,9 +432,19 @@ export class SecretsRotationService extends EventEmitter {
       if (daysToExpiry < 0) {
         this.emit('rotation:expired', { keyType });
         // Trigger immediate rotation
-        const config = this.config.get<RotationConfig>(`secrets.rotation.${keyType}`);
-        if (config) {
-          await this.rotateSecret(config);
+        try {
+          const secretsConfig = this.config.get('secrets');
+          if (secretsConfig && typeof secretsConfig === 'object') {
+            const rotation = (secretsConfig as any).rotation;
+            if (rotation && Array.isArray(rotation)) {
+              const config = rotation.find((r: any) => r.keyType === keyType) as RotationConfig;
+              if (config) {
+                await this.rotateSecret(config);
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to auto-rotate expired key ${keyType}:`, error);
         }
       }
     }
@@ -409,17 +471,27 @@ export class SecretsRotationService extends EventEmitter {
    * Manually trigger rotation
    */
   public async manualRotation(keyType: string): Promise<SecretMetadata> {
-    const config = this.config.get<RotationConfig>(`secrets.rotation.${keyType}`);
-    if (!config) {
-      throw new Error(`No rotation configuration for key type: ${keyType}`);
+    try {
+      const secretsConfig = this.config.get('secrets');
+      if (!secretsConfig || typeof secretsConfig !== 'object') {
+        throw new Error('No secrets configuration found');
+      }
+
+      const rotation = (secretsConfig as any).rotation;
+      if (!rotation || !Array.isArray(rotation)) {
+        throw new Error('No rotation configuration found');
+      }
+
+      const config = rotation.find((r: any) => r.keyType === keyType) as RotationConfig;
+      
+      if (!config) {
+        throw new Error(`No rotation configuration found for key type: ${keyType}`);
+      }
+      
+      return await this.rotateSecret(config);
+    } catch (error) {
+      throw new Error(`Failed to manually rotate ${keyType}: ${(error as Error).message}`);
     }
-
-    await this.audit.log({
-      action: 'manual_rotation_triggered',
-      details: { keyType }
-    });
-
-    return this.rotateSecret(config);
   }
 
   /**

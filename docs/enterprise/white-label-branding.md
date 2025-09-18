@@ -383,7 +383,7 @@ class WidgetCustomizer {
       
       // React component
       react: `
-        import { PlintoAuthWidget } from '@plinto/react-widget';
+        import { PlintoAuthWidget } from '@plinto/react-sdk-widget';
         
         export function AuthWidget() {
           return (

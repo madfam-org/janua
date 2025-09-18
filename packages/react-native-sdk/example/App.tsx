@@ -17,7 +17,7 @@ import {
   Platform,
   Switch,
 } from 'react-native';
-import PlintoClient from '@plinto/react-native';
+import PlintoClient from '@plinto/react-sdk-native';
 import * as Keychain from 'react-native-keychain';
 import { Linking } from 'react-native';
 

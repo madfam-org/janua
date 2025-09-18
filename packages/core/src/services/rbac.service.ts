@@ -297,7 +297,7 @@ export class RBACService extends EventEmitter {
     if (this.redisService) {
       const rolesJson = await this.redisService.get(`user:${userId}:roles`);
       if (rolesJson) {
-        const roles = JSON.parse(rolesJson);
+        const roles = JSON.parse(rolesJson) as string[];
         const roleSet = new Set(roles);
         this.userRoles.set(userId, roleSet);
         return roleSet;

@@ -337,7 +337,7 @@ export default withPlinto({
 });
 
 // React Components
-import { SignIn, UserButton, OrganizationSwitcher } from '@plinto/react';
+import { SignIn, UserButton, OrganizationSwitcher } from '@plinto/react-sdk';
 
 export default function App() {
   return (

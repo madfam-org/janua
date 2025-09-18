@@ -4,8 +4,8 @@
  */
 
 import { EventEmitter } from 'events';
-import { Server as SocketIOServer, Socket } from 'socket.io';
-import { Server as HttpServer } from 'http';
+import { Server, Socket } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
 import * as jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
@@ -21,6 +21,7 @@ export interface WebSocketConfig {
   path?: string;
   jwt_secret: string;
   redis_client?: any; // For scaling across multiple servers
+  allowedOrigins?: string | string[];
 }
 
 export interface WebSocketClient {
@@ -78,7 +79,7 @@ export interface WebSocketMetrics {
 }
 
 export class WebSocketService extends EventEmitter {
-  private io: SocketIOServer | null = null;
+  private io: Server | null = null;
   private clients: Map<string, WebSocketClient> = new Map();
   private rooms: Map<string, WebSocketRoom> = new Map();
   private presence: Map<string, PresenceData> = new Map();
@@ -103,16 +104,16 @@ export class WebSocketService extends EventEmitter {
   /**
    * Initialize WebSocket server
    */
-  initialize(httpServer: HttpServer): void {
-    this.io = new SocketIOServer(httpServer, {
-      cors: this.config.cors || {
-        origin: '*',
+  initialize(server: any): void {
+    this.io = new Server(server, {
+      cors: {
+        origin: this.config.allowedOrigins || '*',
         credentials: true
       },
       pingTimeout: this.config.pingTimeout || 60000,
       pingInterval: this.config.pingInterval || 25000,
       maxHttpBufferSize: this.config.maxPayloadSize || 1e7, // 10MB
-      transports: this.config.transports || ['websocket', 'polling'],
+      transports: (this.config.transports || ['websocket', 'polling']) as any,
       path: this.config.path || '/ws'
     });
 
@@ -129,7 +130,7 @@ export class WebSocketService extends EventEmitter {
   private setupMiddleware(): void {
     if (!this.io) return;
 
-    this.io.use(async (socket: Socket, next) => {
+    this.io.use(async (socket: Socket, next: any) => {
       try {
         const token = socket.handshake.auth.token || socket.handshake.headers.authorization;
         
@@ -165,23 +166,23 @@ export class WebSocketService extends EventEmitter {
 
       // Core events
       socket.on('disconnect', () => this.handleDisconnect(socket));
-      socket.on('error', (error) => this.handleError(socket, error));
+      socket.on('error', (error: any) => this.handleError(socket, error));
       
       // Room events
-      socket.on('join:room', (data) => this.handleJoinRoom(socket, data));
-      socket.on('leave:room', (data) => this.handleLeaveRoom(socket, data));
+      socket.on('join:room', (data: any) => this.handleJoinRoom(socket, data));
+      socket.on('leave:room', (data: any) => this.handleLeaveRoom(socket, data));
       
       // Messaging events
-      socket.on('message:send', (data) => this.handleMessage(socket, data));
-      socket.on('message:typing', (data) => this.handleTyping(socket, data));
+      socket.on('message:send', (data: any) => this.handleMessage(socket, data));
+      socket.on('message:typing', (data: any) => this.handleTyping(socket, data));
       
       // Presence events
-      socket.on('presence:update', (data) => this.handlePresenceUpdate(socket, data));
-      socket.on('presence:query', (data) => this.handlePresenceQuery(socket, data));
+      socket.on('presence:update', (data: any) => this.handlePresenceUpdate(socket, data));
+      socket.on('presence:query', (data: any) => this.handlePresenceQuery(socket, data));
       
       // Real-time subscriptions
-      socket.on('subscribe', (data) => this.handleSubscribe(socket, data));
-      socket.on('unsubscribe', (data) => this.handleUnsubscribe(socket, data));
+      socket.on('subscribe', (data: any) => this.handleSubscribe(socket, data));
+      socket.on('unsubscribe', (data: any) => this.handleUnsubscribe(socket, data));
       
       // Ping for latency measurement
       socket.on('ping', () => this.handlePing(socket));

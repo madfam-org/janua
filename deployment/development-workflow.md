@@ -100,7 +100,7 @@ yarn workspace @plinto/admin build
 
 # Shared Packages
 yarn workspace @plinto/ui build
-yarn workspace @plinto/react build
+yarn workspace @plinto/react-sdk build
 yarn workspace @plinto/sdk build
 yarn workspace @plinto/edge build
 ```

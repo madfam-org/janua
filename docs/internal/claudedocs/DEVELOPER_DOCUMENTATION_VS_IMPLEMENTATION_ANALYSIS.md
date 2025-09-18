@@ -54,11 +54,11 @@ The README explicitly states:
 
 And provides usage examples:
 ```bash
-npm i @plinto/nextjs @plinto/react
+npm i @plinto/nextjs @plinto/react-sdk
 ```
 
 With code examples showing:
-- `<SignIn />` component from `@plinto/react`
+- `<SignIn />` component from `@plinto/react-sdk`
 - `withPlinto()` middleware
 - `PlintoProvider` wrapper
 - `getSession()` server function
@@ -72,7 +72,7 @@ With code examples showing:
 |---------|-----------|--------|---------------------|-----------------|
 | `@plinto/js` | `js-sdk/` | ✅ Exists | ~90% | Complete implementation but **NOT BUILT** (no dist/) |
 | `@plinto/nextjs` | `nextjs-sdk/` | ⚠️ Partial | ~70% | Depends on unbuilt `@plinto/js` |
-| `@plinto/react` | `react/` | ⚠️ Partial | ~60% | Has components but inconsistent structure |
+| `@plinto/react-sdk` | `react/` | ⚠️ Partial | ~60% | Has components but inconsistent structure |
 | `@plinto/edge` | ❌ Missing | ❌ Missing | 0% | Referenced in docs but doesn't exist |
 | `@plinto/python-sdk` | `python-sdk/` | 🏗️ Shell | ~5% | Directory exists but empty |
 | `@plinto/vue-sdk` | `vue-sdk/` | 🏗️ Shell | ~5% | Directory exists but empty |
@@ -113,9 +113,9 @@ With code examples showing:
    ```
 
 2. **Incomplete React Components**
-   - Documentation shows `import { SignIn } from "@plinto/react"`
+   - Documentation shows `import { SignIn } from "@plinto/react-sdk"`
    - Actual: Components exist in `packages/react/src/components/` but not properly exported
-   - Missing proper package structure for `@plinto/react`
+   - Missing proper package structure for `@plinto/react-sdk`
 
 3. **No Edge Verification Package**
    - Documentation shows Cloudflare Worker example with `import { verify } from "@plinto/edge"`
@@ -142,7 +142,7 @@ With code examples showing:
 
 1. **Broken Quick Start**
    ```bash
-   npm i @plinto/nextjs @plinto/react  # Will fail - packages not published
+   npm i @plinto/nextjs @plinto/react-sdk  # Will fail - packages not published
    ```
 
 2. **Non-functional Code Examples**
@@ -278,7 +278,7 @@ npm run build
 
 2. **Phase 2: Framework SDKs** (High)
    - Complete `@plinto/nextjs`
-   - Fix `@plinto/react` exports
+   - Fix `@plinto/react-sdk` exports
    - Create `@plinto/edge`
 
 3. **Phase 3: Additional SDKs** (Medium)

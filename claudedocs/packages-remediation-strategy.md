@@ -256,7 +256,7 @@ cat packages/ui/package.json | jq '.name, .description, .main'
 grep -r "export" packages/ui/src/ | head -5
 
 # Search for usage of packages/react
-rg "@plinto/react" . --type typescript --type javascript
+rg "@plinto/react-sdk" . --type typescript --type javascript
 rg "packages/react" . --type-add 'config:*.{json,js,ts,yml,yaml}' -t config
 ```
 
@@ -277,7 +277,7 @@ echo "📋 Removing redundant packages/react..."
 diff -r packages/react packages/ui 2>/dev/null || echo "Packages differ or one doesn't exist"
 
 # Step 2: Search for dependencies
-find . -name "package.json" -exec grep -l "@plinto/react" {} \; || echo "No dependencies found"
+find . -name "package.json" -exec grep -l "@plinto/react-sdk" {} \; || echo "No dependencies found"
 
 # Step 3: Safe removal
 if [ -d "packages/react" ] && [ ! -s "packages/react/package.json" ]; then

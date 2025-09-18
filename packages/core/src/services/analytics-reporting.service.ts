@@ -998,10 +998,11 @@ export class AnalyticsReportingService extends EventEmitter {
     return Array.from(buckets.values());
   }
 
-  private getBucketKey(date: Date, granularity: string): string {
+  private getBucketKey(date: Date, granularity: string | undefined): string {
+    const defaultGranularity = granularity || 'day';
     const d = new Date(date);
     
-    switch (granularity) {
+    switch (defaultGranularity) {
       case 'minute':
         d.setSeconds(0, 0);
         break;

@@ -521,10 +521,10 @@ export class SessionManager extends EventEmitter {
 
     const timeDiff = (session.created_at.getTime() - recentSession.last_activity_at.getTime()) / 1000 / 3600; // hours
     const distance = this.calculateDistance(
-      session.location.latitude,
-      session.location.longitude,
-      recentSession.location.latitude,
-      recentSession.location.longitude
+      session.location.latitude || 0,
+      session.location.longitude || 0,
+      recentSession.location.latitude || 0,
+      recentSession.location.longitude || 0
     );
 
     const velocity = distance / timeDiff; // km/h

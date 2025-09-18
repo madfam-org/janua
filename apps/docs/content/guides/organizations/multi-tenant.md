@@ -574,7 +574,7 @@ async def list_users(
 
 ```jsx
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { usePlinto } from '@plinto/react'
+import { usePlinto } from '@plinto/react-sdk'
 
 const TenantContext = createContext()
 

@@ -44,11 +44,11 @@ const session = await plinto.auth.login({
 ### React SDK
 
 ```bash
-npm install @plinto/react
+npm install @plinto/react-sdk
 ```
 
 ```jsx
-import { PlintoProvider, useAuth } from '@plinto/react';
+import { PlintoProvider, useAuth } from '@plinto/react-sdk';
 
 function App() {
   return (
@@ -620,14 +620,14 @@ interface PlintoError extends Error {
 ## Installation
 
 ```bash
-npm install @plinto/react
+npm install @plinto/react-sdk
 ```
 
 ## Setup
 
 ```jsx
 import React from 'react';
-import { PlintoProvider } from '@plinto/react';
+import { PlintoProvider } from '@plinto/react-sdk';
 
 function App() {
   return (
@@ -647,7 +647,7 @@ function App() {
 ### useAuth
 
 ```jsx
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 
 function AuthComponent() {
   const { 
@@ -708,7 +708,7 @@ function AuthComponent() {
 ### useMagicLink
 
 ```jsx
-import { useMagicLink } from '@plinto/react';
+import { useMagicLink } from '@plinto/react-sdk';
 
 function MagicLinkComponent() {
   const { sendMagicLink, loading, error, sent } = useMagicLink();
@@ -735,7 +735,7 @@ function MagicLinkComponent() {
 ### usePasskeys
 
 ```jsx
-import { usePasskeys } from '@plinto/react';
+import { usePasskeys } from '@plinto/react-sdk';
 
 function PasskeyComponent() {
   const { 
@@ -787,7 +787,7 @@ function PasskeyComponent() {
 ### useOAuth
 
 ```jsx
-import { useOAuth } from '@plinto/react';
+import { useOAuth } from '@plinto/react-sdk';
 
 function OAuthComponent() {
   const { providers, loginWithProvider, loading, error } = useOAuth();
@@ -820,7 +820,7 @@ function OAuthComponent() {
 ### useUser
 
 ```jsx
-import { useUser } from '@plinto/react';
+import { useUser } from '@plinto/react-sdk';
 
 function UserProfile() {
   const { 
@@ -865,7 +865,7 @@ function UserProfile() {
 ### useMFA
 
 ```jsx
-import { useMFA } from '@plinto/react';
+import { useMFA } from '@plinto/react-sdk';
 
 function MFAComponent() {
   const { 
@@ -916,7 +916,7 @@ function MFAComponent() {
 ### useOrganization
 
 ```jsx
-import { useOrganization } from '@plinto/react';
+import { useOrganization } from '@plinto/react-sdk';
 
 function OrganizationComponent() {
   const { 
@@ -956,7 +956,7 @@ function OrganizationComponent() {
 ### useMembers
 
 ```jsx
-import { useMembers } from '@plinto/react';
+import { useMembers } from '@plinto/react-sdk';
 
 function MembersComponent({ organizationId }) {
   const { 
@@ -1003,7 +1003,7 @@ function MembersComponent({ organizationId }) {
 ### ProtectedRoute
 
 ```jsx
-import { ProtectedRoute } from '@plinto/react';
+import { ProtectedRoute } from '@plinto/react-sdk';
 
 function App() {
   return (
@@ -1038,7 +1038,7 @@ function App() {
 ### PermissionGuard
 
 ```jsx
-import { PermissionGuard } from '@plinto/react';
+import { PermissionGuard } from '@plinto/react-sdk';
 
 function Dashboard() {
   return (
@@ -1063,7 +1063,7 @@ function Dashboard() {
 ### HasPermission
 
 ```jsx
-import { HasPermission } from '@plinto/react';
+import { HasPermission } from '@plinto/react-sdk';
 
 function UserRow({ user }) {
   return (
@@ -1090,7 +1090,7 @@ function UserRow({ user }) {
 ### LoginForm
 
 ```jsx
-import { LoginForm } from '@plinto/react';
+import { LoginForm } from '@plinto/react-sdk';
 
 function LoginPage() {
   return (
@@ -1115,7 +1115,7 @@ function LoginPage() {
 ### RegisterForm
 
 ```jsx
-import { RegisterForm } from '@plinto/react';
+import { RegisterForm } from '@plinto/react-sdk';
 
 function RegisterPage() {
   return (
@@ -1141,7 +1141,7 @@ function RegisterPage() {
 ### MFASetupForm
 
 ```jsx
-import { MFASetupForm } from '@plinto/react';
+import { MFASetupForm } from '@plinto/react-sdk';
 
 function MFASetupPage() {
   return (

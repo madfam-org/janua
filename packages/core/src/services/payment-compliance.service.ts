@@ -162,7 +162,7 @@ export class PaymentComplianceService extends EventEmitter {
         const { amount, currency, cardIssuer } = context;
 
         // Check for SCA exemptions
-        if (this.qualifiesForSCAExemption(amount, currency, context)) {
+        if (await this.qualifiesForSCAExemption(amount, currency, context)) {
           return { ...context, scaExempted: true };
         }
 
@@ -262,7 +262,7 @@ export class PaymentComplianceService extends EventEmitter {
           reason,
           amount,
           status: 'pending',
-          evidence: []
+          evidence: [] as any[]
         };
 
         // Gather evidence automatically
@@ -464,11 +464,11 @@ export class PaymentComplianceService extends EventEmitter {
   private async performRegulatoryCheck(context: any): Promise<ComplianceCheck> {
     // PSD2 SCA requirements
     if (this.isEUCountry(context.country)) {
-      const scaRequired = !this.qualifiesForSCAExemption(
+      const scaRequired = !(await this.qualifiesForSCAExemption(
         context.amount,
         context.currency,
         context
-      );
+      ));
 
       if (scaRequired && !context.metadata?.scaCompleted) {
         return {
@@ -593,9 +593,10 @@ export class PaymentComplianceService extends EventEmitter {
     return toRate / fromRate;
   }
 
-  private qualifiesForSCAExemption(amount: number, currency: string, context: any): boolean {
+  private async qualifiesForSCAExemption(amount: number, currency: string, context: any): Promise<boolean> {
     // Low-value exemption (< 30 EUR)
-    const eurAmount = amount / this.getExchangeRate(currency, 'EUR');
+    const exchangeRate = await this.getExchangeRate(currency, 'EUR');
+    const eurAmount = amount / exchangeRate;
     if (eurAmount < 30) return true;
 
     // Trusted beneficiary exemption

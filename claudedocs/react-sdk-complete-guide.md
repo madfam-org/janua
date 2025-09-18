@@ -4,25 +4,25 @@
 
 ## Overview
 
-The `@plinto/react` SDK provides React-specific hooks, components, and providers for seamless authentication integration. Built on top of the TypeScript SDK, it offers a declarative, React-native approach to authentication.
+The `@plinto/react-sdk` SDK provides React-specific hooks, components, and providers for seamless authentication integration. Built on top of the TypeScript SDK, it offers a declarative, React-native approach to authentication.
 
 ## 🚀 Quick Start
 
 ### Installation
 
 ```bash
-npm install @plinto/react @plinto/typescript-sdk
+npm install @plinto/react-sdk @plinto/typescript-sdk
 # or
-yarn add @plinto/react @plinto/typescript-sdk
+yarn add @plinto/react-sdk @plinto/typescript-sdk
 # or
-pnpm add @plinto/react @plinto/typescript-sdk
+pnpm add @plinto/react-sdk @plinto/typescript-sdk
 ```
 
 ### Basic Setup
 
 ```tsx
 import React from 'react';
-import { PlintoProvider } from '@plinto/react';
+import { PlintoProvider } from '@plinto/react-sdk';
 
 function App() {
   return (
@@ -44,7 +44,7 @@ export default App;
 
 ```tsx
 import React from 'react';
-import { useAuth, SignIn, SignUp } from '@plinto/react';
+import { useAuth, SignIn, SignUp } from '@plinto/react-sdk';
 
 function AuthenticatedApp() {
   const { user, isLoading, isAuthenticated, signOut } = useAuth();
@@ -80,7 +80,7 @@ function AuthenticatedApp() {
 The root provider that manages authentication state and provides the Plinto client to your app.
 
 ```tsx
-import { PlintoProvider, type PlintoConfig } from '@plinto/react';
+import { PlintoProvider, type PlintoConfig } from '@plinto/react-sdk';
 
 interface AppProps {
   children: React.ReactNode;
@@ -124,7 +124,7 @@ function App({ children }: AppProps) {
 Primary hook for authentication state and actions.
 
 ```tsx
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 
 function ProfileComponent() {
   const {
@@ -179,7 +179,7 @@ function ProfileComponent() {
 Hook for session management and monitoring.
 
 ```tsx
-import { useSession } from '@plinto/react';
+import { useSession } from '@plinto/react-sdk';
 
 function SessionMonitor() {
   const {
@@ -225,7 +225,7 @@ function SessionMonitor() {
 Hook for organization management in multi-tenant apps.
 
 ```tsx
-import { useOrganization } from '@plinto/react';
+import { useOrganization } from '@plinto/react-sdk';
 
 function OrganizationSelector() {
   const {
@@ -290,7 +290,7 @@ function OrganizationSelector() {
 Complete sign-in form with email/password and passkey support.
 
 ```tsx
-import { SignIn } from '@plinto/react';
+import { SignIn } from '@plinto/react-sdk';
 
 function LoginPage() {
   return (
@@ -330,7 +330,7 @@ function LoginPage() {
 Complete registration form with validation.
 
 ```tsx
-import { SignUp } from '@plinto/react';
+import { SignUp } from '@plinto/react-sdk';
 
 function RegisterPage() {
   return (
@@ -371,7 +371,7 @@ function RegisterPage() {
 User profile display and editing component.
 
 ```tsx
-import { UserProfile } from '@plinto/react';
+import { UserProfile } from '@plinto/react-sdk';
 
 function ProfilePage() {
   return (
@@ -415,7 +415,7 @@ function ProfilePage() {
 Create route guards using authentication state.
 
 ```tsx
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 import { Navigate } from 'react-router-dom';
 
 interface ProtectedRouteProps {
@@ -465,7 +465,7 @@ function App() {
 ### Role-Based Access Control
 
 ```tsx
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 
 interface RoleGuardProps {
   children: React.ReactNode;
@@ -501,7 +501,7 @@ function AdminPanel() {
 ### Magic Link Authentication
 
 ```tsx
-import { usePlinto } from '@plinto/react';
+import { usePlinto } from '@plinto/react-sdk';
 import { useState } from 'react';
 
 function MagicLinkSignIn() {
@@ -557,7 +557,7 @@ function MagicLinkSignIn() {
 ### Multi-Factor Authentication
 
 ```tsx
-import { usePlinto } from '@plinto/react';
+import { usePlinto } from '@plinto/react-sdk';
 import { useState, useEffect } from 'react';
 
 function MFASetup() {
@@ -641,7 +641,7 @@ function MFASetup() {
 The React components include basic Tailwind CSS classes. You can override them:
 
 ```tsx
-import { SignIn } from '@plinto/react';
+import { SignIn } from '@plinto/react-sdk';
 import './custom-auth.css';
 
 function CustomStyledSignIn() {
@@ -692,7 +692,7 @@ function CustomStyledSignIn() {
 Build your own components using the hooks:
 
 ```tsx
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 import { useState } from 'react';
 
 function CustomSignInForm() {
@@ -841,7 +841,7 @@ function App() {
 ### Custom Token Storage
 
 ```tsx
-import { PlintoProvider } from '@plinto/react';
+import { PlintoProvider } from '@plinto/react-sdk';
 
 // Custom storage implementation
 class SecureTokenStorage {
@@ -895,7 +895,7 @@ function App() {
 ### Optimistic Updates
 
 ```tsx
-import { useAuth, useOrganization } from '@plinto/react';
+import { useAuth, useOrganization } from '@plinto/react-sdk';
 import { useState } from 'react';
 
 function OptimisticUserUpdate() {
@@ -944,7 +944,7 @@ function OptimisticUserUpdate() {
 // test-utils.tsx
 import React from 'react';
 import { render, RenderOptions } from '@testing-library/react';
-import { PlintoProvider } from '@plinto/react';
+import { PlintoProvider } from '@plinto/react-sdk';
 
 const mockConfig = {
   apiUrl: 'https://test-api.plinto.dev',
@@ -977,7 +977,7 @@ export { customRender as render };
 ```tsx
 // SignIn.test.tsx
 import { render, screen, fireEvent, waitFor } from './test-utils';
-import { SignIn } from '@plinto/react';
+import { SignIn } from '@plinto/react-sdk';
 
 // Mock the Plinto client
 jest.mock('@plinto/typescript-sdk', () => ({
@@ -1020,8 +1020,8 @@ describe('SignIn Component', () => {
 ```tsx
 // useAuth.test.tsx
 import { renderHook, act } from '@testing-library/react';
-import { useAuth } from '@plinto/react';
-import { PlintoProvider } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
+import { PlintoProvider } from '@plinto/react-sdk';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <PlintoProvider config={{ apiUrl: 'https://test-api.plinto.dev' }}>
@@ -1110,7 +1110,7 @@ interface TokenStorage {
 ### Error Handling
 
 ```tsx
-import { PlintoError, AuthenticationError, ValidationError } from '@plinto/react';
+import { PlintoError, AuthenticationError, ValidationError } from '@plinto/react-sdk';
 
 function ErrorHandlingExample() {
   const { signIn } = useAuth();

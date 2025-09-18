@@ -70,7 +70,7 @@ The Plinto package ecosystem demonstrates a well-structured, comprehensive platf
 
 ### 🚀 Framework SDKs (4 packages)
 
-#### 6. **@plinto/react**
+#### 6. **@plinto/react-sdk**
 **Status**: ✅ Production Ready | **Documentation**: ⭐⭐⭐⭐ Good
 
 - **Purpose**: React hooks and components for authentication
@@ -189,7 +189,7 @@ The Plinto package ecosystem demonstrates a well-structured, comprehensive platf
 - **@plinto/vue**: Complete Vue 3 integration with composables documentation
 
 #### ⭐⭐⭐⭐ Good Documentation (4 packages)
-- **@plinto/react**: Solid documentation with usage examples
+- **@plinto/react-sdk**: Solid documentation with usage examples
 - **@plinto/jwt-utils**: Good utility documentation
 - **@plinto/edge**: Clear edge computing documentation
 - **packages/python-sdk**: Standard Python documentation
@@ -216,7 +216,7 @@ The Plinto package ecosystem demonstrates a well-structured, comprehensive platf
 
 #### Active Integration (High Usage)
 - **@plinto/typescript-sdk**: Core dependency used by all framework SDKs
-- **@plinto/react**: Used in React applications and examples
+- **@plinto/react-sdk**: Used in React applications and examples
 - **@plinto/nextjs**: Used in Next.js applications
 
 #### Moderate Integration (Medium Usage)
@@ -232,7 +232,7 @@ The Plinto package ecosystem demonstrates a well-structured, comprehensive platf
 ### Dependency Graph
 ```
 @plinto/typescript-sdk (CORE)
-    ├── @plinto/react
+    ├── @plinto/react-sdk
     ├── @plinto/nextjs
     ├── @plinto/vue
     └── @plinto/react-native
@@ -307,7 +307,7 @@ Utility Packages (SPECIALIZED)
 ### Critical Packages (Must Have) - 5 packages
 1. **@plinto/typescript-sdk** - Core API interface
 2. **@plinto/core** - Foundation utilities
-3. **@plinto/react** - Primary frontend integration
+3. **@plinto/react-sdk** - Primary frontend integration
 4. **@plinto/nextjs** - Full-stack React applications
 5. **@plinto/ui** - Design consistency
 

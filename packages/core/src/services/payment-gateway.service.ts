@@ -4,12 +4,12 @@ import { RedisService, getRedis } from './redis.service';
 // Payment Provider Types
 export type PaymentProvider = 'conekta' | 'fungies' | 'stripe';
 export type PaymentStatus = 'pending' | 'processing' | 'succeeded' | 'failed' | 'canceled' | 'refunded';
-export type Currency = 'MXN' | 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD' | 'JPY' | 'BRL' | 'ARS' | 'COP' | 'CLP' | 'PEN';
+export type Currency = 'MXN' | 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD' | 'JPY' | 'BRL' | 'ARS' | 'COP' | 'CLP' | 'PEN' | 'CHF' | 'NOK' | 'SEK' | 'DKK' | 'PLN' | 'CZK' | 'HUF' | 'RON' | 'BGN' | 'HRK' | 'SGD' | 'HKD' | 'NZD' | 'UYU' | 'INR' | 'CNY' | 'RUB' | 'TRY' | 'IDR' | 'MYR' | 'PHP' | 'THB' | 'VND' | 'KRW' | 'ILS' | 'TWD' | 'SAR' | 'AED' | 'ZAR' | 'NGN' | 'KES' | 'GHS' | 'EGP' | 'MAD';
 
-interface PaymentMethod {
+export interface PaymentMethod {
   id: string;
   provider: PaymentProvider;
-  type: 'card' | 'oxxo' | 'spei' | 'bank_transfer' | 'paypal' | 'crypto' | 'wire';
+  type: 'card' | 'oxxo' | 'spei' | 'bank_transfer' | 'paypal' | 'crypto' | 'wire' | 'bank_account' | 'sepa' | 'ideal' | 'giropay';
   details: {
     brand?: string;
     last4?: string;
@@ -23,7 +23,7 @@ interface PaymentMethod {
   metadata?: Record<string, any>;
 }
 
-interface PaymentIntent {
+export interface PaymentIntent {
   id: string;
   provider: PaymentProvider;
   provider_intent_id?: string;
@@ -44,7 +44,7 @@ interface PaymentIntent {
   updated_at: Date;
 }
 
-interface Customer {
+export interface Customer {
   id: string;
   email: string;
   name: string;
@@ -57,10 +57,13 @@ interface Customer {
     stripe?: { id: string; created_at: Date };
   };
   default_payment_method?: PaymentMethod;
+  provider?: PaymentProvider;
+  metadata?: Record<string, any>;
   created_at: Date;
+  updated_at: Date;
 }
 
-interface Address {
+export interface Address {
   line1: string;
   line2?: string;
   city: string;
@@ -69,7 +72,7 @@ interface Address {
   country: string; // ISO 3166-1 alpha-2
 }
 
-interface TaxInfo {
+export interface TaxInfo {
   type: 'rfc' | 'vat' | 'gst' | 'ein' | 'abn';
   id: string;
   name?: string;
@@ -77,7 +80,7 @@ interface TaxInfo {
   verified?: boolean;
 }
 
-interface CheckoutSession {
+export interface CheckoutSession {
   id: string;
   provider: PaymentProvider;
   provider_session_id?: string;
@@ -90,11 +93,12 @@ interface CheckoutSession {
   payment_intent_id?: string;
   status: 'open' | 'complete' | 'expired';
   expires_at: Date;
+  url?: string;
   metadata?: Record<string, any>;
   created_at: Date;
 }
 
-interface LineItem {
+export interface LineItem {
   name: string;
   description?: string;
   amount: number;
@@ -104,14 +108,14 @@ interface LineItem {
   tax_rate?: number;
 }
 
-interface RefundRequest {
+export interface RefundRequest {
   payment_intent_id: string;
   amount?: number; // Partial refund if specified
   reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer' | 'other';
   metadata?: Record<string, any>;
 }
 
-interface ComplianceCheck {
+export interface ComplianceCheck {
   country: string;
   payment_type: string;
   amount: number;
@@ -121,7 +125,7 @@ interface ComplianceCheck {
 }
 
 // Provider Interfaces
-interface PaymentProviderInterface {
+export interface PaymentProviderInterface {
   name: PaymentProvider;
   
   // Customer Management
@@ -287,7 +291,8 @@ export class PaymentGatewayService extends EventEmitter {
         address: data.address,
         tax_info: data.tax_info,
         provider_customers: {},
-        created_at: new Date()
+        created_at: new Date(),
+        updated_at: new Date()
       };
     }
     
@@ -297,12 +302,12 @@ export class PaymentGatewayService extends EventEmitter {
     
     // Create customer in each provider
     for (const providerName of providers) {
-      if (!customer.provider_customers[providerName]) {
+      if (!customer!.provider_customers[providerName]) {
         const provider = this.providers.get(providerName);
         if (provider) {
           try {
-            const providerId = await provider.createCustomer(customer);
-            customer.provider_customers[providerName] = {
+            const providerId = await provider.createCustomer(customer!);
+            customer!.provider_customers[providerName] = {
               id: providerId,
               created_at: new Date()
             };
@@ -315,17 +320,17 @@ export class PaymentGatewayService extends EventEmitter {
     }
     
     // Store customer
-    await this.storeCustomer(customer);
+    await this.storeCustomer(customer!);
     
     // Emit event
     this.emit('customer_created_or_updated', {
-      customer_id: customer.id,
-      email: customer.email,
-      providers: Object.keys(customer.provider_customers),
+      customer_id: customer!.id,
+      email: customer!.email,
+      providers: Object.keys(customer!.provider_customers),
       timestamp: new Date()
     });
-    
-    return customer;
+
+    return customer!;
   }
   
   // Unified Payment Creation

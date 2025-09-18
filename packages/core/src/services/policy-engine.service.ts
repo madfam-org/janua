@@ -691,6 +691,7 @@ export class PolicyEngine extends EventEmitter {
       package: 'authz.admin',
       rules: [{
         name: 'admin-all',
+        rule: 'allow',
         effect: 'allow',
         conditions: [{
           type: 'attribute',

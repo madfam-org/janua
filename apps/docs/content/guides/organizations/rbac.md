@@ -116,7 +116,7 @@ await plinto.rbac.assignRole({
 ### 4. Permission-Based UI
 
 ```jsx
-import { usePermissions } from '@plinto/react'
+import { usePermissions } from '@plinto/react-sdk'
 
 function ProjectActions({ project }) {
   const { hasPermission } = usePermissions()
@@ -970,7 +970,7 @@ def has_permission_to_grant(user_permissions: list, permission_to_grant: str) ->
 
 ```jsx
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { usePlinto } from '@plinto/react'
+import { usePlinto } from '@plinto/react-sdk'
 
 const PermissionsContext = createContext()
 

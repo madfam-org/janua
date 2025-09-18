@@ -20,7 +20,7 @@ Get started with Plinto in under 5 minutes using our comprehensive SDK ecosystem
 ```bash
 npm install @plinto/typescript-sdk
 # or for specific frameworks
-npm install @plinto/react @plinto/nextjs-sdk @plinto/vue-sdk
+npm install @plinto/react-sdk @plinto/nextjs-sdk @plinto/vue-sdk
 ```
 
 #### Python
@@ -123,7 +123,7 @@ const verified = await plinto.auth.mfa.verify({
 
 ```tsx
 import React, { useEffect, useState } from 'react';
-import { usePlinto, PlintoProvider } from '@plinto/react';
+import { usePlinto, PlintoProvider } from '@plinto/react-sdk';
 
 // App root with Plinto provider
 function App() {

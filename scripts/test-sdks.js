@@ -37,9 +37,9 @@ tests.push({
   }
 });
 
-// Test @plinto/react
+// Test @plinto/react-sdk
 tests.push({
-  name: '@plinto/react',
+  name: '@plinto/react-sdk',
   path: '../packages/react',
   test: () => {
     const react = require('../packages/react/dist/index.js');
@@ -97,7 +97,7 @@ console.log("// Next.js");
 console.log("import { PlintoProvider, useAuth } from '@plinto/nextjs/app';");
 console.log("");
 console.log("// React");
-console.log("import { SignIn, useAuth } from '@plinto/react';");
+console.log("import { SignIn, useAuth } from '@plinto/react-sdk';");
 console.log("");
 console.log("// Vue");
 console.log("import { PlintoPlugin } from '@plinto/vue';");

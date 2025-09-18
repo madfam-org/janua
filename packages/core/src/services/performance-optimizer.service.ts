@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
-import { LRUCache } from 'lru-cache';
+import LRUCache from 'lru-cache';
 import { Worker } from 'worker_threads';
-import * as cluster from 'cluster';
+import cluster from 'cluster';
 import { promisify } from 'util';
 import { gzip, gunzip } from 'zlib';
 
@@ -66,7 +66,7 @@ export class PerformanceOptimizerService extends EventEmitter {
   private queryCache: LRUCache<string, any>;
   private compressionCache: LRUCache<string, Buffer>;
   private workers: Worker[];
-  private metrics: PerformanceMetrics;
+  private metrics!: PerformanceMetrics;
   private optimizationRules: OptimizationRule[];
   private monitoring: boolean;
   private dbConnectionPool: any;
@@ -79,42 +79,32 @@ export class PerformanceOptimizerService extends EventEmitter {
     enableClustering?: boolean;
     maxWorkers?: number;
     cacheConfigs?: Map<string, CacheConfig>;
+    compressionLevel?: number;
+    databaseUrl?: string;
     monitoringInterval?: number;
-    autoOptimize?: boolean;
-  } = {}) {
+  }) {
     super();
     this.caches = new Map();
     this.workers = [];
     this.optimizationRules = [];
     this.monitoring = false;
     
-    this.initializeCaches();
-    this.initializeWorkers();
-    this.initializeOptimizationRules();
-    this.initializeMetrics();
+    // Initialize query cache
+    this.queryCache = new LRUCache<string, any>({
+      max: 1000,
+      ttl: 1000 * 60 * 5 // 5 minutes
+    });
     
-    if (config.autoOptimize) {
-      this.startAutoOptimization();
-    }
+    // Initialize compression cache  
+    this.compressionCache = new LRUCache<string, Buffer>({
+      max: 500,
+      ttl: 1000 * 60 * 60 // 1 hour
+    });
+    
+    this.initialize();
   }
 
-  private initializeCaches(): void {
-    // Query result cache
-    this.queryCache = new LRUCache({
-      max: 10000,
-      ttl: 1000 * 60 * 5, // 5 minutes
-      updateAgeOnGet: true,
-      updateAgeOnHas: true,
-    });
-
-    // Compression cache for large responses
-    this.compressionCache = new LRUCache({
-      max: 1000,
-      ttl: 1000 * 60 * 10, // 10 minutes
-      sizeCalculation: (value) => value.length,
-      maxSize: 50 * 1024 * 1024, // 50MB
-    });
-
+  private initialize(): void {
     // Initialize custom caches
     if (this.config.cacheConfigs) {
       for (const [name, config] of this.config.cacheConfigs) {
@@ -127,85 +117,6 @@ export class PerformanceOptimizerService extends EventEmitter {
       max: 5000,
       ttl: 1000 * 60 * 15, // 15 minutes
     }));
-  }
-
-  private initializeWorkers(): void {
-    if (!this.config.enableWorkers) return;
-
-    const numWorkers = this.config.maxWorkers || 4;
-    for (let i = 0; i < numWorkers; i++) {
-      const worker = new Worker('./worker.js');
-      worker.on('message', (msg) => this.handleWorkerMessage(msg));
-      worker.on('error', (err) => this.handleWorkerError(err));
-      this.workers.push(worker);
-    }
-  }
-
-  private initializeOptimizationRules(): void {
-    this.optimizationRules = [
-      {
-        id: 'cache-warmup',
-        name: 'Cache Warmup',
-        condition: (metrics) => metrics.cache.hitRate < 0.5,
-        action: () => this.warmupCache(),
-        priority: 1,
-        cooldown: 300000, // 5 minutes
-      },
-      {
-        id: 'query-optimization',
-        name: 'Query Optimization',
-        condition: (metrics) => metrics.queries.slow > 10,
-        action: () => this.optimizeSlowQueries(),
-        priority: 2,
-        cooldown: 600000, // 10 minutes
-      },
-      {
-        id: 'connection-pooling',
-        name: 'Connection Pool Adjustment',
-        condition: (metrics) => metrics.connections.idle < 2,
-        action: () => this.adjustConnectionPool(),
-        priority: 3,
-        cooldown: 180000, // 3 minutes
-      },
-      {
-        id: 'memory-cleanup',
-        name: 'Memory Cleanup',
-        condition: (metrics) => metrics.memory.percentage > 80,
-        action: () => this.cleanupMemory(),
-        priority: 4,
-        cooldown: 120000, // 2 minutes
-      },
-    ];
-  }
-
-  private initializeMetrics(): void {
-    this.metrics = {
-      timestamp: new Date(),
-      cpu: {
-        usage: 0,
-        load: [0, 0, 0],
-      },
-      memory: {
-        used: 0,
-        available: 0,
-        percentage: 0,
-      },
-      cache: {
-        hits: 0,
-        misses: 0,
-        hitRate: 0,
-      },
-      queries: {
-        total: 0,
-        slow: 0,
-        optimized: 0,
-      },
-      connections: {
-        active: 0,
-        idle: 0,
-        total: 0,
-      },
-    };
   }
 
   // Cache Management
@@ -537,7 +448,7 @@ export class PerformanceOptimizerService extends EventEmitter {
         cluster.fork();
       }
 
-      cluster.on('exit', (worker, code, signal) => {
+      cluster.on('exit', (worker: any, code: any, signal: any) => {
         console.log(`Worker ${worker.process.pid} died`);
         cluster.fork(); // Restart worker
       });
@@ -550,10 +461,10 @@ export class PerformanceOptimizerService extends EventEmitter {
   private aggregateClusterMetrics(): void {
     const clusterMetrics: Map<number, PerformanceMetrics> = new Map();
     
-    for (const id in cluster.workers) {
-      const worker = cluster.workers[id];
+    for (const id in (cluster as any).workers) {
+      const worker = (cluster as any).workers[id];
       if (worker) {
-        worker.on('message', (msg) => {
+        worker.on('message', (msg: any) => {
           if (msg.type === 'metrics') {
             clusterMetrics.set(worker.process.pid!, msg.data);
             this.emit('cluster:metrics', Array.from(clusterMetrics.values()));

@@ -11,7 +11,25 @@ import json
 import re
 from fastapi import HTTPException, status
 
-from ..models import User, OrganizationMember, RBACPolicy, Permission
+from ..models import User, OrganizationMember
+
+# Temporary mock classes until models are implemented
+class RBACPolicy:
+    """Mock RBACPolicy model"""
+    id = None
+    name = None
+    resource_type = None
+    resource_id = None
+    permission = None
+    conditions = None
+    effect = 'allow'
+    
+class Permission:
+    """Mock Permission model"""
+    id = None
+    name = None
+    resource = None
+    action = None
 from ..core.redis_config import RedisService
 from ..core.events import EventEmitter
 

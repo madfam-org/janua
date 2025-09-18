@@ -147,7 +147,7 @@ interface DeveloperSection {
     snippets: {
       typescript: `
 // 1. Install
-npm install @plinto/nextjs @plinto/react
+npm install @plinto/nextjs @plinto/react-sdk
 
 // 2. Add middleware
 export default withPlinto({

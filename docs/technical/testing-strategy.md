@@ -171,7 +171,7 @@ test('user can sign up and access dashboard', async ({ page }) => {
 |---------|--------|-----------|
 | @plinto/sdk | 100% | Core functionality |
 | @plinto/ui | 95% | Component library |
-| @plinto/react | 95% | React utilities |
+| @plinto/react-sdk | 95% | React utilities |
 | @plinto/core | 100% | Business logic |
 
 ## 🛠️ Testing Tools

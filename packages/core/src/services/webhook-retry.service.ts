@@ -128,7 +128,7 @@ export class WebhookRetryService extends EventEmitter {
       // Add signature if secret provided
       if (event.secret) {
         const signature = this.generateSignature(event.payload, event.secret);
-        headers['X-Webhook-Signature'] = signature;
+        (headers as any)['X-Webhook-Signature'] = signature;
       }
 
       // Make request

@@ -264,7 +264,7 @@ import { useRouter } from 'next/router';
 
 // 2. Internal imports
 import { Button } from '@plinto/ui';
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 
 // 3. Relative imports
 import { UserProfile } from './components/UserProfile';

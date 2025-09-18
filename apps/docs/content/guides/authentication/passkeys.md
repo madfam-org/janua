@@ -405,7 +405,7 @@ async def complete_authentication(
 
 ```jsx
 import React, { useState, useEffect } from 'react'
-import { usePlinto } from '@plinto/react'
+import { usePlinto } from '@plinto/react-sdk'
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser'
 
 function PasskeyAuth() {

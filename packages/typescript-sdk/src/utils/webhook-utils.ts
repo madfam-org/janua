@@ -74,16 +74,16 @@ export class WebhookUtils {
     return {
       signature: headers['x-webhook-signature']
         ? normalizeHeader(headers['x-webhook-signature'])
-        : undefined,
+        : undefined as string | undefined,
       timestamp: headers['x-webhook-timestamp']
         ? normalizeHeader(headers['x-webhook-timestamp'])
-        : undefined,
+        : undefined as string | undefined,
       eventType: headers['x-webhook-event']
         ? normalizeHeader(headers['x-webhook-event'])
-        : undefined,
+        : undefined as string | undefined,
       webhookId: headers['x-webhook-id']
         ? normalizeHeader(headers['x-webhook-id'])
-        : undefined
+        : undefined as string | undefined
     };
   }
 

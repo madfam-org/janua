@@ -12,7 +12,11 @@ import {
   Currency,
   PaymentStatus,
   SubscriptionStatus,
-  RefundStatus
+  RefundStatus,
+  PaymentProviderInterface,
+  LineItem,
+  RefundRequest,
+  ComplianceCheck
 } from '../../types/payment.types';
 
 interface StripeConfig {
@@ -22,9 +26,9 @@ interface StripeConfig {
   apiVersion: string;
 }
 
-export class StripeProvider extends EventEmitter implements PaymentProvider {
+export class StripeProvider extends EventEmitter implements PaymentProviderInterface {
   public readonly id = 'stripe';
-  public readonly name = 'Stripe';
+  public readonly name = 'stripe';
 
   // Stripe supports most countries globally
   public readonly supportedCountries = [
@@ -90,62 +94,52 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
     }
   }
 
-  async createCustomer(data: {
-    email: string;
-    name?: string;
-    metadata?: Record<string, any>;
-  }): Promise<Customer> {
+  async createCustomer(customer: Partial<Customer>): Promise<string> {
     const stripeCustomer = await this.stripe.customers.create({
-      email: data.email,
-      name: data.name,
-      metadata: data.metadata || {}
+      email: customer.email,
+      name: customer.name,
+      metadata: customer.metadata || {}
     });
 
-    const customer: Customer = {
+    const customerData: Customer = {
       id: stripeCustomer.id,
-      providerId: 'stripe',
       email: stripeCustomer.email!,
-      name: stripeCustomer.name || undefined,
-      metadata: stripeCustomer.metadata,
-      createdAt: new Date(stripeCustomer.created * 1000),
-      updatedAt: new Date()
+      name: stripeCustomer.name || '',
+      phone: undefined,
+      address: undefined,
+      tax_info: undefined,
+      provider_customers: {
+        stripe: {
+          id: stripeCustomer.id,
+          created_at: new Date(stripeCustomer.created * 1000)
+        }
+      },
+      default_payment_method: undefined,
+      provider: 'stripe',
+      metadata: stripeCustomer.metadata as Record<string, any> || {},
+      created_at: new Date(stripeCustomer.created * 1000),
+      updated_at: new Date()
     };
 
     // Cache customer
     await this.redis.setex(
-      `stripe:customer:${customer.id}`,
+      `stripe:customer:${stripeCustomer.id}`,
       86400,
-      JSON.stringify(customer)
+      JSON.stringify(customerData)
     );
 
-    return customer;
+    return stripeCustomer.id;
   }
 
-  async updateCustomer(customerId: string, data: Partial<Customer>): Promise<Customer> {
-    const stripeCustomer = await this.stripe.customers.update(customerId, {
-      email: data.email,
-      name: data.name,
-      metadata: data.metadata
+  async updateCustomer(customerId: string, updates: Partial<Customer>): Promise<void> {
+    await this.stripe.customers.update(customerId, {
+      email: updates.email,
+      name: updates.name,
+      metadata: updates.metadata
     });
 
-    const customer: Customer = {
-      id: stripeCustomer.id,
-      providerId: 'stripe',
-      email: stripeCustomer.email!,
-      name: stripeCustomer.name || undefined,
-      metadata: stripeCustomer.metadata,
-      createdAt: new Date(stripeCustomer.created * 1000),
-      updatedAt: new Date()
-    };
-
     // Update cache
-    await this.redis.setex(
-      `stripe:customer:${customer.id}`,
-      86400,
-      JSON.stringify(customer)
-    );
-
-    return customer;
+    await this.redis.del(`stripe:customer:${customerId}`);
   }
 
   async createPaymentIntent(data: {
@@ -168,15 +162,17 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
 
     const intent: PaymentIntent = {
       id: stripeIntent.id,
-      providerId: 'stripe',
+      provider: 'stripe',
+      provider_intent_id: stripeIntent.id,
       amount: stripeIntent.amount / 100,
       currency: stripeIntent.currency.toUpperCase() as Currency,
       status: this.mapPaymentStatus(stripeIntent.status),
-      customerId: stripeIntent.customer as string | undefined,
+      customer_id: stripeIntent.customer as string,
+      organization_id: data.metadata?.organization_id || '',
+      description: data.metadata?.description,
       metadata: stripeIntent.metadata,
-      clientSecret: stripeIntent.client_secret!,
-      createdAt: new Date(stripeIntent.created * 1000),
-      updatedAt: new Date()
+      created_at: new Date(stripeIntent.created * 1000),
+      updated_at: new Date()
     };
 
     // Cache intent
@@ -200,17 +196,17 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
 
     const intent: PaymentIntent = {
       id: stripeIntent.id,
-      providerId: 'stripe',
+      provider: 'stripe',
+      provider_intent_id: stripeIntent.id,
       amount: stripeIntent.amount / 100,
       currency: stripeIntent.currency.toUpperCase() as Currency,
       status: this.mapPaymentStatus(stripeIntent.status),
-      customerId: stripeIntent.customer as string | undefined,
-      paymentMethodId: stripeIntent.payment_method as string | undefined,
+      customer_id: stripeIntent.customer as string,
+      organization_id: stripeIntent.metadata?.organization_id || '',
+      description: stripeIntent.metadata?.description,
       metadata: stripeIntent.metadata,
-      clientSecret: stripeIntent.client_secret!,
-      createdAt: new Date(stripeIntent.created * 1000),
-      updatedAt: new Date(),
-      confirmedAt: stripeIntent.status === 'succeeded' ? new Date() : undefined
+      created_at: new Date(stripeIntent.created * 1000),
+      updated_at: new Date()
     };
 
     // Update cache
@@ -223,61 +219,49 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
     return intent;
   }
 
-  async createCheckoutSession(data: {
-    amount: number;
-    currency: Currency;
-    customerId?: string;
-    successUrl: string;
-    cancelUrl: string;
+  async createCheckoutSession(params: {
+    customer_id: string;
+    line_items: LineItem[];
+    success_url: string;
+    cancel_url: string;
     metadata?: Record<string, any>;
   }): Promise<CheckoutSession> {
-    const sessionParams: Stripe.Checkout.SessionCreateParams = {
-      mode: 'payment',
-      customer: data.customerId,
-      success_url: data.successUrl,
-      cancel_url: data.cancelUrl,
-      line_items: [{
+    const stripeSession = await this.stripe.checkout.sessions.create({
+      customer: params.customer_id,
+      line_items: params.line_items.map(item => ({
         price_data: {
-          currency: data.currency.toLowerCase(),
-          unit_amount: Math.round(data.amount * 100),
+          currency: item.currency.toLowerCase(),
           product_data: {
-            name: data.metadata?.product_name || 'Plinto Service',
-            description: data.metadata?.product_description,
-            metadata: data.metadata
-          }
+            name: item.name,
+            description: item.description,
+            images: item.images
+          },
+          unit_amount: Math.round(item.amount * 100)
         },
-        quantity: 1
-      }],
-      payment_method_types: ['card'],
-      // Enable more payment methods based on currency/country
-      payment_method_options: this.getPaymentMethodOptions(data.currency),
-      metadata: data.metadata || {},
-      expires_at: Math.floor(Date.now() / 1000) + 3600 // 1 hour
-    };
-
-    // Add local payment methods based on currency
-    if (data.currency === 'EUR') {
-      sessionParams.payment_method_types!.push('sepa_debit', 'ideal', 'bancontact');
-    } else if (data.currency === 'GBP') {
-      sessionParams.payment_method_types!.push('bacs_debit');
-    } else if (data.currency === 'JPY') {
-      sessionParams.payment_method_types!.push('konbini');
-    }
-
-    const stripeSession = await this.stripe.checkout.sessions.create(sessionParams);
+        quantity: item.quantity
+      })),
+      mode: 'payment',
+      success_url: params.success_url,
+      cancel_url: params.cancel_url,
+      metadata: params.metadata
+    });
 
     const session: CheckoutSession = {
       id: stripeSession.id,
-      providerId: 'stripe',
-      url: stripeSession.url!,
-      amount: data.amount,
-      currency: data.currency,
-      customerId: data.customerId,
-      successUrl: data.successUrl,
-      cancelUrl: data.cancelUrl,
-      metadata: stripeSession.metadata,
-      expiresAt: new Date(stripeSession.expires_at * 1000),
-      createdAt: new Date()
+      provider: 'stripe',
+      provider_session_id: stripeSession.id,
+      amount: params.line_items.reduce((sum, item) => sum + (item.amount * item.quantity), 0),
+      currency: params.line_items[0].currency,
+      customer_id: stripeSession.customer as string,
+      success_url: params.success_url,
+      cancel_url: params.cancel_url,
+      line_items: params.line_items,
+      payment_intent_id: stripeSession.payment_intent as string,
+      status: stripeSession.status === 'open' ? 'open' : stripeSession.status === 'complete' ? 'complete' : 'expired',
+      expires_at: new Date(stripeSession.expires_at * 1000),
+      url: stripeSession.url || undefined,
+      metadata: stripeSession.metadata as Record<string, any> || {},
+      created_at: new Date()
     };
 
     // Cache session
@@ -314,15 +298,17 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
 
     const subscription: Subscription = {
       id: stripeSubscription.id,
-      providerId: 'stripe',
-      customerId: stripeSubscription.customer as string,
-      planId: data.planId,
+      customer_id: stripeSubscription.customer as string,
       status: this.mapSubscriptionStatus(stripeSubscription.status),
-      currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
-      metadata: stripeSubscription.metadata,
-      createdAt: new Date(stripeSubscription.created * 1000),
-      updatedAt: new Date()
+      plan_id: stripeSubscription.items.data[0].price.id,
+      current_period_start: new Date((stripeSubscription as any).current_period_start * 1000),
+      current_period_end: new Date((stripeSubscription as any).current_period_end * 1000),
+      cancel_at_period_end: false,
+      canceled_at: undefined,
+      trial_start: stripeSubscription.trial_start ? new Date(stripeSubscription.trial_start * 1000) : undefined,
+      trial_end: stripeSubscription.trial_end ? new Date(stripeSubscription.trial_end * 1000) : undefined,
+      provider: 'stripe',
+      metadata: stripeSubscription.metadata
     };
 
     // Cache subscription
@@ -342,18 +328,19 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
 
     const subscription: Subscription = {
       id: stripeSubscription.id,
-      providerId: 'stripe',
-      customerId: stripeSubscription.customer as string,
-      planId: stripeSubscription.items.data[0].price.id,
+      customer_id: stripeSubscription.customer as string,
       status: this.mapSubscriptionStatus(stripeSubscription.status),
-      currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000),
-      canceledAt: stripeSubscription.canceled_at
+      plan_id: stripeSubscription.items.data[0].price.id,
+      current_period_start: new Date((stripeSubscription as any).current_period_start * 1000),
+      current_period_end: new Date((stripeSubscription as any).current_period_end * 1000),
+      cancel_at_period_end: true,
+      canceled_at: stripeSubscription.canceled_at
         ? new Date(stripeSubscription.canceled_at * 1000)
         : undefined,
-      metadata: stripeSubscription.metadata,
-      createdAt: new Date(stripeSubscription.created * 1000),
-      updatedAt: new Date()
+      trial_start: stripeSubscription.trial_start ? new Date(stripeSubscription.trial_start * 1000) : undefined,
+      trial_end: stripeSubscription.trial_end ? new Date(stripeSubscription.trial_end * 1000) : undefined,
+      provider: 'stripe',
+      metadata: stripeSubscription.metadata
     };
 
     // Update cache
@@ -380,17 +367,18 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
 
     const method: PaymentMethod = {
       id: stripePaymentMethod.id,
-      providerId: 'stripe',
+      provider: 'stripe',
       type: stripePaymentMethod.type as any,
-      customerId: data.customerId,
       details: {
         brand: stripePaymentMethod.card?.brand,
         last4: stripePaymentMethod.card?.last4,
-        expiryMonth: stripePaymentMethod.card?.exp_month,
-        expiryYear: stripePaymentMethod.card?.exp_year,
-        ...stripePaymentMethod.metadata
+        exp_month: stripePaymentMethod.card?.exp_month,
+        exp_year: stripePaymentMethod.card?.exp_year,
+        bank_name: stripePaymentMethod.sepa_debit?.bank_code || undefined,
+        reference: stripePaymentMethod.id
       },
-      createdAt: new Date(stripePaymentMethod.created * 1000)
+      is_default: false,
+      metadata: stripePaymentMethod.metadata ? (stripePaymentMethod.metadata as Record<string, any>) : undefined
     };
 
     return method;
@@ -460,26 +448,6 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
     }
   }
 
-  isAvailable(country: string, currency: Currency): boolean {
-    // Stripe is available in most countries
-    if (!this.supportedCountries.includes(country)) {
-      return false;
-    }
-
-    // Check currency support
-    if (!this.supportedCurrencies.includes(currency)) {
-      return false;
-    }
-
-    // Check for specific restrictions
-    const restrictions = this.getCountryRestrictions(country);
-    if (restrictions.blocked) {
-      return false;
-    }
-
-    return true;
-  }
-
   // Helper methods
   private getPaymentMethodOptions(currency: Currency): any {
     const options: any = {};
@@ -524,7 +492,7 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
       'processing': 'processing',
       'requires_capture': 'processing',
       'succeeded': 'succeeded',
-      'canceled': 'cancelled'
+      'canceled': 'canceled'
     };
     return statusMap[status] || 'failed';
   }
@@ -533,10 +501,10 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
     const statusMap: Record<Stripe.Subscription.Status, SubscriptionStatus> = {
       'trialing': 'trialing',
       'active': 'active',
-      'incomplete': 'pending',
-      'incomplete_expired': 'cancelled',
+      'incomplete': 'canceled',
+      'incomplete_expired': 'canceled',
       'past_due': 'past_due',
-      'canceled': 'cancelled',
+      'canceled': 'canceled',
       'unpaid': 'past_due',
       'paused': 'paused'
     };
@@ -548,7 +516,7 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
       'pending': 'pending',
       'succeeded': 'succeeded',
       'failed': 'failed',
-      'canceled': 'cancelled'
+      'canceled': 'canceled'
     };
     return statusMap[status] || 'pending';
   }
@@ -591,7 +559,7 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
     const invoice = data.object as Stripe.Invoice;
     this.emit('invoice_paid', {
       invoiceId: invoice.id,
-      subscriptionId: invoice.subscription
+      subscriptionId: (invoice as any).subscription
     });
   }
 
@@ -639,12 +607,206 @@ export class StripeProvider extends EventEmitter implements PaymentProvider {
       expand: ['charges.data.outcome']
     });
 
-    if (intent.charges && intent.charges.data.length > 0) {
-      const charge = intent.charges.data[0] as Stripe.Charge;
+    if ((intent as any).charges && (intent as any).charges.data.length > 0) {
+      const charge = (intent as any).charges.data[0] as Stripe.Charge;
       return charge.outcome?.risk_score || 0;
     }
 
     return 0;
+  }
+
+  // Add missing interface methods before the class ends
+  
+  async deleteCustomer(customerId: string): Promise<void> {
+    await this.stripe.customers.del(customerId);
+    await this.redis.del(`stripe:customer:${customerId}`);
+  }
+
+  async attachPaymentMethod(customerId: string, paymentMethodId: string): Promise<void> {
+    await this.stripe.paymentMethods.attach(paymentMethodId, {
+      customer: customerId
+    });
+  }
+
+  async detachPaymentMethod(paymentMethodId: string): Promise<void> {
+    await this.stripe.paymentMethods.detach(paymentMethodId);
+  }
+
+  async listPaymentMethods(customerId: string): Promise<PaymentMethod[]> {
+    const methods = await this.stripe.paymentMethods.list({
+      customer: customerId,
+      type: 'card'
+    });
+
+    return methods.data.map(pm => ({
+      id: pm.id,
+      provider: 'stripe',
+      type: pm.type as any,
+      details: {
+        brand: pm.card?.brand,
+        last4: pm.card?.last4,
+        exp_month: pm.card?.exp_month,
+        exp_year: pm.card?.exp_year
+      },
+      is_default: false,
+      metadata: pm.metadata as Record<string, any>
+    }));
+  }
+
+  async confirmPayment(intentId: string): Promise<PaymentIntent> {
+    const stripeIntent = await this.stripe.paymentIntents.confirm(intentId);
+    
+    return {
+      id: stripeIntent.id,
+      provider: 'stripe',
+      provider_intent_id: stripeIntent.id,
+      amount: stripeIntent.amount / 100,
+      currency: stripeIntent.currency.toUpperCase() as Currency,
+      status: this.mapPaymentStatus(stripeIntent.status),
+      customer_id: stripeIntent.customer as string,
+      organization_id: stripeIntent.metadata?.organization_id || '',
+      description: stripeIntent.metadata?.description,
+      metadata: stripeIntent.metadata,
+      created_at: new Date(stripeIntent.created * 1000),
+      updated_at: new Date()
+    };
+  }
+
+  async cancelPayment(intentId: string): Promise<PaymentIntent> {
+    const stripeIntent = await this.stripe.paymentIntents.cancel(intentId);
+    
+    return {
+      id: stripeIntent.id,
+      provider: 'stripe',
+      provider_intent_id: stripeIntent.id,
+      amount: stripeIntent.amount / 100,
+      currency: stripeIntent.currency.toUpperCase() as Currency,
+      status: this.mapPaymentStatus(stripeIntent.status),
+      customer_id: stripeIntent.customer as string,
+      organization_id: stripeIntent.metadata?.organization_id || '',
+      description: stripeIntent.metadata?.description,
+      metadata: stripeIntent.metadata,
+      created_at: new Date(stripeIntent.created * 1000),
+      updated_at: new Date()
+    };
+  }
+
+  async createRefund(request: RefundRequest): Promise<{ id: string; status: string }> {
+    const refundParams: Stripe.RefundCreateParams = {
+      payment_intent: request.payment_intent_id,
+      reason: request.reason === 'duplicate' ? 'duplicate' :
+              request.reason === 'fraudulent' ? 'fraudulent' : 
+              'requested_by_customer',
+      metadata: request.metadata
+    };
+
+    if (request.amount) {
+      refundParams.amount = Math.round(request.amount * 100);
+    }
+
+    const stripeRefund = await this.stripe.refunds.create(refundParams);
+
+    return {
+      id: stripeRefund.id,
+      status: this.mapRefundStatus(stripeRefund.status!)
+    };
+  }
+
+  validateWebhookSignature(payload: string, signature: string): boolean {
+    try {
+      this.stripe.webhooks.constructEvent(
+        payload,
+        signature,
+        this.config.webhookSecret
+      );
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async processWebhookEvent(event: any): Promise<void> {
+    switch (event.type) {
+      case 'payment_intent.succeeded':
+        await this.handlePaymentSuccess(event.data);
+        break;
+      case 'payment_intent.payment_failed':
+        await this.handlePaymentFailure(event.data);
+        break;
+      case 'checkout.session.completed':
+        // Handle checkout session completion
+        this.emit('checkout:completed', event.data);
+        break;
+      case 'customer.subscription.created':
+        await this.handleSubscriptionUpdate(event.data);
+        break;
+      case 'customer.subscription.deleted':
+        await this.handleSubscriptionCancellation(event.data);
+        break;
+      default:
+        console.log(`Unhandled webhook event: ${event.type}`);
+    }
+  }
+
+  isAvailable(country: string, currency: Currency): boolean {
+    // Stripe supports most countries and currencies
+    const supportedCurrencies = [
+      'USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY', 'CNY', 'SGD', 'HKD', 
+      'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'BGN',
+      'HRK', 'CHF', 'MXN', 'BRL', 'ARS', 'COP', 'CLP', 'PEN', 'UYU',
+      'INR', 'RUB', 'TRY', 'ILS', 'SAR', 'AED', 'ZAR', 'THB', 'MYR',
+      'PHP', 'IDR', 'KRW', 'TWD', 'VND'
+    ];
+    
+    return supportedCurrencies.includes(currency);
+  }
+
+  getSupportedPaymentMethods(country: string): string[] {
+    const methods: string[] = ['card']; // Card always supported
+    
+    // Country-specific payment methods
+    if (country === 'US') {
+      methods.push('ach_credit_transfer', 'us_bank_account');
+    } else if (country === 'GB') {
+      methods.push('bacs_debit');
+    } else if (country === 'JP') {
+      methods.push('konbini', 'jcb');
+    } else if (country === 'CN') {
+      methods.push('alipay', 'wechat_pay');
+    } else if (['DE', 'NL', 'BE', 'AT', 'ES', 'IT', 'FR'].includes(country)) {
+      methods.push('sepa_debit', 'ideal', 'bancontact', 'giropay');
+    }
+    
+    return methods;
+  }
+
+  getComplianceRequirements(check: ComplianceCheck): string[] {
+    const requirements: string[] = [];
+    
+    // EU compliance
+    const euCountries = [
+      'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 
+      'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 
+      'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'
+    ];
+    
+    if (euCountries.includes(check.country)) {
+      requirements.push('SCA', 'GDPR', 'VAT_ID');
+    }
+    
+    if (check.customer_type === 'business') {
+      requirements.push('BUSINESS_VERIFICATION', 'TAX_ID');
+    }
+    
+    if (check.amount > 10000) {
+      requirements.push('ENHANCED_KYC', 'SOURCE_OF_FUNDS');
+    }
+    
+    if (check.is_recurring) {
+      requirements.push('MANDATE_ACCEPTANCE', 'RECURRING_PERMISSIONS');
+    }
+    
+    return requirements;
   }
 
   // Payment method recommendations based on country/currency

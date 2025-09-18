@@ -461,7 +461,7 @@ export class InvitationsService extends EventEmitter {
     }
 
     if (options.email) {
-      invitations = invitations.filter(inv => inv.email === options.email.toLowerCase());
+      invitations = invitations.filter(inv => inv.email === options.email!.toLowerCase());
     }
 
     if (options.role) {

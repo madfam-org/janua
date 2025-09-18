@@ -165,7 +165,7 @@
 - **Purpose:** Shared design system
 - **Stack:** Radix UI, Tailwind CSS
 
-#### @plinto/react
+#### @plinto/react-sdk
 - **README:** [React Package README](../packages/react/README.md) - *To be created*
 - **Purpose:** React hooks and utilities
 - **Dependencies:** React 18+

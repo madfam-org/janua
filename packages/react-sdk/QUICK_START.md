@@ -5,11 +5,11 @@
 ## Installation
 
 ```bash
-npm install @plinto/react @plinto/typescript-sdk
+npm install @plinto/react-sdk @plinto/typescript-sdk
 # or
-yarn add @plinto/react @plinto/typescript-sdk
+yarn add @plinto/react-sdk @plinto/typescript-sdk
 # or
-pnpm add @plinto/react @plinto/typescript-sdk
+pnpm add @plinto/react-sdk @plinto/typescript-sdk
 ```
 
 ## Quick Setup
@@ -18,7 +18,7 @@ pnpm add @plinto/react @plinto/typescript-sdk
 
 ```tsx
 // App.tsx or index.tsx
-import { PlintoProvider } from '@plinto/react';
+import { PlintoProvider } from '@plinto/react-sdk';
 
 function App() {
   return (
@@ -37,7 +37,7 @@ function App() {
 ### 2. Add Pre-built Auth Components
 
 ```tsx
-import { SignIn, SignUp, UserButton } from '@plinto/react';
+import { SignIn, SignUp, UserButton } from '@plinto/react-sdk';
 
 // Sign In Page
 export function SignInPage() {
@@ -89,7 +89,7 @@ export function Header() {
 ### useAuth Hook
 
 ```tsx
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 
 function Dashboard() {
   const { 
@@ -130,7 +130,7 @@ function Dashboard() {
 ### useUser Hook
 
 ```tsx
-import { useUser } from '@plinto/react';
+import { useUser } from '@plinto/react-sdk';
 
 function Profile() {
   const { user, isLoaded, update } = useUser();
@@ -154,7 +154,7 @@ function Profile() {
 ### useSession Hook
 
 ```tsx
-import { useSession } from '@plinto/react';
+import { useSession } from '@plinto/react-sdk';
 
 function SessionInfo() {
   const { session, refresh, revoke } = useSession();
@@ -176,7 +176,7 @@ function SessionInfo() {
 ### useOrganization Hook
 
 ```tsx
-import { useOrganization } from '@plinto/react';
+import { useOrganization } from '@plinto/react-sdk';
 
 function OrgSwitcher() {
   const {
@@ -228,7 +228,7 @@ function OrgSwitcher() {
 ### Theming
 
 ```tsx
-import { SignIn } from '@plinto/react';
+import { SignIn } from '@plinto/react-sdk';
 
 <SignIn
   appearance={{
@@ -251,7 +251,7 @@ import { SignIn } from '@plinto/react';
 ### Custom Fields
 
 ```tsx
-import { SignUp } from '@plinto/react';
+import { SignUp } from '@plinto/react-sdk';
 
 <SignUp
   additionalFields={[
@@ -289,7 +289,7 @@ import { SignUp } from '@plinto/react';
 ### Custom Components
 
 ```tsx
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 
 function CustomSignIn() {
   const { signIn } = useAuth();
@@ -347,7 +347,7 @@ function CustomSignIn() {
 
 ```tsx
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 
 function ProtectedRoute() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -375,7 +375,7 @@ function ProtectedRoute() {
 ### Custom Guard Component
 
 ```tsx
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -420,7 +420,7 @@ function AuthGuard({
 ## Social Login
 
 ```tsx
-import { SignIn } from '@plinto/react';
+import { SignIn } from '@plinto/react-sdk';
 
 <SignIn
   providers={['google', 'github', 'microsoft']}
@@ -433,7 +433,7 @@ import { SignIn } from '@plinto/react';
 />
 
 // Or with custom social buttons
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 
 function SocialAuth() {
   const { signInWithProvider } = useAuth();
@@ -457,7 +457,7 @@ function SocialAuth() {
 ## Passkeys (WebAuthn)
 
 ```tsx
-import { usePasskeys } from '@plinto/react';
+import { usePasskeys } from '@plinto/react-sdk';
 
 function PasskeySetup() {
   const { 
@@ -515,7 +515,7 @@ function PasskeySetup() {
 ## Multi-Factor Authentication
 
 ```tsx
-import { useMFA } from '@plinto/react';
+import { useMFA } from '@plinto/react-sdk';
 
 function MFASettings() {
   const {
@@ -597,7 +597,7 @@ import type {
   SignUpProps,
   UserButtonProps,
   Appearance,
-} from '@plinto/react';
+} from '@plinto/react-sdk';
 
 // Type-safe component props
 const signInProps: SignInProps = {
@@ -615,7 +615,7 @@ const { user }: { user: User | null } = useUser();
 ## Error Handling
 
 ```tsx
-import { ErrorBoundary } from '@plinto/react';
+import { ErrorBoundary } from '@plinto/react-sdk';
 
 <ErrorBoundary
   fallback={({ error, retry }) => (
@@ -634,7 +634,7 @@ import { ErrorBoundary } from '@plinto/react';
 
 ```tsx
 import { render, screen, waitFor } from '@testing-library/react';
-import { PlintoProvider, MockPlintoProvider } from '@plinto/react';
+import { PlintoProvider, MockPlintoProvider } from '@plinto/react-sdk';
 import { Dashboard } from './Dashboard';
 
 // Mock provider for testing

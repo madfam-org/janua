@@ -47,7 +47,7 @@ docs.plinto.dev/
 ├── SDKs
 │   ├── JavaScript/TypeScript
 │   │   ├── @plinto/nextjs
-│   │   ├── @plinto/react
+│   │   ├── @plinto/react-sdk
 │   │   ├── @plinto/node
 │   │   └── @plinto/edge
 │   ├── Python

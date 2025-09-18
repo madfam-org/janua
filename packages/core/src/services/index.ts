@@ -1,5 +1,6 @@
 export * from './audit.service';
-export * from './policy-engine.service';
+export { PolicyEngine, PolicyRule, PolicyDocument } from './policy-engine.service';
+export { PolicyCondition as PolicyEngineCondition } from './policy-engine.service';
 export * from './session-manager.service';
 export * from './kms.service';
 export * from './secrets-rotation.service';
@@ -10,5 +11,6 @@ export * from './hardware-token-provider.service';
 export * from './webauthn.service';
 export * from './multi-tenancy.service';
 export * from './team-management.service';
-export * from './rbac.service';
+export { RBACService, Permission, Role } from './rbac.service';
+export { PolicyCondition as RBACPolicyCondition } from './rbac.service';
 export * from './billing.service';

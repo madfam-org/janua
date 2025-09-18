@@ -26,7 +26,7 @@ npm install @plinto/nextjs
 For standalone React applications:
 
 ```bash
-npm install @plinto/react
+npm install @plinto/react-sdk
 ```
 
 ### Vue
@@ -167,7 +167,7 @@ export const plinto = new Plinto(\{
 Create `lib/plinto.ts`:
 
 ```typescript
-import \{ PlintoProvider \} from '@plinto/react'
+import \{ PlintoProvider \} from '@plinto/react-sdk'
 
 const plintoConfig = \{
   issuer: process.env.REACT_APP_PLINTO_ISSUER!,

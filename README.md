@@ -75,7 +75,7 @@ const user = await plinto.auth.signIn({
 
 ### **React Integration** ⚛️
 ```tsx
-import { PlintoProvider, usePlinto } from '@plinto/react';
+import { PlintoProvider, usePlinto } from '@plinto/react-sdk';
 
 function App() {
   return (
@@ -202,7 +202,7 @@ Visit [playground.plinto.dev](https://playground.plinto.dev) to test authenticat
 ### **3. Full Integration** (2 minutes)
 ```bash
 # Install your preferred SDK
-npm install @plinto/react
+npm install @plinto/react-sdk
 pip install plinto-python
 go get github.com/plinto/go-sdk
 
@@ -267,7 +267,7 @@ await plinto.admin.scim.configure({
 <td align="center">
 <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg" width="40"/>
 <br><strong>React</strong><br>
-<code>@plinto/react</code>
+<code>@plinto/react-sdk</code>
 </td>
 <td align="center">
 <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nextjs/nextjs-original.svg" width="40"/>

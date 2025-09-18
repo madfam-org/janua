@@ -86,7 +86,8 @@ export class MFAService extends EventEmitter {
       maxAttempts?: number;
       challengeTTL?: number; // seconds
       gracePeriod?: number; // minutes
-    }
+    },
+    private readonly redisService?: any
   ) {
     super();
     this.smsProvider = config.smsProvider;

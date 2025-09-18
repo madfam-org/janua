@@ -54,7 +54,7 @@ The Plinto platform shows promising architecture and security foundations but is
   - Configure branch protection and merge requirements
 
 ### 3. TypeScript Compilation Errors
-- **Current State**: 14+ TypeScript errors in @plinto/react package
+- **Current State**: 14+ TypeScript errors in @plinto/react-sdk package
 - **Risk**: Runtime failures, undefined behavior, poor developer experience
 - **Required Action**:
   - Fix all TypeScript errors before any deployment

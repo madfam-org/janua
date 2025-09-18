@@ -505,7 +505,7 @@ All endpoints implement intelligent rate limiting:
 All endpoints are supported by official SDKs:
 
 - **TypeScript/JavaScript**: `@plinto/typescript-sdk`
-- **React**: `@plinto/react`
+- **React**: `@plinto/react-sdk`
 - **Next.js**: `@plinto/nextjs`
 - **Python**: `plinto-python`
 - **Go**: `github.com/plinto/go-sdk`

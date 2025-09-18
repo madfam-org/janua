@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { Redis } from 'ioredis';
-import { PrometheusRegistry, Counter, Histogram, Gauge, Summary } from 'prom-client';
+import { Registry, Counter, Histogram, Gauge, Summary } from 'prom-client';
 
 interface MetricPoint {
   timestamp: number;
@@ -35,44 +35,44 @@ interface Alert {
 
 export class MonitoringService extends EventEmitter {
   private redis: Redis;
-  private registry: PrometheusRegistry;
+  private registry: Registry;
   private metrics: Map<string, any>;
   private alerts: Map<string, Alert>;
   private healthChecks: Map<string, () => Promise<boolean>>;
 
   // Payment metrics
-  private paymentCounter: Counter;
-  private paymentAmountHistogram: Histogram;
-  private paymentDurationHistogram: Histogram;
-  private paymentSuccessRate: Gauge;
-  private activePaymentsGauge: Gauge;
+  private paymentCounter!: Counter;
+  private paymentAmountHistogram!: Histogram;
+  private paymentDurationHistogram!: Histogram;
+  private paymentSuccessRate!: Gauge;
+  private activePaymentsGauge!: Gauge;
 
   // Provider metrics
-  private providerLatency: Histogram;
-  private providerErrorRate: Gauge;
-  private providerAvailability: Gauge;
+  private providerLatency!: Histogram;
+  private providerErrorRate!: Gauge;
+  private providerAvailability!: Gauge;
 
   // Business metrics
-  private revenueGauge: Gauge;
-  private customerGauge: Gauge;
-  private subscriptionGauge: Gauge;
-  private churnRate: Gauge;
+  private revenueGauge!: Gauge;
+  private customerGauge!: Gauge;
+  private subscriptionGauge!: Gauge;
+  private churnRate!: Gauge;
 
   // System metrics
-  private apiLatency: Histogram;
-  private apiRequestRate: Counter;
-  private errorRate: Counter;
-  private queueSize: Gauge;
+  private apiLatency!: Histogram;
+  private apiRequestRate!: Counter;
+  private errorRate!: Counter;
+  private queueSize!: Gauge;
 
   // Compliance metrics
-  private complianceCheckCounter: Counter;
-  private fraudDetectionCounter: Counter;
-  private kycProcessingTime: Histogram;
+  private complianceCheckCounter!: Counter;
+  private fraudDetectionCounter!: Counter;
+  private kycProcessingTime!: Histogram;
 
   constructor(redis: Redis) {
     super();
     this.redis = redis;
-    this.registry = new PrometheusRegistry();
+    this.registry = new Registry();
     this.metrics = new Map();
     this.alerts = new Map();
     this.healthChecks = new Map();
@@ -258,7 +258,8 @@ export class MonitoringService extends EventEmitter {
     // Update active payments
     if (data.status === 'pending') {
       this.activePaymentsGauge.inc({ provider: data.provider });
-    } else if (data.status !== 'pending') {
+    } else {
+      // Payment completed (either succeeded or failed)
       this.activePaymentsGauge.dec({ provider: data.provider });
     }
 

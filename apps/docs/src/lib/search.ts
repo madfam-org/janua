@@ -136,7 +136,7 @@ export const searchData: SearchResult[] = [
   },
   {
     id: 'react-sdk',
-    title: '@plinto/react',
+    title: '@plinto/react-sdk',
     description: 'React hooks and components for authentication',
     url: '/sdks/javascript/react',
     type: 'sdk',

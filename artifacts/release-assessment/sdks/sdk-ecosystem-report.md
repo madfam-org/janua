@@ -111,7 +111,7 @@ extras_require={
 #### Package Structure ✅ **MODERN REACT PATTERNS**
 ```json
 {
-  "name": "@plinto/react",
+  "name": "@plinto/react-sdk",
   "version": "0.1.0",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -187,9 +187,9 @@ export default withPlintoAuth({
 
 #### NPM/Yarn Installation ✅ **STANDARD**
 ```bash
-npm install @plinto/nextjs @plinto/react    # ✅ NPM support
-pnpm add @plinto/nextjs @plinto/react       # ✅ PNPM support  
-yarn add @plinto/nextjs @plinto/react       # ✅ Yarn support
+npm install @plinto/nextjs @plinto/react-sdk    # ✅ NPM support
+pnpm add @plinto/nextjs @plinto/react-sdk       # ✅ PNPM support  
+yarn add @plinto/nextjs @plinto/react-sdk       # ✅ Yarn support
 ```
 
 #### Python Installation ✅ **PIP COMPATIBLE**

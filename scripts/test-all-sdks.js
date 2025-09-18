@@ -37,9 +37,9 @@ tests.push({
   }
 });
 
-// Test @plinto/react
+// Test @plinto/react-sdk
 tests.push({
-  name: '@plinto/react',
+  name: '@plinto/react-sdk',
   path: '../packages/react',
   test: () => {
     const react = require('../packages/react/dist/index.js');
@@ -133,7 +133,7 @@ console.log("// Next.js");
 console.log("import { PlintoProvider, useAuth } from '@plinto/nextjs/app';");
 console.log("");
 console.log("// React");
-console.log("import { SignIn, useAuth } from '@plinto/react';");
+console.log("import { SignIn, useAuth } from '@plinto/react-sdk';");
 console.log("");
 console.log("// Vue");
 console.log("import { useAuth, useUser } from '@plinto/vue';");
@@ -152,7 +152,7 @@ console.log('| SDK | Package | Built | Status |');
 console.log('|-----|---------|-------|--------|');
 console.log('| JavaScript/TypeScript | @plinto/js | ✅ | 100% Ready |');
 console.log('| Next.js | @plinto/nextjs | ✅ | 100% Ready |');
-console.log('| React | @plinto/react | ✅ | 100% Ready |');
+console.log('| React | @plinto/react-sdk | ✅ | 100% Ready |');
 console.log('| Vue | @plinto/vue | ✅ | 100% Ready |');
 console.log('| Edge/Cloudflare | @plinto/edge | ✅ | 100% Ready |');
 console.log('| Python | plinto | ✅ | 100% Ready |');

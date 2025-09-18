@@ -351,7 +351,7 @@ const { user } = await plinto.auth.oauth.callback({
 ### OAuth Button Component
 
 ```jsx
-import { usePlinto } from '@plinto/react'
+import { usePlinto } from '@plinto/react-sdk'
 
 function OAuthButton({ provider, children }) {
   const { initiateOAuth } = usePlinto()

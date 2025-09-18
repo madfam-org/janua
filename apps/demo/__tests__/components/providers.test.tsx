@@ -2,8 +2,8 @@ import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import { Providers } from '@/components/providers'
 
-// Mock @plinto/react
-jest.mock('@plinto/react', () => ({
+// Mock @plinto/react-sdk
+jest.mock('@plinto/react-sdk', () => ({
   PlintoProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
 

@@ -17,7 +17,7 @@ export function DeveloperExperience() {
 
   const codeExamples = {
     typescript: {
-      install: 'npm install @plinto/nextjs @plinto/react',
+      install: 'npm install @plinto/nextjs @plinto/react-sdk',
       setup: `// middleware.ts
 import { withPlinto } from '@plinto/nextjs/middleware'
 
@@ -30,7 +30,7 @@ export default withPlinto({
   }
 })`,
       usage: `// app/page.tsx
-import { SignIn, UserButton } from '@plinto/react'
+import { SignIn, UserButton } from '@plinto/react-sdk'
 import { getSession } from '@plinto/nextjs'
 
 export default async function Page() {

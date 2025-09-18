@@ -341,7 +341,14 @@ export class Webhooks {
       }
 
       // In Node.js environment, delegate to server verification
-      return await this.verifyWebhookSignatureServer(payload, signature, secret);
+      // For server environments, verify signature directly
+      const timestamp = new Date().getTime() / 1000;
+      const expectedSignature = WebhookUtils.calculateSignature(
+        timestamp.toString(),
+        JSON.stringify(payload),
+        secret
+      );
+      return signature === expectedSignature;
 
     } catch (error) {
       throw new WebhookError('Failed to verify webhook signature', { originalError: error });

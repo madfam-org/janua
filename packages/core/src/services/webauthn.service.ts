@@ -84,7 +84,7 @@ export class WebAuthnService extends EventEmitter {
       attestationType: this.config.attestationType,
       excludeCredentials,
       authenticatorSelection: {
-        authenticatorAttachment: this.config.authenticatorAttachment,
+        authenticatorAttachment: this.config.authenticatorAttachment || undefined,
         residentKey: this.config.residentKey,
         userVerification: this.config.userVerification
       },
@@ -164,7 +164,8 @@ export class WebAuthnService extends EventEmitter {
       counter: registrationInfo.counter,
       name: name || `Passkey ${new Date().toISOString()}`,
       transports: credential.response.transports,
-      deviceType: registrationInfo.credentialDeviceType || 'unknown',
+      deviceType: registrationInfo.credentialDeviceType === 'singleDevice' ? 'platform' :
+                  registrationInfo.credentialDeviceType === 'multiDevice' ? 'cross-platform' : 'unknown',
       backedUp: registrationInfo.credentialBackedUp || false,
       createdAt: new Date()
     };

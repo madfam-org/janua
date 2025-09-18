@@ -23,7 +23,7 @@ Enterprise-grade architecture design with proper separation of concerns, distinc
 - **Location**: `/apps/dashboard`
 - **URL**: `https://app.plinto.dev`
 - **Purpose**: Main user application for authenticated users
-- **Tech Stack**: Next.js 14 (App Router), @plinto/react, @plinto/ui, TanStack Query
+- **Tech Stack**: Next.js 14 (App Router), @plinto/react-sdk, @plinto/ui, TanStack Query
 - **Features**:
   - User authentication dashboard
   - Organization management and RBAC
@@ -37,7 +37,7 @@ Enterprise-grade architecture design with proper separation of concerns, distinc
 - **Location**: `/apps/demo`
 - **URL**: `https://demo.plinto.dev`
 - **Purpose**: Interactive product demonstration with mock data
-- **Tech Stack**: Next.js 14 (App Router), @plinto/react, @plinto/ui, Mock API integration
+- **Tech Stack**: Next.js 14 (App Router), @plinto/react-sdk, @plinto/ui, Mock API integration
 - **Features**:
   - Sandbox authentication flows
   - Pre-populated demo data and scenarios
@@ -63,7 +63,7 @@ Enterprise-grade architecture design with proper separation of concerns, distinc
 - **Location**: `/apps/admin`
 - **URL**: `https://admin.plinto.dev`
 - **Purpose**: Superuser administration and system management
-- **Tech Stack**: Next.js 14 (App Router), @plinto/react, @plinto/ui, Advanced RBAC
+- **Tech Stack**: Next.js 14 (App Router), @plinto/react-sdk, @plinto/ui, Advanced RBAC
 - **Features**:
   - System-wide tenant management
   - Platform monitoring and health dashboards
@@ -161,7 +161,7 @@ Enterprise-grade architecture design with proper separation of concerns, distinc
 - **Purpose**: Shared design system and React components
 - **Features**: Buttons, forms, modals, tables, navigation, theming
 
-### 2. React SDK (`@plinto/react`)
+### 2. React SDK (`@plinto/react-sdk`)
 - **Location**: `/packages/react`
 - **Purpose**: React hooks and components for Plinto integration
 - **Features**: Authentication hooks, session management, protected routes

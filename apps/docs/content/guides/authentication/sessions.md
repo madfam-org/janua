@@ -709,7 +709,7 @@ async def signout(
 
 ```jsx
 import { createContext, useContext, useEffect, useState } from 'react'
-import { usePlinto } from '@plinto/react'
+import { usePlinto } from '@plinto/react-sdk'
 
 const SessionContext = createContext()
 

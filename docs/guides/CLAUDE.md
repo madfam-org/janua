@@ -29,7 +29,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Auth API (Plinto Core)**: FastAPI + SuperTokens core + OPA for policy
 - **Edge Adapters**: Vercel Middleware + Cloudflare Workers for token verification
 - **Admin UI**: Next.js app with RBAC-gated operations
-- **SDKs**: `@plinto/nextjs`, `@plinto/react`, `@plinto/edge`, `@plinto/node`, `@plinto/core`
+- **SDKs**: `@plinto/nextjs`, `@plinto/react-sdk`, `@plinto/edge`, `@plinto/node`, `@plinto/core`
 
 **Data Layer**:
 - **Postgres**: Primary database (users, tenants, orgs, sessions, policies)
@@ -107,7 +107,7 @@ Key endpoints:
 
 The project provides a streamlined integration for Next.js apps:
 
-1. Install: `@plinto/nextjs` and `@plinto/react`
+1. Install: `@plinto/nextjs` and `@plinto/react-sdk`
 2. Add edge middleware for route protection
 3. Wrap app with `PlintoProvider`
 4. Use prebuilt UI components (`<SignIn/>`, `<SignUp/>`)

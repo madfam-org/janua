@@ -150,7 +150,7 @@ async def verify_magic_link(token: str):
 
 ```jsx
 import { useState } from 'react'
-import { usePlinto } from '@plinto/react'
+import { usePlinto } from '@plinto/react-sdk'
 
 function MagicLinkLogin() {
   const { sendMagicLink } = usePlinto()

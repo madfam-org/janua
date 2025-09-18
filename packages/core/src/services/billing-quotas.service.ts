@@ -736,7 +736,7 @@ export class BillingQuotasService extends EventEmitter {
         invoices = invoices.filter(i => i.status === filters.status);
       }
       if (filters.since) {
-        invoices = invoices.filter(i => i.period_start >= filters.since);
+        invoices = invoices.filter(i => i.period_start >= filters.since!);
       }
     }
 

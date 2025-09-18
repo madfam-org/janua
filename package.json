@@ -12,7 +12,7 @@
     "build": "npm run build:packages",
     "build:packages": "npm run build:core && npm run build:sdk",
     "build:core": "cd packages/core && npm run build",
-    "build:sdk": "cd packages/sdk-js && npm run build",
+    "build:sdk": "cd packages/typescript-sdk && npm run build",
     "test": "npm run test:packages && npm run test:api",
     "test:packages": "cd packages/core && npm test",
     "test:api": "cd apps/api && python -m pytest tests/ -v",
@@ -37,13 +37,17 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "concurrently": "^8.2.0",
+    "prisma": "^5.7.0",
     "tsx": "^4.6.0",
-    "typescript": "^5.0.0",
-    "prisma": "^5.7.0"
+    "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@prisma/client": "^5.7.0",
-    "bcryptjs": "^2.4.3"
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "ioredis": "^5.7.0",
+    "messagebird": "^4.0.1",
+    "prom-client": "^15.1.3",
+    "socket.io": "^4.8.1"
   },
   "engines": {
     "node": ">=18.0.0",

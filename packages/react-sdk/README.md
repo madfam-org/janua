@@ -1,4 +1,4 @@
-# @plinto/react
+# @plinto/react-sdk
 
 > **React-specific authentication hooks and components** for Plinto integration
 
@@ -6,7 +6,7 @@
 
 ## 📋 Overview
 
-@plinto/react provides a complete set of React hooks, components, and utilities for seamless Plinto authentication integration. Built on top of @plinto/sdk with React-specific optimizations for state management, SSR support, and component lifecycle handling.
+@plinto/react-sdk provides a complete set of React hooks, components, and utilities for seamless Plinto authentication integration. Built on top of @plinto/sdk with React-specific optimizations for state management, SSR support, and component lifecycle handling.
 
 ## 🚀 Quick Start
 
@@ -14,20 +14,20 @@
 
 ```bash
 # npm
-npm install @plinto/react @plinto/sdk
+npm install @plinto/react-sdk @plinto/sdk
 
 # yarn
-yarn add @plinto/react @plinto/sdk
+yarn add @plinto/react-sdk @plinto/sdk
 
 # pnpm
-pnpm add @plinto/react @plinto/sdk
+pnpm add @plinto/react-sdk @plinto/sdk
 ```
 
 ### Basic Setup
 
 ```tsx
 // app.tsx or _app.tsx
-import { PlintoProvider } from '@plinto/react';
+import { PlintoProvider } from '@plinto/react-sdk';
 
 function App() {
   return (
@@ -45,7 +45,7 @@ function App() {
 ### Using Auth Hooks
 
 ```tsx
-import { useAuth, useUser } from '@plinto/react';
+import { useAuth, useUser } from '@plinto/react-sdk';
 
 function Profile() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -383,8 +383,8 @@ const customTheme = {
 
 ```tsx
 // pages/_app.tsx
-import { PlintoProvider } from '@plinto/react';
-import { getServerSideAuth } from '@plinto/react/ssr';
+import { PlintoProvider } from '@plinto/react-sdk';
+import { getServerSideAuth } from '@plinto/react-sdk/ssr';
 
 function MyApp({ Component, pageProps }) {
   return (
@@ -413,8 +413,8 @@ export async function getServerSideProps(context) {
 
 ```tsx
 // root.tsx
-import { PlintoProvider } from '@plinto/react';
-import { getAuthFromRequest } from '@plinto/react/remix';
+import { PlintoProvider } from '@plinto/react-sdk';
+import { getAuthFromRequest } from '@plinto/react-sdk/remix';
 
 export async function loader({ request }) {
   const auth = await getAuthFromRequest(request);
@@ -467,8 +467,8 @@ export default function App() {
 ```tsx
 // Test with React Testing Library
 import { render, screen } from '@testing-library/react';
-import { PlintoProvider } from '@plinto/react';
-import { mockAuth } from '@plinto/react/testing';
+import { PlintoProvider } from '@plinto/react-sdk';
+import { mockAuth } from '@plinto/react-sdk/testing';
 
 test('renders user profile', () => {
   render(
@@ -486,8 +486,8 @@ test('renders user profile', () => {
 ```tsx
 // Test hooks with renderHook
 import { renderHook } from '@testing-library/react-hooks';
-import { useAuth } from '@plinto/react';
-import { createWrapper } from '@plinto/react/testing';
+import { useAuth } from '@plinto/react-sdk';
+import { createWrapper } from '@plinto/react-sdk/testing';
 
 test('authentication flow', async () => {
   const wrapper = createWrapper();
@@ -506,7 +506,7 @@ test('authentication flow', async () => {
 ### Type Definitions
 
 ```typescript
-import type { User, Session, Organization } from '@plinto/react';
+import type { User, Session, Organization } from '@plinto/react-sdk';
 
 interface AuthState {
   user: User | null;
@@ -532,7 +532,7 @@ interface CustomUser extends User {
 ```tsx
 // Route protection with React Router
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '@plinto/react';
+import { useAuth } from '@plinto/react-sdk';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -548,7 +548,7 @@ function ProtectedRoute({ children }) {
 
 ```tsx
 // Role-based component rendering
-import { useUser } from '@plinto/react';
+import { useUser } from '@plinto/react-sdk';
 
 function AdminPanel() {
   const { user } = useUser();
@@ -565,7 +565,7 @@ function AdminPanel() {
 
 ```tsx
 // Multi-tenant organization support
-import { useOrganization } from '@plinto/react';
+import { useOrganization } from '@plinto/react-sdk';
 
 function TeamDashboard() {
   const { organization, members } = useOrganization();

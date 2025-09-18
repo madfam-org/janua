@@ -156,7 +156,7 @@ class MessageBirdProvider implements SMSProvider {
   async sendSMS(to: string, message: string): Promise<SMSResult> {
     try {
       const messagebird = await import('messagebird');
-      const client = messagebird.default(this.apiKey);
+      const client = (messagebird as any)(this.apiKey);
       
       return new Promise((resolve) => {
         client.messages.create({

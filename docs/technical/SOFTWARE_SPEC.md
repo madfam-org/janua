@@ -58,7 +58,7 @@
 * **Auth API (Plinto Core)** — FastAPI service (Python) with optional **SuperTokens** core for sessions/email-password & **OPA** for policy; Redis for sessions/ratelimits; Postgres for identity data; Celery/RQ workers for webhooks/email.
 * **Edge adapters (Plinto Edge)** — Vercel Middleware + Cloudflare Workers libraries for token verification using cached JWKS.
 * **Admin UI (Plinto Admin)** — Next.js app (Vercel) with RBAC-gated ops and audit explorer.
-* **SDKs (Plinto SDKs)** — `@plinto/nextjs`, `@plinto/react`, `@plinto/edge`, `@plinto/node`, `@plinto/core`.
+* **SDKs (Plinto SDKs)** — `@plinto/nextjs`, `@plinto/react-sdk`, `@plinto/edge`, `@plinto/node`, `@plinto/core`.
 * **Enterprise connectors** — SAML/OIDC providers, SCIM server.
 * **Observability** — OpenTelemetry traces, metrics, structured logs; dashboards & alerts.
 
@@ -219,7 +219,7 @@ Browser/Client → Cloudflare (WAF/CDN/Turnstile) → Vercel (Next.js: /, /docs,
 ### 7.1 Packages & APIs
 
 * `@plinto/nextjs` — AuthProvider, middleware, server helpers (Route Handlers).
-* `@plinto/react` — UI widgets: `<SignIn/>`, `<SignUp/>`, `<UserButton/>`, `<OrgSwitcher/>`, `<PasskeyPrompt/>`.
+* `@plinto/react-sdk` — UI widgets: `<SignIn/>`, `<SignUp/>`, `<UserButton/>`, `<OrgSwitcher/>`, `<PasskeyPrompt/>`.
 * `@plinto/edge` — `verify(request, {audience}) -> Claims`.
 * `@plinto/node` — `createToken`, `verifyToken`, `rotateKeys` (admin).
 * `@plinto/core` — types, errors, codecs.
