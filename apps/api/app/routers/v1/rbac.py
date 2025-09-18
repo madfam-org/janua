@@ -51,7 +51,7 @@ class PolicyResponse(BaseModel):
     updated_at: Optional[str]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Create router

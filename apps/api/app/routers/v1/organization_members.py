@@ -45,7 +45,7 @@ class MemberResponse(BaseModel):
     metadata: Optional[dict] = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class InvitationResponse(BaseModel):
@@ -59,7 +59,7 @@ class InvitationResponse(BaseModel):
     created_at: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # Create router
