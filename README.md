@@ -667,7 +667,7 @@ Report vulnerabilities to **[security@plinto.dev](mailto:security@plinto.dev)**
 
 ## 📜 **License & Copyright**
 
-**MIT License** - Use Plinto freely in your projects.
+**MIT License** - Use Plinto freely in your projects
 **Copyright © 2025 Aureo Labs (MADFAM Company)**
 
 ---
