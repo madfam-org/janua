@@ -34,6 +34,7 @@ slowapi==0.1.9
 httpx==0.25.2
 python-dateutil==2.8.2
 pytz==2023.3
+psutil==5.9.6
 
 # Development & Testing (optional)
 pytest==7.4.3
