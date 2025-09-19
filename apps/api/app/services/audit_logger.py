@@ -73,6 +73,58 @@ class AuditEventType(str, Enum):
     BILLING_PAYMENT_SUCCESS = "billing.payment_success"
     BILLING_PAYMENT_FAILED = "billing.payment_failed"
 
+    # Compliance events - GDPR
+    GDPR_CONSENT_GIVEN = "gdpr.consent_given"
+    GDPR_CONSENT_WITHDRAWN = "gdpr.consent_withdrawn"
+    GDPR_CONSENT_UPDATED = "gdpr.consent_updated"
+    GDPR_DATA_EXPORT = "gdpr.data_export"
+    GDPR_DATA_DELETION = "gdpr.data_deletion"
+    GDPR_DATA_RECTIFICATION = "gdpr.data_rectification"
+    GDPR_DATA_PORTABILITY = "gdpr.data_portability"
+    GDPR_PROCESSING_RESTRICTION = "gdpr.processing_restriction"
+    GDPR_OBJECTION_PROCESSING = "gdpr.objection_processing"
+    GDPR_BREACH_NOTIFICATION = "gdpr.breach_notification"
+
+    # Compliance events - SOC 2
+    SOC2_ACCESS_GRANTED = "soc2.access_granted"
+    SOC2_ACCESS_DENIED = "soc2.access_denied"
+    SOC2_ACCESS_REVOKED = "soc2.access_revoked"
+    SOC2_PRIVILEGE_ESCALATION = "soc2.privilege_escalation"
+    SOC2_ADMIN_ACTION = "soc2.admin_action"
+    SOC2_CONFIG_CHANGE = "soc2.config_change"
+    SOC2_BACKUP_CREATED = "soc2.backup_created"
+    SOC2_BACKUP_RESTORED = "soc2.backup_restored"
+    SOC2_INCIDENT_REPORTED = "soc2.incident_reported"
+    SOC2_VULNERABILITY_DETECTED = "soc2.vulnerability_detected"
+
+    # Compliance events - HIPAA
+    HIPAA_PHI_ACCESS = "hipaa.phi_access"
+    HIPAA_PHI_EXPORT = "hipaa.phi_export"
+    HIPAA_PHI_MODIFICATION = "hipaa.phi_modification"
+    HIPAA_PHI_DELETION = "hipaa.phi_deletion"
+    HIPAA_BREACH_DETECTED = "hipaa.breach_detected"
+    HIPAA_AUDIT_ACCESS = "hipaa.audit_access"
+    HIPAA_EMERGENCY_ACCESS = "hipaa.emergency_access"
+
+    # Data governance events
+    DATA_RETENTION_EXPIRED = "data.retention_expired"
+    DATA_ARCHIVAL = "data.archival"
+    DATA_CLASSIFICATION = "data.classification"
+    DATA_ANONYMIZATION = "data.anonymization"
+    DATA_PSEUDONYMIZATION = "data.pseudonymization"
+
+    # Privacy events
+    PRIVACY_SETTINGS_UPDATED = "privacy.settings_updated"
+    PRIVACY_PREFERENCE_CHANGED = "privacy.preference_changed"
+    PRIVACY_POLICY_ACCEPTED = "privacy.policy_accepted"
+    PRIVACY_NOTICE_SENT = "privacy.notice_sent"
+
+    # Compliance reporting
+    COMPLIANCE_REPORT_GENERATED = "compliance.report_generated"
+    COMPLIANCE_AUDIT_STARTED = "compliance.audit_started"
+    COMPLIANCE_AUDIT_COMPLETED = "compliance.audit_completed"
+    COMPLIANCE_VIOLATION_DETECTED = "compliance.violation_detected"
+
 
 # Alias for backward compatibility
 AuditAction = AuditEventType
@@ -117,7 +169,11 @@ class AuditLogger:
         details: Optional[Dict[str, Any]] = None,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
-        severity: str = "info"
+        severity: str = "info",
+        compliance_context: Optional[Dict[str, Any]] = None,
+        data_subject_id: Optional[str] = None,
+        legal_basis: Optional[str] = None,
+        retention_period: Optional[int] = None
     ) -> str:
         """
         Create an audit log entry with hash chain integrity
@@ -143,7 +199,11 @@ class AuditLogger:
             "user_agent": user_agent,
             "severity": severity,
             "timestamp": datetime.utcnow().isoformat(),
-            "previous_hash": previous_hash
+            "previous_hash": previous_hash,
+            "compliance_context": compliance_context or {},
+            "data_subject_id": data_subject_id,
+            "legal_basis": legal_basis,
+            "retention_period": retention_period
         }
         
         # Calculate hash for this entry
@@ -581,5 +641,209 @@ class AuditMiddleware:
             user_agent=user_agent,
             severity="info"
         )
-        
+
         return await call_next(request)
+
+    # Compliance-specific logging methods
+    async def log_gdpr_consent(
+        self,
+        user_id: str,
+        consent_type: str,
+        purpose: str,
+        action: str,  # given, withdrawn, updated
+        consent_data: Optional[Dict[str, Any]] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        tenant_id: str = "default"
+    ):
+        """Log GDPR consent events"""
+        event_type_map = {
+            "given": AuditEventType.GDPR_CONSENT_GIVEN,
+            "withdrawn": AuditEventType.GDPR_CONSENT_WITHDRAWN,
+            "updated": AuditEventType.GDPR_CONSENT_UPDATED
+        }
+
+        await self.audit_logger.log(
+            event_type=event_type_map.get(action, AuditEventType.GDPR_CONSENT_UPDATED),
+            tenant_id=tenant_id,
+            identity_id=user_id,
+            data_subject_id=user_id,
+            details={
+                "consent_type": consent_type,
+                "purpose": purpose,
+                "consent_data": consent_data or {}
+            },
+            compliance_context={
+                "framework": "GDPR",
+                "article": "Article 7",
+                "lawful_basis": "consent"
+            },
+            legal_basis="consent",
+            ip_address=ip_address,
+            user_agent=user_agent,
+            severity="info"
+        )
+
+    async def log_data_subject_request(
+        self,
+        user_id: str,
+        request_type: str,  # access, rectification, erasure, portability, restriction, objection
+        data_categories: List[str],
+        status: str,  # received, processing, completed, denied
+        reason: Optional[str] = None,
+        ip_address: Optional[str] = None,
+        tenant_id: str = "default"
+    ):
+        """Log GDPR data subject rights requests"""
+        event_type_map = {
+            "access": AuditEventType.GDPR_DATA_EXPORT,
+            "rectification": AuditEventType.GDPR_DATA_RECTIFICATION,
+            "erasure": AuditEventType.GDPR_DATA_DELETION,
+            "portability": AuditEventType.GDPR_DATA_PORTABILITY,
+            "restriction": AuditEventType.GDPR_PROCESSING_RESTRICTION,
+            "objection": AuditEventType.GDPR_OBJECTION_PROCESSING
+        }
+
+        await self.audit_logger.log(
+            event_type=event_type_map.get(request_type, AuditEventType.GDPR_DATA_EXPORT),
+            tenant_id=tenant_id,
+            identity_id=user_id,
+            data_subject_id=user_id,
+            details={
+                "request_type": request_type,
+                "data_categories": data_categories,
+                "status": status,
+                "reason": reason
+            },
+            compliance_context={
+                "framework": "GDPR",
+                "article": "Article " + {'access': '15', 'rectification': '16', 'erasure': '17', 'portability': '20', 'restriction': '18', 'objection': '21'}.get(request_type, '15'),
+                "request_id": f"dsr_{user_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+            },
+            ip_address=ip_address,
+            severity="info"
+        )
+
+    async def log_data_breach(
+        self,
+        breach_id: str,
+        breach_type: str,
+        affected_records: int,
+        data_categories: List[str],
+        severity: str,
+        containment_status: str,
+        notification_required: bool,
+        details: Optional[Dict[str, Any]] = None,
+        tenant_id: str = "default"
+    ):
+        """Log data breach incidents"""
+        await self.audit_logger.log(
+            event_type=AuditEventType.GDPR_BREACH_NOTIFICATION,
+            tenant_id=tenant_id,
+            resource_type="data_breach",
+            resource_id=breach_id,
+            details={
+                "breach_type": breach_type,
+                "affected_records": affected_records,
+                "data_categories": data_categories,
+                "containment_status": containment_status,
+                "notification_required": notification_required,
+                "additional_details": details or {}
+            },
+            compliance_context={
+                "framework": "GDPR",
+                "article": "Article 33, Article 34",
+                "notification_deadline": (datetime.utcnow() + timedelta(hours=72)).isoformat(),
+                "breach_id": breach_id
+            },
+            severity=severity,
+            retention_period=2555  # 7 years in days for breach records
+        )
+
+    async def log_soc2_access_control(
+        self,
+        user_id: str,
+        action: str,  # granted, revoked, escalated
+        resource: str,
+        privilege_level: str,
+        justification: str,
+        approved_by: Optional[str] = None,
+        ip_address: Optional[str] = None,
+        tenant_id: str = "default"
+    ):
+        """Log SOC 2 access control events"""
+        event_type_map = {
+            "granted": AuditEventType.SOC2_ACCESS_GRANTED,
+            "revoked": AuditEventType.SOC2_ACCESS_REVOKED,
+            "escalated": AuditEventType.SOC2_PRIVILEGE_ESCALATION
+        }
+
+        await self.audit_logger.log(
+            event_type=event_type_map.get(action, AuditEventType.SOC2_ACCESS_GRANTED),
+            tenant_id=tenant_id,
+            identity_id=user_id,
+            resource_type="access_control",
+            resource_id=resource,
+            details={
+                "action": action,
+                "privilege_level": privilege_level,
+                "justification": justification,
+                "approved_by": approved_by
+            },
+            compliance_context={
+                "framework": "SOC2",
+                "control_type": "access_control",
+                "control_id": "CC6.1",
+                "approval_required": approved_by is not None
+            },
+            ip_address=ip_address,
+            severity="info" if action != "escalated" else "medium"
+        )
+
+    async def log_hipaa_phi_access(
+        self,
+        user_id: str,
+        patient_id: str,
+        phi_type: str,
+        action: str,  # access, export, modify, delete
+        purpose: str,
+        emergency_access: bool = False,
+        ip_address: Optional[str] = None,
+        tenant_id: str = "default"
+    ):
+        """Log HIPAA PHI access events"""
+        event_type_map = {
+            "access": AuditEventType.HIPAA_PHI_ACCESS,
+            "export": AuditEventType.HIPAA_PHI_EXPORT,
+            "modify": AuditEventType.HIPAA_PHI_MODIFICATION,
+            "delete": AuditEventType.HIPAA_PHI_DELETION
+        }
+
+        if emergency_access:
+            event_type = AuditEventType.HIPAA_EMERGENCY_ACCESS
+        else:
+            event_type = event_type_map.get(action, AuditEventType.HIPAA_PHI_ACCESS)
+
+        await self.audit_logger.log(
+            event_type=event_type,
+            tenant_id=tenant_id,
+            identity_id=user_id,
+            data_subject_id=patient_id,
+            resource_type="phi",
+            resource_id=f"{patient_id}_{phi_type}",
+            details={
+                "phi_type": phi_type,
+                "action": action,
+                "purpose": purpose,
+                "emergency_access": emergency_access
+            },
+            compliance_context={
+                "framework": "HIPAA",
+                "regulation": "45 CFR 164.312(a)(2)(i)",
+                "minimum_necessary": True,
+                "emergency_override": emergency_access
+            },
+            ip_address=ip_address,
+            severity="high" if emergency_access else "info",
+            retention_period=2190  # 6 years in days for HIPAA records
+        )

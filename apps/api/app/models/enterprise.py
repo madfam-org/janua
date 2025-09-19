@@ -154,17 +154,8 @@ class ComplianceLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-class DataRetentionPolicy(Base):
-    __tablename__ = "data_retention_policies"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    data_type = Column(String(255), nullable=False)
-    retention_period_days = Column(Integer, nullable=False)
-    enabled = Column(Boolean, default=True)
-    configuration = Column(JSONB, default={})
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+# REMOVED: DataRetentionPolicy class (use the comprehensive version from app.models.compliance)
+# Note: Import DataRetentionPolicy from app.models.compliance for data retention functionality
 
 
 class SCIMResource(Base):

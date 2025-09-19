@@ -26,11 +26,14 @@ class User(Base):
     status = Column(SQLEnum(UserStatus), default=UserStatus.PENDING)
     first_name = Column(String(255))
     last_name = Column(String(255))
+    username = Column(String(50), unique=True)  # Add username field
     phone = Column(String(50))
     avatar_url = Column(String(500))
+    profile_image_url = Column(String(500))  # Add profile_image_url field
     user_metadata = Column(JSONB, default={})
     tenant_id = Column(UUID(as_uuid=True), index=True)  # For multi-tenancy support
     last_login = Column(DateTime)
+    last_sign_in_at = Column(DateTime)  # Add last_sign_in_at field
     is_active = Column(Boolean, default=True)  # Add is_active field used by auth service
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -360,3 +363,26 @@ class CheckoutSession(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     expires_at = Column(DateTime, nullable=True)
     session_metadata = Column(Text)  # JSON string for additional data
+
+# Import compliance models
+from .compliance import (
+    ComplianceFramework,
+    ConsentType,
+    ConsentStatus,
+    LegalBasis,
+    DataCategory,
+    DataSubjectRequestType,
+    RequestStatus,
+    ConsentRecord,
+    DataRetentionPolicy,
+    DataSubjectRequest,
+    PrivacySettings,
+    DataBreachIncident,
+    ComplianceReport,
+    ComplianceControl
+)
+
+# Add relationships to User model
+User.consent_records = relationship("ConsentRecord", back_populates="user", foreign_keys="ConsentRecord.user_id")
+User.data_subject_requests = relationship("DataSubjectRequest", back_populates="user", foreign_keys="DataSubjectRequest.user_id")
+User.privacy_settings = relationship("PrivacySettings", back_populates="user", uselist=False, foreign_keys="PrivacySettings.user_id")

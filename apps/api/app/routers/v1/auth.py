@@ -159,7 +159,7 @@ async def sign_up(
             raise HTTPException(status_code=400, detail="Username already taken")
     
     # Validate password
-    valid, message = AuthService.validate_password(request.password)
+    valid, message = AuthService.validate_password_strength(request.password)
     if not valid:
         raise HTTPException(status_code=400, detail=message)
     
@@ -177,7 +177,7 @@ async def sign_up(
     db.refresh(user)
     
     # Create session
-    access_token, refresh_token, session = AuthService.create_user_session(
+    access_token, refresh_token, session = await AuthService.create_session(
         db, user,
         ip_address=req.client.host,
         user_agent=req.headers.get('user-agent')
@@ -253,7 +253,7 @@ async def sign_in(
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     # Create session
-    access_token, refresh_token, session = AuthService.create_user_session(
+    access_token, refresh_token, session = await AuthService.create_session(
         db, user,
         ip_address=req.client.host,
         user_agent=req.headers.get('user-agent')
@@ -598,7 +598,7 @@ async def verify_magic_link(
     magic_link.used_at = datetime.utcnow()
     
     # Create session
-    access_token, refresh_token, session = AuthService.create_user_session(
+    access_token, refresh_token, session = await AuthService.create_session(
         db, user,
         ip_address=req.client.host,
         user_agent=req.headers.get('user-agent')

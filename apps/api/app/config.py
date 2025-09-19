@@ -150,6 +150,42 @@ class Settings(BaseSettings):
     MAX_SESSIONS_PER_IDENTITY: int = Field(default=5)
     MAX_PASSKEYS_PER_IDENTITY: int = Field(default=10)
     MAX_WEBHOOKS_PER_TENANT: int = Field(default=10)
+
+    # Compliance framework settings
+    COMPLIANCE_GDPR_ENABLED: bool = Field(default=True, description="Enable GDPR compliance features")
+    COMPLIANCE_SOC2_ENABLED: bool = Field(default=False, description="Enable SOC 2 compliance features")
+    COMPLIANCE_HIPAA_ENABLED: bool = Field(default=False, description="Enable HIPAA compliance features")
+    COMPLIANCE_CCPA_ENABLED: bool = Field(default=True, description="Enable CCPA compliance features")
+    COMPLIANCE_PCI_DSS_ENABLED: bool = Field(default=False, description="Enable PCI DSS compliance features")
+
+    # Data retention defaults
+    DEFAULT_RETENTION_PERIOD_DAYS: int = Field(default=2555, description="Default retention period (7 years)")
+    GDPR_DSR_RESPONSE_DAYS: int = Field(default=30, description="GDPR data subject request response period")
+    GDPR_BREACH_NOTIFICATION_HOURS: int = Field(default=72, description="GDPR breach notification period")
+
+    # Consent management
+    CONSENT_COOKIE_LIFETIME_DAYS: int = Field(default=365, description="Consent cookie lifetime")
+    CONSENT_RENEWAL_PERIOD_DAYS: int = Field(default=365, description="Period for consent renewal reminders")
+
+    # Privacy settings
+    PRIVACY_BY_DEFAULT: bool = Field(default=True, description="Privacy by default for new users")
+    AUTOMATIC_DATA_ANONYMIZATION: bool = Field(default=True, description="Enable automatic data anonymization")
+
+    # Audit and logging
+    COMPLIANCE_AUDIT_RETENTION_YEARS: int = Field(default=7, description="Compliance audit log retention period")
+    AUDIT_LOG_ENCRYPTION: bool = Field(default=True, description="Enable audit log encryption")
+
+    # Data export settings
+    DATA_EXPORT_MAX_RECORDS: int = Field(default=10000, description="Maximum records per data export")
+    DATA_EXPORT_FORMAT_DEFAULT: str = Field(default="json", description="Default data export format")
+
+    # Breach detection
+    BREACH_DETECTION_ENABLED: bool = Field(default=True, description="Enable automated breach detection")
+    BREACH_NOTIFICATION_EMAIL: Optional[str] = Field(default=None, description="Email for breach notifications")
+
+    # Compliance reporting
+    COMPLIANCE_REPORTS_ENABLED: bool = Field(default=True, description="Enable compliance reporting")
+    COMPLIANCE_DASHBOARD_ENABLED: bool = Field(default=True, description="Enable compliance dashboard")
     
     @field_validator("JWT_SECRET_KEY", mode="before")
     @classmethod
