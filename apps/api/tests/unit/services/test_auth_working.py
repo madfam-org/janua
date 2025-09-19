@@ -156,9 +156,11 @@ class TestUserCreation:
         existing_user = Mock()
         mock_result = Mock()
         mock_result.scalar_one_or_none.return_value = existing_user  # User exists
-        mock_db.execute.return_value = mock_result
+        mock_db.execute = AsyncMock(return_value=mock_result)
 
-        with pytest.raises(ValueError, match="already exists"):
+        from app.exceptions import ConflictError
+
+        with pytest.raises(ConflictError, match="already exists"):
             await AuthService.create_user(
                 db=mock_db,
                 email="test@example.com",
