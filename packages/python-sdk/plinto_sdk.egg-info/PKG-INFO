@@ -6,7 +6,7 @@ Home-page: https://github.com/madfam-io/plinto
 Author: Plinto Team
 Author-email: Plinto Team <support@plinto.com>
 Maintainer-email: Plinto Team <support@plinto.com>
-License: MIT
+License-Expression: MIT
 Project-URL: Homepage, https://plinto.com
 Project-URL: Documentation, https://docs.plinto.com/sdk/python
 Project-URL: Repository, https://github.com/plinto/plinto
@@ -15,7 +15,6 @@ Project-URL: Changelog, https://github.com/plinto/plinto/blob/main/CHANGELOG.md
 Keywords: authentication,identity,oauth,mfa,passkeys,webhooks
 Classifier: Development Status :: 5 - Production/Stable
 Classifier: Intended Audience :: Developers
-Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3.8

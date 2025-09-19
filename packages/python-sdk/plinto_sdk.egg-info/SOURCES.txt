@@ -6,6 +6,7 @@ setup.py
 ./plinto/admin.py
 ./plinto/auth.py
 ./plinto/client.py
+./plinto/enterprise.py
 ./plinto/exceptions.py
 ./plinto/http_client.py
 ./plinto/organizations.py
@@ -17,6 +18,7 @@ plinto/__init__.py
 plinto/admin.py
 plinto/auth.py
 plinto/client.py
+plinto/enterprise.py
 plinto/exceptions.py
 plinto/http_client.py
 plinto/organizations.py

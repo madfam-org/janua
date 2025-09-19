@@ -1,6 +1,5 @@
 /**
  * @jest-environment jsdom
- * Tests for environment utilities in browser environment
  */
 import { EnvUtils } from '../utils/env-utils';
 import { LocalTokenStorage } from '../utils/token-utils';

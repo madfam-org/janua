@@ -240,18 +240,45 @@ export type FeatureKey = typeof FEATURES[keyof typeof FEATURES];
 /**
  * Plan definitions
  */
+const COMMUNITY_FEATURES = [
+  FEATURES.BASIC_AUTH,
+  FEATURES.USER_MANAGEMENT,
+  FEATURES.MFA,
+  FEATURES.PASSWORD_RESET,
+  FEATURES.EMAIL_VERIFICATION,
+  FEATURES.BASIC_ORGANIZATIONS,
+  FEATURES.BASIC_WEBHOOKS
+];
+
+const PRO_FEATURES = [
+  ...COMMUNITY_FEATURES,
+  FEATURES.ADVANCED_MFA,
+  FEATURES.TEAM_MANAGEMENT,
+  FEATURES.API_KEYS,
+  FEATURES.CUSTOM_DOMAINS,
+  FEATURES.PRIORITY_SUPPORT,
+  FEATURES.ANALYTICS
+];
+
+const ENTERPRISE_FEATURES = [
+  ...PRO_FEATURES,
+  FEATURES.SSO_SAML,
+  FEATURES.SSO_OIDC,
+  FEATURES.AUDIT_LOGS,
+  FEATURES.CUSTOM_ROLES,
+  FEATURES.WHITE_LABELING,
+  FEATURES.ON_PREMISE,
+  FEATURES.COMPLIANCE_REPORTS,
+  FEATURES.ADVANCED_SECURITY,
+  FEATURES.DEDICATED_SUPPORT,
+  FEATURES.SLA,
+  FEATURES.CUSTOM_INTEGRATIONS
+];
+
 export const PLANS = {
   community: {
     name: 'Community',
-    features: [
-      FEATURES.BASIC_AUTH,
-      FEATURES.USER_MANAGEMENT,
-      FEATURES.MFA,
-      FEATURES.PASSWORD_RESET,
-      FEATURES.EMAIL_VERIFICATION,
-      FEATURES.BASIC_ORGANIZATIONS,
-      FEATURES.BASIC_WEBHOOKS
-    ],
+    features: COMMUNITY_FEATURES,
     limits: {
       users: 100,
       organizations: 1,
@@ -261,15 +288,7 @@ export const PLANS = {
   },
   pro: {
     name: 'Professional',
-    features: [
-      ...PLANS.community.features,
-      FEATURES.ADVANCED_MFA,
-      FEATURES.TEAM_MANAGEMENT,
-      FEATURES.API_KEYS,
-      FEATURES.CUSTOM_DOMAINS,
-      FEATURES.PRIORITY_SUPPORT,
-      FEATURES.ANALYTICS
-    ],
+    features: PRO_FEATURES,
     limits: {
       users: 10000,
       organizations: 10,
@@ -279,20 +298,7 @@ export const PLANS = {
   },
   enterprise: {
     name: 'Enterprise',
-    features: [
-      ...PLANS.pro.features,
-      FEATURES.SSO_SAML,
-      FEATURES.SSO_OIDC,
-      FEATURES.AUDIT_LOGS,
-      FEATURES.CUSTOM_ROLES,
-      FEATURES.WHITE_LABELING,
-      FEATURES.ON_PREMISE,
-      FEATURES.COMPLIANCE_REPORTS,
-      FEATURES.ADVANCED_SECURITY,
-      FEATURES.DEDICATED_SUPPORT,
-      FEATURES.SLA,
-      FEATURES.CUSTOM_INTEGRATIONS
-    ],
+    features: ENTERPRISE_FEATURES,
     limits: {
       users: -1, // unlimited
       organizations: -1,

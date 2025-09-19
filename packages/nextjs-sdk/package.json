@@ -1,6 +1,6 @@
 {
   "name": "@plinto/nextjs",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Official Plinto SDK for Next.js applications with App Router and Pages Router support",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

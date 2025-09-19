@@ -16,6 +16,7 @@ import { createClient } from './client';
 // Module exports
 export { Auth } from './auth';
 export { Users } from './users';
+export { Sessions } from './sessions';
 export { Organizations } from './organizations';
 export { Webhooks } from './webhooks';
 export { Admin } from './admin';
@@ -106,7 +107,10 @@ export type {
   SdkEventHandler,
   
   // Token storage types
-  TokenData
+  TokenData,
+
+  // Additional type exports
+  TokenPair
 } from './types';
 
 // Export enums as values too
@@ -187,6 +191,10 @@ export {
   // Event emitter
   EventEmitter
 } from './utils';
+
+// WebAuthn helper exports
+export { WebAuthnHelper, checkWebAuthnSupport } from './webauthn-helper';
+export type { WebAuthnSupport } from './webauthn-helper';
 
 // Version and metadata
 export const SDK_VERSION = '1.0.0';

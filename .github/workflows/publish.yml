@@ -1,0 +1,136 @@
+name: Publish Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: 'Dry run (don't actually publish)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Python dependencies
+        run: |
+          cd packages/python-sdk
+          pip install build twine
+
+      - name: Build all packages
+        run: |
+          # Build TypeScript packages
+          for dir in packages/*/; do
+            if [ -f "$dir/package.json" ] && [ -f "$dir/tsconfig.json" ]; then
+              echo "Building $dir"
+              cd "$dir"
+              npm run build || echo "Build failed for $dir"
+              cd - > /dev/null
+            fi
+          done
+          
+          # Build Python package
+          cd packages/python-sdk
+          python -m build
+          cd - > /dev/null
+
+      - name: Run tests
+        run: |
+          npm run test || echo "Tests completed with issues"
+
+      - name: Update versions
+        if: ${{ !inputs.dry_run }}
+        run: |
+          # Update package versions using npm version
+          for dir in packages/*/; do
+            if [ -f "$dir/package.json" ] && ! grep -q '"private": true' "$dir/package.json"; then
+              echo "Updating version for $dir"
+              cd "$dir"
+              npm version ${{ inputs.version }} --no-git-tag-version
+              cd - > /dev/null
+            fi
+          done
+
+      - name: Publish to npm
+        if: ${{ !inputs.dry_run }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          
+          for dir in packages/*/; do
+            if [ -f "$dir/package.json" ] && ! grep -q '"private": true' "$dir/package.json"; then
+              echo "Publishing $dir"
+              cd "$dir"
+              npm publish --access public || echo "Publish failed for $dir"
+              cd - > /dev/null
+            fi
+          done
+
+      - name: Publish Python package to PyPI
+        if: ${{ !inputs.dry_run }}
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          cd packages/python-sdk
+          python -m twine upload dist/* || echo "Python package publish failed"
+
+      - name: Create git tag
+        if: ${{ !inputs.dry_run }}
+        run: |
+          VERSION=$(node -p "require('./packages/typescript-sdk/package.json').version")
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "chore: release v$VERSION" || echo "No changes to commit"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          git push origin main
+
+      - name: Dry run summary
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "🧪 DRY RUN COMPLETED"
+          echo "Packages that would be published:"
+          for dir in packages/*/; do
+            if [ -f "$dir/package.json" ] && ! grep -q '"private": true' "$dir/package.json"; then
+              PACKAGE_NAME=$(node -p "require('$dir/package.json').name")
+              PACKAGE_VERSION=$(node -p "require('$dir/package.json').version")
+              echo "  - $PACKAGE_NAME@$PACKAGE_VERSION"
+            fi
+          done

@@ -49,15 +49,15 @@ export function PlintoProvider({ children, config }: PlintoProviderProps) {
   }, [client])
 
   const signIn = async (email: string, password: string) => {
-    const tokens = await client.signIn({ email, password })
-    
-    if (tokens.access_token) {
-      localStorage.setItem('plinto_access_token', tokens.access_token)
+    const response = await client.signIn({ email, password })
+
+    if (response.tokens.access_token) {
+      localStorage.setItem('plinto_access_token', response.tokens.access_token)
     }
-    if (tokens.refresh_token) {
-      localStorage.setItem('plinto_refresh_token', tokens.refresh_token)
+    if (response.tokens.refresh_token) {
+      localStorage.setItem('plinto_refresh_token', response.tokens.refresh_token)
     }
-    
+
     const currentUser = await client.getCurrentUser()
     if (currentUser) {
       setUser(currentUser)

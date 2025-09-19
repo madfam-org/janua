@@ -58,6 +58,9 @@ export interface User {
   username?: string;
   first_name?: string;
   last_name?: string;
+  given_name?: string; // Alias for first_name
+  family_name?: string; // Alias for last_name
+  name?: string; // Full name
   display_name?: string;
   profile_image_url?: string;
   bio?: string;
@@ -77,6 +80,7 @@ export interface User {
 export interface Session {
   id: UUID;
   user_id: UUID;
+  organization_id?: UUID; // Optional organization context
   ip_address?: string;
   user_agent?: string;
   device_name?: string;
@@ -182,6 +186,8 @@ export interface SignUpRequest {
   password: string;
   first_name?: string;
   last_name?: string;
+  given_name?: string; // Alias for first_name
+  family_name?: string; // Alias for last_name
   username?: string;
 }
 
@@ -217,6 +223,8 @@ export interface MagicLinkRequest {
 export interface UserUpdateRequest {
   first_name?: string;
   last_name?: string;
+  given_name?: string; // Alias for first_name
+  family_name?: string; // Alias for last_name
   display_name?: string;
   bio?: string;
   phone_number?: string;
@@ -283,6 +291,9 @@ export interface TokenResponse {
   token_type: 'bearer';
   expires_in: number;
 }
+
+// Alias for backward compatibility
+export type TokenPair = TokenResponse;
 
 // API Response interfaces (what comes from the server)
 export interface AuthApiResponse {

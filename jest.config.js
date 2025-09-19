@@ -1,7 +1,7 @@
 module.exports = {
   projects: [
-    '<rootDir>/apps/*/jest.config.js',
-    '<rootDir>/packages/*/jest.config.js',
+    '<rootDir>/apps/*/jest.config.{js,cjs}',
+    '<rootDir>/packages/*/jest.config.{js,cjs}',
   ],
   collectCoverageFrom: [
     '**/*.{js,jsx,ts,tsx}',

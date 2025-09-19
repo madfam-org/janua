@@ -1,6 +1,5 @@
 /**
  * @jest-environment node
- * Tests for environment utilities in node environment
  */
 import { EnvUtils } from '../utils/env-utils';
 import { MemoryTokenStorage } from '../utils/token-utils';

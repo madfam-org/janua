@@ -28,6 +28,9 @@ export { UrlUtils, HttpStatusUtils } from './url-utils';
 // Environment utilities
 export { EnvUtils } from './env-utils';
 
+// Webhook utilities
+export { WebhookUtils } from './webhook-utils';
+
 // Retry utilities
 export { RetryUtils, type RetryOptions } from './retry-utils';
 

@@ -19,6 +19,7 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --clean",
+    "build:with-types": "tsup src/index.ts --format cjs,esm --dts --clean",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "typecheck": "tsc --noEmit",
     "test": "jest --config jest.config.js",

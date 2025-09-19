@@ -227,6 +227,9 @@ class Webhook(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+# Create alias for backward compatibility
+WebhookModel = Webhook
+
 class Invitation(Base):
     __tablename__ = "invitations"
 

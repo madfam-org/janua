@@ -180,12 +180,76 @@ export class TokenManager {
     return this.storage.getItem(this.REFRESH_TOKEN_KEY);
   }
 
+  /**
+   * Get all tokens
+   */
+  async getTokens(): Promise<{
+    access_token?: string;
+    refresh_token?: string;
+    expires_at?: number;
+  } | null> {
+    const [accessToken, refreshToken, expiresAt] = await Promise.all([
+      this.getAccessToken(),
+      this.getRefreshToken(),
+      this.storage.getItem(this.EXPIRES_AT_KEY)
+    ]);
+
+    if (!accessToken) {
+      return null;
+    }
+
+    return {
+      access_token: accessToken,
+      refresh_token: refreshToken || undefined,
+      expires_at: expiresAt ? parseInt(expiresAt, 10) : undefined
+    };
+  }
+
   async clearTokens(): Promise<void> {
     await Promise.all([
       this.storage.removeItem(this.ACCESS_TOKEN_KEY),
       this.storage.removeItem(this.REFRESH_TOKEN_KEY),
       this.storage.removeItem(this.EXPIRES_AT_KEY)
     ]);
+  }
+
+  /**
+   * Synchronous method to get tokens (for backward compatibility)
+   * Note: Only works with synchronous storage implementations
+   */
+  getTokensSync(): { access_token?: string; refresh_token?: string } | null {
+    // This is a simplified sync version for LocalStorage/SessionStorage
+    // Returns null for async storages
+    if (this.storage instanceof LocalTokenStorage || this.storage instanceof SessionTokenStorage) {
+      const accessToken = (this.storage as any).storage.getItem(this.ACCESS_TOKEN_KEY);
+      const refreshToken = (this.storage as any).storage.getItem(this.REFRESH_TOKEN_KEY);
+      
+      if (!accessToken) {
+        return null;
+      }
+      
+      return {
+        access_token: accessToken,
+        refresh_token: refreshToken || undefined
+      };
+    }
+    
+    // For MemoryTokenStorage
+    if (this.storage instanceof MemoryTokenStorage) {
+      const accessToken = (this.storage as any).storage.get(this.ACCESS_TOKEN_KEY);
+      const refreshToken = (this.storage as any).storage.get(this.REFRESH_TOKEN_KEY);
+      
+      if (!accessToken) {
+        return null;
+      }
+      
+      return {
+        access_token: accessToken,
+        refresh_token: refreshToken || undefined
+      };
+    }
+    
+    return null;
   }
 
   async hasValidTokens(): Promise<boolean> {

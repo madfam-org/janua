@@ -1,6 +1,6 @@
 {
   "name": "@plinto/edge",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Edge-fast JWT verification for Cloudflare Workers and Edge environments",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

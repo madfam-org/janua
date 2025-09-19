@@ -1,6 +1,6 @@
 {
   "name": "@plinto/jwt-utils",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "JWT and JWKS utilities for Plinto Identity Platform",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

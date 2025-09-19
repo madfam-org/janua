@@ -74,6 +74,10 @@ class AuditEventType(str, Enum):
     BILLING_PAYMENT_FAILED = "billing.payment_failed"
 
 
+# Alias for backward compatibility
+AuditAction = AuditEventType
+
+
 class AuditLogger:
     """
     Comprehensive audit logging with hash chain integrity

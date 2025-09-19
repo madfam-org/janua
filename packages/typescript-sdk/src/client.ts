@@ -15,6 +15,7 @@ import { TokenManager, EnvUtils, EventEmitter } from './utils';
 import { ConfigurationError } from './errors';
 import { Auth } from './auth';
 import { Users } from './users';
+import { Sessions } from './sessions';
 import { Organizations } from './organizations';
 import { Webhooks } from './webhooks';
 import { Admin } from './admin';
@@ -31,6 +32,7 @@ export class PlintoClient extends EventEmitter<SdkEventMap> {
   // Module instances
   public readonly auth: Auth;
   public readonly users: Users;
+  public readonly sessions: Sessions;
   public readonly organizations: Organizations;
   public readonly webhooks: Webhooks;
   public readonly admin: Admin;
@@ -65,6 +67,7 @@ export class PlintoClient extends EventEmitter<SdkEventMap> {
       () => this.emit('auth:signOut', {})
     );
     this.users = new Users(this.httpClient);
+    this.sessions = new Sessions(this.httpClient);
     this.organizations = new Organizations(this.httpClient);
     this.webhooks = new Webhooks(this.httpClient);
     this.admin = new Admin(this.httpClient);
@@ -212,6 +215,14 @@ export class PlintoClient extends EventEmitter<SdkEventMap> {
    */
   async isAuthenticated(): Promise<boolean> {
     return await this.tokenManager.hasValidTokens();
+  }
+  
+  /**
+   * Check if user is authenticated (synchronous for backward compatibility)
+   */
+  isAuthenticatedSync(): boolean {
+    const tokens = this.tokenManager.getTokensSync();
+    return !!(tokens?.access_token);
   }
 
   /**
@@ -469,7 +480,7 @@ export class PlintoClient extends EventEmitter<SdkEventMap> {
    */
   private getUserAgent(): string {
     const version = this.getVersion();
-    
+
     if (EnvUtils.isBrowser()) {
       return `plinto-typescript-sdk/${version} (Browser)`;
     } else if (EnvUtils.isNode()) {
@@ -478,6 +489,61 @@ export class PlintoClient extends EventEmitter<SdkEventMap> {
     } else {
       return `plinto-typescript-sdk/${version}`;
     }
+  }
+
+  // ===================================
+  // Convenience methods for common operations
+  // ===================================
+
+  /**
+   * Sign in a user (convenience method)
+   */
+  async signIn(request: import('./types').SignInRequest): Promise<import('./types').AuthResponse> {
+    return this.auth.signIn(request);
+  }
+
+  /**
+   * Sign up a new user (convenience method)
+   */
+  async signUp(request: import('./types').SignUpRequest): Promise<import('./types').AuthResponse> {
+    return this.auth.signUp(request);
+  }
+
+  /**
+   * Sign in with passkey (convenience method)
+   */
+  async signInWithPasskey(email?: string): Promise<import('./types').AuthResponse> {
+    // Dynamically import WebAuthn helper for browser environments
+    if (typeof window === 'undefined' || !window.PublicKeyCredential) {
+      throw new Error('Passkey authentication is only available in browser environments with WebAuthn support');
+    }
+
+    const { WebAuthnHelper } = await import('./webauthn-helper');
+    const webauthnHelper = new WebAuthnHelper(this.auth);
+
+    return await webauthnHelper.authenticateWithPasskey(email);
+  }
+
+  /**
+   * Register a new passkey for the current user
+   */
+  async registerPasskey(name?: string): Promise<void> {
+    // Dynamically import WebAuthn helper for browser environments
+    if (typeof window === 'undefined' || !window.PublicKeyCredential) {
+      throw new Error('Passkey registration is only available in browser environments with WebAuthn support');
+    }
+
+    const { WebAuthnHelper } = await import('./webauthn-helper');
+    const webauthnHelper = new WebAuthnHelper(this.auth);
+
+    return await webauthnHelper.registerPasskey(name);
+  }
+
+  /**
+   * Update current user (convenience method)
+   */
+  async updateUser(request: import('./types').UserUpdateRequest): Promise<User> {
+    return this.users.updateCurrentUser(request);
   }
 
   /**

@@ -255,7 +255,7 @@ describe('Admin', () => {
       const result = await admin.getActivityLogs();
 
       expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/admin/activity-logs', {
-        params: undefined
+        params: {}
       });
       expect(result.data).toEqual(mockActivityLogs.data);
     });

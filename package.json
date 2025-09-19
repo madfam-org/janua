@@ -15,7 +15,13 @@
     "build:packages": "npm run build:core && npm run build:sdk",
     "build:core": "cd packages/core && npm run build",
     "build:sdk": "cd packages/typescript-sdk && npm run build",
+    "build:all": "npm run build:packages && npm run build:react && npm run build:vue && npm run build:python",
+    "build:react": "cd packages/react-sdk && npm run build",
+    "build:vue": "cd packages/vue-sdk && npm run build",
+    "build:python": "cd packages/python-sdk && python setup.py sdist bdist_wheel",
     "test": "npm run test:packages && npm run test:api",
+    "test:all": "bash scripts/test-all.sh",
+    "test:integration": "node scripts/test-integration.js",
     "test:packages": "cd packages/core && npm test",
     "test:api": "cd apps/api && python -m pytest tests/ -v",
     "lint": "npm run lint:packages",
@@ -37,8 +43,15 @@
     "install:packages": "cd packages/core && npm install"
   },
   "devDependencies": {
+    "@babel/preset-env": "^7.28.3",
+    "@babel/preset-react": "^7.27.1",
+    "@babel/preset-typescript": "^7.27.1",
     "@types/node": "^20.0.0",
+    "babel-jest": "^30.1.2",
     "concurrently": "^8.2.0",
+    "identity-obj-proxy": "^3.0.0",
+    "jest-junit": "^16.0.0",
+    "jest-transform-stub": "^2.0.0",
     "prisma": "^5.7.0",
     "tsx": "^4.6.0",
     "typescript": "^5.0.0"
@@ -49,9 +62,9 @@
     "ioredis": "^5.7.0",
     "messagebird": "^4.0.1",
     "prom-client": "^15.1.3",
-    "socket.io": "^4.8.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "socket.io": "^4.8.1"
   },
   "engines": {
     "node": ">=18.0.0",
