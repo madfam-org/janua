@@ -28,6 +28,7 @@ sendgrid==6.10.0
 python-postmark==0.6.0
 
 # Utilities
+bleach==6.1.0
 structlog==24.1.0
 webauthn==2.0.0
 slowapi==0.1.9
