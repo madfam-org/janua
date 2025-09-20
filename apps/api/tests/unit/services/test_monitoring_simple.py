@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Unit tests for MonitoringService - simplified to match actual implementation
 """

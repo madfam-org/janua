@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Comprehensive integration tests for authentication endpoints
 Tests complete auth flows, JWT handling, MFA, and session management
@@ -21,6 +24,7 @@ from app.services.email_service import EmailService
 class TestAuthenticationEndpoints:
     """Test suite for authentication API endpoints"""
 
+    @pytest.mark.asyncio
     async def test_signup_complete_flow(self, test_client: AsyncClient, test_db_session):
         """Test complete user signup flow"""
         signup_data = {
@@ -49,6 +53,7 @@ class TestAuthenticationEndpoints:
             # Verify email service was called
             mock_email.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_signin_success(self, test_client: AsyncClient, test_db_session):
         """Test successful user signin"""
         signin_data = {
@@ -80,6 +85,7 @@ class TestAuthenticationEndpoints:
             assert "user" in data
             assert data["user"]["email"] == signin_data["email"]
 
+    @pytest.mark.asyncio
     async def test_signin_invalid_credentials(self, test_client: AsyncClient):
         """Test signin with invalid credentials"""
         signin_data = {
@@ -96,6 +102,7 @@ class TestAuthenticationEndpoints:
             data = response.json()
             assert "Invalid credentials" in data["detail"]
 
+    @pytest.mark.asyncio
     async def test_signin_inactive_user(self, test_client: AsyncClient):
         """Test signin with inactive user"""
         signin_data = {
@@ -114,6 +121,7 @@ class TestAuthenticationEndpoints:
             data = response.json()
             assert "Account is inactive" in data["detail"]
 
+    @pytest.mark.asyncio
     async def test_refresh_token_flow(self, test_client: AsyncClient):
         """Test refresh token endpoint"""
         refresh_data = {
@@ -134,6 +142,7 @@ class TestAuthenticationEndpoints:
             assert "refresh_token" in data
             assert data["access_token"] == "new_access_token_123"
 
+    @pytest.mark.asyncio
     async def test_logout_success(self, test_client: AsyncClient):
         """Test user logout"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -152,6 +161,7 @@ class TestAuthenticationEndpoints:
                 data = response.json()
                 assert data["message"] == "Successfully logged out"
 
+    @pytest.mark.asyncio
     async def test_email_verification_flow(self, test_client: AsyncClient):
         """Test email verification process"""
         verification_data = {
@@ -167,6 +177,7 @@ class TestAuthenticationEndpoints:
             data = response.json()
             assert data["message"] == "Email verified successfully"
 
+    @pytest.mark.asyncio
     async def test_password_reset_request(self, test_client: AsyncClient):
         """Test password reset request"""
         reset_data = {
@@ -182,6 +193,7 @@ class TestAuthenticationEndpoints:
             data = response.json()
             assert "Password reset email sent" in data["message"]
 
+    @pytest.mark.asyncio
     async def test_password_reset_confirm(self, test_client: AsyncClient):
         """Test password reset confirmation"""
         reset_data = {
@@ -198,6 +210,7 @@ class TestAuthenticationEndpoints:
             data = response.json()
             assert data["message"] == "Password reset successfully"
 
+    @pytest.mark.asyncio
     async def test_magic_link_request(self, test_client: AsyncClient):
         """Test magic link authentication request"""
         magic_data = {
@@ -213,6 +226,7 @@ class TestAuthenticationEndpoints:
             data = response.json()
             assert "Magic link sent" in data["message"]
 
+    @pytest.mark.asyncio
     async def test_magic_link_verify(self, test_client: AsyncClient):
         """Test magic link verification"""
         magic_data = {
@@ -238,6 +252,7 @@ class TestAuthenticationEndpoints:
             assert "access_token" in data
             assert "user" in data
 
+    @pytest.mark.asyncio
     async def test_me_endpoint_authenticated(self, test_client: AsyncClient):
         """Test /me endpoint with valid authentication"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -263,12 +278,14 @@ class TestAuthenticationEndpoints:
             assert data["first_name"] == "John"
             assert data["username"] == "johndoe"
 
+    @pytest.mark.asyncio
     async def test_me_endpoint_unauthenticated(self, test_client: AsyncClient):
         """Test /me endpoint without authentication"""
         response = await test_client.get("/api/v1/auth/me")
 
         assert response.status_code == 401
 
+    @pytest.mark.asyncio
     async def test_signup_validation_errors(self, test_client: AsyncClient):
         """Test signup with validation errors"""
         invalid_data = [
@@ -286,6 +303,7 @@ class TestAuthenticationEndpoints:
             response = await test_client.post("/api/v1/auth/signup", json=data)
             assert response.status_code == 422
 
+    @pytest.mark.asyncio
     async def test_signin_validation_errors(self, test_client: AsyncClient):
         """Test signin with validation errors"""
         invalid_data = [
@@ -301,6 +319,7 @@ class TestAuthenticationEndpoints:
             response = await test_client.post("/api/v1/auth/signin", json=data)
             assert response.status_code == 422
 
+    @pytest.mark.asyncio
     async def test_rate_limiting_signup(self, test_client: AsyncClient):
         """Test rate limiting on signup endpoint"""
         signup_data = {
@@ -319,6 +338,7 @@ class TestAuthenticationEndpoints:
         # At least one request should be rate limited (429) or succeed based on mock
         assert any(status in [201, 429] for status in responses)
 
+    @pytest.mark.asyncio
     async def test_concurrent_auth_requests(self, test_client: AsyncClient):
         """Test concurrent authentication requests"""
         import asyncio
@@ -359,6 +379,7 @@ class TestAuthenticationEndpoints:
 class TestAuthenticationSecurity:
     """Security-focused authentication tests"""
 
+    @pytest.mark.asyncio
     async def test_sql_injection_attempts(self, test_client: AsyncClient):
         """Test protection against SQL injection attacks"""
         malicious_payloads = [
@@ -378,6 +399,7 @@ class TestAuthenticationSecurity:
             # Should either return validation error or authentication failure, not 500
             assert response.status_code in [400, 401, 422]
 
+    @pytest.mark.asyncio
     async def test_xss_prevention(self, test_client: AsyncClient):
         """Test XSS prevention in user inputs"""
         xss_payloads = [
@@ -404,6 +426,7 @@ class TestAuthenticationSecurity:
                     assert "<script>" not in str(data)
                     assert "javascript:" not in str(data)
 
+    @pytest.mark.asyncio
     async def test_password_brute_force_protection(self, test_client: AsyncClient):
         """Test protection against password brute force attacks"""
         signin_data = {
@@ -427,6 +450,7 @@ class TestAuthenticationSecurity:
             # Should have some form of protection (rate limiting or account lockout)
             assert failed_attempts < 10 or response.status_code == 429
 
+    @pytest.mark.asyncio
     async def test_jwt_token_validation(self, test_client: AsyncClient):
         """Test JWT token validation security"""
         invalid_tokens = [
@@ -449,6 +473,7 @@ class TestAuthenticationSecurity:
             response = await test_client.get("/api/v1/auth/me", headers=headers)
             assert response.status_code == 401
 
+    @pytest.mark.asyncio
     async def test_session_security(self, test_client: AsyncClient):
         """Test session security measures"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -474,6 +499,7 @@ class TestAuthenticationSecurity:
 class TestAuthenticationEdgeCases:
     """Edge case tests for authentication"""
 
+    @pytest.mark.asyncio
     async def test_duplicate_email_signup(self, test_client: AsyncClient):
         """Test signup with duplicate email"""
         signup_data = {
@@ -496,6 +522,7 @@ class TestAuthenticationEdgeCases:
                 response2 = await test_client.post("/api/v1/auth/signup", json=signup_data)
                 assert response2.status_code in [400, 409, 422]
 
+    @pytest.mark.asyncio
     async def test_expired_token_handling(self, test_client: AsyncClient):
         """Test handling of expired tokens"""
         headers = {"Authorization": "Bearer expired_token_123"}
@@ -507,6 +534,7 @@ class TestAuthenticationEdgeCases:
             response = await test_client.get("/api/v1/auth/me", headers=headers)
             assert response.status_code == 401
 
+    @pytest.mark.asyncio
     async def test_malformed_request_bodies(self, test_client: AsyncClient):
         """Test handling of malformed request bodies"""
         malformed_bodies = [
@@ -528,6 +556,7 @@ class TestAuthenticationEdgeCases:
                 )
             assert response.status_code in [400, 422]
 
+    @pytest.mark.asyncio
     async def test_unicode_input_handling(self, test_client: AsyncClient):
         """Test handling of unicode characters in inputs"""
         unicode_data = {
@@ -542,6 +571,7 @@ class TestAuthenticationEdgeCases:
             # Should handle unicode gracefully
             assert response.status_code in [201, 400, 422]
 
+    @pytest.mark.asyncio
     async def test_very_long_inputs(self, test_client: AsyncClient):
         """Test handling of very long input strings"""
         long_string = "a" * 10000
@@ -557,6 +587,7 @@ class TestAuthenticationEdgeCases:
         # Should reject overly long inputs
         assert response.status_code == 422
 
+    @pytest.mark.asyncio
     async def test_null_and_empty_values(self, test_client: AsyncClient):
         """Test handling of null and empty values"""
         test_cases = [

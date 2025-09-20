@@ -1,3 +1,7 @@
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+pytestmark = pytest.mark.asyncio
+
 """
 Integration tests for authentication flow
 """
@@ -11,6 +15,7 @@ from app.main import app
 class TestAuthFlow:
     """Test complete authentication flow"""
     
+    @pytest.mark.asyncio
     async def test_health_check(self):
         """Test health endpoint"""
         async with AsyncClient(app=app, base_url="http://test") as client:

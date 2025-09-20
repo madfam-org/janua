@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Working unit tests for MonitoringService - matches actual implementation
 """
@@ -40,7 +44,7 @@ class TestMetricsCollector:
 
             mock_redis = AsyncMock()
             mock_get_redis.return_value = mock_redis
-            mock_task = Mock()
+            mock_task = AsyncMock()
             mock_create_task.return_value = mock_task
 
             await collector.initialize()
@@ -172,7 +176,7 @@ class TestHealthChecker:
         checker = HealthChecker(metrics)
 
         with patch('asyncio.create_task') as mock_create_task:
-            mock_task = Mock()
+            mock_task = AsyncMock()
             mock_create_task.return_value = mock_task
 
             await checker.initialize()
@@ -266,7 +270,7 @@ class TestAlertManager:
 
             mock_redis = AsyncMock()
             mock_get_redis.return_value = mock_redis
-            mock_task = Mock()
+            mock_task = AsyncMock()
             mock_create_task.return_value = mock_task
 
             await manager.initialize()
@@ -345,7 +349,7 @@ class TestSystemMonitor:
         monitor = SystemMonitor(metrics)
 
         with patch('asyncio.create_task') as mock_create_task:
-            mock_task = Mock()
+            mock_task = AsyncMock()
             mock_create_task.return_value = mock_task
 
             await monitor.initialize()
@@ -376,7 +380,7 @@ class TestSystemMonitor:
             mock_net.return_value.bytes_recv = 2000
 
             # Mock process
-            mock_process_instance = Mock()
+            mock_process_instance = AsyncMock()
             mock_process.return_value = mock_process_instance
             mock_process_instance.cpu_percent.return_value = 25.0
             mock_process_instance.memory_info.return_value.rss = 50000000

@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Comprehensive test coverage for Audit Service
 Critical for security monitoring and enterprise compliance

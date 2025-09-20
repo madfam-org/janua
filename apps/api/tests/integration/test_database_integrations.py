@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Comprehensive integration tests for database operations
 Tests model relationships, constraints, migrations, and transactions
@@ -24,6 +27,7 @@ from app.core.database import get_db
 class TestDatabaseModelRelationships:
     """Test database model relationships and constraints"""
 
+    @pytest.mark.asyncio
     async def test_user_organization_relationship(self, test_db_session: AsyncSession):
         """Test User-Organization many-to-many relationship"""
         # Create test user
@@ -37,7 +41,7 @@ class TestDatabaseModelRelationships:
             email_verified=True
         )
         test_db_session.add(user)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Create test organization
         org = Organization(
@@ -47,7 +51,7 @@ class TestDatabaseModelRelationships:
             owner_id=user.id
         )
         test_db_session.add(org)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Create organization member relationship
         member = OrganizationMember(
@@ -57,17 +61,17 @@ class TestDatabaseModelRelationships:
             joined_at=datetime.utcnow()
         )
         test_db_session.add(member)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Test relationship queries
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User).where(User.id == user.id)
         )
         found_user = result.scalar_one()
         assert found_user.email == "test@example.com"
 
         # Test organization query
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(Organization).where(Organization.id == org.id)
         )
         found_org = result.scalar_one()
@@ -75,7 +79,7 @@ class TestDatabaseModelRelationships:
         assert found_org.owner_id == user.id
 
         # Test member relationship
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(OrganizationMember).where(
                 and_(
                     OrganizationMember.user_id == user.id,
@@ -86,6 +90,7 @@ class TestDatabaseModelRelationships:
         found_member = result.scalar_one()
         assert found_member.role == OrganizationRole.OWNER
 
+    @pytest.mark.asyncio
     async def test_user_sessions_relationship(self, test_db_session: AsyncSession):
         """Test User-Session one-to-many relationship"""
         # Create test user
@@ -99,7 +104,7 @@ class TestDatabaseModelRelationships:
             email_verified=True
         )
         test_db_session.add(user)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Create multiple sessions for the user
         sessions = []
@@ -116,10 +121,10 @@ class TestDatabaseModelRelationships:
             sessions.append(session)
             test_db_session.add(session)
 
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Test querying user's sessions
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(Session).where(Session.user_id == user.id)
         )
         user_sessions = result.scalars().all()
@@ -129,6 +134,7 @@ class TestDatabaseModelRelationships:
         for session in user_sessions:
             assert session.user_id == user.id
 
+    @pytest.mark.asyncio
     async def test_email_verification_relationship(self, test_db_session: AsyncSession):
         """Test User-EmailVerification relationship"""
         # Create test user
@@ -142,7 +148,7 @@ class TestDatabaseModelRelationships:
             email_verified=False
         )
         test_db_session.add(user)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Create email verification
         verification = EmailVerification(
@@ -152,16 +158,17 @@ class TestDatabaseModelRelationships:
             expires_at=datetime.utcnow() + timedelta(hours=24)
         )
         test_db_session.add(verification)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Test relationship
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(EmailVerification).where(EmailVerification.user_id == user.id)
         )
         found_verification = result.scalar_one()
         assert found_verification.token == "verification_token_123"
         assert found_verification.user_id == user.id
 
+    @pytest.mark.asyncio
     async def test_activity_log_relationship(self, test_db_session: AsyncSession):
         """Test User-ActivityLog relationship"""
         # Create test user
@@ -175,7 +182,7 @@ class TestDatabaseModelRelationships:
             email_verified=True
         )
         test_db_session.add(user)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Create activity logs
         activities = [
@@ -194,10 +201,10 @@ class TestDatabaseModelRelationships:
 
         for activity in activities:
             test_db_session.add(activity)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Test querying user activities
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(ActivityLog)
             .where(ActivityLog.user_id == user.id)
             .order_by(ActivityLog.timestamp.desc())
@@ -211,6 +218,7 @@ class TestDatabaseModelRelationships:
 class TestDatabaseConstraints:
     """Test database constraints and validation"""
 
+    @pytest.mark.asyncio
     async def test_user_email_uniqueness(self, test_db_session: AsyncSession):
         """Test user email uniqueness constraint"""
         # Create first user
@@ -223,7 +231,7 @@ class TestDatabaseConstraints:
             status=UserStatus.ACTIVE
         )
         test_db_session.add(user1)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Try to create second user with same email
         user2 = User(
@@ -238,8 +246,9 @@ class TestDatabaseConstraints:
 
         # Should raise integrity error
         with pytest.raises(IntegrityError):
-            await test_db_session.commit()
+            await await test_db_session.commit()
 
+    @pytest.mark.asyncio
     async def test_organization_name_constraint(self, test_db_session: AsyncSession):
         """Test organization name constraints"""
         # Create test user
@@ -252,7 +261,7 @@ class TestDatabaseConstraints:
             status=UserStatus.ACTIVE
         )
         test_db_session.add(user)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Create organization with empty name (should fail validation)
         with pytest.raises((IntegrityError, ValueError)):
@@ -262,8 +271,9 @@ class TestDatabaseConstraints:
                 owner_id=user.id
             )
             test_db_session.add(org)
-            await test_db_session.commit()
+            await await test_db_session.commit()
 
+    @pytest.mark.asyncio
     async def test_foreign_key_constraints(self, test_db_session: AsyncSession):
         """Test foreign key constraints"""
         # Try to create organization member without valid user
@@ -274,8 +284,9 @@ class TestDatabaseConstraints:
                 role=OrganizationRole.MEMBER
             )
             test_db_session.add(member)
-            await test_db_session.commit()
+            await await test_db_session.commit()
 
+    @pytest.mark.asyncio
     async def test_cascade_deletion(self, test_db_session: AsyncSession):
         """Test cascade deletion behavior"""
         # Create user with sessions
@@ -288,7 +299,7 @@ class TestDatabaseConstraints:
             status=UserStatus.ACTIVE
         )
         test_db_session.add(user)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Create session for user
         session = Session(
@@ -300,14 +311,14 @@ class TestDatabaseConstraints:
             expires_at=datetime.utcnow() + timedelta(days=30)
         )
         test_db_session.add(session)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Delete user
         await test_db_session.delete(user)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Check if session is also deleted (depends on cascade configuration)
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(Session).where(Session.user_id == user.id)
         )
         remaining_sessions = result.scalars().all()
@@ -319,6 +330,7 @@ class TestDatabaseConstraints:
 class TestDatabaseTransactions:
     """Test database transaction handling"""
 
+    @pytest.mark.asyncio
     async def test_transaction_commit(self, test_db_session: AsyncSession):
         """Test successful transaction commit"""
         # Start transaction
@@ -333,21 +345,22 @@ class TestDatabaseTransactions:
         test_db_session.add(user)
 
         # Verify user is not yet committed
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(func.count(User.id)).where(User.email == "transaction_test@example.com")
         )
         count_before_commit = result.scalar()
 
         # Commit transaction
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Verify user is now committed
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(func.count(User.id)).where(User.email == "transaction_test@example.com")
         )
         count_after_commit = result.scalar()
         assert count_after_commit == count_before_commit + 1
 
+    @pytest.mark.asyncio
     async def test_transaction_rollback(self, test_db_session: AsyncSession):
         """Test transaction rollback"""
         # Start transaction
@@ -362,7 +375,7 @@ class TestDatabaseTransactions:
         test_db_session.add(user)
 
         # Get count before rollback
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(func.count(User.id)).where(User.email == "rollback_test@example.com")
         )
         count_before_rollback = result.scalar()
@@ -371,12 +384,13 @@ class TestDatabaseTransactions:
         await test_db_session.rollback()
 
         # Verify user was not persisted
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(func.count(User.id)).where(User.email == "rollback_test@example.com")
         )
         count_after_rollback = result.scalar()
         assert count_after_rollback == count_before_rollback
 
+    @pytest.mark.asyncio
     async def test_concurrent_transactions(self, test_db_engine):
         """Test concurrent database transactions"""
         import asyncio
@@ -395,7 +409,7 @@ class TestDatabaseTransactions:
                     status=UserStatus.ACTIVE
                 )
                 session.add(user)
-                await session.commit()
+                await await session.commit()
                 return user.id
 
         # Create multiple users concurrently
@@ -408,7 +422,7 @@ class TestDatabaseTransactions:
 
         # Verify users exist in database
         async with async_session() as session:
-            result = await session.execute(
+            result = await await session.execute(
                 select(func.count(User.id)).where(
                     User.email.like("concurrent_%@example.com")
                 )
@@ -421,6 +435,7 @@ class TestDatabaseTransactions:
 class TestDatabaseQueries:
     """Test complex database queries and performance"""
 
+    @pytest.mark.asyncio
     async def test_complex_join_queries(self, test_db_session: AsyncSession):
         """Test complex queries with joins"""
         # Create test data
@@ -451,10 +466,10 @@ class TestDatabaseQueries:
         )
         test_db_session.add(member)
 
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Complex query: Get users with their organization roles
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User.email, Organization.name, OrganizationMember.role)
             .join(OrganizationMember, User.id == OrganizationMember.user_id)
             .join(Organization, OrganizationMember.organization_id == Organization.id)
@@ -467,6 +482,7 @@ class TestDatabaseQueries:
         assert rows[0][1] == "Query Test Company"       # Organization name
         assert rows[0][2] == OrganizationRole.OWNER     # User role
 
+    @pytest.mark.asyncio
     async def test_aggregation_queries(self, test_db_session: AsyncSession):
         """Test database aggregation queries"""
         # Create test users
@@ -484,10 +500,10 @@ class TestDatabaseQueries:
             users.append(user)
             test_db_session.add(user)
 
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Aggregation query: Count users by status
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User.status, func.count(User.id))
             .group_by(User.status)
         )
@@ -497,7 +513,7 @@ class TestDatabaseQueries:
         assert status_counts[UserStatus.INACTIVE] == 5
 
         # Aggregation query: Count verified vs unverified users
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User.email_verified, func.count(User.id))
             .group_by(User.email_verified)
         )
@@ -507,6 +523,7 @@ class TestDatabaseQueries:
         unverified_count = verification_counts.get(False, 0)
         assert verified_count + unverified_count == 10
 
+    @pytest.mark.asyncio
     async def test_pagination_queries(self, test_db_session: AsyncSession):
         """Test database pagination"""
         # Create test data
@@ -522,14 +539,14 @@ class TestDatabaseQueries:
             )
             test_db_session.add(user)
 
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Test pagination
         page_size = 10
         offset = 0
 
         # First page
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User)
             .where(User.email.like("page_user_%@example.com"))
             .order_by(User.created_at.desc())
@@ -541,7 +558,7 @@ class TestDatabaseQueries:
 
         # Second page
         offset = 10
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User)
             .where(User.email.like("page_user_%@example.com"))
             .order_by(User.created_at.desc())
@@ -553,7 +570,7 @@ class TestDatabaseQueries:
 
         # Third page (partial)
         offset = 20
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User)
             .where(User.email.like("page_user_%@example.com"))
             .order_by(User.created_at.desc())
@@ -563,6 +580,7 @@ class TestDatabaseQueries:
         third_page = result.scalars().all()
         assert len(third_page) == 5
 
+    @pytest.mark.asyncio
     async def test_search_queries(self, test_db_session: AsyncSession):
         """Test database search functionality"""
         # Create test data with searchable content
@@ -586,24 +604,24 @@ class TestDatabaseQueries:
             )
             test_db_session.add(user)
 
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Search by first name
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User).where(User.first_name.ilike("%john%"))
         )
         john_users = result.scalars().all()
         assert len(john_users) == 2
 
         # Search by email domain
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User).where(User.email.like("%@example.com"))
         )
         example_users = result.scalars().all()
         assert len(example_users) >= 5
 
         # Complex search (first name OR last name)
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User).where(
                 or_(
                     User.first_name.ilike("%alice%"),
@@ -619,6 +637,7 @@ class TestDatabaseQueries:
 class TestDatabaseIndexes:
     """Test database index usage and performance"""
 
+    @pytest.mark.asyncio
     async def test_index_usage(self, test_db_session: AsyncSession):
         """Test that database indexes are being used"""
         # Create test data
@@ -634,22 +653,23 @@ class TestDatabaseIndexes:
             )
             test_db_session.add(user)
 
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Query by email (should use email index)
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User).where(User.email == "index_test_50@example.com")
         )
         user = result.scalar_one()
         assert user.first_name == "IndexUser50"
 
         # Query by status (should use status index if exists)
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(func.count(User.id)).where(User.status == UserStatus.ACTIVE)
         )
         active_count = result.scalar()
         assert active_count == 100
 
+    @pytest.mark.asyncio
     async def test_query_performance(self, test_db_session: AsyncSession):
         """Test query performance with larger datasets"""
         import time
@@ -669,12 +689,12 @@ class TestDatabaseIndexes:
             users_batch.append(user)
 
         test_db_session.add_all(users_batch)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Measure query performance
         start_time = time.time()
 
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(func.count(User.id)).where(User.status == UserStatus.ACTIVE)
         )
         count = result.scalar()
@@ -691,6 +711,7 @@ class TestDatabaseIndexes:
 class TestDatabaseEdgeCases:
     """Test database edge cases and error conditions"""
 
+    @pytest.mark.asyncio
     async def test_null_handling(self, test_db_session: AsyncSession):
         """Test handling of null values"""
         # Create user with minimal required fields
@@ -702,16 +723,17 @@ class TestDatabaseEdgeCases:
             # first_name and last_name are optional (nullable)
         )
         test_db_session.add(user)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Verify user was created successfully
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User).where(User.email == "null_test@example.com")
         )
         found_user = result.scalar_one()
         assert found_user.first_name is None
         assert found_user.last_name is None
 
+    @pytest.mark.asyncio
     async def test_unicode_handling(self, test_db_session: AsyncSession):
         """Test handling of unicode characters"""
         # Create user with unicode characters
@@ -724,16 +746,17 @@ class TestDatabaseEdgeCases:
             status=UserStatus.ACTIVE
         )
         test_db_session.add(user)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Verify unicode data was stored correctly
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User).where(User.email == "unicode_test@example.com")
         )
         found_user = result.scalar_one()
         assert found_user.first_name == "José"
         assert found_user.last_name == "González"
 
+    @pytest.mark.asyncio
     async def test_large_text_fields(self, test_db_session: AsyncSession):
         """Test handling of large text fields"""
         # Create user with large bio field
@@ -749,16 +772,17 @@ class TestDatabaseEdgeCases:
             bio=large_bio
         )
         test_db_session.add(user)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Verify large text was stored correctly
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User).where(User.email == "large_text@example.com")
         )
         found_user = result.scalar_one()
         assert len(found_user.bio) == 10000
         assert found_user.bio[0] == "A"
 
+    @pytest.mark.asyncio
     async def test_datetime_handling(self, test_db_session: AsyncSession):
         """Test handling of datetime fields"""
         now = datetime.utcnow()
@@ -789,10 +813,10 @@ class TestDatabaseEdgeCases:
             expires_at=future
         )
         test_db_session.add(session)
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
         # Verify datetime handling
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(User).where(User.email == "datetime_test@example.com")
         )
         found_user = result.scalar_one()
@@ -802,7 +826,7 @@ class TestDatabaseEdgeCases:
         assert time_diff < 1  # Less than 1 second difference
 
         # Test datetime queries
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             select(Session).where(Session.expires_at > datetime.utcnow())
         )
         future_sessions = result.scalars().all()

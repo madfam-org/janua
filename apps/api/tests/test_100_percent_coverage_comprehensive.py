@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Comprehensive test suite to achieve 100% test coverage
 Targets all remaining uncovered modules with aggressive mocking
@@ -110,6 +113,7 @@ class TestCompleteMiddlewareCoverage:
         assert rate_limit is not None
 
     @patch('app.middleware.apm_middleware.APMClient')
+    @pytest.mark.asyncio
     async def test_apm_middleware_complete(self, mock_apm):
         """Cover APM middleware completely"""
         from app.middleware.apm_middleware import APMMiddleware
@@ -146,6 +150,7 @@ class TestCompleteMiddlewareCoverage:
         with pytest.raises(Exception):
             await middleware.dispatch(request, call_next_error)
 
+    @pytest.mark.asyncio
     async def test_security_headers_middleware(self):
         """Cover security headers middleware"""
         from app.middleware.security_headers import SecurityHeadersMiddleware
@@ -225,6 +230,7 @@ class TestCompleteSSOServiceCoverage:
     """Achieve 100% coverage for SSO service (365 lines)"""
 
     @patch('app.services.sso_service.httpx.AsyncClient')
+    @pytest.mark.asyncio
     async def test_sso_service_complete(self, mock_httpx):
         """Cover all SSO service functionality"""
         from app.services.sso_service import SSOService
@@ -280,12 +286,12 @@ class TestCompleteRoutersCoverage:
     def test_auth_router_endpoints(self, mock_service):
         """Cover all auth router endpoints"""
         from app.routers.v1.auth import router
-        from fastapi.testclient import TestClient
+        from httpx import AsyncClient
         from fastapi import FastAPI
 
         app = FastAPI()
         app.include_router(router)
-        client = TestClient(app)
+        client = AsyncClient(app=app, base_url="http://test")
 
         # Mock service methods
         mock_service.return_value.authenticate = AsyncMock(return_value={"token": "123"})
@@ -293,19 +299,20 @@ class TestCompleteRoutersCoverage:
         mock_service.return_value.logout = AsyncMock(return_value=True)
 
         # Test endpoints
-        client.post("/auth/login", json={"email": "test@example.com", "password": "pass"})
-        client.post("/auth/register", json={"email": "test@example.com", "password": "pass"})
-        client.post("/auth/logout", headers={"Authorization": "Bearer token"})
-        client.post("/auth/refresh", json={"refresh_token": "token"})
-        client.post("/auth/forgot-password", json={"email": "test@example.com"})
-        client.post("/auth/reset-password", json={"token": "token", "password": "new"})
-        client.get("/auth/verify-email", params={"token": "token"})
+        await client.post("/auth/login", json={"email": "test@example.com", "password": "pass"})
+        await client.post("/auth/register", json={"email": "test@example.com", "password": "pass"})
+        await client.post("/auth/logout", headers={"Authorization": "Bearer token"})
+        await client.post("/auth/refresh", json={"refresh_token": "token"})
+        await client.post("/auth/forgot-password", json={"email": "test@example.com"})
+        await client.post("/auth/reset-password", json={"token": "token", "password": "new"})
+        await client.get("/auth/verify-email", params={"token": "token"})
 
 
 class TestCompleteServicesCoverage:
     """Cover all remaining services"""
 
     @patch('app.services.websocket_manager.WebSocketManager')
+    @pytest.mark.asyncio
     async def test_websocket_manager(self, mock_ws):
         """Cover WebSocket manager (213 lines)"""
         from app.services.websocket_manager import WebSocketManager
@@ -337,6 +344,7 @@ class TestCompleteServicesCoverage:
         manager.get_connections()
 
     @patch('app.services.storage.S3Client')
+    @pytest.mark.asyncio
     async def test_storage_service(self, mock_s3):
         """Cover storage service (198 lines)"""
         from app.services.storage import StorageService
@@ -366,6 +374,7 @@ class TestCompleteServicesCoverage:
         await service.get_file_metadata("file.txt")
 
     @patch('app.services.risk_assessment_service.RiskEngine')
+    @pytest.mark.asyncio
     async def test_risk_assessment(self, mock_engine):
         """Cover risk assessment service (333 lines)"""
         from app.services.risk_assessment_service import RiskAssessmentService
@@ -465,6 +474,7 @@ class TestCoreModulesCoverage:
         engine.get_user_permissions("user_123")
 
     @patch('app.core.webhook_dispatcher.httpx.AsyncClient')
+    @pytest.mark.asyncio
     async def test_webhook_dispatcher(self, mock_httpx):
         """Cover webhook dispatcher (198 lines)"""
         from app.core.webhook_dispatcher import WebhookDispatcher
@@ -521,6 +531,7 @@ class TestRemainingServicesCoverage:
         assert webhook_enhanced is not None
 
     @patch('app.services.billing_webhooks.stripe')
+    @pytest.mark.asyncio
     async def test_billing_webhooks(self, mock_stripe):
         """Cover billing webhooks (231 lines)"""
         from app.services.billing_webhooks import BillingWebhookHandler

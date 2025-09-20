@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Integration tests for application lifecycle and infrastructure.
 This test covers app startup, middleware, routing, health checks, and shutdown.
@@ -6,7 +9,7 @@ Expected to cover 1000+ lines across multiple modules.
 
 import pytest
 import asyncio
-from fastapi.testclient import TestClient
+from httpx import AsyncClient
 from httpx import AsyncClient
 import time
 from unittest.mock import patch, AsyncMock
@@ -22,7 +25,7 @@ class TestAppLifecycle:
 
     def setup_method(self):
         """Setup before each test."""
-        self.client = TestClient(app)
+        self.client = AsyncClient(app=app, base_url="http://test")
 
     @pytest.mark.asyncio
     async def test_app_startup_and_initialization(self):
@@ -37,7 +40,7 @@ class TestAppLifecycle:
             mock_redis.return_value = AsyncMock()
 
             # Test startup by making a request (triggers startup events)
-            response = self.client.get("/api/v1/health")
+            response = self.await client.get("/api/v1/health")
 
             # App should start successfully
             assert response.status_code in [200, 400, 503]  # 503 if health checker not initialized
@@ -50,7 +53,7 @@ class TestAppLifecycle:
             mock_logger.return_value.info = lambda *args, **kwargs: None
 
             # Make a request that goes through all middleware
-            response = self.client.get("/api/v1/health")
+            response = self.await client.get("/api/v1/health")
 
             # Should process through middleware stack
             # Even if endpoint doesn't exist, middleware should execute
@@ -80,7 +83,7 @@ class TestAppLifecycle:
 
             # Make multiple rapid requests
             for _ in range(5):
-                response = self.client.get("/api/v1/health")
+                response = self.await client.get("/api/v1/health")
                 # Should handle rate limiting logic even if not enforced
                 assert response.status_code in [200, 503, 404, 405, 429]
 
@@ -88,7 +91,7 @@ class TestAppLifecycle:
         """Test security headers middleware."""
         # This covers app/middleware/security_headers.py
 
-        response = self.client.get("/api/status")
+        response = self.await client.get("/api/status")
 
         # Check for security headers (if implemented)
         # Even if headers aren't set, code should execute
@@ -102,7 +105,7 @@ class TestAppLifecycle:
             mock_logger.return_value.info = lambda *args, **kwargs: None
             mock_logger.return_value.error = lambda *args, **kwargs: None
 
-            response = self.client.get("/api/v1/health")
+            response = self.await client.get("/api/v1/health")
 
             # Logging middleware should execute
             assert response.status_code in [200, 400, 503, 404, 405]
@@ -117,7 +120,7 @@ class TestAppLifecycle:
             mock_engine.dispose = AsyncMock()
 
             # Test database health
-            response = self.client.get("/api/v1/health")
+            response = self.await client.get("/api/v1/health")
 
             # Health check should execute
             assert response.status_code in [200, 400, 503, 404, 500]
@@ -133,7 +136,7 @@ class TestAppLifecycle:
             mock_redis.return_value = mock_redis_client
 
             # Test Redis health
-            response = self.client.get("/api/v1/health")
+            response = self.await client.get("/api/v1/health")
 
             # Should execute Redis health check code
             assert response.status_code in [200, 400, 503, 404, 500]
@@ -150,7 +153,7 @@ class TestAppLifecycle:
         ]
 
         for endpoint in test_endpoints:
-            response = self.client.get(endpoint)
+            response = self.await client.get(endpoint)
             # Should handle errors gracefully
             assert response.status_code in [200, 400, 401, 403, 404, 405, 422, 429, 500]
 
@@ -159,7 +162,7 @@ class TestAppLifecycle:
         # This covers app/exceptions.py
 
         with patch('app.database.get_db', side_effect=Exception("Database error")):
-            response = self.client.get("/api/v1/health")
+            response = self.await client.get("/api/v1/health")
 
             # Should handle database exceptions
             assert response.status_code in [200, 400, 503, 404, 500]
@@ -175,7 +178,7 @@ class TestAppLifecycle:
             mock_get_tenant.return_value = {"id": "test-tenant"}
 
             # Test protected endpoints that use dependencies
-            response = self.client.get(
+            response = self.await client.get(
                 "/api/v1/users/me",
                 headers={"Authorization": "Bearer fake-token"}
             )
@@ -198,7 +201,7 @@ class TestAppLifecycle:
         ]
 
         for prefix in router_prefixes:
-            response = self.client.get(prefix)
+            response = self.await client.get(prefix)
             # Router should be mounted (even if returns 404/405)
             assert response.status_code in [200, 401, 404, 405, 422]
 
@@ -211,7 +214,7 @@ class TestAppLifecycle:
             mock_monitoring.initialize = AsyncMock()
             mock_monitoring.track_request = AsyncMock()
 
-            response = self.client.get("/api/v1/health/detailed")
+            response = self.await client.get("/api/v1/health/detailed")
 
             # Monitoring should be integrated
             assert response.status_code in [200, 400, 503, 404, 405]
@@ -248,7 +251,7 @@ class TestAppLifecycle:
                 "type": "access"
             }
 
-            response = self.client.get(
+            response = self.await client.get(
                 "/api/v1/users/me",
                 headers={"Authorization": "Bearer valid-token"}
             )
@@ -269,7 +272,7 @@ class TestAppLifecycle:
         ]
 
         for payload in test_payloads:
-            response = self.client.post("/api/v1/auth/login", json=payload)
+            response = self.await client.post("/api/v1/auth/login", json=payload)
 
             # Validation should execute
             assert response.status_code in [200, 400, 401, 404, 422]
@@ -283,7 +286,7 @@ class TestAppLifecycle:
             mock_email.return_value = AsyncMock()
 
             # Trigger endpoint that uses background tasks
-            response = self.client.post("/api/v1/auth/register", json={
+            response = self.await client.post("/api/v1/auth/register", json={
                 "email": "test@example.com",
                 "password": "TestPassword123!",
                 "name": "Test User"
@@ -302,7 +305,7 @@ class TestAppLifecycle:
         ]
 
         for payload in webhook_payloads:
-            response = self.client.post("/api/v1/webhooks/stripe", json=payload)
+            response = self.await client.post("/api/v1/webhooks/stripe", json=payload)
 
             # Webhook processing should execute
             assert response.status_code in [200, 400, 401, 404]
@@ -311,7 +314,7 @@ class TestAppLifecycle:
         """Test comprehensive health checks."""
         # This covers health check logic across modules
 
-        response = self.client.get("/api/v1/health")
+        response = self.await client.get("/api/v1/health")
 
         if response.status_code == 200:
             # If health endpoint exists, test its response
@@ -341,7 +344,7 @@ class TestAppLifecycle:
 
         with patch('time.time', return_value=1234567890):
             start_time = time.time()
-            response = self.client.get("/api/v1/health")
+            response = self.await client.get("/api/v1/health")
             end_time = time.time()
 
             # Performance monitoring should execute
@@ -355,7 +358,7 @@ class TestAppLifecycle:
         import threading
 
         def make_request():
-            return self.client.get("/api/v1/health")
+            return self.await client.get("/api/v1/health")
 
         # Create multiple threads
         threads = []
@@ -386,7 +389,7 @@ class TestAppLifecycle:
         ]
 
         for endpoint in version_endpoints:
-            response = self.client.get(endpoint)
+            response = self.await client.get(endpoint)
 
             # Versioned routing should work
             assert response.status_code in [200, 401, 404, 405, 422]
@@ -397,14 +400,14 @@ class TestIntegrationErrorScenarios:
 
     def setup_method(self):
         """Setup before each test."""
-        self.client = TestClient(app)
+        self.client = AsyncClient(app=app, base_url="http://test")
 
     def test_database_connection_failure(self):
         """Test app behavior when database is unavailable."""
         # This covers database error handling paths
 
         with patch('app.database.engine.begin', side_effect=Exception("DB connection failed")):
-            response = self.client.get("/api/v1/health")
+            response = self.await client.get("/api/v1/health")
 
             # Should handle DB connection failures gracefully
             assert response.status_code in [200, 400, 503, 404, 500]
@@ -414,7 +417,7 @@ class TestIntegrationErrorScenarios:
         # This covers Redis error handling paths
 
         with patch('app.core.redis.get_redis', side_effect=Exception("Redis connection failed")):
-            response = self.client.get("/api/v1/health")
+            response = self.await client.get("/api/v1/health")
 
             # Should handle Redis connection failures gracefully
             assert response.status_code in [200, 400, 503, 404, 500]
@@ -424,7 +427,7 @@ class TestIntegrationErrorScenarios:
         # This covers timeout handling in various services
 
         with patch('httpx.AsyncClient.post', side_effect=asyncio.TimeoutError("Service timeout")):
-            response = self.client.post("/api/v1/webhooks/test", json={"test": "data"})
+            response = self.await client.post("/api/v1/webhooks/test", json={"test": "data"})
 
             # Should handle external service timeouts
             assert response.status_code in [200, 400, 404, 500, 502, 503]
@@ -436,7 +439,7 @@ class TestIntegrationErrorScenarios:
         # Make requests with large payloads
         large_payload = {"data": "x" * 10000}
 
-        response = self.client.post("/api/v1/auth/register", json=large_payload)
+        response = self.await client.post("/api/v1/auth/register", json=large_payload)
 
         # Should handle large requests appropriately
         assert response.status_code in [200, 400, 413, 422]
@@ -453,9 +456,9 @@ class TestIntegrationErrorScenarios:
 
         for endpoint, payload in malformed_requests:
             if isinstance(payload, str):
-                response = self.client.post(endpoint, data=payload)
+                response = self.await client.post(endpoint, data=payload)
             else:
-                response = self.client.post(endpoint, json=payload)
+                response = self.await client.post(endpoint, json=payload)
 
             # Should handle malformed requests gracefully
             assert response.status_code in [400, 404, 422]

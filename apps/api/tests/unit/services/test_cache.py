@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Comprehensive tests for app.services.cache module
 """

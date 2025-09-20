@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Working tests for JWT Service
 """
@@ -76,7 +80,7 @@ class TestJWTServiceWorking:
         jti = "jti-123"
         
         # Mock Redis setex operation
-        jwt_service.redis.setex = Mock()
+        jwt_service.redis.setex = AsyncMock()
         
         await jwt_service.revoke_token(token, jti)
         

@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Basic integration tests for authentication endpoints
 Tests core auth flows without problematic fields
@@ -18,6 +21,7 @@ from app.models import UserStatus
 class TestBasicAuthenticationEndpoints:
     """Basic test suite for authentication API endpoints"""
 
+    @pytest.mark.asyncio
     async def test_signup_basic_flow(self, test_client: AsyncClient):
         """Test basic user signup flow without username"""
         signup_data = {
@@ -47,6 +51,7 @@ class TestBasicAuthenticationEndpoints:
                 data = response.json()
                 assert "detail" in data or "error" in data
 
+    @pytest.mark.asyncio
     async def test_signin_basic_flow(self, test_client: AsyncClient):
         """Test basic user signin flow"""
         signin_data = {
@@ -72,6 +77,7 @@ class TestBasicAuthenticationEndpoints:
             data = response.json()
             assert "detail" in data or "error" in data
 
+    @pytest.mark.asyncio
     async def test_me_endpoint_unauthenticated(self, test_client: AsyncClient):
         """Test /me endpoint without authentication"""
         response = await test_client.get("/api/v1/auth/me")
@@ -79,6 +85,7 @@ class TestBasicAuthenticationEndpoints:
         # Should require authentication (403 Forbidden or 401 Unauthorized are both valid)
         assert response.status_code in [401, 403]
 
+    @pytest.mark.asyncio
     async def test_me_endpoint_with_mock_auth(self, test_client: AsyncClient):
         """Test /me endpoint with mock authentication"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -103,6 +110,7 @@ class TestBasicAuthenticationEndpoints:
             assert data["email"] == "user@example.com"
             assert data["first_name"] == "John"
 
+    @pytest.mark.asyncio
     async def test_refresh_token_endpoint(self, test_client: AsyncClient):
         """Test refresh token endpoint"""
         refresh_data = {
@@ -114,6 +122,7 @@ class TestBasicAuthenticationEndpoints:
         # Check if endpoint exists
         assert response.status_code in [200, 401, 422]
 
+    @pytest.mark.asyncio
     async def test_logout_endpoint(self, test_client: AsyncClient):
         """Test logout endpoint"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -128,6 +137,7 @@ class TestBasicAuthenticationEndpoints:
             # Should work with authentication
             assert response.status_code in [200, 401]
 
+    @pytest.mark.asyncio
     async def test_password_reset_request(self, test_client: AsyncClient):
         """Test password reset request"""
         reset_data = {
@@ -139,6 +149,7 @@ class TestBasicAuthenticationEndpoints:
         # Should accept the request
         assert response.status_code in [200, 400, 422]
 
+    @pytest.mark.asyncio
     async def test_invalid_email_validation(self, test_client: AsyncClient):
         """Test email validation"""
         invalid_data = {
@@ -152,6 +163,7 @@ class TestBasicAuthenticationEndpoints:
         # Should reject invalid email
         assert response.status_code == 422
 
+    @pytest.mark.asyncio
     async def test_weak_password_validation(self, test_client: AsyncClient):
         """Test password validation"""
         weak_password_data = {
@@ -165,6 +177,7 @@ class TestBasicAuthenticationEndpoints:
         # Should reject weak password
         assert response.status_code == 422
 
+    @pytest.mark.asyncio
     async def test_missing_required_fields(self, test_client: AsyncClient):
         """Test missing required fields validation"""
         incomplete_data = {
@@ -177,6 +190,7 @@ class TestBasicAuthenticationEndpoints:
         # Should reject incomplete data
         assert response.status_code == 422
 
+    @pytest.mark.asyncio
     async def test_signin_missing_credentials(self, test_client: AsyncClient):
         """Test signin with missing credentials"""
         incomplete_data = {
@@ -194,6 +208,7 @@ class TestBasicAuthenticationEndpoints:
 class TestAuthenticationSecurity:
     """Basic security tests for authentication"""
 
+    @pytest.mark.asyncio
     async def test_sql_injection_protection(self, test_client: AsyncClient):
         """Test basic SQL injection protection"""
         malicious_data = {
@@ -206,6 +221,7 @@ class TestAuthenticationSecurity:
         # Should not crash the system
         assert response.status_code in [401, 422]  # Should fail gracefully
 
+    @pytest.mark.asyncio
     async def test_xss_protection(self, test_client: AsyncClient):
         """Test XSS protection in inputs"""
         xss_data = {
@@ -222,6 +238,7 @@ class TestAuthenticationSecurity:
             # Should not contain script tags in response
             assert "<script>" not in str(data)
 
+    @pytest.mark.asyncio
     async def test_long_input_handling(self, test_client: AsyncClient):
         """Test handling of very long inputs"""
         long_data = {
@@ -235,6 +252,7 @@ class TestAuthenticationSecurity:
         # Should reject overly long inputs
         assert response.status_code in [400, 422]
 
+    @pytest.mark.asyncio
     async def test_null_input_handling(self, test_client: AsyncClient):
         """Test handling of null inputs"""
         null_data = {
@@ -252,6 +270,7 @@ class TestAuthenticationSecurity:
 class TestAuthenticationEdgeCases:
     """Edge case tests for authentication"""
 
+    @pytest.mark.asyncio
     async def test_empty_request_body(self, test_client: AsyncClient):
         """Test handling of empty request body"""
         response = await test_client.post("/api/v1/auth/signup", json={})
@@ -259,6 +278,7 @@ class TestAuthenticationEdgeCases:
         # Should reject empty body
         assert response.status_code == 422
 
+    @pytest.mark.asyncio
     async def test_malformed_json(self, test_client: AsyncClient):
         """Test handling of malformed JSON"""
         response = await test_client.post(
@@ -270,6 +290,7 @@ class TestAuthenticationEdgeCases:
         # Should reject malformed JSON
         assert response.status_code == 422
 
+    @pytest.mark.asyncio
     async def test_unicode_characters(self, test_client: AsyncClient):
         """Test handling of unicode characters"""
         unicode_data = {
@@ -283,6 +304,7 @@ class TestAuthenticationEdgeCases:
         # Should handle unicode gracefully
         assert response.status_code in [201, 400, 422]
 
+    @pytest.mark.asyncio
     async def test_whitespace_handling(self, test_client: AsyncClient):
         """Test handling of whitespace in inputs"""
         whitespace_data = {
@@ -296,6 +318,7 @@ class TestAuthenticationEdgeCases:
         # Should handle whitespace appropriately
         assert response.status_code in [201, 400, 422]
 
+    @pytest.mark.asyncio
     async def test_concurrent_requests(self, test_client: AsyncClient):
         """Test concurrent authentication requests"""
         import asyncio

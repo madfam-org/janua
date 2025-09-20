@@ -1,3 +1,8 @@
+from fixtures.async_fixtures import async_db_session, async_redis_client
+
+
+pytestmark = pytest.mark.asyncio
+
 """
 Comprehensive compliance integration tests for GDPR, SOC 2, HIPAA
 """
@@ -223,7 +228,7 @@ class TestComplianceIntegration:
             tenant_id=sample_tenant_id
         )
         async_db_session.add(privacy_settings)
-        await async_db_session.commit()
+        await await async_db_session.commit()
         await async_db_session.refresh(privacy_settings)
 
         # 2. Verify privacy-by-default values
@@ -361,7 +366,7 @@ class TestComplianceIntegration:
             tenant_id=sample_tenant_id
         )
         async_db_session.add(test_user)
-        await async_db_session.commit()
+        await await async_db_session.commit()
 
         # 2. Create and process erasure request
         erasure_request = await compliance_service.data_subject_rights_service.create_request(
@@ -405,6 +410,7 @@ class TestComplianceIntegration:
 class TestCompliancePerformance:
     """Performance tests for compliance operations"""
 
+    @pytest.mark.asyncio
     async def test_bulk_consent_processing(self, compliance_service):
         """Test performance of bulk consent operations"""
         start_time = datetime.utcnow()
@@ -431,6 +437,7 @@ class TestCompliancePerformance:
         assert duration < 5.0  # Should complete in under 5 seconds
         assert all(result.status == ConsentStatus.GIVEN for result in results)
 
+    @pytest.mark.asyncio
     async def test_compliance_dashboard_performance(self, compliance_service):
         """Test compliance dashboard performance"""
         start_time = datetime.utcnow()

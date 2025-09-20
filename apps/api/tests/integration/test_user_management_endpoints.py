@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Comprehensive integration tests for user management endpoints
 Tests CRUD operations, user profiles, settings, and permissions
@@ -19,6 +22,7 @@ from app.services.auth_service import AuthService
 class TestUserManagementEndpoints:
     """Test suite for user management API endpoints"""
 
+    @pytest.mark.asyncio
     async def test_get_user_profile(self, test_client: AsyncClient):
         """Test getting user profile"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -49,6 +53,7 @@ class TestUserManagementEndpoints:
             assert data["last_name"] == "Doe"
             assert data["username"] == "johndoe"
 
+    @pytest.mark.asyncio
     async def test_update_user_profile(self, test_client: AsyncClient):
         """Test updating user profile"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -81,6 +86,7 @@ class TestUserManagementEndpoints:
                 assert data["last_name"] == "Smith"
                 assert data["bio"] == "Updated bio"
 
+    @pytest.mark.asyncio
     async def test_change_password(self, test_client: AsyncClient):
         """Test changing user password"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -103,6 +109,7 @@ class TestUserManagementEndpoints:
                 data = response.json()
                 assert data["message"] == "Password changed successfully"
 
+    @pytest.mark.asyncio
     async def test_change_password_invalid_current(self, test_client: AsyncClient):
         """Test changing password with invalid current password"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -125,6 +132,7 @@ class TestUserManagementEndpoints:
                 data = response.json()
                 assert "Invalid current password" in data["detail"]
 
+    @pytest.mark.asyncio
     async def test_upload_profile_picture(self, test_client: AsyncClient):
         """Test uploading profile picture"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -146,6 +154,7 @@ class TestUserManagementEndpoints:
                 assert "profile_picture_url" in data
                 assert data["profile_picture_url"] == "https://storage.example.com/profile.jpg"
 
+    @pytest.mark.asyncio
     async def test_delete_user_account(self, test_client: AsyncClient):
         """Test deleting user account"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -168,6 +177,7 @@ class TestUserManagementEndpoints:
                 data = response.json()
                 assert data["message"] == "Account deleted successfully"
 
+    @pytest.mark.asyncio
     async def test_get_user_sessions(self, test_client: AsyncClient):
         """Test getting user active sessions"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -203,6 +213,7 @@ class TestUserManagementEndpoints:
                 assert len(data["sessions"]) == 2
                 assert data["sessions"][0]["is_current"] == True
 
+    @pytest.mark.asyncio
     async def test_revoke_session(self, test_client: AsyncClient):
         """Test revoking a specific session"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -222,6 +233,7 @@ class TestUserManagementEndpoints:
                 data = response.json()
                 assert data["message"] == "Session revoked successfully"
 
+    @pytest.mark.asyncio
     async def test_get_user_activity_log(self, test_client: AsyncClient):
         """Test getting user activity log"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -257,6 +269,7 @@ class TestUserManagementEndpoints:
                 assert len(data["activities"]) == 2
                 assert data["activities"][0]["action"] == "login"
 
+    @pytest.mark.asyncio
     async def test_update_user_preferences(self, test_client: AsyncClient):
         """Test updating user preferences"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -285,6 +298,7 @@ class TestUserManagementEndpoints:
                 assert data["two_factor_enabled"] == True
                 assert data["language"] == "es"
 
+    @pytest.mark.asyncio
     async def test_get_user_organizations(self, test_client: AsyncClient):
         """Test getting user's organizations"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -318,6 +332,7 @@ class TestUserManagementEndpoints:
                 assert len(data["organizations"]) == 2
                 assert data["organizations"][0]["role"] == "admin"
 
+    @pytest.mark.asyncio
     async def test_leave_organization(self, test_client: AsyncClient):
         """Test leaving an organization"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -342,11 +357,13 @@ class TestUserManagementEndpoints:
 class TestUserManagementSecurity:
     """Security tests for user management endpoints"""
 
+    @pytest.mark.asyncio
     async def test_unauthorized_profile_access(self, test_client: AsyncClient):
         """Test accessing profile without authentication"""
         response = await test_client.get("/api/v1/users/profile")
         assert response.status_code == 401
 
+    @pytest.mark.asyncio
     async def test_profile_update_validation(self, test_client: AsyncClient):
         """Test profile update with invalid data"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -367,6 +384,7 @@ class TestUserManagementSecurity:
                 response = await test_client.put("/api/v1/users/profile", json=invalid_data, headers=headers)
                 assert response.status_code in [400, 422]
 
+    @pytest.mark.asyncio
     async def test_password_change_security(self, test_client: AsyncClient):
         """Test password change security requirements"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -394,6 +412,7 @@ class TestUserManagementSecurity:
                 # Should reject weak passwords
                 assert response.status_code in [400, 422]
 
+    @pytest.mark.asyncio
     async def test_file_upload_security(self, test_client: AsyncClient):
         """Test file upload security measures"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -417,6 +436,7 @@ class TestUserManagementSecurity:
                 # Should reject malicious files
                 assert response.status_code in [400, 413, 422]
 
+    @pytest.mark.asyncio
     async def test_session_isolation(self, test_client: AsyncClient):
         """Test that users can only access their own sessions"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -435,6 +455,7 @@ class TestUserManagementSecurity:
                 # Should not be able to revoke other user's session
                 assert response.status_code in [403, 404]
 
+    @pytest.mark.asyncio
     async def test_account_deletion_security(self, test_client: AsyncClient):
         """Test account deletion security measures"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -462,6 +483,7 @@ class TestUserManagementSecurity:
 class TestUserManagementEdgeCases:
     """Edge case tests for user management"""
 
+    @pytest.mark.asyncio
     async def test_concurrent_profile_updates(self, test_client: AsyncClient):
         """Test concurrent profile updates"""
         import asyncio
@@ -489,6 +511,7 @@ class TestUserManagementEdgeCases:
                 for response in responses:
                     assert response.status_code in [200, 409, 422]
 
+    @pytest.mark.asyncio
     async def test_unicode_profile_data(self, test_client: AsyncClient):
         """Test profile updates with unicode characters"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -517,6 +540,7 @@ class TestUserManagementEdgeCases:
                 assert data["first_name"] == "José"
                 assert data["bio"] == "こんにちは世界 🌍 Ñoño"
 
+    @pytest.mark.asyncio
     async def test_empty_and_null_values(self, test_client: AsyncClient):
         """Test handling of empty and null values in profile updates"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -538,6 +562,7 @@ class TestUserManagementEdgeCases:
                 # Should handle gracefully - either accept, reject, or sanitize
                 assert response.status_code in [200, 400, 422]
 
+    @pytest.mark.asyncio
     async def test_timezone_edge_cases(self, test_client: AsyncClient):
         """Test timezone handling edge cases"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -568,6 +593,7 @@ class TestUserManagementEdgeCases:
                     # Valid timezones should be accepted or handled gracefully
                     assert response.status_code in [200, 400, 422]
 
+    @pytest.mark.asyncio
     async def test_large_session_list(self, test_client: AsyncClient):
         """Test handling of users with many active sessions"""
         headers = {"Authorization": "Bearer valid_token_123"}

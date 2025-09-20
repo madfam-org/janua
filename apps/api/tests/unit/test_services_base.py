@@ -1,3 +1,4 @@
+from httpx import AsyncClient
 """
 Tests for base service functionality patterns
 """

@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Comprehensive tests for remaining service modules for coverage.
 This test covers monitoring, email, storage, and other service modules.
@@ -534,8 +538,8 @@ class TestJWTService:
         from unittest.mock import Mock
         
         # Create mock database and redis
-        mock_db = Mock()
-        mock_redis = Mock()
+        mock_db = AsyncMock()
+        mock_redis = AsyncMock()
         self.service = JWTService(mock_db, mock_redis)
 
     def test_jwt_service_initialization(self):

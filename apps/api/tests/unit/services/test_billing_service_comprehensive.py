@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Comprehensive test coverage for Billing Service
 Critical for revenue protection and enterprise billing operations
@@ -163,7 +167,7 @@ class TestConektaIntegration:
     @pytest.mark.asyncio
     async def test_cancel_conekta_subscription_success(self, billing_service, mock_httpx_client):
         """Test successful Conekta subscription cancellation"""
-        mock_response = Mock()
+        mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "id": "sub_conekta_123",

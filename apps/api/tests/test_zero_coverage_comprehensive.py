@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Comprehensive test suite targeting all 0% coverage modules
 Goal: Achieve significant coverage improvement across untested areas
@@ -73,6 +76,7 @@ class TestAlertingSystem:
         assert history.resolved_at is None
 
     @patch('app.alerting.manager.redis')
+    @pytest.mark.asyncio
     async def test_alert_manager_complete(self, mock_redis):
         """Test alert manager functionality"""
         from app.alerting.manager import AlertManager
@@ -145,6 +149,7 @@ class TestMiddleware:
     """Complete test coverage for middleware components"""
 
     @patch('app.middleware.apm_middleware.APMClient')
+    @pytest.mark.asyncio
     async def test_apm_middleware_complete(self, mock_apm):
         """Test APM middleware functionality"""
         from app.middleware.apm_middleware import APMMiddleware
@@ -152,7 +157,7 @@ class TestMiddleware:
         from starlette.responses import Response
 
         # Mock APM client
-        mock_apm_client = Mock()
+        mock_apm_client = AsyncMock()
         mock_apm.return_value = mock_apm_client
 
         # Create middleware
@@ -181,6 +186,7 @@ class TestMiddleware:
         assert mock_apm_client.start_span.called or True
         assert mock_apm_client.end_span.called or True
 
+    @pytest.mark.asyncio
     async def test_logging_middleware_complete(self):
         """Test logging middleware"""
         from app.middleware.logging_middleware import LoggingMiddleware
@@ -268,6 +274,7 @@ class TestBetaAuth:
         assert flags.rollout_percentage == 50
 
     @patch('app.beta_auth.EmailService')
+    @pytest.mark.asyncio
     async def test_passwordless_authentication(self, mock_email):
         """Test passwordless auth flow"""
         from app.beta_auth import PasswordlessAuth
@@ -405,10 +412,11 @@ class TestAuthRouters:
     """Test auth router modules"""
 
     @patch('app.auth.router.AuthService')
+    @pytest.mark.asyncio
     async def test_auth_router_endpoints(self, mock_auth_service):
         """Test auth router endpoints"""
         from app.auth.router import router
-        from fastapi.testclient import TestClient
+        from httpx import AsyncClient
         from fastapi import FastAPI
 
         # Create test app
@@ -424,8 +432,8 @@ class TestAuthRouters:
         })
 
         # Test login endpoint
-        client = TestClient(app)
-        response = client.post("/login", json={
+        client = AsyncClient(app=app, base_url="http://test")
+        response = await client.post("/login", json={
             "email": "user@example.com",
             "password": "password123"
         })
@@ -461,6 +469,7 @@ class TestAdminServices:
     """Test admin and enterprise services"""
 
     @patch('app.services.admin_notifications.NotificationChannel')
+    @pytest.mark.asyncio
     async def test_admin_notifications(self, mock_channel):
         """Test admin notification service"""
         from app.services.admin_notifications import AdminNotificationService
@@ -495,6 +504,7 @@ class TestStorageServices:
     """Test storage and file services"""
 
     @patch('app.services.storage.S3Client')
+    @pytest.mark.asyncio
     async def test_storage_service(self, mock_s3):
         """Test storage service operations"""
         from app.services.storage import StorageService
@@ -531,6 +541,7 @@ class TestStorageServices:
 class TestWebSocketManager:
     """Test WebSocket manager"""
 
+    @pytest.mark.asyncio
     async def test_websocket_manager(self):
         """Test WebSocket connection management"""
         from app.services.websocket_manager import WebSocketManager, Connection

@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Comprehensive end-to-end workflow integration tests
 Tests complete user journeys and business processes
@@ -19,6 +22,7 @@ from app.models import User, UserStatus, OrganizationRole, Organization
 class TestCompleteUserOnboardingWorkflow:
     """Test complete user onboarding journey from signup to organization membership"""
 
+    @pytest.mark.asyncio
     async def test_complete_user_onboarding_journey(self, test_client: AsyncClient):
         """Test complete user onboarding flow"""
 
@@ -156,6 +160,7 @@ class TestCompleteUserOnboardingWorkflow:
             org_response = await test_client.get(f"/api/v1/organizations/{org_id}", headers=headers)
             assert org_response.status_code == 200
 
+    @pytest.mark.asyncio
     async def test_invitation_acceptance_workflow(self, test_client: AsyncClient):
         """Test organization invitation acceptance workflow"""
 
@@ -229,6 +234,7 @@ class TestCompleteUserOnboardingWorkflow:
 class TestAuthenticationAuthorizationWorkflow:
     """Test authentication to authorization to resource access workflow"""
 
+    @pytest.mark.asyncio
     async def test_complete_auth_to_resource_access(self, test_client: AsyncClient):
         """Test complete flow from authentication to resource access"""
 
@@ -298,6 +304,7 @@ class TestAuthenticationAuthorizationWorkflow:
             )
             assert delete_response.status_code == 403
 
+    @pytest.mark.asyncio
     async def test_token_refresh_workflow(self, test_client: AsyncClient):
         """Test token refresh workflow"""
 
@@ -353,6 +360,7 @@ class TestAuthenticationAuthorizationWorkflow:
 class TestMultiFactorAuthenticationWorkflow:
     """Test multi-factor authentication workflow"""
 
+    @pytest.mark.asyncio
     async def test_mfa_setup_and_verification(self, test_client: AsyncClient):
         """Test MFA setup and verification workflow"""
 
@@ -447,6 +455,7 @@ class TestMultiFactorAuthenticationWorkflow:
 class TestOrganizationMemberLifecycle:
     """Test complete organization member management lifecycle"""
 
+    @pytest.mark.asyncio
     async def test_complete_member_lifecycle(self, test_client: AsyncClient):
         """Test complete member lifecycle from invitation to removal"""
 
@@ -572,6 +581,7 @@ class TestOrganizationMemberLifecycle:
 class TestWorkflowErrorHandling:
     """Test error handling in complex workflows"""
 
+    @pytest.mark.asyncio
     async def test_interrupted_onboarding_recovery(self, test_client: AsyncClient):
         """Test recovery from interrupted onboarding process"""
 
@@ -616,6 +626,7 @@ class TestWorkflowErrorHandling:
             resend_response = await test_client.post("/api/v1/auth/resend-verification", json=resend_data)
             assert resend_response.status_code == 200
 
+    @pytest.mark.asyncio
     async def test_concurrent_workflow_conflicts(self, test_client: AsyncClient):
         """Test handling of concurrent workflow conflicts"""
 
@@ -656,6 +667,7 @@ class TestWorkflowErrorHandling:
         success_count = sum(1 for r in responses if r.status_code in [201, 409])
         assert success_count >= 1  # At least one should succeed
 
+    @pytest.mark.asyncio
     async def test_partial_failure_rollback(self, test_client: AsyncClient):
         """Test rollback of partial failures in complex workflows"""
 
@@ -691,6 +703,7 @@ class TestWorkflowErrorHandling:
                 # Should handle partial failure appropriately
                 assert org_response.status_code in [400, 422, 500]
 
+    @pytest.mark.asyncio
     async def test_workflow_timeout_handling(self, test_client: AsyncClient):
         """Test handling of workflow timeouts"""
 

@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Comprehensive test coverage for Email Service
 Critical for user authentication and communication workflows
@@ -31,7 +35,7 @@ class TestEmailServiceInitialization:
 
     def test_email_service_init_with_redis(self):
         """Test email service initializes correctly with Redis"""
-        mock_redis = Mock()
+        mock_redis = AsyncMock()
         service = EmailService(redis_client=mock_redis)
         assert service is not None
         assert service.redis_client == mock_redis
@@ -48,7 +52,7 @@ class TestEmailServiceInitialization:
         assert isinstance(service, EmailService)
         assert service.redis_client is None
 
-        mock_redis = Mock()
+        mock_redis = AsyncMock()
         service_with_redis = get_email_service(mock_redis)
         assert isinstance(service_with_redis, EmailService)
         assert service_with_redis.redis_client == mock_redis
@@ -103,7 +107,7 @@ class TestTemplateRendering:
 
         # Mock successful template rendering
         with patch.object(service.jinja_env, 'get_template') as mock_get_template:
-            mock_template = Mock()
+            mock_template = AsyncMock()
             mock_template.render.return_value = "Rendered content"
             mock_get_template.return_value = mock_template
 
@@ -463,7 +467,7 @@ class TestEmailSending:
             mock_settings.FROM_EMAIL = "noreply@example.com"
             mock_settings.FROM_NAME = "Test Service"
 
-            mock_smtp = Mock()
+            mock_smtp = AsyncMock()
             mock_smtp_class.return_value.__enter__.return_value = mock_smtp
 
             result = await service._send_email(
@@ -498,7 +502,7 @@ class TestEmailSending:
                 FROM_NAME="Test Plinto"
             )
 
-            mock_smtp = Mock()
+            mock_smtp = AsyncMock()
             mock_smtp_class.return_value.__enter__.return_value = mock_smtp
             # Mock sendmail to return None instead of leaving it as MagicMock
             mock_smtp.sendmail.return_value = None

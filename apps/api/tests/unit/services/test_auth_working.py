@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Working unit tests for AuthService - matches actual implementation
 """
@@ -115,7 +119,7 @@ class TestUserCreation:
         mock_db = AsyncMock()
 
         # Mock database execute result for user existence check
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = None  # No existing user
         mock_db.execute.return_value = mock_result
 
@@ -154,7 +158,7 @@ class TestUserCreation:
 
         # Mock existing user
         existing_user = Mock()
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = existing_user  # User exists
         mock_db.execute = AsyncMock(return_value=mock_result)
 
@@ -174,7 +178,7 @@ class TestUserCreation:
         mock_db = AsyncMock()
 
         # Mock no existing user
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_result
 
@@ -203,7 +207,7 @@ class TestUserAuthentication:
         mock_db = AsyncMock()
 
         # Mock user
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.id = uuid4()
         mock_user.tenant_id = uuid4()
         mock_user.is_active = True
@@ -211,7 +215,7 @@ class TestUserAuthentication:
         mock_user.password_hash = AuthService.hash_password("TestPassword123!")
 
         # Mock database execute result
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = mock_user
         mock_db.execute.return_value = mock_result
 
@@ -233,7 +237,7 @@ class TestUserAuthentication:
         mock_db = AsyncMock()
 
         # Mock no user found
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_result
 
@@ -251,11 +255,11 @@ class TestUserAuthentication:
         mock_db = AsyncMock()
 
         # Mock inactive user
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.is_active = False
         mock_user.is_suspended = False
 
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = mock_user
         mock_db.execute.return_value = mock_result
 
@@ -273,11 +277,11 @@ class TestUserAuthentication:
         mock_db = AsyncMock()
 
         # Mock suspended user
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.is_active = True
         mock_user.is_suspended = True
 
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = mock_user
         mock_db.execute.return_value = mock_result
 
@@ -295,14 +299,14 @@ class TestUserAuthentication:
         mock_db = AsyncMock()
 
         # Mock user
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.id = uuid4()
         mock_user.tenant_id = uuid4()
         mock_user.is_active = True
         mock_user.is_suspended = False
         mock_user.password_hash = AuthService.hash_password("CorrectPassword123!")
 
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = mock_user
         mock_db.execute.return_value = mock_result
 
@@ -391,7 +395,7 @@ class TestSessionManagement:
         mock_db = AsyncMock()
 
         # Mock user
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.id = uuid4()
         mock_user.tenant_id = uuid4()
 
@@ -509,16 +513,16 @@ class TestTokenRefresh:
         )
 
         # Mock session
-        mock_session = Mock()
+        mock_session = AsyncMock()
         mock_session.refresh_token_jti = refresh_jti
         mock_session.is_active = True
 
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = mock_session
         mock_db.execute.return_value = mock_result
 
         # Mock user
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.id = UUID(user_id)
         mock_user.tenant_id = UUID(tenant_id)
         mock_user.is_active = True
@@ -570,7 +574,7 @@ class TestTokenRefresh:
         )
 
         # Mock no session found
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_result
 
@@ -600,7 +604,7 @@ class TestLogout:
         user_id = uuid4()
 
         # Mock session
-        mock_session = Mock()
+        mock_session = AsyncMock()
         mock_session.id = session_id
         mock_session.user_id = user_id
         mock_session.access_token_jti = "access_jti"
@@ -656,7 +660,7 @@ class TestLogout:
         wrong_user_id = uuid4()
 
         # Mock session with different user
-        mock_session = Mock()
+        mock_session = AsyncMock()
         mock_session.user_id = wrong_user_id
 
         mock_db.get.return_value = mock_session
@@ -678,7 +682,7 @@ class TestAuditLogging:
         tenant_id = uuid4()
 
         # Mock no previous log
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_result
 
@@ -711,10 +715,10 @@ class TestAuditLogging:
         tenant_id = uuid4()
 
         # Mock previous log
-        mock_previous_log = Mock()
+        mock_previous_log = AsyncMock()
         mock_previous_log.current_hash = "previous_hash_123"
 
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = mock_previous_log
         mock_db.execute.return_value = mock_result
 
@@ -754,9 +758,9 @@ class TestTokenFamilyRevocation:
         session2.refresh_token_jti = "refresh_jti_2"
 
         # Mock database execute result for sessions query
-        mock_scalars = Mock()
+        mock_scalars = AsyncMock()
         mock_scalars.all.return_value = [session1, session2]
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalars.return_value = mock_scalars
         mock_db.execute.return_value = mock_result
 
@@ -818,7 +822,7 @@ class TestErrorHandling:
         mock_db = AsyncMock()
 
         # Mock user
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.id = uuid4()
         mock_user.tenant_id = uuid4()
 

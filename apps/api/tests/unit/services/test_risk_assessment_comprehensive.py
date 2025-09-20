@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Comprehensive unit tests for RiskAssessmentService - targeting 100% coverage
 This test covers all risk assessment operations, fraud detection, security analysis

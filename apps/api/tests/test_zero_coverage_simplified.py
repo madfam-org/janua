@@ -1,3 +1,7 @@
+from httpx import AsyncClient
+
+pytestmark = pytest.mark.asyncio
+
 """
 Simplified test suite targeting zero-coverage modules
 Uses heavy mocking to avoid import issues while still achieving coverage
@@ -16,6 +20,7 @@ class TestCacheService:
     """Test cache service for coverage improvement"""
 
     @patch('app.services.cache_service.redis')
+    @pytest.mark.asyncio
     async def test_cache_operations(self, mock_redis):
         """Test cache service operations"""
         # Mock redis client
@@ -52,6 +57,7 @@ class TestComplianceService:
     """Test compliance service to increase coverage from 17%"""
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_gdpr_operations(self, mock_db):
         """Test GDPR compliance operations"""
         from app.services.compliance_service import ComplianceService
@@ -105,6 +111,7 @@ class TestOAuthService:
     """Test OAuth service to improve coverage from 18%"""
 
     @patch('app.services.oauth_service.httpx.AsyncClient')
+    @pytest.mark.asyncio
     async def test_oauth_flows(self, mock_httpx):
         """Test OAuth authentication flows"""
         from app.services.oauth_service import OAuthService
@@ -135,7 +142,7 @@ class TestOAuthService:
         assert "client_id" in auth_url
 
         # Test token exchange
-        mock_response = Mock()
+        mock_response = AsyncMock()
         mock_response.json.return_value = {
             "access_token": "access_123",
             "refresh_token": "refresh_123",
@@ -193,6 +200,7 @@ class TestBetaAuth:
         assert hasattr(manager, 'biometric_enabled')
 
     @patch('app.beta_auth.send_email')
+    @pytest.mark.asyncio
     async def test_passwordless_auth(self, mock_email):
         """Test passwordless authentication"""
         from app.beta_auth import BetaAuthManager
@@ -211,6 +219,7 @@ class TestBetaAuth:
         verified = await manager.verify_magic_link("test_token_123")
         assert verified is not None
 
+    @pytest.mark.asyncio
     async def test_webauthn_flow(self):
         """Test WebAuthn authentication"""
         from app.beta_auth import BetaAuthManager
@@ -236,6 +245,7 @@ class TestBetaAuth:
 class TestMiddleware:
     """Test middleware components"""
 
+    @pytest.mark.asyncio
     async def test_rate_limiting_middleware(self):
         """Test rate limiting middleware"""
         from app.middleware.rate_limiting import RateLimitMiddleware
@@ -261,6 +271,7 @@ class TestMiddleware:
         # Test rate limit tracking
         assert middleware.is_allowed(request.client.host)
 
+    @pytest.mark.asyncio
     async def test_performance_monitoring(self):
         """Test performance monitoring middleware"""
         from app.middleware.performance_monitor import PerformanceMiddleware
@@ -308,6 +319,7 @@ class TestAlertingBasic:
         assert config.severity == "critical"
 
     @patch('app.alerting.metrics.get_current_metrics')
+    @pytest.mark.asyncio
     async def test_alert_evaluation(self, mock_metrics):
         """Test alert evaluation logic"""
         from app.alerting.models import AlertConfig

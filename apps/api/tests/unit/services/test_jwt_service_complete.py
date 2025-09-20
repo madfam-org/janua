@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Complete unit tests for JWTService to achieve 100% coverage
 """
@@ -64,8 +68,8 @@ class TestJWTServiceInitialization:
         db.fetchrow = AsyncMock(return_value=mock_key_data)
 
         with patch('app.services.jwt_service.serialization') as mock_serialization:
-            mock_private_key = Mock()
-            mock_public_key = Mock()
+            mock_private_key = AsyncMock()
+            mock_public_key = AsyncMock()
 
             mock_serialization.load_pem_private_key.return_value = mock_private_key
             mock_serialization.load_pem_public_key.return_value = mock_public_key
@@ -90,8 +94,8 @@ class TestJWTServiceInitialization:
              patch('app.services.jwt_service.uuid4') as mock_uuid:
 
             mock_uuid.return_value.hex = 'new-kid-123'
-            mock_private_key = Mock()
-            mock_public_key = Mock()
+            mock_private_key = AsyncMock()
+            mock_public_key = AsyncMock()
 
             mock_private_key.public_key.return_value = mock_public_key
             mock_private_key.private_bytes.return_value = b'private-key-pem'
@@ -435,7 +439,7 @@ class TestJWKS:
 
     def test_get_jwks_with_keys(self):
         """Test getting JWKS when keys exist."""
-        mock_public_numbers = Mock()
+        mock_public_numbers = AsyncMock()
         mock_public_numbers.n = 12345
         mock_public_numbers.e = 65537
 

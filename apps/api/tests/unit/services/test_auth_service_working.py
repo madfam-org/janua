@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Working tests for AuthService
 """
@@ -17,7 +21,7 @@ class TestAuthServiceWorking:
         service = AuthService()
         service.db = AsyncMock()
         service.redis = AsyncMock()
-        service.jwt_service = Mock()
+        service.jwt_service = AsyncMock()
         return service
     
     def test_password_hashing(self, auth_service):
@@ -55,7 +59,7 @@ class TestAuthServiceWorking:
     async def test_create_user_mock(self, auth_service):
         """Test user creation with mocks"""
         # Mock database response - properly mock the async execute result
-        mock_execute_result = Mock()
+        mock_execute_result = AsyncMock()
         mock_execute_result.scalar_one_or_none.return_value = None  # No existing user
         auth_service.db.execute = AsyncMock(return_value=mock_execute_result)
         auth_service.db.add = Mock()
@@ -79,7 +83,7 @@ class TestAuthServiceWorking:
     async def test_authenticate_user_mock(self, auth_service):
         """Test user authentication with mocks"""
         # Mock user data
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.id = "user123"
         mock_user.email = "test@example.com"
         mock_user.password_hash = AuthService.hash_password("ValidPass123!")
@@ -88,7 +92,7 @@ class TestAuthServiceWorking:
         mock_user.tenant_id = "tenant123"
 
         # Properly mock the async execute result
-        mock_execute_result = Mock()
+        mock_execute_result = AsyncMock()
         mock_execute_result.scalar_one_or_none.return_value = mock_user
         auth_service.db.execute = AsyncMock(return_value=mock_execute_result)
         auth_service.db.commit = AsyncMock()

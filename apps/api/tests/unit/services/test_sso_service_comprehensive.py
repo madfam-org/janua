@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Comprehensive unit tests for SSOService - targeting 100% coverage
 This test covers all SSO operations, SAML/OIDC integration, identity provider management

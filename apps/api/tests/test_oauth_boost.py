@@ -1,3 +1,7 @@
+from httpx import AsyncClient
+
+pytestmark = pytest.mark.asyncio
+
 """
 Test suite to boost OAuth service coverage from 18% to 60%+
 Focuses on OAuth provider flows, token management, and user profile retrieval
@@ -14,6 +18,7 @@ class TestOAuthServiceCoverage:
     """Comprehensive tests for OAuth service"""
 
     @patch('app.services.oauth.httpx.AsyncClient')
+    @pytest.mark.asyncio
     async def test_google_oauth_flow(self, mock_httpx):
         """Test complete Google OAuth flow"""
         from app.services.oauth import OAuthService
@@ -39,7 +44,7 @@ class TestOAuthServiceCoverage:
         assert "state" in auth_url or auth_url
 
         # Test code exchange for tokens
-        mock_response = Mock()
+        mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "access_token": "google_access_token",
@@ -81,6 +86,7 @@ class TestOAuthServiceCoverage:
         assert user_info["name"] == "Test User"
 
     @patch('app.services.oauth.httpx.AsyncClient')
+    @pytest.mark.asyncio
     async def test_github_oauth_flow(self, mock_httpx):
         """Test complete GitHub OAuth flow"""
         from app.services.oauth import OAuthService
@@ -101,7 +107,7 @@ class TestOAuthServiceCoverage:
         assert auth_url is not None
 
         # Test GitHub token exchange
-        mock_response = Mock()
+        mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.text = "access_token=github_token&token_type=bearer"
         mock_response.json.return_value = {"access_token": "github_token"}
@@ -134,6 +140,7 @@ class TestOAuthServiceCoverage:
         assert "login" in user_info or user_info
 
     @patch('app.services.oauth.httpx.AsyncClient')
+    @pytest.mark.asyncio
     async def test_microsoft_oauth_flow(self, mock_httpx):
         """Test Microsoft OAuth flow"""
         from app.services.oauth import OAuthService
@@ -154,7 +161,7 @@ class TestOAuthServiceCoverage:
         assert auth_url is not None
 
         # Test token exchange
-        mock_response = Mock()
+        mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "access_token": "ms_access_token",
@@ -175,6 +182,7 @@ class TestOAuthServiceCoverage:
         assert "access_token" in tokens or tokens
 
     @patch('app.services.oauth.httpx.AsyncClient')
+    @pytest.mark.asyncio
     async def test_token_refresh(self, mock_httpx):
         """Test OAuth token refresh"""
         from app.services.oauth import OAuthService
@@ -185,7 +193,7 @@ class TestOAuthServiceCoverage:
         service = OAuthService()
 
         # Test token refresh
-        mock_response = Mock()
+        mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "access_token": "new_access_token",
@@ -204,6 +212,7 @@ class TestOAuthServiceCoverage:
         assert new_tokens["access_token"] == "new_access_token"
 
     @patch('app.services.oauth.httpx.AsyncClient')
+    @pytest.mark.asyncio
     async def test_token_validation(self, mock_httpx):
         """Test OAuth token validation"""
         from app.services.oauth import OAuthService
@@ -214,7 +223,7 @@ class TestOAuthServiceCoverage:
         service = OAuthService()
 
         # Test token introspection
-        mock_response = Mock()
+        mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "active": True,
@@ -257,6 +266,7 @@ class TestOAuthServiceCoverage:
         assert "google" in supported or len(supported) > 0
 
     @patch('app.services.oauth.httpx.AsyncClient')
+    @pytest.mark.asyncio
     async def test_oauth_error_handling(self, mock_httpx):
         """Test OAuth error handling"""
         from app.services.oauth import OAuthService
@@ -267,7 +277,7 @@ class TestOAuthServiceCoverage:
         service = OAuthService()
 
         # Test invalid grant error
-        mock_response = Mock()
+        mock_response = AsyncMock()
         mock_response.status_code = 400
         mock_response.json.return_value = {
             "error": "invalid_grant",
@@ -314,6 +324,7 @@ class TestOAuthServiceCoverage:
         assert is_valid is False
 
     @patch('app.services.oauth.httpx.AsyncClient')
+    @pytest.mark.asyncio
     async def test_pkce_flow(self, mock_httpx):
         """Test OAuth with PKCE (Proof Key for Code Exchange)"""
         from app.services.oauth import OAuthService
@@ -342,7 +353,7 @@ class TestOAuthServiceCoverage:
         assert "code_challenge" in auth_url or auth_url
 
         # Test token exchange with PKCE
-        mock_response = Mock()
+        mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "access_token": "pkce_access_token",
@@ -360,6 +371,7 @@ class TestOAuthServiceCoverage:
         assert "access_token" in tokens or tokens
 
     @patch('app.services.oauth.httpx.AsyncClient')
+    @pytest.mark.asyncio
     async def test_multi_tenant_oauth(self, mock_httpx):
         """Test multi-tenant OAuth configuration"""
         from app.services.oauth import OAuthService

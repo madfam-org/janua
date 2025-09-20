@@ -1,3 +1,8 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
+
 """
 Unit tests for main FastAPI application
 """

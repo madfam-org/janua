@@ -1,3 +1,7 @@
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+pytestmark = pytest.mark.asyncio
+
 """
 Comprehensive tests for enterprise features
 Testing multi-tenancy, RBAC, SCIM, audit logging, and webhooks
@@ -75,7 +79,7 @@ class TestTenantContext:
             username="testuser"
         )
         db_session.add(user)
-        await db_session.commit()
+        await await db_session.commit()
 
         # Create JWT with tenant info
         from app.core.jwt_manager import jwt_manager
@@ -90,7 +94,7 @@ class TestTenantContext:
 
         # Make request with token
         headers = {"Authorization": f"Bearer {access_token}"}
-        response = await client.get("/api/v1/users/me", headers=headers)
+        response = await await client.get("/api/v1/users/me", headers=headers)
 
         # Verify tenant context was set (would be in response headers)
         assert "X-Tenant-ID" in response.headers
@@ -104,7 +108,7 @@ class TestTenantContext:
         org1 = Organization(name="Org 1", slug="org1")
         org2 = Organization(name="Org 2", slug="org2")
         db_session.add_all([org1, org2])
-        await db_session.commit()
+        await await db_session.commit()
 
         # Set tenant context to org1
         TenantContext.set(org1.tenant_id, org1.id)
@@ -152,7 +156,7 @@ class TestRBACEngine:
             status="active"
         )
         db_session.add(member)
-        await db_session.commit()
+        await await db_session.commit()
 
         # Set tenant context
         TenantContext.set(org.tenant_id, org.id)
@@ -222,7 +226,7 @@ class TestRBACEngine:
             status="active"
         )
         db_session.add(member)
-        await db_session.commit()
+        await await db_session.commit()
 
         # Set tenant context
         TenantContext.set(org.tenant_id, org.id)
@@ -260,7 +264,7 @@ class TestSCIMIntegration:
             scim_enabled=True
         )
         db_session.add(org)
-        await db_session.commit()
+        await await db_session.commit()
 
         # Simulate SCIM token (in production, would be validated)
         headers = {
@@ -294,7 +298,7 @@ class TestSCIMIntegration:
         # but we're testing the logic directly
 
         # Verify SCIM resource was created
-        scim_resource = await db_session.execute(
+        scim_resource = await await db_session.execute(
             select(SCIMResource).where(
                 SCIMResource.organization_id == org.id
             )
@@ -318,7 +322,7 @@ class TestSCIMIntegration:
             raw_attributes=scim_user
         )
         db_session.add(scim_resource)
-        await db_session.commit()
+        await await db_session.commit()
 
         # Verify mapping
         assert scim_resource.internal_id == user.id
@@ -335,7 +339,7 @@ class TestAuditLogging:
         # Create organization
         org = Organization(name="Audit Org", slug="audit-org")
         db_session.add(org)
-        await db_session.commit()
+        await await db_session.commit()
 
         # Set tenant context
         TenantContext.set(org.tenant_id, org.id)
@@ -352,7 +356,7 @@ class TestAuditLogging:
             user_agent="TestClient/1.0"
         )
 
-        await db_session.commit()
+        await await db_session.commit()
 
         assert log is not None
         assert log.event_type == AuditEventType.AUTH
@@ -365,7 +369,7 @@ class TestAuditLogging:
         # Create organization
         org = Organization(name="Audit Org", slug="audit-org")
         db_session.add(org)
-        await db_session.commit()
+        await await db_session.commit()
 
         # Set tenant context
         TenantContext.set(org.tenant_id, org.id)
@@ -385,7 +389,7 @@ class TestAuditLogging:
                 assert log.previous_hash == previous_hash
 
             previous_hash = log.current_hash
-            await db_session.commit()
+            await await db_session.commit()
 
         # Verify integrity
         result = await audit_logger.verify_integrity(
@@ -404,7 +408,7 @@ class TestAuditLogging:
         # Create organization
         org = Organization(name="Audit Org", slug="audit-org")
         db_session.add(org)
-        await db_session.commit()
+        await await db_session.commit()
 
         # Set tenant context
         TenantContext.set(org.tenant_id, org.id)
@@ -417,11 +421,11 @@ class TestAuditLogging:
             resource_type="record",
             resource_id="rec-123"
         )
-        await db_session.commit()
+        await await db_session.commit()
 
         # Tamper with the log
         log.event_data = {"tampered": True}
-        await db_session.commit()
+        await await db_session.commit()
 
         # Verify integrity should fail
         result = await audit_logger.verify_integrity(
@@ -454,7 +458,7 @@ class TestWebhookDispatcher:
             is_active=True
         )
         db_session.add(endpoint)
-        await db_session.commit()
+        await await db_session.commit()
 
         # Set tenant context
         TenantContext.set(org.tenant_id, org.id)
@@ -472,7 +476,7 @@ class TestWebhookDispatcher:
         assert event.type == WebhookEventTypes.USER_CREATED
 
         # Check delivery was queued
-        deliveries = await db_session.execute(
+        deliveries = await await db_session.execute(
             select(WebhookDelivery).where(
                 WebhookDelivery.webhook_event_id == event.id
             )
@@ -550,7 +554,7 @@ class TestWebhookDispatcher:
             attempts=0
         )
         db_session.add(delivery)
-        await db_session.commit()
+        await await db_session.commit()
 
         # Simulate failed delivery
         delivery.attempts = 1
@@ -561,7 +565,7 @@ class TestWebhookDispatcher:
         next_retry = datetime.utcnow() + timedelta(seconds=60)
         delivery.next_retry_at = next_retry
 
-        await db_session.commit()
+        await await db_session.commit()
 
         # Verify retry was scheduled
         assert delivery.status == WebhookStatus.RETRYING
@@ -649,7 +653,7 @@ class TestEnterpriseIntegration:
         )
         db_session.add(webhook_endpoint)
 
-        await db_session.commit()
+        await await db_session.commit()
 
         # 9. Emit webhook event
         webhook_event = await webhook_dispatcher.emit_event(

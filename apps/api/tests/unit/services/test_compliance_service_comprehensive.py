@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Comprehensive test coverage for Compliance Service
 Critical for enterprise GDPR, SOC 2, HIPAA compliance operations
@@ -203,7 +207,7 @@ class TestConsentManagement:
         user_id = uuid4()
 
         # Mock valid consent
-        mock_consent = Mock()
+        mock_consent = AsyncMock()
         mock_execute_result = AsyncMock()
         mock_execute_result.scalar_one_or_none.return_value = mock_consent
         mock_db.execute.return_value = mock_execute_result
@@ -281,13 +285,13 @@ class TestDataSubjectRightsService:
         user_id = uuid4()
 
         # Mock data subject request
-        mock_request = Mock()
+        mock_request = AsyncMock()
         mock_request.request_type = DataSubjectRequestType.ACCESS
         mock_request.user_id = user_id
         mock_request.status = RequestStatus.RECEIVED
 
         # Mock user data
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.id = user_id
         mock_user.email = "test@example.com"
         mock_user.first_name = "John"
@@ -355,13 +359,13 @@ class TestDataSubjectRightsService:
         user_id = uuid4()
 
         # Mock data subject request
-        mock_request = Mock()
+        mock_request = AsyncMock()
         mock_request.request_type = DataSubjectRequestType.ERASURE
         mock_request.user_id = user_id
         mock_request.tenant_id = uuid4()
 
         # Mock user
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.id = user_id
         mock_user.email = "test@example.com"
 
@@ -402,13 +406,13 @@ class TestDataSubjectRightsService:
         user_id = uuid4()
 
         # Mock data subject request
-        mock_request = Mock()
+        mock_request = AsyncMock()
         mock_request.request_type = DataSubjectRequestType.ERASURE
         mock_request.user_id = user_id
         mock_request.tenant_id = uuid4()
 
         # Mock user
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.id = user_id
 
         mock_request_result = AsyncMock()
@@ -477,7 +481,7 @@ class TestDataRetentionService:
         service, mock_db, mock_audit_logger = retention_service
 
         # Mock retention policies
-        mock_policy = Mock()
+        mock_policy = AsyncMock()
         mock_policy.id = uuid4()
         mock_policy.name = "Identity Data Policy"
         mock_policy.retention_period_days = 365
@@ -486,7 +490,7 @@ class TestDataRetentionService:
         mock_policy.require_approval = False
 
         # Mock expired users
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.id = uuid4()
         mock_user.created_at = datetime.utcnow() - timedelta(days=400)
 
@@ -519,7 +523,7 @@ class TestDataRetentionService:
         policy_id = uuid4()
 
         # Mock policy
-        mock_policy = Mock()
+        mock_policy = AsyncMock()
         mock_policy.name = "Test Policy"
         mock_policy.retention_period_days = 365
 
@@ -547,7 +551,7 @@ class TestDataRetentionService:
         user_id = uuid4()
 
         # Mock policy
-        mock_policy = Mock()
+        mock_policy = AsyncMock()
         mock_policy.name = "Test Policy"
         mock_policy.retention_period_days = 365
         mock_policy.deletion_method = "anonymize"
@@ -556,7 +560,7 @@ class TestDataRetentionService:
         mock_policy.auto_deletion_enabled = True
 
         # Mock user to anonymize
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.id = user_id
 
         mock_policy_result = AsyncMock()
@@ -800,7 +804,7 @@ class TestComplianceIntegration:
         user_id = uuid4()
 
         # Mock consent recording
-        mock_consent = Mock()
+        mock_consent = AsyncMock()
         mock_consent.id = uuid4()
 
         with patch.object(service.consent_service, 'record_consent') as mock_record, \
@@ -844,7 +848,7 @@ class TestComplianceIntegration:
         processor_id = uuid4()
 
         # Mock DSR creation and processing
-        mock_request = Mock()
+        mock_request = AsyncMock()
         mock_request.request_id = "DSR-TEST-123"
 
         mock_user_data = {
@@ -880,7 +884,7 @@ class TestComplianceIntegration:
         service, mock_db, mock_audit_logger = full_compliance_service
 
         # Mock retention policy creation and execution
-        mock_policy = Mock()
+        mock_policy = AsyncMock()
         mock_policy.id = uuid4()
 
         mock_expired_items = [
@@ -949,7 +953,7 @@ class TestErrorHandling:
         service, mock_db, mock_audit_logger = error_service
 
         # Test invalid data subject request processing
-        mock_request = Mock()
+        mock_request = AsyncMock()
         mock_request.request_type = DataSubjectRequestType.RECTIFICATION  # Not ACCESS
 
         mock_db.execute.return_value.scalar_one_or_none.return_value = mock_request
@@ -979,7 +983,7 @@ class TestErrorHandling:
         user_id = uuid4()
 
         # Mock successful consent recording
-        mock_consent = Mock()
+        mock_consent = AsyncMock()
         mock_db.execute.return_value.scalar_one_or_none.return_value = None
         mock_db.add = Mock()
         mock_db.commit = AsyncMock()

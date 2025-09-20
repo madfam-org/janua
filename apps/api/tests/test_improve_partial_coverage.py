@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Test suite to improve partially covered modules to 80%+
 Targets: JWT service (48%), monitoring (35%), database modules (28-53%)
@@ -20,7 +23,7 @@ class TestJWTServiceImprovement:
         from app.services.jwt_service import JWTService
 
         # Mock redis client
-        mock_redis_client = Mock()
+        mock_redis_client = AsyncMock()
         mock_redis.from_url.return_value = mock_redis_client
 
         service = JWTService(
@@ -39,7 +42,7 @@ class TestJWTServiceImprovement:
         """Test token creation"""
         from app.services.jwt_service import JWTService
 
-        mock_redis.from_url.return_value = Mock()
+        mock_redis.from_url.return_value = AsyncMock()
 
         service = JWTService()
 
@@ -69,7 +72,7 @@ class TestJWTServiceImprovement:
         """Test token verification"""
         from app.services.jwt_service import JWTService
 
-        mock_redis_client = Mock()
+        mock_redis_client = AsyncMock()
         mock_redis.from_url.return_value = mock_redis_client
         mock_redis_client.get.return_value = None  # Token not revoked
 
@@ -99,7 +102,7 @@ class TestJWTServiceImprovement:
         """Test token refresh flow"""
         from app.services.jwt_service import JWTService
 
-        mock_redis_client = Mock()
+        mock_redis_client = AsyncMock()
         mock_redis.from_url.return_value = mock_redis_client
         mock_redis_client.get.return_value = None
 
@@ -116,6 +119,7 @@ class TestJWTServiceImprovement:
         assert "refresh_token" in new_tokens
 
     @patch('app.services.jwt_service.redis')
+    @pytest.mark.asyncio
     async def test_token_revocation(self, mock_redis):
         """Test token revocation"""
         from app.services.jwt_service import JWTService
@@ -180,7 +184,9 @@ class TestMonitoringServiceImprovement:
         service.record_histogram("response_time", 0.125, labels={"endpoint": "/api/users"})
         assert service.metrics.get("response_time") is not None or True
 
+    @pytest.mark.asyncio
     @patch('app.services.monitoring.get_db')
+    @pytest.mark.asyncio
     async def test_health_checks(self, mock_get_db):
         """Test health check functionality"""
         from app.services.monitoring import MonitoringService
@@ -264,7 +270,7 @@ class TestDatabaseImprovement:
         from app.core.database import Database
 
         # Mock engine and session
-        mock_engine = Mock()
+        mock_engine = AsyncMock()
         mock_create_engine.return_value = mock_engine
         mock_sessionmaker.return_value = Mock()
 
@@ -277,7 +283,9 @@ class TestDatabaseImprovement:
         assert db.engine == mock_engine
         mock_create_engine.assert_called_once()
 
+    @pytest.mark.asyncio
     @patch('app.core.database_manager.get_db')
+    @pytest.mark.asyncio
     async def test_database_operations(self, mock_get_db):
         """Test database CRUD operations"""
         from app.core.database_manager import DatabaseManager
@@ -295,7 +303,7 @@ class TestDatabaseImprovement:
         assert created is not None or created == {}
 
         # Test read operation
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = {"id": 1, "name": "Test"}
         mock_session.execute.return_value = mock_result
 
@@ -311,7 +319,9 @@ class TestDatabaseImprovement:
         deleted = await manager.delete(1)
         assert deleted
 
+    @pytest.mark.asyncio
     @patch('app.database.AsyncSession')
+    @pytest.mark.asyncio
     async def test_transaction_management(self, mock_session):
         """Test database transactions"""
         from app.database import DatabaseTransaction
@@ -355,6 +365,7 @@ class TestDatabaseImprovement:
         manager.log_query("SELECT * FROM large_table", duration=2.5)
         mock_logger.warning.assert_called()
 
+    @pytest.mark.asyncio
     async def test_connection_pooling(self):
         """Test database connection pooling"""
         from app.core.database import ConnectionPool
@@ -385,7 +396,9 @@ class TestDatabaseImprovement:
 class TestCacheServiceImprovement:
     """Test cache service for better coverage"""
 
+    @pytest.mark.asyncio
     @patch('app.services.cache.redis')
+    @pytest.mark.asyncio
     async def test_cache_operations(self, mock_redis):
         """Test all cache operations"""
         from app.services.cache import CacheService

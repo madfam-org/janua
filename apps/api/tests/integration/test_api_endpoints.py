@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Integration tests for API endpoints
 """
@@ -12,6 +15,7 @@ class TestHealthEndpointsIntegration:
     """Test health and status endpoint integration."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_health_endpoint_integration(self, test_client: AsyncClient):
         """Test health endpoint with realistic conditions."""
         response = await test_client.get("/health")
@@ -25,6 +29,7 @@ class TestHealthEndpointsIntegration:
         assert response.headers["content-type"] == "application/json"
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_ready_endpoint_healthy_services(self, test_client: AsyncClient):
         """Test readiness endpoint when all services are healthy."""
         with patch('app.main.engine') as mock_engine, \
@@ -48,6 +53,7 @@ class TestHealthEndpointsIntegration:
             assert data["redis"] is True
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_ready_endpoint_degraded_services(self, test_client: AsyncClient):
         """Test readiness endpoint when services are degraded."""
         with patch('app.main.engine') as mock_engine, \
@@ -73,6 +79,7 @@ class TestOpenIDEndpointsIntegration:
     """Test OpenID Connect endpoint integration."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_openid_configuration_integration(self, test_client: AsyncClient):
         """Test OpenID configuration endpoint with full validation."""
         response = await test_client.get("/.well-known/openid-configuration")
@@ -109,6 +116,7 @@ class TestOpenIDEndpointsIntegration:
         assert response.headers["content-type"] == "application/json"
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_jwks_endpoint_integration(self, test_client: AsyncClient):
         """Test JWKS endpoint with validation."""
         response = await test_client.get("/.well-known/jwks.json")
@@ -128,6 +136,7 @@ class TestTestEndpointsIntegration:
     """Test debugging/test endpoint integration."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_test_endpoint_integration(self, test_client: AsyncClient):
         """Test the test endpoint with full validation."""
         response = await test_client.get("/test")
@@ -144,6 +153,7 @@ class TestTestEndpointsIntegration:
         assert response.headers["content-type"] == "application/json"
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_test_json_endpoint_integration(self, test_client: AsyncClient):
         """Test JSON test endpoint with various payloads."""
         test_cases = [
@@ -169,6 +179,7 @@ class TestMiddlewareIntegration:
     """Test middleware behavior in integration scenarios."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_cors_middleware_integration(self, test_client: AsyncClient):
         """Test CORS middleware with various scenarios."""
         # Test preflight request
@@ -181,6 +192,7 @@ class TestMiddlewareIntegration:
         assert "access-control-allow-origin" in response.headers
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_process_time_header_integration(self, test_client: AsyncClient):
         """Test process time header across different endpoints."""
         endpoints = ["/health", "/ready", "/test", "/.well-known/openid-configuration"]
@@ -194,6 +206,7 @@ class TestMiddlewareIntegration:
             assert process_time < 10  # Should be reasonably fast
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_trusted_host_middleware_integration(self, test_client: AsyncClient):
         """Test trusted host middleware behavior."""
         # Test with default test client (should be trusted)
@@ -208,6 +221,7 @@ class TestErrorHandlingIntegration:
     """Test application-wide error handling."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_404_error_handling(self, test_client: AsyncClient):
         """Test 404 error handling for non-existent endpoints."""
         response = await test_client.get("/nonexistent-endpoint")
@@ -218,6 +232,7 @@ class TestErrorHandlingIntegration:
         assert data["detail"] == "Not Found"
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_method_not_allowed_handling(self, test_client: AsyncClient):
         """Test method not allowed error handling."""
         # Try POST on GET-only endpoint
@@ -229,6 +244,7 @@ class TestErrorHandlingIntegration:
         assert data["detail"] == "Method Not Allowed"
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_large_payload_handling(self, test_client: AsyncClient):
         """Test handling of large payloads."""
         # Create a reasonably large payload
@@ -245,6 +261,7 @@ class TestSecurityIntegration:
     """Test security-related integration scenarios."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_security_headers_integration(self, test_client: AsyncClient):
         """Test that security headers are properly set."""
         response = await test_client.get("/health")
@@ -262,6 +279,7 @@ class TestSecurityIntegration:
         assert headers["content-type"] == "application/json"
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_auth_endpoint_security(self, test_client: AsyncClient):
         """Test security of authentication endpoints."""
         # Test that protected endpoints require authentication
@@ -275,6 +293,7 @@ class TestSecurityIntegration:
             assert "Not authenticated" in data["detail"]
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_rate_limiting_security_integration(self, test_client: AsyncClient, mock_redis):
         """Test that rate limiting provides security protection."""
         # Simulate rate limit exceeded scenario
@@ -292,6 +311,7 @@ class TestPerformanceIntegration:
     """Test performance-related integration scenarios."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_concurrent_requests(self, test_client: AsyncClient):
         """Test handling of concurrent requests."""
         import asyncio
@@ -319,6 +339,7 @@ class TestPerformanceIntegration:
             assert process_time >= 0
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_response_time_consistency(self, test_client: AsyncClient):
         """Test that response times are consistent."""
         response_times = []

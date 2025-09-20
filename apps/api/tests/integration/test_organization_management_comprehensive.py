@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Comprehensive integration tests for organization management
 Tests organization CRUD, member management, RBAC, and billing integration
@@ -18,6 +21,7 @@ from app.models import User, UserStatus, OrganizationRole, Organization
 class TestOrganizationManagementEndpoints:
     """Test suite for organization management API endpoints"""
 
+    @pytest.mark.asyncio
     async def test_create_organization(self, test_client: AsyncClient):
         """Test creating a new organization"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -54,6 +58,7 @@ class TestOrganizationManagementEndpoints:
                 assert data["website"] == org_data["website"]
                 assert data["industry"] == org_data["industry"]
 
+    @pytest.mark.asyncio
     async def test_get_organization_details(self, test_client: AsyncClient):
         """Test getting organization details"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -82,6 +87,7 @@ class TestOrganizationManagementEndpoints:
                 assert data["name"] == "Test Company"
                 assert data["member_count"] == 5
 
+    @pytest.mark.asyncio
     async def test_update_organization(self, test_client: AsyncClient):
         """Test updating organization details"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -114,6 +120,7 @@ class TestOrganizationManagementEndpoints:
                 assert data["name"] == update_data["name"]
                 assert data["description"] == update_data["description"]
 
+    @pytest.mark.asyncio
     async def test_delete_organization(self, test_client: AsyncClient):
         """Test deleting an organization"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -138,6 +145,7 @@ class TestOrganizationManagementEndpoints:
                 data = response.json()
                 assert data["message"] == "Organization deleted successfully"
 
+    @pytest.mark.asyncio
     async def test_list_user_organizations(self, test_client: AsyncClient):
         """Test listing user's organizations"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -179,6 +187,7 @@ class TestOrganizationManagementEndpoints:
 class TestOrganizationMemberManagement:
     """Test suite for organization member management"""
 
+    @pytest.mark.asyncio
     async def test_invite_member(self, test_client: AsyncClient):
         """Test inviting a member to organization"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -215,6 +224,7 @@ class TestOrganizationMemberManagement:
                     assert data["email"] == invite_data["email"]
                     assert data["role"] == invite_data["role"]
 
+    @pytest.mark.asyncio
     async def test_accept_invitation(self, test_client: AsyncClient):
         """Test accepting an organization invitation"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -241,6 +251,7 @@ class TestOrganizationMemberManagement:
                 data = response.json()
                 assert data["message"] == "Invitation accepted successfully"
 
+    @pytest.mark.asyncio
     async def test_list_organization_members(self, test_client: AsyncClient):
         """Test listing organization members"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -284,6 +295,7 @@ class TestOrganizationMemberManagement:
                 assert data["members"][0]["role"] == "owner"
                 assert data["members"][1]["role"] == "admin"
 
+    @pytest.mark.asyncio
     async def test_update_member_role(self, test_client: AsyncClient):
         """Test updating a member's role"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -312,6 +324,7 @@ class TestOrganizationMemberManagement:
                 data = response.json()
                 assert data["message"] == "Member role updated successfully"
 
+    @pytest.mark.asyncio
     async def test_remove_member(self, test_client: AsyncClient):
         """Test removing a member from organization"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -336,6 +349,7 @@ class TestOrganizationMemberManagement:
                 data = response.json()
                 assert data["message"] == "Member removed successfully"
 
+    @pytest.mark.asyncio
     async def test_list_pending_invitations(self, test_client: AsyncClient):
         """Test listing pending invitations"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -374,6 +388,7 @@ class TestOrganizationMemberManagement:
                     data = response.json()
                     assert len(data["invitations"]) == 2
 
+    @pytest.mark.asyncio
     async def test_revoke_invitation(self, test_client: AsyncClient):
         """Test revoking a pending invitation"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -405,6 +420,7 @@ class TestOrganizationMemberManagement:
 class TestOrganizationRBAC:
     """Test suite for organization role-based access control"""
 
+    @pytest.mark.asyncio
     async def test_owner_permissions(self, test_client: AsyncClient):
         """Test that owners have full permissions"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -436,6 +452,7 @@ class TestOrganizationRBAC:
                     # Owner should have permission (mock success)
                     assert response.status_code in [200, 201]
 
+    @pytest.mark.asyncio
     async def test_admin_permissions(self, test_client: AsyncClient):
         """Test admin permissions and restrictions"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -466,6 +483,7 @@ class TestOrganizationRBAC:
                 )
                 assert delete_response.status_code == 403
 
+    @pytest.mark.asyncio
     async def test_member_permissions(self, test_client: AsyncClient):
         """Test member permissions and restrictions"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -495,6 +513,7 @@ class TestOrganizationRBAC:
                 )
                 assert update_response.status_code == 403
 
+    @pytest.mark.asyncio
     async def test_viewer_permissions(self, test_client: AsyncClient):
         """Test viewer permissions (read-only)"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -529,6 +548,7 @@ class TestOrganizationRBAC:
 
                     assert response.status_code == 403
 
+    @pytest.mark.asyncio
     async def test_non_member_access(self, test_client: AsyncClient):
         """Test that non-members cannot access organization"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -550,6 +570,7 @@ class TestOrganizationRBAC:
 class TestOrganizationSecurity:
     """Security tests for organization management"""
 
+    @pytest.mark.asyncio
     async def test_organization_isolation(self, test_client: AsyncClient):
         """Test that users cannot access other organizations' data"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -567,6 +588,7 @@ class TestOrganizationSecurity:
                 response = await test_client.get(f"/api/v1/organizations/{other_org_id}", headers=headers)
                 assert response.status_code == 403
 
+    @pytest.mark.asyncio
     async def test_invitation_token_security(self, test_client: AsyncClient):
         """Test invitation token security"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -594,6 +616,7 @@ class TestOrganizationSecurity:
                     )
                     assert response.status_code in [400, 404]
 
+    @pytest.mark.asyncio
     async def test_privilege_escalation_prevention(self, test_client: AsyncClient):
         """Test prevention of privilege escalation attacks"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -619,6 +642,7 @@ class TestOrganizationSecurity:
                 )
                 assert response.status_code == 403
 
+    @pytest.mark.asyncio
     async def test_bulk_operations_security(self, test_client: AsyncClient):
         """Test security of bulk operations"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -648,6 +672,7 @@ class TestOrganizationSecurity:
 class TestOrganizationEdgeCases:
     """Edge case tests for organization management"""
 
+    @pytest.mark.asyncio
     async def test_organization_name_conflicts(self, test_client: AsyncClient):
         """Test handling of organization name conflicts"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -668,6 +693,7 @@ class TestOrganizationEdgeCases:
                 response = await test_client.post("/api/v1/organizations", json=duplicate_name_data, headers=headers)
                 assert response.status_code in [400, 409]
 
+    @pytest.mark.asyncio
     async def test_large_organization_operations(self, test_client: AsyncClient):
         """Test operations on organizations with many members"""
         headers = {"Authorization": "Bearer valid_token_123"}
@@ -702,6 +728,7 @@ class TestOrganizationEdgeCases:
                 # Should handle large lists (possibly with pagination)
                 assert "members" in data
 
+    @pytest.mark.asyncio
     async def test_concurrent_member_operations(self, test_client: AsyncClient):
         """Test concurrent member management operations"""
         import asyncio

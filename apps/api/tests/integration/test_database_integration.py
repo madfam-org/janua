@@ -1,3 +1,7 @@
+from datetime import datetime, timedelta
+
+pytestmark = pytest.mark.asyncio
+
 """
 Integration tests for database operations
 """
@@ -15,6 +19,7 @@ class TestDatabaseIntegration:
     """Test database integration scenarios."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_database_connection_lifecycle(self):
         """Test complete database connection lifecycle."""
         # Test initialization
@@ -29,6 +34,7 @@ class TestDatabaseIntegration:
             mock_conn.execute.assert_called_once()
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_session_dependency_injection(self, test_db_session: AsyncSession):
         """Test database session dependency injection."""
         # Test that we can get a session
@@ -36,11 +42,12 @@ class TestDatabaseIntegration:
         assert session is not None
         
         # Test basic database operation
-        result = await session.execute(text("SELECT 1 as test"))
+        result = await await session.execute(text("SELECT 1 as test"))
         row = result.fetchone()
         assert row.test == 1
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_transaction_rollback(self, test_db_session: AsyncSession):
         """Test transaction rollback behavior."""
         # Start a transaction
@@ -48,7 +55,7 @@ class TestDatabaseIntegration:
         
         try:
             # Execute some operation
-            await test_db_session.execute(text("SELECT 1"))
+            await await test_db_session.execute(text("SELECT 1"))
             
             # Simulate error to trigger rollback
             raise Exception("Test error")
@@ -58,17 +65,18 @@ class TestDatabaseIntegration:
             await test_db_session.rollback()
         
         # Session should still be usable after rollback
-        result = await test_db_session.execute(text("SELECT 2 as test"))
+        result = await await test_db_session.execute(text("SELECT 2 as test"))
         row = result.fetchone()
         assert row.test == 2
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_concurrent_database_access(self, test_db_session: AsyncSession):
         """Test concurrent database access."""
         import asyncio
         
         async def db_operation(session: AsyncSession, value: int):
-            result = await session.execute(text(f"SELECT {value} as test"))
+            result = await await session.execute(text(f"SELECT {value} as test"))
             row = result.fetchone()
             return row.test
         
@@ -88,6 +96,7 @@ class TestDatabaseErrorHandling:
     """Test database error handling scenarios."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_connection_error_handling(self):
         """Test database connection error handling."""
         with patch('app.core.database.engine') as mock_engine:
@@ -97,18 +106,20 @@ class TestDatabaseErrorHandling:
                 await init_db()
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_query_error_handling(self, test_db_session: AsyncSession):
         """Test database query error handling."""
         with pytest.raises(Exception):
             # This should raise an error due to invalid SQL
-            await test_db_session.execute(text("INVALID SQL QUERY"))
+            await await test_db_session.execute(text("INVALID SQL QUERY"))
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_session_cleanup_on_error(self, test_db_session: AsyncSession):
         """Test that sessions are properly cleaned up after errors."""
         try:
             # Execute invalid operation
-            await test_db_session.execute(text("INVALID SQL"))
+            await await test_db_session.execute(text("INVALID SQL"))
         except Exception:
             pass
         
@@ -120,7 +131,7 @@ class TestDatabaseErrorHandling:
             pass  # Rollback might also fail, which is OK
         
         # We should be able to execute a simple query after cleanup
-        result = await test_db_session.execute(text("SELECT 1 as test"))
+        result = await await test_db_session.execute(text("SELECT 1 as test"))
         row = result.fetchone()
         assert row.test == 1
 
@@ -129,6 +140,7 @@ class TestDatabasePerformance:
     """Test database performance scenarios."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_query_performance(self, test_db_session: AsyncSession):
         """Test basic query performance."""
         import time
@@ -136,7 +148,7 @@ class TestDatabasePerformance:
         start_time = time.time()
         
         # Execute a simple query
-        result = await test_db_session.execute(text("SELECT 1 as test"))
+        result = await await test_db_session.execute(text("SELECT 1 as test"))
         row = result.fetchone()
         
         end_time = time.time()
@@ -145,6 +157,7 @@ class TestDatabasePerformance:
         assert (end_time - start_time) < 1.0  # Should complete within 1 second
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_multiple_queries_performance(self, test_db_session: AsyncSession):
         """Test performance of multiple sequential queries."""
         import time
@@ -153,7 +166,7 @@ class TestDatabasePerformance:
         
         # Execute multiple queries
         for i in range(10):
-            result = await test_db_session.execute(text(f"SELECT {i} as test"))
+            result = await await test_db_session.execute(text(f"SELECT {i} as test"))
             row = result.fetchone()
             assert row.test == i
         
@@ -167,6 +180,7 @@ class TestDatabaseConfiguration:
     """Test database configuration scenarios."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_database_settings_integration(self):
         """Test database settings integration."""
         from app.config import get_settings
@@ -181,6 +195,7 @@ class TestDatabaseConfiguration:
         assert "test" in settings.DATABASE_URL.lower() or "sqlite" in settings.DATABASE_URL.lower()
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_engine_configuration(self):
         """Test database engine configuration."""
         from app.core.database import engine
@@ -197,10 +212,11 @@ class TestDatabaseMigrations:
     """Test database migration scenarios."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_schema_creation(self, test_db_session: AsyncSession):
         """Test basic schema operations."""
         # Test creating a temporary table
-        await test_db_session.execute(text("""
+        await await test_db_session.execute(text("""
             CREATE TEMPORARY TABLE test_table (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL
@@ -208,12 +224,12 @@ class TestDatabaseMigrations:
         """))
         
         # Test inserting data
-        await test_db_session.execute(text("""
+        await await test_db_session.execute(text("""
             INSERT INTO test_table (id, name) VALUES (1, 'test')
         """))
         
         # Test querying data
-        result = await test_db_session.execute(text("""
+        result = await await test_db_session.execute(text("""
             SELECT id, name FROM test_table WHERE id = 1
         """))
         
@@ -221,13 +237,14 @@ class TestDatabaseMigrations:
         assert row.id == 1
         assert row.name == 'test'
         
-        await test_db_session.commit()
+        await await test_db_session.commit()
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_data_types_support(self, test_db_session: AsyncSession):
         """Test support for various data types."""
         # Create temporary table with various data types
-        await test_db_session.execute(text("""
+        await await test_db_session.execute(text("""
             CREATE TEMPORARY TABLE type_test (
                 id INTEGER,
                 text_field TEXT,
@@ -237,13 +254,13 @@ class TestDatabaseMigrations:
         """))
         
         # Insert data with various types
-        await test_db_session.execute(text("""
+        await await test_db_session.execute(text("""
             INSERT INTO type_test (id, text_field, bool_field, timestamp_field)
             VALUES (1, 'test_text', true, datetime('now'))
         """))
         
         # Query and validate data types
-        result = await test_db_session.execute(text("""
+        result = await await test_db_session.execute(text("""
             SELECT * FROM type_test WHERE id = 1
         """))
         
@@ -253,17 +270,18 @@ class TestDatabaseMigrations:
         assert row.bool_field is True
         assert row.timestamp_field is not None
         
-        await test_db_session.commit()
+        await await test_db_session.commit()
 
 
 class TestDatabaseSecurity:
     """Test database security scenarios."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_sql_injection_protection(self, test_db_session: AsyncSession):
         """Test protection against SQL injection."""
         # Create temporary table
-        await test_db_session.execute(text("""
+        await await test_db_session.execute(text("""
             CREATE TEMPORARY TABLE security_test (
                 id INTEGER PRIMARY KEY,
                 data TEXT
@@ -271,33 +289,34 @@ class TestDatabaseSecurity:
         """))
         
         # Insert safe data
-        await test_db_session.execute(
+        await await test_db_session.execute(
             text("INSERT INTO security_test (id, data) VALUES (:id, :data)"),
             {"id": 1, "data": "safe_data"}
         )
         
         # Try to insert potentially malicious data (should be safe with parameterized queries)
         malicious_data = "'; DROP TABLE security_test; --"
-        await test_db_session.execute(
+        await await test_db_session.execute(
             text("INSERT INTO security_test (id, data) VALUES (:id, :data)"),
             {"id": 2, "data": malicious_data}
         )
         
         # Table should still exist and contain both records
-        result = await test_db_session.execute(text("SELECT COUNT(*) as count FROM security_test"))
+        result = await await test_db_session.execute(text("SELECT COUNT(*) as count FROM security_test"))
         row = result.fetchone()
         assert row.count == 2
         
         # Malicious data should be stored as literal text, not executed
-        result = await test_db_session.execute(
+        result = await await test_db_session.execute(
             text("SELECT data FROM security_test WHERE id = 2")
         )
         row = result.fetchone()
         assert row.data == malicious_data
         
-        await test_db_session.commit()
+        await await test_db_session.commit()
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_connection_string_security(self):
         """Test that connection strings don't expose sensitive information."""
         from app.core.database import engine

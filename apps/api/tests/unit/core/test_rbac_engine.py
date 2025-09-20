@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Comprehensive tests for app.core.rbac_engine module
 """
@@ -120,7 +124,7 @@ class TestRBACEngine:
     @pytest.mark.asyncio
     async def test_check_permission_inactive_membership(self, rbac_engine, mock_session, mock_user_id, mock_org_id):
         """Test permission check when user membership is inactive"""
-        mock_membership = Mock()
+        mock_membership = AsyncMock()
         mock_membership.status = "suspended"
 
         with patch('app.core.rbac_engine.TenantContext') as mock_tenant:
@@ -142,7 +146,7 @@ class TestRBACEngine:
     @pytest.mark.asyncio
     async def test_check_permission_exact_match(self, rbac_engine, mock_session, mock_user_id, mock_org_id):
         """Test permission check with exact permission match"""
-        mock_membership = Mock()
+        mock_membership = AsyncMock()
         mock_membership.status = "active"
 
         with patch('app.core.rbac_engine.TenantContext') as mock_tenant:
@@ -170,7 +174,7 @@ class TestRBACEngine:
     @pytest.mark.asyncio
     async def test_check_permission_wildcard_match(self, rbac_engine, mock_session, mock_user_id, mock_org_id):
         """Test permission check with wildcard permission"""
-        mock_membership = Mock()
+        mock_membership = AsyncMock()
         mock_membership.status = "active"
 
         with patch('app.core.rbac_engine.TenantContext') as mock_tenant:
@@ -201,7 +205,7 @@ class TestRBACEngine:
     @pytest.mark.asyncio
     async def test_check_permission_admin_override(self, rbac_engine, mock_session, mock_user_id, mock_org_id):
         """Test permission check with admin override"""
-        mock_membership = Mock()
+        mock_membership = AsyncMock()
         mock_membership.status = "active"
 
         with patch('app.core.rbac_engine.TenantContext') as mock_tenant:
@@ -257,7 +261,7 @@ class TestRBACEngine:
     @pytest.mark.asyncio
     async def test_get_user_permissions_success(self, rbac_engine, mock_session, mock_user_id, mock_org_id):
         """Test successful get user permissions"""
-        mock_membership = Mock()
+        mock_membership = AsyncMock()
         expected_permissions = {"read:user", "write:project", "admin:*"}
 
         with patch('app.core.rbac_engine.TenantContext') as mock_tenant:
@@ -383,7 +387,7 @@ class TestRBACEngineIntegration:
         user_id = str(uuid4())
         org_id = str(uuid4())
 
-        mock_membership = Mock()
+        mock_membership = AsyncMock()
         mock_membership.status = "active"
 
         with patch('app.core.rbac_engine.TenantContext') as mock_tenant:
@@ -414,7 +418,7 @@ class TestRBACEngineIntegration:
         user_id = str(uuid4())
         org_id = str(uuid4())
 
-        mock_membership = Mock()
+        mock_membership = AsyncMock()
         mock_membership.status = "active"
 
         with patch('app.core.rbac_engine.TenantContext') as mock_tenant:

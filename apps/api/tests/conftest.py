@@ -49,7 +49,9 @@ TEST_ENV = {
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an event loop for the test session"""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    policy = asyncio.get_event_loop_policy()
+    loop = policy.new_event_loop()
+    asyncio.set_event_loop(loop)
     yield loop
     loop.close()
 
@@ -120,16 +122,74 @@ def mock_database():
 
 @pytest.fixture
 def mock_redis():
-    """Mock Redis connection"""
+    """Mock Redis connection with proper async support"""
     mock = AsyncMock()
     mock.get = AsyncMock(return_value=None)
     mock.set = AsyncMock(return_value=True)
     mock.setex = AsyncMock(return_value=True)
     mock.delete = AsyncMock(return_value=True)
     mock.exists = AsyncMock(return_value=0)
+    mock.hget = AsyncMock(return_value=None)
+    mock.hset = AsyncMock(return_value=1)
+    mock.hdel = AsyncMock(return_value=1)
+    mock.expire = AsyncMock(return_value=True)
+    mock.ttl = AsyncMock(return_value=-2)
+    mock.ping = AsyncMock(return_value=True)
+    mock.close = AsyncMock()
     return mock
+
+@pytest.fixture
+async def async_db_session():
+    """Mock async database session with proper async support"""
+    mock_session = AsyncMock(spec=AsyncSession)
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+    mock_session.refresh = AsyncMock()
+    mock_session.execute = AsyncMock()
+    mock_session.scalar = AsyncMock()
+    mock_session.scalars = AsyncMock()
+    mock_session.rollback = AsyncMock()
+    mock_session.close = AsyncMock()
+    mock_session.get = AsyncMock(return_value=None)
+    mock_session.merge = AsyncMock()
+    mock_session.flush = AsyncMock()
+    
+    # Mock for query results
+    mock_result = AsyncMock()
+    mock_result.scalar_one_or_none = AsyncMock(return_value=None)
+    mock_result.scalar_one = AsyncMock()
+    mock_result.all = AsyncMock(return_value=[])
+    mock_result.first = AsyncMock(return_value=None)
+    mock_session.execute.return_value = mock_result
+    
+    return mock_session
+
+@pytest.fixture
+def async_mock_factory():
+    """Factory for creating properly configured async mocks"""
+    def _create_async_mock(**kwargs):
+        mock = AsyncMock(**kwargs)
+        return mock
+    return _create_async_mock
 
 @pytest.fixture
 def anyio_backend():
     """Specify the async backend for pytest"""
     return 'asyncio'
+
+# Import and register fixtures from async_fixtures.py
+try:
+    from fixtures.async_fixtures import (
+        async_db_session,
+        async_redis_client,
+        async_http_client,
+        mock_jwt_service,
+        mock_auth_service,
+        async_event_loop
+    )
+except ImportError:
+    # Fallback if fixtures not found
+    @pytest.fixture
+    def async_redis_client():
+        """Fallback async redis client"""
+        return mock_redis()

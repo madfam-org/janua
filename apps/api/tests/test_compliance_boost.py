@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Test suite to boost compliance service coverage from 17% to 50%+
 Focuses on GDPR, audit logging, and data retention functionality
@@ -14,6 +17,7 @@ class TestComplianceServiceCoverage:
     """Comprehensive tests for compliance service"""
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_gdpr_data_export(self, mock_get_db):
         """Test GDPR data export functionality"""
         from app.services.compliance_service import ComplianceService
@@ -23,7 +27,7 @@ class TestComplianceServiceCoverage:
         mock_get_db.return_value.__aenter__.return_value = mock_session
 
         # Mock user data query result
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = {
             "id": "user_123",
             "email": "test@example.com",
@@ -40,6 +44,7 @@ class TestComplianceServiceCoverage:
         mock_session.execute.assert_called()
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_gdpr_data_deletion(self, mock_get_db):
         """Test GDPR right to be forgotten"""
         from app.services.compliance_service import ComplianceService
@@ -48,7 +53,7 @@ class TestComplianceServiceCoverage:
         mock_get_db.return_value.__aenter__.return_value = mock_session
 
         # Mock user lookup
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = Mock(id="user_123")
         mock_session.execute.return_value = mock_result
 
@@ -60,6 +65,7 @@ class TestComplianceServiceCoverage:
         assert mock_session.delete.called or mock_session.execute.called
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_data_anonymization(self, mock_get_db):
         """Test data anonymization for GDPR compliance"""
         from app.services.compliance_service import ComplianceService
@@ -84,6 +90,7 @@ class TestComplianceServiceCoverage:
             assert "@" not in anonymized["email"] or "***" in anonymized["email"]
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_consent_management(self, mock_get_db):
         """Test consent recording and retrieval"""
         from app.services.compliance_service import ComplianceService
@@ -103,7 +110,7 @@ class TestComplianceServiceCoverage:
         assert consent_result is True
 
         # Test consent retrieval
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalars.return_value.all.return_value = [
             {"type": "marketing", "granted": True},
             {"type": "analytics", "granted": False}
@@ -114,6 +121,7 @@ class TestComplianceServiceCoverage:
         assert consents is not None
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_data_retention_policy(self, mock_get_db):
         """Test data retention policy enforcement"""
         from app.services.compliance_service import ComplianceService
@@ -123,7 +131,7 @@ class TestComplianceServiceCoverage:
 
         # Mock old data query
         old_date = datetime.utcnow() - timedelta(days=365)
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalars.return_value.all.return_value = [
             Mock(id="old_1", created_at=old_date),
             Mock(id="old_2", created_at=old_date)
@@ -141,6 +149,7 @@ class TestComplianceServiceCoverage:
         assert mock_session.execute.called
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_audit_log_creation(self, mock_get_db):
         """Test audit log creation for compliance events"""
         from app.services.compliance_service import ComplianceService
@@ -164,6 +173,7 @@ class TestComplianceServiceCoverage:
         assert mock_session.commit.called
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_compliance_report_generation(self, mock_get_db):
         """Test compliance report generation"""
         from app.services.compliance_service import ComplianceService
@@ -172,7 +182,7 @@ class TestComplianceServiceCoverage:
         mock_get_db.return_value.__aenter__.return_value = mock_session
 
         # Mock various compliance metrics
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar.return_value = 42  # Mock count
         mock_session.execute.return_value = mock_result
 
@@ -188,6 +198,7 @@ class TestComplianceServiceCoverage:
         assert "total_requests" in report or report  # Basic validation
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_data_portability(self, mock_get_db):
         """Test data portability features for GDPR"""
         from app.services.compliance_service import ComplianceService
@@ -202,7 +213,7 @@ class TestComplianceServiceCoverage:
             "comments": [{"id": "comment_1", "text": "Nice"}]
         }
 
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = mock_user_data
         mock_session.execute.return_value = mock_result
 
@@ -234,6 +245,7 @@ class TestComplianceServiceCoverage:
         assert isinstance(is_valid, bool)
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_cross_border_compliance(self, mock_get_db):
         """Test cross-border data transfer compliance"""
         from app.services.compliance_service import ComplianceService
@@ -253,6 +265,7 @@ class TestComplianceServiceCoverage:
         assert isinstance(is_allowed, bool)
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_breach_notification(self, mock_get_db):
         """Test data breach notification system"""
         from app.services.compliance_service import ComplianceService
@@ -298,6 +311,7 @@ class TestComplianceServiceCoverage:
         mock_logger.info.assert_called()
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_lawful_basis_tracking(self, mock_get_db):
         """Test lawful basis for data processing"""
         from app.services.compliance_service import ComplianceService
@@ -318,6 +332,7 @@ class TestComplianceServiceCoverage:
         assert result is True
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_data_minimization(self, mock_get_db):
         """Test data minimization principle enforcement"""
         from app.services.compliance_service import ComplianceService
@@ -346,6 +361,7 @@ class TestComplianceServiceCoverage:
         assert "credit_card" not in minimized_data
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_purpose_limitation(self, mock_get_db):
         """Test purpose limitation compliance"""
         from app.services.compliance_service import ComplianceService

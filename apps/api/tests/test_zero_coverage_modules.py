@@ -1,3 +1,7 @@
+from httpx import AsyncClient
+
+pytestmark = pytest.mark.asyncio
+
 """
 Zero Coverage Module Tests
 Comprehensive tests for modules with 0% coverage to maximize coverage improvement

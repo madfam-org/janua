@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Ultimate test file to achieve 100% coverage through aggressive import mocking
 This file mocks ALL external dependencies upfront and imports ALL modules
@@ -267,14 +270,14 @@ class TestUltimate100Coverage:
         service.create_session = AsyncMock(return_value="session_123")
 
         # Execute async methods
-        await service.create_user(mock_session, {"email": "test@test.com"})
+        await await service.create_user(mock_session, {"email": "test@test.com"})
         await service.authenticate_user(mock_session, "test@test.com", "pass")
         await service.create_session(mock_session, "user_123")
 
     def test_all_routers(self):
         """Test all router modules"""
         from fastapi import FastAPI
-        from fastapi.testclient import TestClient
+        from httpx import AsyncClient
 
         # Import all routers
         from app.routers.v1 import (
@@ -292,10 +295,10 @@ class TestUltimate100Coverage:
         app.include_router(rbac.router)
 
         # Create test client
-        client = TestClient(app)
+        client = AsyncClient(app=app, base_url="http://test")
 
         # Test endpoints
-        response = client.get("/health")
+        response = await client.get("/health")
         assert response is not None
 
     def test_alerting_system_complete(self):

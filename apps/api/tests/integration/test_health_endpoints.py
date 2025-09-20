@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Integration tests for health and status endpoints
 """
@@ -14,6 +17,7 @@ class TestHealthEndpoints:
     """Test health check endpoints."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_client(self):
         """Create test client."""
         async with AsyncClient(app=app, base_url="http://test") as client:
@@ -154,6 +158,7 @@ class TestOpenIDEndpoints:
     """Test OpenID Connect endpoints."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_client(self):
         """Create test client."""
         async with AsyncClient(app=app, base_url="http://test") as client:
@@ -256,6 +261,7 @@ class TestTestEndpoints:
     """Test debugging/test endpoints."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_client(self):
         """Create test client."""
         async with AsyncClient(app=app, base_url="http://test") as client:

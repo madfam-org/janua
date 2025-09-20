@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Unit tests for Redis module
 """
@@ -14,6 +18,7 @@ class TestRedisInitialization:
     """Test Redis initialization functions."""
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_init_redis_success(self):
         """Test successful Redis initialization."""
         mock_redis = AsyncMock()
@@ -37,6 +42,7 @@ class TestRedisInitialization:
             mock_redis.ping.assert_called_once()
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_init_redis_connection_error(self):
         """Test Redis initialization with connection error."""
         mock_redis = AsyncMock()
@@ -51,6 +57,7 @@ class TestRedisInitialization:
             mock_logger.error.assert_called_once()
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_get_redis(self):
         """Test get_redis dependency function."""
         mock_redis = AsyncMock()
@@ -69,6 +76,7 @@ class TestRateLimiter:
         self.rate_limiter = RateLimiter(self.mock_redis)
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_check_rate_limit_within_limit(self):
         """Test rate limiting when within limit."""
         # Mock Redis responses
@@ -88,6 +96,7 @@ class TestRateLimiter:
         self.mock_redis.expire.assert_called_once_with("test:key", 60)
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_check_rate_limit_at_limit(self):
         """Test rate limiting when at the limit."""
         self.mock_redis.get.return_value = "10"  # At limit
@@ -103,6 +112,7 @@ class TestRateLimiter:
         self.mock_redis.incr.assert_not_called()
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_check_rate_limit_existing_count(self):
         """Test rate limiting with existing count."""
         self.mock_redis.get.return_value = "5"  # Existing count
@@ -120,6 +130,7 @@ class TestRateLimiter:
         self.mock_redis.expire.assert_not_called()
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_reset_rate_limit(self):
         """Test resetting rate limit."""
         self.mock_redis.delete.return_value = 1
@@ -130,6 +141,7 @@ class TestRateLimiter:
         self.mock_redis.delete.assert_called_once_with("test:key")
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_get_remaining_attempts(self):
         """Test getting remaining attempts."""
         self.mock_redis.get.return_value = "3"
@@ -140,6 +152,7 @@ class TestRateLimiter:
         self.mock_redis.get.assert_called_once_with("test:key")
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_get_remaining_attempts_no_key(self):
         """Test getting remaining attempts for non-existent key."""
         self.mock_redis.get.return_value = None
@@ -158,6 +171,7 @@ class TestSessionStore:
         self.session_store = SessionStore(self.mock_redis)
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_store_session(self):
         """Test storing a session."""
         session_data = {
@@ -184,6 +198,7 @@ class TestSessionStore:
         assert stored_data == session_data
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_get_session(self):
         """Test retrieving a session."""
         session_data = {
@@ -200,6 +215,7 @@ class TestSessionStore:
         self.mock_redis.get.assert_called_once_with("session:session_id")
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_get_session_not_found(self):
         """Test retrieving non-existent session."""
         self.mock_redis.get.return_value = None
@@ -209,6 +225,7 @@ class TestSessionStore:
         assert result is None
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_delete_session(self):
         """Test deleting a session."""
         self.mock_redis.delete.return_value = 1
@@ -219,6 +236,7 @@ class TestSessionStore:
         self.mock_redis.delete.assert_called_once_with("session:session_id")
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_delete_session_not_found(self):
         """Test deleting non-existent session."""
         self.mock_redis.delete.return_value = 0
@@ -228,6 +246,7 @@ class TestSessionStore:
         assert result is False
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_extend_session(self):
         """Test extending session TTL."""
         self.mock_redis.expire.return_value = True
@@ -238,6 +257,7 @@ class TestSessionStore:
         self.mock_redis.expire.assert_called_once_with("session:session_id", 7200)
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_get_all_user_sessions(self):
         """Test getting all sessions for a user."""
         keys = ["session:session1", "session:session2"]
@@ -258,6 +278,7 @@ class TestSessionStore:
         self.mock_redis.keys.assert_called_once_with("session:*")
     
     @pytest_asyncio.fixture
+    @pytest.mark.asyncio
     async def test_cleanup_expired_sessions(self):
         """Test cleanup of expired sessions."""
         # Mock expired session keys

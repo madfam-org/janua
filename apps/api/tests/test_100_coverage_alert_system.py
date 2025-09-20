@@ -1,3 +1,7 @@
+from httpx import AsyncClient
+
+pytestmark = pytest.mark.asyncio
+
 """
 Complete test coverage for alert system module (448 lines)
 Uses heavy mocking to achieve 100% statement coverage
@@ -65,6 +69,7 @@ class TestAlertSystemComplete:
         system.shutdown_scheduler()
         mock_scheduler_instance.shutdown.assert_called()
 
+    @pytest.mark.asyncio
     async def test_alert_creation_flow(self):
         """Test complete alert creation flow"""
         from app.alerting.alert_system import AlertSystem, Alert, AlertType
@@ -93,6 +98,7 @@ class TestAlertSystemComplete:
         system.store_alert.assert_called_with(alert)
         system.schedule_alert.assert_called_with("alert_123", alert)
 
+    @pytest.mark.asyncio
     async def test_alert_evaluation_logic(self):
         """Test alert evaluation logic"""
         from app.alerting.alert_system import AlertSystem, AlertEvaluator
@@ -132,6 +138,7 @@ class TestAlertSystemComplete:
 
     @patch('app.alerting.alert_system.smtplib')
     @patch('app.alerting.alert_system.SlackClient')
+    @pytest.mark.asyncio
     async def test_notification_channels(self, mock_slack, mock_smtp):
         """Test all notification channels"""
         from app.alerting.alert_system import NotificationManager
@@ -189,6 +196,7 @@ class TestAlertSystemComplete:
         manager.update_state("alert_123", AlertState.TRIGGERED)
         manager.update_state.assert_called_with("alert_123", AlertState.TRIGGERED)
 
+    @pytest.mark.asyncio
     async def test_alert_history_tracking(self):
         """Test alert history and audit logging"""
         from app.alerting.alert_system import AlertHistory, AlertAuditLogger
@@ -255,6 +263,7 @@ class TestAlertSystemComplete:
         exported = metrics.export()
         assert exported["alerts_triggered"] == 10
 
+    @pytest.mark.asyncio
     async def test_alert_grouping_and_deduplication(self):
         """Test alert grouping and deduplication logic"""
         from app.alerting.alert_system import AlertGrouper, AlertDeduplicator
@@ -280,6 +289,7 @@ class TestAlertSystemComplete:
         deduper.is_duplicate = Mock(return_value=True)
         assert deduper.is_duplicate("alert_duplicate")
 
+    @pytest.mark.asyncio
     async def test_alert_escalation_policies(self):
         """Test alert escalation policies"""
         from app.alerting.alert_system import EscalationPolicy, EscalationManager
@@ -332,6 +342,7 @@ class TestAlertSystemComplete:
         channels = router.get_channels({"severity": "critical"})
         assert "pagerduty" in channels
 
+    @pytest.mark.asyncio
     async def test_alert_suppression_and_silence(self):
         """Test alert suppression and silence windows"""
         from app.alerting.alert_system import AlertSuppressor, SilenceWindow
@@ -360,6 +371,7 @@ class TestAlertSystemComplete:
         )
         assert is_suppressed is False
 
+    @pytest.mark.asyncio
     async def test_alert_recovery_and_auto_resolve(self):
         """Test alert recovery and auto-resolution"""
         from app.alerting.alert_system import AlertRecovery, AutoResolver
@@ -416,6 +428,7 @@ class TestAlertSystemComplete:
         html = formatter.to_html(message)
         assert "<" in html and ">" in html
 
+    @pytest.mark.asyncio
     async def test_alert_dashboard_api(self):
         """Test alert dashboard API endpoints"""
         from app.alerting.alert_system import AlertDashboardAPI

@@ -1,3 +1,6 @@
+
+pytestmark = pytest.mark.asyncio
+
 """
 Comprehensive integration tests for service layer integrations
 Tests JWT, cache, email, billing, and other core services
@@ -23,6 +26,7 @@ from app.models import User, UserStatus
 class TestJWTServiceIntegration:
     """Integration tests for JWT service"""
 
+    @pytest.mark.asyncio
     async def test_jwt_token_lifecycle(self):
         """Test complete JWT token lifecycle"""
         jwt_service = JWTService()
@@ -55,6 +59,7 @@ class TestJWTServiceIntegration:
         assert decoded_refresh["user_id"] == user_data["user_id"]
         assert decoded_refresh["token_type"] == "refresh"
 
+    @pytest.mark.asyncio
     async def test_jwt_token_expiration(self):
         """Test JWT token expiration handling"""
         jwt_service = JWTService()
@@ -80,6 +85,7 @@ class TestJWTServiceIntegration:
             with pytest.raises(Exception):  # Should raise token expired exception
                 jwt_service.verify_token(token)
 
+    @pytest.mark.asyncio
     async def test_jwt_token_validation_security(self):
         """Test JWT token validation security"""
         jwt_service = JWTService()
@@ -97,6 +103,7 @@ class TestJWTServiceIntegration:
             with pytest.raises(Exception):
                 jwt_service.verify_token(invalid_token)
 
+    @pytest.mark.asyncio
     async def test_jwt_token_refresh_flow(self):
         """Test JWT token refresh flow"""
         jwt_service = JWTService()
@@ -120,6 +127,7 @@ class TestJWTServiceIntegration:
         assert decoded_new["user_id"] == user_data["user_id"]
         assert decoded_new["email"] == user_data["email"]
 
+    @pytest.mark.asyncio
     async def test_jwt_custom_claims(self):
         """Test JWT with custom claims"""
         jwt_service = JWTService()
@@ -144,6 +152,7 @@ class TestJWTServiceIntegration:
 class TestCacheServiceIntegration:
     """Integration tests for cache service"""
 
+    @pytest.mark.asyncio
     async def test_cache_basic_operations(self, mock_redis):
         """Test basic cache operations"""
         from app.services.cache import CacheService
@@ -164,6 +173,7 @@ class TestCacheServiceIntegration:
         await cache_service.delete("test_key")
         mock_redis.delete.assert_called_with("test_key")
 
+    @pytest.mark.asyncio
     async def test_cache_json_serialization(self, mock_redis):
         """Test cache JSON serialization"""
         from app.services.cache import CacheService
@@ -193,6 +203,7 @@ class TestCacheServiceIntegration:
         assert retrieved_data["permissions"] == complex_data["permissions"]
         assert retrieved_data["metadata"]["session_count"] == 5
 
+    @pytest.mark.asyncio
     async def test_cache_rate_limiting(self, mock_redis):
         """Test cache-based rate limiting"""
         from app.services.cache import CacheService
@@ -209,6 +220,7 @@ class TestCacheServiceIntegration:
         mock_redis.incr.assert_called_with("rate_limit:user:123")
         mock_redis.expire.assert_called_with("rate_limit:user:123", 60)
 
+    @pytest.mark.asyncio
     async def test_cache_session_management(self, mock_redis):
         """Test cache-based session management"""
         from app.services.cache import CacheService
@@ -240,6 +252,7 @@ class TestCacheServiceIntegration:
 class TestEmailServiceIntegration:
     """Integration tests for email service"""
 
+    @pytest.mark.asyncio
     async def test_email_service_initialization(self):
         """Test email service initialization"""
         email_service = EmailService()
@@ -247,6 +260,7 @@ class TestEmailServiceIntegration:
         # Test configuration loading
         assert hasattr(email_service, 'smtp_server') or hasattr(email_service, 'config')
 
+    @pytest.mark.asyncio
     async def test_verification_email_sending(self):
         """Test sending verification emails"""
         email_service = EmailService()
@@ -274,6 +288,7 @@ class TestEmailServiceIntegration:
             assert user_data["email"] in str(call_args)
             assert user_data["verification_token"] in str(call_args)
 
+    @pytest.mark.asyncio
     async def test_password_reset_email(self):
         """Test sending password reset emails"""
         email_service = EmailService()
@@ -296,6 +311,7 @@ class TestEmailServiceIntegration:
             assert result is True
             mock_send.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_magic_link_email(self):
         """Test sending magic link emails"""
         email_service = EmailService()
@@ -318,6 +334,7 @@ class TestEmailServiceIntegration:
             assert result is True
             mock_send.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_organization_invitation_email(self):
         """Test sending organization invitation emails"""
         email_service = EmailService()
@@ -344,6 +361,7 @@ class TestEmailServiceIntegration:
             assert result is True
             mock_send.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_email_template_rendering(self):
         """Test email template rendering"""
         email_service = EmailService()
@@ -361,6 +379,7 @@ class TestEmailServiceIntegration:
             assert rendered == "Rendered HTML content"
             mock_render.assert_called_once_with("verification_email.html", template_data)
 
+    @pytest.mark.asyncio
     async def test_email_delivery_failure_handling(self):
         """Test email delivery failure handling"""
         email_service = EmailService()
@@ -382,11 +401,13 @@ class TestEmailServiceIntegration:
 class TestBillingServiceIntegration:
     """Integration tests for billing service"""
 
+    @pytest.mark.asyncio
     async def test_billing_service_initialization(self):
         """Test billing service initialization"""
         billing_service = BillingService()
         assert billing_service is not None
 
+    @pytest.mark.asyncio
     async def test_subscription_creation(self):
         """Test creating a subscription"""
         billing_service = BillingService()
@@ -415,6 +436,7 @@ class TestBillingServiceIntegration:
             assert result["id"] == "sub_test_123"
             assert result["status"] == "active"
 
+    @pytest.mark.asyncio
     async def test_webhook_processing(self):
         """Test billing webhook processing"""
         billing_service = BillingService()
@@ -438,6 +460,7 @@ class TestBillingServiceIntegration:
             assert result is True
             mock_process.assert_called_once_with(webhook_data)
 
+    @pytest.mark.asyncio
     async def test_usage_tracking(self):
         """Test usage tracking for billing"""
         billing_service = BillingService()
@@ -461,6 +484,7 @@ class TestBillingServiceIntegration:
             assert result is True
             mock_track.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_invoice_generation(self):
         """Test invoice generation"""
         billing_service = BillingService()
@@ -494,6 +518,7 @@ class TestBillingServiceIntegration:
 class TestAuthServiceIntegration:
     """Integration tests for authentication service"""
 
+    @pytest.mark.asyncio
     async def test_user_registration_flow(self, test_db_session):
         """Test complete user registration flow"""
         auth_service = AuthService()
@@ -512,7 +537,7 @@ class TestAuthServiceIntegration:
             mock_user.status = UserStatus.ACTIVE
             mock_create.return_value = mock_user
 
-            result = await auth_service.create_user(
+            result = await await auth_service.create_user(
                 user_data["email"],
                 user_data["password"],
                 user_data["first_name"],
@@ -522,6 +547,7 @@ class TestAuthServiceIntegration:
             assert result.email == user_data["email"]
             assert result.status == UserStatus.ACTIVE
 
+    @pytest.mark.asyncio
     async def test_user_authentication_flow(self, test_db_session):
         """Test user authentication flow"""
         auth_service = AuthService()
@@ -547,6 +573,7 @@ class TestAuthServiceIntegration:
             assert result.email == credentials["email"]
             assert result.status == UserStatus.ACTIVE
 
+    @pytest.mark.asyncio
     async def test_session_management(self, test_db_session, mock_redis):
         """Test session management"""
         auth_service = AuthService()
@@ -580,6 +607,7 @@ class TestAuthServiceIntegration:
             assert refresh_token == mock_session_data["refresh_token"]
             assert session["id"] == mock_session_data["session_id"]
 
+    @pytest.mark.asyncio
     async def test_password_reset_flow(self, test_db_session):
         """Test password reset flow"""
         auth_service = AuthService()
@@ -600,6 +628,7 @@ class TestAuthServiceIntegration:
 
             assert result is True
 
+    @pytest.mark.asyncio
     async def test_email_verification_flow(self, test_db_session):
         """Test email verification flow"""
         auth_service = AuthService()
@@ -617,6 +646,7 @@ class TestAuthServiceIntegration:
 class TestServiceIntegrationEdgeCases:
     """Edge cases and error handling for service integrations"""
 
+    @pytest.mark.asyncio
     async def test_redis_connection_failure(self):
         """Test handling of Redis connection failures"""
         from app.services.cache import CacheService
@@ -632,6 +662,7 @@ class TestServiceIntegrationEdgeCases:
         result = await cache_service.get("test_key")
         assert result is None  # Should return None or default value
 
+    @pytest.mark.asyncio
     async def test_jwt_secret_rotation(self):
         """Test JWT secret key rotation"""
         jwt_service = JWTService()
@@ -654,6 +685,7 @@ class TestServiceIntegrationEdgeCases:
             with pytest.raises(Exception):
                 jwt_service.verify_token(token)
 
+    @pytest.mark.asyncio
     async def test_email_service_smtp_failure(self):
         """Test email service SMTP failure handling"""
         email_service = EmailService()
@@ -670,6 +702,7 @@ class TestServiceIntegrationEdgeCases:
             # Should handle SMTP failure gracefully
             assert result is False
 
+    @pytest.mark.asyncio
     async def test_billing_service_api_failure(self):
         """Test billing service API failure handling"""
         billing_service = BillingService()
@@ -686,6 +719,7 @@ class TestServiceIntegrationEdgeCases:
             # Should handle API failure gracefully
             assert result is None or "error" in result
 
+    @pytest.mark.asyncio
     async def test_concurrent_service_operations(self):
         """Test concurrent service operations"""
         import asyncio
@@ -714,6 +748,7 @@ class TestServiceIntegrationEdgeCases:
             decoded = jwt_service.verify_token(token)
             assert decoded["user_id"] == user_data["user_id"]
 
+    @pytest.mark.asyncio
     async def test_service_memory_usage(self):
         """Test service memory usage under load"""
         jwt_service = JWTService()

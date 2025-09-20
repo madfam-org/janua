@@ -1,9 +1,12 @@
+
 """
 Comprehensive test suite to achieve 100% coverage for Plinto API
 """
 
 import pytest
 import pytest_asyncio
+
+pytestmark = pytest.mark.asyncio
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timedelta
 import jwt
@@ -82,7 +85,7 @@ class TestCompleteAuthService:
         service.verify_password = AuthService.verify_password
 
         # Mock async methods that tests expect to exist
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.id = "user123"
         mock_user.email = "test@example.com"
         mock_user.first_name = "Test"
@@ -112,7 +115,7 @@ class TestCompleteAuthService:
         async def mock_reset_password(token, new_password, db):
             # Simulate finding and updating the user - fix async mock pattern
             mock_result = AsyncMock()
-            mock_user = Mock()
+            mock_user = AsyncMock()
             mock_result.scalar_one_or_none = Mock(return_value=mock_user)
             db.execute = AsyncMock(return_value=mock_result)
 
@@ -638,7 +641,7 @@ class TestCompleteAuditLogger:
         
         # Mock the database result object with scalar_one_or_none method
         # Return regular values, not coroutines, from scalar_one_or_none
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none = Mock(return_value=None)
         
         # Mock the specific database operations the audit logger uses

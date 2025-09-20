@@ -1,3 +1,7 @@
+from httpx import AsyncClient
+
+pytestmark = pytest.mark.asyncio
+
 """
 Integration tests for MVP features
 Tests organization members, RBAC, webhooks, and audit logging
@@ -22,9 +26,9 @@ def mock_db():
     db = Mock()
     db.query = Mock()
     db.add = Mock()
-    db.commit = Mock()
-    db.refresh = Mock()
-    db.rollback = Mock()
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
+    db.rollback = AsyncMock()
     return db
 
 

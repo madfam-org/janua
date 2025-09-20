@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Working unit tests for BillingService - matches actual implementation
 """
@@ -495,13 +499,13 @@ class TestUnifiedBillingInterface:
         billing = BillingService()
 
         # Mock tenant
-        mock_tenant = Mock()
+        mock_tenant = AsyncMock()
         mock_tenant.subscription_tier = "pro"
         mock_tenant.current_mau = 5000  # Within pro limit of 10,000
 
         mock_db = AsyncMock()
         # Mock database execute result
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = mock_tenant
         mock_db.execute.return_value = mock_result
 
@@ -519,13 +523,13 @@ class TestUnifiedBillingInterface:
         billing = BillingService()
 
         # Mock tenant
-        mock_tenant = Mock()
+        mock_tenant = AsyncMock()
         mock_tenant.subscription_tier = "pro"
         mock_tenant.current_mau = 15000  # Exceeds pro limit of 10,000
 
         mock_db = AsyncMock()
         # Mock database execute result
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = mock_tenant
         mock_db.execute.return_value = mock_result
 
@@ -545,7 +549,7 @@ class TestUnifiedBillingInterface:
 
         mock_db = AsyncMock()
         # Mock database execute result
-        mock_result = Mock()
+        mock_result = AsyncMock()
         mock_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_result
 
@@ -567,11 +571,11 @@ class TestWebhookHandlers:
         billing = BillingService()
 
         mock_db = AsyncMock()
-        mock_org = Mock()
+        mock_org = AsyncMock()
         mock_org.id = uuid4()
 
         # Mock database query - db.query() should return a sync object, but .first() should be async
-        mock_query_result = Mock()
+        mock_query_result = AsyncMock()
         mock_query_result.filter.return_value.first = AsyncMock(return_value=mock_org)
         mock_db.query = Mock(return_value=mock_query_result)
 
@@ -592,18 +596,18 @@ class TestWebhookHandlers:
         billing = BillingService()
 
         mock_db = AsyncMock()
-        mock_user = Mock()
+        mock_user = AsyncMock()
         mock_user.organization_id = uuid4()
-        mock_org = Mock()
+        mock_org = AsyncMock()
         mock_org.id = mock_user.organization_id
 
         # Mock database query results for two separate queries
         # Set up mock for User query: db.query(User).filter(...).first()
-        mock_user_query = Mock()
+        mock_user_query = AsyncMock()
         mock_user_query.filter.return_value.first = AsyncMock(return_value=mock_user)
 
         # Set up mock for Organization query: db.query(Organization).filter(...).first()
-        mock_org_query = Mock()
+        mock_org_query = AsyncMock()
         mock_org_query.filter.return_value.first = AsyncMock(return_value=mock_org)
 
         # db.query() itself should be sync, returning different mock objects

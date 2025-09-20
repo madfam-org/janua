@@ -1,3 +1,7 @@
+from httpx import AsyncClient
+
+pytestmark = pytest.mark.asyncio
+
 """
 Complete test coverage for models.py (350 lines) and SSO service (365 lines)
 Uses comprehensive mocking to achieve 100% statement coverage
@@ -385,6 +389,7 @@ class TestCompleteSSOService:
 
     @patch('app.services.sso_service.onelogin')
     @patch('app.services.sso_service.Saml2Config')
+    @pytest.mark.asyncio
     async def test_saml_sso_complete(self, mock_saml_config, mock_onelogin):
         """Test SAML SSO implementation"""
         from app.services.sso_service import SSOService, SAMLProvider
@@ -425,6 +430,7 @@ class TestCompleteSSOService:
         assert provider.entity_id in metadata
 
     @patch('app.services.sso_service.ldap3')
+    @pytest.mark.asyncio
     async def test_ldap_sso_complete(self, mock_ldap):
         """Test LDAP/AD SSO implementation"""
         from app.services.sso_service import SSOService, LDAPProvider
@@ -476,6 +482,7 @@ class TestCompleteSSOService:
         assert len(results) > 0
 
     @patch('app.services.sso_service.httpx')
+    @pytest.mark.asyncio
     async def test_oauth_sso_complete(self, mock_httpx):
         """Test OAuth 2.0 SSO implementation"""
         from app.services.sso_service import SSOService, OAuthProvider
@@ -572,6 +579,7 @@ class TestCompleteSSOService:
             assert user_info is not None
             assert "email" in user_info or "mail" in user_info
 
+    @pytest.mark.asyncio
     async def test_sso_session_management(self):
         """Test SSO session creation and management"""
         from app.services.sso_service import SSOService, SSOSession
@@ -606,6 +614,7 @@ class TestCompleteSSOService:
         is_valid = await service.validate_sso_session(session.token)
         assert is_valid is False
 
+    @pytest.mark.asyncio
     async def test_sso_user_provisioning(self):
         """Test automatic user provisioning via SSO"""
         from app.services.sso_service import SSOService, UserProvisioner
@@ -648,6 +657,7 @@ class TestCompleteSSOService:
         await provisioner.deprovision_user(user.id)
         assert user.is_active is False
 
+    @pytest.mark.asyncio
     async def test_sso_multi_factor_auth(self):
         """Test MFA integration with SSO"""
         from app.services.sso_service import SSOService, MFAProvider
@@ -677,6 +687,7 @@ class TestCompleteSSOService:
         )
         assert isinstance(is_valid, bool)
 
+    @pytest.mark.asyncio
     async def test_sso_audit_logging(self):
         """Test SSO audit logging"""
         from app.services.sso_service import SSOService, SSOAuditLogger

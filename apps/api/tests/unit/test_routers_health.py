@@ -1,3 +1,8 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
+
 """
 Tests for health router endpoints
 """

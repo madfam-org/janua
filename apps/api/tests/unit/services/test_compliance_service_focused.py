@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Focused compliance service test coverage
 Essential compliance functionality with working test patterns
@@ -31,8 +35,8 @@ class TestComplianceServiceBasics:
 
     def test_compliance_service_initialization(self):
         """Test compliance service initializes correctly"""
-        mock_db = Mock()
-        mock_audit_logger = Mock()
+        mock_db = AsyncMock()
+        mock_audit_logger = AsyncMock()
 
         service = ComplianceService(mock_db, mock_audit_logger)
         assert service is not None
@@ -44,8 +48,8 @@ class TestComplianceServiceBasics:
 
     def test_consent_service_initialization(self):
         """Test consent service initializes correctly"""
-        mock_db = Mock()
-        mock_audit_logger = Mock()
+        mock_db = AsyncMock()
+        mock_audit_logger = AsyncMock()
 
         service = ConsentService(mock_db, mock_audit_logger)
         assert service is not None
@@ -54,8 +58,8 @@ class TestComplianceServiceBasics:
 
     def test_data_subject_rights_service_initialization(self):
         """Test data subject rights service initializes correctly"""
-        mock_db = Mock()
-        mock_audit_logger = Mock()
+        mock_db = AsyncMock()
+        mock_audit_logger = AsyncMock()
 
         service = DataSubjectRightsService(mock_db, mock_audit_logger)
         assert service is not None
@@ -64,8 +68,8 @@ class TestComplianceServiceBasics:
 
     def test_data_retention_service_initialization(self):
         """Test data retention service initializes correctly"""
-        mock_db = Mock()
-        mock_audit_logger = Mock()
+        mock_db = AsyncMock()
+        mock_audit_logger = AsyncMock()
 
         service = DataRetentionService(mock_db, mock_audit_logger)
         assert service is not None
@@ -90,8 +94,8 @@ class TestComplianceScoring:
 
     def test_calculate_compliance_score_perfect(self):
         """Test compliance score calculation with perfect metrics"""
-        mock_db = Mock()
-        mock_audit_logger = Mock()
+        mock_db = AsyncMock()
+        mock_audit_logger = AsyncMock()
         service = ComplianceService(mock_db, mock_audit_logger)
 
         consent_metrics = {"given": 100, "withdrawn": 0}
@@ -107,8 +111,8 @@ class TestComplianceScoring:
 
     def test_calculate_compliance_score_with_overdue(self):
         """Test compliance score calculation with overdue requests"""
-        mock_db = Mock()
-        mock_audit_logger = Mock()
+        mock_db = AsyncMock()
+        mock_audit_logger = AsyncMock()
         service = ComplianceService(mock_db, mock_audit_logger)
 
         consent_metrics = {"given": 100, "withdrawn": 0}
@@ -124,8 +128,8 @@ class TestComplianceScoring:
 
     def test_calculate_compliance_score_with_breaches(self):
         """Test compliance score calculation with breaches"""
-        mock_db = Mock()
-        mock_audit_logger = Mock()
+        mock_db = AsyncMock()
+        mock_audit_logger = AsyncMock()
         service = ComplianceService(mock_db, mock_audit_logger)
 
         consent_metrics = {"given": 100, "withdrawn": 0}
@@ -141,8 +145,8 @@ class TestComplianceScoring:
 
     def test_calculate_compliance_score_high_withdrawal_rate(self):
         """Test compliance score calculation with high withdrawal rate"""
-        mock_db = Mock()
-        mock_audit_logger = Mock()
+        mock_db = AsyncMock()
+        mock_audit_logger = AsyncMock()
         service = ComplianceService(mock_db, mock_audit_logger)
 
         consent_metrics = {"given": 80, "withdrawn": 25}  # 25% withdrawal rate
@@ -158,8 +162,8 @@ class TestComplianceScoring:
 
     def test_calculate_compliance_score_multiple_issues(self):
         """Test compliance score calculation with multiple issues"""
-        mock_db = Mock()
-        mock_audit_logger = Mock()
+        mock_db = AsyncMock()
+        mock_audit_logger = AsyncMock()
         service = ComplianceService(mock_db, mock_audit_logger)
 
         consent_metrics = {"given": 80, "withdrawn": 25}  # 25% withdrawal rate
@@ -176,8 +180,8 @@ class TestComplianceScoring:
 
     def test_calculate_compliance_score_minimum_zero(self):
         """Test compliance score never goes below zero"""
-        mock_db = Mock()
-        mock_audit_logger = Mock()
+        mock_db = AsyncMock()
+        mock_audit_logger = AsyncMock()
         service = ComplianceService(mock_db, mock_audit_logger)
 
         consent_metrics = {"given": 20, "withdrawn": 80}  # Very high withdrawal
@@ -358,16 +362,16 @@ class TestComplianceIntegration:
         service = ComplianceService(mock_db, mock_audit_logger)
 
         # Mock database responses
-        mock_consent_result = Mock()
+        mock_consent_result = AsyncMock()
         mock_consent_result.fetchall.return_value = [("given", 50), ("withdrawn", 5)]
 
-        mock_dsr_result = Mock()
+        mock_dsr_result = AsyncMock()
         mock_dsr_result.fetchall.return_value = [("received", 10), ("completed", 8)]
 
-        mock_breach_result = Mock()
+        mock_breach_result = AsyncMock()
         mock_breach_result.scalar.return_value = 2
 
-        mock_overdue_result = Mock()
+        mock_overdue_result = AsyncMock()
         mock_overdue_result.scalar.return_value = 1
 
         mock_db.execute.side_effect = [

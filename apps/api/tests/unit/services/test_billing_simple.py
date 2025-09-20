@@ -1,3 +1,7 @@
+import pytest
+pytestmark = pytest.mark.asyncio
+
+
 """
 Unit tests for BillingService - simplified to match actual implementation
 """
@@ -107,7 +111,7 @@ class TestConektaIntegration:
         }
 
         with patch('httpx.AsyncClient') as mock_client:
-            mock_response = Mock()
+            mock_response = AsyncMock()
             mock_response.json = AsyncMock(return_value=mock_subscription)
             mock_response.raise_for_status = Mock()
             mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
@@ -219,7 +223,7 @@ class TestFungiesIntegration:
         }
 
         with patch('httpx.AsyncClient') as mock_client:
-            mock_response = Mock()
+            mock_response = AsyncMock()
             mock_response.json = AsyncMock(return_value=mock_subscription)
             mock_response.raise_for_status = Mock()
             mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)

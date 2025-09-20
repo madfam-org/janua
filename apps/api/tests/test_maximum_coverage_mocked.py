@@ -63,6 +63,7 @@ class TestMaximumCoverage:
         assert True  # All imports successful
 
     @patch('app.services.auth_service.get_db')
+    @pytest.mark.asyncio
     async def test_auth_service_full_coverage(self, mock_db):
         """Cover all auth service methods"""
         from app.services.auth_service import AuthService
@@ -77,7 +78,7 @@ class TestMaximumCoverage:
         service.hash_password("password")
         service.verify_password("password", "hash")
 
-        await service.create_user(mock_session, {
+        await await service.create_user(mock_session, {
             "email": "test@example.com",
             "password": "password123"
         })
@@ -117,6 +118,7 @@ class TestMaximumCoverage:
         service.revoke_all_user_tokens = AsyncMock()
 
     @patch('app.services.monitoring.get_db')
+    @pytest.mark.asyncio
     async def test_monitoring_service_coverage(self, mock_db):
         """Cover monitoring service"""
         from app.services.monitoring import MonitoringService
@@ -136,6 +138,7 @@ class TestMaximumCoverage:
         service.check_thresholds()
 
     @patch('app.services.billing_service.stripe')
+    @pytest.mark.asyncio
     async def test_billing_service_coverage(self, mock_stripe):
         """Cover billing service"""
         from app.services.billing_service import BillingService
@@ -155,6 +158,7 @@ class TestMaximumCoverage:
         service.generate_invoice = AsyncMock()
 
     @patch('app.services.compliance_service.get_db')
+    @pytest.mark.asyncio
     async def test_compliance_service_coverage(self, mock_db):
         """Cover compliance service"""
         from app.services.compliance_service import ComplianceService
@@ -178,6 +182,7 @@ class TestMaximumCoverage:
         await service.get_user_consents("user_123")
 
     @patch('app.services.oauth.httpx.AsyncClient')
+    @pytest.mark.asyncio
     async def test_oauth_service_coverage(self, mock_httpx):
         """Cover OAuth service"""
         from app.services.oauth import OAuthService
@@ -199,6 +204,7 @@ class TestMaximumCoverage:
         await service.refresh_access_token("google", "refresh_token", "client_id", "secret")
 
     @patch('app.middleware.rate_limit.redis')
+    @pytest.mark.asyncio
     async def test_middleware_coverage(self, mock_redis):
         """Cover middleware modules"""
         from app.middleware.rate_limit import RateLimitMiddleware
@@ -226,7 +232,7 @@ class TestMaximumCoverage:
     def test_router_coverage(self):
         """Cover router modules"""
         from fastapi import FastAPI
-        from fastapi.testclient import TestClient
+        from httpx import AsyncClient
 
         # Import routers to execute module-level code
         from app.routers.v1 import health, webhooks, compliance, rbac
@@ -237,16 +243,16 @@ class TestMaximumCoverage:
         app.include_router(compliance.router)
         app.include_router(rbac.router)
 
-        client = TestClient(app)
+        client = AsyncClient(app=app, base_url="http://test")
 
         # Test health endpoint
-        response = client.get("/health")
+        response = await client.get("/health")
         assert response is not None
 
         # Test other endpoints with mocked dependencies
         with patch('app.routers.v1.webhooks.WebhookService') as mock_service:
             mock_service.return_value.process_webhook = AsyncMock()
-            response = client.post("/webhooks/stripe", json={})
+            response = await client.post("/webhooks/stripe", json={})
 
     def test_model_coverage(self):
         """Cover model definitions"""
