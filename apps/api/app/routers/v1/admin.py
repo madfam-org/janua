@@ -5,7 +5,7 @@ Admin API endpoints for system management
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_, desc
+from sqlalchemy import func, and_, or_, desc, select, update
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta
 import uuid
@@ -117,44 +117,64 @@ async def get_admin_stats(
 ):
     """Get admin statistics"""
     check_admin_permission(current_user)
-    
+
     # User statistics
-    total_users = db.query(func.count(User.id)).scalar()
-    active_users = db.query(func.count(User.id)).filter(
+    result = await db.execute(select(func.count(User.id)))
+    total_users = result.scalar()
+
+    result = await db.execute(select(func.count(User.id)).where(
         User.status == UserStatus.ACTIVE
-    ).scalar()
-    suspended_users = db.query(func.count(User.id)).filter(
+    ))
+    active_users = result.scalar()
+
+    result = await db.execute(select(func.count(User.id)).where(
         User.status == UserStatus.SUSPENDED
-    ).scalar()
-    deleted_users = db.query(func.count(User.id)).filter(
+    ))
+    suspended_users = result.scalar()
+
+    result = await db.execute(select(func.count(User.id)).where(
         User.status == UserStatus.DELETED
-    ).scalar()
-    
+    ))
+    deleted_users = result.scalar()
+
     # Organization statistics
-    total_organizations = db.query(func.count(Organization.id)).scalar()
-    
+    result = await db.execute(select(func.count(Organization.id)))
+    total_organizations = result.scalar()
+
     # Session statistics
-    total_sessions = db.query(func.count(UserSession.id)).scalar()
-    active_sessions = db.query(func.count(UserSession.id)).filter(
+    result = await db.execute(select(func.count(UserSession.id)))
+    total_sessions = result.scalar()
+
+    result = await db.execute(select(func.count(UserSession.id)).where(
         UserSession.revoked == False,
         UserSession.expires_at > datetime.utcnow()
-    ).scalar()
-    
+    ))
+    active_sessions = result.scalar()
+
     # Security statistics
-    mfa_enabled_users = db.query(func.count(User.id)).filter(
+    result = await db.execute(select(func.count(User.id)).where(
         User.mfa_enabled == True
-    ).scalar()
-    oauth_accounts = db.query(func.count(OAuthAccount.id)).scalar()
-    passkeys_registered = db.query(func.count(Passkey.id)).scalar()
-    
+    ))
+    mfa_enabled_users = result.scalar()
+
+    result = await db.execute(select(func.count(OAuthAccount.id)))
+    oauth_accounts = result.scalar()
+
+    result = await db.execute(select(func.count(Passkey.id)))
+    passkeys_registered = result.scalar()
+
     # Recent activity
     last_24h = datetime.utcnow() - timedelta(hours=24)
-    users_last_24h = db.query(func.count(User.id)).filter(
+
+    result = await db.execute(select(func.count(User.id)).where(
         User.created_at >= last_24h
-    ).scalar()
-    sessions_last_24h = db.query(func.count(UserSession.id)).filter(
+    ))
+    users_last_24h = result.scalar()
+
+    result = await db.execute(select(func.count(UserSession.id)).where(
         UserSession.created_at >= last_24h
-    ).scalar()
+    ))
+    sessions_last_24h = result.scalar()
     
     return AdminStatsResponse(
         total_users=total_users,
@@ -224,12 +244,13 @@ async def list_all_users(
 ):
     """List all users (admin only)"""
     check_admin_permission(current_user)
-    
-    query = db.query(User)
-    
+
+    # Build query
+    stmt = select(User)
+
     # Apply filters
     if search:
-        query = query.filter(
+        stmt = stmt.where(
             or_(
                 User.email.ilike(f"%{search}%"),
                 User.first_name.ilike(f"%{search}%"),
@@ -237,40 +258,47 @@ async def list_all_users(
                 User.username.ilike(f"%{search}%")
             )
         )
-    
+
     if status:
-        query = query.filter(User.status == status)
-    
+        stmt = stmt.where(User.status == status)
+
     if mfa_enabled is not None:
-        query = query.filter(User.mfa_enabled == mfa_enabled)
-    
+        stmt = stmt.where(User.mfa_enabled == mfa_enabled)
+
     if is_admin is not None:
-        query = query.filter(User.is_admin == is_admin)
-    
+        stmt = stmt.where(User.is_admin == is_admin)
+
     # Apply pagination
     offset = (page - 1) * per_page
-    users = query.offset(offset).limit(per_page).all()
+    stmt = stmt.offset(offset).limit(per_page)
+
+    result_set = await db.execute(stmt)
+    users = result_set.scalars().all()
     
     # Build response
     result = []
     for user in users:
         # Get additional counts
-        orgs_count = db.query(func.count(organization_members.c.organization_id)).filter(
+        orgs_result = await db.execute(select(func.count(organization_members.c.organization_id)).where(
             organization_members.c.user_id == user.id
-        ).scalar()
-        
-        sessions_count = db.query(func.count(UserSession.id)).filter(
+        ))
+        orgs_count = orgs_result.scalar()
+
+        sessions_result = await db.execute(select(func.count(UserSession.id)).where(
             UserSession.user_id == user.id,
             UserSession.revoked == False
-        ).scalar()
-        
-        oauth_providers = db.query(OAuthAccount.provider).filter(
+        ))
+        sessions_count = sessions_result.scalar()
+
+        oauth_result = await db.execute(select(OAuthAccount.provider).where(
             OAuthAccount.user_id == user.id
-        ).all()
-        
-        passkeys_count = db.query(func.count(Passkey.id)).filter(
+        ))
+        oauth_providers = oauth_result.scalars().all()
+
+        passkeys_result = await db.execute(select(func.count(Passkey.id)).where(
             Passkey.user_id == user.id
-        ).scalar()
+        ))
+        passkeys_count = passkeys_result.scalar()
         
         result.append(UserAdminResponse(
             id=str(user.id),
@@ -303,16 +331,17 @@ async def update_user_admin(
 ):
     """Update user as admin"""
     check_admin_permission(current_user)
-    
+
     try:
         user_uuid = uuid.UUID(user_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user ID")
-    
-    user = db.query(User).filter(User.id == user_uuid).first()
+
+    user_result = await db.execute(select(User).where(User.id == user_uuid))
+    user = user_result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     # Prevent self-demotion
     if user.id == current_user.id and request.is_admin == False:
         raise HTTPException(status_code=400, detail="Cannot remove your own admin privileges")
@@ -323,9 +352,11 @@ async def update_user_admin(
         
         # Revoke sessions if suspending/deleting
         if request.status in [UserStatus.SUSPENDED, UserStatus.DELETED]:
-            db.query(UserSession).filter(
-                UserSession.user_id == user.id
-            ).update({"revoked": True})
+            await db.execute(
+                update(UserSession)
+                .where(UserSession.user_id == user.id)
+                .values(revoked=True)
+            )
     
     if request.is_admin is not None:
         user.is_admin = request.is_admin
@@ -349,16 +380,17 @@ async def delete_user_admin(
 ):
     """Delete user as admin"""
     check_admin_permission(current_user)
-    
+
     try:
         user_uuid = uuid.UUID(user_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user ID")
-    
-    user = db.query(User).filter(User.id == user_uuid).first()
+
+    user_result = await db.execute(select(User).where(User.id == user_uuid))
+    user = user_result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     # Prevent self-deletion
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
@@ -370,11 +402,13 @@ async def delete_user_admin(
         # Soft delete
         user.status = UserStatus.DELETED
         user.email = f"deleted_{user.id}_{user.email}"
-        
+
         # Revoke all sessions
-        db.query(UserSession).filter(
-            UserSession.user_id == user.id
-        ).update({"revoked": True})
+        await db.execute(
+            update(UserSession)
+            .where(UserSession.user_id == user.id)
+            .values(revoked=True)
+        )
     
     await db.commit()
     
@@ -392,33 +426,40 @@ async def list_all_organizations(
 ):
     """List all organizations (admin only)"""
     check_admin_permission(current_user)
-    
-    query = db.query(Organization).join(User, Organization.owner_id == User.id)
-    
+
+    # Build query
+    stmt = select(Organization).join(User, Organization.owner_id == User.id)
+
     # Apply filters
     if search:
-        query = query.filter(
+        stmt = stmt.where(
             or_(
                 Organization.name.ilike(f"%{search}%"),
                 Organization.slug.ilike(f"%{search}%"),
                 User.email.ilike(f"%{search}%")
             )
         )
-    
+
     if billing_plan:
-        query = query.filter(Organization.billing_plan == billing_plan)
-    
+        stmt = stmt.where(Organization.billing_plan == billing_plan)
+
     # Apply pagination
     offset = (page - 1) * per_page
-    organizations = query.offset(offset).limit(per_page).all()
+    stmt = stmt.offset(offset).limit(per_page)
+
+    result_set = await db.execute(stmt)
+    organizations = result_set.scalars().all()
     
     # Build response
     result = []
     for org in organizations:
-        owner = db.query(User).filter(User.id == org.owner_id).first()
-        members_count = db.query(func.count(organization_members.c.user_id)).filter(
+        owner_result = await db.execute(select(User).where(User.id == org.owner_id))
+        owner = owner_result.scalar_one_or_none()
+
+        members_result = await db.execute(select(func.count(organization_members.c.user_id)).where(
             organization_members.c.organization_id == org.id
-        ).scalar()
+        ))
+        members_count = members_result.scalar()
         
         result.append(OrganizationAdminResponse(
             id=str(org.id),
@@ -444,13 +485,14 @@ async def delete_organization_admin(
 ):
     """Delete organization as admin"""
     check_admin_permission(current_user)
-    
+
     try:
         org_uuid = uuid.UUID(org_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization ID")
-    
-    org = db.query(Organization).filter(Organization.id == org_uuid).first()
+
+    org_result = await db.execute(select(Organization).where(Organization.id == org_uuid))
+    org = org_result.scalar_one_or_none()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
@@ -474,37 +516,42 @@ async def get_activity_logs(
 ):
     """Get activity logs (admin only)"""
     check_admin_permission(current_user)
-    
-    query = db.query(ActivityLog).join(User, ActivityLog.user_id == User.id)
-    
+
+    # Build query
+    stmt = select(ActivityLog).join(User, ActivityLog.user_id == User.id)
+
     # Apply filters
     if user_id:
         try:
             user_uuid = uuid.UUID(user_id)
-            query = query.filter(ActivityLog.user_id == user_uuid)
+            stmt = stmt.where(ActivityLog.user_id == user_uuid)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid user ID")
-    
+
     if action:
-        query = query.filter(ActivityLog.action == action)
-    
+        stmt = stmt.where(ActivityLog.action == action)
+
     if start_date:
-        query = query.filter(ActivityLog.created_at >= start_date)
-    
+        stmt = stmt.where(ActivityLog.created_at >= start_date)
+
     if end_date:
-        query = query.filter(ActivityLog.created_at <= end_date)
-    
+        stmt = stmt.where(ActivityLog.created_at <= end_date)
+
     # Order by most recent first
-    query = query.order_by(desc(ActivityLog.created_at))
-    
+    stmt = stmt.order_by(desc(ActivityLog.created_at))
+
     # Apply pagination
     offset = (page - 1) * per_page
-    logs = query.offset(offset).limit(per_page).all()
+    stmt = stmt.offset(offset).limit(per_page)
+
+    result_set = await db.execute(stmt)
+    logs = result_set.scalars().all()
     
     # Build response
     result = []
     for log in logs:
-        user = db.query(User).filter(User.id == log.user_id).first()
+        user_result = await db.execute(select(User).where(User.id == log.user_id))
+        user = user_result.scalar_one_or_none()
         
         result.append(ActivityLogResponse(
             id=str(log.id),
@@ -528,22 +575,30 @@ async def revoke_all_sessions_admin(
 ):
     """Revoke all sessions (optionally for specific user)"""
     check_admin_permission(current_user)
-    
+
     if user_id:
         try:
             user_uuid = uuid.UUID(user_id)
-            count = db.query(UserSession).filter(
-                UserSession.user_id == user_uuid,
-                UserSession.revoked == False
-            ).update({"revoked": True})
+            result = await db.execute(
+                update(UserSession)
+                .where(
+                    UserSession.user_id == user_uuid,
+                    UserSession.revoked == False
+                )
+                .values(revoked=True)
+            )
+            count = result.rowcount
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid user ID")
     else:
         # Revoke all sessions except admin's current session
         # TODO: Get current session ID from token
-        count = db.query(UserSession).filter(
-            UserSession.revoked == False
-        ).update({"revoked": True})
+        result = await db.execute(
+            update(UserSession)
+            .where(UserSession.revoked == False)
+            .values(revoked=True)
+        )
+        count = result.rowcount
     
     await db.commit()
     

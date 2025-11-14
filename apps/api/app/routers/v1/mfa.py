@@ -5,6 +5,7 @@ Multi-Factor Authentication (MFA/TOTP) endpoints
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta
 import pyotp
@@ -116,10 +117,11 @@ async def get_mfa_status(
         ) if isinstance(current_user.mfa_backup_codes, list) else len(current_user.mfa_backup_codes)
     
     # Get last MFA usage from activity logs
-    last_mfa_activity = db.query(ActivityLog).filter(
+    result = await db.execute(select(ActivityLog).where(
         ActivityLog.user_id == current_user.id,
         ActivityLog.action.in_(["mfa_verify", "mfa_backup_code_used"])
-    ).order_by(ActivityLog.created_at.desc()).first()
+    ).order_by(ActivityLog.created_at.desc()))
+    last_mfa_activity = result.scalars().first()
     
     return MFAStatusResponse(
         enabled=current_user.mfa_enabled,
@@ -390,10 +392,11 @@ async def get_recovery_options(
 ):
     """Get MFA recovery options for a user (public endpoint)"""
     # Find user by email
-    user = db.query(User).filter(
+    result = await db.execute(select(User).where(
         User.email == email,
         User.status == UserStatus.ACTIVE
-    ).first()
+    ))
+    user = result.scalar_one_or_none()
     
     if not user:
         # Don't reveal if user exists
@@ -428,10 +431,11 @@ async def initiate_mfa_recovery(
 ):
     """Initiate MFA recovery process"""
     # Find user by email
-    user = db.query(User).filter(
+    result = await db.execute(select(User).where(
         User.email == email,
         User.status == UserStatus.ACTIVE
-    ).first()
+    ))
+    user = result.scalar_one_or_none()
     
     if not user or not user.mfa_enabled:
         # Don't reveal if user exists or has MFA

@@ -5,7 +5,7 @@ Invitation management API endpoints.
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, select, func
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_org_admin
@@ -90,38 +90,57 @@ async def list_invitations(
     """
     List invitations for organizations the user has access to.
     """
-    query = db.query(Invitation).filter(
+    stmt = select(Invitation).where(
         Invitation.tenant_id == current_user.tenant_id
     )
-    
+
     # Filter by organization if specified
     if organization_id:
-        query = query.filter(Invitation.organization_id == organization_id)
+        stmt = stmt.where(Invitation.organization_id == organization_id)
     else:
         # Get user's organizations
         user_orgs = current_user.get_organizations()
         org_ids = [org.id for org in user_orgs]
         if org_ids:
-            query = query.filter(Invitation.organization_id.in_(org_ids))
-    
+            stmt = stmt.where(Invitation.organization_id.in_(org_ids))
+
     # Filter by status
     if status:
-        query = query.filter(Invitation.status == status.value)
-    
+        stmt = stmt.where(Invitation.status == status.value)
+
     # Filter by email
     if email:
-        query = query.filter(Invitation.email.ilike(f"%{email}%"))
-    
+        stmt = stmt.where(Invitation.email.ilike(f"%{email}%"))
+
     # Get total count
-    total = query.count()
-    
+    count_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
+    total = count_result.scalar()
+
     # Get status counts
-    pending_count = query.filter(Invitation.status == InvitationStatus.PENDING.value).count()
-    accepted_count = query.filter(Invitation.status == InvitationStatus.ACCEPTED.value).count()
-    expired_count = query.filter(Invitation.status == InvitationStatus.EXPIRED.value).count()
-    
+    pending_result = await db.execute(
+        select(func.count()).select_from(
+            stmt.where(Invitation.status == InvitationStatus.PENDING.value).subquery()
+        )
+    )
+    pending_count = pending_result.scalar()
+
+    accepted_result = await db.execute(
+        select(func.count()).select_from(
+            stmt.where(Invitation.status == InvitationStatus.ACCEPTED.value).subquery()
+        )
+    )
+    accepted_count = accepted_result.scalar()
+
+    expired_result = await db.execute(
+        select(func.count()).select_from(
+            stmt.where(Invitation.status == InvitationStatus.EXPIRED.value).subquery()
+        )
+    )
+    expired_count = expired_result.scalar()
+
     # Get paginated results
-    invitations = query.order_by(Invitation.created_at.desc()).offset(skip).limit(limit).all()
+    result = await db.execute(stmt.order_by(Invitation.created_at.desc()).offset(skip).limit(limit))
+    invitations = result.scalars().all()
     
     # Convert to response models
     invitation_responses = []
@@ -158,12 +177,13 @@ async def get_invitation(
     """
     Get a specific invitation by ID.
     """
-    invitation = db.query(Invitation).filter(
+    result = await db.execute(select(Invitation).where(
         and_(
             Invitation.id == invitation_id,
             Invitation.tenant_id == current_user.tenant_id
         )
-    ).first()
+    ))
+    invitation = result.scalar_one_or_none()
     
     if not invitation:
         raise HTTPException(
@@ -196,12 +216,13 @@ async def update_invitation(
     """
     Update a pending invitation (org admin only).
     """
-    invitation = db.query(Invitation).filter(
+    result = await db.execute(select(Invitation).where(
         and_(
             Invitation.id == invitation_id,
             Invitation.tenant_id == current_user.tenant_id
         )
-    ).first()
+    ))
+    invitation = result.scalar_one_or_none()
     
     if not invitation:
         raise HTTPException(
@@ -311,10 +332,11 @@ async def accept_invitation(
         # Get user if user_id provided
         user = None
         if accept_data.user_id:
-            user = db.query(User).filter(
+            result = await db.execute(select(User).where(
                 User.id == accept_data.user_id
-            ).first()
-            
+            ))
+            user = result.scalar_one_or_none()
+
             if not user:
                 raise ValueError("User not found")
         
@@ -351,9 +373,10 @@ async def validate_invitation_token(
     """
     Validate an invitation token and get details.
     """
-    invitation = db.query(Invitation).filter(
+    result = await db.execute(select(Invitation).where(
         Invitation.token == token
-    ).first()
+    ))
+    invitation = result.scalar_one_or_none()
     
     if not invitation:
         raise HTTPException(
@@ -390,9 +413,10 @@ async def validate_invitation_token(
     
     # Get organization details
     from app.models.organization import Organization
-    org = db.query(Organization).filter(
+    org_result = await db.execute(select(Organization).where(
         Organization.id == invitation.organization_id
-    ).first()
+    ))
+    org = org_result.scalar_one_or_none()
     
     return {
         "valid": True,

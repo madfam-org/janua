@@ -5,6 +5,7 @@ Passkeys/WebAuthn authentication endpoints
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from pydantic import BaseModel, Field
 from datetime import datetime, timedelta
 import json
@@ -96,9 +97,10 @@ async def get_registration_options(
 ):
     """Get WebAuthn registration options"""
     # Get existing passkeys to exclude
-    existing_passkeys = db.query(Passkey).filter(
+    result = await db.execute(select(Passkey).where(
         Passkey.user_id == current_user.id
-    ).all()
+    ))
+    existing_passkeys = result.scalars().all()
     
     exclude_credentials = []
     for passkey in existing_passkeys:
@@ -194,9 +196,10 @@ async def verify_registration(
     public_key = bytes_to_base64url(verification.credential_public_key)
     
     # Check if credential already exists
-    existing = db.query(Passkey).filter(
+    existing_result = await db.execute(select(Passkey).where(
         Passkey.credential_id == credential_id
-    ).first()
+    ))
+    existing = existing_result.scalar_one_or_none()
     
     if existing:
         raise HTTPException(status_code=400, detail="This passkey is already registered")
@@ -246,9 +249,11 @@ async def get_authentication_options(
     
     if request.email:
         # Passwordless login - get user's passkeys
-        user = db.query(User).filter(User.email == request.email).first()
+        user_result = await db.execute(select(User).where(User.email == request.email))
+        user = user_result.scalar_one_or_none()
         if user:
-            passkeys = db.query(Passkey).filter(Passkey.user_id == user.id).all()
+            passkeys_result = await db.execute(select(Passkey).where(Passkey.user_id == user.id))
+            passkeys = passkeys_result.scalars().all()
             for passkey in passkeys:
                 allow_credentials.append({
                     "id": base64.b64decode(passkey.credential_id),
@@ -297,15 +302,17 @@ async def verify_authentication(
         raise HTTPException(status_code=400, detail="Missing credential ID")
     
     # Find passkey
-    passkey = db.query(Passkey).filter(
+    passkey_result = await db.execute(select(Passkey).where(
         Passkey.credential_id == credential_id
-    ).first()
-    
+    ))
+    passkey = passkey_result.scalar_one_or_none()
+
     if not passkey:
         raise HTTPException(status_code=404, detail="Passkey not found")
-    
+
     # Get user
-    user = db.query(User).filter(User.id == passkey.user_id).first()
+    user_result = await db.execute(select(User).where(User.id == passkey.user_id))
+    user = user_result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -384,9 +391,12 @@ async def list_passkeys(
     db: Session = Depends(get_db)
 ):
     """List user's passkeys"""
-    passkeys = db.query(Passkey).filter(
-        Passkey.user_id == current_user.id
-    ).order_by(Passkey.created_at.desc()).all()
+    result = await db.execute(
+        select(Passkey).where(
+            Passkey.user_id == current_user.id
+        ).order_by(Passkey.created_at.desc())
+    )
+    passkeys = result.scalars().all()
     
     return [
         PasskeyResponse(
@@ -413,15 +423,16 @@ async def update_passkey(
         passkey_uuid = uuid.UUID(passkey_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid passkey ID")
-    
-    passkey = db.query(Passkey).filter(
+
+    result = await db.execute(select(Passkey).where(
         Passkey.id == passkey_uuid,
         Passkey.user_id == current_user.id
-    ).first()
-    
+    ))
+    passkey = result.scalar_one_or_none()
+
     if not passkey:
         raise HTTPException(status_code=404, detail="Passkey not found")
-    
+
     passkey.name = request.name
     await db.commit()
     await db.refresh(passkey)
@@ -452,15 +463,16 @@ async def delete_passkey(
         passkey_uuid = uuid.UUID(passkey_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid passkey ID")
-    
-    passkey = db.query(Passkey).filter(
+
+    result = await db.execute(select(Passkey).where(
         Passkey.id == passkey_uuid,
         Passkey.user_id == current_user.id
-    ).first()
-    
+    ))
+    passkey = result.scalar_one_or_none()
+
     if not passkey:
         raise HTTPException(status_code=404, detail="Passkey not found")
-    
+
     # Log activity
     activity = ActivityLog(
         user_id=current_user.id,

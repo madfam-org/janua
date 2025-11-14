@@ -6,6 +6,7 @@ from typing import List, Optional, Dict, Set
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from pydantic import BaseModel
 
 from ...dependencies import get_db, get_current_user, get_redis
@@ -192,7 +193,8 @@ async def update_policy(
 
     # Get policy to check organization
     from ...models import RBACPolicy
-    policy = db.query(RBACPolicy).filter(RBACPolicy.id == policy_id).first()
+    result = await db.execute(select(RBACPolicy).where(RBACPolicy.id == policy_id))
+    policy = result.scalar_one_or_none()
 
     if not policy:
         raise HTTPException(
@@ -230,7 +232,8 @@ async def delete_policy(
 
     # Get policy to check organization
     from ...models import RBACPolicy
-    policy = db.query(RBACPolicy).filter(RBACPolicy.id == policy_id).first()
+    result = await db.execute(select(RBACPolicy).where(RBACPolicy.id == policy_id))
+    policy = result.scalar_one_or_none()
 
     if not policy:
         raise HTTPException(
@@ -269,14 +272,15 @@ async def list_policies(
     )
 
     from ...models import RBACPolicy
-    query = db.query(RBACPolicy).filter(
+    stmt = select(RBACPolicy).where(
         RBACPolicy.organization_id == organization_id
     )
 
     if is_active is not None:
-        query = query.filter(RBACPolicy.is_active == is_active)
+        stmt = stmt.where(RBACPolicy.is_active == is_active)
 
-    policies = query.all()
+    result = await db.execute(stmt)
+    policies = result.scalars().all()
 
     return {
         "policies": [

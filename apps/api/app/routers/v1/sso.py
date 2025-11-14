@@ -5,6 +5,7 @@ SSO/SAML API endpoints for enterprise authentication
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 import logging
@@ -138,9 +139,10 @@ async def create_sso_configuration(
             raise HTTPException(status_code=404, detail="Organization not found")
         
         # Check if SSO config already exists
-        existing = await db.query(SSOConfiguration).filter_by(
-            organization_id=organization_id
-        ).first()
+        result = await db.execute(select(SSOConfiguration).where(
+            SSOConfiguration.organization_id == organization_id
+        ))
+        existing = result.scalar_one_or_none()
         if existing:
             raise HTTPException(
                 status_code=400, 
@@ -275,9 +277,10 @@ async def initiate_sso(
     """
     try:
         # Get organization by slug
-        org = await db.query(Organization).filter_by(
-            slug=request.organization_slug
-        ).first()
+        org_result = await db.execute(select(Organization).where(
+            Organization.slug == request.organization_slug
+        ))
+        org = org_result.scalar_one_or_none()
         if not org:
             raise HTTPException(status_code=404, detail="Organization not found")
         

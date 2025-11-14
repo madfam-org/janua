@@ -5,7 +5,7 @@ Organization management endpoints
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, or_, func, select
 from pydantic import BaseModel, Field, validator
 from datetime import datetime, timedelta
 import uuid
@@ -120,26 +120,28 @@ class RoleResponse(BaseModel):
     updated_at: datetime
 
 
-def get_user_organization_role(db: Session, user_id: uuid.UUID, org_id: uuid.UUID) -> Optional[OrganizationRole]:
+async def get_user_organization_role(db: Session, user_id: uuid.UUID, org_id: uuid.UUID) -> Optional[OrganizationRole]:
     """Get user's role in an organization"""
-    member = db.query(organization_members).filter(
+    result = await db.execute(select(organization_members).where(
         and_(
             organization_members.c.user_id == user_id,
             organization_members.c.organization_id == org_id
         )
-    ).first()
+    ))
+    member = result.first()
     
     return member.role if member else None
 
 
-def check_organization_permission(
+async def check_organization_permission(
     db: Session,
     user: User,
     org_id: uuid.UUID,
     required_role: OrganizationRole = OrganizationRole.MEMBER
 ) -> Organization:
     """Check if user has required permission in organization"""
-    org = db.query(Organization).filter(Organization.id == org_id).first()
+    result = await db.execute(select(Organization).where(Organization.id == org_id))
+    org = result.scalar_one_or_none()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
@@ -148,7 +150,7 @@ def check_organization_permission(
         return org
     
     # Check membership and role
-    user_role = get_user_organization_role(db, user.id, org_id)
+    user_role = await get_user_organization_role(db, user.id, org_id)
     if not user_role:
         raise HTTPException(status_code=403, detail="Not a member of this organization")
     
@@ -174,9 +176,10 @@ async def create_organization(
 ):
     """Create a new organization"""
     # Check if slug is already taken
-    existing = db.query(Organization).filter(
+    result = await db.execute(select(Organization).where(
         Organization.slug == request.slug
-    ).first()
+    ))
+    existing = result.scalar_one_or_none()
     
     if existing:
         raise HTTPException(status_code=400, detail="Organization slug already exists")
@@ -211,9 +214,10 @@ async def create_organization(
     await db.refresh(org)
     
     # Get member count
-    member_count = db.query(func.count(organization_members.c.user_id)).filter(
+    result = await db.execute(select(func.count(organization_members.c.user_id)).where(
         organization_members.c.organization_id == org.id
-    ).scalar()
+    ))
+    member_count = result.scalar()
     
     return OrganizationResponse(
         id=str(org.id),
@@ -241,21 +245,25 @@ async def list_organizations(
 ):
     """List user's organizations"""
     # Get organizations where user is a member
-    user_orgs = db.query(
-        Organization,
-        organization_members.c.role
-    ).join(
-        organization_members,
-        Organization.id == organization_members.c.organization_id
-    ).filter(
-        organization_members.c.user_id == current_user.id
-    ).all()
+    result_set = await db.execute(
+        select(
+            Organization,
+            organization_members.c.role
+        ).join(
+            organization_members,
+            Organization.id == organization_members.c.organization_id
+        ).where(
+            organization_members.c.user_id == current_user.id
+        )
+    )
+    user_orgs = result_set.all()
     
     result = []
     for org, role in user_orgs:
-        member_count = db.query(func.count(organization_members.c.user_id)).filter(
+        count_result = await db.execute(select(func.count(organization_members.c.user_id)).where(
             organization_members.c.organization_id == org.id
-        ).scalar()
+        ))
+        member_count = count_result.scalar()
         
         result.append(OrganizationResponse(
             id=str(org.id),
@@ -290,13 +298,14 @@ async def get_organization(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization ID")
     
-    org = check_organization_permission(db, current_user, org_uuid)
+    org = await check_organization_permission(db, current_user, org_uuid)
     
-    member_count = db.query(func.count(organization_members.c.user_id)).filter(
+    count_result = await db.execute(select(func.count(organization_members.c.user_id)).where(
         organization_members.c.organization_id == org.id
-    ).scalar()
+    ))
+    member_count = count_result.scalar()
     
-    user_role = get_user_organization_role(db, current_user.id, org_uuid)
+    user_role = await get_user_organization_role(db, current_user.id, org_uuid)
     
     return OrganizationResponse(
         id=str(org.id),
@@ -330,7 +339,7 @@ async def update_organization(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization ID")
     
-    org = check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
+    org = await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
     
     # Update fields
     if request.name is not None:
@@ -347,11 +356,12 @@ async def update_organization(
     await db.commit()
     await db.refresh(org)
     
-    member_count = db.query(func.count(organization_members.c.user_id)).filter(
+    count_result = await db.execute(select(func.count(organization_members.c.user_id)).where(
         organization_members.c.organization_id == org.id
-    ).scalar()
+    ))
+    member_count = count_result.scalar()
     
-    user_role = get_user_organization_role(db, current_user.id, org_uuid)
+    user_role = await get_user_organization_role(db, current_user.id, org_uuid)
     
     return OrganizationResponse(
         id=str(org.id),
@@ -384,7 +394,8 @@ async def delete_organization(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization ID")
     
-    org = db.query(Organization).filter(Organization.id == org_uuid).first()
+    result = await db.execute(select(Organization).where(Organization.id == org_uuid))
+    org = result.scalar_one_or_none()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
@@ -411,21 +422,24 @@ async def list_organization_members(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization ID")
     
-    org = check_organization_permission(db, current_user, org_uuid)
+    org = await check_organization_permission(db, current_user, org_uuid)
     
     # Get members with their roles
-    members = db.query(
-        User,
-        organization_members.c.role,
-        organization_members.c.permissions,
-        organization_members.c.joined_at,
-        organization_members.c.invited_by
-    ).join(
-        organization_members,
-        User.id == organization_members.c.user_id
-    ).filter(
-        organization_members.c.organization_id == org_uuid
-    ).all()
+    result_set = await db.execute(
+        select(
+            User,
+            organization_members.c.role,
+            organization_members.c.permissions,
+            organization_members.c.joined_at,
+            organization_members.c.invited_by
+        ).join(
+            organization_members,
+            User.id == organization_members.c.user_id
+        ).where(
+            organization_members.c.organization_id == org_uuid
+        )
+    )
+    members = result_set.all()
     
     result = []
     for user, role, permissions, joined_at, invited_by in members:
@@ -460,7 +474,7 @@ async def update_member_role(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID")
     
-    org = check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
+    org = await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
     
     # Can't change owner's role
     if org.owner_id == user_uuid:
@@ -495,7 +509,7 @@ async def remove_member(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID")
     
-    org = check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
+    org = await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
     
     # Can't remove owner
     if org.owner_id == user_uuid:
@@ -529,30 +543,33 @@ async def invite_member(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization ID")
     
-    org = check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
+    org = await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
     
     # Check if user already member
-    existing_user = db.query(User).filter(User.email == request.email).first()
+    user_result = await db.execute(select(User).where(User.email == request.email))
+    existing_user = user_result.scalar_one_or_none()
     if existing_user:
-        existing_member = db.query(organization_members).filter(
+        member_result = await db.execute(select(organization_members).where(
             and_(
                 organization_members.c.organization_id == org_uuid,
                 organization_members.c.user_id == existing_user.id
             )
-        ).first()
+        ))
+        existing_member = member_result.first()
         
         if existing_member:
             raise HTTPException(status_code=400, detail="User is already a member")
     
     # Check for pending invitation
-    pending = db.query(OrganizationInvitation).filter(
+    pending_result = await db.execute(select(OrganizationInvitation).where(
         and_(
             OrganizationInvitation.organization_id == org_uuid,
             OrganizationInvitation.email == request.email,
             OrganizationInvitation.status == "pending",
             OrganizationInvitation.expires_at > datetime.utcnow()
         )
-    ).first()
+    ))
+    pending = pending_result.scalar_one_or_none()
     
     if pending:
         raise HTTPException(status_code=400, detail="Invitation already sent")
@@ -594,12 +611,13 @@ async def accept_invitation(
 ):
     """Accept an organization invitation"""
     # Find invitation
-    invitation = db.query(OrganizationInvitation).filter(
+    invitation_result = await db.execute(select(OrganizationInvitation).where(
         and_(
             OrganizationInvitation.token == token,
             OrganizationInvitation.status == "pending"
         )
-    ).first()
+    ))
+    invitation = invitation_result.scalar_one_or_none()
     
     if not invitation:
         raise HTTPException(status_code=404, detail="Invalid or expired invitation")
@@ -615,12 +633,13 @@ async def accept_invitation(
         raise HTTPException(status_code=403, detail="Invitation is for a different email")
     
     # Check if already member
-    existing = db.query(organization_members).filter(
+    member_check_result = await db.execute(select(organization_members).where(
         and_(
             organization_members.c.organization_id == invitation.organization_id,
             organization_members.c.user_id == current_user.id
         )
-    ).first()
+    ))
+    existing = member_check_result.first()
     
     if existing:
         raise HTTPException(status_code=400, detail="Already a member of this organization")
@@ -644,9 +663,10 @@ async def accept_invitation(
     await db.commit()
     
     # Get organization details
-    org = db.query(Organization).filter(
+    org_result = await db.execute(select(Organization).where(
         Organization.id == invitation.organization_id
-    ).first()
+    ))
+    org = org_result.scalar_one_or_none()
     
     return {
         "message": "Successfully joined organization",
@@ -671,21 +691,26 @@ async def list_invitations(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization ID")
     
-    org = check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
+    org = await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
     
-    query = db.query(OrganizationInvitation).filter(
+    # Build query
+    stmt = select(OrganizationInvitation).where(
         OrganizationInvitation.organization_id == org_uuid
     )
     
     if status:
-        query = query.filter(OrganizationInvitation.status == status)
+        stmt = stmt.where(OrganizationInvitation.status == status)
     
-    invitations = query.order_by(OrganizationInvitation.created_at.desc()).all()
+    stmt = stmt.order_by(OrganizationInvitation.created_at.desc())
+    
+    invitations_result = await db.execute(stmt)
+    invitations = invitations_result.scalars().all()
     
     result = []
     for inv in invitations:
         # Get inviter details
-        inviter = db.query(User).filter(User.id == inv.invited_by).first()
+        inviter_result = await db.execute(select(User).where(User.id == inv.invited_by))
+        inviter = inviter_result.scalar_one_or_none()
         
         result.append(OrganizationInvitationResponse(
             id=str(inv.id),
@@ -718,14 +743,15 @@ async def revoke_invitation(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID")
     
-    org = check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
-    
-    invitation = db.query(OrganizationInvitation).filter(
+    org = await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
+
+    invitation_result = await db.execute(select(OrganizationInvitation).where(
         and_(
             OrganizationInvitation.id == inv_uuid,
             OrganizationInvitation.organization_id == org_uuid
         )
-    ).first()
+    ))
+    invitation = invitation_result.scalar_one_or_none()
     
     if not invitation:
         raise HTTPException(status_code=404, detail="Invitation not found")
@@ -752,15 +778,16 @@ async def create_custom_role(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization ID")
     
-    org = check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
-    
+    org = await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
+
     # Check if role name already exists
-    existing = db.query(OrganizationCustomRole).filter(
+    existing_result = await db.execute(select(OrganizationCustomRole).where(
         and_(
             OrganizationCustomRole.organization_id == org_uuid,
             OrganizationCustomRole.name == request.name
         )
-    ).first()
+    ))
+    existing = existing_result.scalar_one_or_none()
     
     if existing:
         raise HTTPException(status_code=400, detail="Role name already exists")
@@ -801,11 +828,12 @@ async def list_custom_roles(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization ID")
     
-    org = check_organization_permission(db, current_user, org_uuid)
-    
-    roles = db.query(OrganizationCustomRole).filter(
+    org = await check_organization_permission(db, current_user, org_uuid)
+
+    roles_result = await db.execute(select(OrganizationCustomRole).where(
         OrganizationCustomRole.organization_id == org_uuid
-    ).all()
+    ))
+    roles = roles_result.scalars().all()
     
     # Add built-in roles
     result = [
@@ -876,14 +904,15 @@ async def delete_custom_role(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID")
     
-    org = check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
-    
-    role = db.query(OrganizationCustomRole).filter(
+    org = await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
+
+    role_result = await db.execute(select(OrganizationCustomRole).where(
         and_(
             OrganizationCustomRole.id == role_uuid,
             OrganizationCustomRole.organization_id == org_uuid
         )
-    ).first()
+    ))
+    role = role_result.scalar_one_or_none()
     
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
@@ -912,8 +941,9 @@ async def transfer_ownership(
         new_owner_uuid = uuid.UUID(new_owner_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID")
-    
-    org = db.query(Organization).filter(Organization.id == org_uuid).first()
+
+    org_result = await db.execute(select(Organization).where(Organization.id == org_uuid))
+    org = org_result.scalar_one_or_none()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
@@ -922,12 +952,13 @@ async def transfer_ownership(
         raise HTTPException(status_code=403, detail="Only owner can transfer ownership")
     
     # Check new owner is a member
-    new_owner_member = db.query(organization_members).filter(
+    member_result = await db.execute(select(organization_members).where(
         and_(
             organization_members.c.organization_id == org_uuid,
             organization_members.c.user_id == new_owner_uuid
         )
-    ).first()
+    ))
+    new_owner_member = member_result.first()
     
     if not new_owner_member:
         raise HTTPException(status_code=400, detail="New owner must be a member of the organization")

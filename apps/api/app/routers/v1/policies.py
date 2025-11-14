@@ -5,7 +5,7 @@ Policy management and evaluation API endpoints.
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, select, delete
 import uuid
 
 from app.database import get_db
@@ -80,20 +80,21 @@ async def list_policies(
     """
     List all policies (admin only).
     """
-    query = db.query(Policy).filter(
+    stmt = select(Policy).where(
         Policy.tenant_id == current_user.tenant_id
     )
-    
+
     if target_type:
-        query = query.filter(Policy.target_type == target_type)
-    
+        stmt = stmt.where(Policy.target_type == target_type)
+
     if resource_type:
-        query = query.filter(Policy.resource_type == resource_type)
-    
+        stmt = stmt.where(Policy.resource_type == resource_type)
+
     if enabled is not None:
-        query = query.filter(Policy.enabled == enabled)
-    
-    policies = query.offset(skip).limit(limit).all()
+        stmt = stmt.where(Policy.enabled == enabled)
+
+    result = await db.execute(stmt.offset(skip).limit(limit))
+    policies = result.scalars().all()
     
     return [PolicyResponse.from_orm(p) for p in policies]
 
@@ -107,12 +108,13 @@ async def get_policy(
     """
     Get a specific policy by ID (admin only).
     """
-    policy = db.query(Policy).filter(
+    result = await db.execute(select(Policy).where(
         and_(
             Policy.id == policy_id,
             Policy.tenant_id == current_user.tenant_id
         )
-    ).first()
+    ))
+    policy = result.scalar_one_or_none()
     
     if not policy:
         raise HTTPException(
@@ -133,12 +135,13 @@ async def update_policy(
     """
     Update a policy (admin only).
     """
-    policy = db.query(Policy).filter(
+    result = await db.execute(select(Policy).where(
         and_(
             Policy.id == policy_id,
             Policy.tenant_id == current_user.tenant_id
         )
-    ).first()
+    ))
+    policy = result.scalar_one_or_none()
     
     if not policy:
         raise HTTPException(
@@ -184,12 +187,13 @@ async def delete_policy(
     """
     Delete a policy (admin only).
     """
-    policy = db.query(Policy).filter(
+    result = await db.execute(select(Policy).where(
         and_(
             Policy.id == policy_id,
             Policy.tenant_id == current_user.tenant_id
         )
-    ).first()
+    ))
+    policy = result.scalar_one_or_none()
     
     if not policy:
         raise HTTPException(
@@ -198,14 +202,18 @@ async def delete_policy(
         )
     
     # Delete policy evaluations first
-    db.query(PolicyEvaluation).filter(
-        PolicyEvaluation.policy_id == policy_id
-    ).delete()
-    
+    await db.execute(
+        delete(PolicyEvaluation).where(
+            PolicyEvaluation.policy_id == policy_id
+        )
+    )
+
     # Delete role-policy mappings
-    db.query(RolePolicy).filter(
-        RolePolicy.policy_id == policy_id
-    ).delete()
+    await db.execute(
+        delete(RolePolicy).where(
+            RolePolicy.policy_id == policy_id
+        )
+    )
     
     # Delete the policy
     db.delete(policy)
@@ -272,12 +280,13 @@ async def create_role(
     Create a new role (admin only).
     """
     # Check if role name already exists
-    existing_role = db.query(Role).filter(
+    result = await db.execute(select(Role).where(
         and_(
             Role.tenant_id == current_user.tenant_id,
             Role.name == role_data.name
         )
-    ).first()
+    ))
+    existing_role = result.scalar_one_or_none()
     
     if existing_role:
         raise HTTPException(
@@ -322,19 +331,20 @@ async def list_roles(
     """
     List all roles.
     """
-    query = db.query(Role).filter(
+    stmt = select(Role).where(
         Role.tenant_id == current_user.tenant_id
     )
-    
+
     if organization_id:
-        query = query.filter(
+        stmt = stmt.where(
             or_(
                 Role.organization_id == organization_id,
                 Role.organization_id == None  # Include tenant-level roles
             )
         )
-    
-    roles = query.offset(skip).limit(limit).all()
+
+    result = await db.execute(stmt.offset(skip).limit(limit))
+    roles = result.scalars().all()
     
     return [RoleResponse.from_orm(r) for r in roles]
 
@@ -351,27 +361,29 @@ async def assign_role_to_user(
     Assign a role to a user (admin only).
     """
     # Verify role exists
-    role = db.query(Role).filter(
+    role_result = await db.execute(select(Role).where(
         and_(
             Role.id == role_id,
             Role.tenant_id == current_user.tenant_id
         )
-    ).first()
-    
+    ))
+    role = role_result.scalar_one_or_none()
+
     if not role:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Role not found"
         )
-    
+
     # Check if assignment already exists
-    existing = db.query(UserRole).filter(
+    existing_result = await db.execute(select(UserRole).where(
         and_(
             UserRole.user_id == user_id,
             UserRole.role_id == role_id,
             UserRole.organization_id == organization_id
         )
-    ).first()
+    ))
+    existing = existing_result.scalar_one_or_none()
     
     if existing:
         raise HTTPException(
@@ -421,12 +433,13 @@ async def unassign_role_from_user(
     Remove a role from a user (admin only).
     """
     # Find assignment
-    user_role = db.query(UserRole).filter(
+    result = await db.execute(select(UserRole).where(
         and_(
             UserRole.user_id == user_id,
             UserRole.role_id == role_id
         )
-    ).first()
+    ))
+    user_role = result.scalar_one_or_none()
     
     if not user_role:
         raise HTTPException(

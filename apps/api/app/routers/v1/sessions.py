@@ -5,6 +5,7 @@ Session management endpoints
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from pydantic import BaseModel
 from datetime import datetime
 import uuid
@@ -105,11 +106,12 @@ async def list_sessions(
             current_jti = payload.get("jti")
     
     # Get all active sessions
-    sessions = db.query(UserSession).filter(
+    result = await db.execute(select(UserSession).where(
         UserSession.user_id == current_user.id,
         UserSession.revoked == False,
         UserSession.expires_at > datetime.utcnow()
-    ).order_by(UserSession.last_activity_at.desc()).all()
+    ).order_by(UserSession.last_activity_at.desc()))
+    sessions = result.scalars().all()
     
     # Convert to response
     sessions_response = []
@@ -151,12 +153,13 @@ async def get_session(
         session_uuid = uuid.UUID(session_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid session ID")
-    
+
     # Get session
-    session = db.query(UserSession).filter(
+    result = await db.execute(select(UserSession).where(
         UserSession.id == session_uuid,
         UserSession.user_id == current_user.id
-    ).first()
+    ))
+    session = result.scalar_one_or_none()
     
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -201,12 +204,13 @@ async def revoke_session(
         session_uuid = uuid.UUID(session_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid session ID")
-    
+
     # Get session
-    session = db.query(UserSession).filter(
+    result = await db.execute(select(UserSession).where(
         UserSession.id == session_uuid,
         UserSession.user_id == current_user.id
-    ).first()
+    ))
+    session = result.scalar_one_or_none()
     
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -237,11 +241,12 @@ async def revoke_all_sessions(
             current_jti = payload.get("jti")
     
     # Revoke all sessions except current
-    sessions = db.query(UserSession).filter(
+    result = await db.execute(select(UserSession).where(
         UserSession.user_id == current_user.id,
         UserSession.revoked == False,
         UserSession.access_token_jti != current_jti
-    ).all()
+    ))
+    sessions = result.scalars().all()
     
     revoked_count = 0
     for session in sessions:
@@ -266,13 +271,14 @@ async def refresh_session(
         session_uuid = uuid.UUID(session_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid session ID")
-    
+
     # Get session
-    session = db.query(UserSession).filter(
+    result = await db.execute(select(UserSession).where(
         UserSession.id == session_uuid,
         UserSession.user_id == current_user.id,
         UserSession.revoked == False
-    ).first()
+    ))
+    session = result.scalar_one_or_none()
     
     if not session:
         raise HTTPException(status_code=404, detail="Session not found or revoked")
@@ -292,9 +298,10 @@ async def get_recent_activity(
 ):
     """Get recent session activity"""
     # Get recent sessions with activity
-    sessions = db.query(UserSession).filter(
+    result = await db.execute(select(UserSession).where(
         UserSession.user_id == current_user.id
-    ).order_by(UserSession.last_activity_at.desc()).limit(limit).all()
+    ).order_by(UserSession.last_activity_at.desc()).limit(limit))
+    sessions = result.scalars().all()
     
     activities = []
     for session in sessions:
@@ -323,12 +330,13 @@ async def get_security_alerts(
 ):
     """Get security alerts for sessions"""
     alerts = []
-    
+
     # Check for sessions from new locations
-    sessions = db.query(UserSession).filter(
+    result = await db.execute(select(UserSession).where(
         UserSession.user_id == current_user.id,
         UserSession.revoked == False
-    ).all()
+    ))
+    sessions = result.scalars().all()
     
     # Get unique IPs
     ip_addresses = set()

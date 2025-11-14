@@ -7,7 +7,7 @@ import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, select
 from datetime import datetime
 
 from app.database import get_db
@@ -38,7 +38,7 @@ async def create_organization(
 ):
     """Create a new organization"""
     # Validate unique slug
-    validate_unique_slug(db, request.slug)
+    await validate_unique_slug(db, request.slug)
 
     # Create organization
     org = Organization(
@@ -70,9 +70,12 @@ async def create_organization(
     await db.refresh(org)
 
     # Get member count
-    member_count = db.query(func.count(organization_members.c.user_id)).filter(
-        organization_members.c.organization_id == org.id
-    ).scalar()
+    count_result = await db.execute(
+        select(func.count(organization_members.c.user_id)).where(
+            organization_members.c.organization_id == org.id
+        )
+    )
+    member_count = count_result.scalar()
 
     return OrganizationResponse(
         id=str(org.id),
@@ -100,27 +103,33 @@ async def list_organizations(
     offset = (page - 1) * per_page
 
     # Get organizations where user is a member
-    query = db.query(
+    stmt = select(
         Organization,
         organization_members.c.role
     ).join(
         organization_members,
         Organization.id == organization_members.c.organization_id
-    ).filter(
+    ).where(
         organization_members.c.user_id == current_user.id
     )
 
     # Get total count
-    total = query.count()
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    count_result = await db.execute(count_stmt)
+    total = count_result.scalar()
 
     # Get paginated results
-    user_orgs = query.offset(offset).limit(per_page).all()
+    result = await db.execute(stmt.offset(offset).limit(per_page))
+    user_orgs = result.all()
 
     result = []
     for org, role in user_orgs:
-        member_count = db.query(func.count(organization_members.c.user_id)).filter(
-            organization_members.c.organization_id == org.id
-        ).scalar()
+        count_result = await db.execute(
+            select(func.count(organization_members.c.user_id)).where(
+                organization_members.c.organization_id == org.id
+            )
+        )
+        member_count = count_result.scalar()
 
         result.append(OrganizationResponse(
             id=str(org.id),
@@ -151,12 +160,16 @@ async def get_organization(
 ):
     """Get organization details"""
     # Get owner details
-    owner = db.query(User).filter(User.id == organization.owner_id).first()
+    owner_result = await db.execute(select(User).where(User.id == organization.owner_id))
+    owner = owner_result.scalar_one_or_none()
 
     # Get member count
-    member_count = db.query(func.count(organization_members.c.user_id)).filter(
-        organization_members.c.organization_id == organization.id
-    ).scalar()
+    count_result = await db.execute(
+        select(func.count(organization_members.c.user_id)).where(
+            organization_members.c.organization_id == organization.id
+        )
+    )
+    member_count = count_result.scalar()
 
     return OrganizationDetailResponse(
         id=str(organization.id),
@@ -211,9 +224,12 @@ async def update_organization(
     await db.refresh(organization)
 
     # Get member count
-    member_count = db.query(func.count(organization_members.c.user_id)).filter(
-        organization_members.c.organization_id == organization.id
-    ).scalar()
+    count_result = await db.execute(
+        select(func.count(organization_members.c.user_id)).where(
+            organization_members.c.organization_id == organization.id
+        )
+    )
+    member_count = count_result.scalar()
 
     return OrganizationResponse(
         id=str(organization.id),
@@ -258,25 +274,30 @@ async def get_organization_by_slug(
     db: Session = Depends(get_db)
 ):
     """Get organization by slug (public information only)"""
-    org = db.query(Organization).filter(Organization.slug == slug).first()
+    org_result = await db.execute(select(Organization).where(Organization.slug == slug))
+    org = org_result.scalar_one_or_none()
 
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
 
     # Check if user is a member to determine what information to return
     user_role = None
-    member = db.query(organization_members).filter(
+    member_result = await db.execute(select(organization_members).where(
         organization_members.c.organization_id == org.id,
         organization_members.c.user_id == current_user.id
-    ).first()
+    ))
+    member = member_result.first()
 
     if member:
         user_role = member.role
 
     # Get member count
-    member_count = db.query(func.count(organization_members.c.user_id)).filter(
-        organization_members.c.organization_id == org.id
-    ).scalar()
+    count_result = await db.execute(
+        select(func.count(organization_members.c.user_id)).where(
+            organization_members.c.organization_id == org.id
+        )
+    )
+    member_count = count_result.scalar()
 
     # Return basic information (more details if user is a member)
     settings = org.settings if user_role else {}

@@ -5,7 +5,7 @@ User management endpoints
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, select, func, update
 from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 import uuid
@@ -216,10 +216,12 @@ async def get_user_by_id(
         raise HTTPException(status_code=400, detail="Invalid user ID")
     
     # Get user
-    user = db.query(User).filter(
+    result = await db.execute(select(User).where(
         User.id == user_uuid,
         User.status == UserStatus.ACTIVE
-    ).first()
+    ))
+
+    user = result.scalar_one_or_none()
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -227,14 +229,15 @@ async def get_user_by_id(
     # Check permissions (admin or same organization)
     if not current_user.is_admin:
         # Check if users share an organization
-        user_orgs = db.query(OrganizationMember.organization_id).filter(
+        user_orgs = select(OrganizationMember.organization_id).where(
             OrganizationMember.user_id == user.id
         ).subquery()
-        
-        shared_org = db.query(OrganizationMember).filter(
+
+        shared_result = await db.execute(select(OrganizationMember).where(
             OrganizationMember.user_id == current_user.id,
             OrganizationMember.organization_id.in_(user_orgs)
-        ).first()
+        ))
+        shared_org = shared_result.scalar_one_or_none()
         
         if not shared_org:
             raise HTTPException(status_code=403, detail="Access denied")
@@ -271,25 +274,25 @@ async def list_users(
     db: Session = Depends(get_db)
 ):
     """List users (admin only or same organization)"""
-    query = db.query(User)
+    stmt = select(User)
     
     # Filter by organization if not admin
     if not current_user.is_admin:
         # Get current user's organizations
-        user_orgs = db.query(OrganizationMember.organization_id).filter(
+        user_orgs = select(OrganizationMember.organization_id).where(
             OrganizationMember.user_id == current_user.id
         ).subquery()
-        
+
         # Get users in same organizations
-        org_users = db.query(OrganizationMember.user_id).filter(
+        org_users = select(OrganizationMember.user_id).where(
             OrganizationMember.organization_id.in_(user_orgs)
         ).subquery()
-        
-        query = query.filter(User.id.in_(org_users))
+
+        stmt = stmt.where(User.id.in_(org_users))
     
     # Apply filters
     if search:
-        query = query.filter(
+        stmt = stmt.where(
             or_(
                 User.email.ilike(f"%{search}%"),
                 User.first_name.ilike(f"%{search}%"),
@@ -301,16 +304,21 @@ async def list_users(
     if status:
         try:
             status_enum = UserStatus(status)
-            query = query.filter(User.status == status_enum)
+            stmt = stmt.where(User.status == status_enum)
         except ValueError:
             pass
     
     # Get total count
-    total = query.count()
-    
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    count_result = await db.execute(count_stmt)
+    total = count_result.scalar()
+
     # Apply pagination
     offset = (page - 1) * per_page
-    users = query.offset(offset).limit(per_page).all()
+    stmt = stmt.offset(offset).limit(per_page)
+
+    result_set = await db.execute(stmt)
+    users = result_set.scalars().all()
     
     # Convert to response
     users_response = []
@@ -356,17 +364,21 @@ async def delete_current_user(
         raise HTTPException(status_code=400, detail="Invalid password")
     
     # Check if user is the only owner of any organizations
-    owned_orgs = db.query(Organization).filter(
+    owned_result = await db.execute(select(Organization).where(
         Organization.owner_id == current_user.id
-    ).all()
-    
+    ))
+    owned_orgs = owned_result.scalars().all()
+
     for org in owned_orgs:
         # Check if there are other admins
-        other_admins = db.query(OrganizationMember).filter(
-            OrganizationMember.organization_id == org.id,
-            OrganizationMember.role == "admin",
-            OrganizationMember.user_id != current_user.id
-        ).count()
+        admins_result = await db.execute(
+            select(func.count()).select_from(OrganizationMember).where(
+                OrganizationMember.organization_id == org.id,
+                OrganizationMember.role == "admin",
+                OrganizationMember.user_id != current_user.id
+            )
+        )
+        other_admins = admins_result.scalar()
         
         if other_admins == 0:
             raise HTTPException(
@@ -380,9 +392,11 @@ async def delete_current_user(
     current_user.username = None if current_user.username else None
     
     # Revoke all sessions
-    db.query(UserSession).filter(
-        UserSession.user_id == current_user.id
-    ).update({"revoked": True})
+    await db.execute(
+        update(UserSession)
+        .where(UserSession.user_id == current_user.id)
+        .values(revoked=True)
+    )
     
     await db.commit()
     
@@ -407,7 +421,9 @@ async def suspend_user(
         raise HTTPException(status_code=400, detail="Invalid user ID")
     
     # Get user
-    user = db.query(User).filter(User.id == user_uuid).first()
+    result = await db.execute(select(User).where(User.id == user_uuid))
+
+    user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -415,9 +431,11 @@ async def suspend_user(
     user.status = UserStatus.SUSPENDED
     
     # Revoke all sessions
-    db.query(UserSession).filter(
-        UserSession.user_id == user.id
-    ).update({"revoked": True})
+    await db.execute(
+        update(UserSession)
+        .where(UserSession.user_id == user.id)
+        .values(revoked=True)
+    )
     
     # Log the action
     if reason:
@@ -448,7 +466,9 @@ async def reactivate_user(
         raise HTTPException(status_code=400, detail="Invalid user ID")
     
     # Get user
-    user = db.query(User).filter(User.id == user_uuid).first()
+    result = await db.execute(select(User).where(User.id == user_uuid))
+
+    user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     

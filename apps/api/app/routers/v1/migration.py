@@ -5,6 +5,7 @@ Migration API endpoints for data portability and user migration
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 import logging
@@ -122,15 +123,16 @@ async def list_migration_jobs(
     Requires admin privileges.
     """
     try:
-        query = db.query(MigrationJob)
-        
+        stmt = select(MigrationJob)
+
         if organization_id:
-            query = query.filter(MigrationJob.organization_id == organization_id)
-        
+            stmt = stmt.where(MigrationJob.organization_id == organization_id)
+
         if status:
-            query = query.filter(MigrationJob.status == status)
-        
-        jobs = await query.all()
+            stmt = stmt.where(MigrationJob.status == status)
+
+        result = await db.execute(stmt)
+        jobs = result.scalars().all()
         
         return [
             MigrationJobResponse(
@@ -277,14 +279,15 @@ async def get_migration_logs(
     Requires admin privileges.
     """
     try:
-        query = db.query(MigrationLog).filter(
+        stmt = select(MigrationLog).where(
             MigrationLog.migration_job_id == job_id
         ).order_by(MigrationLog.created_at.desc())
-        
+
         if level:
-            query = query.filter(MigrationLog.level == level)
-        
-        logs = await query.limit(limit).all()
+            stmt = stmt.where(MigrationLog.level == level)
+
+        result = await db.execute(stmt.limit(limit))
+        logs = result.scalars().all()
         
         return [
             {
@@ -318,14 +321,15 @@ async def get_migrated_users(
     Requires admin privileges.
     """
     try:
-        query = db.query(MigratedUser).filter(
+        stmt = select(MigratedUser).where(
             MigratedUser.migration_job_id == job_id
         ).order_by(MigratedUser.created_at.desc())
-        
+
         if is_migrated is not None:
-            query = query.filter(MigratedUser.is_migrated == is_migrated)
-        
-        users = await query.offset(offset).limit(limit).all()
+            stmt = stmt.where(MigratedUser.is_migrated == is_migrated)
+
+        result = await db.execute(stmt.offset(offset).limit(limit))
+        users = result.scalars().all()
         
         return [
             {
@@ -361,12 +365,13 @@ async def list_migration_templates(
     Requires admin privileges.
     """
     try:
-        query = db.query(MigrationTemplate)
-        
+        stmt = select(MigrationTemplate)
+
         if provider:
-            query = query.filter(MigrationTemplate.provider == provider)
-        
-        templates = await query.all()
+            stmt = stmt.where(MigrationTemplate.provider == provider)
+
+        result = await db.execute(stmt)
+        templates = result.scalars().all()
         
         return [
             {

@@ -5,6 +5,7 @@ OAuth authentication endpoints
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
+from sqlalchemy import select, func
 from pydantic import BaseModel
 import logging
 
@@ -242,10 +243,11 @@ async def link_oauth_account(
             raise HTTPException(status_code=400, detail=f"Invalid provider: {provider}")
         
         # Check if provider is already linked
-        existing = db.query(OAuthAccount).filter(
+        result = await db.execute(select(OAuthAccount).where(
             OAuthAccount.user_id == current_user.id,
             OAuthAccount.provider == oauth_provider
-        ).first()
+        ))
+        existing = result.scalar_one_or_none()
         
         if existing:
             raise HTTPException(status_code=400, detail=f"{provider} account is already linked")
@@ -313,20 +315,24 @@ async def unlink_oauth_account(
             raise HTTPException(status_code=400, detail=f"Invalid provider: {provider}")
         
         # Find OAuth account
-        oauth_account = db.query(OAuthAccount).filter(
+        result = await db.execute(select(OAuthAccount).where(
             OAuthAccount.user_id == current_user.id,
             OAuthAccount.provider == oauth_provider
-        ).first()
+        ))
+        oauth_account = result.scalar_one_or_none()
         
         if not oauth_account:
             raise HTTPException(status_code=404, detail=f"{provider} account is not linked")
         
         # Check if user has other auth methods
         has_password = current_user.password_hash is not None
-        other_oauth = db.query(OAuthAccount).filter(
-            OAuthAccount.user_id == current_user.id,
-            OAuthAccount.provider != oauth_provider
-        ).count()
+        count_result = await db.execute(select(func.count()).select_from(
+            select(OAuthAccount).where(
+                OAuthAccount.user_id == current_user.id,
+                OAuthAccount.provider != oauth_provider
+            ).subquery()
+        ))
+        other_oauth = count_result.scalar()
         
         if not has_password and other_oauth == 0:
             raise HTTPException(
@@ -366,9 +372,10 @@ async def get_linked_accounts(
 ):
     """Get all linked OAuth accounts for current user"""
     # Get all linked OAuth accounts
-    oauth_accounts = db.query(OAuthAccount).filter(
+    result = await db.execute(select(OAuthAccount).where(
         OAuthAccount.user_id == current_user.id
-    ).all()
+    ))
+    oauth_accounts = result.scalars().all()
     
     # Get available providers
     all_providers = []
@@ -397,12 +404,17 @@ async def get_linked_accounts(
             all_providers.append(provider_info)
     
     # Get other auth methods status
+    passkeys_result = await db.execute(select(func.count()).select_from(
+        select(Passkey).where(
+            Passkey.user_id == current_user.id
+        ).subquery()
+    ))
+    passkeys_count = passkeys_result.scalar()
+
     auth_methods = {
         "password": current_user.password_hash is not None,
         "mfa_enabled": current_user.mfa_enabled,
-        "passkeys_count": db.query(Passkey).filter(
-            Passkey.user_id == current_user.id
-        ).count()
+        "passkeys_count": passkeys_count
     }
     
     return {

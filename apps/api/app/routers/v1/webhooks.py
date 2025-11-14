@@ -9,6 +9,7 @@ from datetime import datetime
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import select, func
 from pydantic import BaseModel, Field, HttpUrl
 
 from app.database import get_db
@@ -106,16 +107,17 @@ class WebhookEventListResponse(BaseModel):
 
 
 # Helper functions
-def check_webhook_permission(
+async def check_webhook_permission(
     db: Session,
     user: User,
     endpoint_id: uuid.UUID
 ) -> WebhookEndpoint:
     """Check if user has permission to manage webhook endpoint"""
-    
-    endpoint = db.query(WebhookEndpoint).filter(
+
+    result = await db.execute(select(WebhookEndpoint).where(
         WebhookEndpoint.id == endpoint_id
-    ).first()
+    ))
+    endpoint = result.scalar_one_or_none()
     
     if not endpoint:
         raise HTTPException(
@@ -172,15 +174,16 @@ async def list_webhook_endpoints(
     db: Session = Depends(get_db)
 ):
     """List webhook endpoints for current user"""
-    
-    query = db.query(WebhookEndpoint).filter(
+
+    stmt = select(WebhookEndpoint).where(
         WebhookEndpoint.user_id == current_user.id
     )
-    
+
     if is_active is not None:
-        query = query.filter(WebhookEndpoint.is_active == is_active)
-    
-    endpoints = query.all()
+        stmt = stmt.where(WebhookEndpoint.is_active == is_active)
+
+    result = await db.execute(stmt)
+    endpoints = result.scalars().all()
     
     return WebhookEndpointListResponse(
         endpoints=endpoints,
@@ -196,7 +199,7 @@ async def get_webhook_endpoint(
 ):
     """Get webhook endpoint details"""
     
-    endpoint = check_webhook_permission(db, current_user, endpoint_id)
+    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
     return endpoint
 
 
@@ -209,7 +212,7 @@ async def update_webhook_endpoint(
 ):
     """Update webhook endpoint configuration"""
     
-    endpoint = check_webhook_permission(db, current_user, endpoint_id)
+    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
     
     # Update endpoint
     updated_endpoint = await webhook_service.update_endpoint(
@@ -233,7 +236,7 @@ async def delete_webhook_endpoint(
 ):
     """Delete webhook endpoint"""
     
-    endpoint = check_webhook_permission(db, current_user, endpoint_id)
+    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
     
     # Delete endpoint
     deleted = await webhook_service.delete_endpoint(db, str(endpoint_id))
@@ -255,7 +258,7 @@ async def test_webhook_endpoint(
 ):
     """Send test webhook to endpoint"""
     
-    endpoint = check_webhook_permission(db, current_user, endpoint_id)
+    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
     
     # Send test webhook
     success = await webhook_service.test_endpoint(db, str(endpoint_id))
@@ -278,7 +281,7 @@ async def get_webhook_endpoint_stats(
 ):
     """Get webhook endpoint delivery statistics"""
     
-    endpoint = check_webhook_permission(db, current_user, endpoint_id)
+    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
     
     # Get statistics
     stats = await webhook_service.get_endpoint_stats(
@@ -300,20 +303,23 @@ async def list_webhook_events(
 ):
     """List webhook events for an endpoint"""
     
-    endpoint = check_webhook_permission(db, current_user, endpoint_id)
+    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
     
     # Get events delivered to this endpoint
-    events_query = db.query(WebhookEvent).join(
+    events_stmt = select(WebhookEvent).join(
         WebhookDelivery,
         WebhookDelivery.webhook_event_id == WebhookEvent.id
-    ).filter(
+    ).where(
         WebhookDelivery.webhook_endpoint_id == endpoint_id
     ).order_by(
         WebhookEvent.created_at.desc()
     )
-    
-    total = events_query.count()
-    events = events_query.offset(offset).limit(limit).all()
+
+    count_result = await db.execute(select(func.count()).select_from(events_stmt.subquery()))
+    total = count_result.scalar()
+
+    events_result = await db.execute(events_stmt.offset(offset).limit(limit))
+    events = events_result.scalars().all()
     
     return WebhookEventListResponse(
         events=events,
@@ -331,14 +337,15 @@ async def list_webhook_deliveries(
 ):
     """List webhook delivery attempts for an endpoint"""
     
-    endpoint = check_webhook_permission(db, current_user, endpoint_id)
+    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
     
     # Get deliveries for this endpoint
-    deliveries = db.query(WebhookDelivery).filter(
+    result = await db.execute(select(WebhookDelivery).where(
         WebhookDelivery.webhook_endpoint_id == endpoint_id
     ).order_by(
         WebhookDelivery.created_at.desc()
-    ).offset(offset).limit(limit).all()
+    ).offset(offset).limit(limit))
+    deliveries = result.scalars().all()
     
     return deliveries
 
@@ -351,7 +358,7 @@ async def regenerate_webhook_secret(
 ):
     """Regenerate webhook endpoint secret"""
     
-    endpoint = check_webhook_permission(db, current_user, endpoint_id)
+    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
     
     # Generate new secret
     import hashlib

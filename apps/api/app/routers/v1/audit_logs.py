@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc
+from sqlalchemy import and_, or_, desc, select, func, delete
 from pydantic import BaseModel, Field
 
 from app.database import get_db
@@ -88,51 +88,54 @@ async def list_audit_logs(
     Regular users can only see their own logs, admins can see all.
     """
     # Build base query
-    query = db.query(AuditLog).filter(
+    stmt = select(AuditLog).where(
         AuditLog.tenant_id == current_user.tenant_id
     )
-    
+
     # Non-admins can only see their own logs
     if not current_user.is_admin:
-        query = query.filter(AuditLog.user_id == str(current_user.id))
-    
+        stmt = stmt.where(AuditLog.user_id == str(current_user.id))
+
     # Apply filters
     if actor:
-        query = query.filter(AuditLog.user_id == actor)
-    
+        stmt = stmt.where(AuditLog.user_id == actor)
+
     if action:
-        query = query.filter(AuditLog.action == action)
-    
+        stmt = stmt.where(AuditLog.action == action)
+
     if resource:
-        query = query.filter(AuditLog.resource_id == resource)
-    
+        stmt = stmt.where(AuditLog.resource_id == resource)
+
     if resource_type:
-        query = query.filter(AuditLog.resource_type == resource_type)
-    
+        stmt = stmt.where(AuditLog.resource_type == resource_type)
+
     if ip_address:
-        query = query.filter(AuditLog.ip_address == ip_address)
-    
+        stmt = stmt.where(AuditLog.ip_address == ip_address)
+
     if organization_id:
-        query = query.filter(AuditLog.organization_id == organization_id)
-    
+        stmt = stmt.where(AuditLog.organization_id == organization_id)
+
     # Time range filter
     if start_date:
-        query = query.filter(AuditLog.timestamp >= start_date)
-    
+        stmt = stmt.where(AuditLog.timestamp >= start_date)
+
     if end_date:
-        query = query.filter(AuditLog.timestamp <= end_date)
-    
+        stmt = stmt.where(AuditLog.timestamp <= end_date)
+
     # Handle cursor-based pagination
     if cursor:
         # Cursor is the timestamp of the last item from previous page
         cursor_time = datetime.fromisoformat(cursor)
-        query = query.filter(AuditLog.timestamp < cursor_time)
-    
+        stmt = stmt.where(AuditLog.timestamp < cursor_time)
+
     # Get total count (expensive, consider caching)
-    total = query.count()
-    
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    count_result = await db.execute(count_stmt)
+    total = count_result.scalar()
+
     # Get paginated results
-    logs = query.order_by(desc(AuditLog.timestamp)).limit(limit + 1).all()
+    result = await db.execute(stmt.order_by(desc(AuditLog.timestamp)).limit(limit + 1))
+    logs = result.scalars().all()
     
     # Check if there are more results
     has_more = len(logs) > limit
@@ -151,7 +154,8 @@ async def list_audit_logs(
         user_email = None
         if log.user_id:
             from app.models.user import User
-            user = db.query(User).filter(User.id == log.user_id).first()
+            user_result = await db.execute(select(User).where(User.id == log.user_id))
+            user = user_result.scalar_one_or_none()
             if user:
                 user_email = user.email
         
@@ -196,18 +200,19 @@ async def get_audit_stats(
         start_date = end_date - timedelta(days=30)
     
     # Build base query
-    query = db.query(AuditLog).filter(
+    stmt = select(AuditLog).where(
         and_(
             AuditLog.tenant_id == current_user.tenant_id,
             AuditLog.timestamp >= start_date,
             AuditLog.timestamp <= end_date
         )
     )
-    
+
     if organization_id:
-        query = query.filter(AuditLog.organization_id == organization_id)
-    
-    logs = query.all()
+        stmt = stmt.where(AuditLog.organization_id == organization_id)
+
+    result = await db.execute(stmt)
+    logs = result.scalars().all()
     
     # Calculate statistics
     total_events = len(logs)
@@ -227,7 +232,8 @@ async def get_audit_stats(
     for user_id, count in sorted(events_by_user_dict.items(), key=lambda x: x[1], reverse=True)[:10]:
         # Get user details
         from app.models.user import User
-        user = db.query(User).filter(User.id == user_id).first()
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
         events_by_user.append({
             "user_id": user_id,
             "email": user.email if user else "Unknown",
@@ -282,13 +288,14 @@ async def get_audit_log(
     """
     Get a specific audit log entry by ID.
     """
-    log = db.query(AuditLog).filter(
+    result = await db.execute(select(AuditLog).where(
         and_(
             AuditLog.id == log_id,
             AuditLog.tenant_id == current_user.tenant_id
         )
-    ).first()
-    
+    ))
+    log = result.scalar_one_or_none()
+
     if not log:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -306,7 +313,8 @@ async def get_audit_log(
     user_email = None
     if log.user_id:
         from app.models.user import User
-        user = db.query(User).filter(User.id == log.user_id).first()
+        user_result = await db.execute(select(User).where(User.id == log.user_id))
+        user = user_result.scalar_one_or_none()
         if user:
             user_email = user.email
     
@@ -337,28 +345,29 @@ async def export_audit_logs(
     Export audit logs in JSON or CSV format (admin only).
     """
     # Build query
-    query = db.query(AuditLog).filter(
+    stmt = select(AuditLog).where(
         AuditLog.tenant_id == current_user.tenant_id
     )
-    
+
     # Apply filters
     if export_request.start_date:
-        query = query.filter(AuditLog.timestamp >= export_request.start_date)
-    
+        stmt = stmt.where(AuditLog.timestamp >= export_request.start_date)
+
     if export_request.end_date:
-        query = query.filter(AuditLog.timestamp <= export_request.end_date)
-    
+        stmt = stmt.where(AuditLog.timestamp <= export_request.end_date)
+
     if export_request.actions:
-        query = query.filter(AuditLog.action.in_(export_request.actions))
-    
+        stmt = stmt.where(AuditLog.action.in_(export_request.actions))
+
     if export_request.user_ids:
-        query = query.filter(AuditLog.user_id.in_(export_request.user_ids))
-    
+        stmt = stmt.where(AuditLog.user_id.in_(export_request.user_ids))
+
     if export_request.resource_types:
-        query = query.filter(AuditLog.resource_type.in_(export_request.resource_types))
-    
+        stmt = stmt.where(AuditLog.resource_type.in_(export_request.resource_types))
+
     # Get logs
-    logs = query.order_by(desc(AuditLog.timestamp)).all()
+    result = await db.execute(stmt.order_by(desc(AuditLog.timestamp)))
+    logs = result.scalars().all()
     
     # Generate export
     if export_request.format == "csv":
@@ -381,7 +390,8 @@ async def export_audit_logs(
             user_email = None
             if log.user_id:
                 from app.models.user import User
-                user = db.query(User).filter(User.id == log.user_id).first()
+                user_result = await db.execute(select(User).where(User.id == log.user_id))
+                user = user_result.scalar_one_or_none()
                 if user:
                     user_email = user.email
             
@@ -412,7 +422,8 @@ async def export_audit_logs(
             user_email = None
             if log.user_id:
                 from app.models.user import User
-                user = db.query(User).filter(User.id == log.user_id).first()
+                user_result = await db.execute(select(User).where(User.id == log.user_id))
+                user = user_result.scalar_one_or_none()
                 if user:
                     user_email = user.email
             
@@ -468,23 +479,28 @@ async def cleanup_old_audit_logs(
     Delete old audit logs for compliance (admin only).
     """
     cutoff_date = datetime.utcnow() - timedelta(days=days)
-    
+
     # Count logs to be deleted
-    count = db.query(AuditLog).filter(
-        and_(
-            AuditLog.tenant_id == current_user.tenant_id,
-            AuditLog.timestamp < cutoff_date
+    count_result = await db.execute(
+        select(func.count()).select_from(AuditLog).where(
+            and_(
+                AuditLog.tenant_id == current_user.tenant_id,
+                AuditLog.timestamp < cutoff_date
+            )
         )
-    ).count()
-    
+    )
+    count = count_result.scalar()
+
     # Delete logs
-    db.query(AuditLog).filter(
-        and_(
-            AuditLog.tenant_id == current_user.tenant_id,
-            AuditLog.timestamp < cutoff_date
+    await db.execute(
+        delete(AuditLog).where(
+            and_(
+                AuditLog.tenant_id == current_user.tenant_id,
+                AuditLog.timestamp < cutoff_date
+            )
         )
-    ).delete()
-    
+    )
+
     await db.commit()
     
     # Log cleanup action
@@ -521,12 +537,15 @@ async def list_available_actions(
     # Get usage counts for each action
     action_counts = {}
     for action in actions:
-        count = db.query(AuditLog).filter(
-            and_(
-                AuditLog.tenant_id == current_user.tenant_id,
-                AuditLog.action == action
+        count_result = await db.execute(
+            select(func.count()).select_from(AuditLog).where(
+                and_(
+                    AuditLog.tenant_id == current_user.tenant_id,
+                    AuditLog.action == action
+                )
             )
-        ).count()
+        )
+        count = count_result.scalar()
         action_counts[action] = count
     
     return {
