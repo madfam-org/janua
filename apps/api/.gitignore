@@ -128,4 +128,4 @@ Thumbs.db
 *.seed
 *.pid.lock
 .npm
-node_modules/
+node_modules/.turbo

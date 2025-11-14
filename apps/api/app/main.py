@@ -52,8 +52,8 @@ from app.routers.v1 import (
     policies as policies_v1,
     invitations as invitations_v1,
     audit_logs as audit_logs_v1,
-    # alerts as alerts_v1,  # Temporarily disabled due to aioredis Python 3.11 incompatibility
-    # localization as localization_v1,  # Temporarily disabled - needs localization model
+    # alerts as alerts_v1,  # Disabled - requires opentelemetry.exporter dependency
+    localization as localization_v1,
 )
 
 # Additional feature routers with optional loading
@@ -634,8 +634,8 @@ app.include_router(webhooks_v1.router, prefix="/api/v1")
 app.include_router(policies_v1.router, prefix="/api")
 app.include_router(invitations_v1.router, prefix="/api")
 app.include_router(audit_logs_v1.router, prefix="/api")
-# app.include_router(alerts_v1.router, prefix="/api/v1")  # Temporarily disabled due to aioredis Python 3.11 incompatibility
-# app.include_router(localization_v1.router, prefix="/api/v1")  # Temporarily disabled - needs localization model
+# app.include_router(alerts_v1.router, prefix="/api/v1")  # Disabled - requires opentelemetry.exporter dependency
+app.include_router(localization_v1.router, prefix="/api/v1")  # Localization model now available
 
 # Register additional feature routers if available
 for router_name, router_module in additional_routers.items():
