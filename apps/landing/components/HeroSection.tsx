@@ -66,7 +66,7 @@ export function HeroSection() {
 {`import { PlintoClient } from '@plinto/typescript-sdk';
 
 const plinto = new PlintoClient({
-  apiUrl: process.env.PLINTO_API_URL,
+  baseURL: process.env.PLINTO_API_URL,
   apiKey: process.env.PLINTO_API_KEY
 });
 

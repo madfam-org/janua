@@ -31,7 +31,7 @@ Multi-Factor Authentication (MFA) adds an essential layer of security by requiri
 import { plinto } from '@plinto/typescript-sdk'
 
 // Enable TOTP for user
-const mfaSetup = await plinto.auth.mfa.setup({
+const mfaSetup = await plinto.auth.enableMFA({
   userId: user.id,
   method: 'totp',
   label: 'MyApp Account'
@@ -46,7 +46,7 @@ console.log('Manual Entry Key:', mfaSetup.secret)
 
 ```typescript
 // User enters code from authenticator app
-const verificationResult = await plinto.auth.mfa.verify({
+const verificationResult = await plinto.auth.verifyMFA({
   userId: user.id,
   method: 'totp',
   code: '123456'
@@ -57,7 +57,7 @@ if (verificationResult.success) {
   console.log('MFA enabled successfully')
   
   // Generate backup codes
-  const backupCodes = await plinto.auth.mfa.generateBackupCodes({
+  const backupCodes = await plinto.auth.regenerateMFABackupCodes({
     userId: user.id
   })
   
@@ -120,7 +120,7 @@ app.post('/api/auth/mfa/setup', authenticate, async (req, res) => {
   try {
     const { method, phoneNumber, label } = req.body
     
-    const mfaSetup = await plinto.auth.mfa.setup({
+    const mfaSetup = await plinto.auth.enableMFA({
       userId: req.user.id,
       method,
       phoneNumber, // for SMS
@@ -147,7 +147,7 @@ app.post('/api/auth/mfa/verify', mfaLimiter, async (req, res) => {
   try {
     const { sessionId, method, code } = req.body
     
-    const result = await plinto.auth.mfa.verify({
+    const result = await plinto.auth.verifyMFA({
       sessionId,
       method,
       code
@@ -185,7 +185,7 @@ app.post('/api/auth/mfa/verify', mfaLimiter, async (req, res) => {
 // MFA status endpoint
 app.get('/api/auth/mfa/status', authenticate, async (req, res) => {
   try {
-    const status = await plinto.auth.mfa.getStatus({
+    const status = await plinto.auth.getMFAStatus({
       userId: req.user.id
     })
     
@@ -212,7 +212,7 @@ app.post('/api/auth/mfa/disable', authenticate, async (req, res) => {
       password
     })
     
-    await plinto.auth.mfa.disable({
+    await plinto.auth.disableMFA({
       userId: req.user.id,
       confirmationCode
     })
@@ -238,7 +238,7 @@ app.post('/api/auth/mfa/backup-codes/regenerate', authenticate, async (req, res)
       password
     })
     
-    const backupCodes = await plinto.auth.mfa.regenerateBackupCodes({
+    const backupCodes = await plinto.auth.regenerateMFABackupCodes({
       userId: req.user.id
     })
     
@@ -319,7 +319,7 @@ export function requireMfa(level = MfaLevel.REQUIRED) {
       }
       
       // Check if user has MFA enabled
-      const mfaStatus = await plinto.auth.mfa.getStatus({
+      const mfaStatus = await plinto.auth.getMFAStatus({
         userId: user.id
       })
       
@@ -415,7 +415,7 @@ async def setup_mfa(
     current_user: dict = Depends(get_current_user)
 ):
     try:
-        mfa_setup = await plinto.auth.mfa.setup(
+        mfa_setup = await plinto.auth.enableMFA(
             user_id=current_user["id"],
             method=request.method,
             phone_number=request.phone_number,
@@ -437,7 +437,7 @@ async def setup_mfa(
 @app.post("/api/auth/mfa/verify")
 async def verify_mfa(request: MfaVerifyRequest):
     try:
-        result = await plinto.auth.mfa.verify(
+        result = await plinto.auth.verifyMFA(
             session_id=request.session_id,
             method=request.method,
             code=request.code
@@ -478,7 +478,7 @@ async def verify_mfa(request: MfaVerifyRequest):
 @app.get("/api/auth/mfa/status", response_model=MfaStatusResponse)
 async def get_mfa_status(current_user: dict = Depends(get_current_user)):
     try:
-        status = await plinto.auth.mfa.get_status(
+        status = await plinto.auth.getMFAStatus(
             user_id=current_user["id"]
         )
         
@@ -507,7 +507,7 @@ async def disable_mfa(
             password=password
         )
         
-        await plinto.auth.mfa.disable(
+        await plinto.auth.disableMFA(
             user_id=current_user["id"],
             confirmation_code=confirmation_code
         )
@@ -601,7 +601,7 @@ class MfaRequirement:
             return current_user
         
         # Check if user has MFA enabled
-        mfa_status = await plinto.auth.mfa.get_status(
+        mfa_status = await plinto.auth.getMFAStatus(
             user_id=current_user["id"]
         )
         
@@ -716,7 +716,7 @@ export const MfaSetup: React.FC<MfaSetupProps> = ({ onComplete, onCancel }) => {
       setLoading(true)
       setError('')
 
-      const setup = await plinto.auth.mfa.setup({
+      const setup = await plinto.auth.enableMFA({
         method: selectedMethod,
         phoneNumber: selectedMethod === 'sms' ? phoneNumber : undefined,
         label: 'MyApp Account'
@@ -736,7 +736,7 @@ export const MfaSetup: React.FC<MfaSetupProps> = ({ onComplete, onCancel }) => {
       setLoading(true)
       setError('')
 
-      const result = await plinto.auth.mfa.verifySetup({
+      const result = await plinto.auth.verifyMFA({
         method: selectedMethod,
         code: verificationCode
       })
@@ -1029,7 +1029,7 @@ export const MfaSettings: React.FC = () => {
   const loadMfaStatus = async () => {
     try {
       setLoading(true)
-      const status = await plinto.auth.mfa.getStatus()
+      const status = await plinto.auth.getMFAStatus()
       setMfaStatus(status)
     } catch (err: any) {
       setError(err.message || 'Failed to load MFA status')
@@ -1047,7 +1047,7 @@ export const MfaSettings: React.FC = () => {
     if (!password) return
 
     try {
-      await plinto.auth.mfa.disable({ password })
+      await plinto.auth.disableMFA({ password })
       await loadMfaStatus()
       alert('MFA has been disabled')
     } catch (err: any) {
@@ -1064,7 +1064,7 @@ export const MfaSettings: React.FC = () => {
     if (!password) return
 
     try {
-      const result = await plinto.auth.mfa.regenerateBackupCodes({ password })
+      const result = await plinto.auth.regenerateMFABackupCodes({ password })
       setBackupCodes(result.codes)
       setShowBackupCodes(true)
       await loadMfaStatus()
@@ -1185,7 +1185,7 @@ export const useMfa = (): MfaHookReturn => {
     try {
       setLoading(true)
       setError(null)
-      const status = await plinto.auth.mfa.getStatus()
+      const status = await plinto.auth.getMFAStatus()
       setMfaState({
         isEnabled: status.enabled,
         methods: status.methods,
@@ -1206,7 +1206,7 @@ export const useMfa = (): MfaHookReturn => {
   const setupMfa = useCallback(async (method: string, options: any = {}) => {
     try {
       setError(null)
-      const result = await plinto.auth.mfa.setup({
+      const result = await plinto.auth.enableMFA({
         method,
         ...options
       })
@@ -1221,7 +1221,7 @@ export const useMfa = (): MfaHookReturn => {
   const verifyMfa = useCallback(async (sessionId: string, method: string, code: string) => {
     try {
       setError(null)
-      const result = await plinto.auth.mfa.verify({
+      const result = await plinto.auth.verifyMFA({
         sessionId,
         method,
         code
@@ -1236,7 +1236,7 @@ export const useMfa = (): MfaHookReturn => {
   const disableMfa = useCallback(async (password: string) => {
     try {
       setError(null)
-      await plinto.auth.mfa.disable({ password })
+      await plinto.auth.disableMFA({ password })
       await loadMfaStatus()
     } catch (err: any) {
       setError(err.message || 'Failed to disable MFA')
@@ -1247,7 +1247,7 @@ export const useMfa = (): MfaHookReturn => {
   const regenerateBackupCodes = useCallback(async (password: string) => {
     try {
       setError(null)
-      const result = await plinto.auth.mfa.regenerateBackupCodes({ password })
+      const result = await plinto.auth.regenerateMFABackupCodes({ password })
       await loadMfaStatus()
       return result.codes
     } catch (err: any) {
@@ -1359,7 +1359,7 @@ const requireStepUp = async (session: SecureSession, operation: string) => {
 ```typescript
 // WebAuthn integration for hardware tokens
 const setupHardwareToken = async (userId: string) => {
-  const challenge = await plinto.auth.mfa.webauthn.generateChallenge({
+  const challenge = await plinto.auth.getPasskeyRegistrationOptions({
     userId,
     type: 'registration'
   })
@@ -1385,7 +1385,7 @@ const setupHardwareToken = async (userId: string) => {
   })
 
   // Verify and store credential
-  const verification = await plinto.auth.mfa.webauthn.verify({
+  const verification = await plinto.auth.verifyPasskeyRegistration({
     challengeId: challenge.id,
     credential: {
       id: credential.id,
@@ -1402,7 +1402,7 @@ const setupHardwareToken = async (userId: string) => {
 }
 
 const verifyHardwareToken = async (sessionId: string) => {
-  const challenge = await plinto.auth.mfa.webauthn.generateChallenge({
+  const challenge = await plinto.auth.getPasskeyRegistrationOptions({
     sessionId,
     type: 'authentication'
   })
@@ -1419,7 +1419,7 @@ const verifyHardwareToken = async (sessionId: string) => {
     }
   })
 
-  const verification = await plinto.auth.mfa.webauthn.verify({
+  const verification = await plinto.auth.verifyPasskeyRegistration({
     challengeId: challenge.id,
     assertion: {
       id: assertion.id,
@@ -1616,7 +1616,7 @@ describe('MFA Implementation', () => {
 
       jest.spyOn(plinto.auth.mfa, 'setup').mockResolvedValue(mockSetup)
 
-      const result = await plinto.auth.mfa.setup({
+      const result = await plinto.auth.enableMFA({
         userId: 'user123',
         method: 'totp',
         label: 'MyApp'
@@ -1636,7 +1636,7 @@ describe('MFA Implementation', () => {
 
       jest.spyOn(plinto.auth.mfa, 'verify').mockResolvedValue(mockVerification)
 
-      const result = await plinto.auth.mfa.verify({
+      const result = await plinto.auth.verifyMFA({
         sessionId: 'session123',
         method: 'totp',
         code: '123456'
@@ -1655,7 +1655,7 @@ describe('MFA Implementation', () => {
 
       jest.spyOn(plinto.auth.mfa, 'verify').mockResolvedValue(mockVerification)
 
-      const result = await plinto.auth.mfa.verify({
+      const result = await plinto.auth.verifyMFA({
         sessionId: 'session123',
         method: 'totp',
         code: 'invalid'
@@ -1676,7 +1676,7 @@ describe('MFA Implementation', () => {
 
       jest.spyOn(plinto.auth.mfa, 'setup').mockResolvedValue(mockSetup)
 
-      const result = await plinto.auth.mfa.setup({
+      const result = await plinto.auth.enableMFA({
         userId: 'user123',
         method: 'sms',
         phoneNumber: '+1234567890'
@@ -1692,7 +1692,7 @@ describe('MFA Implementation', () => {
       )
 
       await expect(
-        plinto.auth.mfa.setup({
+        plinto.auth.enableMFA({
           userId: 'user123',
           method: 'sms',
           phoneNumber: 'invalid'
@@ -1713,7 +1713,7 @@ describe('MFA Implementation', () => {
       jest.spyOn(plinto.auth.mfa, 'generateBackupCodes')
         .mockResolvedValue(mockCodes)
 
-      const result = await plinto.auth.mfa.generateBackupCodes({
+      const result = await plinto.auth.regenerateMFABackupCodes({
         userId: 'user123'
       })
 
@@ -1732,7 +1732,7 @@ describe('MFA Implementation', () => {
         .mockResolvedValueOnce(mockVerifications[1])
 
       // First use - should work
-      const result1 = await plinto.auth.mfa.verify({
+      const result1 = await plinto.auth.verifyMFA({
         sessionId: 'session123',
         method: 'backup',
         code: 'backup123'
@@ -1740,7 +1740,7 @@ describe('MFA Implementation', () => {
       expect(result1.success).toBe(true)
 
       // Second use - should fail
-      const result2 = await plinto.auth.mfa.verify({
+      const result2 = await plinto.auth.verifyMFA({
         sessionId: 'session123',
         method: 'backup',
         code: 'backup123'
@@ -1767,7 +1767,7 @@ describe('MFA Implementation', () => {
       // Make 5 failed attempts
       const attempts = []
       for (let i = 0; i < 5; i++) {
-        const result = await plinto.auth.mfa.verify({
+        const result = await plinto.auth.verifyMFA({
           sessionId: 'session123',
           method: 'totp',
           code: 'wrong'
@@ -2511,7 +2511,7 @@ await rollout.advanceToPhase(MfaPhase.REQUIRED_ALL)
 
 ### Core MFA Methods
 
-#### `plinto.auth.mfa.setup(options)`
+#### `plinto.auth.enableMFA(options)`
 
 Setup MFA for a user.
 
@@ -2535,14 +2535,14 @@ Setup MFA for a user.
 
 **Example:**
 ```typescript
-const result = await plinto.auth.mfa.setup({
+const result = await plinto.auth.enableMFA({
   userId: 'user123',
   method: 'totp',
   label: 'MyApp Account'
 })
 ```
 
-#### `plinto.auth.mfa.verify(options)`
+#### `plinto.auth.verifyMFA(options)`
 
 Verify MFA code during authentication or setup.
 
@@ -2564,7 +2564,7 @@ Verify MFA code during authentication or setup.
 }
 ```
 
-#### `plinto.auth.mfa.getStatus(options)`
+#### `plinto.auth.getMFAStatus(options)`
 
 Get MFA status for a user.
 
@@ -2582,7 +2582,7 @@ Get MFA status for a user.
 }
 ```
 
-#### `plinto.auth.mfa.disable(options)`
+#### `plinto.auth.disableMFA(options)`
 
 Disable MFA for a user.
 
@@ -2599,7 +2599,7 @@ Disable MFA for a user.
 }
 ```
 
-#### `plinto.auth.mfa.generateBackupCodes(options)`
+#### `plinto.auth.regenerateMFABackupCodes(options)`
 
 Generate new backup codes for a user.
 
@@ -2617,7 +2617,7 @@ Generate new backup codes for a user.
 
 ### Advanced MFA Methods
 
-#### `plinto.auth.mfa.webauthn.generateChallenge(options)`
+#### `plinto.auth.getPasskeyRegistrationOptions(options)`
 
 Generate WebAuthn challenge for hardware token registration or authentication.
 
@@ -2644,7 +2644,7 @@ Generate WebAuthn challenge for hardware token registration or authentication.
 }
 ```
 
-#### `plinto.auth.mfa.webauthn.verify(options)`
+#### `plinto.auth.verifyPasskeyRegistration(options)`
 
 Verify WebAuthn credential.
 

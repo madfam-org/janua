@@ -77,7 +77,7 @@ PLINTO_API_KEY=your-api-key-here
         code={`import { PlintoClient } from '@plinto/typescript-sdk';
 
 export const plinto = new PlintoClient({
-  apiUrl: process.env.PLINTO_API_URL!,
+  baseURL: process.env.PLINTO_API_URL!,
   apiKey: process.env.PLINTO_API_KEY!,
 });`}
       />
@@ -202,8 +202,8 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
     
-    // Verify token
-    const user = await plinto.auth.verifyToken(accessToken);
+    // Get current user (verifies token)
+    const user = await plinto.auth.getCurrentUser();
     
     // Attach user to request
     req.user = user;
@@ -222,8 +222,8 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
         maxAge: 15 * 60 * 1000
       });
       
-      // Verify new token
-      const user = await plinto.auth.verifyToken(result.access_token);
+      // Get current user (verifies new token)
+      const user = await plinto.auth.getCurrentUser();
       req.user = user;
       next();
     } catch (refreshError) {
@@ -302,7 +302,7 @@ app.use(cookieParser());
 
 // Initialize Plinto client
 const plinto = new PlintoClient({
-  apiUrl: process.env.PLINTO_API_URL!,
+  baseURL: process.env.PLINTO_API_URL!,
   apiKey: process.env.PLINTO_API_KEY!,
 });
 
@@ -342,7 +342,7 @@ async function requireAuth(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Not authenticated' });
   
   try {
-    const user = await plinto.auth.verifyToken(token);
+    const user = await plinto.auth.getCurrentUser();
     req.user = user;
     next();
   } catch (error) {
