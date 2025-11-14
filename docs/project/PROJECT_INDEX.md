@@ -53,6 +53,12 @@
 - [Week 7-8 Optimization](./WEEK7-8_PERFORMANCE_OPTIMIZATION.md) - Performance
 - [Week 8 Demo](./WEEK8_DEMO_COMPLETION_SUMMARY.md) - **NEW: Local Demo**
 
+### Documentation Audits
+- [User Documentation Audit](../USER_DOCUMENTATION_AUDIT.md) - **NEW: Publication Readiness**
+- [SDK API Verification](../SDK_API_VERIFICATION_REPORT.md) - **CRITICAL: Method Inventory**
+- [Documentation Audit Complete](../DOCUMENTATION_AUDIT_COMPLETE.md) - **Final Summary**
+- [Documentation Update Summary](../DOCUMENTATION_UPDATE_SUMMARY.md) - Update History
+
 ### Roadmap Documents
 - [Production Readiness Roadmap](./PRODUCTION_READINESS_ROADMAP.md) - **Updated: Week 8 Complete**
 - [Project Context](./PROJECT_CONTEXT.md) - Overall project overview
