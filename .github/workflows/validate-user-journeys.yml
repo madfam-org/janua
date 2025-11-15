@@ -64,7 +64,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Start test environment
-        run: docker-compose -f docker-compose.test.yml up -d
+        run: docker compose -f docker-compose.test.yml up -d
 
       - name: Wait for services
         run: bash scripts/wait-for-services.sh
@@ -106,7 +106,7 @@ jobs:
 
       - name: Cleanup test environment
         if: always()
-        run: docker-compose -f docker-compose.test.yml down -v
+        run: docker compose -f docker-compose.test.yml down -v
 
   validate-content-alignment:
     name: Validate Content-Functionality Alignment
@@ -176,7 +176,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Start test environment
-        run: docker-compose -f docker-compose.test.yml up -d
+        run: docker compose -f docker-compose.test.yml up -d
 
       - name: Wait for services
         run: bash scripts/wait-for-services.sh
@@ -189,7 +189,7 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: docker-compose -f docker-compose.test.yml down -v
+        run: docker compose -f docker-compose.test.yml down -v
 
   notify-on-failure:
     name: Notify on Journey Validation Failure

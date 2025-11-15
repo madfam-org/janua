@@ -40,7 +40,7 @@ jobs:
 
       - name: Start test services
         run: |
-          docker-compose -f docker-compose.test.yml up -d
+          docker compose -f docker-compose.test.yml up -d
           echo "Services starting..."
 
       - name: Wait for services to be healthy
@@ -60,8 +60,8 @@ jobs:
       - name: Show service logs (debug)
         if: always()
         run: |
-          docker-compose -f docker-compose.test.yml ps
-          docker-compose -f docker-compose.test.yml logs --tail=50
+          docker compose -f docker-compose.test.yml ps
+          docker compose -f docker-compose.test.yml logs --tail=50
 
       - name: Run Playwright E2E tests
         run: npx playwright test
@@ -85,7 +85,7 @@ jobs:
 
       - name: Stop test services
         if: always()
-        run: docker-compose -f docker-compose.test.yml down -v
+        run: docker compose -f docker-compose.test.yml down -v
 
       - name: Comment PR with test results
         if: github.event_name == 'pull_request' && always()
