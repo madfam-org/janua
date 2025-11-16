@@ -95,6 +95,29 @@ jobs:
           timeout 120s bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
           echo "API is healthy and ready"
 
+      - name: Install landing page dependencies
+        run: |
+          cd apps/landing
+          npm install
+
+      - name: Build landing page
+        run: |
+          cd apps/landing
+          npm run build
+
+      - name: Start landing page
+        run: |
+          cd apps/landing
+          npm start &
+          echo $! > /tmp/landing.pid
+          echo "Landing page started in background on port 3000"
+
+      - name: Wait for landing page to be ready
+        run: |
+          echo "Waiting for landing page..."
+          timeout 120s bash -c 'until curl -f http://localhost:3000 2>/dev/null; do sleep 2; done'
+          echo "Landing page is healthy and ready"
+
       - name: Run journey validation tests
         run: npx playwright test tests/e2e/journeys --reporter=github
 
@@ -129,6 +152,14 @@ jobs:
           echo ""
           echo "Please review the Playwright report for details."
           exit 1
+
+      - name: Stop landing page
+        if: always()
+        run: |
+          if [ -f /tmp/landing.pid ]; then
+            kill $(cat /tmp/landing.pid) 2>/dev/null || true
+          fi
+          pkill -f "next start" || true
 
       - name: Stop API server
         if: always()
@@ -280,11 +311,42 @@ jobs:
           timeout 120s bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
           echo "API is healthy and ready"
 
+      - name: Install landing page dependencies
+        run: |
+          cd apps/landing
+          npm install
+
+      - name: Build landing page
+        run: |
+          cd apps/landing
+          npm run build
+
+      - name: Start landing page
+        run: |
+          cd apps/landing
+          npm start &
+          echo $! > /tmp/landing.pid
+          echo "Landing page started in background on port 3000"
+
+      - name: Wait for landing page to be ready
+        run: |
+          echo "Waiting for landing page..."
+          timeout 120s bash -c 'until curl -f http://localhost:3000 2>/dev/null; do sleep 2; done'
+          echo "Landing page is healthy and ready"
+
       - name: Run performance tests
         run: |
           npx playwright test tests/e2e/journeys/developer-integrator.spec.ts \
             -g "Performance meets documented expectations" \
             --reporter=github
+
+      - name: Stop landing page
+        if: always()
+        run: |
+          if [ -f /tmp/landing.pid ]; then
+            kill $(cat /tmp/landing.pid) 2>/dev/null || true
+          fi
+          pkill -f "next start" || true
 
       - name: Stop API server
         if: always()
