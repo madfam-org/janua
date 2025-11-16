@@ -34,6 +34,14 @@ Complete guide to all Plinto documentation, organized by category and developmen
   - Complete backend/frontend architecture with database models, services, SDK plugin, React components
   - 4-week phased implementation plan with testing and deployment strategies
 
+- **[RESEND_EMAIL_SERVICE_DESIGN.md](design/RESEND_EMAIL_SERVICE_DESIGN.md)** - Resend email service implementation design
+  - Modern email service replacing SendGrid with simpler architecture
+  - Complete ResendEmailService Python class with 5 email types
+  - HTML email templates with professional gradient design
+  - 2-week implementation timeline (1 week dev + 1 week testing)
+  - Redis-backed token management with TTL expiry
+  - Security, testing, and migration strategies
+
 ### Roadmap
 - **[PAYMENT_INFRASTRUCTURE_ROADMAP.md](roadmap/PAYMENT_INFRASTRUCTURE_ROADMAP.md)** - Multi-provider payment infrastructure implementation roadmap
   - 6-week timeline across 3 phases (multi-provider infrastructure, plugin development, dogfooding)
@@ -143,6 +151,7 @@ Complete guide to all Plinto documentation, organized by category and developmen
 - Beta launch readiness: ✅ COMPLETE
 
 #### Day 2: Polar Integration Design
+- **[week6-day2-polar-integration-design-complete.md](implementation-reports/week6-day2-polar-integration-design-complete.md)**
 - **[POLAR_INTEGRATION_DESIGN.md](design/POLAR_INTEGRATION_DESIGN.md)** - Complete Polar payment integration architecture
 - Three-level integration: Internal use (Plinto → Polar), Plugin system (customers → Polar), Dogfooding
 - Backend architecture: 5 database models, PolarService class, API endpoints
@@ -150,6 +159,16 @@ Complete guide to all Plinto documentation, organized by category and developmen
 - Implementation plan: 4-week phased approach (internal use → plugin development → dogfooding)
 - Security, testing, and deployment strategies
 - Migration from Fungies.io to Polar for international customers
+
+#### Day 2: Resend Email Service Design
+- **[week6-day2-resend-email-design-complete.md](implementation-reports/week6-day2-resend-email-design-complete.md)**
+- **[RESEND_EMAIL_SERVICE_DESIGN.md](design/RESEND_EMAIL_SERVICE_DESIGN.md)** - Complete Resend email service design
+- Modern email service replacing SendGrid (simpler architecture)
+- Complete ResendEmailService Python class with 5 email types
+- Professional HTML email templates with gradient design
+- 2-week implementation timeline (1 week dev + 1 week testing)
+- Redis-backed token management with automatic expiry
+- Security, testing, and migration strategies
 
 ---
 
