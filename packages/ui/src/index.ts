@@ -14,5 +14,8 @@ export * from './components/error-boundary'
 export * from './components/avatar'
 export * from './components/separator'
 
+// Authentication Components
+export * from './components/auth'
+
 // Utilities
 export * from './lib/utils'
