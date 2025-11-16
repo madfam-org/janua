@@ -28,6 +28,12 @@ Complete guide to all Plinto documentation, organized by category and developmen
 - **Environment Setup**: See `apps/api/.env.example` and `apps/demo/.env.example`
 - **Testing Guide**: See implementation reports below
 
+### Design Documentation
+- **[POLAR_INTEGRATION_DESIGN.md](design/POLAR_INTEGRATION_DESIGN.md)** - Polar payment platform integration architecture
+  - Three-level integration strategy (internal use, plugin system, dogfooding)
+  - Complete backend/frontend architecture with database models, services, SDK plugin, React components
+  - 4-week phased implementation plan with testing and deployment strategies
+
 ---
 
 ## 🏗️ Implementation Reports
@@ -127,6 +133,15 @@ Complete guide to all Plinto documentation, organized by category and developmen
 - Manual testing checklist (27 scenarios with step-by-step validation)
 - Support channels and feedback mechanisms established
 - Beta launch readiness: ✅ COMPLETE
+
+#### Day 2: Polar Integration Design
+- **[POLAR_INTEGRATION_DESIGN.md](design/POLAR_INTEGRATION_DESIGN.md)** - Complete Polar payment integration architecture
+- Three-level integration: Internal use (Plinto → Polar), Plugin system (customers → Polar), Dogfooding
+- Backend architecture: 5 database models, PolarService class, API endpoints
+- Frontend architecture: TypeScript SDK plugin, React components (PolarCheckoutButton, PolarCustomerPortal)
+- Implementation plan: 4-week phased approach (internal use → plugin development → dogfooding)
+- Security, testing, and deployment strategies
+- Migration from Fungies.io to Polar for international customers
 
 ---
 
