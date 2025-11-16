@@ -34,6 +34,14 @@ Complete guide to all Plinto documentation, organized by category and developmen
   - Complete backend/frontend architecture with database models, services, SDK plugin, React components
   - 4-week phased implementation plan with testing and deployment strategies
 
+### Roadmap
+- **[PAYMENT_INFRASTRUCTURE_ROADMAP.md](roadmap/PAYMENT_INFRASTRUCTURE_ROADMAP.md)** - Multi-provider payment infrastructure implementation roadmap
+  - 6-week timeline across 3 phases (multi-provider infrastructure, plugin development, dogfooding)
+  - Intelligent provider routing: Polar (global MoR), Conekta (Mexico), Stripe (fallback)
+  - Complete Plinto Polar plugin (TypeScript SDK + React components)
+  - Dogfooding strategy and real-world validation
+  - Security, testing, deployment, and migration strategies
+
 ---
 
 ## 🏗️ Implementation Reports
