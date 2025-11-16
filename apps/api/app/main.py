@@ -138,11 +138,162 @@ alert_manager = AlertManager(metrics_collector)
 system_monitor = SystemMonitor(metrics_collector)
 
 app = FastAPI(
-    title="Plinto API",
+    title="Plinto Authentication API",
     version="1.0.0",
-    description="Modern authentication and identity platform API",
+    description="""
+# Plinto Authentication Platform
+
+Modern, open-core authentication and identity management platform with enterprise features.
+
+## Features
+
+* 🔐 **Complete Authentication**: Email/password, OAuth (Google, GitHub, Microsoft, Apple), Magic Links, Passkeys
+* 🛡️ **MFA & Security**: TOTP, SMS, Backup codes, Device fingerprinting  
+* 👥 **Multi-Tenancy**: Organizations, RBAC, Team management
+* 🔄 **Session Management**: Multi-device tracking, Revocation, Security warnings
+* 🎯 **Enterprise Features**: SAML/SSO, SCIM, Compliance (GDPR, SOC 2), Webhooks
+* 📊 **Developer Experience**: TypeScript SDK, React UI Components, Comprehensive docs
+
+## Getting Started
+
+1. **Sign Up**: `POST /api/v1/auth/signup` - Create your account
+2. **Get Token**: Receive JWT access + refresh tokens
+3. **Authenticate**: Add `Authorization: Bearer {token}` header to requests
+4. **Integrate**: Use our TypeScript SDK or REST API directly
+
+## Authentication
+
+All protected endpoints require a JWT access token in the Authorization header:
+
+```
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+Get tokens via:
+- Email/password: `POST /api/v1/auth/signin`  
+- OAuth: `POST /api/v1/oauth/{provider}/callback`
+- Magic link: `POST /api/v1/auth/magic-link/verify`
+
+## Rate Limiting
+
+All endpoints are rate-limited for security:
+- Sign up: 3 requests/minute
+- Sign in: 5 requests/minute  
+- Password reset: 3 requests/hour
+- General endpoints: 100 requests/minute
+
+Rate limit headers returned in response:
+- `X-RateLimit-Limit`: Maximum requests allowed
+- `X-RateLimit-Remaining`: Requests remaining
+- `X-RateLimit-Reset`: Unix timestamp when limit resets
+
+## Environments
+
+- **Production**: https://api.plinto.dev
+- **Staging**: https://staging-api.plinto.dev
+- **Development**: http://localhost:8000
+
+## Support
+
+- Documentation: https://docs.plinto.dev
+- GitHub: https://github.com/plinto/plinto
+- Discord: https://discord.gg/plinto
+- Email: support@plinto.dev
+
+## SDK Libraries
+
+- **TypeScript**: `npm install @plinto/typescript-sdk`
+- **React UI**: `npm install @plinto/ui`
+- **Python**: `pip install plinto` (coming soon)
+- **Go**: `go get github.com/plinto/plinto-go` (coming soon)
+    """,
     docs_url="/docs" if settings.ENABLE_DOCS else None,
-    redoc_url="/redoc" if settings.ENABLE_DOCS else None
+    redoc_url="/redoc" if settings.ENABLE_DOCS else None,
+    openapi_tags=[
+        {
+            "name": "Authentication",
+            "description": "User authentication endpoints including sign up, sign in, password management, email verification, and magic links.",
+        },
+        {
+            "name": "OAuth",
+            "description": "Social authentication with Google, GitHub, Microsoft, and Apple OAuth providers.",
+        },
+        {
+            "name": "Users",
+            "description": "User profile management including updates, deletion, and profile information.",
+        },
+        {
+            "name": "Sessions",
+            "description": "Session management across multiple devices with tracking, listing, and revocation capabilities.",
+        },
+        {
+            "name": "Organizations",
+            "description": "Multi-tenant organization management with members, roles, and settings.",
+        },
+        {
+            "name": "MFA",
+            "description": "Multi-factor authentication with TOTP, SMS, and backup codes for enhanced security.",
+        },
+        {
+            "name": "Passkeys",
+            "description": "WebAuthn/FIDO2 passkey authentication for passwordless secure login.",
+        },
+        {
+            "name": "Admin",
+            "description": "Administrative endpoints for system monitoring, user management, and statistics.",
+        },
+        {
+            "name": "Webhooks",
+            "description": "Event-driven webhooks for user actions, authentication events, and system notifications.",
+        },
+        {
+            "name": "RBAC",
+            "description": "Role-based access control for fine-grained permission management.",
+        },
+        {
+            "name": "Policies",
+            "description": "Security policies for password requirements, session timeouts, and access controls.",
+        },
+        {
+            "name": "Audit Logs",
+            "description": "Comprehensive audit logging for compliance and security monitoring.",
+        },
+        {
+            "name": "SSO",
+            "description": "Enterprise Single Sign-On with SAML 2.0 and OIDC support.",
+        },
+        {
+            "name": "SCIM",
+            "description": "System for Cross-domain Identity Management for automated user provisioning.",
+        },
+        {
+            "name": "Compliance",
+            "description": "GDPR, SOC 2, and regulatory compliance features including data export and deletion.",
+        },
+    ],
+    contact={
+        "name": "Plinto Support",
+        "url": "https://plinto.dev/support",
+        "email": "support@plinto.dev",
+    },
+    license_info={
+        "name": "MIT License (Core) + Commercial License (Enterprise)",
+        "url": "https://github.com/plinto/plinto/blob/main/LICENSE",
+    },
+    servers=[
+        {
+            "url": "https://api.plinto.dev",
+            "description": "Production server",
+        },
+        {
+            "url": "https://staging-api.plinto.dev",
+            "description": "Staging server",
+        },
+        {
+            "url": "http://localhost:8000",
+            "description": "Local development server",
+        },
+    ],
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
