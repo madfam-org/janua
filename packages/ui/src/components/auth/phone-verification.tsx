@@ -4,6 +4,7 @@ import { Input } from '../input'
 import { Label } from '../label'
 import { Card } from '../card'
 import { cn } from '../../lib/utils'
+import { parseApiError, formatErrorMessage } from '../../lib/error-messages'
 
 export interface PhoneVerificationProps {
   /** Optional custom class name */
@@ -87,16 +88,19 @@ export function PhoneVerification({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.message || 'Failed to send verification code')
+          const actionableError = parseApiError(errorData, { status: response.status })
+          throw new Error(actionableError.message)
         }
       }
 
       setStep('verify')
       setResendCooldown(60) // 60 second cooldown
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to send verification code')
-      setError(error.message)
-      onError?.(error)
+      const actionableError = parseApiError(err, {
+        message: err instanceof Error ? err.message : 'Failed to send verification code'
+      })
+      setError(formatErrorMessage(actionableError, true))
+      onError?.(new Error(actionableError.message))
     } finally {
       setIsLoading(false)
     }
@@ -126,16 +130,19 @@ export function PhoneVerification({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.message || 'Invalid verification code')
+          const actionableError = parseApiError(errorData, { status: response.status })
+          throw new Error(actionableError.message)
         }
       }
 
       setStep('success')
       onComplete?.()
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Invalid verification code')
-      setError(error.message)
-      onError?.(error)
+      const actionableError = parseApiError(err, {
+        message: err instanceof Error ? err.message : 'Invalid phone verification code'
+      })
+      setError(formatErrorMessage(actionableError, true))
+      onError?.(new Error(actionableError.message))
       setAttempts((prev) => prev + 1)
       setVerificationCode('') // Clear code on error
     } finally {
@@ -167,7 +174,8 @@ export function PhoneVerification({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.message || 'Failed to resend code')
+          const actionableError = parseApiError(errorData, { status: response.status })
+          throw new Error(actionableError.message)
         }
       }
 
@@ -175,9 +183,11 @@ export function PhoneVerification({
       setVerificationCode('')
       setAttempts(0)
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to resend code')
-      setError(error.message)
-      onError?.(error)
+      const actionableError = parseApiError(err, {
+        message: err instanceof Error ? err.message : 'Failed to resend verification code'
+      })
+      setError(formatErrorMessage(actionableError, true))
+      onError?.(new Error(actionableError.message))
     } finally {
       setIsLoading(false)
     }

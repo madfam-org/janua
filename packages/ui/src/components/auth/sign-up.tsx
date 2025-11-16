@@ -5,6 +5,7 @@ import { Label } from '../label'
 import { Card } from '../card'
 import { Separator } from '../separator'
 import { cn } from '../../lib/utils'
+import { parseApiError, formatErrorMessage, AUTH_ERRORS } from '../../lib/error-messages'
 
 export interface SignUpProps {
   /** Optional custom class name */
@@ -99,12 +100,12 @@ export function SignUp({
     setError(null)
 
     if (!agreedToTerms) {
-      setError('You must agree to the Terms of Service and Privacy Policy')
+      setError(formatErrorMessage(AUTH_ERRORS.REQUIRED_FIELD('Terms agreement'), true))
       return
     }
 
     if (passwordStrength < 50) {
-      setError('Password is too weak. Please use a stronger password.')
+      setError(formatErrorMessage(AUTH_ERRORS.WEAK_PASSWORD, true))
       return
     }
 
@@ -147,7 +148,11 @@ export function SignUp({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.message || 'Sign up failed')
+          const actionableError = parseApiError(errorData, { status: response.status })
+          setError(formatErrorMessage(actionableError, true))
+          onError?.(new Error(actionableError.message))
+          setIsLoading(false)
+          return
         }
 
         const data = await response.json()
@@ -164,9 +169,11 @@ export function SignUp({
         }
       }
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Sign up failed')
-      setError(error.message)
-      onError?.(error)
+      const actionableError = parseApiError(err, {
+        message: err instanceof Error ? err.message : undefined
+      })
+      setError(formatErrorMessage(actionableError, true))
+      onError?.(new Error(actionableError.message))
     } finally {
       setIsLoading(false)
     }
@@ -188,9 +195,11 @@ export function SignUp({
         window.location.href = oauthUrl
       }
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(`${provider} sign up failed`)
-      setError(error.message)
-      onError?.(error)
+      const actionableError = parseApiError(err, {
+        message: `${provider} sign up failed`
+      })
+      setError(formatErrorMessage(actionableError, true))
+      onError?.(new Error(actionableError.message))
       setIsLoading(false)
     }
   }

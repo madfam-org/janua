@@ -5,6 +5,7 @@ import { Label } from '../label'
 import { Card } from '../card'
 import { Separator } from '../separator'
 import { cn } from '../../lib/utils'
+import { parseApiError, formatErrorMessage } from '../../lib/error-messages'
 
 export interface SignInProps {
   /** Optional custom class name */
@@ -99,7 +100,11 @@ export function SignIn({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.message || 'Invalid email or password')
+          const actionableError = parseApiError(errorData, { status: response.status })
+          setError(formatErrorMessage(actionableError, true))
+          onError?.(new Error(actionableError.message))
+          setIsLoading(false)
+          return
         }
 
         const data = await response.json()
@@ -110,9 +115,11 @@ export function SignIn({
         }
       }
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Sign in failed')
-      setError(error.message)
-      onError?.(error)
+      const actionableError = parseApiError(err, { 
+        message: err instanceof Error ? err.message : undefined 
+      })
+      setError(formatErrorMessage(actionableError, true))
+      onError?.(new Error(actionableError.message))
     } finally {
       setIsLoading(false)
     }
@@ -134,9 +141,11 @@ export function SignIn({
         window.location.href = oauthUrl
       }
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(`${provider} login failed`)
-      setError(error.message)
-      onError?.(error)
+      const actionableError = parseApiError(err, {
+        message: `${provider} authentication failed`
+      })
+      setError(formatErrorMessage(actionableError, true))
+      onError?.(new Error(actionableError.message))
       setIsLoading(false)
     }
   }

@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Button } from '../button'
 import { Card } from '../card'
 import { cn } from '../../lib/utils'
+import { parseApiError, formatErrorMessage, getBriefErrorMessage } from '../../lib/error-messages'
 
 export interface EmailVerificationProps {
   /** Optional custom class name */
@@ -71,7 +72,11 @@ export function EmailVerification({
 
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
-            throw new Error(errorData.message || 'Invalid or expired verification link')
+            const actionableError = parseApiError(errorData, { 
+              status: response.status,
+              code: errorData.code
+            })
+            throw new Error(actionableError.message)
           }
         }
       }
@@ -82,9 +87,11 @@ export function EmailVerification({
           onComplete?.()
         })
         .catch((err) => {
-          const error = err instanceof Error ? err : new Error('Invalid or expired verification link')
-          setError(error.message)
-          onError?.(error)
+          const actionableError = parseApiError(err, {
+            message: err instanceof Error ? err.message : 'Invalid or expired verification link'
+          })
+          setError(getBriefErrorMessage(actionableError))
+          onError?.(new Error(actionableError.message))
           setStatus('error')
         })
     }
@@ -123,15 +130,20 @@ export function EmailVerification({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.message || 'Failed to resend email')
+          const actionableError = parseApiError(errorData, { 
+            status: response.status 
+          })
+          throw new Error(actionableError.message)
         }
 
         setResendCooldown(60)
       }
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to resend email')
-      setError(error.message)
-      onError?.(error)
+      const actionableError = parseApiError(err, {
+        message: err instanceof Error ? err.message : 'Failed to resend verification email'
+      })
+      setError(formatErrorMessage(actionableError, true))
+      onError?.(new Error(actionableError.message))
     }
   }
 

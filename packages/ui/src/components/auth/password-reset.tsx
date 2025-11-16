@@ -4,6 +4,7 @@ import { Input } from '../input'
 import { Label } from '../label'
 import { Card } from '../card'
 import { cn } from '../../lib/utils'
+import { parseApiError, formatErrorMessage, AUTH_ERRORS } from '../../lib/error-messages'
 
 export interface PasswordResetProps {
   /** Optional custom class name */
@@ -64,9 +65,11 @@ export function PasswordReset({
           setStep('reset')
         })
         .catch((err) => {
-          const error = err instanceof Error ? err : new Error('Invalid or expired reset link')
-          setError(error.message)
-          onError?.(error)
+          const actionableError = parseApiError(err, {
+            message: err instanceof Error ? err.message : 'Invalid or expired reset link'
+          })
+          setError(formatErrorMessage(actionableError, true))
+          onError?.(new Error(actionableError.message))
           setStep('request')
         })
         .finally(() => setIsLoading(false))
@@ -99,15 +102,18 @@ export function PasswordReset({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.message || 'Failed to send reset email')
+          const actionableError = parseApiError(errorData, { status: response.status })
+          throw new Error(actionableError.message)
         }
 
         setStep('verify')
       }
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to send reset email')
-      setError(error.message)
-      onError?.(error)
+      const actionableError = parseApiError(err, {
+        message: err instanceof Error ? err.message : 'Failed to send reset email'
+      })
+      setError(formatErrorMessage(actionableError, true))
+      onError?.(new Error(actionableError.message))
     } finally {
       setIsLoading(false)
     }
@@ -117,12 +123,12 @@ export function PasswordReset({
     e.preventDefault()
 
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match')
+      setError(formatErrorMessage(AUTH_ERRORS.PASSWORDS_DONT_MATCH, true))
       return
     }
 
     if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters')
+      setError(formatErrorMessage(AUTH_ERRORS.WEAK_PASSWORD, true))
       return
     }
 
@@ -149,15 +155,18 @@ export function PasswordReset({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.message || 'Failed to reset password')
+          const actionableError = parseApiError(errorData, { status: response.status })
+          throw new Error(actionableError.message)
         }
 
         setStep('success')
       }
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to reset password')
-      setError(error.message)
-      onError?.(error)
+      const actionableError = parseApiError(err, {
+        message: err instanceof Error ? err.message : 'Failed to reset password'
+      })
+      setError(formatErrorMessage(actionableError, true))
+      onError?.(new Error(actionableError.message))
     } finally {
       setIsLoading(false)
     }

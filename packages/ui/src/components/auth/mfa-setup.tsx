@@ -5,6 +5,7 @@ import { Label } from '../label'
 import { Card } from '../card'
 import { Badge } from '../badge'
 import { cn } from '../../lib/utils'
+import { parseApiError, formatErrorMessage, AUTH_ERRORS } from '../../lib/error-messages'
 
 export interface MFASetupProps {
   /** Optional custom class name */
@@ -78,7 +79,8 @@ export function MFASetup({
 
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}))
-            throw new Error(errorData.message || 'Failed to fetch MFA setup data')
+            const actionableError = parseApiError(errorData, { status: response.status })
+            throw new Error(actionableError.message)
           }
 
           return await response.json()
@@ -88,9 +90,11 @@ export function MFASetup({
       fetchData()
         .then(setMfaData)
         .catch((err) => {
-          const error = err instanceof Error ? err : new Error('Failed to fetch MFA setup data')
-          setError(error.message)
-          onError?.(error)
+          const actionableError = parseApiError(err, {
+            message: err instanceof Error ? err.message : 'Failed to fetch MFA setup data'
+          })
+          setError(formatErrorMessage(actionableError, true))
+          onError?.(new Error(actionableError.message))
         })
         .finally(() => setIsLoading(false))
     }
@@ -146,7 +150,8 @@ export function MFASetup({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.message || 'Invalid verification code')
+          const actionableError = parseApiError(errorData, { status: response.status })
+          throw new Error(actionableError.message)
         }
       }
 
@@ -154,9 +159,11 @@ export function MFASetup({
         setStep('backup')
       }
     } catch (err) {
-      const error = err instanceof Error ? err : new Error('Invalid verification code')
-      setError(error.message)
-      onError?.(error)
+      const actionableError = parseApiError(err, {
+        message: err instanceof Error ? err.message : 'Invalid MFA verification code'
+      })
+      setError(formatErrorMessage(actionableError, true))
+      onError?.(new Error(actionableError.message))
     } finally {
       setIsLoading(false)
     }

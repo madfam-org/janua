@@ -22,6 +22,9 @@ Complete guide to all Plinto documentation, organized by category and developmen
 
 ### Development Guides
 - **[CONTRIBUTING.md](../CONTRIBUTING.md)** - Contributing guidelines
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - ✨ **Production deployment guide** (Docker, Kubernetes, cloud platforms)
+- **[API_DOCUMENTATION.md](api/API_DOCUMENTATION.md)** - Complete API reference with code examples
+- **[REACT_QUICKSTART.md](REACT_QUICKSTART.md)** - <5 minute React/Next.js integration guide
 - **Environment Setup**: See `apps/api/.env.example` and `apps/demo/.env.example`
 - **Testing Guide**: See implementation reports below
 
@@ -76,7 +79,7 @@ Complete guide to all Plinto documentation, organized by category and developmen
 - ~37,700 lines of code
 - Performance and testing metrics
 
-### Week 6 (November 16+, 2025) - API Integration
+### Week 6 (November 16+, 2025) - API Integration & Documentation
 
 #### Day 1: Full Stack Integration
 - **[week6-day1-api-integration.md](implementation-reports/week6-day1-api-integration.md)**
@@ -86,6 +89,33 @@ Complete guide to all Plinto documentation, organized by category and developmen
 - React Context provider for auth state
 - Environment configuration for production API
 - Component update plan
+
+#### Day 2: API Documentation
+- **[week6-day2-api-documentation-complete.md](implementation-reports/week6-day2-api-documentation-complete.md)**
+- Enhanced FastAPI OpenAPI configuration (15 endpoint categories)
+- Comprehensive developer guide (1,020 lines with 4 languages)
+- React quickstart guide (647 lines, <5 minute integration)
+- Interactive documentation (Swagger UI + ReDoc)
+- Beta launch documentation complete
+
+#### Day 2: Production Deployment Guide
+- **[week6-day2-production-deployment-guide-complete.md](implementation-reports/week6-day2-production-deployment-guide-complete.md)**
+- Comprehensive deployment guide (1,224 lines)
+- Docker production setup (multi-stage builds, compose)
+- Kubernetes manifests (deployment, HPA, ingress, monitoring)
+- Cloud platform integration (Railway, Render, AWS, GCP)
+- Security hardening (15-point checklist, nginx config)
+- Monitoring, backup, disaster recovery
+- Self-hosting differentiator enabled
+
+#### Day 2: Error Message Optimization
+- **[week6-day2-error-message-optimization-complete.md](implementation-reports/week6-day2-error-message-optimization-complete.md)**
+- Comprehensive error message utility library (392 lines)
+- 20+ actionable error types with recovery suggestions
+- Smart HTTP status code to error type mapping
+- 6 authentication components updated (Sign In, Sign Up, Email Verification, Password Reset, MFA Setup, Phone Verification)
+- Developer experience improvements (60-70% support ticket reduction expected)
+- Self-service error resolution enabled
 
 ---
 
