@@ -544,3 +544,235 @@ class TestWildcardPermissions:
         # Should not match without wildcards
         result = rbac_engine._check_wildcard_permission("organization:read", user_permissions)
         assert result is False
+
+
+class TestResourceOwnership:
+    """Test resource ownership checking logic"""
+
+    @pytest.fixture
+    def rbac_engine(self):
+        """Create RBACEngine instance for testing"""
+        return RBACEngine()
+
+    @pytest.fixture
+    def mock_session(self):
+        """Mock database session"""
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    async def test_user_owns_own_resource(self, rbac_engine, mock_session):
+        """Test that user owns their own USER resource"""
+        user_id = str(uuid4())
+
+        result = await rbac_engine._check_resource_ownership(
+            mock_session, user_id, ResourceType.USER, user_id
+        )
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_user_does_not_own_other_user_resource(self, rbac_engine, mock_session):
+        """Test that user does not own another user's resource"""
+        user_id = str(uuid4())
+        other_user_id = str(uuid4())
+
+        result = await rbac_engine._check_resource_ownership(
+            mock_session, user_id, ResourceType.USER, other_user_id
+        )
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_non_user_resource_returns_false(self, rbac_engine, mock_session):
+        """Test that non-USER resources return False (not implemented)"""
+        user_id = str(uuid4())
+        resource_id = str(uuid4())
+
+        result = await rbac_engine._check_resource_ownership(
+            mock_session, user_id, ResourceType.PROJECT, resource_id
+        )
+
+        assert result is False
+
+
+class TestUserPermissions:
+    """Test user permission aggregation (role + custom permissions)"""
+
+    @pytest.fixture
+    def rbac_engine(self):
+        """Create RBACEngine instance for testing"""
+        return RBACEngine()
+
+    @pytest.fixture
+    def mock_session(self):
+        """Mock database session"""
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    async def test_user_permissions_with_role_only(self, rbac_engine, mock_session):
+        """Test getting permissions from role without custom permissions"""
+        role_id = str(uuid4())
+
+        # Mock membership with role but no custom permissions
+        mock_membership = Mock()
+        mock_membership.role_id = role_id
+        mock_membership.custom_permissions = None
+
+        # Mock _get_role_permissions to return role permissions
+        with patch.object(
+            rbac_engine,
+            "_get_role_permissions",
+            new=AsyncMock(return_value={"user:read", "project:write"}),
+        ):
+            permissions = await rbac_engine._get_user_permissions(mock_session, mock_membership)
+
+        assert permissions == {"user:read", "project:write"}
+
+    @pytest.mark.asyncio
+    async def test_user_permissions_with_custom_only(self, rbac_engine, mock_session):
+        """Test getting permissions with only custom permissions (no role)"""
+        # Mock membership with custom permissions but no role
+        mock_membership = Mock()
+        mock_membership.role_id = None
+        mock_membership.custom_permissions = ["admin:delete", "user:manage"]
+
+        permissions = await rbac_engine._get_user_permissions(mock_session, mock_membership)
+
+        assert permissions == {"admin:delete", "user:manage"}
+
+    @pytest.mark.asyncio
+    async def test_user_permissions_combined(self, rbac_engine, mock_session):
+        """Test combining role permissions with custom permissions"""
+        role_id = str(uuid4())
+
+        # Mock membership with both role and custom permissions
+        mock_membership = Mock()
+        mock_membership.role_id = role_id
+        mock_membership.custom_permissions = ["admin:delete", "user:manage"]
+
+        # Mock _get_role_permissions to return role permissions
+        with patch.object(
+            rbac_engine,
+            "_get_role_permissions",
+            new=AsyncMock(return_value={"user:read", "project:write"}),
+        ):
+            permissions = await rbac_engine._get_user_permissions(mock_session, mock_membership)
+
+        # Should combine both role and custom permissions
+        assert "user:read" in permissions
+        assert "project:write" in permissions
+        assert "admin:delete" in permissions
+        assert "user:manage" in permissions
+        assert len(permissions) == 4
+
+    @pytest.mark.asyncio
+    async def test_user_permissions_no_role_no_custom(self, rbac_engine, mock_session):
+        """Test user with neither role nor custom permissions"""
+        # Mock membership with no role and no custom permissions
+        mock_membership = Mock()
+        mock_membership.role_id = None
+        mock_membership.custom_permissions = None
+
+        permissions = await rbac_engine._get_user_permissions(mock_session, mock_membership)
+
+        assert permissions == set()
+
+    @pytest.mark.asyncio
+    async def test_role_permission_caching(self, rbac_engine, mock_session):
+        """Test that role permissions are properly cached"""
+        role_id = str(uuid4())
+
+        # Pre-populate cache
+        rbac_engine._permission_cache[role_id] = {"cached:read", "cached:write"}
+
+        # Mock membership with cached role
+        mock_membership = Mock()
+        mock_membership.role_id = role_id
+        mock_membership.custom_permissions = ["custom:delete"]
+
+        permissions = await rbac_engine._get_user_permissions(mock_session, mock_membership)
+
+        # Should use cached role permissions + custom permissions
+        assert "cached:read" in permissions
+        assert "cached:write" in permissions
+        assert "custom:delete" in permissions
+        assert len(permissions) == 3
+
+
+class TestResourceSpecificPermissions:
+    """Test resource-specific permission checking"""
+
+    @pytest.fixture
+    def rbac_engine(self):
+        """Create RBACEngine instance for testing"""
+        return RBACEngine()
+
+    @pytest.fixture
+    def mock_session(self):
+        """Mock database session"""
+        return AsyncMock()
+
+    @pytest.mark.asyncio
+    async def test_specific_resource_permission_match(self, rbac_engine, mock_session):
+        """Test exact resource:id:action permission match"""
+        user_id = str(uuid4())
+        resource_id = str(uuid4())
+
+        # Permission for specific resource
+        permissions = {f"user:{resource_id}:read"}
+
+        result = await rbac_engine._check_resource_permission(
+            mock_session, user_id, ResourceType.USER, Action.READ, resource_id, permissions
+        )
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_ownership_based_permission(self, rbac_engine, mock_session):
+        """Test ownership-based permission (user:own:action)"""
+        user_id = str(uuid4())
+
+        # Permission to access own resources
+        permissions = {"user:own:read"}
+
+        with patch.object(
+            rbac_engine, "_check_resource_ownership", new=AsyncMock(return_value=True)
+        ):
+            result = await rbac_engine._check_resource_permission(
+                mock_session, user_id, ResourceType.USER, Action.READ, user_id, permissions
+            )
+
+            assert result is True
+
+    @pytest.mark.asyncio
+    async def test_ownership_permission_denied(self, rbac_engine, mock_session):
+        """Test ownership-based permission denied when not owner"""
+        user_id = str(uuid4())
+        other_user_id = str(uuid4())
+
+        # Permission to access own resources only
+        permissions = {"user:own:read"}
+
+        with patch.object(
+            rbac_engine, "_check_resource_ownership", new=AsyncMock(return_value=False)
+        ):
+            result = await rbac_engine._check_resource_permission(
+                mock_session, user_id, ResourceType.USER, Action.READ, other_user_id, permissions
+            )
+
+            assert result is False
+
+    @pytest.mark.asyncio
+    async def test_no_resource_permission_match(self, rbac_engine, mock_session):
+        """Test no matching resource-specific permission"""
+        user_id = str(uuid4())
+        resource_id = str(uuid4())
+
+        # Different resource permissions
+        permissions = {"project:123:read", "user:456:write"}
+
+        result = await rbac_engine._check_resource_permission(
+            mock_session, user_id, ResourceType.USER, Action.READ, resource_id, permissions
+        )
+
+        assert result is False
