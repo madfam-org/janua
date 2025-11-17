@@ -556,7 +556,7 @@ describe('WebSocket Performance Tests', () => {
       });
 
       // Mock ping/pong mechanism
-      const pingInterval setInterval(() => {
+      const pingInterval = setInterval(() => {
         const pingTime = Date.now();
         pingCount++;
 

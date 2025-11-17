@@ -1,0 +1,21 @@
+{
+  "name": "@plinto/edge-verify",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker for JWT verification at the edge",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "jose": "^5.9.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.6.3",
+    "wrangler": "^3.96.0"
+  },
+  "packageManager": "npm@10.9.2"
+}
