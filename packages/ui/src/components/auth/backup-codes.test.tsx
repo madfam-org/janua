@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@/test/test-utils'
+import { render, screen, waitFor, act } from '@/test/test-utils'
 import userEvent from '@testing-library/user-event'
 import { BackupCodes } from './backup-codes'
 
@@ -151,8 +151,9 @@ describe('BackupCodes', () => {
     })
 
     it('should show copied state temporarily', async () => {
-      const user = userEvent.setup()
+      // FIX: Setup fake timers BEFORE userEvent.setup()
       vi.useFakeTimers()
+      const user = userEvent.setup()
 
       render(<BackupCodes backupCodes={mockBackupCodes} />)
 
@@ -161,11 +162,12 @@ describe('BackupCodes', () => {
 
       expect(screen.getByText(/copied/i)).toBeInTheDocument()
 
-      vi.advanceTimersByTime(2000)
-
-      await waitFor(() => {
-        expect(screen.queryByText(/copied/i)).not.toBeInTheDocument()
+      // FIX: Use act() to wrap timer advancement for React state updates
+      act(() => {
+        vi.advanceTimersByTime(2000)
       })
+
+      expect(screen.queryByText(/copied/i)).not.toBeInTheDocument()
 
       vi.useRealTimers()
     })
@@ -270,8 +272,9 @@ describe('BackupCodes', () => {
       const regenerateButton = screen.getByRole('button', { name: /regenerate codes/i })
       await user.click(regenerateButton)
 
-      expect(screen.getByRole('button', { name: /confirm regenerate/i })).toBeInTheDocument()
-      expect(screen.getByText(/regenerating will invalidate all existing/i)).toBeInTheDocument()
+      // FIX: Use findBy for async elements that appear after state change
+      expect(await screen.findByRole('button', { name: /confirm regenerate/i })).toBeInTheDocument()
+      expect(await screen.findByText(/regenerating will invalidate all existing/i)).toBeInTheDocument()
     })
 
     it('should allow canceling regeneration', async () => {
@@ -287,10 +290,14 @@ describe('BackupCodes', () => {
       const regenerateButton = screen.getByRole('button', { name: /regenerate codes/i })
       await user.click(regenerateButton)
 
-      const cancelButton = screen.getByRole('button', { name: /cancel/i })
+      // FIX: Use findBy for async cancel button that appears after state change
+      const cancelButton = await screen.findByRole('button', { name: /cancel/i })
       await user.click(cancelButton)
 
-      expect(screen.queryByRole('button', { name: /confirm regenerate/i })).not.toBeInTheDocument()
+      // FIX: Wrap assertion in waitFor for async state update
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: /confirm regenerate/i })).not.toBeInTheDocument()
+      })
     })
 
     it('should regenerate codes on confirmation', async () => {
@@ -309,7 +316,8 @@ describe('BackupCodes', () => {
       const regenerateButton = screen.getByRole('button', { name: /regenerate codes/i })
       await user.click(regenerateButton)
 
-      const confirmButton = screen.getByRole('button', { name: /confirm regenerate/i })
+      // FIX: Use findBy for async confirm button
+      const confirmButton = await screen.findByRole('button', { name: /confirm regenerate/i })
       await user.click(confirmButton)
 
       await waitFor(() => {
@@ -335,12 +343,12 @@ describe('BackupCodes', () => {
       const regenerateButton = screen.getByRole('button', { name: /regenerate codes/i })
       await user.click(regenerateButton)
 
-      const confirmButton = screen.getByRole('button', { name: /confirm regenerate/i })
+      // FIX: Use findBy for async confirm button
+      const confirmButton = await screen.findByRole('button', { name: /confirm regenerate/i })
       await user.click(confirmButton)
 
-      await waitFor(() => {
-        expect(screen.getByText(/regenerating/i)).toBeInTheDocument()
-      })
+      // FIX: Use findBy for async loading state that appears after click
+      expect(await screen.findByText(/regenerating/i)).toBeInTheDocument()
     })
 
     it('should handle regeneration error', async () => {
@@ -359,11 +367,13 @@ describe('BackupCodes', () => {
       const regenerateButton = screen.getByRole('button', { name: /regenerate codes/i })
       await user.click(regenerateButton)
 
-      const confirmButton = screen.getByRole('button', { name: /confirm regenerate/i })
+      // FIX: Use findBy for async confirm button
+      const confirmButton = await screen.findByRole('button', { name: /confirm regenerate/i })
       await user.click(confirmButton)
 
+      // FIX: Use findBy for async error message
+      expect(await screen.findByText(/regeneration failed/i)).toBeInTheDocument()
       await waitFor(() => {
-        expect(screen.getByText(/regeneration failed/i)).toBeInTheDocument()
         expect(mockOnError).toHaveBeenCalled()
       })
     })
@@ -449,7 +459,10 @@ describe('BackupCodes', () => {
       // Tab through copy buttons
       await user.tab()
       const copyButtons = screen.getAllByRole('button', { name: /copy/i })
-      expect(copyButtons[0]).toHaveFocus()
+      // FIX: Wrap focus assertion in waitFor for async focus management
+      await waitFor(() => {
+        expect(copyButtons[0]).toHaveFocus()
+      })
     })
 
     it('should have descriptive code labels', () => {
