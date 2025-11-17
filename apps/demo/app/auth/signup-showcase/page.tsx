@@ -13,7 +13,7 @@ export default function SignUpShowcase() {
   const handleSuccess = (user: any) => {
     setStatus('success')
     setMessage('Account created successfully! Redirecting...')
-    console.log('Signup successful:', user)
+    // removed console.log
 
     // Simulate redirect after success
     setTimeout(() => {
@@ -65,7 +65,7 @@ export default function SignUpShowcase() {
 
 <SignUp
   onSuccess={(data) => {
-    console.log(data)
+    // removed console.log
     router.push('/welcome')
   }}
   onError={(error) => {

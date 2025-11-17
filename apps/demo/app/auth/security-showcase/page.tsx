@@ -108,13 +108,13 @@ export default function SecurityShowcase() {
 
   const handleSessionRevoke = (sessionId: string) => {
     setSessionRevoked(true)
-    console.log('Session revoked:', sessionId)
+    // removed console.log
     setTimeout(() => setSessionRevoked(false), 3000)
   }
 
   const handleDeviceTrust = (deviceId: string, trusted: boolean) => {
     setDeviceTrusted(true)
-    console.log('Device trust updated:', { deviceId, trusted })
+    // removed console.log
     setTimeout(() => setDeviceTrusted(false), 3000)
   }
 
@@ -189,11 +189,11 @@ export default function SecurityShowcase() {
               sessions={sampleSessions}
               currentSessionId="1"
               onRevokeSession={async (sessionId: string) => {
-                console.log('Revoking session:', sessionId)
+                // removed console.log
                 setSessionRevoked(true)
               }}
               onRevokeAllOthers={async () => {
-                console.log('Revoking all other sessions')
+                // removed console.log
                 setSessionRevoked(true)
               }}
             />
@@ -210,11 +210,11 @@ export default function SecurityShowcase() {
               devices={sampleDevices}
               currentDeviceId="1"
               onTrustDevice={async (deviceId: string) => {
-                console.log('Device trusted:', deviceId)
+                // removed console.log
                 setDeviceTrusted(true)
               }}
               onRevokeDevice={async (deviceId: string) => {
-                console.log('Device revoked:', deviceId)
+                // removed console.log
                 setDeviceTrusted(true)
               }}
             />

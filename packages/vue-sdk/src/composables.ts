@@ -31,7 +31,7 @@ export function useAuth() {
 }
 
 export function useUser(): {
-  user: ComputedRef<User | null>;
+  user: ComputedRef<Readonly<User> | null>;
   isLoading: ComputedRef<boolean>;
   updateUser: (data: any) => Promise<User>;
 } {

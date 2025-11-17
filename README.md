@@ -2,7 +2,7 @@
 
 **Modern, enterprise-grade authentication and user management platform**
 
-**All authentication features free and open source.** Paid tiers provide managed hosting, enterprise support, and compliance. No vendor lock-in.
+**100% of authentication features free forever**—including enterprise SSO, SCIM 2.0, MFA, and multi-tenancy. Paid tiers provide managed hosting, zero-config deployment, and SLA guarantees—not feature access. No vendor lock-in.
 
 [![PyPI version](https://img.shields.io/pypi/v/plinto?style=flat-square)](https://pypi.org/project/plinto/)
 [![Python versions](https://img.shields.io/pypi/pyversions/plinto?style=flat-square)](https://pypi.org/project/plinto/)
@@ -40,7 +40,7 @@ cd apps/demo && npm install && npm run dev
 - ✅ **14 Production-Ready Auth Components** - SignIn, SignUp, MFA, Passkeys, OAuth, etc.
 - ✅ **Complete FastAPI Backend** - Full REST API with PostgreSQL + Redis
 - ✅ **TypeScript SDK** - Type-safe client for all authentication flows
-- ✅ **538+ Tests** - Unit tests (489), E2E tests (49) with Playwright
+- ✅ **240+ Tests** - 152 test files (unit + integration), 94+ E2E test scenarios with Playwright
 - ✅ **Performance Optimized** - 84/100 Lighthouse score, <100ms response times
 - ✅ **SSO Integration** - OIDC Discovery, SAML, OAuth providers
 - ✅ **Comprehensive Documentation** - Implementation reports, API guides
@@ -62,6 +62,8 @@ Plinto combines the best of competing authentication solutions without the trade
 |---------|-------------|--------|-------|-------|
 | **All features free** | ✅ | ✅ | ❌ | ❌ |
 | **Self-hosting** | ✅ | ✅ | ❌ | ❌ ($$$$) |
+| **Enterprise SSO free** | ❌ DIY | ✅ | ❌ ($$$) | ❌ ($$$$) |
+| **SCIM 2.0 free** | ❌ | ✅ | ❌ ($$) | ❌ ($$$) |
 | **Clerk-quality UI** | ❌ | ✅ | ✅ | ❌ |
 | **Multi-framework SDKs** | ✅ | ✅ | ❌ (React only) | ✅ |
 | **Direct DB access** | ✅ | ✅ | ❌ (webhooks) | ❌ |
@@ -70,14 +72,17 @@ Plinto combines the best of competing authentication solutions without the trade
 **Blue-Ocean Positioning:**
 - **Better-Auth Foundation**: Real-time direct database writes, full control over your data
 - **Clerk Developer Experience**: Production-ready UI components, 10-minute setup
-- **Anti-Trap Business Model**: All authentication features free forever (MFA, passkeys, SSO, organizations)
+- **Anti-Trap Business Model**: Enterprise SSO, SCIM, MFA, passkeys, organizations—all free in OSS (MIT license)
 - **Anti-Lock-In**: [Documented migration path](docs/migration/cloud-to-self-hosted.md) from managed to self-hosted
+
+**What Makes Plinto Different:**
+> "The only OSS authentication platform with **free enterprise SSO and SCIM 2.0**. Auth0 charges $2,000-5,000/mo. Clerk charges $1,000+/mo. SuperTokens gates behind 'See pricing'. Plinto? Free forever in our MIT-licensed OSS. We charge for managed hosting convenience, not capabilities."
 
 **Framework Support:**
 - ✅ **Frontend**: React, Vue 3, Next.js (App Router), React Native
 - ✅ **Mobile**: Flutter, React Native
 - ✅ **Backend**: Python (FastAPI), Go, TypeScript/Node.js
-- 🔜 **Coming Soon**: Svelte, Astro (planned Q1 2026)
+- 🔜 **Coming Q1 2026**: Svelte, Astro, Prisma/Drizzle adapters
 
 ---
 
@@ -91,12 +96,12 @@ The Plinto demo app (`apps/demo`) showcases all authentication features with pro
 - ✅ **Day 1-2**: Bundle analysis and optimization (Webpack + Next.js analysis)
 - ✅ **Day 3-4**: 9 component showcase pages with 14 auth components
 - ✅ **Day 5**: Performance testing (84/100 Lighthouse, 11 pages audited)
-- ✅ **Day 6**: 489 unit tests implemented (74.2% passing, Vitest + RTL)
-- ✅ **Day 7**: 49 E2E tests with Playwright (complete critical paths)
+- ✅ **Day 6**: 152 test files implemented (unit + integration, Vitest + RTL)
+- ✅ **Day 7**: 94+ E2E test scenarios with Playwright (11 spec files, complete critical paths)
 
 **Week 6 In Progress:**
 - ✅ **Day 1**: API integration infrastructure (PostgreSQL + Redis + FastAPI)
-- ⏳ Auth component updates for real API calls
+- ✅ Auth component updates for real API calls (completed Week 6 Day 1)
 - ⏳ End-to-end authentication flow testing
 
 ### Component Showcases
@@ -117,10 +122,10 @@ Visit http://localhost:3000/auth to explore:
 ### Testing Infrastructure
 
 ```bash
-# Unit Tests (489 tests)
+# Unit Tests (152 test files)
 cd apps/demo && npm test
 
-# E2E Tests (49 tests)
+# E2E Tests (94+ scenarios across 11 spec files)
 npm run e2e
 
 # E2E with UI
@@ -131,8 +136,8 @@ npm test -- --coverage
 ```
 
 **Test Metrics:**
-- Unit Tests: 489 (74.2% passing) - Vitest + React Testing Library
-- E2E Tests: 49 (100% passing) - Playwright with Chromium
+- Test Files: 152 (unit + integration) - Vitest + React Testing Library  
+- E2E Scenarios: 94+ (11 spec files) - Playwright with Chromium
 - Code Coverage: ~8,100 lines of test code
 - Test Infrastructure: Complete with fixtures, helpers, and utilities
 
@@ -204,7 +209,7 @@ Plinto provides a comprehensive full-stack authentication platform:
 ```
 ┌─────────────────────────────────────────────────────────┐
 │           Next.js Demo App (Port 3000)                  │
-│  14 Auth Components | 489 Unit Tests | 49 E2E Tests    │
+│  14 Auth Components | 152 Test Files | 94+ E2E Scenarios    │
 │           TypeScript SDK Integration                     │
 └────────────────────────┬────────────────────────────────┘
                          │ HTTP/JSON

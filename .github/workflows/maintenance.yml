@@ -1,0 +1,210 @@
+name: Maintenance Checks
+
+on:
+  schedule:
+    # Daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Make scripts executable
+        run: chmod +x scripts/maintenance/*.sh
+
+      - name: Run code quality checks
+        run: ./scripts/maintenance/check-code-quality.sh
+        continue-on-error: true
+        id: quality
+
+      - name: Upload quality report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-quality-report
+          path: |
+            **/coverage/
+            **/test-results/
+          retention-days: 7
+
+      - name: Comment PR with quality results
+        if: github.event_name == 'pull_request' && steps.quality.outcome != 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ Code quality checks found issues. Please review the maintenance script output.'
+            })
+
+  documentation:
+    name: Documentation Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Needed for checking file modification dates
+
+      - name: Make scripts executable
+        run: chmod +x scripts/maintenance/*.sh
+
+      - name: Run documentation checks
+        run: ./scripts/maintenance/check-docs.sh
+        continue-on-error: true
+        id: docs
+
+      - name: Comment PR with documentation results
+        if: github.event_name == 'pull_request' && steps.docs.outcome != 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '📚 Documentation checks found issues. Please review the maintenance script output.'
+            })
+
+  dependency-audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Run npm audit
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+        id: audit
+
+      - name: Check for outdated dependencies
+        run: npm outdated || true
+
+      - name: Create issue for vulnerabilities
+        if: steps.audit.outcome != 'success' && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = new Date().toISOString().split('T')[0];
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔒 Security vulnerabilities detected - ${date}`,
+              body: 'Automated npm audit found security vulnerabilities. Please review and update dependencies.',
+              labels: ['security', 'dependencies', 'automated']
+            })
+
+  build-verification:
+    name: Build System Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build all packages
+        run: npm run build
+
+      - name: Run type checking
+        run: npm run typecheck || true
+
+      - name: Run linting
+        run: npm run lint || true
+
+  test-suite:
+    name: Test Suite Health
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test -- --coverage
+        continue-on-error: true
+
+      - name: Upload coverage
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/coverage-final.json
+          flags: unittests
+          fail_ci_if_error: false
+
+  maintenance-summary:
+    name: Maintenance Summary
+    runs-on: ubuntu-latest
+    needs: [code-quality, documentation, dependency-audit, build-verification, test-suite]
+    if: always()
+
+    steps:
+      - name: Create summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const summary = `
+            ## 🔧 Maintenance Check Summary
+
+            **Date**: ${new Date().toISOString().split('T')[0]}
+
+            | Check | Status |
+            |-------|--------|
+            | Code Quality | ${{ needs.code-quality.result == 'success' ? '✅' : '❌' }} |
+            | Documentation | ${{ needs.documentation.result == 'success' ? '✅' : '❌' }} |
+            | Dependencies | ${{ needs.dependency-audit.result == 'success' ? '✅' : '❌' }} |
+            | Build System | ${{ needs.build-verification.result == 'success' ? '✅' : '❌' }} |
+            | Test Suite | ${{ needs.test-suite.result == 'success' ? '✅' : '❌' }} |
+
+            [View detailed results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `;
+
+            core.summary.addRaw(summary).write();

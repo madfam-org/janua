@@ -112,7 +112,7 @@ export default function ComplianceShowcase() {
 
   const handleExport = async (format: 'csv' | 'json', filters?: any) => {
     setExportStatus('success')
-    console.log(`Exporting events as ${format.toUpperCase()}`, filters)
+    // removed console.log}`, filters)
     setTimeout(() => setExportStatus('idle'), 3000)
 
     // In real implementation, generate and download file

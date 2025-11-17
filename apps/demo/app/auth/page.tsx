@@ -278,7 +278,6 @@ export default function LoginPage() {
   return (
     <SignIn
       onSuccess={(data) => {
-        console.log('Login successful:', data)
         router.push('/dashboard')
       }}
       onError={(error) => {

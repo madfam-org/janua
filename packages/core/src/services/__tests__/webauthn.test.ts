@@ -5,7 +5,12 @@ import * as simplewebauthn from '@simplewebauthn/server';
 
 // Mock dependencies
 jest.mock('../redis.service');
-jest.mock('@simplewebauthn/server');
+jest.mock('@simplewebauthn/server', () => ({
+  generateRegistrationOptions: jest.fn(),
+  verifyRegistrationResponse: jest.fn(),
+  generateAuthenticationOptions: jest.fn(),
+  verifyAuthenticationResponse: jest.fn()
+}));
 
 describe('WebAuthnService', () => {
   let webauthnService: WebAuthnService;
@@ -64,7 +69,7 @@ describe('WebAuthnService', () => {
         attestation: 'none'
       };
       
-      (simplewebauthn.generateRegistrationOptions as jest.Mock).mockResolvedValueOnce(mockOptions);
+      (simplewebauthn.generateRegistrationOptions as jest.MockedFunction<typeof simplewebauthn.generateRegistrationOptions>).mockResolvedValueOnce(mockOptions as any);
       mockRedisService.smembers.mockResolvedValueOnce([]);
       
       const options = await webauthnService.generateRegistrationOptions(
@@ -107,7 +112,7 @@ describe('WebAuthnService', () => {
         }]
       };
       
-      (simplewebauthn.generateRegistrationOptions as jest.Mock).mockResolvedValueOnce(mockOptions);
+      (simplewebauthn.generateRegistrationOptions as jest.MockedFunction<typeof simplewebauthn.generateRegistrationOptions>).mockResolvedValueOnce(mockOptions as any);
       
       const options = await webauthnService.generateRegistrationOptions(
         'user123',
@@ -129,7 +134,7 @@ describe('WebAuthnService', () => {
       
       mockRedisService.getWebAuthnChallenge.mockResolvedValueOnce('stored-challenge');
       
-      (simplewebauthn.verifyRegistrationResponse as jest.Mock).mockResolvedValueOnce({
+      (simplewebauthn.verifyRegistrationResponse as jest.MockedFunction<typeof simplewebauthn.verifyRegistrationResponse>).mockResolvedValueOnce({
         verified: true,
         registrationInfo: {
           credentialID: Buffer.from('cred123'),
@@ -171,7 +176,7 @@ describe('WebAuthnService', () => {
     it('should fail registration with invalid credential', async () => {
       mockRedisService.getWebAuthnChallenge.mockResolvedValueOnce('stored-challenge');
       
-      (simplewebauthn.verifyRegistrationResponse as jest.Mock).mockResolvedValueOnce({
+      (simplewebauthn.verifyRegistrationResponse as jest.MockedFunction<typeof simplewebauthn.verifyRegistrationResponse>).mockResolvedValueOnce({
         verified: false
       });
       
@@ -214,7 +219,7 @@ describe('WebAuthnService', () => {
         timeout: 300000
       };
       
-      (simplewebauthn.generateAuthenticationOptions as jest.Mock).mockResolvedValueOnce(mockOptions);
+      (simplewebauthn.generateAuthenticationOptions as jest.MockedFunction<typeof simplewebauthn.generateAuthenticationOptions>).mockResolvedValueOnce(mockOptions as any);
       
       const options = await webauthnService.generateAuthenticationOptions('user123');
       
@@ -236,7 +241,7 @@ describe('WebAuthnService', () => {
         userVerification: 'preferred'
       };
       
-      (simplewebauthn.generateAuthenticationOptions as jest.Mock).mockResolvedValueOnce(mockOptions);
+      (simplewebauthn.generateAuthenticationOptions as jest.MockedFunction<typeof simplewebauthn.generateAuthenticationOptions>).mockResolvedValueOnce(mockOptions as any);
       
       const options = await webauthnService.generateAuthenticationOptions();
       

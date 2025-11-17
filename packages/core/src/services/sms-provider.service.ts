@@ -208,9 +208,7 @@ class MockProvider implements SMSProvider {
     });
     
     // Log for development
-    console.log(`[Mock SMS] To: ${to}, Message: ${message}`);
     if (code) {
-      console.log(`[Mock SMS] Verification Code: ${code}`);
     }
     
     return {

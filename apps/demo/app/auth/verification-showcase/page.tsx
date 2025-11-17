@@ -11,14 +11,14 @@ export default function VerificationShowcase() {
 
   // Email verification handlers
   const handleSendEmailCode = async (email: string) => {
-    console.log('Sending verification code to:', email)
+    // removed console.log
     setStatus('success')
     setMessage(`Verification code sent to ${email}`)
     setTimeout(() => setStatus('idle'), 3000)
   }
 
   const handleVerifyEmail = async (code: string) => {
-    console.log('Verifying email with code:', code)
+    // removed console.log
     setStatus('success')
     setMessage('Email verified successfully!')
     setTimeout(() => setStatus('idle'), 3000)
@@ -26,14 +26,14 @@ export default function VerificationShowcase() {
 
   // Phone verification handlers
   const handleSendPhoneCode = async (phone: string) => {
-    console.log('Sending verification code to:', phone)
+    // removed console.log
     setStatus('success')
     setMessage(`Verification code sent to ${phone}`)
     setTimeout(() => setStatus('idle'), 3000)
   }
 
   const handleVerifyPhone = async (code: string) => {
-    console.log('Verifying phone with code:', code)
+    // removed console.log
     setStatus('success')
     setMessage('Phone number verified successfully!')
     setTimeout(() => setStatus('idle'), 3000)
@@ -121,13 +121,13 @@ export default function VerificationShowcase() {
               plintoClient={plintoClient}
               email="user@example.com"
               onResendEmail={async () => {
-                console.log('Resending verification email')
+                // removed console.log
                 setStatus('success')
                 setMessage('Verification email resent!')
                 setTimeout(() => setStatus('idle'), 3000)
               }}
               onVerify={async (token) => {
-                console.log('Verifying email with token:', token)
+                // removed console.log
                 setStatus('success')
                 setMessage('Email verified successfully!')
                 setTimeout(() => setStatus('idle'), 3000)
@@ -148,13 +148,13 @@ export default function VerificationShowcase() {
               plintoClient={plintoClient}
               phoneNumber="+1 (555) 123-4567"
               onSendCode={async (phone) => {
-                console.log('Sending verification code to:', phone)
+                // removed console.log
                 setStatus('success')
                 setMessage(`Verification code sent to ${phone}`)
                 setTimeout(() => setStatus('idle'), 3000)
               }}
               onVerifyCode={async (code) => {
-                console.log('Verifying phone with code:', code)
+                // removed console.log
                 setStatus('success')
                 setMessage('Phone number verified successfully!')
                 setTimeout(() => setStatus('idle'), 3000)

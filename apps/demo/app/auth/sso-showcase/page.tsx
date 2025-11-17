@@ -23,7 +23,7 @@ export default function SSOShowcasePage() {
 
   // Handler for provider created
   const handleProviderCreated = async (config: any): Promise<any> => {
-    console.log('Provider created:', config)
+    // removed console.log
 
     // In a real app, this would call the API
     // For now, just simulate the response
@@ -63,14 +63,14 @@ export default function SSOShowcasePage() {
 
   // Handler for SAML config saved
   const handleSAMLConfigSaved = async (config: any): Promise<void> => {
-    console.log('SAML config saved:', config)
+    // removed console.log
     setActiveTab('test')
     setShowTestConnection(true)
   }
 
   // Handler for test completed
   const handleTestCompleted = () => {
-    console.log('Test completed')
+    // removed console.log
   }
 
   return (
@@ -155,7 +155,7 @@ export default function SSOShowcasePage() {
                   onDelete={async (configId) => {
                     const config = await plintoClient.sso.getConfiguration(configId)
                     if (confirm(`Delete ${config.provider}?`)) {
-                      console.log('Deleting provider:', configId)
+                      // removed console.log
                       await plintoClient.sso.deleteConfiguration(configId)
                     }
                   }}

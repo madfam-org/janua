@@ -1,6 +1,7 @@
 {
   "name": "@plinto/typescript-sdk",
   "version": "0.1.0-beta.1",
+  "type": "module",
   "description": "Official TypeScript/JavaScript SDK for the Plinto authentication API",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",

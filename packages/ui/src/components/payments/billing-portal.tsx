@@ -148,7 +148,6 @@ export function BillingPortal({
               client={client}
               onSelectPlan={(planId, interval) => {
                 // Handle plan selection - could navigate to checkout or show confirmation
-                console.log('Selected plan:', planId, interval);
               }}
             />
           </div>

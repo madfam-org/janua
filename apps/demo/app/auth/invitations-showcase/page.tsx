@@ -25,7 +25,7 @@ export default function InvitationsShowcasePage() {
 
   // Handler for single invitation created
   const handleInvitationCreated = (invitation: Invitation) => {
-    console.log('Invitation created:', invitation)
+    // removed console.log
     alert(`Invitation sent to ${invitation.email}!\n\nInvitation URL:\n${invitation.invite_url}`)
 
     // Switch to manage tab to see the new invitation
@@ -34,7 +34,7 @@ export default function InvitationsShowcasePage() {
 
   // Handler for bulk invitations created
   const handleBulkInvitationsCreated = (result: BulkInvitationResponse) => {
-    console.log('Bulk invitations result:', result)
+    // removed console.log
     alert(
       `Bulk invitation complete!\n\n` +
       `Total: ${result.total}\n` +
@@ -49,7 +49,7 @@ export default function InvitationsShowcasePage() {
 
   // Handler for invitation accepted
   const handleInvitationAccepted = (response: InvitationAcceptResponse) => {
-    console.log('Invitation accepted:', response)
+    // removed console.log
     alert(
       `Invitation accepted successfully!\n\n` +
       `User ID: ${response.user_id}\n` +
@@ -155,12 +155,12 @@ export default function InvitationsShowcasePage() {
                   organizationId={organizationId}
                   plintoClient={plintoClient}
                   onResend={async (invitationId) => {
-                    console.log('Resending invitation:', invitationId)
+                    // removed console.log
                     alert(`Invitation resent!`)
                   }}
                   onRevoke={async (invitationId) => {
                     if (confirm(`Revoke invitation?`)) {
-                      console.log('Revoking invitation:', invitationId)
+                      // removed console.log
                     }
                   }}
                 />

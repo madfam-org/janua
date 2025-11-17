@@ -9,14 +9,14 @@ export default function PasswordResetShowcase() {
   const [message, setMessage] = useState('')
 
   const handleRequestReset = async (email: string) => {
-    console.log('Password reset requested for:', email)
+    // removed console.log
     setStatus('success')
     setMessage(`Password reset instructions sent to ${email}`)
     setTimeout(() => setStatus('idle'), 5000)
   }
 
   const handleResetPassword = async (token: string, newPassword: string) => {
-    console.log('Resetting password with token:', token)
+    // removed console.log
     setStatus('success')
     setMessage('Password reset successfully! You can now sign in.')
     setTimeout(() => setStatus('idle'), 5000)

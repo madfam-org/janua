@@ -987,7 +987,6 @@ export class BillingService extends EventEmitter {
     if (process.env.STRIPE_SECRET_KEY) {
       // In production, would initialize Stripe client
       // this.stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY);
-      console.log('Stripe client would be initialized here');
     }
   }
   
@@ -1064,7 +1063,6 @@ export class BillingService extends EventEmitter {
     alert: BillingAlert
   ): Promise<void> {
     // Would integrate with notification service
-    console.log(`Sending alert notification to organization ${organizationId}:`, alert.message);
   }
   
   // Stripe Integration Methods (stubs)
@@ -1140,27 +1138,22 @@ export class BillingService extends EventEmitter {
   
   private async handleCheckoutComplete(session: any): Promise<void> {
     // Handle checkout completion
-    console.log('Checkout completed:', session);
   }
   
   private async handlePaymentSuccess(invoice: any): Promise<void> {
     // Handle successful payment
-    console.log('Payment succeeded:', invoice);
   }
   
   private async handlePaymentFailure(invoice: any): Promise<void> {
     // Handle failed payment
-    console.log('Payment failed:', invoice);
   }
   
   private async handleSubscriptionUpdate(subscription: any): Promise<void> {
     // Handle subscription update
-    console.log('Subscription updated:', subscription);
   }
   
   private async handleSubscriptionDeleted(subscription: any): Promise<void> {
     // Handle subscription deletion
-    console.log('Subscription deleted:', subscription);
   }
   
   // ID Generation

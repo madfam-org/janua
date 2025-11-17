@@ -13,7 +13,7 @@ export default function SignInShowcase() {
   const handleSuccess = (user: any) => {
     setStatus('success')
     setMessage('Login successful! Redirecting to dashboard...')
-    console.log('Login successful:', user)
+    // removed console.log
 
     // Simulate redirect after success
     setTimeout(() => {
@@ -65,7 +65,7 @@ export default function SignInShowcase() {
 
 <SignIn
   onSuccess={(data) => {
-    console.log(data)
+    // removed console.log
     router.push('/dashboard')
   }}
   onError={(error) => {

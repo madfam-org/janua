@@ -92,12 +92,12 @@ export default function ComplianceEnterpriseShowcase() {
                 mode="manage"
                 showLegalBasis={true}
                 onSubmit={async (consents) => {
-                  console.log('Consent update:', consents)
+                  // removed console.log
                   // Simulate API call
                   await new Promise((resolve) => setTimeout(resolve, 1000))
                 }}
                 onWithdraw={async (purposeId) => {
-                  console.log('Withdraw consent:', purposeId)
+                  // removed console.log
                   await new Promise((resolve) => setTimeout(resolve, 1000))
                 }}
               />
@@ -120,7 +120,7 @@ export default function ComplianceEnterpriseShowcase() {
                 userId="user-demo-123"
                 userEmail="demo@example.com"
                 onSubmit={async (request) => {
-                  console.log('Data subject request:', request)
+                  // removed console.log
                   // Simulate API call
                   await new Promise((resolve) => setTimeout(resolve, 1500))
                   return {
@@ -158,7 +158,7 @@ export default function ComplianceEnterpriseShowcase() {
                 }}
                 showAdvanced={true}
                 onSave={async (preferences) => {
-                  console.log('Privacy settings update:', preferences)
+                  // removed console.log
                   await new Promise((resolve) => setTimeout(resolve, 1000))
                 }}
               />

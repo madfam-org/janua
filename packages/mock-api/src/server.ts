@@ -131,11 +131,7 @@ app.use((req: Request, res: Response) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Mock API server running at http://localhost:${PORT}`);
-  console.log(`📚 API documentation at http://localhost:${PORT}/api-docs`);
-  console.log(`🔑 JWKS endpoint at http://localhost:${PORT}/.well-known/jwks.json`);
   
   // Initialize database
   db.init();
-  console.log('📦 In-memory database initialized');
 });

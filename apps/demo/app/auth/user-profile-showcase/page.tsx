@@ -27,14 +27,14 @@ export default function UserProfileShowcase() {
     username?: string
     phone?: string
   }) => {
-    console.log('Updating profile:', data)
+    // removed console.log
     setStatus('success')
     setMessage('Profile updated successfully!')
     setTimeout(() => setStatus('idle'), 3000)
   }
 
   const handleUploadAvatar = async (file: File) => {
-    console.log('Uploading avatar:', file.name)
+    // removed console.log
     setStatus('success')
     setMessage('Avatar uploaded successfully!')
     setTimeout(() => setStatus('idle'), 3000)
@@ -42,28 +42,28 @@ export default function UserProfileShowcase() {
   }
 
   const handleUpdateEmail = async (email: string) => {
-    console.log('Updating email to:', email)
+    // removed console.log
     setStatus('success')
     setMessage('Email update initiated. Check your inbox for verification.')
     setTimeout(() => setStatus('idle'), 3000)
   }
 
   const handleUpdatePassword = async (currentPassword: string, newPassword: string) => {
-    console.log('Updating password')
+    // removed console.log
     setStatus('success')
     setMessage('Password updated successfully!')
     setTimeout(() => setStatus('idle'), 3000)
   }
 
   const handleToggleMFA = async (enabled: boolean) => {
-    console.log('Toggling MFA to:', enabled)
+    // removed console.log
     setStatus('success')
     setMessage(`Two-factor authentication ${enabled ? 'enabled' : 'disabled'}!`)
     setTimeout(() => setStatus('idle'), 3000)
   }
 
   const handleDeleteAccount = async () => {
-    console.log('Deleting account')
+    // removed console.log
     setStatus('success')
     setMessage('Account deletion initiated. This action cannot be undone.')
     setTimeout(() => setStatus('idle'), 3000)

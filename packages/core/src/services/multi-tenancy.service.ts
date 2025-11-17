@@ -627,12 +627,10 @@ export class MultiTenancyService extends EventEmitter {
   
   private async createTenantStorageBucket(tenantId: string): Promise<void> {
     // Implementation depends on storage provider
-    console.log(`Creating storage bucket for tenant ${tenantId}`);
   }
   
   private async deleteTenantStorageBucket(tenantId: string): Promise<void> {
     // Implementation depends on storage provider
-    console.log(`Deleting storage bucket for tenant ${tenantId}`);
   }
 }
 

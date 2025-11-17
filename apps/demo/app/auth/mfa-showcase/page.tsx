@@ -24,18 +24,18 @@ export default function MFAShowcase() {
 
   const handleSetupComplete = async (verificationCode: string) => {
     setSetupComplete(true)
-    console.log('MFA Setup Complete with verification code:', verificationCode)
+    // removed console.log
   }
 
   const handleChallengeVerify = async (code: string) => {
     setChallengeVerified(true)
-    console.log('MFA Challenge Verified with code:', code)
+    // removed console.log
     setTimeout(() => setChallengeVerified(false), 3000)
   }
 
   const handleBackupCodesDownload = () => {
     setBackupCodesGenerated(true)
-    console.log('Backup codes downloaded')
+    // removed console.log
   }
 
   return (

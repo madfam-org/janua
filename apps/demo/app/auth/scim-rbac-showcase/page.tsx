@@ -104,7 +104,7 @@ export default function SCIMRBACShowcase() {
               <SCIMConfigWizard
                 organizationId="org-demo-123"
                 onSubmit={async (config) => {
-                  console.log('SCIM configuration:', config)
+                  // removed console.log
                   await new Promise((resolve) => setTimeout(resolve, 1500))
                   return {
                     ...config,
@@ -112,7 +112,7 @@ export default function SCIMRBACShowcase() {
                   }
                 }}
                 onSuccess={(config) => {
-                  console.log('SCIM enabled:', config)
+                  // removed console.log
                 }}
               />
             </div>
@@ -134,7 +134,7 @@ export default function SCIMRBACShowcase() {
                 roles={sampleRoles}
                 permissions={samplePermissions}
                 onCreateRole={async (role) => {
-                  console.log('Create role:', role)
+                  // removed console.log
                   await new Promise((resolve) => setTimeout(resolve, 1000))
                   return {
                     ...role,

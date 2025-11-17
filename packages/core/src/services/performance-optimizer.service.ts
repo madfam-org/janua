@@ -449,7 +449,6 @@ export class PerformanceOptimizerService extends EventEmitter {
       }
 
       cluster.on('exit', (worker: any, code: any, signal: any) => {
-        console.log(`Worker ${worker.process.pid} died`);
         cluster.fork(); // Restart worker
       });
 

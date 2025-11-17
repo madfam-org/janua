@@ -38,7 +38,7 @@ export default function OrganizationShowcase() {
   const currentOrganization = sampleOrganizations.find(org => org.id === currentOrg)
 
   const handleSwitchOrganization = (org: any) => {
-    console.log('Switching to organization:', org)
+    // removed console.log
     setCurrentOrg(org.id)
     setStatus('success')
     setMessage(`Switched to ${org.name}`)
@@ -46,42 +46,42 @@ export default function OrganizationShowcase() {
   }
 
   const handleCreateOrganization = () => {
-    console.log('Creating new organization')
+    // removed console.log
     setStatus('success')
     setMessage('Organization creation flow initiated')
     setTimeout(() => setStatus('idle'), 2000)
   }
 
   const handleUpdateOrganization = async (data: any) => {
-    console.log('Updating organization:', data)
+    // removed console.log
     setStatus('success')
     setMessage('Organization updated successfully!')
     setTimeout(() => setStatus('idle'), 3000)
   }
 
   const handleInviteMember = async (email: string, role: string) => {
-    console.log('Inviting member:', email, role)
+    // removed console.log
     setStatus('success')
     setMessage(`Invitation sent to ${email}`)
     setTimeout(() => setStatus('idle'), 3000)
   }
 
   const handleRemoveMember = async (memberId: string) => {
-    console.log('Removing member:', memberId)
+    // removed console.log
     setStatus('success')
     setMessage('Member removed from organization')
     setTimeout(() => setStatus('idle'), 3000)
   }
 
   const handleUpdateMemberRole = async (memberId: string, role: string) => {
-    console.log('Updating member role:', memberId, role)
+    // removed console.log
     setStatus('success')
     setMessage('Member role updated')
     setTimeout(() => setStatus('idle'), 3000)
   }
 
   const handleDeleteOrganization = async () => {
-    console.log('Deleting organization')
+    // removed console.log
     setStatus('success')
     setMessage('Organization deletion initiated')
     setTimeout(() => setStatus('idle'), 3000)

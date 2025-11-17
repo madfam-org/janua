@@ -744,7 +744,6 @@ export class StripeProvider extends EventEmitter implements PaymentProviderInter
         await this.handleSubscriptionCancellation(event.data);
         break;
       default:
-        console.log(`Unhandled webhook event: ${event.type}`);
     }
   }
 
