@@ -483,3 +483,64 @@ class TestRBACEngineIntegration:
             )
 
             assert result is False
+
+
+class TestWildcardPermissions:
+    """Test wildcard permission matching logic"""
+
+    @pytest.fixture
+    def rbac_engine(self):
+        """Create RBACEngine instance for testing"""
+        return RBACEngine()
+
+    def test_wildcard_resource_match(self, rbac_engine):
+        """Test resource wildcard matching (*:action)"""
+        user_permissions = {"*:read", "write:project"}
+
+        # Should match any resource with read action
+        result = rbac_engine._check_wildcard_permission("user:read", user_permissions)
+        assert result is True
+
+        result = rbac_engine._check_wildcard_permission("project:read", user_permissions)
+        assert result is True
+
+        # Should not match different action
+        result = rbac_engine._check_wildcard_permission("user:write", user_permissions)
+        assert result is False
+
+    def test_wildcard_action_match(self, rbac_engine):
+        """Test action wildcard matching (resource:*)"""
+        user_permissions = {"user:*", "read:project"}
+
+        # Should match any action on user resource
+        result = rbac_engine._check_wildcard_permission("user:read", user_permissions)
+        assert result is True
+
+        result = rbac_engine._check_wildcard_permission("user:delete", user_permissions)
+        assert result is True
+
+        # Should not match different resource
+        result = rbac_engine._check_wildcard_permission("project:delete", user_permissions)
+        assert result is False
+
+    def test_wildcard_full_match(self, rbac_engine):
+        """Test full wildcard matching (*:*)"""
+        user_permissions = {"*:*"}
+
+        # Should match any permission
+        result = rbac_engine._check_wildcard_permission("user:read", user_permissions)
+        assert result is True
+
+        result = rbac_engine._check_wildcard_permission("project:delete", user_permissions)
+        assert result is True
+
+        result = rbac_engine._check_wildcard_permission("anything:everything", user_permissions)
+        assert result is True
+
+    def test_wildcard_no_match(self, rbac_engine):
+        """Test no wildcard match"""
+        user_permissions = {"user:read", "project:write"}
+
+        # Should not match without wildcards
+        result = rbac_engine._check_wildcard_permission("organization:read", user_permissions)
+        assert result is False
