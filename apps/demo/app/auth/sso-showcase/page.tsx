@@ -22,16 +22,28 @@ export default function SSOShowcasePage() {
   const organizationId = 'demo-org-123'
 
   // Handler for provider created
-  const handleProviderCreated = (provider: any) => {
-    console.log('Provider created:', provider)
+  const handleProviderCreated = async (config: any): Promise<any> => {
+    console.log('Provider created:', config)
+
+    // In a real app, this would call the API
+    // For now, just simulate the response
+    const provider = {
+      id: `sso-${Date.now()}`,
+      ...config,
+      created_at: new Date().toISOString(),
+      status: 'active'
+    }
+
     setSelectedProvider(provider)
     setShowProviderForm(false)
 
     // If SAML provider, show SAML config tab
-    if (provider.provider_type === 'saml') {
+    if (config.provider === 'saml') {
       setShowSAMLConfig(true)
       setActiveTab('saml-config')
     }
+
+    return provider
   }
 
   // Handler for editing provider
@@ -42,27 +54,23 @@ export default function SSOShowcasePage() {
   }
 
   // Handler for testing connection
-  const handleTestConnection = (provider: any) => {
-    setSelectedProvider(provider)
+  const handleTestConnection = async (configId: string) => {
+    const config = await plintoClient.sso.getConfiguration(configId)
+    setSelectedProvider(config)
     setShowTestConnection(true)
     setActiveTab('test')
   }
 
   // Handler for SAML config saved
-  const handleSAMLConfigSaved = (config: any) => {
+  const handleSAMLConfigSaved = async (config: any): Promise<void> => {
     console.log('SAML config saved:', config)
     setActiveTab('test')
     setShowTestConnection(true)
   }
 
   // Handler for test completed
-  const handleTestCompleted = (result: any) => {
-    console.log('Test completed:', result)
-    if (result.success) {
-      alert('SSO test successful! Check console for details.')
-    } else {
-      alert('SSO test failed. Check console for errors.')
-    }
+  const handleTestCompleted = () => {
+    console.log('Test completed')
   }
 
   return (
@@ -143,10 +151,12 @@ export default function SSOShowcasePage() {
                   organizationId={organizationId}
                   plintoClient={plintoClient}
                   onEdit={handleEditProvider}
-                  onTestConnection={handleTestConnection}
-                  onDelete={(provider) => {
-                    if (confirm(`Delete ${provider.name}?`)) {
-                      console.log('Deleting provider:', provider.id)
+                  onTest={handleTestConnection}
+                  onDelete={async (configId) => {
+                    const config = await plintoClient.sso.getConfiguration(configId)
+                    if (confirm(`Delete ${config.provider}?`)) {
+                      console.log('Deleting provider:', configId)
+                      await plintoClient.sso.deleteConfiguration(configId)
                     }
                   }}
                 />
@@ -170,9 +180,9 @@ export default function SSOShowcasePage() {
               <CardContent>
                 <SSOProviderForm
                   organizationId={organizationId}
-                  provider={selectedProvider || undefined}
+                  configuration={selectedProvider || undefined}
                   plintoClient={plintoClient}
-                  onSuccess={handleProviderCreated}
+                  onSubmit={handleProviderCreated}
                   onCancel={() => {
                     setShowProviderForm(false)
                     setSelectedProvider(null)
@@ -258,9 +268,8 @@ export default function SSOShowcasePage() {
                 {selectedProvider && selectedProvider.provider_type === 'saml' ? (
                   <SAMLConfigForm
                     organizationId={organizationId}
-                    configurationId={selectedProvider.id}
                     plintoClient={plintoClient}
-                    onSuccess={handleSAMLConfigSaved}
+                    onSubmit={handleSAMLConfigSaved}
                   />
                 ) : (
                   <div className="text-center py-12 text-muted-foreground">
@@ -302,7 +311,7 @@ export default function SSOShowcasePage() {
                     configurationId={selectedProvider.id}
                     organizationId={organizationId}
                     plintoClient={plintoClient}
-                    onTestComplete={handleTestCompleted}
+                    onClose={handleTestCompleted}
                   />
                 ) : (
                   <div className="text-center py-12 text-muted-foreground">

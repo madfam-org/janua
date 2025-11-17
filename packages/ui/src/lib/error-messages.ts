@@ -373,9 +373,9 @@ export function isRecoverableError(error: any): boolean {
     AUTH_ERRORS.NETWORK_ERROR.title,
     AUTH_ERRORS.SERVER_ERROR.title,
     AUTH_ERRORS.TIMEOUT_ERROR.title,
-  ]
+  ] as const
 
-  return temporaryErrors.includes(parsed.title)
+  return (temporaryErrors as readonly string[]).includes(parsed.title)
 }
 
 /**

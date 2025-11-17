@@ -135,6 +135,41 @@ Quick Links:
 - Environment configuration for production API
 - Component update plan
 
+#### Day 1: Component Updates
+- **[week6-day1-component-updates-complete.md](implementation-reports/week6-day1-component-updates-complete.md)**
+- Updated 6 auth components with TypeScript SDK integration
+- React Context integration for state management
+- Error handling and loading states
+- Type-safe API calls
+
+#### Day 1: Showcase Integration
+- **[week6-day1-showcase-integration-complete.md](implementation-reports/week6-day1-showcase-integration-complete.md)**
+- Updated 6 showcase pages with real API integration
+- Live auth flow demonstrations
+- Component provider integration
+
+#### Day 2: Complete Day Summary
+- **[week6-day2-complete-summary.md](implementation-reports/week6-day2-complete-summary.md)** ⭐
+- **COMPREHENSIVE SUMMARY** of all Week 6 Day 2 work
+- TypeScript error fixes (8 build errors resolved)
+- SSO module integration (SAML 2.0, OIDC)
+- Integration test fixes (404 tests now collectible)
+- Complete metrics and quantified results
+
+#### Day 2: SSO Integration
+- **[nov16-2025-sso-integration-complete.md](implementation-reports/nov16-2025-sso-integration-complete.md)**
+- Enterprise SSO module integration (SAML 2.0, OIDC)
+- Router registration in main.py
+- Exception classes and domain models
+- 6 import path fixes across SSO modules
+
+#### Day 2: Integration Test Fixes
+- **[nov16-2025-integration-tests-fixed.md](implementation-reports/nov16-2025-integration-tests-fixed.md)**
+- Fixed 15 async/await syntax errors across 3 test files
+- Resolved ModuleNotFoundError for optional dependencies
+- 404 integration tests now collectible (was 0)
+- Systematic batch editing approach
+
 #### Day 2: API Documentation
 - **[week6-day2-api-documentation-complete.md](implementation-reports/week6-day2-api-documentation-complete.md)**
 - Enhanced FastAPI OpenAPI configuration (15 endpoint categories)
@@ -192,6 +227,19 @@ Quick Links:
 - 2-week implementation timeline (1 week dev + 1 week testing)
 - Redis-backed token management with automatic expiry
 - Security, testing, and migration strategies
+
+### Archived Documentation (2025-11)
+Superseded implementation reports moved to `docs/archive/2025-11/week6/`:
+- typescript-error-cleanup-progress.md
+- monitoring-service-refactoring-complete.md
+- refactoring-implementation-summary.md
+- billing-service-refactoring-plan.md
+- fungies-mor-removal-summary.md
+- troubleshooting-session-nov16-final.md
+- typescript-errors-fixed-nov16.md
+- codebase-errors-and-fixes.md
+
+**Note**: These reports contain valuable historical context but have been superseded by the comprehensive `week6-day2-complete-summary.md`
 
 ---
 
@@ -295,8 +343,8 @@ plinto/
 ### Test Coverage
 - **Unit Tests**: 489 tests (74.2% passing)
 - **E2E Tests**: 49 tests (100% passing)
-- **Integration Tests**: Backend API tests
-- **Total Tests**: 538+
+- **Integration Tests**: 404 tests (100% collectible)
+- **Total Tests**: 942 tests (489 unit + 49 E2E + 404 integration)
 
 ### Performance
 - **Lighthouse Score**: 84/100 average

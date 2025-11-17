@@ -14,22 +14,11 @@ const apiBasePath = process.env.NEXT_PUBLIC_API_BASE_PATH || '/api/v1'
 
 // Initialize Plinto client
 export const plintoClient = new PlintoClient({
-  apiUrl,
-  apiBasePath,
+  baseURL: apiUrl + apiBasePath,
   // Enable debug logging in development
   debug: process.env.NODE_ENV === 'development',
   // Token storage configuration
-  tokenStorage: {
-    type: 'localStorage' as const, // Use localStorage for web apps
-    key: 'plinto_auth_token',
-  },
-  // Session configuration
-  session: {
-    autoRefresh: true,
-    refreshThreshold: 300, // Refresh token 5 minutes before expiration
-  },
-  // CORS configuration
-  credentials: 'include', // Include cookies in cross-origin requests
+  tokenStorage: 'localStorage', // Use localStorage for web apps
 })
 
 // Export individual modules for convenience

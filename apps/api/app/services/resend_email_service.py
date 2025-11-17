@@ -14,11 +14,19 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import redis.asyncio as redis
-import resend
 import structlog
 from jinja2 import Environment, FileSystemLoader
 
 from app.config import settings
+
+# Optional import for resend - gracefully handle if not installed
+try:
+    import resend
+
+    RESEND_AVAILABLE = True
+except ImportError:
+    RESEND_AVAILABLE = False
+    resend = None
 
 logger = structlog.get_logger()
 

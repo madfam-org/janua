@@ -15,7 +15,7 @@ export interface Invitation {
   organization_id: string
   email: string
   role: string
-  status: string
+  status: 'pending' | 'accepted' | 'expired' | 'revoked'
   invited_by: string
   message?: string
   expires_at: string
