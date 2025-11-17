@@ -124,7 +124,11 @@ ${usedCodes.length > 0 ? `USED CODES (${usedCodes.length}):\n${usedCodes.join('\
     return (
       <Card className={cn('w-full max-w-2xl mx-auto p-6', className)}>
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div
+            role="status"
+            aria-label="Loading backup codes"
+            className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"
+          ></div>
         </div>
       </Card>
     )
