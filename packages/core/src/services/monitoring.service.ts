@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { Redis } from 'ioredis';
 import { Registry, Counter, Histogram, Gauge, Summary } from 'prom-client';
 import { createLogger } from '../utils/logger';
+import { AlertingService, Alert } from './alerting.service';
 
 const logger = createLogger('Monitoring');
 
@@ -24,23 +25,13 @@ interface HealthStatus {
   };
 }
 
-interface Alert {
-  id: string;
-  severity: 'info' | 'warning' | 'critical';
-  title: string;
-  description: string;
-  metric: string;
-  threshold: number;
-  currentValue: number;
-  timestamp: Date;
-  acknowledged: boolean;
-}
+// Alert interface moved to alerting.service.ts
 
 export class MonitoringService extends EventEmitter {
   private redis: Redis;
   private registry: Registry;
+  private alertingService: AlertingService;
   private metrics: Map<string, any>;
-  private alerts: Map<string, Alert>;
   private healthChecks: Map<string, () => Promise<boolean>>;
 
   // Payment metrics
@@ -76,8 +67,8 @@ export class MonitoringService extends EventEmitter {
     super();
     this.redis = redis;
     this.registry = new Registry();
+    this.alertingService = new AlertingService(redis);
     this.metrics = new Map();
-    this.alerts = new Map();
     this.healthChecks = new Map();
 
     this.initializeMetrics();
@@ -513,7 +504,7 @@ export class MonitoringService extends EventEmitter {
       queues: HealthStatus;
     };
   }> {
-    const providers = ['conekta', 'fungies', 'stripe'];
+    const providers = ['conekta', 'stripe'];
     const providerHealth = await Promise.all(
       providers.map(async (provider) => {
         const health = await this.getProviderHealth(provider);
@@ -594,7 +585,7 @@ export class MonitoringService extends EventEmitter {
     return { summary, breakdown, topMetrics };
   }
 
-  // Alert management
+  // Alert management - Delegated to AlertingService
   async createAlert(data: {
     severity: 'info' | 'warning' | 'critical';
     title: string;
@@ -603,50 +594,11 @@ export class MonitoringService extends EventEmitter {
     threshold: number;
     currentValue: number;
   }): Promise<Alert> {
-    const alert: Alert = {
-      id: `alert_${Date.now()}`,
-      severity: data.severity,
-      title: data.title,
-      description: data.description,
-      metric: data.metric,
-      threshold: data.threshold,
-      currentValue: data.currentValue,
-      timestamp: new Date(),
-      acknowledged: false
-    };
-
-    this.alerts.set(alert.id, alert);
-
-    // Store in Redis
-    await this.redis.zadd(
-      'monitoring:alerts:active',
-      Date.now(),
-      JSON.stringify(alert)
-    );
-
-    // Send notifications
-    await this.sendAlertNotifications(alert);
-
-    this.emit('alert_created', alert);
-
-    return alert;
+    return await this.alertingService.createAlert(data);
   }
 
   async acknowledgeAlert(alertId: string): Promise<void> {
-    const alert = this.alerts.get(alertId);
-    if (alert) {
-      alert.acknowledged = true;
-
-      // Update in Redis
-      await this.redis.zrem('monitoring:alerts:active', JSON.stringify(alert));
-      await this.redis.zadd(
-        'monitoring:alerts:acknowledged',
-        Date.now(),
-        JSON.stringify(alert)
-      );
-
-      this.emit('alert_acknowledged', alert);
-    }
+    return await this.alertingService.acknowledgeAlert(alertId);
   }
 
   // Health checks
@@ -823,52 +775,8 @@ export class MonitoringService extends EventEmitter {
   }
 
   private async checkPaymentAlerts(data: any): Promise<void> {
-    // Check for high failure rate
     const recentPayments = await this.getRecentPayments(data.provider, 100);
-    const failureRate = recentPayments.filter(p => p.status === 'failed').length / recentPayments.length;
-
-    if (failureRate > 0.2) { // 20% failure rate
-      await this.createAlert({
-        severity: 'critical',
-        title: `High Failure Rate for ${data.provider}`,
-        description: `Payment failure rate is ${(failureRate * 100).toFixed(1)}%`,
-        metric: 'payment_failure_rate',
-        threshold: 20,
-        currentValue: failureRate * 100
-      });
-    }
-
-    // Check for large transaction
-    if (data.amount > 10000) {
-      await this.createAlert({
-        severity: 'info',
-        title: 'Large Transaction Processed',
-        description: `Transaction of ${data.amount} ${data.currency} processed via ${data.provider}`,
-        metric: 'transaction_amount',
-        threshold: 10000,
-        currentValue: data.amount
-      });
-    }
-  }
-
-  private async sendAlertNotifications(alert: Alert): Promise<void> {
-    // Send to different channels based on severity
-    switch (alert.severity) {
-      case 'critical':
-        // Send to PagerDuty, Slack, Email
-        logger.error('CRITICAL ALERT', undefined, { alert });
-        break;
-      case 'warning':
-        // Send to Slack, Email
-        logger.warn('WARNING ALERT', { alert });
-        break;
-      case 'info':
-        // Send to monitoring dashboard only
-        console.info('INFO ALERT:', alert);
-        break;
-    }
-
-    this.emit('alert_notification_sent', alert);
+    await this.alertingService.checkPaymentAlerts(data, recentPayments);
   }
 
   private async getActiveCustomerCount(): Promise<number> {
@@ -876,7 +784,7 @@ export class MonitoringService extends EventEmitter {
   }
 
   private async getProviderMetrics(timeRange: any): Promise<any[]> {
-    const providers = ['conekta', 'fungies', 'stripe'];
+    const providers = ['conekta', 'stripe'];
 
     return Promise.all(providers.map(async (provider) => {
       const health = await this.getProviderHealth(provider);
@@ -958,8 +866,7 @@ export class MonitoringService extends EventEmitter {
   }
 
   private async getActiveAlerts(): Promise<Alert[]> {
-    const alerts = await this.redis.zrange('monitoring:alerts:active', 0, -1);
-    return alerts.map(a => JSON.parse(a));
+    return await this.alertingService.getActiveAlerts();
   }
 
   private async getRecentIncidents(provider: string): Promise<any[]> {
