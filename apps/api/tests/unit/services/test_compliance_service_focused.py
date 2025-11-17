@@ -362,16 +362,16 @@ class TestComplianceIntegration:
         service = ComplianceService(mock_db, mock_audit_logger)
 
         # Mock database responses
-        mock_consent_result = AsyncMock()
+        mock_consent_result = MagicMock()
         mock_consent_result.fetchall.return_value = [("given", 50), ("withdrawn", 5)]
 
-        mock_dsr_result = AsyncMock()
+        mock_dsr_result = MagicMock()
         mock_dsr_result.fetchall.return_value = [("received", 10), ("completed", 8)]
 
-        mock_breach_result = AsyncMock()
+        mock_breach_result = MagicMock()
         mock_breach_result.scalar.return_value = 2
 
-        mock_overdue_result = AsyncMock()
+        mock_overdue_result = MagicMock()
         mock_overdue_result.scalar.return_value = 1
 
         mock_db.execute.side_effect = [

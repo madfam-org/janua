@@ -69,7 +69,7 @@ class TestConsentManagement:
         user_id = uuid4()
 
         # Mock no existing consent - using AsyncMock for async operations
-        mock_execute_result = AsyncMock()
+        mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_execute_result
         mock_db.commit = AsyncMock()
@@ -107,7 +107,7 @@ class TestConsentManagement:
         # Mock existing consent
         existing_consent = Mock()
         existing_consent.status = ConsentStatus.PENDING
-        mock_execute_result = AsyncMock()
+        mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none.return_value = existing_consent
         mock_db.execute.return_value = mock_execute_result
         mock_db.commit = AsyncMock()
@@ -135,7 +135,7 @@ class TestConsentManagement:
         # Mock existing active consent
         consent_record = Mock()
         consent_record.status = ConsentStatus.GIVEN
-        mock_execute_result = AsyncMock()
+        mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none.return_value = consent_record
         mock_db.execute.return_value = mock_execute_result
         mock_db.commit = AsyncMock()
@@ -161,7 +161,7 @@ class TestConsentManagement:
         user_id = uuid4()
 
         # Mock no existing consent
-        mock_execute_result = AsyncMock()
+        mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_execute_result
 
@@ -186,8 +186,8 @@ class TestConsentManagement:
         consent2 = Mock()
         consent2.status = ConsentStatus.WITHDRAWN
 
-        mock_execute_result = AsyncMock()
-        mock_scalars_result = AsyncMock()
+        mock_execute_result = MagicMock()
+        mock_scalars_result = MagicMock()
         mock_scalars_result.all.return_value = [consent1]
         mock_execute_result.scalars.return_value = mock_scalars_result
         mock_db.execute.return_value = mock_execute_result
@@ -208,7 +208,7 @@ class TestConsentManagement:
 
         # Mock valid consent
         mock_consent = AsyncMock()
-        mock_execute_result = AsyncMock()
+        mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none.return_value = mock_consent
         mock_db.execute.return_value = mock_execute_result
 
@@ -227,7 +227,7 @@ class TestConsentManagement:
         user_id = uuid4()
 
         # Mock no valid consent
-        mock_execute_result = AsyncMock()
+        mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_execute_result
 
@@ -303,18 +303,18 @@ class TestDataSubjectRightsService:
         mock_user.user_metadata = {"preferences": "test"}
 
         # Mock database queries
-        mock_request_result = AsyncMock()
+        mock_request_result = MagicMock()
         mock_request_result.scalar_one_or_none.return_value = mock_request
 
-        mock_user_result = AsyncMock()
+        mock_user_result = MagicMock()
         mock_user_result.scalar_one_or_none.return_value = mock_user
 
-        mock_consent_result = AsyncMock()
-        mock_consent_scalars = AsyncMock()
+        mock_consent_result = MagicMock()
+        mock_consent_scalars = MagicMock()
         mock_consent_scalars.all.return_value = []
         mock_consent_result.scalars.return_value = mock_consent_scalars
 
-        mock_privacy_result = AsyncMock()
+        mock_privacy_result = MagicMock()
         mock_privacy_result.scalar_one_or_none.return_value = None
 
         mock_db.execute.side_effect = [
@@ -343,7 +343,7 @@ class TestDataSubjectRightsService:
         processor_id = uuid4()
 
         # Mock no request found
-        mock_execute_result = AsyncMock()
+        mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_execute_result
 
@@ -369,13 +369,13 @@ class TestDataSubjectRightsService:
         mock_user.id = user_id
         mock_user.email = "test@example.com"
 
-        mock_request_result = AsyncMock()
+        mock_request_result = MagicMock()
         mock_request_result.scalar_one_or_none.return_value = mock_request
 
-        mock_user_result = AsyncMock()
+        mock_user_result = MagicMock()
         mock_user_result.scalar_one_or_none.return_value = mock_user
 
-        mock_sql_result = AsyncMock()
+        mock_sql_result = MagicMock()
 
         mock_db.execute.side_effect = [
             mock_request_result,
@@ -415,10 +415,10 @@ class TestDataSubjectRightsService:
         mock_user = AsyncMock()
         mock_user.id = user_id
 
-        mock_request_result = AsyncMock()
+        mock_request_result = MagicMock()
         mock_request_result.scalar_one_or_none.return_value = mock_request
 
-        mock_user_result = AsyncMock()
+        mock_user_result = MagicMock()
         mock_user_result.scalar_one_or_none.return_value = mock_user
 
         mock_db.execute.side_effect = [
@@ -494,13 +494,13 @@ class TestDataRetentionService:
         mock_user.id = uuid4()
         mock_user.created_at = datetime.utcnow() - timedelta(days=400)
 
-        mock_policies_result = AsyncMock()
-        mock_policies_scalars = AsyncMock()
+        mock_policies_result = MagicMock()
+        mock_policies_scalars = MagicMock()
         mock_policies_scalars.all.return_value = [mock_policy]
         mock_policies_result.scalars.return_value = mock_policies_scalars
 
-        mock_users_result = AsyncMock()
-        mock_users_scalars = AsyncMock()
+        mock_users_result = MagicMock()
+        mock_users_scalars = MagicMock()
         mock_users_scalars.all.return_value = [mock_user]
         mock_users_result.scalars.return_value = mock_users_scalars
 
@@ -527,7 +527,7 @@ class TestDataRetentionService:
         mock_policy.name = "Test Policy"
         mock_policy.retention_period_days = 365
 
-        mock_execute_result = AsyncMock()
+        mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none.return_value = mock_policy
         mock_db.execute.return_value = mock_execute_result
 
@@ -563,10 +563,10 @@ class TestDataRetentionService:
         mock_user = AsyncMock()
         mock_user.id = user_id
 
-        mock_policy_result = AsyncMock()
+        mock_policy_result = MagicMock()
         mock_policy_result.scalar_one_or_none.return_value = mock_policy
 
-        mock_user_result = AsyncMock()
+        mock_user_result = MagicMock()
         mock_user_result.scalar_one_or_none.return_value = mock_user
 
         mock_db.execute.side_effect = [
@@ -623,16 +623,16 @@ class TestComplianceService:
         tenant_id = uuid4()
 
         # Mock database queries
-        mock_consent_result = AsyncMock()
+        mock_consent_result = MagicMock()
         mock_consent_result.fetchall.return_value = [("given", 50), ("withdrawn", 5)]
 
-        mock_dsr_result = AsyncMock()
+        mock_dsr_result = MagicMock()
         mock_dsr_result.fetchall.return_value = [("received", 10), ("completed", 8)]
 
-        mock_breach_result = AsyncMock()
+        mock_breach_result = MagicMock()
         mock_breach_result.scalar.return_value = 2
 
-        mock_overdue_result = AsyncMock()
+        mock_overdue_result = MagicMock()
         mock_overdue_result.scalar.return_value = 1
 
         mock_db.execute.side_effect = [
@@ -733,7 +733,7 @@ class TestComplianceService:
         end_date = datetime.utcnow()
         tenant_id = uuid4()
 
-        mock_execute_result = AsyncMock()
+        mock_execute_result = MagicMock()
         mock_execute_result.fetchall.return_value = [
             ("given", 100),
             ("withdrawn", 10)
@@ -754,10 +754,10 @@ class TestComplianceService:
         end_date = datetime.utcnow()
         tenant_id = uuid4()
 
-        mock_total_result = AsyncMock()
+        mock_total_result = MagicMock()
         mock_total_result.scalar.return_value = 15
 
-        mock_overdue_result = AsyncMock()
+        mock_overdue_result = MagicMock()
         mock_overdue_result.scalar.return_value = 2
 
         mock_db.execute.side_effect = [
@@ -779,7 +779,7 @@ class TestComplianceService:
         end_date = datetime.utcnow()
         tenant_id = uuid4()
 
-        mock_execute_result = AsyncMock()
+        mock_execute_result = MagicMock()
         mock_execute_result.scalar.return_value = 3
         mock_db.execute.return_value = mock_execute_result
 
@@ -969,7 +969,7 @@ class TestErrorHandling:
         service, mock_db, mock_audit_logger = error_service
 
         # Test missing retention policy
-        mock_execute_result = AsyncMock()
+        mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_execute_result
 
