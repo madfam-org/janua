@@ -25,8 +25,8 @@ import { SSO } from './sso';
 import { Invitations } from './invitations';
 import { Payments } from './payments';
 import { EnterpriseFeatures, FEATURES, type LicenseInfo } from './enterprise';
-import { GraphQL, type GraphQLConfig } from './graphql';
-import { WebSocket, type WebSocketConfig } from './websocket';
+import { GraphQL } from './graphql';
+import { WebSocket } from './websocket';
 
 /**
  * Main Plinto SDK client class
@@ -486,7 +486,7 @@ export class PlintoClient extends EventEmitter<SdkEventMap> {
   /**
    * Remove all listeners for an event
    */
-  removeAllListeners(event?: SdkEventType): void {
+  override removeAllListeners(event?: SdkEventType): void {
     super.removeAllListeners(event);
   }
 

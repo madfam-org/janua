@@ -20,6 +20,8 @@
     "build:vue": "cd packages/vue-sdk && npm run build",
     "build:python": "cd packages/python-sdk && python setup.py sdist bdist_wheel",
     "test": "npm run test:packages && npm run test:api",
+    "test:coverage": "jest --config jest.config.coverage.js",
+    "test:coverage:report": "npm run test:coverage && open coverage/index.html",
     "test:all": "bash scripts/test-all.sh",
     "test:integration": "node scripts/test-integration.js",
     "test:packages": "cd packages/core && npm test",

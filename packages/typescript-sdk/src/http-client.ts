@@ -11,8 +11,7 @@ import type {
 import {
   PlintoError,
   NetworkError,
-  RateLimitError,
-  ErrorHandler
+  RateLimitError
 } from './errors';
 import { TokenManager, RetryUtils, EventEmitter } from './utils';
 import type { SdkEventMap } from './types';
@@ -63,7 +62,7 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
       // Handle rate limiting
       if (response.status === 429) {
         const rateLimitInfo = this.parseRateLimitHeaders(response.headers);
-        throw new RateLimitError('Rate limit exceeded', { rateLimitInfo });
+        throw new RateLimitError('Rate limit exceeded', rateLimitInfo);
       }
 
       // Handle authentication errors
@@ -88,13 +87,12 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
   private async executeWithRetry<T>(
     operation: () => Promise<T>
   ): Promise<T> {
-    return RetryUtils.withRetry(
-      operation,
-      this.config.retryAttempts,
-      this.config.retryDelay,
-      2, // backoff factor
-      30000 // max delay
-    );
+    return RetryUtils.withRetry(operation, {
+      maxAttempts: this.config.retryAttempts,
+      initialDelay: this.config.retryDelay,
+      backoffMultiplier: 2,
+      maxDelay: 30000
+    });
   }
 
   /**
@@ -167,7 +165,7 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
   /**
    * Handle authentication errors
    */
-  private async handleAuthError(originalConfig: RequestConfig): Promise<void> {
+  private async handleAuthError(_originalConfig: RequestConfig): Promise<void> {
     // Prevent multiple simultaneous refresh attempts
     if (this.refreshPromise) {
       await this.refreshPromise;
@@ -264,7 +262,7 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
    */
   private headersToObject(headers: Headers): Record<string, string> {
     const result: Record<string, string> = {};
-    headers.forEach((value, key) => {
+    headers.forEach((value: string, key: string) => {
       result[key] = value;
     });
     return result;
@@ -512,7 +510,7 @@ export class AxiosHttpClient extends EventEmitter<SdkEventMap> {
  */
 export function createHttpClient(config: PlintoConfig, tokenManager: TokenManager): HttpClient | AxiosHttpClient {
   // Check if axios is available and preferred
-  if (config.environment !== 'browser') {
+  if (config.environment && config.environment !== 'browser' as any) {
     try {
       require.resolve('axios');
       return new AxiosHttpClient(config, tokenManager);

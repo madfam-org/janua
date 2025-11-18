@@ -67,22 +67,32 @@ export class GraphQL {
 
     // Create auth middleware
     const authMiddleware = new ApolloLink((operation, forward) => {
-      return from([
-        new ApolloLink(async (op, fwd) => {
-          const token = config.getAuthToken ? await config.getAuthToken() : null
-          
-          if (token) {
-            op.setContext(({ headers = {} }) => ({
+      const token = config.getAuthToken ? config.getAuthToken() : null
+      
+      if (token instanceof Promise) {
+        return token.then(t => {
+          if (t) {
+            operation.setContext(({ headers = {} }: any) => ({
               headers: {
                 ...headers,
-                authorization: `Bearer ${token}`,
+                authorization: `Bearer ${t}`,
               },
             }))
           }
-
-          return fwd(op)
-        }),
-      ]).request(operation, forward)
+          return forward(operation)
+        })
+      }
+      
+      if (token) {
+        operation.setContext(({ headers = {} }: any) => ({
+          headers: {
+            ...headers,
+            authorization: `Bearer ${token}`,
+          },
+        }))
+      }
+      
+      return forward(operation)
     })
 
     // Create WebSocket link if URL provided
@@ -141,7 +151,7 @@ export class GraphQL {
   /**
    * Execute a GraphQL query
    */
-  async query<TData = any, TVariables = OperationVariables>(
+  async query<TData = any, TVariables extends OperationVariables = OperationVariables>(
     query: DocumentNode,
     options?: GraphQLQueryOptions<TVariables>
   ): Promise<ApolloQueryResult<TData>> {
@@ -161,7 +171,7 @@ export class GraphQL {
   /**
    * Execute a GraphQL mutation
    */
-  async mutate<TData = any, TVariables = OperationVariables>(
+  async mutate<TData = any, TVariables extends OperationVariables = OperationVariables>(
     mutation: DocumentNode,
     options?: GraphQLMutationOptions<TVariables>
   ): Promise<FetchResult<TData>> {
@@ -183,7 +193,7 @@ export class GraphQL {
   /**
    * Subscribe to a GraphQL subscription
    */
-  subscribe<TData = any, TVariables = OperationVariables>(
+  subscribe<TData = any, TVariables extends OperationVariables = OperationVariables>(
     subscription: DocumentNode,
     options?: GraphQLSubscriptionOptions<TVariables>
   ): Observable<FetchResult<TData>> {
