@@ -1,13 +1,18 @@
 # Core models
-from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Text, Integer, Enum as SQLEnum
-from app.models.types import GUID as UUID, JSON as JSONB
+import enum
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
-import uuid
-import enum
+
+from app.models.types import GUID as UUID
+from app.models.types import JSON as JSONB
 
 Base = declarative_base()
+
 
 class UserStatus(str, enum.Enum):
     ACTIVE = "active"
@@ -15,6 +20,7 @@ class UserStatus(str, enum.Enum):
     SUSPENDED = "suspended"
     PENDING = "pending"
     DELETED = "deleted"
+
 
 class User(Base):
     __tablename__ = "users"
@@ -38,6 +44,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class Organization(Base):
     __tablename__ = "organizations"
 
@@ -56,6 +63,7 @@ class Organization(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class OrganizationMember(Base):
     __tablename__ = "organization_members"
 
@@ -63,9 +71,13 @@ class OrganizationMember(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     role = Column(String(50), default="member")
+    status = Column(
+        String(50), default="active"
+    )  # Member status: active, inactive, pending, removed
     joined_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 class EmailVerification(Base):
     __tablename__ = "email_verifications"
@@ -78,6 +90,7 @@ class EmailVerification(Base):
     verified_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 class PasswordReset(Base):
     __tablename__ = "password_resets"
 
@@ -88,6 +101,7 @@ class PasswordReset(Base):
     used = Column(Boolean, default=False)
     used_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
 class MagicLink(Base):
     __tablename__ = "magic_links"
@@ -101,6 +115,7 @@ class MagicLink(Base):
     used_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
 
@@ -113,6 +128,7 @@ class ActivityLog(Base):
     user_agent = Column(Text)
     activity_metadata = Column(JSONB, default={})
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
 class Session(Base):
     __tablename__ = "sessions"
@@ -134,11 +150,13 @@ class Session(Base):
     last_activity = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 class OAuthProvider(str, enum.Enum):
     GOOGLE = "google"
     GITHUB = "github"
     MICROSOFT = "microsoft"
     APPLE = "apple"
+
 
 class OAuthAccount(Base):
     __tablename__ = "oauth_accounts"
@@ -152,6 +170,7 @@ class OAuthAccount(Base):
     expires_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 class Passkey(Base):
     __tablename__ = "passkeys"
@@ -167,6 +186,7 @@ class Passkey(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     last_used_at = Column(DateTime)
 
+
 class OrganizationInvitation(Base):
     __tablename__ = "organization_invitations"
 
@@ -180,11 +200,13 @@ class OrganizationInvitation(Base):
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 class OrganizationRole(str, enum.Enum):
     OWNER = "owner"
     ADMIN = "admin"
     MEMBER = "member"
     VIEWER = "viewer"
+
 
 class OrganizationCustomRole(Base):
     __tablename__ = "organization_custom_roles"
@@ -193,20 +215,24 @@ class OrganizationCustomRole(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     name = Column(String(255), nullable=False)
     permissions = Column(JSONB, default=[])
-    parent_role_id = Column(UUID(as_uuid=True), ForeignKey("organization_custom_roles.id"), nullable=True)
+    parent_role_id = Column(
+        UUID(as_uuid=True), ForeignKey("organization_custom_roles.id"), nullable=True
+    )
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 # Association table for many-to-many relationship
 from sqlalchemy import Table
 
 organization_members = Table(
-    'organization_members_association',
+    "organization_members_association",
     Base.metadata,
-    Column('organization_id', UUID(as_uuid=True), ForeignKey('organizations.id')),
-    Column('user_id', UUID(as_uuid=True), ForeignKey('users.id')),
-    Column('created_at', DateTime, default=datetime.utcnow)
+    Column("organization_id", UUID(as_uuid=True), ForeignKey("organizations.id")),
+    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id")),
+    Column("created_at", DateTime, default=datetime.utcnow),
 )
+
 
 class Policy(Base):
     __tablename__ = "policies"
@@ -219,6 +245,7 @@ class Policy(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class Webhook(Base):
     __tablename__ = "webhooks"
 
@@ -228,15 +255,18 @@ class Webhook(Base):
     events = Column(JSONB, default=[])
     secret = Column(String(255))
     active = Column(Boolean, default=True)
-    
+
     @property
     def is_active(self):
         return self.active
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 # Create alias for backward compatibility
 WebhookModel = Webhook
+
 
 class Invitation(Base):
     __tablename__ = "invitations"
@@ -251,6 +281,7 @@ class Invitation(Base):
     accepted_at = Column(DateTime)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
@@ -269,6 +300,7 @@ class AuditLog(Base):
     previous_hash = Column(String(255))  # For audit chain integrity
     current_hash = Column(String(255))  # Current entry hash (renamed from hash)
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
 # Webhook models
 class WebhookEventType(str, enum.Enum):
@@ -289,11 +321,13 @@ class WebhookEventType(str, enum.Enum):
     SUBSCRIPTION_CANCELLED = "subscription.cancelled"
     SYSTEM_ALERT = "system.alert"
 
+
 class WebhookStatus(str, enum.Enum):
     PENDING = "pending"
     DELIVERED = "delivered"
     FAILED = "failed"
     RETRYING = "retrying"
+
 
 class WebhookEndpoint(Base):
     __tablename__ = "webhook_endpoints"
@@ -308,6 +342,7 @@ class WebhookEndpoint(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class WebhookEvent(Base):
     __tablename__ = "webhook_events"
 
@@ -318,11 +353,14 @@ class WebhookEvent(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 class WebhookDelivery(Base):
     __tablename__ = "webhook_deliveries"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    webhook_endpoint_id = Column(UUID(as_uuid=True), ForeignKey("webhook_endpoints.id"), nullable=False)
+    webhook_endpoint_id = Column(
+        UUID(as_uuid=True), ForeignKey("webhook_endpoints.id"), nullable=False
+    )
     webhook_event_id = Column(UUID(as_uuid=True), ForeignKey("webhook_events.id"), nullable=False)
     status = Column(SQLEnum(WebhookStatus), default=WebhookStatus.PENDING)
     attempts = Column(Integer, default=0)
@@ -334,6 +372,7 @@ class WebhookDelivery(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 # JWT Token models
 class TokenClaims(Base):
     __tablename__ = "token_claims"
@@ -344,6 +383,7 @@ class TokenClaims(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=False)
 
+
 class TokenPair(Base):
     __tablename__ = "token_pairs"
 
@@ -353,6 +393,7 @@ class TokenPair(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=False)
+
 
 class CheckoutSession(Base):
     __tablename__ = "checkout_sessions"
@@ -369,10 +410,11 @@ class CheckoutSession(Base):
     expires_at = Column(DateTime, nullable=True)
     session_metadata = Column(Text)  # JSON string for additional data
 
+
 # Additional enterprise models
 class Role(Base):
     __tablename__ = "roles"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     name = Column(String(255), nullable=False)
@@ -382,9 +424,10 @@ class Role(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class Permission(Base):
     __tablename__ = "permissions"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     name = Column(String(255), nullable=False)
@@ -394,9 +437,10 @@ class Permission(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class ApiKey(Base):
     __tablename__ = "api_keys"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
@@ -410,9 +454,10 @@ class ApiKey(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class Invoice(Base):
     __tablename__ = "invoices"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     subscription_id = Column(UUID(as_uuid=True), ForeignKey("subscriptions.id"))
@@ -427,9 +472,10 @@ class Invoice(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class Payment(Base):
     __tablename__ = "payments"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     invoice_id = Column(UUID(as_uuid=True), ForeignKey("invoices.id"))
@@ -443,9 +489,10 @@ class Payment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class Notification(Base):
     __tablename__ = "notifications"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"))
@@ -458,15 +505,17 @@ class Notification(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 # Additional missing models
 class OrganizationSettings(Base):
     __tablename__ = "organization_settings"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     settings_data = Column(JSONB, default={})
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 class SessionType(str, enum.Enum):
     WEB = "web"
@@ -474,22 +523,24 @@ class SessionType(str, enum.Enum):
     API = "api"
     SSO = "sso"
 
+
 class RolePermission(Base):
     __tablename__ = "role_permissions"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     role_id = Column(UUID(as_uuid=True), ForeignKey("roles.id"), nullable=False)
     permission_id = Column(UUID(as_uuid=True), ForeignKey("permissions.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 class Plan(Base):
     __tablename__ = "plans"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     description = Column(Text)
     price_monthly = Column(Integer, default=0)  # Price in cents
-    price_yearly = Column(Integer, default=0)   # Price in cents
+    price_yearly = Column(Integer, default=0)  # Price in cents
     features = Column(JSONB, default=[])
     max_users = Column(Integer)
     max_organizations = Column(Integer)
@@ -497,10 +548,11 @@ class Plan(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 # Localization models
 class Locale(Base):
     __tablename__ = "locales"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     code = Column(String(10), unique=True, nullable=False, index=True)  # e.g., "en-US", "es-ES"
     name = Column(String(100), nullable=False)  # e.g., "English (US)"
@@ -511,9 +563,10 @@ class Locale(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class TranslationKey(Base):
     __tablename__ = "translation_keys"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     key = Column(String(255), unique=True, nullable=False, index=True)  # e.g., "auth.login.submit"
     default_value = Column(Text, nullable=False)  # Fallback English text
@@ -522,11 +575,14 @@ class TranslationKey(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class Translation(Base):
     __tablename__ = "translations"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    translation_key_id = Column(UUID(as_uuid=True), ForeignKey("translation_keys.id"), nullable=False)
+    translation_key_id = Column(
+        UUID(as_uuid=True), ForeignKey("translation_keys.id"), nullable=False
+    )
     locale_id = Column(UUID(as_uuid=True), ForeignKey("locales.id"), nullable=False)
     value = Column(Text, nullable=False)  # Translated text
     is_approved = Column(Boolean, default=False)  # For translation workflow
@@ -535,33 +591,43 @@ class Translation(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-# Import enterprise models
-from .enterprise import (
-    SSOConfiguration, SSOProvider, SSOStatus, Subscription, 
-    EnterpriseFeature as Feature, BillingUsage as UsageMetric,
-    AuditEventType
-)
-from .white_label import WhiteLabelConfiguration, BrandingLevel, ThemeMode, CustomDomain, EmailTemplate
 
+# Import enterprise models
 # Import compliance models
 from .compliance import (
+    ComplianceControl,
     ComplianceFramework,
-    ConsentType,
-    ConsentStatus,
-    LegalBasis,
-    DataCategory,
-    DataSubjectRequestType,
-    RequestStatus,
+    ComplianceReport,
     ConsentRecord,
+    ConsentStatus,
+    ConsentType,
+    DataBreachIncident,
+    DataCategory,
     DataRetentionPolicy,
     DataSubjectRequest,
+    DataSubjectRequestType,
+    LegalBasis,
     PrivacySettings,
-    DataBreachIncident,
-    ComplianceReport,
-    ComplianceControl
+    RequestStatus,
+)
+from .enterprise import AuditEventType, SSOConfiguration, SSOProvider, SSOStatus, Subscription
+from .enterprise import BillingUsage as UsageMetric
+from .enterprise import EnterpriseFeature as Feature
+from .white_label import (
+    BrandingLevel,
+    CustomDomain,
+    EmailTemplate,
+    ThemeMode,
+    WhiteLabelConfiguration,
 )
 
 # Add relationships to User model
-User.consent_records = relationship("ConsentRecord", back_populates="user", foreign_keys="ConsentRecord.user_id")
-User.data_subject_requests = relationship("DataSubjectRequest", back_populates="user", foreign_keys="DataSubjectRequest.user_id")
-User.privacy_settings = relationship("PrivacySettings", back_populates="user", uselist=False, foreign_keys="PrivacySettings.user_id")
+User.consent_records = relationship(
+    "ConsentRecord", back_populates="user", foreign_keys="ConsentRecord.user_id"
+)
+User.data_subject_requests = relationship(
+    "DataSubjectRequest", back_populates="user", foreign_keys="DataSubjectRequest.user_id"
+)
+User.privacy_settings = relationship(
+    "PrivacySettings", back_populates="user", uselist=False, foreign_keys="PrivacySettings.user_id"
+)
