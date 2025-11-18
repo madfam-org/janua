@@ -574,6 +574,75 @@ class TestTokenRefresh:
             # Should revoke entire family on potential reuse
             mock_revoke.assert_called_once_with(mock_db, family)
 
+    @pytest.mark.asyncio
+    async def test_refresh_tokens_user_not_found(self):
+        """Test token refresh when user not found after session lookup."""
+        mock_db = AsyncMock()
+
+        # Create a refresh token
+        user_id = str(uuid4())
+        tenant_id = str(uuid4())
+        refresh_token, refresh_jti, family, expires_at = AuthService.create_refresh_token(
+            user_id, tenant_id
+        )
+
+        # Mock session exists
+        mock_session = AsyncMock()
+        mock_session.refresh_token_jti = refresh_jti
+        mock_session.is_active = True
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_session
+        mock_db.execute.return_value = mock_result
+
+        # Mock user not found
+        mock_db.get.return_value = None
+
+        # Mock Redis
+        mock_redis = AsyncMock()
+        mock_redis.get.return_value = None
+
+        with patch("app.services.auth_service.get_redis", return_value=mock_redis):
+            result = await AuthService.refresh_tokens(mock_db, refresh_token)
+
+            assert result is None
+
+    @pytest.mark.asyncio
+    async def test_refresh_tokens_user_inactive(self):
+        """Test token refresh when user is inactive."""
+        mock_db = AsyncMock()
+
+        # Create a refresh token
+        user_id = str(uuid4())
+        tenant_id = str(uuid4())
+        refresh_token, refresh_jti, family, expires_at = AuthService.create_refresh_token(
+            user_id, tenant_id
+        )
+
+        # Mock session exists
+        mock_session = AsyncMock()
+        mock_session.refresh_token_jti = refresh_jti
+        mock_session.is_active = True
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_session
+        mock_db.execute.return_value = mock_result
+
+        # Mock inactive user
+        mock_user = AsyncMock()
+        mock_user.is_active = False
+
+        mock_db.get.return_value = mock_user
+
+        # Mock Redis
+        mock_redis = AsyncMock()
+        mock_redis.get.return_value = None
+
+        with patch("app.services.auth_service.get_redis", return_value=mock_redis):
+            result = await AuthService.refresh_tokens(mock_db, refresh_token)
+
+            assert result is None
+
 
 class TestLogout:
     """Test logout functionality."""
