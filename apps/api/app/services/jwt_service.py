@@ -16,6 +16,7 @@ from jose import JWTError, jwk, jwt
 from app.config import settings
 from app.exceptions import AuthenticationError, TokenError
 from app.models import TokenClaims, TokenPair
+from app.schemas.token import TokenPairResponse
 
 logger = structlog.get_logger()
 
@@ -270,7 +271,7 @@ class JWTService:
             f"jti:refresh:{refresh_jti}", settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60, "1"
         )
 
-        return TokenPair(
+        return TokenPairResponse(
             access_token=access_token,
             refresh_token=refresh_token,
             expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
@@ -279,9 +280,10 @@ class JWTService:
 
     async def verify_token(
         self, token: str, token_type: str = "access", verify_exp: bool = True
-    ) -> TokenClaims:
+    ) -> Dict[str, Any]:
         """
         Verify and decode JWT token
+        Returns decoded claims as dictionary
         """
         try:
             # Decode token
@@ -310,13 +312,13 @@ class JWTService:
                 if not exists:
                     raise TokenError("Token JTI not found or expired")
 
-            return TokenClaims(**claims)
+            return claims
 
         except JWTError as e:
             logger.warning("JWT verification failed", error=str(e))
             raise AuthenticationError(f"Invalid token: {str(e)}")
 
-    async def refresh_tokens(self, refresh_token: str) -> TokenPair:
+    async def refresh_tokens(self, refresh_token: str) -> TokenPairResponse:
         """
         Refresh access token using refresh token
         """
@@ -324,10 +326,10 @@ class JWTService:
         claims = await self.verify_token(refresh_token, token_type="refresh")
 
         # Check if refresh token was already used (rotation)
-        used_key = f"used:refresh:{claims.jti}"
+        used_key = f"used:refresh:{claims['jti']}"
         if await self.redis.get(used_key):
             # Token reuse detected - revoke all tokens for this identity
-            await self.revoke_all_tokens(claims.sub)
+            await self.revoke_all_tokens(claims["sub"])
             raise AuthenticationError("Refresh token reuse detected")
 
         # Mark refresh token as used
@@ -335,7 +337,9 @@ class JWTService:
 
         # Create new token pair
         return await self.create_tokens(
-            identity_id=claims.sub, tenant_id=claims.tid, organization_id=claims.oid
+            identity_id=claims["sub"],
+            tenant_id=claims.get("tid"),
+            organization_id=claims.get("oid"),
         )
 
     async def store_token_claims(self, jti: str, claims: Dict[str, Any], ttl: int = 3600):
@@ -351,11 +355,13 @@ class JWTService:
 
     async def is_token_blacklisted(self, jti: str) -> bool:
         """Check if token is blacklisted"""
-        return await self.redis.exists(f"blacklist:{jti}") > 0
+        result = await self.redis.exists(f"blacklist:{jti}")
+        return bool(result) if result is not None else False
 
     async def is_user_revoked(self, user_id: str) -> bool:
         """Check if all tokens for a user are revoked"""
-        return await self.redis.exists(f"revoked_user:{user_id}") > 0
+        result = await self.redis.exists(f"revoked_user:{user_id}")
+        return bool(result) if result is not None else False
 
     async def verify_refresh_token(self, token: str) -> Dict[str, Any]:
         """Verify refresh token specifically"""
@@ -378,9 +384,7 @@ class JWTService:
 
             return payload
 
-        except jwt.ExpiredSignatureError:
-            raise ValueError("Token has expired")
-        except jwt.InvalidTokenError as e:
+        except JWTError as e:
             raise ValueError(f"Invalid token: {e}")
 
     async def revoke_token(self, token: str, jti: str):
