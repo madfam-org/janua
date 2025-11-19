@@ -11,7 +11,7 @@
 
 *Enterprise-grade authentication and user management platform for modern applications*
 
-[🚀 **Get Started**](QUICK_START.md) • [📖 **Documentation**](https://docs.plinto.dev) • [🎮 **Try Demo**](#-local-demo) • [💬 **Discord**](https://discord.gg/plinto)
+[🚀 **Get Started**](docs/guides/QUICK_START.md) • [📖 **Documentation**](https://docs.plinto.dev) • [🎮 **Try Demo**](#-local-demo) • [💬 **Discord**](https://discord.gg/plinto)
 
 ---
 
@@ -46,9 +46,9 @@ cd apps/demo && npm install && npm run dev
 - ✅ **Comprehensive Documentation** - Implementation reports, API guides
 
 **Quick Links:**
-- 📖 **[Quick Start Guide](QUICK_START.md)** - 5-minute setup instructions
+- 📖 **[Quick Start Guide](docs/guides/QUICK_START.md)** - 5-minute setup instructions
 - 🎨 **[Component Showcases](http://localhost:3000/auth)** - Interactive demos
-- 📋 **[Demo Walkthrough](DEMO_WALKTHROUGH.md)** - Complete 50+ checkpoint validation
+- 📋 **[Demo Walkthrough](docs/guides/DEMO_WALKTHROUGH.md)** - Complete 50+ checkpoint validation
 - 🏗️ **[Week 5 Summary](docs/implementation-reports/week5-final-summary.md)** - Latest progress
 - 🔌 **[API Integration Guide](docs/implementation-reports/week6-day1-api-integration.md)** - Full stack setup
 

@@ -84,7 +84,7 @@ infrastructure_checks() {
     check_requirement "PostgreSQL database connected" "cd apps/api && python -c 'from app.core.database import engine; print(\"connected\")' 2>/dev/null | grep -q connected"
     check_requirement "Redis cache available" "python -c 'import redis; r=redis.Redis(); r.ping()' 2>/dev/null"
     check_requirement "Environment variables configured" "test -f apps/api/.env"
-    check_requirement "Production deployment configured" "test -f railway.json || test -f vercel.json"
+    check_requirement "Production deployment configured" "test -f config/railway.json || test -f config/vercel.json"
     check_requirement "Staging environment defined" "grep -q STAGING .github/workflows/*.yml 2>/dev/null"
     check_requirement "Domain configured" "grep -qE 'plinto\.(dev|io|com)' apps/*/package.json 2>/dev/null"
 }
@@ -172,7 +172,7 @@ testing_checks() {
 # 9. OPERATIONS CHECKS
 operations_checks() {
     check_requirement "CI/CD workflows exist" "test -f .github/workflows/ci.yml" true
-    check_requirement "Deployment configuration" "test -f railway.toml || test -f vercel.json || test -f Dockerfile"
+    check_requirement "Deployment configuration" "test -f railway.toml || test -f config/vercel.json || test -f Dockerfile"
     check_requirement "Environment management" "test -f .env.example"
     check_requirement "Database migration scripts" "test -f apps/api/alembic.ini"
     check_requirement "Monitoring configuration" "grep -q 'health\|metrics' apps/api/app/**/*.py"

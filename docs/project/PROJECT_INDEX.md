@@ -23,8 +23,8 @@
 ## 🎯 Getting Started
 
 ### Local Demo Environment
-- [Quick Start Guide](../../QUICK_START.md) - **5-minute setup**
-- [Demo Walkthrough](../../DEMO_WALKTHROUGH.md) - **50+ validation checkpoints**
+- [Quick Start Guide](../guides/QUICK_START.md) - **5-minute setup**
+- [Demo Walkthrough](../guides/DEMO_WALKTHROUGH.md) - **50+ validation checkpoints**
 - [Start Script](../../scripts/start-local-demo.sh) - **One-command orchestration**
 - [Test Script](../../scripts/run-demo-tests.sh) - **Automated validation**
 
@@ -32,7 +32,7 @@
 1. Run `./scripts/start-local-demo.sh` to start all services
 2. Open http://localhost:3000 for landing site
 3. Open http://localhost:8000/docs for API documentation
-4. Follow [Demo Walkthrough](../../DEMO_WALKTHROUGH.md) for complete validation
+4. Follow [Demo Walkthrough](../guides/DEMO_WALKTHROUGH.md) for complete validation
 
 ---
 

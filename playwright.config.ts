@@ -27,7 +27,7 @@ export default defineConfig({
     },
   ],
 
-  // Note: Test environment services are managed by docker-compose.test.yml
+  // Note: Test environment services are managed by config/docker-compose.test.yml
   // Use npm run test:journeys:setup to start services before running tests
   // Use npm run test:journeys:teardown to stop services after tests
 });

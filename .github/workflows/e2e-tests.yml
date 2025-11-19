@@ -53,7 +53,7 @@ jobs:
 
       - name: Start database services only
         run: |
-          docker compose -f docker-compose.test.yml up -d postgres redis
+          docker compose -f config/docker-compose.test.yml up -d postgres redis
           echo "Database services starting..."
 
       - name: Wait for databases to be healthy
@@ -123,7 +123,7 @@ jobs:
 
       - name: Stop database services
         if: always()
-        run: docker compose -f docker-compose.test.yml down -v
+        run: docker compose -f config/docker-compose.test.yml down -v
 
       - name: Comment PR with test results
         if: github.event_name == 'pull_request' && always()

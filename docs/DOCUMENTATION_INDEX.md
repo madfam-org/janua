@@ -8,8 +8,8 @@ This index provides a navigable structure for all Plinto documentation. Organize
 
 ### Getting Started
 - [README.md](../README.md) - Project overview and quick start
-- [QUICK_START.md](../QUICK_START.md) - 5-minute setup guide
-- [DEMO_WALKTHROUGH.md](../DEMO_WALKTHROUGH.md) - Interactive demo guide
+- [QUICK_START.md](guides/QUICK_START.md) - 5-minute setup guide
+- [DEMO_WALKTHROUGH.md](guides/DEMO_WALKTHROUGH.md) - Interactive demo guide
 
 ### Implementation Reports (Current)
 - [Week 5 Final Summary](implementation-reports/week5-final-summary.md) - E2E testing completion
