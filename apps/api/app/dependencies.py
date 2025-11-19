@@ -156,23 +156,39 @@ async def get_sso_service(
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security), 
-    db: AsyncSession = Depends(get_db)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis)
 ) -> User:
-    """Get current authenticated user from JWT token"""
+    """Get current authenticated user from JWT token (cached for 5 minutes)"""
     from app.core.jwt_manager import jwt_manager
-    
+    import json
+
     token = credentials.credentials
-    
+
     # Decode token using JWT manager
     payload = jwt_manager.verify_token(token, token_type='access')
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    
+
     user_id = payload.get('sub')
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
-    
+
+    # Check cache for user validity (existence + active status)
+    # This prevents DB queries for deleted/non-existent users
+    cache_key = f"user:valid:{user_id}"
+    try:
+        cached_status = await redis.get(cache_key)
+        if cached_status == "invalid":
+            # User was previously checked and found invalid
+            raise HTTPException(status_code=401, detail="User not found")
+    except HTTPException:
+        raise
+    except Exception:
+        # If cache fails, continue with database query
+        pass
+
     # Get user using async session
     result = await db.execute(
         select(User).where(
@@ -181,10 +197,22 @@ async def get_current_user(
         )
     )
     user = result.scalar_one_or_none()
-    
+
     if not user:
+        # Cache negative result (shorter TTL to allow for status changes)
+        try:
+            await redis.set(cache_key, "invalid", ex=60)  # 1 minute
+        except Exception:
+            pass
         raise HTTPException(status_code=401, detail="User not found")
-    
+
+    # Cache positive result (user exists and is active)
+    try:
+        await redis.set(cache_key, "valid", ex=300)  # 5 minutes
+    except Exception:
+        # If caching fails, still return the user
+        pass
+
     return user
 
 

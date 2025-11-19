@@ -30,8 +30,9 @@ class Permission:
     name = None
     resource = None
     action = None
-from ..core.redis_config import RedisService
+from ..core.redis import ResilientRedisClient
 from ..core.events import EventEmitter
+from ..core.caching import cache_permissions
 
 
 class RBACService:
@@ -78,7 +79,7 @@ class RBACService:
         ]
     }
 
-    def __init__(self, db: Session, redis: RedisService):
+    def __init__(self, db: Session, redis: ResilientRedisClient):
         self.db = db
         self.redis = redis
         self.events = EventEmitter()
@@ -144,13 +145,33 @@ class RBACService:
         user_id: UUID,
         organization_id: Optional[UUID]
     ) -> Optional[str]:
-        """Get user's role in organization"""
+        """Get user's role in organization (cached for 5 minutes)"""
+        # Check cache first
+        cache_key = f"rbac:role:{user_id}:{organization_id}"
+        try:
+            cached_role = await self.redis.get(cache_key)
+            if cached_role is not None:
+                return cached_role if cached_role != 'null' else None
+        except Exception:
+            # If cache fails, proceed with database query
+            pass
+
         # Platform super admin check
         user = self.db.query(User).filter(User.id == user_id).first()
         if user and user.is_super_admin:
+            # Cache super admin role
+            try:
+                await self.redis.set(cache_key, 'super_admin', ex=300)
+            except Exception:
+                pass
             return 'super_admin'
 
         if not organization_id:
+            # Cache null result
+            try:
+                await self.redis.set(cache_key, 'null', ex=300)
+            except Exception:
+                pass
             return None
 
         # Organization member role
@@ -162,7 +183,20 @@ class RBACService:
             )
         ).first()
 
-        return member.role if member else None
+        role = member.role if member else None
+
+        # Cache the result
+        try:
+            await self.redis.set(
+                cache_key,
+                role if role else 'null',
+                ex=300  # 5 minutes
+            )
+        except Exception:
+            # If caching fails, still return the result
+            pass
+
+        return role
 
     def _check_role_permission(self, role: str, permission: str) -> bool:
         """Check if role has permission (with wildcard support)"""
@@ -383,10 +417,20 @@ class RBACService:
 
     async def _clear_rbac_cache(self, organization_id: UUID) -> None:
         """Clear all RBAC cache for organization"""
-        pattern = f"rbac:*:{organization_id}:*"
-        keys = await self.redis.keys(pattern)
-        if keys:
-            await self.redis.delete(*keys)
+        # Clear permission check cache: rbac:{user_id}:{organization_id}:{permission}
+        pattern1 = f"rbac:*:{organization_id}:*"
+        # Clear role cache: rbac:role:{user_id}:{organization_id}
+        pattern2 = f"rbac:role:*:{organization_id}"
+
+        try:
+            keys1 = await self.redis.keys(pattern1)
+            keys2 = await self.redis.keys(pattern2)
+            all_keys = (keys1 or []) + (keys2 or [])
+            if all_keys:
+                await self.redis.delete(*all_keys)
+        except Exception:
+            # If cache clear fails, log but don't break the operation
+            pass
 
     async def enforce_permission(
         self,

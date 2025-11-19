@@ -265,23 +265,35 @@ async def list_organizations(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """List user's organizations"""
-    # Get organizations where user is a member
+    # OPTIMIZED: Single query with member count using subquery
+    # Before: 1 + N queries (N = number of organizations)
+    # After: 1 query with subquery
+
+    # Subquery to count members per organization
+    member_count_subquery = (
+        select(
+            organization_members.c.organization_id,
+            func.count(organization_members.c.user_id).label('member_count')
+        )
+        .group_by(organization_members.c.organization_id)
+        .subquery()
+    )
+
+    # Single query joining organizations with member counts
     result_set = await db.execute(
-        select(Organization, organization_members.c.role)
+        select(
+            Organization,
+            organization_members.c.role,
+            func.coalesce(member_count_subquery.c.member_count, 0).label('member_count')
+        )
         .join(organization_members, Organization.id == organization_members.c.organization_id)
+        .outerjoin(member_count_subquery, Organization.id == member_count_subquery.c.organization_id)
         .where(organization_members.c.user_id == current_user.id)
     )
     user_orgs = result_set.all()
 
     result = []
-    for org, role in user_orgs:
-        count_result = await db.execute(
-            select(func.count(organization_members.c.user_id)).where(
-                organization_members.c.organization_id == org.id
-            )
-        )
-        member_count = count_result.scalar()
-
+    for org, role, member_count in user_orgs:
         result.append(
             OrganizationResponse(
                 id=str(org.id),
@@ -296,7 +308,7 @@ async def list_organizations(
                 billing_plan=org.billing_plan,
                 created_at=org.created_at,
                 updated_at=org.updated_at,
-                member_count=member_count,
+                member_count=member_count,  # Already loaded from subquery!
                 is_owner=org.owner_id == current_user.id,
                 user_role=role.value if role else None,
             )
