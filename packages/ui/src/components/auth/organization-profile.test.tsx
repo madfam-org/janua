@@ -305,9 +305,13 @@ describe('OrganizationProfile', () => {
       const membersTab = screen.getByRole('tab', { name: /members/i })
       await user.click(membersTab)
 
-      expect(screen.getByText('owner@example.com')).toBeInTheDocument()
-      expect(screen.getByText('admin@example.com')).toBeInTheDocument()
-      expect(screen.getByText('member@example.com')).toBeInTheDocument()
+      // Member emails may appear multiple times in different columns, use getAllByText
+      const ownerElements = screen.getAllByText('owner@example.com')
+      expect(ownerElements.length).toBeGreaterThanOrEqual(1)
+      const adminElements = screen.getAllByText('admin@example.com')
+      expect(adminElements.length).toBeGreaterThanOrEqual(1)
+      const memberElements = screen.getAllByText('member@example.com')
+      expect(memberElements.length).toBeGreaterThanOrEqual(1)
     })
 
     it('should fetch members when tab is opened', async () => {
