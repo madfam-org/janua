@@ -37,20 +37,20 @@ cd apps/demo && npm install && npm run dev
 ```
 
 **What's Included:**
-- ✅ **14 Production-Ready Auth Components** - SignIn, SignUp, MFA, Passkeys, OAuth, etc.
+- ✅ **15 Production-Ready Auth Components** - SignIn, SignUp, MFA, Passkeys, OAuth, etc.
 - ✅ **Complete FastAPI Backend** - Full REST API with PostgreSQL + Redis
 - ✅ **TypeScript SDK** - Type-safe client for all authentication flows
-- ✅ **240+ Tests** - 152 test files (unit + integration), 94+ E2E test scenarios with Playwright
-- ✅ **Performance Optimized** - 84/100 Lighthouse score, <100ms response times
+- ✅ **150+ Test Files** - Unit + integration tests, 94+ E2E test scenarios with Playwright
+- ✅ **Performance Optimized** - <100ms response times
 - ✅ **SSO Integration** - OIDC Discovery, SAML, OAuth providers
-- ✅ **Comprehensive Documentation** - Implementation reports, API guides
+- ✅ **Comprehensive Documentation** - API guides, implementation guides
 
 **Quick Links:**
 - 📖 **[Quick Start Guide](docs/guides/QUICK_START.md)** - 5-minute setup instructions
 - 🎨 **[Component Showcases](http://localhost:3000/auth)** - Interactive demos
 - 📋 **[Demo Walkthrough](docs/guides/DEMO_WALKTHROUGH.md)** - Complete 50+ checkpoint validation
-- 🏗️ **[Week 5 Summary](docs/implementation-reports/week5-final-summary.md)** - Latest progress
-- 🔌 **[API Integration Guide](docs/implementation-reports/week6-day1-api-integration.md)** - Full stack setup
+- 🏗️ **[Development Roadmap](docs/ROADMAP.md)** - Feature roadmap and progress
+- 🔌 **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment setup
 
 ---
 
@@ -90,19 +90,14 @@ Plinto combines the best of competing authentication solutions without the trade
 
 The Plinto demo app (`apps/demo`) showcases all authentication features with production-ready UI components.
 
-### Week 5-6 Progress (November 2025)
+### Features
 
-**Week 5 Achievements:**
-- ✅ **Day 1-2**: Bundle analysis and optimization (Webpack + Next.js analysis)
-- ✅ **Day 3-4**: 9 component showcase pages with 14 auth components
-- ✅ **Day 5**: Performance testing (84/100 Lighthouse, 11 pages audited)
-- ✅ **Day 6**: 152 test files implemented (unit + integration, Vitest + RTL)
-- ✅ **Day 7**: 94+ E2E test scenarios with Playwright (11 spec files, complete critical paths)
-
-**Week 6 In Progress:**
-- ✅ **Day 1**: API integration infrastructure (PostgreSQL + Redis + FastAPI)
-- ✅ Auth component updates for real API calls (completed Week 6 Day 1)
-- ⏳ End-to-end authentication flow testing
+**Completed:**
+- ✅ **15 Auth Components**: SignIn, SignUp, MFA, Passkeys, OAuth providers, and more
+- ✅ **API Integration**: Full-stack integration with PostgreSQL + Redis + FastAPI backend
+- ✅ **Testing Infrastructure**: 150+ test files with unit, integration, and E2E coverage
+- ✅ **Performance Optimization**: <100ms response times for auth operations
+- ✅ **Component Showcases**: Interactive demos of all authentication flows
 
 ### Component Showcases
 
@@ -136,9 +131,8 @@ npm test -- --coverage
 ```
 
 **Test Metrics:**
-- Test Files: 152 (unit + integration) - Vitest + React Testing Library  
+- Test Files: 150+ (unit + integration) - Vitest + React Testing Library
 - E2E Scenarios: 94+ (11 spec files) - Playwright with Chromium
-- Code Coverage: ~8,100 lines of test code
 - Test Infrastructure: Complete with fixtures, helpers, and utilities
 
 ---
@@ -209,8 +203,7 @@ Plinto provides a comprehensive full-stack authentication platform:
 ```
 ┌─────────────────────────────────────────────────────────┐
 │           Next.js Demo App (Port 3000)                  │
-│  14 Auth Components | 152 Test Files | 94+ E2E Scenarios    │
-│           TypeScript SDK Integration                     │
+│         15 Auth Components | TypeScript SDK             │
 └────────────────────────┬────────────────────────────────┘
                          │ HTTP/JSON
                          ▼
@@ -235,7 +228,7 @@ Plinto provides a comprehensive full-stack authentication platform:
 - **🚪 No Vendor Lock-In**: [Complete migration path](docs/migration/cloud-to-self-hosted.md) from managed to self-hosted
 - **🧩 Modular Design**: Use only what you need
 - **📦 TypeScript SDK**: Type-safe client with React hooks
-- **🧪 Comprehensive Testing**: 538+ tests ensuring reliability
+- **🧪 Comprehensive Testing**: 150+ test files with E2E coverage ensuring reliability
 
 ### Core Components
 
