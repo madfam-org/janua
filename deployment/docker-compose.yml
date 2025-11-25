@@ -1,216 +1,83 @@
-version: '3.9'
+name: janua
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: janua-postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: janua
-      POSTGRES_HOST_AUTH_METHOD: trust
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - janua-network
-
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: janua-redis
-    command: redis-server --appendonly yes --requirepass redis123
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - janua-network
-
   # FastAPI Backend
   api:
     build:
-      context: ./apps/api
+      context: ../apps/api
       dockerfile: Dockerfile
     container_name: janua-api
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/janua
-      REDIS_URL: redis://:redis123@redis:6379/0
+      DATABASE_URL: postgresql://madfam:madfam_dev_password@madfam-postgres-shared:5432/janua_db
+      REDIS_URL: redis://:redis_dev_password@madfam-redis-shared:6379/0
       SECRET_KEY: development-secret-key-change-in-production
-      JWT_SECRET_KEY: development-jwt-secret-change-in-production
+      # Shared JWT secret for cross-service authentication (MADFAM ecosystem)
+      JWT_SECRET_KEY: dev-shared-janua-secret-32chars!!
       DEBUG: "true"
       ENVIRONMENT: development
-      BASE_URL: http://localhost:8000
-      CORS_ORIGINS: http://localhost:3000,http://localhost:3001
+      BASE_URL: http://localhost:8001
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3004,http://localhost:3005
+      EMAIL_PROVIDER: smtp
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
+      SMTP_FROM_EMAIL: noreply@janua.local
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
-      - ./apps/api:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - ../apps/api:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
-      - janua-network
+      - madfam-shared-network
 
   # Next.js Admin Dashboard
   admin:
     build:
-      context: ./apps/admin
+      context: ../apps/admin
       dockerfile: Dockerfile
     container_name: janua-admin
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:8001
+      NEXT_PUBLIC_APP_URL: http://localhost:3004
     ports:
-      - "3000:3000"
+      - "3004:3000"
     volumes:
-      - ./apps/admin:/app
+      - ../apps/admin:/app
       - /app/node_modules
       - /app/.next
     depends_on:
       - api
     command: npm run dev
     networks:
-      - janua-network
+      - madfam-shared-network
 
   # Documentation Site
   docs:
     build:
-      context: ./apps/docs
+      context: ../apps/docs
       dockerfile: Dockerfile
     container_name: janua-docs
     ports:
-      - "3001:3000"
+      - "3005:3000"
     volumes:
-      - ./apps/docs:/app
+      - ../apps/docs:/app
       - /app/node_modules
       - /app/.next
     command: npm run dev
     networks:
-      - janua-network
-
-  # Mailhog (Email testing)
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: janua-mailhog
-    ports:
-      - "1025:1025"  # SMTP port
-      - "8025:8025"  # Web UI
-    networks:
-      - janua-network
-
-  # MinIO (S3-compatible storage for development)
-  minio:
-    image: minio/minio:latest
-    container_name: janua-minio
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"  # API
-      - "9001:9001"  # Console
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
-    networks:
-      - janua-network
-
-  # Elasticsearch (for audit logs and analytics)
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
-    container_name: janua-elasticsearch
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-    ports:
-      - "9200:9200"
-    volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    networks:
-      - janua-network
-
-  # Kibana (Elasticsearch UI)
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.11.0
-    container_name: janua-kibana
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-    ports:
-      - "5601:5601"
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-    networks:
-      - janua-network
-
-  # Prometheus (Metrics)
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: janua-prometheus
-    volumes:
-      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-    ports:
-      - "9090:9090"
-    networks:
-      - janua-network
-
-  # Grafana (Metrics Dashboard)
-  grafana:
-    image: grafana/grafana:latest
-    container_name: janua-grafana
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-    ports:
-      - "3002:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./infrastructure/grafana/dashboards:/etc/grafana/provisioning/dashboards
-      - ./infrastructure/grafana/datasources:/etc/grafana/provisioning/datasources
-    depends_on:
-      - prometheus
-    networks:
-      - janua-network
+      - madfam-shared-network
 
 networks:
-  janua-network:
-    driver: bridge
-
-volumes:
-  postgres_data:
-  redis_data:
-  minio_data:
-  elasticsearch_data:
-  prometheus_data:
-  grafana_data:
+  madfam-shared-network:
+    external: true

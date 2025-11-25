@@ -1,3 +1,28 @@
+# Fix passlib/bcrypt 5.x compatibility issue BEFORE any imports
+# This must be at the very top of the file
+import os
+
+os.environ["PASSLIB_BUILTIN_BCRYPT"] = "enabled"
+
+# Patch bcrypt to handle the wrap bug detection issue with bcrypt >= 4.1
+try:
+    import bcrypt
+
+    if not hasattr(bcrypt, "_original_hashpw"):
+        bcrypt._original_hashpw = bcrypt.hashpw
+
+        def _patched_hashpw(password, salt):
+            if isinstance(password, str):
+                password = password.encode("utf-8")
+            if len(password) > 72:
+                password = password[:72]
+            return bcrypt._original_hashpw(password, salt)
+
+            return bcrypt._original_hashpw(password, salt)
+        bcrypt.hashpw = _patched_hashpw
+except ImportError:
+    pass
+
 import hashlib
 
 from fastapi import FastAPI, HTTPException, Request
@@ -13,11 +38,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
-# Secure password hashing context
+# Secure password hashing context - using bcrypt 2b to avoid passlib wrap bug detection issue
 pwd_context = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto",
     bcrypt__rounds=12,  # Strong rounds for security
+    bcrypt__ident="2b",  # Use 2b to avoid wrap bug detection
 )
 import logging
 import os

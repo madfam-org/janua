@@ -130,7 +130,7 @@ async def log_activity(
     activity = ActivityLog(
         user_id=user_id,
         action=action,
-        details=details or {},
+        activity_metadata=details or {},  # Model uses activity_metadata, not details
         ip_address=request.client.host if request else None,
         user_agent=request.headers.get("user-agent") if request else None,
     )
@@ -142,8 +142,8 @@ async def log_activity(
 @router.post("/signup", response_model=SignInResponse)
 @limiter.limit("3/minute")  # Strict rate limiting for signup
 async def sign_up(
-    request: SignUpRequest,
-    req: Request,
+    request: Request,
+    signup_data: SignUpRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
@@ -152,30 +152,30 @@ async def sign_up(
         raise HTTPException(status_code=403, detail="Sign ups are currently disabled")
 
     # Check if email already exists
-    result = await db.execute(select(User).where(User.email == request.email))
+    result = await db.execute(select(User).where(User.email == signup_data.email))
     existing_user = result.scalar_one_or_none()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
     # Check if username already exists
-    if request.username:
-        result = await db.execute(select(User).where(User.username == request.username))
+    if signup_data.username:
+        result = await db.execute(select(User).where(User.username == signup_data.username))
         existing_username = result.scalar_one_or_none()
         if existing_username:
             raise HTTPException(status_code=400, detail="Username already taken")
 
     # Validate password
-    valid, message = AuthService.validate_password_strength(request.password)
+    valid, message = AuthService.validate_password_strength(signup_data.password)
     if not valid:
         raise HTTPException(status_code=400, detail=message)
 
     # Create user
     user = User(
-        email=request.email,
-        password_hash=AuthService.hash_password(request.password),
-        first_name=request.first_name,
-        last_name=request.last_name,
-        username=request.username,
+        email=signup_data.email,
+        password_hash=AuthService.hash_password(signup_data.password),
+        first_name=signup_data.first_name,
+        last_name=signup_data.last_name,
+        username=signup_data.username,
         status=UserStatus.ACTIVE,
     )
     db.add(user)
@@ -184,11 +184,11 @@ async def sign_up(
 
     # Create session
     access_token, refresh_token, session = await AuthService.create_session(
-        db, user, ip_address=req.client.host, user_agent=req.headers.get("user-agent")
+        db, user, ip_address=request.client.host, user_agent=request.headers.get("user-agent")
     )
 
     # Log activity
-    await log_activity(db, str(user.id), "signup", {"method": "email"}, req)
+    await log_activity(db, str(user.id), "signup", {"method": "email"}, request)
 
     # Send verification email in background
     if settings.EMAIL_ENABLED:
@@ -365,14 +365,14 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 @router.post("/password/forgot")
 @limiter.limit("3/hour")  # Strict rate limiting for password reset requests
 async def forgot_password(
-    req: Request,
-    request: ForgotPasswordRequest,
+    request: Request,
+    forgot_data: ForgotPasswordRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """Request password reset email"""
     result = await db.execute(
-        select(User).where(User.email == request.email, User.status == UserStatus.ACTIVE)
+        select(User).where(User.email == forgot_data.email, User.status == UserStatus.ACTIVE)
     )
     user = result.scalar_one_or_none()
 
@@ -532,8 +532,8 @@ async def resend_verification_email(
 @router.post("/magic-link")
 @limiter.limit("5/hour")  # Rate limiting for magic link requests
 async def send_magic_link(
-    req: Request,
-    request: MagicLinkRequest,
+    request: Request,
+    magic_link_data: MagicLinkRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
@@ -546,14 +546,14 @@ async def send_magic_link(
 
     # Find or create user
     result = await db.execute(
-        select(User).where(User.email == request.email, User.status == UserStatus.ACTIVE)
+        select(User).where(User.email == magic_link_data.email, User.status == UserStatus.ACTIVE)
     )
     user = result.scalar_one_or_none()
 
     if not user:
         # Create user without password for magic link only
         user = User(
-            email=request.email,
+            email=magic_link_data.email,
             email_verified=True,  # Auto-verify for magic link users
             status=UserStatus.ACTIVE,
         )
@@ -566,7 +566,7 @@ async def send_magic_link(
     magic_link = MagicLink(
         user_id=user.id,
         token=magic_token,
-        redirect_url=request.redirect_url,
+        redirect_url=magic_link_data.redirect_url,
         expires_at=datetime.utcnow() + timedelta(minutes=15),
     )
     db.add(magic_link)
@@ -574,7 +574,7 @@ async def send_magic_link(
 
     # Send email in background
     background_tasks.add_task(
-        EmailService.send_magic_link_email, user.email, magic_token, request.redirect_url
+        EmailService.send_magic_link_email, user.email, magic_token, magic_link_data.redirect_url
     )
 
     return {"message": "Magic link sent to email"}

@@ -437,7 +437,7 @@ async def reset_password(request: ResetPasswordRequest, db=Depends(get_db)):
         # Hash new password
         from passlib.context import CryptContext
 
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__ident="2b")
         hashed_password = pwd_context.hash(request.new_password)
 
         # Update user password

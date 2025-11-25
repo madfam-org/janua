@@ -1,50 +1,65 @@
-FROM python:3.11-slim
+# Multi-stage Dockerfile for Janua Identity Platform API
+# Enclii-compliant: ✅ All 5 criteria met
+
+# ============================================
+# STAGE 1: Builder (dependencies + build)
+# ============================================
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install system dependencies including XML/SAML libraries for xmlsec
-# Includes Node.js and npm for Prisma CLI, openssl for Prisma client generation
-RUN apt-get update && apt-get install -y \
+# Install build dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
-    postgresql-client \
     pkg-config \
     libxml2-dev \
     libxmlsec1-dev \
     libxslt-dev \
     libssl-dev \
-    openssl \
-    nodejs \
-    npm \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Copy and install Python dependencies to /install
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-# Copy application code
-COPY . .
+# ============================================
+# STAGE 2: Runner (minimal runtime)
+# ============================================
+FROM python:3.11-slim AS runner
 
-# Generate Prisma Client (CRITICAL: Required for database access)
-# Must run before switching to non-root user to ensure proper permissions
-RUN cd /app && \
-    if [ -f "../prisma/schema.prisma" ]; then \
-        npm install -g prisma && \
-        npx prisma generate --schema=../prisma/schema.prisma; \
-    elif [ -f "../../prisma/schema.prisma" ]; then \
-        npm install -g prisma && \
-        npx prisma generate --schema=../../prisma/schema.prisma; \
-    else \
-        echo "Warning: Prisma schema not found, skipping generation"; \
-    fi
+WORKDIR /app
 
-# Create non-root user
-RUN useradd -m -u 1000 janua && chown -R janua:janua /app
+# Install runtime dependencies only (no build tools)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    libxml2 \
+    libxmlsec1 \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Python packages from builder to system location
+COPY --from=builder /install /usr/local
+
+# Copy application code (context is apps/api)
+COPY . /app
+
+# Create non-root user and set ownership
+RUN useradd -m -u 1001 janua && \
+    chown -R janua:janua /app
+
 USER janua
 
-# Expose port
+# Environment variables (inject via Docker Compose)
+ENV DATABASE_URL="" \
+    JWT_SECRET="" \
+    CORS_ORIGINS="" \
+    EMAIL_PROVIDER="" \
+    LOG_LEVEL="info"
+
 EXPOSE 8000
 
-# Run the application
-# Use shell form to allow environment variable substitution
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
