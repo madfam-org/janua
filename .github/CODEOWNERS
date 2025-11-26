@@ -1,0 +1,70 @@
+# CODEOWNERS file for Janua (Identity & Revenue Platform)
+#
+# Code owners are automatically requested for review when someone opens a pull request
+# that modifies code that they own.
+
+# Default owners for everything in the repo
+* @madfam-io/developers
+
+# GitHub configuration and workflows
+/.github/ @madfam-io/devops @madfam-io/developers
+
+# Root configuration files
+/*.config.* @madfam-io/developers
+/*.json @madfam-io/developers
+
+# Documentation
+/docs/ @madfam-io/developers
+README.md @madfam-io/developers
+CONTRIBUTING.md @madfam-io/developers
+
+# Core Apps
+/apps/api/ @madfam-io/backend-team
+/apps/web/ @madfam-io/web-team
+/apps/admin/ @madfam-io/backend-team @madfam-io/web-team
+/apps/portal/ @madfam-io/web-team
+/apps/docs/ @madfam-io/developers
+
+# SDKs (Multi-platform)
+/packages/sdk-typescript/ @madfam-io/sdk-team
+/packages/sdk-react/ @madfam-io/sdk-team @madfam-io/web-team
+/packages/sdk-next/ @madfam-io/sdk-team @madfam-io/web-team
+/packages/sdk-vue/ @madfam-io/sdk-team @madfam-io/web-team
+/packages/sdk-python/ @madfam-io/sdk-team
+/packages/sdk-go/ @madfam-io/sdk-team
+
+# Core packages
+/packages/core/ @madfam-io/backend-team
+/packages/auth/ @madfam-io/security-team @madfam-io/backend-team
+/packages/billing/ @madfam-io/backend-team
+/packages/ui/ @madfam-io/design-team @madfam-io/web-team
+
+# Security-sensitive files
+/compliance/ @madfam-io/security-team
+**/auth*.ts @madfam-io/security-team @madfam-io/backend-team
+**/middleware.ts @madfam-io/security-team @madfam-io/backend-team
+**/.env.* @madfam-io/security-team @madfam-io/devops
+
+# Database and schemas
+/prisma/ @madfam-io/database-team @madfam-io/backend-team
+**/prisma/schema.prisma @madfam-io/database-team @madfam-io/backend-team
+**/prisma/migrations/ @madfam-io/database-team
+
+# Infrastructure and deployment
+/deployment/ @madfam-io/devops
+/infrastructure/ @madfam-io/devops
+/scripts/ @madfam-io/devops
+**/*deploy*.yml @madfam-io/devops
+**/*ci*.yml @madfam-io/devops
+
+# Testing
+/tests/ @madfam-io/qa-team @madfam-io/developers
+/tests-e2e/ @madfam-io/qa-team @madfam-io/developers
+**/*.test.* @madfam-io/qa-team @madfam-io/developers
+**/*.spec.* @madfam-io/qa-team @madfam-io/developers
+playwright.config.ts @madfam-io/qa-team
+jest.config.* @madfam-io/qa-team
+
+# Dependencies (require security review)
+package.json @madfam-io/security-team @madfam-io/developers
+pnpm-lock.yaml @madfam-io/security-team @madfam-io/developers
