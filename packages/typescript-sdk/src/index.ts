@@ -1,6 +1,6 @@
 /**
  * Janua TypeScript SDK
- * 
+ *
  * Official TypeScript/JavaScript SDK for the Janua authentication API.
  * Provides a complete interface for user authentication, organization management,
  * webhooks, and administrative operations.
@@ -31,18 +31,18 @@ export type {
   ISODateString,
   Environment,
   JanuaConfig,
-  
 
-  
+
+
   // User types
   User,
   UserUpdateRequest,
   UserListParams,
-  
+
   // Session types
   Session,
   SessionListParams,
-  
+
   // Organization types
   Organization,
   OrganizationCreateRequest,
@@ -51,7 +51,7 @@ export type {
   OrganizationInvitation,
   OrganizationInviteRequest,
   OrganizationListParams,
-  
+
   // Auth types
   SignUpRequest,
   SignInRequest,
@@ -62,7 +62,7 @@ export type {
   MagicLinkRequest,
   AuthResponse,
   TokenResponse,
-  
+
   // MFA types
   MFAEnableRequest,
   MFAEnableResponse,
@@ -70,42 +70,42 @@ export type {
   MFADisableRequest,
   MFAStatusResponse,
   MFABackupCodesResponse,
-  
+
   // OAuth types
   OAuthProvidersResponse,
   LinkedAccountsResponse,
-  
+
   // Passkey types
   Passkey,
-  
+
   // Webhook types
   WebhookEndpoint,
   WebhookEndpointCreateRequest,
   WebhookEndpointUpdateRequest,
   WebhookEvent,
   WebhookDelivery,
-  
+
   // Admin types
   AdminStatsResponse,
   SystemHealthResponse,
-  
+
   // Pagination types
   PaginationParams,
   PaginatedResponse,
-  
+
   // HTTP types
   RequestConfig,
   HttpResponse,
   RateLimitInfo,
-  
+
   // Error types
   ApiError,
-  
+
   // Event types
   SdkEventMap,
   SdkEventType,
   SdkEventHandler,
-  
+
   // Token storage types
   TokenData,
 
@@ -125,7 +125,7 @@ export {
 export {
   // Base error
   JanuaError,
-  
+
   // Specific errors
   AuthenticationError,
   PermissionError,
@@ -141,10 +141,10 @@ export {
   WebhookError,
   OAuthError,
   PasskeyError,
-  
+
   // Error utilities
   ErrorHandler,
-  
+
   // Type guards
   isAuthenticationError,
   isValidationError,
@@ -160,34 +160,34 @@ export {
 export {
   // Base64 utilities
   Base64Url,
-  
+
   // JWT utilities
   JwtUtils,
-  
+
   // Token storage
   TokenStorage,
   LocalTokenStorage,
   SessionTokenStorage,
   MemoryTokenStorage,
   TokenManager,
-  
+
   // Date utilities
   DateUtils,
-  
+
   // URL utilities
   UrlUtils,
-  
+
   // Validation utilities
   ValidationUtils,
-  
+
   // Webhook utilities removed - WebhookUtils not implemented yet
-  
+
   // Environment utilities
   EnvUtils,
-  
+
   // Retry utilities
   RetryUtils,
-  
+
   // Event emitter
   EventEmitter
 } from './utils';
@@ -213,6 +213,21 @@ export type {
   WebSocketEventMap,
   WebSocketStatus,
 } from './websocket';
+
+// Plugin exports
+export {
+  PolarPlugin,
+  createPolarPlugin,
+  type PolarPluginConfig,
+  type PolarCheckoutOptions,
+  type PolarCheckoutSession,
+  type PolarSubscription,
+  type PolarCustomer,
+  type PolarCustomerPortalData,
+  type PolarBenefit,
+  type PolarOrder,
+  type PolarUsageEvent
+} from './plugins';
 
 // Version and metadata
 export const SDK_VERSION = '1.0.0';

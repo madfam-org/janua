@@ -1,6 +1,6 @@
 # Janua Documentation Index
 
-**Last Updated**: November 17, 2025
+**Last Updated**: November 26, 2025
 
 This index provides a navigable structure for all Janua documentation. Organized by purpose and audience.
 
@@ -34,6 +34,12 @@ This index provides a navigable structure for all Janua documentation. Organized
 - [Authentication Features](features/authentication.md) - Auth methods and flows
 - [Organization Management](features/organizations.md) - Multi-tenancy guide
 - [Enterprise Features](features/enterprise.md) - SSO, SCIM, RBAC
+
+### Billing & Payments
+- [Billing Integration Guide](guides/BILLING_INTEGRATION_GUIDE.md) - Payment providers overview, subscriptions, webhooks
+- [Polar Integration Guide](guides/POLAR_INTEGRATION_GUIDE.md) - **NEW** Merchant of Record, global tax compliance, usage billing
+- [Payment Infrastructure Roadmap](roadmap/PAYMENT_INFRASTRUCTURE_ROADMAP.md) - Multi-provider strategy and future enhancements
+- [Polar Integration Design](design/POLAR_INTEGRATION_DESIGN.md) - Original design document (reference)
 
 ## 📊 Project Status & Analysis
 

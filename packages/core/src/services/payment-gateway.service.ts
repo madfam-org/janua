@@ -2,13 +2,14 @@ import { EventEmitter } from 'events';
 import { RedisService, getRedis } from './redis.service';
 import { ConektaProvider } from './providers/conekta.provider';
 import { StripeProvider } from './providers/stripe.provider';
+import { PolarProvider } from './providers/polar.provider';
 
 // Payment Provider Types
 import { createLogger } from '../utils/logger';
 
 const logger = createLogger('PaymentGateway');
 
-export type PaymentProvider = 'conekta' | 'stripe';
+export type PaymentProvider = 'conekta' | 'stripe' | 'polar';
 export type PaymentStatus = 'pending' | 'processing' | 'succeeded' | 'failed' | 'canceled' | 'refunded';
 export type Currency = 'MXN' | 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD' | 'JPY' | 'BRL' | 'ARS' | 'COP' | 'CLP' | 'PEN' | 'CHF' | 'NOK' | 'SEK' | 'DKK' | 'PLN' | 'CZK' | 'HUF' | 'RON' | 'BGN' | 'HRK' | 'SGD' | 'HKD' | 'NZD' | 'UYU' | 'INR' | 'CNY' | 'RUB' | 'TRY' | 'IDR' | 'MYR' | 'PHP' | 'THB' | 'VND' | 'KRW' | 'ILS' | 'TWD' | 'SAR' | 'AED' | 'ZAR' | 'NGN' | 'KES' | 'GHS' | 'EGP' | 'MAD';
 
@@ -210,7 +211,7 @@ export class PaymentGatewayService extends EventEmitter {
 
     // 2. Apply intelligent routing rules
 
-    // Mexico: Always use Conekta for MXN
+    // Mexico: Always use Conekta for MXN (local payment methods: OXXO, SPEI)
     if (params.country === 'MX' || params.currency === 'MXN') {
       const conekta = this.providers.get('conekta');
       if (conekta && conekta.isAvailable(params.country, params.currency)) {
@@ -218,29 +219,36 @@ export class PaymentGatewayService extends EventEmitter {
       }
     }
 
-
-
-    // Latin America specific routing
+    // Latin America: Conekta for local currencies, Polar for USD
     const latamCountries = ['AR', 'BR', 'CL', 'CO', 'PE', 'UY', 'BO', 'EC', 'PY', 'VE'];
     if (latamCountries.includes(params.country)) {
-      // Try Conekta first for better local payment methods
+      // For USD, use Polar (MoR handles tax compliance)
+      if (params.currency === 'USD') {
+        const polar = this.providers.get('polar');
+        if (polar && polar.isAvailable(params.country, params.currency)) {
+          return 'polar';
+        }
+      }
+      // For local currencies, try Conekta for better local payment methods
       const conekta = this.providers.get('conekta');
       if (conekta && conekta.isAvailable(params.country, params.currency)) {
         return 'conekta';
       }
-
-
     }
 
+    // 3. Global markets: Use Polar as Merchant of Record (handles VAT, GST, sales tax)
+    const polar = this.providers.get('polar');
+    if (polar && polar.isAvailable(params.country, params.currency)) {
+      return 'polar';
+    }
 
-
-    // 3. Fallback to Stripe for everything else
+    // 4. Fallback to Stripe for unsupported Polar regions
     const stripe = this.providers.get('stripe');
     if (stripe && stripe.isAvailable(params.country, params.currency)) {
       return 'stripe';
     }
 
-    // 4. If all else fails, try providers in order
+    // 5. If all else fails, try providers in order
     for (const [name, provider] of this.providers) {
       if (provider.isAvailable(params.country, params.currency)) {
         return name;
@@ -745,30 +753,59 @@ export class PaymentGatewayService extends EventEmitter {
       }, this.redis.getClient());
       this.providers.set('stripe', stripe);
     }
+
+    // Initialize Polar as Merchant of Record for global payments
+    if (process.env.POLAR_ACCESS_TOKEN) {
+      const polar = new PolarProvider({
+        accessToken: process.env.POLAR_ACCESS_TOKEN,
+        organizationId: process.env.POLAR_ORGANIZATION_ID,
+        webhookSecret: process.env.POLAR_WEBHOOK_SECRET || '',
+        sandbox: process.env.POLAR_SANDBOX === 'true',
+        autoCreateCustomers: process.env.POLAR_AUTO_CREATE_CUSTOMERS === 'true'
+      }, this.redis.getClient());
+      this.providers.set('polar', polar);
+    }
   }
 
   private setupRoutingRules(): void {
-    // Mexico routing
+    // Mexico routing - Conekta for local payment methods (OXXO, SPEI)
     this.routingRules.set('MX:MXN', 'conekta');
     this.routingRules.set('MX:USD', 'conekta');
 
-    // Latin America routing
+    // Latin America routing - Conekta for local, Polar for USD (MoR benefits)
     ['AR', 'BR', 'CL', 'CO', 'PE'].forEach(country => {
       this.routingRules.set(`${country}:local`, 'conekta');
-      this.routingRules.set(`${country}:USD`, 'stripe');
+      this.routingRules.set(`${country}:USD`, 'polar');
     });
 
-    // EU routing
+    // EU routing - Polar as MoR handles VAT automatically
     const euCountries = ['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE',
                          'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT',
                          'RO', 'SK', 'SI', 'ES', 'SE'];
     euCountries.forEach(country => {
-      this.routingRules.set(`${country}:EUR`, 'stripe');
-      this.routingRules.set(`${country}:USD`, 'stripe');
+      this.routingRules.set(`${country}:EUR`, 'polar');
+      this.routingRules.set(`${country}:USD`, 'polar');
     });
 
-    // Default routing
-    this.routingRules.set('default', 'stripe');
+    // US/CA routing - Polar as MoR handles sales tax
+    ['US', 'CA'].forEach(country => {
+      this.routingRules.set(`${country}:USD`, 'polar');
+      this.routingRules.set(`${country}:CAD`, 'polar');
+    });
+
+    // UK routing - Polar handles UK VAT
+    this.routingRules.set('GB:GBP', 'polar');
+    this.routingRules.set('GB:USD', 'polar');
+
+    // Asia Pacific routing - Polar for global, Stripe as fallback
+    ['AU', 'NZ', 'JP', 'SG', 'HK', 'KR'].forEach(country => {
+      this.routingRules.set(`${country}:USD`, 'polar');
+      this.routingRules.set(`${country}:local`, 'polar');
+    });
+
+    // Default routing - Polar as primary (MoR benefits), Stripe as fallback
+    this.routingRules.set('default', 'polar');
+    this.routingRules.set('fallback', 'stripe');
   }
 
   // Event Handlers

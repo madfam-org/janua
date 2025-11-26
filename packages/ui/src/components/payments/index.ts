@@ -21,3 +21,19 @@ export type { BillingPortalProps } from './billing-portal';
 
 export { AdminBillingDashboard } from './admin-billing-dashboard';
 export type { AdminBillingDashboardProps } from './admin-billing-dashboard';
+
+// Polar Components - Merchant of Record integration
+export { PolarCheckoutButton } from './polar-checkout-button';
+export type { PolarCheckoutButtonProps } from './polar-checkout-button';
+
+export {
+  PolarCustomerPortalButton,
+  PolarCustomerPortalCard
+} from './polar-customer-portal';
+export type {
+  PolarCustomerPortalButtonProps,
+  PolarCustomerPortalCardProps
+} from './polar-customer-portal';
+
+export { PolarSubscriptionStatus } from './polar-subscription-status';
+export type { PolarSubscriptionStatusProps } from './polar-subscription-status';
