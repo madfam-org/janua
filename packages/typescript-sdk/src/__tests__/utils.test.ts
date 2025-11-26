@@ -5,7 +5,6 @@
 import {
   Base64Url,
   JwtUtils,
-  TokenStorage,
   LocalTokenStorage,
   SessionTokenStorage,
   MemoryTokenStorage,
@@ -13,9 +12,7 @@ import {
   DateUtils,
   UrlUtils,
   ValidationUtils,
-  WebhookUtils,
   EnvUtils,
-  RetryUtils,
   EventEmitter,
   HttpStatusUtils
 } from '../utils';
@@ -26,7 +23,7 @@ describe('Base64Url', () => {
     it('should encode string to base64url format', () => {
       const input = 'Hello, World!';
       const encoded = Base64Url.encode(input);
-      
+
       expect(encoded).toBe('SGVsbG8sIFdvcmxkIQ');
       expect(encoded).not.toContain('+');
       expect(encoded).not.toContain('/');
@@ -41,7 +38,7 @@ describe('Base64Url', () => {
     it('should handle special characters', () => {
       const input = 'Hello+World/=';
       const encoded = Base64Url.encode(input);
-      
+
       expect(encoded).toBeDefined();
       expect(encoded).not.toContain('+');
       expect(encoded).not.toContain('/');
@@ -53,14 +50,14 @@ describe('Base64Url', () => {
     it('should decode base64url to original string', () => {
       const encoded = 'SGVsbG8sIFdvcmxkIQ';
       const decoded = Base64Url.decode(encoded);
-      
+
       expect(decoded).toBe('Hello, World!');
     });
 
     it('should handle strings with missing padding', () => {
       const encoded = 'SGVsbG8'; // "Hello" without padding
       const decoded = Base64Url.decode(encoded);
-      
+
       expect(decoded).toBe('Hello');
     });
 
@@ -73,7 +70,7 @@ describe('Base64Url', () => {
       const original = 'Test string with special chars: !@#$%^&*()';
       const encoded = Base64Url.encode(original);
       const decoded = Base64Url.decode(encoded);
-      
+
       expect(decoded).toBe(original);
     });
   });
@@ -85,7 +82,7 @@ describe('JwtUtils', () => {
   describe('parseToken', () => {
     it('should parse valid JWT token', () => {
       const parsed = JwtUtils.parseToken(mockToken);
-      
+
       expect(parsed.header).toBeDefined();
       expect(parsed.payload).toBeDefined();
       expect(parsed.signature).toBeDefined();
@@ -111,21 +108,21 @@ describe('JwtUtils', () => {
     it('should return true for expired token', () => {
       const expiredPayload = { exp: Math.floor(Date.now() / 1000) - 3600 }; // 1 hour ago
       const isExpired = JwtUtils.isExpired(expiredPayload);
-      
+
       expect(isExpired).toBe(true);
     });
 
     it('should return false for valid token', () => {
       const validPayload = { exp: Math.floor(Date.now() / 1000) + 3600 }; // 1 hour from now
       const isExpired = JwtUtils.isExpired(validPayload);
-      
+
       expect(isExpired).toBe(false);
     });
 
     it('should return false when no exp claim', () => {
       const payloadWithoutExp = { sub: '123' };
       const isExpired = JwtUtils.isExpired(payloadWithoutExp);
-      
+
       expect(isExpired).toBe(false);
     });
   });
@@ -135,7 +132,7 @@ describe('JwtUtils', () => {
       const expiryTime = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
       const payload = { exp: expiryTime };
       const timeToExpiry = JwtUtils.getTimeToExpiry(payload);
-      
+
       expect(timeToExpiry).toBeGreaterThan(3500); // Should be close to 3600
       expect(timeToExpiry).toBeLessThanOrEqual(3600);
     });
@@ -143,14 +140,14 @@ describe('JwtUtils', () => {
     it('should return 0 for expired token', () => {
       const expiredPayload = { exp: Math.floor(Date.now() / 1000) - 3600 };
       const timeToExpiry = JwtUtils.getTimeToExpiry(expiredPayload);
-      
+
       expect(timeToExpiry).toBe(0);
     });
 
     it('should return Infinity when no exp claim', () => {
       const payloadWithoutExp = { sub: '123' };
       const timeToExpiry = JwtUtils.getTimeToExpiry(payloadWithoutExp);
-      
+
       expect(timeToExpiry).toBe(Infinity);
     });
   });
@@ -167,10 +164,10 @@ describe('Token Storage Classes', () => {
     it('should store and retrieve tokens', async () => {
       const key = 'test-key';
       const value = 'test-value';
-      
+
       await storage.setItem(key, value);
       const retrieved = await storage.getItem(key);
-      
+
       expect(retrieved).toBe(value);
     });
 
@@ -182,11 +179,11 @@ describe('Token Storage Classes', () => {
     it('should remove items', async () => {
       const key = 'test-key';
       const value = 'test-value';
-      
+
       await storage.setItem(key, value);
       await storage.removeItem(key);
       const retrieved = await storage.getItem(key);
-      
+
       expect(retrieved).toBeNull();
     });
   });
@@ -205,29 +202,29 @@ describe('Token Storage Classes', () => {
         setItem: jest.fn(),
         removeItem: jest.fn()
       };
-      
+
       // Mock localStorage
       Object.defineProperty(window, 'localStorage', {
         value: mockLocalStorage,
         writable: true
       });
-      
+
       storage = new LocalTokenStorage();
     });
 
     it('should use localStorage for storage operations', async () => {
       const key = 'test-key';
       const value = 'test-value';
-      
+
       mockLocalStorage.getItem.mockReturnValue(value);
-      
+
       await storage.setItem(key, value);
       expect(mockLocalStorage.setItem).toHaveBeenCalledWith(key, value);
-      
+
       const retrieved = await storage.getItem(key);
       expect(mockLocalStorage.getItem).toHaveBeenCalledWith(key);
       expect(retrieved).toBe(value);
-      
+
       await storage.removeItem(key);
       expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(key);
     });
@@ -236,7 +233,7 @@ describe('Token Storage Classes', () => {
       mockLocalStorage.setItem.mockImplementation(() => {
         throw new Error('Storage quota exceeded');
       });
-      
+
       // Should not throw
       await expect(storage.setItem('key', 'value')).resolves.toBeUndefined();
     });
@@ -256,29 +253,29 @@ describe('Token Storage Classes', () => {
         setItem: jest.fn(),
         removeItem: jest.fn()
       };
-      
+
       // Mock sessionStorage
       Object.defineProperty(window, 'sessionStorage', {
         value: mockSessionStorage,
         writable: true
       });
-      
+
       storage = new SessionTokenStorage();
     });
 
     it('should use sessionStorage for storage operations', async () => {
       const key = 'test-key';
       const value = 'test-value';
-      
+
       mockSessionStorage.getItem.mockReturnValue(value);
-      
+
       await storage.setItem(key, value);
       expect(mockSessionStorage.setItem).toHaveBeenCalledWith(key, value);
-      
+
       const retrieved = await storage.getItem(key);
       expect(mockSessionStorage.getItem).toHaveBeenCalledWith(key);
       expect(retrieved).toBe(value);
-      
+
       await storage.removeItem(key);
       expect(mockSessionStorage.removeItem).toHaveBeenCalledWith(key);
     });
@@ -304,7 +301,7 @@ describe('TokenManager', () => {
       Base64Url.encode(JSON.stringify(mockPayload)),
       'mock-signature'
     ].join('.');
-    
+
     const mockTokenData = {
       access_token: validAccessToken,
       refresh_token: 'refresh-123',
@@ -314,16 +311,16 @@ describe('TokenManager', () => {
     it('should set and get token data', async () => {
       await tokenManager.setTokens(mockTokenData);
       const retrieved = await tokenManager.getTokenData();
-      
+
       expect(retrieved).toEqual(mockTokenData);
     });
 
     it('should get individual tokens', async () => {
       await tokenManager.setTokens(mockTokenData);
-      
+
       const accessToken = await tokenManager.getAccessToken();
       const refreshToken = await tokenManager.getRefreshToken();
-      
+
       expect(accessToken).toBe(mockTokenData.access_token);
       expect(refreshToken).toBe(mockTokenData.refresh_token);
     });
@@ -331,7 +328,7 @@ describe('TokenManager', () => {
     it('should clear tokens', async () => {
       await tokenManager.setTokens(mockTokenData);
       await tokenManager.clearTokens();
-      
+
       const tokenData = await tokenManager.getTokenData();
       expect(tokenData).toBeNull();
     });
@@ -341,7 +338,7 @@ describe('TokenManager', () => {
       await tokenManager.setTokens(mockTokenData);
       const isValid = await tokenManager.hasValidTokens();
       expect(isValid).toBe(true);
-      
+
       // Expired tokens
       const expiredTokenData = {
         ...mockTokenData,
@@ -379,14 +376,14 @@ describe('DateUtils', () => {
     it('should format date to ISO string', () => {
       const date = new Date('2023-01-01T12:00:00Z');
       const formatted = DateUtils.formatISO(date);
-      
+
       expect(formatted).toBe('2023-01-01T12:00:00.000Z');
     });
 
     it('should format current date to ISO string', () => {
       const date = new Date();
       const formatted = DateUtils.formatISO(date);
-      
+
       expect(formatted).toBe(date.toISOString());
       expect(formatted).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     });
@@ -396,7 +393,7 @@ describe('DateUtils', () => {
     it('should parse ISO string to date', () => {
       const isoString = '2023-01-01T12:00:00.000Z';
       const parsed = DateUtils.parseISO(isoString);
-      
+
       expect(parsed).toBeInstanceOf(Date);
       expect(parsed.getTime()).toBe(new Date(isoString).getTime());
     });
@@ -404,7 +401,7 @@ describe('DateUtils', () => {
     it('should parse ISO string without milliseconds', () => {
       const isoString = '2023-01-01T12:00:00Z';
       const parsed = DateUtils.parseISO(isoString);
-      
+
       expect(parsed).toBeInstanceOf(Date);
       expect(parsed.getTime()).toBe(new Date(isoString).getTime());
     });
@@ -412,7 +409,7 @@ describe('DateUtils', () => {
     it('should handle invalid ISO string', () => {
       const invalidString = 'invalid-date';
       const parsed = DateUtils.parseISO(invalidString);
-      
+
       expect(parsed).toBeInstanceOf(Date);
       expect(isNaN(parsed.getTime())).toBe(true);
     });
@@ -434,7 +431,7 @@ describe('DateUtils', () => {
     it('should add positive seconds to date', () => {
       const date = new Date('2023-01-01T12:00:00Z');
       const result = DateUtils.addSeconds(date, 30);
-      
+
       expect(result.getTime()).toBe(date.getTime() + 30000);
       expect(result).toEqual(new Date('2023-01-01T12:00:30Z'));
     });
@@ -442,7 +439,7 @@ describe('DateUtils', () => {
     it('should add negative seconds to date (subtract)', () => {
       const date = new Date('2023-01-01T12:00:00Z');
       const result = DateUtils.addSeconds(date, -30);
-      
+
       expect(result.getTime()).toBe(date.getTime() - 30000);
       expect(result).toEqual(new Date('2023-01-01T11:59:30Z'));
     });
@@ -450,7 +447,7 @@ describe('DateUtils', () => {
     it('should handle zero seconds', () => {
       const date = new Date('2023-01-01T12:00:00Z');
       const result = DateUtils.addSeconds(date, 0);
-      
+
       expect(result.getTime()).toBe(date.getTime());
     });
 
@@ -458,7 +455,7 @@ describe('DateUtils', () => {
       const originalDate = new Date('2023-01-01T12:00:00Z');
       const originalTime = originalDate.getTime();
       DateUtils.addSeconds(originalDate, 30);
-      
+
       expect(originalDate.getTime()).toBe(originalTime);
     });
   });
@@ -467,21 +464,21 @@ describe('DateUtils', () => {
     it('should add positive minutes to date', () => {
       const date = new Date('2023-01-01T12:00:00Z');
       const result = DateUtils.addMinutes(date, 15);
-      
+
       expect(result).toEqual(new Date('2023-01-01T12:15:00Z'));
     });
 
     it('should add negative minutes to date', () => {
       const date = new Date('2023-01-01T12:00:00Z');
       const result = DateUtils.addMinutes(date, -15);
-      
+
       expect(result).toEqual(new Date('2023-01-01T11:45:00Z'));
     });
 
     it('should handle zero minutes', () => {
       const date = new Date('2023-01-01T12:00:00Z');
       const result = DateUtils.addMinutes(date, 0);
-      
+
       expect(result.getTime()).toBe(date.getTime());
     });
   });
@@ -490,28 +487,28 @@ describe('DateUtils', () => {
     it('should add positive hours to date', () => {
       const date = new Date('2023-01-01T12:00:00Z');
       const result = DateUtils.addHours(date, 3);
-      
+
       expect(result).toEqual(new Date('2023-01-01T15:00:00Z'));
     });
 
     it('should add negative hours to date', () => {
       const date = new Date('2023-01-01T12:00:00Z');
       const result = DateUtils.addHours(date, -3);
-      
+
       expect(result).toEqual(new Date('2023-01-01T09:00:00Z'));
     });
 
     it('should handle zero hours', () => {
       const date = new Date('2023-01-01T12:00:00Z');
       const result = DateUtils.addHours(date, 0);
-      
+
       expect(result.getTime()).toBe(date.getTime());
     });
 
     it('should handle day overflow', () => {
       const date = new Date('2023-01-01T23:00:00Z');
       const result = DateUtils.addHours(date, 2);
-      
+
       expect(result).toEqual(new Date('2023-01-02T01:00:00Z'));
     });
   });
@@ -520,28 +517,28 @@ describe('DateUtils', () => {
     it('should add positive days to date', () => {
       const date = new Date('2023-01-01T12:00:00Z');
       const result = DateUtils.addDays(date, 5);
-      
+
       expect(result).toEqual(new Date('2023-01-06T12:00:00Z'));
     });
 
     it('should add negative days to date', () => {
       const date = new Date('2023-01-06T12:00:00Z');
       const result = DateUtils.addDays(date, -5);
-      
+
       expect(result).toEqual(new Date('2023-01-01T12:00:00Z'));
     });
 
     it('should handle zero days', () => {
       const date = new Date('2023-01-01T12:00:00Z');
       const result = DateUtils.addDays(date, 0);
-      
+
       expect(result.getTime()).toBe(date.getTime());
     });
 
     it('should handle month overflow', () => {
       const date = new Date('2023-01-30T12:00:00Z');
       const result = DateUtils.addDays(date, 5);
-      
+
       expect(result).toEqual(new Date('2023-02-04T12:00:00Z'));
     });
   });
@@ -550,56 +547,56 @@ describe('DateUtils', () => {
     it('should return "just now" for very recent dates', () => {
       const date = new Date(Date.now() - 30000); // 30 seconds ago
       const result = DateUtils.formatRelative(date);
-      
+
       expect(result).toBe('just now');
     });
 
     it('should return minutes for dates within an hour', () => {
       const date = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
       const result = DateUtils.formatRelative(date);
-      
+
       expect(result).toBe('5 minutes ago');
     });
 
     it('should return singular minute', () => {
       const date = new Date(Date.now() - 1 * 60 * 1000); // 1 minute ago
       const result = DateUtils.formatRelative(date);
-      
+
       expect(result).toBe('1 minute ago');
     });
 
     it('should return hours for dates within a day', () => {
       const date = new Date(Date.now() - 3 * 60 * 60 * 1000); // 3 hours ago
       const result = DateUtils.formatRelative(date);
-      
+
       expect(result).toBe('3 hours ago');
     });
 
     it('should return singular hour', () => {
       const date = new Date(Date.now() - 1 * 60 * 60 * 1000); // 1 hour ago
       const result = DateUtils.formatRelative(date);
-      
+
       expect(result).toBe('1 hour ago');
     });
 
     it('should return days for older dates', () => {
       const date = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000); // 3 days ago
       const result = DateUtils.formatRelative(date);
-      
+
       expect(result).toBe('3 days ago');
     });
 
     it('should return singular day', () => {
       const date = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000); // 1 day ago
       const result = DateUtils.formatRelative(date);
-      
+
       expect(result).toBe('1 day ago');
     });
 
     it('should handle future dates as "just now"', () => {
       const date = new Date(Date.now() + 60000); // 1 minute in future
       const result = DateUtils.formatRelative(date);
-      
+
       expect(result).toBe('just now');
     });
   });
@@ -609,9 +606,9 @@ describe('DateUtils', () => {
       const startDate = new Date('2023-01-01T00:00:00Z');
       const endDate = new Date('2023-01-31T23:59:59Z');
       const testDate = new Date('2023-01-15T12:00:00Z');
-      
+
       const result = DateUtils.isWithinRange(testDate, startDate, endDate);
-      
+
       expect(result).toBe(true);
     });
 
@@ -619,9 +616,9 @@ describe('DateUtils', () => {
       const startDate = new Date('2023-01-01T00:00:00Z');
       const endDate = new Date('2023-01-31T23:59:59Z');
       const testDate = new Date('2023-01-01T00:00:00Z');
-      
+
       const result = DateUtils.isWithinRange(testDate, startDate, endDate);
-      
+
       expect(result).toBe(true);
     });
 
@@ -629,9 +626,9 @@ describe('DateUtils', () => {
       const startDate = new Date('2023-01-01T00:00:00Z');
       const endDate = new Date('2023-01-31T23:59:59Z');
       const testDate = new Date('2023-01-31T23:59:59Z');
-      
+
       const result = DateUtils.isWithinRange(testDate, startDate, endDate);
-      
+
       expect(result).toBe(true);
     });
 
@@ -639,9 +636,9 @@ describe('DateUtils', () => {
       const startDate = new Date('2023-01-01T00:00:00Z');
       const endDate = new Date('2023-01-31T23:59:59Z');
       const testDate = new Date('2022-12-31T23:59:59Z');
-      
+
       const result = DateUtils.isWithinRange(testDate, startDate, endDate);
-      
+
       expect(result).toBe(false);
     });
 
@@ -649,9 +646,9 @@ describe('DateUtils', () => {
       const startDate = new Date('2023-01-01T00:00:00Z');
       const endDate = new Date('2023-01-31T23:59:59Z');
       const testDate = new Date('2023-02-01T00:00:00Z');
-      
+
       const result = DateUtils.isWithinRange(testDate, startDate, endDate);
-      
+
       expect(result).toBe(false);
     });
   });
@@ -660,36 +657,36 @@ describe('DateUtils', () => {
     it('should return difference between two dates', () => {
       const date1 = new Date('2023-01-01T12:00:00Z');
       const date2 = new Date('2023-01-01T12:00:30Z'); // 30 seconds later
-      
+
       const result = DateUtils.getDifferenceInSeconds(date1, date2);
-      
+
       expect(result).toBe(30);
     });
 
     it('should return absolute difference (order independent)', () => {
       const date1 = new Date('2023-01-01T12:00:30Z');
       const date2 = new Date('2023-01-01T12:00:00Z'); // 30 seconds earlier
-      
+
       const result = DateUtils.getDifferenceInSeconds(date1, date2);
-      
+
       expect(result).toBe(30);
     });
 
     it('should return 0 for same dates', () => {
       const date1 = new Date('2023-01-01T12:00:00Z');
       const date2 = new Date('2023-01-01T12:00:00Z');
-      
+
       const result = DateUtils.getDifferenceInSeconds(date1, date2);
-      
+
       expect(result).toBe(0);
     });
 
     it('should handle millisecond precision', () => {
       const date1 = new Date('2023-01-01T12:00:00.000Z');
       const date2 = new Date('2023-01-01T12:00:00.500Z'); // 500ms later
-      
+
       const result = DateUtils.getDifferenceInSeconds(date1, date2);
-      
+
       expect(result).toBe(0.5);
     });
   });
@@ -698,18 +695,18 @@ describe('DateUtils', () => {
     it('should return true for same day and time', () => {
       const date1 = new Date('2023-01-01T12:00:00Z');
       const date2 = new Date('2023-01-01T12:00:00Z');
-      
+
       const result = DateUtils.isSameDay(date1, date2);
-      
+
       expect(result).toBe(true);
     });
 
     it('should return true for same day but different times', () => {
       const date1 = new Date('2023-01-01T08:00:00Z');
       const date2 = new Date('2023-01-01T20:00:00Z');
-      
+
       const result = DateUtils.isSameDay(date1, date2);
-      
+
       expect(result).toBe(true);
     });
 
@@ -717,27 +714,27 @@ describe('DateUtils', () => {
       // Use local dates to ensure they're actually different days in local timezone
       const date1 = new Date(2023, 0, 1, 10, 0, 0); // Jan 1, 2023 10:00 AM local
       const date2 = new Date(2023, 0, 2, 10, 0, 0); // Jan 2, 2023 10:00 AM local
-      
+
       const result = DateUtils.isSameDay(date1, date2);
-      
+
       expect(result).toBe(false);
     });
 
     it('should return false for different months', () => {
       const date1 = new Date('2023-01-15T12:00:00Z');
       const date2 = new Date('2023-02-15T12:00:00Z');
-      
+
       const result = DateUtils.isSameDay(date1, date2);
-      
+
       expect(result).toBe(false);
     });
 
     it('should return false for different years', () => {
       const date1 = new Date('2023-01-01T12:00:00Z');
       const date2 = new Date('2024-01-01T12:00:00Z');
-      
+
       const result = DateUtils.isSameDay(date1, date2);
-      
+
       expect(result).toBe(false);
     });
 
@@ -745,9 +742,9 @@ describe('DateUtils', () => {
       // Same day in local timezone but different times
       const date1 = new Date(2023, 0, 1, 8, 0, 0); // Jan 1, 2023 8:00 AM local
       const date2 = new Date(2023, 0, 1, 20, 0, 0); // Jan 1, 2023 8:00 PM local (same day)
-      
+
       const result = DateUtils.isSameDay(date1, date2);
-      
+
       expect(result).toBe(true);
     });
   });
@@ -763,7 +760,7 @@ describe('UrlUtils', () => {
     it('should handle trailing slashes', () => {
       const url1 = UrlUtils.buildUrl('https://api.example.com/', '/users');
       const url2 = UrlUtils.buildUrl('https://api.example.com', 'users');
-      
+
       expect(url1).toBe('https://api.example.com/users');
       expect(url2).toBe('https://api.example.com/users');
     });
@@ -771,14 +768,14 @@ describe('UrlUtils', () => {
     it('should add query parameters', () => {
       const params = { page: 1, limit: 10 };
       const url = UrlUtils.buildUrl('https://api.example.com', '/users', params);
-      
+
       expect(url).toBe('https://api.example.com/users?page=1&limit=10');
     });
 
     it('should handle empty or undefined parameters', () => {
       const url1 = UrlUtils.buildUrl('https://api.example.com', '/users', {});
       const url2 = UrlUtils.buildUrl('https://api.example.com', '/users', undefined);
-      
+
       expect(url1).toBe('https://api.example.com/users');
       expect(url2).toBe('https://api.example.com/users');
     });
@@ -786,7 +783,7 @@ describe('UrlUtils', () => {
     it('should handle null and undefined parameter values', () => {
       const params = { page: 1, limit: null, search: undefined, filter: 'active' };
       const url = UrlUtils.buildUrl('https://api.example.com', '/users', params);
-      
+
       expect(url).toBe('https://api.example.com/users?page=1&filter=active');
     });
   });
@@ -795,41 +792,41 @@ describe('UrlUtils', () => {
     it('should build query string from simple parameters', () => {
       const params = { page: 1, limit: 10, search: 'test' };
       const queryString = UrlUtils.buildQueryString(params);
-      
+
       expect(queryString).toBe('page=1&limit=10&search=test');
     });
 
     it('should handle array parameters', () => {
       const params = { tags: ['red', 'blue', 'green'], category: 'books' };
       const queryString = UrlUtils.buildQueryString(params);
-      
+
       expect(queryString).toBe('tags=red&tags=blue&tags=green&category=books');
     });
 
     it('should encode special characters', () => {
       const params = { search: 'hello world', query: 'user@example.com' };
       const queryString = UrlUtils.buildQueryString(params);
-      
+
       expect(queryString).toBe('search=hello%20world&query=user%40example.com');
     });
 
     it('should filter out null and undefined values', () => {
       const params = { page: 1, limit: null, search: undefined, filter: 'active' };
       const queryString = UrlUtils.buildQueryString(params);
-      
+
       expect(queryString).toBe('page=1&filter=active');
     });
 
     it('should handle empty object', () => {
       const queryString = UrlUtils.buildQueryString({});
-      
+
       expect(queryString).toBe('');
     });
 
     it('should handle empty arrays', () => {
       const params = { tags: [], category: 'books' };
       const queryString = UrlUtils.buildQueryString(params);
-      
+
       expect(queryString).toBe('&category=books');
     });
   });
@@ -838,7 +835,7 @@ describe('UrlUtils', () => {
     it('should parse query string to object', () => {
       const queryString = 'page=1&limit=10&search=test';
       const parsed = UrlUtils.parseQueryString(queryString);
-      
+
       expect(parsed).toEqual({
         page: '1',
         limit: '10',
@@ -854,7 +851,7 @@ describe('UrlUtils', () => {
     it('should handle query string with leading question mark', () => {
       const queryString = '?page=1&limit=10';
       const parsed = UrlUtils.parseQueryString(queryString);
-      
+
       expect(parsed).toEqual({
         page: '1',
         limit: '10'
@@ -864,7 +861,7 @@ describe('UrlUtils', () => {
     it('should handle multiple values for same key', () => {
       const queryString = 'tags=red&tags=blue&tags=green';
       const parsed = UrlUtils.parseQueryString(queryString);
-      
+
       expect(parsed).toEqual({
         tags: ['red', 'blue', 'green']
       });
@@ -873,7 +870,7 @@ describe('UrlUtils', () => {
     it('should decode URL-encoded values', () => {
       const queryString = 'search=hello%20world&query=user%40example.com';
       const parsed = UrlUtils.parseQueryString(queryString);
-      
+
       expect(parsed).toEqual({
         search: 'hello world',
         query: 'user@example.com'
@@ -883,7 +880,7 @@ describe('UrlUtils', () => {
     it('should handle mixed single and multiple values', () => {
       const queryString = 'tags=red&tags=blue&page=1&limit=10';
       const parsed = UrlUtils.parseQueryString(queryString);
-      
+
       expect(parsed).toEqual({
         tags: ['red', 'blue'],
         page: '1',
@@ -1160,7 +1157,7 @@ describe('ValidationUtils', () => {
         'user.name@example.org',
         'user+tag@example.org'
       ];
-      
+
       validEmails.forEach(email => {
         expect(ValidationUtils.isValidEmail(email)).toBe(true);
       });
@@ -1173,7 +1170,7 @@ describe('ValidationUtils', () => {
         'user@',
         'user..name@example.com'
       ];
-      
+
       invalidEmails.forEach(email => {
         expect(ValidationUtils.isValidEmail(email)).toBe(false);
       });
@@ -1227,7 +1224,7 @@ describe('ValidationUtils', () => {
         'SecureP@ss1',
         'MyStr0ng#Pass'
       ];
-      
+
       validPasswords.forEach(password => {
         expect(ValidationUtils.isValidPassword(password)).toBe(true);
       });
@@ -1240,7 +1237,7 @@ describe('ValidationUtils', () => {
         'Pass1',
         'verylongpasswordwithoutuppercase1'
       ];
-      
+
       invalidPasswords.forEach(password => {
         expect(ValidationUtils.isValidPassword(password)).toBe(false);
       });
@@ -1584,29 +1581,29 @@ describe('ValidationUtils', () => {
     it('should validate object with all required fields', () => {
       const obj = { name: 'John', email: 'john@example.com', age: 30 };
       const requiredFields = ['name', 'email'] as const;
-      
+
       const result = ValidationUtils.validateObject(obj, requiredFields);
-      
+
       expect(result.isValid).toBe(true);
       expect(result.missingFields).toEqual([]);
     });
 
     it('should identify missing required fields', () => {
-      const obj = { name: 'John' };
+      const obj: { name?: string; email?: string; age?: number } = { name: 'John' };
       const requiredFields = ['name', 'email', 'age'] as const;
-      
+
       const result = ValidationUtils.validateObject(obj, requiredFields);
-      
+
       expect(result.isValid).toBe(false);
       expect(result.missingFields).toEqual(['email', 'age']);
     });
 
     it('should handle empty object', () => {
-      const obj = {};
+      const obj: { name?: string; email?: string } = {};
       const requiredFields = ['name', 'email'] as const;
-      
+
       const result = ValidationUtils.validateObject(obj, requiredFields);
-      
+
       expect(result.isValid).toBe(false);
       expect(result.missingFields).toEqual(['name', 'email']);
     });
@@ -1614,9 +1611,9 @@ describe('ValidationUtils', () => {
     it('should handle no required fields', () => {
       const obj = { name: 'John' };
       const requiredFields = [] as const;
-      
+
       const result = ValidationUtils.validateObject(obj, requiredFields);
-      
+
       expect(result.isValid).toBe(true);
       expect(result.missingFields).toEqual([]);
     });
@@ -1624,9 +1621,9 @@ describe('ValidationUtils', () => {
     it('should handle null and undefined values as missing', () => {
       const obj = { name: 'John', email: null, age: undefined };
       const requiredFields = ['name'] as const;
-      
+
       const result = ValidationUtils.validateObject(obj, requiredFields);
-      
+
       expect(result.isValid).toBe(true);
       expect(result.missingFields).toEqual([]);
     });
@@ -1673,30 +1670,30 @@ describe('EventEmitter', () => {
   describe('event handling', () => {
     it('should add and trigger event listeners', () => {
       const handler = jest.fn();
-      
+
       emitter.on('test', handler);
       emitter.emit('test', { data: 'hello' });
-      
+
       expect(handler).toHaveBeenCalledWith({ data: 'hello' });
     });
 
     it('should remove event listeners', () => {
       const handler = jest.fn();
-      
+
       const unsubscribe = emitter.on('test', handler);
       unsubscribe();
       emitter.emit('test', { data: 'hello' });
-      
+
       expect(handler).not.toHaveBeenCalled();
     });
 
     it('should support one-time listeners', () => {
       const handler = jest.fn();
-      
+
       emitter.once('test', handler);
       emitter.emit('test', { data: 'hello' });
       emitter.emit('test', { data: 'world' });
-      
+
       expect(handler).toHaveBeenCalledTimes(1);
       expect(handler).toHaveBeenCalledWith({ data: 'hello' });
     });
@@ -1704,12 +1701,12 @@ describe('EventEmitter', () => {
     it('should remove all listeners', () => {
       const handler1 = jest.fn();
       const handler2 = jest.fn();
-      
+
       emitter.on('test', handler1);
       emitter.on('test', handler2);
       emitter.removeAllListeners('test');
       emitter.emit('test', { data: 'hello' });
-      
+
       expect(handler1).not.toHaveBeenCalled();
       expect(handler2).not.toHaveBeenCalled();
     });

@@ -9,6 +9,7 @@ import {
   HttpLink,
   ApolloLink,
   from,
+  fromPromise,
   type NormalizedCacheObject,
   type ApolloClientOptions,
   type DocumentNode,
@@ -20,6 +21,7 @@ import {
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions'
 import { createClient, type Client as WsClient } from 'graphql-ws'
 import { logger } from './utils/logger'
+import { ConfigurationError } from './errors'
 
 export interface GraphQLConfig {
   httpUrl: string
@@ -68,30 +70,31 @@ export class GraphQL {
     // Create auth middleware
     const authMiddleware = new ApolloLink((operation, forward) => {
       const token = config.getAuthToken ? config.getAuthToken() : null
-      
+
       if (token instanceof Promise) {
-        return token.then(t => {
-          if (t) {
-            operation.setContext(({ headers = {} }: any) => ({
-              headers: {
-                ...headers,
-                authorization: `Bearer ${t}`,
-              },
-            }))
-          }
-          return forward(operation)
-        })
+        return fromPromise(
+          token.then(t => {
+            if (t) {
+              operation.setContext(({ headers = {} }: { headers?: Record<string, string> }) => ({
+                headers: {
+                  ...headers,
+                  authorization: `Bearer ${t}`,
+                },
+              }))
+            }
+          })
+        ).flatMap(() => forward(operation))
       }
-      
+
       if (token) {
-        operation.setContext(({ headers = {} }: any) => ({
+        operation.setContext(({ headers = {} }: { headers?: Record<string, string> }) => ({
           headers: {
             ...headers,
             authorization: `Bearer ${token}`,
           },
         }))
       }
-      
+
       return forward(operation)
     })
 
@@ -198,7 +201,7 @@ export class GraphQL {
     options?: GraphQLSubscriptionOptions<TVariables>
   ): Observable<FetchResult<TData>> {
     if (!this.wsClient) {
-      throw new Error('WebSocket URL not configured for subscriptions')
+      throw new ConfigurationError('WebSocket URL not configured for subscriptions')
     }
 
     return this.client.subscribe<TData, TVariables>({

@@ -11,7 +11,8 @@
  * - Provider fallback tracking
  */
 
-import type { JanuaClient } from './client';
+import type { HttpClient } from './http-client';
+import { NotFoundError } from './errors';
 
 // ============================================================================
 // Types
@@ -127,7 +128,7 @@ export interface AddPaymentMethodRequest {
 // ============================================================================
 
 export class Payments {
-  constructor(private client: JanuaClient) {}
+  constructor(private http: HttpClient) {}
 
   // --------------------------------------------------------------------------
   // Subscription Plans
@@ -137,7 +138,7 @@ export class Payments {
    * List all available subscription plans
    */
   async listPlans(): Promise<SubscriptionPlan[]> {
-    const response = await this.client.get<SubscriptionPlan[]>('/api/v1/billing/plans');
+    const response = await this.http.get<SubscriptionPlan[]>('/api/v1/billing/plans');
     return response.data;
   }
 
@@ -145,7 +146,7 @@ export class Payments {
    * Get specific subscription plan details
    */
   async getPlan(planId: string): Promise<SubscriptionPlan> {
-    const response = await this.client.get<SubscriptionPlan>(`/api/v1/billing/plans/${planId}`);
+    const response = await this.http.get<SubscriptionPlan>(`/api/v1/billing/plans/${planId}`);
     return response.data;
   }
 
@@ -164,7 +165,7 @@ export class Payments {
    * Stripe is used as universal fallback if primary provider unavailable.
    */
   async createSubscription(request: CreateSubscriptionRequest): Promise<Subscription> {
-    const response = await this.client.post<Subscription>(
+    const response = await this.http.post<Subscription>(
       '/api/v1/billing/subscriptions',
       request
     );
@@ -175,7 +176,7 @@ export class Payments {
    * List all subscriptions for current organization
    */
   async listSubscriptions(): Promise<Subscription[]> {
-    const response = await this.client.get<Subscription[]>('/api/v1/billing/subscriptions');
+    const response = await this.http.get<Subscription[]>('/api/v1/billing/subscriptions');
     return response.data;
   }
 
@@ -183,7 +184,7 @@ export class Payments {
    * Get specific subscription details
    */
   async getSubscription(subscriptionId: string): Promise<Subscription> {
-    const response = await this.client.get<Subscription>(
+    const response = await this.http.get<Subscription>(
       `/api/v1/billing/subscriptions/${subscriptionId}`
     );
     return response.data;
@@ -196,7 +197,7 @@ export class Payments {
     subscriptionId: string,
     request: UpdateSubscriptionRequest
   ): Promise<Subscription> {
-    const response = await this.client.patch<Subscription>(
+    const response = await this.http.patch<Subscription>(
       `/api/v1/billing/subscriptions/${subscriptionId}`,
       request
     );
@@ -209,7 +210,7 @@ export class Payments {
    * @param immediate - If true, cancel immediately. If false, cancel at period end.
    */
   async cancelSubscription(subscriptionId: string, immediate: boolean = false): Promise<Subscription> {
-    const response = await this.client.post<Subscription>(
+    const response = await this.http.post<Subscription>(
       `/api/v1/billing/subscriptions/${subscriptionId}/cancel`,
       { immediate }
     );
@@ -220,7 +221,7 @@ export class Payments {
    * Resume canceled subscription (if not yet expired)
    */
   async resumeSubscription(subscriptionId: string): Promise<Subscription> {
-    const response = await this.client.post<Subscription>(
+    const response = await this.http.post<Subscription>(
       `/api/v1/billing/subscriptions/${subscriptionId}/resume`,
       {}
     );
@@ -242,7 +243,7 @@ export class Payments {
    * Provider selection based on billing address country.
    */
   async addPaymentMethod(request: AddPaymentMethodRequest): Promise<PaymentMethod> {
-    const response = await this.client.post<PaymentMethod>(
+    const response = await this.http.post<PaymentMethod>(
       '/api/v1/billing/payment-methods',
       request
     );
@@ -253,7 +254,7 @@ export class Payments {
    * List all payment methods for current organization
    */
   async listPaymentMethods(): Promise<PaymentMethod[]> {
-    const response = await this.client.get<PaymentMethod[]>('/api/v1/billing/payment-methods');
+    const response = await this.http.get<PaymentMethod[]>('/api/v1/billing/payment-methods');
     return response.data;
   }
 
@@ -261,14 +262,14 @@ export class Payments {
    * Delete payment method
    */
   async deletePaymentMethod(paymentMethodId: string): Promise<void> {
-    await this.client.delete(`/api/v1/billing/payment-methods/${paymentMethodId}`);
+    await this.http.delete(`/api/v1/billing/payment-methods/${paymentMethodId}`);
   }
 
   /**
    * Set payment method as default
    */
   async setDefaultPaymentMethod(paymentMethodId: string): Promise<PaymentMethod> {
-    const response = await this.client.post<PaymentMethod>(
+    const response = await this.http.post<PaymentMethod>(
       `/api/v1/billing/payment-methods/${paymentMethodId}/set-default`,
       {}
     );
@@ -296,7 +297,7 @@ export class Payments {
     params.append('limit', limit.toString());
     params.append('offset', offset.toString());
 
-    const response = await this.client.get<Invoice[]>(
+    const response = await this.http.get<Invoice[]>(
       `/api/v1/billing/invoices?${params.toString()}`
     );
     return response.data;
@@ -306,7 +307,7 @@ export class Payments {
    * Get specific invoice details
    */
   async getInvoice(invoiceId: string): Promise<Invoice> {
-    const response = await this.client.get<Invoice>(`/api/v1/billing/invoices/${invoiceId}`);
+    const response = await this.http.get<Invoice>(`/api/v1/billing/invoices/${invoiceId}`);
     return response.data;
   }
 
@@ -316,7 +317,7 @@ export class Payments {
    * @param paymentMethodId - Optional payment method to use. If not provided, uses default.
    */
   async payInvoice(invoiceId: string, paymentMethodId?: string): Promise<Invoice> {
-    const response = await this.client.post<Invoice>(
+    const response = await this.http.post<Invoice>(
       `/api/v1/billing/invoices/${invoiceId}/pay`,
       paymentMethodId ? { payment_method_id: paymentMethodId } : {}
     );
@@ -331,7 +332,7 @@ export class Payments {
   async getInvoicePdfUrl(invoiceId: string): Promise<string> {
     const invoice = await this.getInvoice(invoiceId);
     if (!invoice.invoice_pdf) {
-      throw new Error('Invoice PDF not available');
+      throw new NotFoundError('Invoice PDF not available');
     }
     return invoice.invoice_pdf;
   }
@@ -352,7 +353,7 @@ export class Payments {
     payment_methods: string[];
     fallback_info?: ProviderFallbackInfo;
   }> {
-    const response = await this.client.get('/api/v1/billing/provider-info');
+    const response = await this.http.get('/api/v1/billing/provider-info');
     return response.data;
   }
 }

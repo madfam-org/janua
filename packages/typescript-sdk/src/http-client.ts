@@ -11,7 +11,8 @@ import type {
 import {
   JanuaError,
   NetworkError,
-  RateLimitError
+  RateLimitError,
+  ConfigurationError
 } from './errors';
 import { TokenManager, RetryUtils, EventEmitter } from './utils';
 import type { SdkEventMap } from './types';
@@ -406,7 +407,7 @@ export class AxiosHttpClient extends EventEmitter<SdkEventMap> {
       this.axiosLib = require('axios');
       this.setupAxiosInstance(config);
     } catch (error) {
-      throw new Error('Axios is not available. Please install axios or use the default fetch client.');
+      throw new ConfigurationError('Axios is not available. Please install axios or use the default fetch client.');
     }
   }
 

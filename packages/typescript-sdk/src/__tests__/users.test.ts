@@ -4,6 +4,8 @@
 
 import { Users } from '../users';
 import { ValidationError } from '../errors';
+import { UserStatus } from '../types';
+import type { SessionListParams } from '../types';
 import type { HttpClient } from '../http-client';
 
 describe('Users', () => {
@@ -206,7 +208,7 @@ describe('Users', () => {
       const params = {
         page: 2,
         per_page: 50,
-        status: 'active' as const,
+        status: UserStatus.ACTIVE,
         search: 'john'
       };
 
@@ -348,7 +350,7 @@ describe('Users', () => {
     });
 
     it('should list sessions with parameters', async () => {
-      const params = { active: true };
+      const params: SessionListParams = { active_only: true };
       const mockResponse = {
         sessions: [],
         total: 0
@@ -356,7 +358,7 @@ describe('Users', () => {
 
       mockHttpClient.get.mockResolvedValue({ data: mockResponse });
 
-      const result = await users.listSessions(params);
+      await users.listSessions(params);
 
       expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/sessions/', {
         params
@@ -503,7 +505,7 @@ describe('Users', () => {
 
       mockHttpClient.get.mockResolvedValue({ data: mockResponse });
 
-      const result = await users.getRecentActivity(limit);
+      await users.getRecentActivity(limit);
 
       expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/sessions/activity/recent', {
         params: { limit }
@@ -874,7 +876,7 @@ describe('Users', () => {
 
       mockHttpClient.get.mockResolvedValue({ data: mockResponse });
 
-      const result = await users.search(query, filters);
+      await users.search(query, filters);
 
       expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/users/search', {
         params: { q: query, ...filters }

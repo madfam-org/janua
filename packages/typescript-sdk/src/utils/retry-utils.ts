@@ -2,6 +2,8 @@
  * Retry and backoff utilities for resilient operations
  */
 
+import { NetworkError } from '../errors';
+
 export interface RetryOptions {
   maxAttempts?: number;
   initialDelay?: number;
@@ -161,7 +163,7 @@ export class RetryUtils {
       if (state.state === 'open') {
         const timeSinceFailure = Date.now() - state.lastFailureTime;
         if (timeSinceFailure < resetTimeout) {
-          throw new Error('Circuit breaker is open');
+          throw new NetworkError('Circuit breaker is open');
         }
         // Try half-open state
         state.state = 'half-open';

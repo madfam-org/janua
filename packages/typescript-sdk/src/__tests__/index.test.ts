@@ -3,7 +3,7 @@
  */
 
 import * as JanuaSDK from '../index';
-import { JanuaClient, createClient } from '../client';
+import { JanuaClient } from '../client';
 import { SDK_VERSION, SDK_NAME } from '../index';
 
 describe('Janua TypeScript SDK - Main Exports', () => {
@@ -75,7 +75,7 @@ describe('Janua TypeScript SDK - Main Exports', () => {
     it('should provide code examples', () => {
       expect(JanuaSDK.examples).toBeDefined();
       expect(typeof JanuaSDK.examples).toBe('object');
-      
+
       // Check for key examples
       expect(JanuaSDK.examples.basicClient).toBeDefined();
       expect(JanuaSDK.examples.signUp).toBeDefined();
@@ -86,7 +86,7 @@ describe('Janua TypeScript SDK - Main Exports', () => {
 
     it('should provide valid TypeScript/JavaScript code in examples', () => {
       const { basicClient, signUp, signIn } = JanuaSDK.examples;
-      
+
       // Basic syntax checks
       expect(basicClient).toContain('createClient');
       expect(signUp).toContain('auth.signUp');
@@ -98,7 +98,7 @@ describe('Janua TypeScript SDK - Main Exports', () => {
     it('should provide configuration presets', () => {
       expect(JanuaSDK.presets).toBeDefined();
       expect(typeof JanuaSDK.presets).toBe('object');
-      
+
       // Check for key presets
       expect(JanuaSDK.presets.development).toBeDefined();
       expect(JanuaSDK.presets.production).toBeDefined();
@@ -108,7 +108,7 @@ describe('Janua TypeScript SDK - Main Exports', () => {
 
     it('should have valid development preset', () => {
       const { development } = JanuaSDK.presets;
-      
+
       expect(development.baseURL).toBe('http://localhost:8000');
       expect(development.debug).toBe(true);
       expect(development.timeout).toBe(30000);
@@ -117,7 +117,7 @@ describe('Janua TypeScript SDK - Main Exports', () => {
 
     it('should have valid production preset', () => {
       const { production } = JanuaSDK.presets;
-      
+
       expect(production.debug).toBe(false);
       expect(production.timeout).toBe(15000);
       expect(production.retryAttempts).toBe(3);
@@ -126,7 +126,7 @@ describe('Janua TypeScript SDK - Main Exports', () => {
 
     it('should have valid browser preset', () => {
       const { browser } = JanuaSDK.presets;
-      
+
       expect(browser.tokenStorage).toBe('localStorage');
       expect(browser.timeout).toBe(30000);
       expect(browser.autoRefreshTokens).toBe(true);
@@ -134,7 +134,7 @@ describe('Janua TypeScript SDK - Main Exports', () => {
 
     it('should have valid server preset', () => {
       const { server } = JanuaSDK.presets;
-      
+
       expect(server.tokenStorage).toBe('memory');
       expect(server.timeout).toBe(10000);
       expect(server.autoRefreshTokens).toBe(false);
@@ -146,7 +146,7 @@ describe('Janua TypeScript SDK - Main Exports', () => {
       const client = JanuaSDK.createClientWithPreset('development', {
         baseURL: 'http://localhost:4000'
       });
-      
+
       expect(client).toBeInstanceOf(JanuaClient);
       expect(client.getConfig().baseURL).toBe('http://localhost:4000');
       expect(client.getConfig().debug).toBe(true);
@@ -157,7 +157,7 @@ describe('Janua TypeScript SDK - Main Exports', () => {
       const client = JanuaSDK.createClientWithPreset('production', {
         baseURL: 'https://api.example.com'
       });
-      
+
       expect(client).toBeInstanceOf(JanuaClient);
       expect(client.getConfig().baseURL).toBe('https://api.example.com');
       expect(client.getConfig().debug).toBe(false);
@@ -170,7 +170,7 @@ describe('Janua TypeScript SDK - Main Exports', () => {
         debug: false,
         timeout: 10000
       });
-      
+
       const config = client.getConfig();
       expect(config.baseURL).toBe('http://localhost:4000');
       expect(config.debug).toBe(false); // overridden
@@ -186,7 +186,7 @@ describe('Janua TypeScript SDK - Main Exports', () => {
         baseURL: 'https://api.example.com',
         debug: true
       };
-      
+
       expect(config.baseURL).toBe('https://api.example.com');
       expect(config.debug).toBe(true);
     });
@@ -204,7 +204,7 @@ describe('Janua TypeScript SDK - Main Exports', () => {
         updated_at: '2023-01-01T00:00:00Z',
         user_metadata: {}
       };
-      
+
       expect(user.id).toBe('user-123');
       expect(user.email).toBe('test@example.com');
       expect(user.status).toBe(JanuaSDK.UserStatus.ACTIVE);
@@ -214,11 +214,11 @@ describe('Janua TypeScript SDK - Main Exports', () => {
       expect(JanuaSDK.UserStatus.ACTIVE).toBe('active');
       expect(JanuaSDK.UserStatus.SUSPENDED).toBe('suspended');
       expect(JanuaSDK.UserStatus.DELETED).toBe('deleted');
-      
+
       expect(JanuaSDK.OrganizationRole.OWNER).toBe('owner');
       expect(JanuaSDK.OrganizationRole.ADMIN).toBe('admin');
       expect(JanuaSDK.OrganizationRole.MEMBER).toBe('member');
-      
+
       expect(JanuaSDK.OAuthProvider.GOOGLE).toBe('google');
       expect(JanuaSDK.OAuthProvider.GITHUB).toBe('github');
     });

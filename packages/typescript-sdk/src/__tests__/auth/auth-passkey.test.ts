@@ -5,7 +5,50 @@
 import { Auth } from '../../auth';
 import { HttpClient } from '../../http-client';
 import { TokenManager } from '../../utils';
-import { userFixtures, tokenFixtures } from '../../../../../tests/fixtures/data';
+import { UserStatus } from '../../types';
+
+// Inline fixtures
+const userFixtures = {
+  validUser: {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    email: 'test@example.com',
+    email_verified: true,
+    first_name: 'Test',
+    last_name: 'User',
+    status: UserStatus.ACTIVE,
+    mfa_enabled: false,
+    is_admin: false,
+    phone_verified: false,
+    created_at: '2023-01-01T00:00:00Z',
+    updated_at: '2023-01-01T00:00:00Z',
+    user_metadata: {}
+  },
+  verifiedUser: {
+    id: '550e8400-e29b-41d4-a716-446655440001',
+    email: 'verified@example.com',
+    email_verified: true,
+    first_name: 'Verified',
+    last_name: 'User',
+    status: UserStatus.ACTIVE,
+    mfa_enabled: false,
+    is_admin: false,
+    phone_verified: true,
+    created_at: '2023-01-01T00:00:00Z',
+    updated_at: '2023-01-01T00:00:00Z',
+    user_metadata: {}
+  }
+};
+
+const tokenFixtures = {
+  validTokens: {
+    access_token: 'valid_access_token',
+    refresh_token: 'valid_refresh_token',
+    token_type: 'bearer' as const,
+    expires_in: 3600
+  },
+  validAccessToken: 'valid_access_token',
+  validRefreshToken: 'valid_refresh_token'
+};
 
 describe('Auth - Passkey Operations', () => {
   let auth: Auth;
@@ -62,7 +105,7 @@ describe('Auth - Passkey Operations', () => {
 
   describe('getPasskeyRegistrationOptions', () => {
     it('should get passkey registration options successfully', async () => {
-      const options = { user_verification: 'required' };
+      const options = { authenticator_attachment: 'platform' as const };
       const mockResponse = {
         challenge: 'registration_challenge_123',
         rp: { name: 'My App', id: 'app.example.com' },
@@ -86,6 +129,7 @@ describe('Auth - Passkey Operations', () => {
       const credential = {
         id: 'credential_id_123',
         rawId: 'raw_credential_id',
+        type: 'public-key' as const,
         response: {
           clientDataJSON: 'client_data',
           attestationObject: 'attestation_object'
@@ -117,6 +161,7 @@ describe('Auth - Passkey Operations', () => {
       const credential = {
         id: 'credential_id_123',
         rawId: 'raw_credential_id',
+        type: 'public-key' as const,
         response: {
           clientDataJSON: 'client_data',
           attestationObject: 'attestation_object'
@@ -180,6 +225,7 @@ describe('Auth - Passkey Operations', () => {
       const credential = {
         id: 'credential_id_123',
         rawId: 'raw_credential_id',
+        type: 'public-key' as const,
         response: {
           clientDataJSON: 'client_data',
           authenticatorData: 'authenticator_data',

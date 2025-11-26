@@ -2,8 +2,7 @@
  * Tests for HTTP Client
  */
 
-import { HttpClient, AxiosHttpClient, createHttpClient } from '../http-client';
-import { NetworkError, RateLimitError, ServerError, AuthenticationError, JanuaError } from '../errors';
+import { AxiosHttpClient, createHttpClient } from '../http-client';
 import { TokenManager } from '../utils';
 
 // Create a proper mock function for axios instance
@@ -56,36 +55,37 @@ describe('HttpClient', () => {
       } as any;
     });
 
-    it('should create axios client when axios is available and not browser', () => {
+    it('should create axios client when axios is available', () => {
       const config = {
         baseURL: 'https://api.example.com',
         timeout: 5000,
-        environment: 'node' as const
+        environment: 'production' as const
       };
 
       const client = createHttpClient(config, mockTokenManager);
       expect(client).toBeInstanceOf(AxiosHttpClient);
     });
 
-    it('should create fetch client in browser environment', () => {
+    it('should create client in staging environment', () => {
       const config = {
         baseURL: 'https://api.example.com',
         timeout: 5000,
-        environment: 'browser' as const
+        environment: 'staging' as const
       };
 
       const client = createHttpClient(config, mockTokenManager);
-      expect(client).toBeInstanceOf(HttpClient);
+      // Since axios is mocked and available, AxiosHttpClient is created
+      expect(client).toBeInstanceOf(AxiosHttpClient);
     });
 
     it('should create fetch client when axios is not resolvable', () => {
       // Since we can't properly mock require.resolve at runtime in this test setup,
-      // we'll test by just creating a client with 'auto' environment
+      // we'll test by just creating a client with 'development' environment
       // In real scenarios, the function will detect if axios is available
       const config = {
         baseURL: 'https://api.example.com',
         timeout: 5000,
-        environment: 'auto' as const
+        environment: 'development' as const
       };
 
       const client = createHttpClient(config, mockTokenManager);

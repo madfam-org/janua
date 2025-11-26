@@ -164,8 +164,7 @@ export {
   // JWT utilities
   JwtUtils,
 
-  // Token storage
-  TokenStorage,
+  // Token storage (classes)
   LocalTokenStorage,
   SessionTokenStorage,
   MemoryTokenStorage,
@@ -191,6 +190,9 @@ export {
   // Event emitter
   EventEmitter
 } from './utils';
+
+// Token storage type export (interface)
+export type { TokenStorage } from './utils';
 
 // WebAuthn helper exports
 export { WebAuthnHelper, checkWebAuthnSupport } from './webauthn-helper';

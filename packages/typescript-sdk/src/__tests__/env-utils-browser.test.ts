@@ -2,7 +2,6 @@
  * @jest-environment jsdom
  */
 import { EnvUtils } from '../utils/env-utils';
-import { LocalTokenStorage } from '../utils/token-utils';
 
 describe('EnvUtils (Browser Environment)', () => {
   describe('isBrowser', () => {

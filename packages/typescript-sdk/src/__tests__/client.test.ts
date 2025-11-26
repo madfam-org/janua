@@ -4,8 +4,25 @@
 
 import { JanuaClient, createClient } from '../client';
 import { ConfigurationError } from '../errors';
-import { authMocks } from '../../../../tests/mocks/api';
-import { userFixtures } from '../../../../tests/fixtures/data';
+import { UserStatus } from '../types';
+
+// Inline fixtures
+const userFixtures = {
+  verified: {
+    id: '550e8400-e29b-41d4-a716-446655440001',
+    email: 'verified@example.com',
+    email_verified: true,
+    first_name: 'Verified',
+    last_name: 'User',
+    status: UserStatus.ACTIVE,
+    mfa_enabled: false,
+    is_admin: false,
+    phone_verified: true,
+    created_at: '2023-01-01T00:00:00Z',
+    updated_at: '2023-01-01T00:00:00Z',
+    user_metadata: {}
+  }
+};
 
 // Mock dependencies
 jest.mock('../auth');

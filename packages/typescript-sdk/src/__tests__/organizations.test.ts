@@ -5,13 +5,14 @@
 import { Organizations } from '../organizations';
 import { HttpClient } from '../http-client';
 import { NotFoundError, ValidationError, PermissionError, ConflictError } from '../errors';
-import type { 
-  Organization, 
-  OrganizationCreateParams, 
-  OrganizationUpdateParams,
+import { OrganizationRole } from '../types';
+import type {
+  Organization,
   OrganizationMember,
-  OrganizationInvite,
-  OrganizationListParams 
+  OrganizationListParams,
+  OrganizationCreateRequest,
+  OrganizationUpdateRequest,
+  OrganizationInvitation
 } from '../types';
 
 describe('Organizations', () => {
@@ -29,21 +30,21 @@ describe('Organizations', () => {
     settings: {
       allow_invites: true,
       require_2fa: false
-    }
+    },
+    org_metadata: {},
+    billing_plan: 'free',
+    member_count: 1,
+    is_owner: true
   };
 
   const mockMember: OrganizationMember = {
-    id: 'member-123',
     user_id: 'user-456',
-    organization_id: 'org-123',
-    role: 'member',
-    joined_at: '2023-01-01T00:00:00Z',
-    user: {
-      id: 'user-456',
-      email: 'member@example.com',
-      first_name: 'John',
-      last_name: 'Doe'
-    }
+    email: 'member@example.com',
+    first_name: 'John',
+    last_name: 'Doe',
+    role: OrganizationRole.MEMBER,
+    permissions: ['read', 'write'],
+    joined_at: '2023-01-01T00:00:00Z'
   };
 
   beforeEach(() => {
@@ -62,7 +63,7 @@ describe('Organizations', () => {
 
   describe('create', () => {
     it('should create organization successfully', async () => {
-      const createParams: OrganizationCreateParams = {
+      const createParams: OrganizationCreateRequest = {
         name: 'New Organization',
         slug: 'new-org',
         description: 'A new organization'
@@ -77,7 +78,7 @@ describe('Organizations', () => {
     });
 
     it('should handle slug conflict', async () => {
-      const createParams: OrganizationCreateParams = {
+      const createParams: OrganizationCreateRequest = {
         name: 'New Organization',
         slug: 'existing-org'
       };
@@ -90,7 +91,7 @@ describe('Organizations', () => {
     });
 
     it('should handle validation errors', async () => {
-      const createParams: OrganizationCreateParams = {
+      const createParams: OrganizationCreateRequest = {
         name: '',
         slug: 'invalid slug'
       };
@@ -158,17 +159,15 @@ describe('Organizations', () => {
     it('should list organizations with custom parameters', async () => {
       const params: OrganizationListParams = {
         page: 2,
-        limit: 50,
-        search: 'test',
-        sort_by: 'created_at',
-        sort_order: 'desc'
+        per_page: 50,
+        search: 'test'
       };
 
       const mockResponse = {
         organizations: [mockOrganization],
         total: 1,
         page: 2,
-        limit: 50
+        per_page: 50
       };
 
       mockHttpClient.get.mockResolvedValue({ data: mockResponse });
@@ -184,7 +183,7 @@ describe('Organizations', () => {
 
   describe('update', () => {
     it('should update organization successfully', async () => {
-      const updateParams: OrganizationUpdateParams = {
+      const updateParams: OrganizationUpdateRequest = {
         name: 'Updated Organization',
         description: 'Updated description'
       };
@@ -209,19 +208,19 @@ describe('Organizations', () => {
 
   describe('delete', () => {
     it('should delete organization successfully', async () => {
-      mockHttpClient.delete.mockResolvedValue({ 
-        data: { 
+      mockHttpClient.delete.mockResolvedValue({
+        data: {
           success: true,
-          message: 'Organization deleted successfully' 
-        } 
+          message: 'Organization deleted successfully'
+        }
       });
 
       const result = await organizations.delete('org-123');
 
       expect(mockHttpClient.delete).toHaveBeenCalledWith('/api/v1/organizations/org-123');
-      expect(result).toEqual({ 
+      expect(result).toEqual({
         success: true,
-        message: 'Organization deleted successfully' 
+        message: 'Organization deleted successfully'
       });
     });
 
@@ -246,7 +245,7 @@ describe('Organizations', () => {
 
         const result = await organizations.getMembers('org-123');
 
-        expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/organizations/org-123/members');
+        expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/organizations/org-123/members', undefined);
         expect(result).toEqual(mockResponse);
       });
 
@@ -325,11 +324,11 @@ describe('Organizations', () => {
 
     describe('removeMember', () => {
       it('should remove member successfully', async () => {
-        mockHttpClient.delete.mockResolvedValue({ 
-          data: { 
+        mockHttpClient.delete.mockResolvedValue({
+          data: {
             success: true,
-            message: 'Member removed successfully' 
-          } 
+            message: 'Member removed successfully'
+          }
         });
 
         const result = await organizations.removeMember('org-123', 'user-456');
@@ -337,9 +336,9 @@ describe('Organizations', () => {
         expect(mockHttpClient.delete).toHaveBeenCalledWith(
           '/api/v1/organizations/org-123/members/user-456'
         );
-        expect(result).toEqual({ 
+        expect(result).toEqual({
           success: true,
-          message: 'Member removed successfully' 
+          message: 'Member removed successfully'
         });
       });
 
@@ -354,11 +353,13 @@ describe('Organizations', () => {
   });
 
   describe('Invitation Management', () => {
-    const mockInvite: OrganizationInvite = {
+    const mockInvite: OrganizationInvitation = {
       id: 'invite-123',
       organization_id: 'org-123',
+      organization_name: 'Test Organization',
       email: 'newuser@example.com',
-      role: 'member',
+      role: OrganizationRole.MEMBER,
+      permissions: ['read'],
       invited_by: 'user-123',
       status: 'pending',
       created_at: '2023-01-01T00:00:00Z',
@@ -376,7 +377,7 @@ describe('Organizations', () => {
 
         const result = await organizations.getInvites('org-123');
 
-        expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/organizations/org-123/invites');
+        expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/organizations/org-123/invites', undefined);
         expect(result).toEqual(mockResponse);
       });
 
@@ -428,11 +429,11 @@ describe('Organizations', () => {
 
     describe('cancelInvite', () => {
       it('should cancel invite successfully', async () => {
-        mockHttpClient.delete.mockResolvedValue({ 
-          data: { 
+        mockHttpClient.delete.mockResolvedValue({
+          data: {
             success: true,
-            message: 'Invite cancelled successfully' 
-          } 
+            message: 'Invite cancelled successfully'
+          }
         });
 
         const result = await organizations.cancelInvite('org-123', 'invite-123');
@@ -440,20 +441,20 @@ describe('Organizations', () => {
         expect(mockHttpClient.delete).toHaveBeenCalledWith(
           '/api/v1/organizations/org-123/invites/invite-123'
         );
-        expect(result).toEqual({ 
+        expect(result).toEqual({
           success: true,
-          message: 'Invite cancelled successfully' 
+          message: 'Invite cancelled successfully'
         });
       });
     });
 
     describe('resendInvite', () => {
       it('should resend invite successfully', async () => {
-        mockHttpClient.post.mockResolvedValue({ 
-          data: { 
+        mockHttpClient.post.mockResolvedValue({
+          data: {
             success: true,
             invite: mockInvite
-          } 
+          }
         });
 
         const result = await organizations.resendInvite('org-123', 'invite-123');
@@ -461,7 +462,7 @@ describe('Organizations', () => {
         expect(mockHttpClient.post).toHaveBeenCalledWith(
           '/api/v1/organizations/org-123/invites/invite-123/resend'
         );
-        expect(result).toEqual({ 
+        expect(result).toEqual({
           success: true,
           invite: mockInvite
         });
@@ -478,12 +479,12 @@ describe('Organizations', () => {
 
     describe('acceptInvite', () => {
       it('should accept invite successfully', async () => {
-        mockHttpClient.post.mockResolvedValue({ 
-          data: { 
+        mockHttpClient.post.mockResolvedValue({
+          data: {
             success: true,
             organization: mockOrganization,
             member: mockMember
-          } 
+          }
         });
 
         const result = await organizations.acceptInvite('invite-token-123');
@@ -491,7 +492,7 @@ describe('Organizations', () => {
         expect(mockHttpClient.post).toHaveBeenCalledWith('/api/v1/organizations/invites/accept', {
           token: 'invite-token-123'
         });
-        expect(result).toEqual({ 
+        expect(result).toEqual({
           success: true,
           organization: mockOrganization,
           member: mockMember

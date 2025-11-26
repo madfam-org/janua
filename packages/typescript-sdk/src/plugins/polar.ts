@@ -37,6 +37,7 @@
  */
 
 import type { JanuaClient } from '../client';
+import { ValidationError, ConfigurationError } from '../errors';
 
 // ============================================================================
 // Types
@@ -255,10 +256,52 @@ export interface PolarUsageEvent {
   /** Quantity to record (default: 1) */
   quantity?: number;
   /** Additional properties */
-  properties?: Record<string, any>;
+  properties?: Record<string, string | number | boolean>;
   /** Timestamp (default: now) */
   timestamp?: Date;
 }
+
+/**
+ * Internal type for subscription API response
+ */
+interface SubscriptionApiResponse {
+  id: string;
+  status: string;
+  current_period_start: string;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  canceled_at?: string;
+  customer_id: string;
+  product_id: string;
+  price_id: string;
+  metadata: Record<string, string>;
+  created_at: string;
+}
+
+/**
+ * Internal type for benefit API response
+ */
+interface BenefitApiResponse {
+  id: string;
+  type: string;
+  description: string;
+  is_active: boolean;
+  granted_at: string;
+}
+
+/**
+ * Internal type for order API response
+ */
+interface OrderApiResponse {
+  id: string;
+  amount: number;
+  tax_amount: number;
+  currency: string;
+  product_id: string;
+  created_at: string;
+}
+
+
 
 // ============================================================================
 // Polar Plugin Class
@@ -324,18 +367,18 @@ export class PolarPlugin {
     if (!productId && options.plan && this.config.products) {
       productId = this.config.products[options.plan];
       if (!productId) {
-        throw new Error(`Unknown plan: ${options.plan}. Available plans: ${Object.keys(this.config.products).join(', ')}`);
+        throw new ValidationError(`Unknown plan: ${options.plan}. Available plans: ${Object.keys(this.config.products).join(', ')}`);
       }
     }
 
     if (!productId) {
-      throw new Error('Either plan or productId is required');
+      throw new ValidationError('Either plan or productId is required');
     }
 
     this.config.onCheckoutStart?.();
 
     try {
-      const response = await this.client.post<{
+      const response = await this.client.http.post<{
         checkout_id: string;
         checkout_url: string;
         client_secret?: string;
@@ -380,7 +423,7 @@ export class PolarPlugin {
     if (typeof window !== 'undefined') {
       window.location.href = session.url;
     } else {
-      throw new Error('checkout() requires a browser environment. Use createCheckout() in server contexts.');
+      throw new ConfigurationError('checkout() requires a browser environment. Use createCheckout() in server contexts.');
     }
   }
 
@@ -388,7 +431,7 @@ export class PolarPlugin {
    * Get checkout session status
    */
   async getCheckoutSession(checkoutId: string): Promise<PolarCheckoutSession> {
-    const response = await this.client.get<{
+    const response = await this.client.http.get<{
       id: string;
       url: string;
       client_secret?: string;
@@ -422,7 +465,7 @@ export class PolarPlugin {
    */
   async getSubscription(organizationId: string): Promise<PolarSubscription | null> {
     try {
-      const response = await this.client.get<{
+      const response = await this.client.http.get<{
         id: string;
         status: string;
         current_period_start: string;
@@ -437,8 +480,8 @@ export class PolarPlugin {
       }>(`/api/v1/polar/subscriptions/${organizationId}`);
 
       return this.mapSubscription(response.data);
-    } catch (error: any) {
-      if (error.status === 404) return null;
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'status' in error && error.status === 404) return null;
       throw error;
     }
   }
@@ -447,20 +490,8 @@ export class PolarPlugin {
    * List all subscriptions for organization
    */
   async listSubscriptions(organizationId: string): Promise<PolarSubscription[]> {
-    const response = await this.client.get<{
-      items: Array<{
-        id: string;
-        status: string;
-        current_period_start: string;
-        current_period_end: string;
-        cancel_at_period_end: boolean;
-        canceled_at?: string;
-        customer_id: string;
-        product_id: string;
-        price_id: string;
-        metadata: Record<string, string>;
-        created_at: string;
-      }>;
+    const response = await this.client.http.get<{
+      items: SubscriptionApiResponse[];
     }>(`/api/v1/polar/subscriptions?organization_id=${organizationId}`);
 
     return response.data.items.map(sub => this.mapSubscription(sub));
@@ -481,7 +512,7 @@ export class PolarPlugin {
    * ```
    */
   async cancelSubscription(subscriptionId: string, cancelAtPeriodEnd: boolean = true): Promise<PolarSubscription> {
-    const response = await this.client.post<any>(
+    const response = await this.client.http.post<SubscriptionApiResponse>(
       `/api/v1/polar/subscriptions/${subscriptionId}/cancel`,
       { cancel_at_period_end: cancelAtPeriodEnd }
     );
@@ -495,7 +526,7 @@ export class PolarPlugin {
    * Resume a canceled subscription (before period end)
    */
   async resumeSubscription(subscriptionId: string): Promise<PolarSubscription> {
-    const response = await this.client.post<any>(
+    const response = await this.client.http.post<SubscriptionApiResponse>(
       `/api/v1/polar/subscriptions/${subscriptionId}/resume`,
       {}
     );
@@ -554,7 +585,7 @@ export class PolarPlugin {
    * ```
    */
   async getCustomerPortalUrl(organizationId: string): Promise<string> {
-    const response = await this.client.get<{ portal_url: string }>(
+    const response = await this.client.http.get<{ portal_url: string }>(
       `/api/v1/polar/customer/portal?organization_id=${organizationId}`
     );
     return response.data.portal_url;
@@ -574,7 +605,7 @@ export class PolarPlugin {
     if (typeof window !== 'undefined') {
       window.location.href = portalUrl;
     } else {
-      throw new Error('redirectToPortal() requires a browser environment');
+      throw new ConfigurationError('redirectToPortal() requires a browser environment');
     }
   }
 
@@ -588,10 +619,10 @@ export class PolarPlugin {
    * ```
    */
   async getCustomerPortalData(organizationId: string): Promise<PolarCustomerPortalData> {
-    const response = await this.client.get<{
-      subscriptions: any[];
-      benefits: any[];
-      orders: any[];
+    const response = await this.client.http.get<{
+      subscriptions: SubscriptionApiResponse[];
+      benefits: BenefitApiResponse[];
+      orders: OrderApiResponse[];
     }>(`/api/v1/polar/customer/data?organization_id=${organizationId}`);
 
     return {
@@ -638,7 +669,7 @@ export class PolarPlugin {
    * ```
    */
   async ingestUsage(organizationId: string, event: PolarUsageEvent): Promise<void> {
-    await this.client.post('/api/v1/polar/usage', {
+    await this.client.http.post('/api/v1/polar/usage', {
       organization_id: organizationId,
       event_name: event.eventName,
       quantity: event.quantity || 1,
@@ -659,7 +690,7 @@ export class PolarPlugin {
    * ```
    */
   async ingestUsageBatch(organizationId: string, events: PolarUsageEvent[]): Promise<void> {
-    await this.client.post('/api/v1/polar/usage/batch', {
+    await this.client.http.post('/api/v1/polar/usage/batch', {
       organization_id: organizationId,
       events: events.map(event => ({
         event_name: event.eventName,
@@ -688,7 +719,7 @@ export class PolarPlugin {
     if (startDate) params.append('start_date', startDate.toISOString());
     if (endDate) params.append('end_date', endDate.toISOString());
 
-    const response = await this.client.get<{
+    const response = await this.client.http.get<{
       items: Array<{ event_name: string; total_quantity: number }>;
     }>(`/api/v1/polar/usage/summary?${params.toString()}`);
 
@@ -717,7 +748,7 @@ export class PolarPlugin {
       interval?: 'month' | 'year';
     }>;
   }>> {
-    const response = await this.client.get<{
+    const response = await this.client.http.get<{
       items: Array<{
         id: string;
         name: string;
@@ -750,10 +781,10 @@ export class PolarPlugin {
   // Private Helpers
   // ==========================================================================
 
-  private mapSubscription(data: any): PolarSubscription {
+  private mapSubscription(data: SubscriptionApiResponse): PolarSubscription {
     return {
       id: data.id,
-      status: data.status,
+      status: data.status as PolarSubscription['status'],
       currentPeriodStart: data.current_period_start,
       currentPeriodEnd: data.current_period_end,
       cancelAtPeriodEnd: data.cancel_at_period_end,

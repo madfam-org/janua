@@ -327,7 +327,7 @@ describe('Users - Basic Operations', () => {
       expect(mockHttpClient.get).toHaveBeenCalledWith('/api/v1/users/search', {
         params: { q: query, ...filters }
       });
-      expect(result.data).toEqual(mockResponse.users);
+      expect(result.users).toEqual(mockResponse.users);
     });
   });
 

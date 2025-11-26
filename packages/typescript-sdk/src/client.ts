@@ -34,7 +34,7 @@ import { WebSocket } from './websocket';
 export class JanuaClient extends EventEmitter<SdkEventMap> {
   private config: Required<JanuaConfig>;
   private tokenManager: TokenManager;
-  private httpClient: HttpClient;
+  private _httpClient: HttpClient;
 
   // Module instances
   public readonly auth: Auth;
@@ -55,6 +55,14 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
   private enterprise: EnterpriseFeatures;
   private licenseInfo?: LicenseInfo;
 
+  /**
+   * Get the HTTP client for making raw API requests.
+   * Used by plugins to make API calls.
+   */
+  get http(): HttpClient {
+    return this._httpClient;
+  }
+
   constructor(config: Partial<JanuaConfig> = {}) {
     super();
 
@@ -65,7 +73,7 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
     this.tokenManager = this.createTokenManager();
 
     // Initialize HTTP client
-    this.httpClient = this.createHttpClient();
+    this._httpClient = this.createHttpClient();
 
     // Initialize enterprise features
     this.enterprise = new EnterpriseFeatures({
@@ -75,19 +83,19 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
 
     // Initialize modules
     this.auth = new Auth(
-      this.httpClient,
+      this._httpClient,
       this.tokenManager,
       () => this.emit('auth:signedIn', { user: {} as any }),
       () => this.emit('auth:signedOut', {})
     );
-    this.users = new Users(this.httpClient);
-    this.sessions = new Sessions(this.httpClient);
-    this.organizations = new Organizations(this.httpClient);
-    this.webhooks = new Webhooks(this.httpClient);
-    this.admin = new Admin(this.httpClient);
-    this.sso = new SSO(this.httpClient);
-    this.invitations = new Invitations(this.httpClient);
-    this.payments = new Payments(this);
+    this.users = new Users(this._httpClient);
+    this.sessions = new Sessions(this._httpClient);
+    this.organizations = new Organizations(this._httpClient);
+    this.webhooks = new Webhooks(this._httpClient);
+    this.admin = new Admin(this._httpClient);
+    this.sso = new SSO(this._httpClient);
+    this.invitations = new Invitations(this._httpClient);
+    this.payments = new Payments(this._httpClient);
 
     // Initialize GraphQL if configured
     if ((config as any).graphqlUrl) {
@@ -224,23 +232,23 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
    * Set up event forwarding from HTTP client
    */
   private setupEventForwarding(): void {
-    this.httpClient.on('token:refreshed', (data) => {
+    this._httpClient.on('token:refreshed', (data) => {
       this.emit('token:refreshed', data);
     });
 
-    this.httpClient.on('token:expired', (data) => {
+    this._httpClient.on('token:expired', (data) => {
       this.emit('token:expired', data);
     });
 
-    this.httpClient.on('auth:signedIn', (data) => {
+    this._httpClient.on('auth:signedIn', (data) => {
       this.emit('auth:signedIn', data);
     });
 
-    this.httpClient.on('auth:signedOut', (data) => {
+    this._httpClient.on('auth:signedOut', (data) => {
       this.emit('auth:signedOut', data);
     });
 
-    this.httpClient.on('error', (data) => {
+    this._httpClient.on('error', (data) => {
       this.emit('error', data);
     });
   }
@@ -415,7 +423,7 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
   async enableSSO(type: 'saml' | 'oidc', config: any): Promise<any> {
     const featureKey = type === 'saml' ? FEATURES.SSO_SAML : FEATURES.SSO_OIDC;
     await this.enterprise.requireEnterprise(featureKey);
-    return await this.httpClient.post('/v1/enterprise/sso/configure', {
+    return await this._httpClient.post('/v1/enterprise/sso/configure', {
       type,
       config
     });
@@ -426,7 +434,7 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
    */
   async getAuditLogs(params?: any): Promise<any> {
     await this.enterprise.requireEnterprise(FEATURES.AUDIT_LOGS);
-    return await this.httpClient.get('/v1/enterprise/audit-logs', { params });
+    return await this._httpClient.get('/v1/enterprise/audit-logs', { params });
   }
 
   /**
@@ -434,7 +442,7 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
    */
   async createCustomRole(role: any): Promise<any> {
     await this.enterprise.requireEnterprise(FEATURES.CUSTOM_ROLES);
-    return await this.httpClient.post('/v1/enterprise/roles', role);
+    return await this._httpClient.post('/v1/enterprise/roles', role);
   }
 
   /**
@@ -442,7 +450,7 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
    */
   async configureWhiteLabeling(config: any): Promise<any> {
     await this.enterprise.requireEnterprise(FEATURES.WHITE_LABELING);
-    return await this.httpClient.post('/v1/enterprise/white-label', config);
+    return await this._httpClient.post('/v1/enterprise/white-label', config);
   }
 
   /**
@@ -450,7 +458,7 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
    */
   async getComplianceReport(type: string): Promise<any> {
     await this.enterprise.requireEnterprise(FEATURES.COMPLIANCE_REPORTS);
-    return await this.httpClient.get(`/v1/enterprise/compliance/${type}`);
+    return await this._httpClient.get(`/v1/enterprise/compliance/${type}`);
   }
 
   /**
@@ -503,7 +511,7 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
     const startTime = Date.now();
 
     try {
-      await this.httpClient.get('/api/v1/auth/oauth/providers', { skipAuth: true });
+      await this._httpClient.get('/api/v1/auth/oauth/providers', { skipAuth: true });
       const latency = Math.max(1, Date.now() - startTime);
 
       return {
@@ -585,7 +593,7 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
   async signInWithPasskey(email?: string): Promise<import('./types').AuthResponse> {
     // Dynamically import WebAuthn helper for browser environments
     if (typeof window === 'undefined' || !window.PublicKeyCredential) {
-      throw new Error('Passkey authentication is only available in browser environments with WebAuthn support');
+      throw new ConfigurationError('Passkey authentication is only available in browser environments with WebAuthn support');
     }
 
     const { WebAuthnHelper } = await import('./webauthn-helper');
@@ -600,7 +608,7 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
   async registerPasskey(name?: string): Promise<void> {
     // Dynamically import WebAuthn helper for browser environments
     if (typeof window === 'undefined' || !window.PublicKeyCredential) {
-      throw new Error('Passkey registration is only available in browser environments with WebAuthn support');
+      throw new ConfigurationError('Passkey registration is only available in browser environments with WebAuthn support');
     }
 
     const { WebAuthnHelper } = await import('./webauthn-helper');

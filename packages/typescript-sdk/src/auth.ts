@@ -674,6 +674,7 @@ export class Auth {
    * Get passkey registration options
    */
   async getPasskeyRegistrationOptions(options?: {
+    name?: string;
     authenticator_attachment?: 'platform' | 'cross-platform';
   }): Promise<{
     challenge: string;

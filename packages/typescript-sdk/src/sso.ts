@@ -340,10 +340,7 @@ export class SSO {
     }
 
     const response = await this.http.get<string>(
-      `/api/v1/sso/metadata/${organizationId}`,
-      {
-        responseType: 'text' as any
-      }
+      `/api/v1/sso/metadata/${organizationId}`
     );
     return response.data;
   }

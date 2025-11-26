@@ -5,6 +5,7 @@
 
 import { EventEmitter } from './utils'
 import { logger } from './utils/logger'
+import { NetworkError } from './errors'
 
 export interface WebSocketConfig {
   url: string
@@ -60,7 +61,7 @@ export class WebSocket extends EventEmitter<WebSocketEventMap> {
       reconnectAttempts: config.reconnectAttempts || 5,
       heartbeatInterval: config.heartbeatInterval || 30000,
       debug: config.debug ?? false,
-      protocols: config.protocols,
+      protocols: config.protocols ?? [],
     }
   }
 
@@ -114,7 +115,7 @@ export class WebSocket extends EventEmitter<WebSocketEventMap> {
    */
   send(message: WebSocketMessage): void {
     if (!this.ws || this.status !== 'connected') {
-      throw new Error('WebSocket not connected')
+      throw new NetworkError('WebSocket not connected')
     }
 
     const payload = JSON.stringify({

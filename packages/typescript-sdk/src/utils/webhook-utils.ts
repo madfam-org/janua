@@ -2,6 +2,8 @@
  * Webhook utility functions
  */
 
+import { ConfigurationError } from '../errors';
+
 /**
  * Webhook utility functions for signature generation and verification
  */
@@ -43,7 +45,7 @@ export class WebhookUtils {
       return this.browserHmac(payloadStr, secret);
     }
 
-    throw new Error('No suitable crypto implementation available');
+    throw new ConfigurationError('No suitable crypto implementation available');
   }
 
   /**
@@ -69,7 +71,7 @@ export class WebhookUtils {
         .digest('hex');
     }
 
-    throw new Error('No suitable crypto implementation available');
+    throw new ConfigurationError('No suitable crypto implementation available');
   }
 
   /**
