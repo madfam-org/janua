@@ -27,7 +27,7 @@
     "test:watch": "jest --config jest.config.js --watch"
   },
   "dependencies": {
-    "@janua/typescript-sdk": "*"
+    "@janua/typescript-sdk": "file:../typescript-sdk"
   },
   "peerDependencies": {
     "react": "^18.0.0",
