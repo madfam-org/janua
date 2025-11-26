@@ -18,3 +18,6 @@ export type { InvoiceListProps } from './invoice-list';
 
 export { BillingPortal } from './billing-portal';
 export type { BillingPortalProps } from './billing-portal';
+
+export { AdminBillingDashboard } from './admin-billing-dashboard';
+export type { AdminBillingDashboardProps } from './admin-billing-dashboard';

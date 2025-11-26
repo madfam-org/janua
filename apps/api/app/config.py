@@ -101,6 +101,12 @@ class Settings(BaseSettings):
     FROM_NAME: Optional[str] = Field(default=None)
     SUPPORT_EMAIL: Optional[str] = Field(default=None)
 
+    # Internal API (for service-to-service communication)
+    INTERNAL_API_KEY: Optional[str] = Field(
+        default=None,
+        description="API key for internal service communication (email, billing, etc.)",
+    )
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Set email aliases if not explicitly provided

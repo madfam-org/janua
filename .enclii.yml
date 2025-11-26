@@ -1,0 +1,95 @@
+# Janua - Self-Hosted Authentication Provider
+# Deploy via Enclii
+
+apiVersion: enclii.dev/v1
+kind: Service
+metadata:
+  name: janua
+  project: madfam-platform
+  description: Self-hosted OAuth 2.0 / OIDC authentication provider
+
+spec:
+  build:
+    type: dockerfile
+    dockerfile: Dockerfile
+    context: .
+    source:
+      git:
+        repository: https://github.com/madfam-io/janua
+        branch: main
+        autoDeploy: true
+
+  runtime:
+    port: 8000
+    replicas: 3
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "512Mi"
+
+    healthCheck: /health
+    readinessProbe:
+      path: /health/ready
+      initialDelaySeconds: 10
+      periodSeconds: 5
+    livenessProbe:
+      path: /health/live
+      initialDelaySeconds: 30
+      periodSeconds: 10
+
+  env:
+    - name: PORT
+      value: "8000"
+    - name: NODE_ENV
+      value: production
+    - name: LOG_LEVEL
+      value: info
+
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: janua-secrets
+          key: database-url
+
+    - name: REDIS_URL
+      valueFrom:
+        secretKeyRef:
+          name: janua-secrets
+          key: redis-url
+
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: janua-secrets
+          key: jwt-secret
+
+    - name: COOKIE_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: janua-secrets
+          key: cookie-secret
+
+    # MADFAM Analytics integration
+    - name: NEXT_PUBLIC_ANALYTICS_URL
+      value: https://analytics.madfam.io
+    - name: NEXT_PUBLIC_ANALYTICS_SITE_ID
+      value: janua
+
+  domains:
+    - domain: auth.madfam.io
+      tls: true
+      tlsIssuer: cloudflare
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+  slo:
+    availability: 99.99
+    latencyP95: 100
+    errorRate: 0.1

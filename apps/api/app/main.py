@@ -19,6 +19,7 @@ try:
             return bcrypt._original_hashpw(password, salt)
 
             return bcrypt._original_hashpw(password, salt)
+
         bcrypt.hashpw = _patched_hashpw
 except ImportError:
     pass
@@ -915,6 +916,15 @@ app.include_router(invitations_v1.router, prefix="/api")
 app.include_router(audit_logs_v1.router, prefix="/api")
 # app.include_router(alerts_v1.router, prefix="/api/v1")  # Disabled - requires opentelemetry.exporter dependency
 app.include_router(localization_v1.router, prefix="/api/v1")  # Localization model now available
+
+# Internal service API routers (for MADFAM service-to-service communication)
+try:
+    from app.routers.v1 import email as email_v1
+
+    app.include_router(email_v1.router, prefix="/api/v1/internal")
+    logger.info("Registered internal email router successfully")
+except Exception as e:
+    logger.warning(f"Email router not available: {e}")
 
 # Register additional feature routers if available
 for router_name, router_module in additional_routers.items():

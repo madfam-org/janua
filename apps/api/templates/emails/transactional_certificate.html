@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Certificate is Ready</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        .container { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 40px 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .badge { font-size: 60px; margin-bottom: 15px; }
+        .content { padding: 40px 30px; }
+        .cert-box { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #10b981; border-radius: 12px; padding: 30px; text-align: center; margin: 20px 0; }
+        .cert-title { font-size: 20px; font-weight: 700; color: #059669; margin-bottom: 10px; }
+        .recipient { font-size: 16px; color: #333; }
+        .folio { background: white; padding: 8px 16px; border-radius: 20px; display: inline-block; margin-top: 15px; font-size: 13px; color: #6b7280; }
+        .btn { display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; margin: 20px 0; }
+        .footer { text-align: center; padding: 20px 30px; background: #f9fafb; color: #6b7280; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="badge">🎓</div>
+            <h1>¡Felicidades!</h1>
+        </div>
+        <div class="content">
+            <p>Tu constancia DC-3 ha sido generada exitosamente.</p>
+            <div class="cert-box">
+                <div class="cert-title">{{certificate_name}}</div>
+                <div class="recipient">Otorgada a: <strong>{{recipient_name}}</strong></div>
+                <div class="folio">Folio: {{folio}}</div>
+            </div>
+            <p><strong>Fecha de emisión:</strong> {{issue_date}}</p>
+            <p style="text-align: center;">
+                <a href="{{download_url}}" class="btn">Descargar Constancia (PDF)</a>
+            </p>
+            <p style="font-size: 14px; color: #6b7280;">
+                Esta constancia cumple con los requisitos establecidos por la Secretaría del Trabajo y Previsión Social (STPS)
+                conforme al Artículo 153-V de la Ley Federal del Trabajo.
+            </p>
+        </div>
+        <div class="footer">
+            <p>Avala - Plataforma de Capacitación y Certificación</p>
+            <p>Este documento es verificable en línea con el folio proporcionado.</p>
+        </div>
+    </div>
+</body>
+</html>

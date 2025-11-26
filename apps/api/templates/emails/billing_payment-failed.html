@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Failed</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        .container { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { background: #ef4444; color: white; padding: 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .content { padding: 40px 30px; }
+        .alert-box { background: #fef2f2; border: 2px solid #ef4444; border-radius: 12px; padding: 25px; text-align: center; margin: 20px 0; }
+        .amount { font-size: 28px; font-weight: 700; color: #ef4444; }
+        .btn { display: inline-block; background: #ef4444; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; margin: 20px 0; }
+        .info-box { background: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .footer { text-align: center; padding: 20px 30px; background: #f9fafb; color: #6b7280; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚠️ Payment Failed</h1>
+        </div>
+        <div class="content">
+            <p>We weren't able to process your payment of <strong>{{currency}} {{amount}}</strong>.</p>
+            <div class="alert-box">
+                <p style="margin: 0;">We'll automatically retry on</p>
+                <div class="amount">{{retry_date}}</div>
+            </div>
+            <p>To avoid service interruption, please update your payment method:</p>
+            <p style="text-align: center;">
+                <a href="{{update_payment_url}}" class="btn">Update Payment Method</a>
+            </p>
+            <div class="info-box">
+                <strong>Common reasons for failed payments:</strong>
+                <ul style="margin-bottom: 0;">
+                    <li>Insufficient funds</li>
+                    <li>Expired card</li>
+                    <li>Bank declined the transaction</li>
+                    <li>Incorrect card details</li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer">
+            <p>Need help? Contact us at <a href="mailto:{{support_email}}">{{support_email}}</a></p>
+        </div>
+    </div>
+</body>
+</html>

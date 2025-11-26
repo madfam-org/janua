@@ -58,6 +58,10 @@ stringData:
   SENDGRID_API_KEY: "REPLACE_WITH_ACTUAL_SENDGRID_KEY"
   SENTRY_DSN: "REPLACE_WITH_ACTUAL_SENTRY_DSN"
   GRAFANA_PASSWORD: "REPLACE_WITH_ACTUAL_GRAFANA_PASSWORD"
+  # Email (Resend) - Centralized for all MADFAM apps
+  RESEND_API_KEY: "REPLACE_WITH_ACTUAL_RESEND_KEY"
+  # Internal API - Service-to-service communication for MADFAM apps
+  INTERNAL_API_KEY: "REPLACE_WITH_ACTUAL_INTERNAL_API_KEY"
 
 ---
 # API Deployment
@@ -76,7 +80,7 @@ spec:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
-      maxUnavailable: 0  # Zero-downtime deployment
+      maxUnavailable: 0 # Zero-downtime deployment
   selector:
     matchLabels:
       app: janua-api
@@ -96,118 +100,118 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         fsGroup: 1000
-      
+
       # Init Container for Database Migrations
       initContainers:
-      - name: database-migration
-        image: janua/api:latest
-        command: ["python", "-m", "alembic", "upgrade", "head"]
-        envFrom:
-        - configMapRef:
-            name: janua-config
-        - secretRef:
-            name: janua-secrets
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 1000
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop:
-            - ALL
-      
+        - name: database-migration
+          image: janua/api:latest
+          command: ["python", "-m", "alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: janua-config
+            - secretRef:
+                name: janua-secrets
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
       containers:
-      - name: api
-        image: janua/api:latest
-        ports:
-        - containerPort: 8000
-          name: http
-          protocol: TCP
-        
-        # Environment Configuration
-        envFrom:
-        - configMapRef:
-            name: janua-config
-        - secretRef:
-            name: janua-secrets
-        
-        # Resource Limits and Requests
-        resources:
-          requests:
-            cpu: 500m
-            memory: 1Gi
-          limits:
-            cpu: 2000m
-            memory: 4Gi
-        
-        # Health Checks
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 5
-          timeoutSeconds: 3
-          successThreshold: 1
-          failureThreshold: 3
-        
-        # Startup Probe (for slower startup)
-        startupProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 12  # 2 minutes max startup time
-        
-        # Security Context
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 1000
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop:
-            - ALL
-        
-        # Volume Mounts (for read-only filesystem)
-        volumeMounts:
-        - name: tmp-volume
-          mountPath: /tmp
-        - name: cache-volume
-          mountPath: /app/.cache
-      
+        - name: api
+          image: janua/api:latest
+          ports:
+            - containerPort: 8000
+              name: http
+              protocol: TCP
+
+          # Environment Configuration
+          envFrom:
+            - configMapRef:
+                name: janua-config
+            - secretRef:
+                name: janua-secrets
+
+          # Resource Limits and Requests
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+
+          # Health Checks
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+
+          # Startup Probe (for slower startup)
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12 # 2 minutes max startup time
+
+          # Security Context
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          # Volume Mounts (for read-only filesystem)
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+            - name: cache-volume
+              mountPath: /app/.cache
+
       # Volumes
       volumes:
-      - name: tmp-volume
-        emptyDir: {}
-      - name: cache-volume
-        emptyDir: {}
-      
+        - name: tmp-volume
+          emptyDir: {}
+        - name: cache-volume
+          emptyDir: {}
+
       # Node Selection and Anti-Affinity
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              labelSelector:
-                matchExpressions:
-                - key: app
-                  operator: In
-                  values:
-                  - janua-api
-              topologyKey: kubernetes.io/hostname
-      
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - janua-api
+                topologyKey: kubernetes.io/hostname
+
       # Termination Grace Period
       terminationGracePeriodSeconds: 60
 
@@ -227,10 +231,10 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - port: 80
-    targetPort: 8000
-    protocol: TCP
-    name: http
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+      name: http
   selector:
     app: janua-api
 
@@ -249,31 +253,31 @@ spec:
   minReplicas: 3
   maxReplicas: 10
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
   behavior:
     scaleUp:
       stabilizationWindowSeconds: 60
       policies:
-      - type: Percent
-        value: 50
-        periodSeconds: 60
+        - type: Percent
+          value: 50
+          periodSeconds: 60
     scaleDown:
       stabilizationWindowSeconds: 300
       policies:
-      - type: Percent
-        value: 10
-        periodSeconds: 60
+        - type: Percent
+          value: 10
+          periodSeconds: 60
 
 ---
 # Pod Disruption Budget
@@ -300,40 +304,40 @@ spec:
     matchLabels:
       app: janua-api
   policyTypes:
-  - Ingress
-  - Egress
+    - Ingress
+    - Egress
   ingress:
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          name: janua-ingress
-    - podSelector:
-        matchLabels:
-          app: janua-nginx
-    ports:
-    - protocol: TCP
-      port: 8000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: janua-ingress
+        - podSelector:
+            matchLabels:
+              app: janua-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
   egress:
-  - to:
-    - podSelector:
-        matchLabels:
-          app: postgres
-    ports:
-    - protocol: TCP
-      port: 5432
-  - to:
-    - podSelector:
-        matchLabels:
-          app: redis
-    ports:
-    - protocol: TCP
-      port: 6379
-  - to: []  # Allow all outbound for external services (SendGrid, etc.)
-    ports:
-    - protocol: TCP
-      port: 443
-    - protocol: TCP
-      port: 80
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to: [] # Allow all outbound for external services (SendGrid, etc.)
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
 
 ---
 # Ingress for API
@@ -361,17 +365,17 @@ metadata:
       more_set_headers "Permissions-Policy: geolocation=(), microphone=(), camera=()";
 spec:
   tls:
-  - hosts:
-    - api.janua.dev
-    secretName: janua-api-tls
+    - hosts:
+        - api.janua.dev
+      secretName: janua-api-tls
   rules:
-  - host: api.janua.dev
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: janua-api-service
-            port:
-              number: 80
+    - host: api.janua.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: janua-api-service
+                port:
+                  number: 80
