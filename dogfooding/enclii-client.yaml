@@ -1,0 +1,296 @@
+# Enclii OAuth Client Configuration
+# ==================================
+# OAuth 2.0 / OIDC client configuration for Enclii Switchyard
+# This enables Enclii to authenticate users via Janua
+#
+# Relationship:
+# - Janua is the OAuth 2.0 Authorization Server / OIDC Provider
+# - Enclii is the OAuth 2.0 Client / Relying Party
+#
+# Flow: User → Enclii → Janua (auth) → Enclii (callback) → User session
+
+apiVersion: janua.io/v1
+kind: OAuthClient
+metadata:
+  name: enclii-switchyard
+  namespace: madfam-platform
+  labels:
+    app: enclii
+    tier: platform
+    environment: production
+  annotations:
+    janua.io/description: "Enclii CI/CD platform - primary madfam application"
+    janua.io/owner: platform-team
+    janua.io/created: "2025-01-01"
+
+spec:
+  # ==========================================================================
+  # CLIENT IDENTIFICATION
+  # ==========================================================================
+  client:
+    # Client ID - used in authorization requests
+    # This is public information
+    id: enclii-switchyard
+
+    # Client name displayed to users during consent
+    name: "Enclii Switchyard"
+    description: "Kubernetes-native CI/CD platform for madfam ecosystem"
+
+    # Logo displayed during OAuth flow
+    logoUri: "https://app.enclii.io/logo.svg"
+
+    # Client website
+    uri: "https://enclii.io"
+
+    # Terms of service and privacy policy
+    tosUri: "https://enclii.io/terms"
+    policyUri: "https://enclii.io/privacy"
+
+    # Contact for this client
+    contacts:
+      - "platform-team@madfam.io"
+
+  # ==========================================================================
+  # OAUTH 2.0 CONFIGURATION
+  # ==========================================================================
+  oauth:
+    # Grant types allowed for this client
+    grantTypes:
+      - authorization_code  # Primary flow for user authentication
+      - refresh_token       # Allow token refresh
+      # NOT client_credentials - this is for user auth, not service-to-service
+
+    # Response types
+    responseTypes:
+      - code  # Authorization code flow only (most secure)
+
+    # Token endpoint authentication method
+    tokenEndpointAuthMethod: client_secret_post
+    # Options: client_secret_basic, client_secret_post, private_key_jwt, none
+
+    # Redirect URIs - MUST be exact match (no wildcards for security)
+    redirectUris:
+      # Production
+      - "https://app.enclii.io/auth/callback"
+      - "https://api.enclii.io/api/v1/auth/oidc/callback"
+      # Staging
+      - "https://staging.enclii.io/auth/callback"
+      - "https://api.staging.enclii.io/api/v1/auth/oidc/callback"
+      # Local development
+      - "http://localhost:3000/auth/callback"
+      - "http://localhost:8080/api/v1/auth/oidc/callback"
+
+    # Post-logout redirect URIs
+    postLogoutRedirectUris:
+      - "https://app.enclii.io"
+      - "https://staging.enclii.io"
+      - "http://localhost:3000"
+
+    # Allowed CORS origins for token requests
+    allowedCorsOrigins:
+      - "https://app.enclii.io"
+      - "https://staging.enclii.io"
+      - "http://localhost:3000"
+
+  # ==========================================================================
+  # OPENID CONNECT CONFIGURATION
+  # ==========================================================================
+  oidc:
+    # Scopes this client can request
+    allowedScopes:
+      - openid           # Required for OIDC
+      - profile          # User's name, avatar, etc.
+      - email            # User's email address
+      - offline_access   # Allow refresh tokens
+      # Custom scopes for Enclii
+      - enclii:read      # Read access to Enclii resources
+      - enclii:write     # Write access to Enclii resources
+      - enclii:admin     # Admin access to Enclii
+
+    # Claims included in ID token
+    idTokenClaims:
+      - sub              # Subject (user ID)
+      - name             # Full name
+      - email            # Email address
+      - email_verified   # Whether email is verified
+      - picture          # Profile picture URL
+      - updated_at       # Last profile update
+
+    # Claims included in userinfo endpoint
+    userinfoClaims:
+      - sub
+      - name
+      - given_name
+      - family_name
+      - email
+      - email_verified
+      - picture
+      - locale
+      - zoneinfo
+
+    # ID token signing algorithm
+    idTokenSigningAlg: RS256
+
+    # Require PKCE for authorization code flow
+    # This prevents authorization code interception attacks
+    requirePkce: true
+    pkceCodeChallengeMethod: S256  # SHA-256
+
+  # ==========================================================================
+  # TOKEN CONFIGURATION
+  # ==========================================================================
+  tokens:
+    # Access token lifetime
+    accessToken:
+      lifetime: 900  # 15 minutes (seconds)
+      format: jwt    # Options: jwt, opaque
+
+    # Refresh token lifetime
+    refreshToken:
+      lifetime: 604800      # 7 days (seconds)
+      rotateOnUse: true     # Issue new refresh token on each use
+      reuseInterval: 30     # Allow reuse within 30 seconds (for network issues)
+      absoluteLifetime: 2592000  # 30 days max regardless of rotation
+
+    # ID token lifetime
+    idToken:
+      lifetime: 3600  # 1 hour (seconds)
+
+    # Authorization code lifetime
+    authorizationCode:
+      lifetime: 60  # 1 minute (should be used immediately)
+
+  # ==========================================================================
+  # SECURITY CONFIGURATION
+  # ==========================================================================
+  security:
+    # Client type
+    clientType: confidential  # Has a client secret (not public)
+
+    # Authentication requirements
+    authentication:
+      # Require the client to prove possession of the secret
+      requireClientAuth: true
+
+      # Allowed authentication methods
+      methods:
+        - client_secret_post
+        # Could also allow: client_secret_basic, private_key_jwt
+
+    # Request validation
+    validation:
+      # Require exact redirect_uri match
+      requireExactRedirectUri: true
+
+      # Require state parameter
+      requireState: true
+
+      # Require nonce for OIDC
+      requireNonce: true
+
+    # Rate limiting
+    rateLimit:
+      # Token endpoint
+      tokenRequests:
+        perMinute: 60
+        burst: 10
+
+      # Authorization endpoint
+      authRequests:
+        perMinute: 30
+        burst: 5
+
+  # ==========================================================================
+  # CONSENT CONFIGURATION
+  # ==========================================================================
+  consent:
+    # Whether to show consent screen to users
+    # For first-party apps in same org, can skip consent
+    skipConsent: true  # Enclii is first-party madfam app
+
+    # If consent is shown, remember user's decision
+    rememberConsent: true
+    rememberDuration: 2592000  # 30 days
+
+  # ==========================================================================
+  # AUDIT & COMPLIANCE
+  # ==========================================================================
+  audit:
+    # Log all OAuth events for this client
+    enabled: true
+
+    # Events to log
+    events:
+      - authorization_request
+      - authorization_grant
+      - authorization_deny
+      - token_issued
+      - token_refreshed
+      - token_revoked
+      - userinfo_request
+      - logout
+
+    # Retention period for audit logs
+    retentionDays: 90
+
+  # ==========================================================================
+  # METADATA
+  # ==========================================================================
+  metadata:
+    # Software statement (optional, for dynamic client registration)
+    softwareId: "enclii-switchyard-v1"
+    softwareVersion: "1.0.0"
+
+    # Client registration access token (for client updates)
+    # Generated during client registration
+    registrationAccessToken: ""
+
+    # Client secret hash (for verification)
+    # Actual secret stored securely, this is just for reference
+    secretHash: ""
+
+---
+# Secret for client credentials
+# In production, this would be in a separate secure secret management system
+apiVersion: v1
+kind: Secret
+metadata:
+  name: enclii-oauth-credentials
+  namespace: madfam-platform
+  labels:
+    app: enclii
+    component: oauth
+type: Opaque
+stringData:
+  # Client secret - generate with: openssl rand -base64 32
+  # IMPORTANT: Replace with actual secret in production
+  client-secret: "${ENCLII_CLIENT_SECRET}"
+
+---
+# Custom scopes for Enclii
+apiVersion: janua.io/v1
+kind: OAuthScope
+metadata:
+  name: enclii-scopes
+  namespace: madfam-platform
+spec:
+  scopes:
+    - name: enclii:read
+      description: "Read access to Enclii projects and pipelines"
+      claims:
+        - enclii_projects
+        - enclii_pipelines
+
+    - name: enclii:write
+      description: "Create and modify Enclii projects and pipelines"
+      claims:
+        - enclii_projects
+        - enclii_pipelines
+        - enclii_deployments
+
+    - name: enclii:admin
+      description: "Administrative access to Enclii platform"
+      claims:
+        - enclii_admin
+        - enclii_settings
+        - enclii_users

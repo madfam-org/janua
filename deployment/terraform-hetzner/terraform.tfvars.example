@@ -1,0 +1,115 @@
+# Janua Infrastructure - Example Configuration
+# ============================================
+# Copy this file to terraform.tfvars and fill in your values
+# NEVER commit terraform.tfvars to version control!
+
+# =============================================================================
+# PROVIDER CREDENTIALS (Required)
+# =============================================================================
+
+# Hetzner Cloud API token
+# Get from: https://console.hetzner.cloud/projects/*/security/tokens
+hetzner_token = "your-hetzner-api-token"
+
+# Cloudflare API token with permissions:
+# - Zone:DNS:Edit
+# - Zone:Zone:Read
+# - Account:Cloudflare Tunnel:Edit
+# - Account:Access: Apps and Policies:Edit
+# Get from: https://dash.cloudflare.com/profile/api-tokens
+cloudflare_api_token = "your-cloudflare-api-token"
+
+# Cloudflare account ID
+# Found at: https://dash.cloudflare.com/ (right sidebar)
+cloudflare_account_id = "your-cloudflare-account-id"
+
+# =============================================================================
+# ENVIRONMENT
+# =============================================================================
+
+environment = "production"
+domain      = "madfam.io"
+location    = "nbg1" # Nuremberg, Germany
+
+# =============================================================================
+# SERVER SIZING
+# =============================================================================
+
+# API servers (FastAPI application)
+api_server_count = 2
+api_server_type  = "cpx11" # 2 vCPU, 2GB RAM, €4.55/month each
+
+# PostgreSQL server
+db_server_type = "cpx21" # 3 vCPU, 4GB RAM, €8.39/month
+db_volume_size = 20      # GB, €0.048/GB/month
+
+# Redis server
+redis_server_type = "cpx11" # 2 vCPU, 2GB RAM, €4.55/month
+
+# =============================================================================
+# NETWORKING
+# =============================================================================
+
+# IPs allowed to SSH (CIDR format)
+# Use your office/home IP or VPN range
+management_ips = [
+  "your.ip.address.here/32",
+  # "office-vpn-range/24",
+]
+
+# =============================================================================
+# CLOUDFLARE TUNNEL
+# =============================================================================
+
+# Generate with: cloudflared tunnel create janua-production
+# Leave empty to auto-generate
+tunnel_secret = ""
+
+# =============================================================================
+# ZERO TRUST ACCESS (Optional)
+# =============================================================================
+
+# GitHub OAuth app for admin access
+# Create at: https://github.com/settings/developers
+github_oauth_client_id     = ""
+github_oauth_client_secret = ""
+
+# Emails allowed to access admin dashboard
+admin_emails = [
+  "admin@example.com",
+]
+
+# =============================================================================
+# ENCLII INTEGRATION (Optional)
+# =============================================================================
+
+# OAuth client for Enclii dogfooding
+# Register in Janua admin panel after deployment
+enclii_oauth_client_id     = ""
+enclii_oauth_client_secret = ""
+
+# =============================================================================
+# COST ESTIMATE (Monthly)
+# =============================================================================
+#
+# Hetzner Cloud:
+#   2x cpx11 (API):       €9.10
+#   1x cpx21 (Postgres):  €8.39
+#   1x cpx11 (Redis):     €4.55
+#   20GB Volume:          €0.96
+#   Network traffic:      Free (up to 20TB)
+#   ─────────────────────────────
+#   Subtotal:             €23.00
+#
+# Cloudflare (Free tier):
+#   Tunnel:               Free
+#   DNS:                  Free
+#   Zero Trust (50 users): Free
+#   R2 (10GB):            Free
+#   ─────────────────────────────
+#   Subtotal:             €0.00
+#
+# TOTAL ESTIMATED:        ~€25/month
+#
+# Compare to AWS equivalent: ~€500+/month
+# =============================================================================

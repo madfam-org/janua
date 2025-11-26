@@ -1,0 +1,286 @@
+# Janua Cloudflare Tunnel Deployment
+# ===================================
+# Zero-trust ingress via Cloudflare Tunnel
+# No exposed ports, no public IPs required
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudflare-system
+  labels:
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/part-of: janua
+
+---
+# Tunnel credentials secret
+# Create with: kubectl create secret generic cloudflared-credentials \
+#   --from-literal=tunnel-token=<your-tunnel-token> \
+#   -n cloudflare-system
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflared-credentials
+  namespace: cloudflare-system
+  labels:
+    app.kubernetes.io/name: cloudflared
+type: Opaque
+stringData:
+  # Replace with actual tunnel token from Terraform output or Cloudflare dashboard
+  tunnel-token: "${TUNNEL_TOKEN}"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+  namespace: cloudflare-system
+  labels:
+    app.kubernetes.io/name: cloudflared
+data:
+  config.yaml: |
+    # Cloudflare Tunnel Configuration
+    tunnel: janua-production
+    credentials-file: /etc/cloudflared/credentials.json
+
+    # Metrics server for monitoring
+    metrics: 0.0.0.0:2000
+
+    # Ingress rules
+    ingress:
+      # Main Janua API
+      - hostname: auth.madfam.io
+        service: http://janua-api.janua.svc.cluster.local:8000
+        originRequest:
+          connectTimeout: 30s
+          noTLSVerify: true
+
+      # Admin dashboard
+      - hostname: auth-admin.madfam.io
+        service: http://janua-api.janua.svc.cluster.local:8000
+        originRequest:
+          connectTimeout: 30s
+          noTLSVerify: true
+
+      # Health endpoint (direct)
+      - hostname: auth.madfam.io
+        path: /health
+        service: http://janua-api.janua.svc.cluster.local:8000
+
+      # OIDC well-known endpoints
+      - hostname: auth.madfam.io
+        path: /.well-known/*
+        service: http://janua-api.janua.svc.cluster.local:8000
+
+      # Catch-all 404
+      - service: http_status:404
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: cloudflare-system
+  labels:
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/component: tunnel
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudflared
+        app.kubernetes.io/component: tunnel
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: cloudflared
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:2024.1.0
+          imagePullPolicy: IfNotPresent
+
+          args:
+            - tunnel
+            - --config
+            - /etc/cloudflared/config.yaml
+            - run
+
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflared-credentials
+                  key: tunnel-token
+
+          ports:
+            - name: metrics
+              containerPort: 2000
+              protocol: TCP
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflared
+              readOnly: true
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+      volumes:
+        - name: config
+          configMap:
+            name: cloudflared-config
+
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: cloudflared
+                topologyKey: kubernetes.io/hostname
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudflared
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudflared
+  namespace: cloudflare-system
+  labels:
+    app.kubernetes.io/name: cloudflared
+
+---
+# Service for metrics scraping
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudflared-metrics
+  namespace: cloudflare-system
+  labels:
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/component: metrics
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: 2000
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: cloudflared
+
+---
+# PodDisruptionBudget for high availability
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cloudflared
+  namespace: cloudflare-system
+  labels:
+    app.kubernetes.io/name: cloudflared
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+
+---
+# NetworkPolicy - restrict egress to Cloudflare and internal services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudflared
+  namespace: cloudflare-system
+  labels:
+    app.kubernetes.io/name: cloudflared
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow Prometheus scraping
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 2000
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow connection to Janua API
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: janua
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Allow connection to Cloudflare (HTTPS)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 7844  # Cloudflare Tunnel port
