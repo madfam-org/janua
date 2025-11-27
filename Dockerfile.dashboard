@@ -1,0 +1,46 @@
+# Janua Dashboard - Multi-stage Dockerfile for Next.js
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+# Copy package files
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/dashboard/package.json ./apps/dashboard/
+COPY packages/ ./packages/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY apps/dashboard/ ./apps/dashboard/
+COPY tsconfig.json ./
+
+# Build
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm --filter dashboard build
+
+# Production stage
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/apps/dashboard/.next/standalone ./
+COPY --from=builder /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
+COPY --from=builder /app/apps/dashboard/public ./apps/dashboard/public
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "apps/dashboard/server.js"]
