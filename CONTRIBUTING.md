@@ -106,6 +106,18 @@ We need more test coverage:
 - **Redis 6+**
 - **Docker** (recommended)
 
+### NPM Registry Configuration
+
+Janua SDKs are published to MADFAM's private npm registry. Configure your `.npmrc`:
+
+```bash
+# Add to ~/.npmrc
+@janua:registry=https://npm.madfam.io
+//npm.madfam.io/:_authToken=${NPM_MADFAM_TOKEN}
+```
+
+Set the `NPM_MADFAM_TOKEN` environment variable with your registry token.
+
 ### Quick Setup
 
 ```bash

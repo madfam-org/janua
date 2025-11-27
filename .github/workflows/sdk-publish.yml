@@ -5,16 +5,16 @@ on:
     branches:
       - main
     paths:
-      - 'packages/**'
-      - '.github/workflows/sdk-publish.yml'
+      - "packages/**"
+      - ".github/workflows/sdk-publish.yml"
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       sdk:
-        description: 'SDK to publish (all, python, javascript, typescript, go, java, dotnet, ruby, php)'
+        description: "SDK to publish (all, python, javascript, typescript, go, java, dotnet, ruby, php)"
         required: true
-        default: 'all'
+        default: "all"
         type: choice
         options:
           - all
@@ -27,9 +27,9 @@ on:
           - ruby
           - php
       version_bump:
-        description: 'Version bump type'
+        description: "Version bump type"
         required: true
-        default: 'patch'
+        default: "patch"
         type: choice
         options:
           - major
@@ -38,13 +38,13 @@ on:
           - prerelease
 
 env:
-  NODE_VERSION: '18'
-  PYTHON_VERSION: '3.9'
-  GO_VERSION: '1.21'
-  JAVA_VERSION: '11'
-  DOTNET_VERSION: '7.0'
-  RUBY_VERSION: '3.0'
-  PHP_VERSION: '8.2'
+  NODE_VERSION: "18"
+  PYTHON_VERSION: "3.9"
+  GO_VERSION: "1.21"
+  JAVA_VERSION: "11"
+  DOTNET_VERSION: "7.0"
+  RUBY_VERSION: "3.0"
+  PHP_VERSION: "8.2"
 
 jobs:
   # Validate and test all SDKs before publishing
@@ -91,7 +91,7 @@ jobs:
         run: |
           # Get current version from main package
           current_version=$(cat packages/javascript/package.json | jq -r '.version')
-          
+
           if [[ "${{ github.event_name }}" == "release" ]]; then
             version="${{ github.event.release.tag_name }}"
             version="${version#v}"  # Remove 'v' prefix if present
@@ -104,7 +104,7 @@ jobs:
             npm install -g semver
             version=$(semver -i patch $current_version)
           fi
-          
+
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "Publishing version: $version"
 
@@ -115,39 +115,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Install dependencies
         run: |
           cd packages/python
           pip install --upgrade pip
           pip install build twine pytest black mypy
           pip install -e .
-      
+
       - name: Run tests
         run: |
           cd packages/python
           python -m pytest tests/ -v
-      
+
       - name: Type check
         run: |
           cd packages/python
           mypy janua --ignore-missing-imports
-      
+
       - name: Update version
         run: |
           cd packages/python
           sed -i "s/version=\".*\"/version=\"${{ needs.validate.outputs.version }}\"/" setup.py
-      
+
       - name: Build package
         run: |
           cd packages/python
           python -m build
-      
+
       - name: Publish to PyPI
         env:
           TWINE_USERNAME: __token__
@@ -163,44 +163,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          registry-url: 'https://registry.npmjs.org'
-      
+          registry-url: "https://npm.madfam.io"
+
       - name: Install dependencies
         run: |
           cd packages/javascript
           npm ci
-      
+
       - name: Run tests
         run: |
           cd packages/javascript
           npm test
-      
+
       - name: Lint
         run: |
           cd packages/javascript
           npm run lint
-      
+
       - name: Build
         run: |
           cd packages/javascript
           npm run build
-      
+
       - name: Update version
         run: |
           cd packages/javascript
           npm version ${{ needs.validate.outputs.version }} --no-git-tag-version
-      
+
       - name: Publish to NPM
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
         run: |
           cd packages/javascript
-          npm publish --access public
+          npm publish --access restricted
 
   # Go SDK (github.com/janua/janua-go)
   publish-go:
@@ -209,22 +209,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GO_VERSION }}
-      
+
       - name: Test
         run: |
           cd packages/go
           go test ./... -v
-      
+
       - name: Build
         run: |
           cd packages/go
           go build ./...
-      
+
       - name: Tag version
         run: |
           cd packages/go
@@ -238,23 +238,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Java
         uses: actions/setup-java@v3
         with:
           java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-      
+          distribution: "temurin"
+
       - name: Run tests
         run: |
           cd packages/java
           ./mvnw test
-      
+
       - name: Update version
         run: |
           cd packages/java
           ./mvnw versions:set -DnewVersion=${{ needs.validate.outputs.version }}
-      
+
       - name: Build and deploy
         env:
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
@@ -271,32 +271,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
-      
+
       - name: Restore dependencies
         run: |
           cd packages/dotnet
           dotnet restore
-      
+
       - name: Build
         run: |
           cd packages/dotnet
           dotnet build --configuration Release
-      
+
       - name: Test
         run: |
           cd packages/dotnet
           dotnet test --no-build --configuration Release
-      
+
       - name: Pack
         run: |
           cd packages/dotnet
           dotnet pack --configuration Release -p:PackageVersion=${{ needs.validate.outputs.version }}
-      
+
       - name: Publish to NuGet
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
@@ -311,32 +311,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
-      
+
       - name: Install dependencies
         run: |
           cd packages/ruby
           bundle install
-      
+
       - name: Run tests
         run: |
           cd packages/ruby
           bundle exec rspec
-      
+
       - name: Update version
         run: |
           cd packages/ruby
           sed -i "s/VERSION = \".*\"/VERSION = \"${{ needs.validate.outputs.version }}\"/" lib/janua/version.rb
-      
+
       - name: Build gem
         run: |
           cd packages/ruby
           gem build janua.gemspec
-      
+
       - name: Publish to RubyGems
         env:
           GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
@@ -351,28 +351,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ env.PHP_VERSION }}
           tools: composer:v2
-      
+
       - name: Install dependencies
         run: |
           cd packages/php
           composer install
-      
+
       - name: Run tests
         run: |
           cd packages/php
           vendor/bin/phpunit
-      
+
       - name: Update version
         run: |
           cd packages/php
           composer config version ${{ needs.validate.outputs.version }}
-      
+
       # Packagist auto-updates from GitHub tags
       - name: Tag version
         run: |
@@ -382,16 +382,25 @@ jobs:
 
   # Update documentation after all SDKs are published
   update-docs:
-    needs: [publish-python, publish-javascript, publish-go, publish-java, publish-dotnet, publish-ruby, publish-php]
+    needs:
+      [
+        publish-python,
+        publish-javascript,
+        publish-go,
+        publish-java,
+        publish-dotnet,
+        publish-ruby,
+        publish-php,
+      ]
     if: always() && !cancelled()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Update SDK versions in docs
         run: |
           version="${{ needs.validate.outputs.version }}"
-          
+
           # Update README.md
           sed -i "s/janua-python==.*/janua-python==$version/" README.md
           sed -i "s/janua-js@.*/janua-js@$version/" README.md
@@ -400,7 +409,7 @@ jobs:
           sed -i "s/PackageReference Include=\"Janua\" Version=\".*\"/PackageReference Include=\"Janua\" Version=\"$version\"/" README.md
           sed -i "s/gem 'janua', '.*'/gem 'janua', '$version'/" README.md
           sed -i "s/\"janua\/janua\": \".*\"/\"janua\/janua\": \"$version\"/" README.md
-      
+
       - name: Create PR for documentation updates
         uses: peter-evans/create-pull-request@v5
         with:
@@ -408,7 +417,7 @@ jobs:
           title: "Update SDK versions to ${{ needs.validate.outputs.version }}"
           body: |
             This PR updates the SDK version references in documentation to ${{ needs.validate.outputs.version }}.
-            
+
             Published SDKs:
             ${{ toJson(needs.validate.outputs.sdks_to_publish) }}
           branch: update-sdk-versions-${{ needs.validate.outputs.version }}
@@ -427,7 +436,7 @@ jobs:
           status="${{ job.status }}"
           version="${{ needs.validate.outputs.version }}"
           sdks='${{ needs.validate.outputs.sdks_to_publish }}'
-          
+
           if [[ "$status" == "success" ]]; then
             emoji=":white_check_mark:"
             text="Successfully published SDKs version $version"
@@ -435,7 +444,7 @@ jobs:
             emoji=":x:"
             text="Failed to publish SDKs version $version"
           fi
-          
+
           curl -X POST $SLACK_WEBHOOK_URL \
             -H 'Content-Type: application/json' \
             -d "{

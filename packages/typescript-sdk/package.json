@@ -59,8 +59,8 @@
     "url": "https://github.com/madfam-io/janua/issues"
   },
   "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
+    "access": "restricted",
+    "registry": "https://npm.madfam.io/"
   },
   "homepage": "https://janua.dev",
   "devDependencies": {

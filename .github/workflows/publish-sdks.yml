@@ -3,12 +3,12 @@ name: Publish SDKs
 on:
   push:
     tags:
-      - 'typescript-sdk-v*'
-      - 'react-sdk-v*'
-      - 'nextjs-sdk-v*'
-      - 'vue-sdk-v*'
-      - 'python-sdk-v*'
-      - 'go-sdk/v*'
+      - "typescript-sdk-v*"
+      - "react-sdk-v*"
+      - "nextjs-sdk-v*"
+      - "vue-sdk-v*"
+      - "python-sdk-v*"
+      - "go-sdk/v*"
 
 jobs:
   publish-npm:
@@ -19,17 +19,17 @@ jobs:
       startsWith(github.ref, 'refs/tags/react-sdk-v') ||
       startsWith(github.ref, 'refs/tags/nextjs-sdk-v') ||
       startsWith(github.ref, 'refs/tags/vue-sdk-v')
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          registry-url: 'https://registry.npmjs.org'
-      
+          node-version: "20"
+          registry-url: "https://npm.madfam.io"
+
       - name: Extract SDK name and version
         id: extract
         run: |
@@ -38,27 +38,27 @@ jobs:
           VERSION=${TAG#*-v}
           echo "sdk_name=$SDK_NAME" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-      
+
       - name: Install dependencies
         run: npm install
-      
+
       - name: Build SDK
         run: |
           cd packages/${{ steps.extract.outputs.sdk_name }}
           npm run build
-      
+
       - name: Run tests
         run: |
           cd packages/${{ steps.extract.outputs.sdk_name }}
           npm test || true
-      
-      - name: Publish to NPM
+
+      - name: Publish to npm.madfam.io
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
         run: |
           cd packages/${{ steps.extract.outputs.sdk_name }}
-          npm publish --access public
-      
+          npm publish --access restricted
+
       - name: Create GitHub Release
         uses: actions/create-release@v1
         env:
@@ -68,12 +68,16 @@ jobs:
           release_name: ${{ steps.extract.outputs.sdk_name }} v${{ steps.extract.outputs.version }}
           body: |
             Release ${{ steps.extract.outputs.version }} of ${{ steps.extract.outputs.sdk_name }}
-            
+
             ## Installation
             ```bash
+            # Configure registry (first time only)
+            npm config set @janua:registry https://npm.madfam.io
+
+            # Install package
             npm install @janua/${{ steps.extract.outputs.sdk_name }}@${{ steps.extract.outputs.version }}
             ```
-            
+
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/packages/${{ steps.extract.outputs.sdk_name }}/CHANGELOG.md) for details.
           draft: false
           prerelease: ${{ contains(steps.extract.outputs.version, 'alpha') || contains(steps.extract.outputs.version, 'beta') || contains(steps.extract.outputs.version, 'rc') }}
@@ -82,38 +86,38 @@ jobs:
     name: Publish Python SDK
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/python-sdk-v')
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      
+          python-version: "3.11"
+
       - name: Extract version
         id: extract
         run: |
           TAG=${GITHUB_REF#refs/tags/}
           VERSION=${TAG#python-sdk-v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-      
+
       - name: Install build tools
         run: |
           python -m pip install --upgrade pip
           pip install build twine
-      
+
       - name: Build distributions
         run: |
           cd packages/python-sdk
           python -m build
-      
+
       - name: Check distributions
         run: |
           cd packages/python-sdk
           twine check dist/*
-      
+
       - name: Publish to PyPI
         env:
           TWINE_USERNAME: __token__
@@ -121,7 +125,7 @@ jobs:
         run: |
           cd packages/python-sdk
           twine upload --repository pypi dist/*
-      
+
       - name: Create GitHub Release
         uses: actions/create-release@v1
         env:
@@ -131,12 +135,12 @@ jobs:
           release_name: Python SDK v${{ steps.extract.outputs.version }}
           body: |
             Release ${{ steps.extract.outputs.version }} of Python SDK
-            
+
             ## Installation
             ```bash
             pip install janua==${{ steps.extract.outputs.version }}
             ```
-            
+
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/packages/python-sdk/CHANGELOG.md) for details.
           draft: false
           prerelease: ${{ contains(steps.extract.outputs.version, 'alpha') || contains(steps.extract.outputs.version, 'beta') || contains(steps.extract.outputs.version, 'rc') }}
@@ -145,34 +149,34 @@ jobs:
     name: Publish Go SDK
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/go-sdk/v')
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-      
+          go-version: "1.21"
+
       - name: Extract version
         id: extract
         run: |
           TAG=${GITHUB_REF#refs/tags/}
           VERSION=${TAG#go-sdk/}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-      
+
       - name: Verify Go module
         run: |
           cd packages/go-sdk
           go mod verify
           go mod tidy
-      
+
       - name: Run tests
         run: |
           cd packages/go-sdk
           go test -v -race ./...
-      
+
       - name: Create GitHub Release
         uses: actions/create-release@v1
         env:
@@ -182,12 +186,12 @@ jobs:
           release_name: Go SDK ${{ steps.extract.outputs.version }}
           body: |
             Release ${{ steps.extract.outputs.version }} of Go SDK
-            
+
             ## Installation
             ```bash
             go get github.com/${{ github.repository }}/packages/go-sdk@${{ steps.extract.outputs.version }}
             ```
-            
+
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/packages/go-sdk/CHANGELOG.md) for details.
           draft: false
           prerelease: ${{ contains(steps.extract.outputs.version, 'alpha') || contains(steps.extract.outputs.version, 'beta') || contains(steps.extract.outputs.version, 'rc') }}

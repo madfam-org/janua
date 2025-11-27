@@ -33,7 +33,8 @@
     "README.md"
   ],
   "publishConfig": {
-    "access": "public"
+    "access": "restricted",
+    "registry": "https://npm.madfam.io/"
   },
   "repository": {
     "type": "git",

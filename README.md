@@ -130,6 +130,18 @@ npm run dev
 
 ## Installation
 
+### NPM Registry Configuration
+
+Janua SDKs are published to MADFAM's private npm registry. Configure your `.npmrc` before installing:
+
+```bash
+# Add to your project's .npmrc or ~/.npmrc
+@janua:registry=https://npm.madfam.io
+//npm.madfam.io/:_authToken=${NPM_MADFAM_TOKEN}
+```
+
+For CI/CD environments, set the `NPM_MADFAM_TOKEN` secret in your GitHub Actions or CI platform.
+
 ### Self-hosting (Production)
 
 **Docker Compose** (Recommended):
@@ -165,6 +177,22 @@ helm install janua ./deployment/helm/janua \
 ---
 
 ## Using the SDKs
+
+### Install SDKs
+
+```bash
+# React SDK
+npm install @janua/react-sdk
+
+# Vue SDK
+npm install @janua/vue-sdk
+
+# Next.js SDK
+npm install @janua/nextjs-sdk
+
+# TypeScript SDK (core client)
+npm install @janua/typescript-sdk
+```
 
 ### React
 ```tsx

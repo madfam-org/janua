@@ -36,7 +36,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: 'https://npm.madfam.io'
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -62,7 +62,7 @@ jobs:
               cd - > /dev/null
             fi
           done
-          
+
           # Build Python package
           cd packages/python-sdk
           python -m build
@@ -88,15 +88,15 @@ jobs:
       - name: Publish to npm
         if: ${{ !inputs.dry_run }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
         run: |
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
-          
+          echo "//npm.madfam.io/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+
           for dir in packages/*/; do
             if [ -f "$dir/package.json" ] && ! grep -q '"private": true' "$dir/package.json"; then
               echo "Publishing $dir"
               cd "$dir"
-              npm publish --access public || echo "Publish failed for $dir"
+              npm publish --access restricted || echo "Publish failed for $dir"
               cd - > /dev/null
             fi
           done
