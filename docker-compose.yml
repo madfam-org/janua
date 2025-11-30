@@ -1,7 +1,7 @@
 version: "3.8"
 
 services:
-  # Janua API Service
+  # Janua API Service (Platform Auth - port 8000 per PORT_REGISTRY)
   api:
     build:
       context: .
@@ -12,6 +12,7 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=8000
+      - API_PORT=8000
       - DATABASE_URL=postgresql://janua:janua_dev@postgres:5432/janua_dev
       - REDIS_URL=redis://redis:6379/0
       - JWT_SECRET=dev-jwt-secret-change-in-production
@@ -67,8 +68,8 @@ services:
   mailhog:
     image: mailhog/mailhog
     ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
     networks:
       - janua-network
 

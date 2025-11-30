@@ -95,7 +95,7 @@ cd apps/demo
 npm install
 npm run dev
 
-# Open http://localhost:3000
+# Open http://localhost:3001 (web) or http://localhost:8000 (API)
 ```
 
 **That's it.** You now have working auth with SSO, MFA, and passkeys.

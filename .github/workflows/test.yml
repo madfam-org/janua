@@ -7,30 +7,29 @@ on:
     branches: [main, develop]
 
 env:
-  NODE_VERSION: '18'
-  PYTHON_VERSION: '3.11'
+  NODE_VERSION: "18"
+  PYTHON_VERSION: "3.11"
 
 jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      
+          cache: "npm"
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run unit tests
-        run: npm run test:unit || true
-        continue-on-error: true
-      
+        run: npm run test:unit
+
       - name: Upload coverage
         if: always()
         uses: codecov/codecov-action@v3
@@ -43,7 +42,7 @@ jobs:
   api-tests:
     name: API Tests
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:15
@@ -58,7 +57,7 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-      
+
       redis:
         image: redis:7
         options: >-
@@ -68,38 +67,37 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Install system dependencies for xmlsec
         run: |
           sudo apt-get update
           sudo apt-get install -y libxmlsec1-dev pkg-config
-      
+
       - name: Install Python dependencies
         run: |
           cd apps/api
           pip install -r requirements.txt
           pip install -r requirements-test.txt
-      
+
       - name: Run API tests
         run: |
           cd apps/api
-          python -m pytest tests/ --cov=app --cov-report=xml || true
-        continue-on-error: true
+          python -m pytest tests/ --cov=app --cov-report=xml --cov-fail-under=60
         env:
           DATABASE_URL: postgresql://janua:janua@localhost:5432/janua_test
           REDIS_URL: redis://localhost:6379/0
           JANUA_ENV: test
           JWT_SECRET_KEY: test-secret-key-for-testing-only
           JWT_ALGORITHM: HS256
-      
+
       - name: Upload coverage
         if: always()
         uses: codecov/codecov-action@v3
@@ -112,22 +110,21 @@ jobs:
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      
+          cache: "npm"
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run integration tests
-        run: npm run test:integration || true
-        continue-on-error: true
+        run: npm run test:integration
         env:
           JANUA_ISSUER: http://localhost:8000
           JANUA_CLIENT_ID: test-client
@@ -135,30 +132,28 @@ jobs:
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
         browser: [chromium]
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      
+          cache: "npm"
+
       - name: Install dependencies
         run: |
           npm ci
           npx playwright install --with-deps ${{ matrix.browser }}
-      
+
       - name: Run E2E tests - ${{ matrix.browser }}
-        run: |
-          npm run test:e2e --project=${{ matrix.browser }} || true
-        continue-on-error: true
-      
+        run: npm run test:e2e --project=${{ matrix.browser }}
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -171,32 +166,30 @@ jobs:
   lint-and-type-check:
     name: Lint and Type Check
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      
+          cache: "npm"
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run linting
-        run: npm run lint || true
-        continue-on-error: true
-      
+        run: npm run lint
+
       - name: Run TypeScript type check
-        run: npm run typecheck || true
-        continue-on-error: true
-      
+        run: npm run typecheck
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Run Python linting (API)
         run: |
           pip install ruff black mypy
@@ -211,19 +204,19 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      
+          cache: "npm"
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run npm audit
         run: npm audit --audit-level=high || true
         continue-on-error: true
@@ -231,23 +224,22 @@ jobs:
   build-check:
     name: Build Check
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      
+          cache: "npm"
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Build all packages
-        run: npm run build || true
-        continue-on-error: true
-      
+        run: npm run build
+
       - name: Check build outputs
         run: |
           # Check for any built packages

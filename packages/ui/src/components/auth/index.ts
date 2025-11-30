@@ -5,8 +5,29 @@ export * from './user-button'
 export * from './mfa-setup'
 export * from './mfa-challenge'
 export * from './backup-codes'
-export * from './organization-switcher'
-export * from './organization-profile'
+// Organization switcher exports (has its own Organization interface)
+export {
+  OrganizationSwitcher,
+  type OrganizationSwitcherProps,
+  type Organization as SwitcherOrganization
+} from './organization-switcher'
+// Organization profile exports (has its own Organization type)
+export {
+  OrganizationProfile,
+  GeneralSettingsTab,
+  MembersTab,
+  DangerZoneTab,
+  useOrganizationApi,
+  type OrganizationMember,
+  type Organization,
+  type UserRole,
+  type OrganizationApiConfig,
+  type OrganizationCallbacks,
+  type GeneralSettingsTabProps,
+  type MembersTabProps,
+  type DangerZoneTabProps,
+  type OrganizationProfileProps
+} from './organization-profile'
 export * from './user-profile'
 export * from './password-reset'
 export * from './email-verification'

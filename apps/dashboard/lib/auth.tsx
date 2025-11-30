@@ -118,7 +118,7 @@ export function useAuth() {
 
 // API helper using Janua SDK
 export async function apiCall(endpoint: string, options: RequestInit = {}) {
-  const token = await januaClient.auth.getAccessToken()
+  const token = await januaClient.getAccessToken()
 
   const config: RequestInit = {
     ...options,
@@ -135,7 +135,7 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
     // Token expired - Janua SDK will handle refresh
     await januaClient.auth.refreshToken()
     // Retry request with new token
-    const newToken = await januaClient.auth.getAccessToken()
+    const newToken = await januaClient.getAccessToken()
     config.headers = {
       ...config.headers,
       'Authorization': `Bearer ${newToken}`,

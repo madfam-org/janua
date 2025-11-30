@@ -7,58 +7,54 @@ on:
     branches: [main, develop]
 
 env:
-  NODE_VERSION: '18'
-  PYTHON_VERSION: '3.11'
+  NODE_VERSION: "18"
+  PYTHON_VERSION: "3.11"
 
 jobs:
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
 
       - name: Run ESLint
-        run: npm run lint || true
-        continue-on-error: true
+        run: npm run lint
 
       - name: Run TypeScript check
-        run: npm run typecheck || true
-        continue-on-error: true
+        run: npm run typecheck
 
   frontend-tests-build:
     name: Frontend Tests & Build
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
 
       - name: Run frontend tests
-        run: npm run test:unit || true
-        continue-on-error: true
+        run: npm run test:unit
 
       - name: Build frontend packages
-        run: npm run build:frontend || true
-        continue-on-error: true
-      
+        run: npm run build:frontend
+
       - name: Upload build artifacts
         if: success()
         uses: actions/upload-artifact@v4
@@ -71,7 +67,7 @@ jobs:
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:15
@@ -86,7 +82,7 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-      
+
       redis:
         image: redis:7
         options: >-
@@ -96,31 +92,30 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Install system dependencies for xmlsec
         run: |
           sudo apt-get update
           sudo apt-get install -y libxmlsec1-dev pkg-config
-      
+
       - name: Install Python dependencies
         run: |
           cd apps/api
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio
-      
+
       - name: Run backend tests
         run: |
           cd apps/api
-          python -m pytest tests/ --cov=app --cov-report=xml || true
-        continue-on-error: true
+          python -m pytest tests/ --cov=app --cov-report=xml --cov-fail-under=60
         env:
           DATABASE_URL: postgresql://janua:janua@localhost:5432/janua_test
           REDIS_URL: redis://localhost:6379/0
@@ -131,15 +126,15 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
@@ -158,39 +153,39 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Run Trivy security scan
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-      
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
         continue-on-error: true
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: "trivy-results.sarif"
 
   smoke-tests:
     name: Smoke Tests
     runs-on: ubuntu-latest
     needs: [frontend-tests-build, backend-tests]
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run smoke tests
         run: |
           echo "Running smoke tests..."
