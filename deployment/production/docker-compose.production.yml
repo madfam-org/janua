@@ -158,7 +158,12 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      # INTERNAL_API_URL: Server-side API route calls (runtime, internal network)
+      # Uses Docker network hostname for container-to-container communication
+      - INTERNAL_API_URL=http://janua-api:8000
+      # NEXT_PUBLIC_API_URL: Client-side calls (build-time, external URL)
       - NEXT_PUBLIC_API_URL=https://api.janua.dev
+      - NEXT_PUBLIC_APP_URL=https://app.janua.dev
     ports:
       - "4101:3000"  # MADFAM standard: 4101 = Janua Dashboard
     healthcheck:

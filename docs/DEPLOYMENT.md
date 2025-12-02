@@ -620,121 +620,90 @@ kubectl exec -it $(kubectl get pod -l app=janua-api -n janua -o jsonpath='{.item
 
 ---
 
-### Cloud Platforms
+### Hetzner + Enclii Deployment (Recommended)
 
-#### Railway
+**Best for**: Full infrastructure control, data sovereignty, cost-effective at scale
 
-**Best for**: Quick deployments, auto-scaling, managed database/Redis
+Janua's primary production deployment uses MADFAM's self-hosted infrastructure on Hetzner bare metal servers with Cloudflare Tunnel for zero-trust ingress.
 
-```bash
-# 1. Install Railway CLI
-npm install -g @railway/cli
-
-# 2. Login
-railway login
-
-# 3. Create new project
-railway init
-
-# 4. Add PostgreSQL
-railway add postgresql
-
-# 5. Add Redis
-railway add redis
-
-# 6. Deploy
-railway up
-
-# 7. Add environment variables
-railway variables set SECRET_KEY=$(openssl rand -hex 32)
-railway variables set JWT_PRIVATE_KEY="$(openssl genrsa 2048)"
-
-# 8. View logs
-railway logs
+#### Architecture
+```
+Cloudflare Edge (DNS + WAF) → Cloudflare Tunnel → Hetzner Server → Docker Compose
 ```
 
-**Railway Configuration** (`config/railway.json`):
+#### Port Allocation (MADFAM Standard 4100-4199)
+| Service | Port | Domain |
+|---------|------|--------|
+| API | 4100 | api.janua.dev |
+| Dashboard | 4101 | app.janua.dev |
+| Admin | 4102 | admin.janua.dev |
+| Docs | 4103 | docs.janua.dev |
+| Website | 4104 | janua.dev |
 
-```json
-{
-  "$schema": "https://railway.app/railway.schema.json",
-  "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "pip install -r requirements.txt"
-  },
-  "deploy": {
-    "startCommand": "uvicorn main:app --host 0.0.0.0 --port $PORT --workers 4",
-    "healthcheckPath": "/health",
-    "healthcheckTimeout": 100,
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
-  }
-}
-```
+#### Container-to-Container Communication
 
-#### Render
-
-**Best for**: Zero-downtime deploys, automatic SSL, managed services
-
-**Render Blueprint** (`render.yaml`):
+**Critical**: Next.js API routes must communicate with the FastAPI backend using Docker internal networking:
 
 ```yaml
-services:
-  - type: web
-    name: janua-api
-    env: python
-    region: oregon
-    plan: standard
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT --workers 4"
-    healthCheckPath: /health
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11
-      - key: DATABASE_URL
-        fromDatabase:
-          name: janua-postgres
-          property: connectionString
-      - key: REDIS_URL
-        fromDatabase:
-          name: janua-redis
-          property: connectionString
-      - key: SECRET_KEY
-        generateValue: true
-      - key: ENVIRONMENT
-        value: production
-
-databases:
-  - name: janua-postgres
-    databaseName: janua
-    plan: standard
-
-  - name: janua-redis
-    plan: standard
+# docker-compose.production.yml
+janua-dashboard:
+  environment:
+    # Server-side API calls (runtime) - Docker network hostname
+    - INTERNAL_API_URL=http://janua-api:8000
+    # Client-side API calls (build-time) - Public URL
+    - NEXT_PUBLIC_API_URL=https://api.janua.dev
 ```
 
-#### AWS (ECS/Fargate)
+#### CI/CD Pipeline
 
-**Best for**: Enterprise deployments, full AWS ecosystem integration
+GitHub Actions builds Docker images and deploys via Enclii webhook:
 
-See [AWS Deployment Guide](./deployment/aws/README.md) for detailed ECS/Fargate setup.
-
-#### Google Cloud Run
-
-**Best for**: Serverless, pay-per-use, automatic scaling
-
-```bash
-# Build and push to GCR
-gcloud builds submit --tag gcr.io/PROJECT_ID/janua-api
-
-# Deploy to Cloud Run
-gcloud run deploy janua-api \
-  --image gcr.io/PROJECT_ID/janua-api \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --set-env-vars DATABASE_URL=${DATABASE_URL},REDIS_URL=${REDIS_URL}
+```yaml
+# .github/workflows/deploy.yml
+deploy:
+  steps:
+    - name: Deploy via Enclii
+      run: |
+        curl -X POST "${{ secrets.ENCLII_DEPLOY_WEBHOOK }}" \
+          -H "Authorization: Bearer ${{ secrets.ENCLII_DEPLOY_TOKEN }}" \
+          -d '{"service": "janua", "tag": "${{ github.sha }}"}'
 ```
+
+#### Cloudflare Tunnel Configuration
+
+```yaml
+# /etc/cloudflared/config.yml
+tunnel: janua-tunnel
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: api.janua.dev
+    service: http://localhost:4100
+  - hostname: app.janua.dev
+    service: http://localhost:4101
+  - hostname: janua.dev
+    service: http://localhost:4104
+  - service: http_status:404
+```
+
+See [deployment/DEPLOYMENT.md](deployment/DEPLOYMENT.md) for complete Hetzner/Enclii deployment guide.
+
+---
+
+### Alternative Deployments (Optional)
+
+#### Kubernetes
+
+Kubernetes manifests are provided for organizations requiring container orchestration. See the Kubernetes section above.
+
+#### Other Cloud Platforms
+
+While Janua is designed for self-hosting, it can run on any platform supporting Docker:
+- AWS ECS/Fargate
+- Google Cloud Run
+- Azure Container Apps
+
+Consult platform-specific documentation for deployment details.
 
 ---
 

@@ -361,7 +361,33 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 plan = plan.decode("utf-8")
                 return self.tenant_tier_limits.get(plan, self.default_limit)
             
-            # TODO: Fetch from database if not in cache
+            # Fetch from database if not in cache
+            try:
+                from app.database import get_db_session
+                from app.models import Organization
+                from sqlalchemy import select
+                
+                async with get_db_session() as db:
+                    result = await db.execute(
+                        select(Organization.billing_plan)
+                        .where(Organization.id == tenant_id)
+                    )
+                    org_plan = result.scalar_one_or_none()
+                    
+                    if org_plan:
+                        # Cache the plan for future requests (1 hour TTL)
+                        await self.redis_client.setex(
+                            plan_key, 
+                            3600,  # 1 hour cache
+                            org_plan
+                        )
+                        return self.tenant_tier_limits.get(org_plan, self.default_limit)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"Failed to fetch tenant plan from database: {e}"
+                )
+            
             return self.default_limit
             
         except redis.RedisError:

@@ -35,25 +35,25 @@ This deployment guide covers the **Next Immediate Phase: Foundation Hardening** 
 ┌─────────────────────────────────────────────────────────────┐
 │                     Production Stack                        │
 ├─────────────────────────────────────────────────────────────┤
-│  Load Balancer (Railway/Cloudflare)                        │
+│  Cloudflare Edge + Tunnel (Zero-Trust Ingress)             │
 │  ├─── HTTPS Termination                                     │
 │  ├─── SSL/TLS A+ Security                                   │
-│  └─── DDoS Protection                                       │
+│  └─── DDoS/WAF Protection                                   │
 ├─────────────────────────────────────────────────────────────┤
-│  FastAPI Application (Multiple Instances)                  │
+│  FastAPI Application (Docker Container: janua-api:4100)    │
 │  ├─── Security Headers Middleware                          │
 │  ├─── Rate Limiting (slowapi)                             │
 │  ├─── Error Handling & Monitoring                         │
 │  └─── JWT Authentication System                           │
 ├─────────────────────────────────────────────────────────────┤
 │  Database Layer                                            │
-│  ├─── PostgreSQL (Railway/AWS RDS)                        │
+│  ├─── PostgreSQL (Self-hosted Docker)                     │
 │  ├─── Connection Pooling (20 connections)                 │
 │  ├─── Health Monitoring                                    │
-│  └─── Automated Backups                                   │
+│  └─── Automated Backups to R2                             │
 ├─────────────────────────────────────────────────────────────┤
 │  Cache & Session Layer                                     │
-│  ├─── Redis (Railway/AWS ElastiCache)                     │
+│  ├─── Redis (Self-hosted Docker)                          │
 │  ├─── Session Storage                                      │
 │  └─── Rate Limit Counters                                 │
 └─────────────────────────────────────────────────────────────┘

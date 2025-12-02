@@ -452,13 +452,70 @@ class AdvancedRateLimitFeatures:
         # For now, always allow burst
         return int(base_limit * burst_multiplier)
 
-    @staticmethod
-    def get_circuit_breaker_status(path: str) -> bool:
-        """Check if endpoint should be circuit-broken due to failures"""
+    # Circuit breaker state for endpoints
+    _endpoint_failures: Dict[str, Dict] = {}
+    _circuit_breaker_threshold = 10  # failures before opening circuit
+    _circuit_breaker_timeout = 60  # seconds before attempting recovery
 
-        # TODO: Implement circuit breaker logic
-        # For now, always return False (not broken)
+    @classmethod
+    def get_circuit_breaker_status(cls, path: str) -> bool:
+        """
+        Check if endpoint should be circuit-broken due to failures.
+        
+        Uses a simple circuit breaker pattern:
+        - CLOSED: Normal operation (returns False)
+        - OPEN: Too many failures, reject requests (returns True)
+        - After timeout, allow one request through to test recovery
+        """
+        if path not in cls._endpoint_failures:
+            return False
+        
+        state = cls._endpoint_failures[path]
+        failure_count = state.get("failures", 0)
+        circuit_opened = state.get("circuit_opened")
+        
+        # Not enough failures to open circuit
+        if failure_count < cls._circuit_breaker_threshold:
+            return False
+        
+        # Circuit is open - check if timeout has passed for recovery attempt
+        if circuit_opened:
+            time_since_open = time.time() - circuit_opened
+            if time_since_open >= cls._circuit_breaker_timeout:
+                # Allow one request through (half-open state)
+                state["half_open"] = True
+                return False
+            return True  # Circuit still open
+        
         return False
+
+    @classmethod
+    def record_endpoint_failure(cls, path: str):
+        """Record a failure for circuit breaker tracking"""
+        if path not in cls._endpoint_failures:
+            cls._endpoint_failures[path] = {"failures": 0}
+        
+        state = cls._endpoint_failures[path]
+        state["failures"] = state.get("failures", 0) + 1
+        state["last_failure"] = time.time()
+        
+        if state["failures"] >= cls._circuit_breaker_threshold:
+            if not state.get("circuit_opened"):
+                state["circuit_opened"] = time.time()
+                logger.warning(
+                    f"Circuit breaker opened for endpoint: {path}",
+                    extra={"failures": state["failures"]}
+                )
+
+    @classmethod
+    def record_endpoint_success(cls, path: str):
+        """Record success - reset circuit breaker if in half-open state"""
+        if path in cls._endpoint_failures:
+            state = cls._endpoint_failures[path]
+            if state.get("half_open"):
+                # Recovery successful, reset circuit
+                cls._endpoint_failures[path] = {"failures": 0}
+                logger.info(f"Circuit breaker closed for endpoint: {path}")
 
 
 def create_rate_limit_middleware(app, redis_url: Optional[str] = None):
