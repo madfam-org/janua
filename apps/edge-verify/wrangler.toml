@@ -4,18 +4,27 @@ compatibility_date = "2024-01-01"
 
 [env.production]
 name = "janua-edge-verify-prod"
-route = "janua.dev/api/v1/verify*"
-vars = { ENVIRONMENT = "production" }
+route = "api.janua.dev/api/v1/verify*"
+vars = { ENVIRONMENT = "production", JWKS_URL = "https://api.janua.dev/.well-known/jwks.json", JWT_AUDIENCE = "janua.dev", JWT_ISSUER = "https://api.janua.dev" }
+kv_namespaces = [
+  { binding = "JWKS_CACHE", id = "885ce6ede9b547de95ea7e3a607618af" }
+]
+durable_objects = { bindings = [{ name = "RATE_LIMITER", class_name = "RateLimiter" }] }
 
 [env.staging]
 name = "janua-edge-verify-staging"
 route = "staging.janua.dev/api/v1/verify*"
-vars = { ENVIRONMENT = "staging" }
+vars = { ENVIRONMENT = "staging", JWKS_URL = "https://api.janua.dev/.well-known/jwks.json", JWT_AUDIENCE = "janua.dev", JWT_ISSUER = "https://api.janua.dev" }
+kv_namespaces = [
+  { binding = "JWKS_CACHE", id = "885ce6ede9b547de95ea7e3a607618af", preview_id = "138c77309a51498989d0f3d32d1d81e6" }
+]
+durable_objects = { bindings = [{ name = "RATE_LIMITER", class_name = "RateLimiter" }] }
 
+# Default bindings for local development
 [[kv_namespaces]]
 binding = "JWKS_CACHE"
-id = "jwks_cache_production"
-preview_id = "jwks_cache_preview"
+id = "885ce6ede9b547de95ea7e3a607618af"
+preview_id = "138c77309a51498989d0f3d32d1d81e6"
 
 [[durable_objects.bindings]]
 name = "RATE_LIMITER"
@@ -23,4 +32,4 @@ class_name = "RateLimiter"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["RateLimiter"]
+new_sqlite_classes = ["RateLimiter"]
