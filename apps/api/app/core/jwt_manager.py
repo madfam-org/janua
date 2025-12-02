@@ -1,8 +1,10 @@
 """
 Enhanced JWT Manager with Refresh Token Rotation
 Enterprise-grade JWT handling with security best practices
+Supports RS256 (asymmetric) for production and HS256 (symmetric) for testing
 """
 
+import base64
 import secrets
 import time
 from datetime import datetime, timedelta
@@ -10,6 +12,9 @@ from typing import Any, Dict, Optional, Tuple
 
 import jwt
 import structlog
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,23 +28,115 @@ class JWTManager:
     """Centralized JWT token management with refresh token rotation"""
 
     def __init__(self):
-        # Get algorithm from settings, fallback to HS256 for test environment
-        self.algorithm = settings.JWT_ALGORITHM
-
-        # For test environment or when JWT_SECRET_KEY is a simple string, use HS256
-        # RS256 requires PEM-formatted keys which are not suitable for simple string secrets
-        if settings.ENVIRONMENT == "test" or (
-            settings.JWT_SECRET_KEY and not settings.JWT_SECRET_KEY.startswith("-----BEGIN")
-        ):
-            self.algorithm = "HS256"
-
-        self.secret_key = settings.JWT_SECRET_KEY or settings.SECRET_KEY
         self.issuer = settings.JWT_ISSUER
         self.audience = settings.JWT_AUDIENCE
+        self.kid = settings.JWT_KID
 
         # Token expiration settings
         self.access_token_expire_minutes = settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
         self.refresh_token_expire_days = settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
+
+        # Initialize keys based on environment
+        self._init_keys()
+
+    def _init_keys(self):
+        """Initialize signing keys based on available configuration"""
+        # Check for RSA keys first (production mode)
+        if settings.JWT_PRIVATE_KEY and settings.JWT_PRIVATE_KEY.startswith("-----BEGIN"):
+            self.algorithm = "RS256"
+            # Handle escaped newlines in environment variables
+            private_key_pem = settings.JWT_PRIVATE_KEY.replace("\\n", "\n")
+            self.private_key = serialization.load_pem_private_key(
+                private_key_pem.encode("utf-8"),
+                password=None,
+                backend=default_backend()
+            )
+
+            # Load or derive public key
+            if settings.JWT_PUBLIC_KEY and settings.JWT_PUBLIC_KEY.startswith("-----BEGIN"):
+                public_key_pem = settings.JWT_PUBLIC_KEY.replace("\\n", "\n")
+                self.public_key = serialization.load_pem_public_key(
+                    public_key_pem.encode("utf-8"),
+                    backend=default_backend()
+                )
+            else:
+                # Derive public key from private key
+                self.public_key = self.private_key.public_key()
+
+            # Cache PEM format for verification
+            self._private_key_pem = private_key_pem
+            self._public_key_pem = self.public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ).decode("utf-8")
+
+            logger.info("JWT Manager initialized with RS256 (asymmetric keys)", kid=self.kid)
+
+        # Fallback to HS256 for testing/development
+        else:
+            self.algorithm = "HS256"
+            self.private_key = settings.JWT_SECRET_KEY or settings.SECRET_KEY
+            self.public_key = self.private_key  # Same key for HS256
+            self._private_key_pem = None
+            self._public_key_pem = None
+
+            if settings.ENVIRONMENT == "production":
+                logger.warning("JWT Manager using HS256 in production - RS256 recommended!")
+            else:
+                logger.info("JWT Manager initialized with HS256 (symmetric key)")
+
+    def get_jwks(self) -> Dict[str, Any]:
+        """
+        Get JSON Web Key Set (JWKS) for public key distribution
+        Only available for RS256 mode
+        """
+        if self.algorithm != "RS256":
+            logger.warning("JWKS requested but not using RS256")
+            return {"keys": []}
+
+        # Get public key numbers
+        public_numbers = self.public_key.public_numbers()
+
+        # Encode n and e as base64url
+        n_bytes = public_numbers.n.to_bytes(
+            (public_numbers.n.bit_length() + 7) // 8, "big"
+        )
+        e_bytes = public_numbers.e.to_bytes(
+            (public_numbers.e.bit_length() + 7) // 8, "big"
+        )
+
+        n_b64 = base64.urlsafe_b64encode(n_bytes).decode("ascii").rstrip("=")
+        e_b64 = base64.urlsafe_b64encode(e_bytes).decode("ascii").rstrip("=")
+
+        jwk = {
+            "kty": "RSA",
+            "use": "sig",
+            "alg": "RS256",
+            "kid": self.kid,
+            "n": n_b64,
+            "e": e_b64,
+        }
+
+        return {"keys": [jwk]}
+
+    def _get_signing_key(self):
+        """Get the appropriate signing key based on algorithm"""
+        if self.algorithm == "RS256":
+            return self.private_key
+        return self.private_key  # For HS256, private_key is the secret string
+
+    def _get_verification_key(self):
+        """Get the appropriate verification key based on algorithm"""
+        if self.algorithm == "RS256":
+            return self.public_key
+        return self.public_key  # For HS256, public_key is the same secret string
+
+    def _get_token_headers(self) -> Dict[str, str]:
+        """Get JWT headers including kid for RS256"""
+        headers = {}
+        if self.algorithm == "RS256":
+            headers["kid"] = self.kid
+        return headers
 
     def create_access_token(
         self, user_id: str, email: str, additional_claims: Optional[Dict[str, Any]] = None
@@ -64,9 +161,14 @@ class JWTManager:
         if additional_claims:
             payload.update(additional_claims)
 
-        token = jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
+        token = jwt.encode(
+            payload,
+            self._get_signing_key(),
+            algorithm=self.algorithm,
+            headers=self._get_token_headers()
+        )
 
-        logger.info("Access token created", user_id=user_id, jti=jti)
+        logger.info("Access token created", user_id=user_id, jti=jti, algorithm=self.algorithm)
         return token, jti, expires_at
 
     def create_refresh_token(
@@ -89,9 +191,14 @@ class JWTManager:
             "aud": self.audience,
         }
 
-        token = jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
+        token = jwt.encode(
+            payload,
+            self._get_signing_key(),
+            algorithm=self.algorithm,
+            headers=self._get_token_headers()
+        )
 
-        logger.info("Refresh token created", user_id=user_id, jti=jti, family=family)
+        logger.info("Refresh token created", user_id=user_id, jti=jti, family=family, algorithm=self.algorithm)
         return token, jti, family, expires_at
 
     def verify_token(self, token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
@@ -99,7 +206,7 @@ class JWTManager:
         try:
             payload = jwt.decode(
                 token,
-                self.secret_key,
+                self._get_verification_key(),
                 algorithms=[self.algorithm],
                 issuer=self.issuer,
                 audience=self.audience,

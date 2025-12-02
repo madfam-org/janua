@@ -49,15 +49,18 @@ class Settings(BaseSettings):
 
     # JWT
     JWT_SECRET_KEY: Optional[str] = Field(default=None)
+    JWT_PRIVATE_KEY: Optional[str] = Field(default=None, description="RSA private key in PEM format for RS256")
+    JWT_PUBLIC_KEY: Optional[str] = Field(default=None, description="RSA public key in PEM format for RS256")
+    JWT_KID: str = Field(default="janua-primary-key", description="Key ID for JWKS")
     JWT_ALGORITHM: str = Field(default="RS256")
-    JWT_ISSUER: str = Field(default="https://janua.dev")
+    JWT_ISSUER: str = Field(default="https://api.janua.dev")
     JWT_AUDIENCE: str = Field(default="janua.dev")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=15)
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
     # Aliases for compatibility
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=15)
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
-    ALGORITHM: str = Field(default="HS256")
+    ALGORITHM: str = Field(default="RS256")
 
     # Security
     SECRET_KEY: str = Field(default="development-secret-key-change-in-production")

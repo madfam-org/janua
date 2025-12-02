@@ -564,7 +564,12 @@ def openid_configuration():
 
 @app.get("/.well-known/jwks.json")
 def jwks():
-    return {"keys": []}
+    """
+    JSON Web Key Set (JWKS) endpoint for public key distribution.
+    Used by edge workers and clients to verify JWT signatures.
+    """
+    from app.core.jwt_manager import jwt_manager
+    return jwt_manager.get_jwks()
 
 
 # Performance metrics endpoint

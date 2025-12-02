@@ -129,3 +129,4 @@ Thumbs.db
 *.pid.lock
 .npm
 node_modules/.turbo
+keys/
