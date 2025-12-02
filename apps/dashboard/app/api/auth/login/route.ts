@@ -47,9 +47,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Return the token and user data (handle both nested and flat token structures)
+    // Return the tokens and user data (handle both nested and flat token structures)
+    // IMPORTANT: Include refresh_token for SDK token refresh functionality
     return NextResponse.json({
       token: data.tokens?.access_token || data.access_token || data.token,
+      refresh_token: data.tokens?.refresh_token || data.refresh_token,
+      expires_in: data.tokens?.expires_in || data.expires_in || 900,
       user: data.user || { email, name: email.split('@')[0] },
       message: 'Login successful'
     })
