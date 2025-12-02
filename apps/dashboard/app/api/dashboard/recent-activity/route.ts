@@ -14,8 +14,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Forward the request to the API
-    const apiResponse = await fetch(`${API_BASE_URL}/api/audit/recent`, {
+    // Forward the request to the Janua API (v1 versioned endpoint)
+    const apiUrl = `${API_BASE_URL}/api/v1/audit/recent`
+
+    const apiResponse = await fetch(apiUrl, {
       method: 'GET',
       headers: {
         'Authorization': authHeader,
@@ -23,15 +25,25 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    if (!apiResponse.ok) {
-      const errorData = await apiResponse.json().catch(() => ({}))
+    // Parse response safely
+    const responseText = await apiResponse.text()
+    let data
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      console.error('Failed to parse API response:', responseText)
       return NextResponse.json(
-        { message: errorData.message || 'Failed to fetch recent activity' },
-        { status: apiResponse.status }
+        { message: 'API returned invalid response' },
+        { status: 500 }
       )
     }
 
-    const data = await apiResponse.json()
+    if (!apiResponse.ok) {
+      return NextResponse.json(
+        { message: data.detail || data.message || 'Failed to fetch recent activity' },
+        { status: apiResponse.status }
+      )
+    }
     
     // Transform audit logs to activity format
     const activities = (data.logs || data.activities || []).map((log: any, index: number) => ({

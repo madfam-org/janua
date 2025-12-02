@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 // Server-side environment variable (runtime, not baked into build)
+// Priority: INTERNAL_API_URL > NEXT_PUBLIC_API_URL > localhost fallback
 const API_BASE_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export async function POST(request: NextRequest) {
@@ -15,8 +16,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Forward the login request to the API
-    const apiResponse = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    // Forward to the Janua API (v1 versioned endpoint)
+    const apiUrl = `${API_BASE_URL}/api/v1/auth/login`
+
+    const apiResponse = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -24,18 +27,29 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ email, password }),
     })
 
-    const data = await apiResponse.json()
+    // Parse response safely
+    const responseText = await apiResponse.text()
+    let data
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      console.error('Failed to parse API response:', responseText)
+      return NextResponse.json(
+        { message: 'API returned invalid response' },
+        { status: 500 }
+      )
+    }
 
     if (!apiResponse.ok) {
       return NextResponse.json(
-        { message: data.message || 'Login failed' },
+        { message: data.detail || data.message || 'Login failed' },
         { status: apiResponse.status }
       )
     }
 
-    // Return the token and user data
+    // Return the token and user data (handle both nested and flat token structures)
     return NextResponse.json({
-      token: data.access_token || data.token,
+      token: data.tokens?.access_token || data.access_token || data.token,
       user: data.user || { email, name: email.split('@')[0] },
       message: 'Login successful'
     })

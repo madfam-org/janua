@@ -14,8 +14,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Forward the request to the API
-    const apiResponse = await fetch(`${API_BASE_URL}/api/dashboard/stats`, {
+    // Forward the request to the Janua API (v1 versioned endpoint)
+    const apiUrl = `${API_BASE_URL}/api/v1/dashboard/stats`
+
+    const apiResponse = await fetch(apiUrl, {
       method: 'GET',
       headers: {
         'Authorization': authHeader,
@@ -23,15 +25,25 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    if (!apiResponse.ok) {
-      const errorData = await apiResponse.json().catch(() => ({}))
+    // Parse response safely
+    const responseText = await apiResponse.text()
+    let data
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      console.error('Failed to parse API response:', responseText)
       return NextResponse.json(
-        { message: errorData.message || 'Failed to fetch stats' },
-        { status: apiResponse.status }
+        { message: 'API returned invalid response' },
+        { status: 500 }
       )
     }
 
-    const data = await apiResponse.json()
+    if (!apiResponse.ok) {
+      return NextResponse.json(
+        { message: data.detail || data.message || 'Failed to fetch stats' },
+        { status: apiResponse.status }
+      )
+    }
     
     // Transform data to expected format if needed
     const transformedData = {
