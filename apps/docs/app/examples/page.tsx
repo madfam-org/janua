@@ -150,7 +150,7 @@ export default function ExamplesPage() {
           <CodeSnippet
             title="Protect API Route"
             description="Secure your API endpoints with middleware"
-            language="TypeScript"
+            _language="TypeScript"
             code={`export async function GET(request: NextRequest) {
   const session = await janua.getSession(request)
   
@@ -164,7 +164,7 @@ export default function ExamplesPage() {
           <CodeSnippet
             title="Login Component"
             description="React component for user authentication"
-            language="TypeScript"
+            _language="TypeScript"
             code={`export function LoginForm() {
   const { signIn, loading } = useJanua()
   
@@ -179,7 +179,7 @@ export default function ExamplesPage() {
           <CodeSnippet
             title="Protected Route"
             description="Client-side route protection"
-            language="TypeScript"
+            _language="TypeScript"
             code={`export function ProtectedRoute({ children }) {
   const { user, loading } = useJanua()
   
@@ -192,7 +192,7 @@ export default function ExamplesPage() {
           <CodeSnippet
             title="User Profile"
             description="Display and update user information"
-            language="TypeScript"
+            _language="TypeScript"
             code={`export function UserProfile() {
   const { user, updateProfile } = useJanua()
   
