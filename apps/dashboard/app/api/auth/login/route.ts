@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Server-side environment variable (runtime, not baked into build)
+const API_BASE_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -12,8 +15,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Forward the login request to the Railway API
-    const apiResponse = await fetch('https://janua-api.railway.app/api/auth/login', {
+    // Forward the login request to the API
+    const apiResponse = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

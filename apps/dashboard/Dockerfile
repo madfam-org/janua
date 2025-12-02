@@ -47,7 +47,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 USER nextjs
 
 # Environment variables
-ENV NEXT_PUBLIC_API_URL="" \
+# INTERNAL_API_URL: Server-side only, for API routes to call backend (runtime)
+# NEXT_PUBLIC_API_URL: Client-side, baked into build (fallback)
+ENV INTERNAL_API_URL="" \
+    NEXT_PUBLIC_API_URL="" \
     NEXT_PUBLIC_APP_URL="" \
     SESSION_SECRET=""
 

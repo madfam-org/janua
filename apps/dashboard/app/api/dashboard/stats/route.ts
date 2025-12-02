@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Server-side environment variable (runtime, not baked into build)
+const API_BASE_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')
@@ -11,8 +14,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Forward the request to the Railway API
-    const apiResponse = await fetch('https://janua-api.railway.app/api/dashboard/stats', {
+    // Forward the request to the API
+    const apiResponse = await fetch(`${API_BASE_URL}/api/dashboard/stats`, {
       method: 'GET',
       headers: {
         'Authorization': authHeader,
