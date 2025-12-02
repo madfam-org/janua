@@ -638,7 +638,7 @@ Import Tailwind CSS in your global styles:
 
 - **Documentation**: [https://docs.janua.dev](https://docs.janua.dev)
 - **API Reference**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **GitHub**: [https://github.com/janua/janua](https://github.com/janua/janua)
+- **GitHub**: [https://github.com/madfam-io/janua](https://github.com/madfam-io/janua)
 - **Discord**: [https://discord.gg/janua](https://discord.gg/janua)
 - **Email**: support@janua.dev
 

@@ -203,7 +203,7 @@ export default function ContactPage() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button variant="outline" className="group" asChild>
-              <Link href="https://github.com/janua/janua" target="_blank" rel="noopener">
+              <Link href="https://github.com/madfam-io/janua" target="_blank" rel="noopener">
                 GitHub Community
                 <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
               </Link>

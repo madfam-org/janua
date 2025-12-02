@@ -11,9 +11,9 @@
 **Problem**: Package.json files have inconsistent repository URLs
 
 **Affected Packages**:
-- ❌ `@janua/nextjs-sdk` → `github.com/janua/janua` (WRONG)
-- ❌ `@janua/edge` → `github.com/janua/janua` (WRONG)
-- ❌ `@janua/jwt-utils` → `github.com/janua/janua` (WRONG)
+- ❌ `@janua/nextjs-sdk` → `github.com/madfam-io/janua` (WRONG)
+- ❌ `@janua/edge` → `github.com/madfam-io/janua` (WRONG)
+- ❌ `@janua/jwt-utils` → `github.com/madfam-io/janua` (WRONG)
 - ✅ `@janua/typescript-sdk` → `github.com/madfam-io/janua` (CORRECT)
 - ✅ `@janua/react-sdk` → `github.com/madfam-io/janua` (CORRECT)
 - ✅ `@janua/vue-sdk` → `github.com/madfam-io/janua` (CORRECT)
@@ -63,7 +63,7 @@
 Line 503-506:
 ```markdown
 - Documentation: [https://docs.janua.dev](https://docs.janua.dev)
-- GitHub Issues: [https://github.com/janua/janua/issues](https://github.com/janua/janua/issues)
+- GitHub Issues: [https://github.com/madfam-io/janua/issues](https://github.com/madfam-io/janua/issues)
 - Discord: [https://discord.gg/janua](https://discord.gg/janua)
 - Email: support@janua.dev
 ```

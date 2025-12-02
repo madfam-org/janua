@@ -490,7 +490,7 @@ This roadmap prioritizes features and improvements based on competitive differen
 
 We build in public and welcome community input:
 
-- **GitHub Discussions**: https://github.com/janua/janua/discussions
+- **GitHub Discussions**: https://github.com/madfam-io/janua/discussions
 - **Discord**: https://discord.gg/janua
 - **Roadmap Feedback**: roadmap@janua.dev
 - **Feature Requests**: Use GitHub Issues with `enhancement` label

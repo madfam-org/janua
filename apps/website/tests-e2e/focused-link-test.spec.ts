@@ -445,9 +445,9 @@ test.describe('Focused Link and Interactive Element Testing', () => {
   test('External Links and GitHub Integration', async ({ page }) => {
     // Test GitHub links
     const githubSelectors = [
-      'a[href*="github.com/janua/janua"]',
-      'a[href*="github.com/janua/typescript-sdk"]',
-      'a[href*="github.com/janua/janua/issues"]'
+      'a[href*="github.com/madfam-io/janua"]',
+      'a[href*="github.com/madfam-io/typescript-sdk"]',
+      'a[href*="github.com/madfam-io/janua/issues"]'
     ];
 
     for (const selector of githubSelectors) {

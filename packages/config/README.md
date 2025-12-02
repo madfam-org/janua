@@ -767,7 +767,7 @@ monitor.on('change', (event) => {
 
 ```bash
 # Clone the repo
-git clone https://github.com/janua/janua.git
+git clone https://github.com/madfam-io/janua.git
 
 # Navigate to config package
 cd packages/config

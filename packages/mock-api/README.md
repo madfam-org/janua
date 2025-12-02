@@ -662,7 +662,7 @@ console.log('Avg response time:', stats.avgResponseTime);
 
 ```bash
 # Clone the repo
-git clone https://github.com/janua/janua.git
+git clone https://github.com/madfam-io/janua.git
 
 # Navigate to mock-api package
 cd packages/mock-api
@@ -684,7 +684,7 @@ yarn build
 
 - [Mock API Documentation](https://docs.janua.dev/testing/mock-api)
 - [Testing Guide](https://docs.janua.dev/testing)
-- [Scenario Examples](https://github.com/janua/mock-api-scenarios)
+- [Scenario Examples](https://github.com/madfam-io/mock-api-scenarios)
 
 ## 🎯 Roadmap
 

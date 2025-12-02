@@ -542,7 +542,7 @@ const debugState = () => {
 If you continue to experience issues:
 
 1. **Check Documentation**: https://docs.janua.dev
-2. **Search Issues**: https://github.com/janua/janua-sdks/issues
+2. **Search Issues**: https://github.com/madfam-io/janua-sdks/issues
 3. **Community Forum**: https://community.janua.dev
 4. **Contact Support**: support@janua.dev
 

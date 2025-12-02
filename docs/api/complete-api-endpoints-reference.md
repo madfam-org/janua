@@ -508,7 +508,7 @@ All endpoints are supported by official SDKs:
 - **React**: `@janua/react-sdk`
 - **Next.js**: `@janua/nextjs`
 - **Python**: `janua-python`
-- **Go**: `github.com/janua/go-sdk`
+- **Go**: `github.com/madfam-io/go-sdk`
 - **Vue**: `@janua/vue`
 - **Flutter**: `janua_flutter`
 

@@ -600,7 +600,7 @@ JANUA_WEBHOOK_SECRET=your-webhook-secret
 
 ```bash
 # Clone the repo
-git clone https://github.com/janua/janua.git
+git clone https://github.com/madfam-io/janua.git
 
 # Navigate to React package
 cd packages/react

@@ -57,9 +57,9 @@ dependencies = [
 [project.urls]
 Homepage = "https://janua.dev"
 Documentation = "https://docs.janua.dev/sdks/python"
-Repository = "https://github.com/janua/python-sdk"
-Issues = "https://github.com/janua/python-sdk/issues"
-Changelog = "https://github.com/janua/python-sdk/blob/main/CHANGELOG.md"
+Repository = "https://github.com/madfam-io/python-sdk"
+Issues = "https://github.com/madfam-io/python-sdk/issues"
+Changelog = "https://github.com/madfam-io/python-sdk/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

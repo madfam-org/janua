@@ -30,7 +30,7 @@ pip install janua-python
 
 #### Go
 ```bash
-go get github.com/janua/go-sdk
+go get github.com/madfam-io/go-sdk
 ```
 
 #### Flutter
@@ -303,7 +303,7 @@ import (
     "net/http"
 
     "github.com/gin-gonic/gin"
-    "github.com/janua/go-sdk"
+    "github.com/madfam-io/go-sdk"
 )
 
 func main() {
@@ -722,7 +722,7 @@ describe('Integration Tests', () => {
 ## 📚 Additional Resources
 
 ### Code Examples Repository
-- [GitHub: janua-examples](https://github.com/janua/examples)
+- [GitHub: janua-examples](https://github.com/madfam-io/examples)
 - [CodeSandbox Demos](https://codesandbox.io/janua)
 - [Interactive Playground](https://playground.janua.dev)
 

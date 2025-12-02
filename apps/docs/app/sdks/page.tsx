@@ -26,7 +26,7 @@ export default function SDKsPage() {
             description="Complete Next.js integration with App Router and Pages Router support"
             version="1.2.0"
             href="/sdks/javascript/nextjs"
-            githubUrl="https://github.com/janua/janua-nextjs"
+            githubUrl="https://github.com/madfam-io/janua-nextjs"
             installCommand="npm install @janua/nextjs"
             features={["App Router Support", "Middleware Integration", "Server Components", "API Routes"]}
             stable
@@ -36,7 +36,7 @@ export default function SDKsPage() {
             description="React hooks and components for authentication"
             version="1.1.8"
             href="/sdks/javascript/react"
-            githubUrl="https://github.com/janua/janua-react"
+            githubUrl="https://github.com/madfam-io/janua-react"
             installCommand="npm install @janua/react-sdk"
             features={["React Hooks", "Context Provider", "Auth Components", "TypeScript Support"]}
             stable
@@ -46,7 +46,7 @@ export default function SDKsPage() {
             description="Vue 3 composables and plugin for authentication"
             version="1.0.5"
             href="/sdks/javascript/vue"
-            githubUrl="https://github.com/janua/janua-vue"
+            githubUrl="https://github.com/madfam-io/janua-vue"
             installCommand="npm install @janua/vue"
             features={["Vue 3 Composables", "Pinia Integration", "TypeScript Support", "Nuxt 3 Compatible"]}
             stable
@@ -56,7 +56,7 @@ export default function SDKsPage() {
             description="Universal TypeScript SDK for any framework"
             version="1.2.1"
             href="/sdks/javascript/universal"
-            githubUrl="https://github.com/janua/janua-typescript"
+            githubUrl="https://github.com/madfam-io/janua-typescript"
             installCommand="npm install @janua/typescript-sdk"
             features={["Framework Agnostic", "Node.js Support", "Browser Support", "Full TypeScript Support"]}
             stable
@@ -75,7 +75,7 @@ export default function SDKsPage() {
             description="Official Python SDK with async/await support"
             version="0.8.2"
             href="/sdks/python"
-            githubUrl="https://github.com/janua/janua-python"
+            githubUrl="https://github.com/madfam-io/janua-python"
             installCommand="pip install janua-python"
             features={["Async/Await Support", "Type Hints", "Pydantic Models", "Framework Agnostic"]}
             stable
@@ -85,7 +85,7 @@ export default function SDKsPage() {
             description="Django integration with middleware and decorators"
             version="0.6.0"
             href="/sdks/python/django"
-            githubUrl="https://github.com/janua/janua-django"
+            githubUrl="https://github.com/madfam-io/janua-django"
             installCommand="pip install janua-django"
             features={["Middleware", "Decorators", "Admin Integration", "User Model"]}
             stable
@@ -95,7 +95,7 @@ export default function SDKsPage() {
             description="FastAPI plugin with dependency injection"
             version="0.5.1"
             href="/sdks/python/fastapi"
-            githubUrl="https://github.com/janua/janua-fastapi"
+            githubUrl="https://github.com/madfam-io/janua-fastapi"
             installCommand="pip install janua-fastapi"
             features={["Dependency Injection", "OAuth2 Scopes", "OpenAPI Integration", "Async Support"]}
             stable
@@ -105,7 +105,7 @@ export default function SDKsPage() {
             description="Flask extension for authentication"
             version="0.4.2"
             href="/sdks/python/flask"
-            githubUrl="https://github.com/janua/janua-flask"
+            githubUrl="https://github.com/madfam-io/janua-flask"
             installCommand="pip install janua-flask"
             features={["Flask Extension", "Session Management", "Decorators", "Blueprint Support"]}
             beta
@@ -124,8 +124,8 @@ export default function SDKsPage() {
             description="Go SDK with Gin and standard library support"
             version="0.3.0"
             href="/sdks/go"
-            githubUrl="https://github.com/janua/janua-go"
-            installCommand="go get github.com/janua/janua-go"
+            githubUrl="https://github.com/madfam-io/janua-go"
+            installCommand="go get github.com/madfam-io/janua-go"
             features={["Standard Library", "Gin Integration", "JWT Validation", "Middleware Support"]}
             beta
           />
@@ -134,7 +134,7 @@ export default function SDKsPage() {
             description="PHP SDK with Laravel and Symfony support"
             version="0.2.1"
             href="/sdks/php"
-            githubUrl="https://github.com/janua/janua-php"
+            githubUrl="https://github.com/madfam-io/janua-php"
             installCommand="composer require janua/janua-php"
             features={["Laravel Support", "Symfony Bundle", "PSR-7 Compatible", "JWT Validation"]}
             alpha
@@ -144,7 +144,7 @@ export default function SDKsPage() {
             description="Rust crate for server-side authentication"
             version="0.1.5"
             href="/sdks/rust"
-            githubUrl="https://github.com/janua/janua-rust"
+            githubUrl="https://github.com/madfam-io/janua-rust"
             installCommand="cargo add janua"
             features={["Axum Integration", "Async/Await", "Type Safety", "JWT Validation"]}
             alpha
@@ -154,7 +154,7 @@ export default function SDKsPage() {
             description="Ruby gem with Rails integration"
             version="0.1.2"
             href="/sdks/ruby"
-            githubUrl="https://github.com/janua/janua-ruby"
+            githubUrl="https://github.com/madfam-io/janua-ruby"
             installCommand="gem install janua"
             features={["Rails Integration", "Rack Middleware", "ActiveRecord", "JWT Validation"]}
             alpha
@@ -173,7 +173,7 @@ export default function SDKsPage() {
             description="React Native SDK with biometric authentication"
             version="0.7.0"
             href="/sdks/mobile/react-native"
-            githubUrl="https://github.com/janua/janua-react-native"
+            githubUrl="https://github.com/madfam-io/janua-react-native"
             installCommand="npm install @janua/react-sdk-native"
             features={["Biometric Auth", "Keychain Storage", "Deep Linking", "Push Notifications"]}
             beta
@@ -183,7 +183,7 @@ export default function SDKsPage() {
             description="Flutter plugin for cross-platform mobile apps"
             version="0.6.2"
             href="/sdks/mobile/flutter"
-            githubUrl="https://github.com/janua/janua-flutter"
+            githubUrl="https://github.com/madfam-io/janua-flutter"
             installCommand="flutter pub add janua_flutter"
             features={["Cross Platform", "Secure Storage", "Biometric Auth", "Deep Linking"]}
             beta

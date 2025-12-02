@@ -314,7 +314,7 @@ test.describe('100% Functionality Test', () => {
   test('External Links and Integrations', async ({ page }) => {
     // Test key external links
     const externalLinkTests = [
-      { selector: 'a[href*="github.com/janua/janua"]', name: 'GitHub Repository' },
+      { selector: 'a[href*="github.com/madfam-io/janua"]', name: 'GitHub Repository' },
       { selector: 'a[href*="app.janua.dev"]', name: 'App Links' },
       { selector: 'a[href*="docs.janua.dev"]', name: 'Documentation Links' }
     ];

@@ -242,7 +242,7 @@ See [Manual Error Message Testing Checklist](testing/MANUAL_ERROR_MESSAGE_TESTIN
 ### Beta Bug Reports
 
 Please report bugs via:
-- **GitHub Issues**: https://github.com/janua/janua/issues
+- **GitHub Issues**: https://github.com/madfam-io/janua/issues
 - **Email**: beta@janua.dev
 - **Discord**: https://discord.gg/janua (Coming soon)
 
@@ -275,12 +275,12 @@ Please report bugs via:
 **Priority Support (Beta Users)**:
 - **Email**: beta@janua.dev (Response within 4 hours during business hours)
 - **Office Hours**: Wednesdays 2-4pm EST (Zoom link in beta email)
-- **GitHub Discussions**: https://github.com/janua/janua/discussions
+- **GitHub Discussions**: https://github.com/madfam-io/janua/discussions
 
 **Resources**:
 - **Documentation**: https://docs.janua.dev
 - **API Status**: https://status.janua.dev
-- **Changelog**: https://github.com/janua/janua/blob/main/CHANGELOG.md
+- **Changelog**: https://github.com/madfam-io/janua/blob/main/CHANGELOG.md
 
 ### Common Questions
 
@@ -443,7 +443,7 @@ Thank you for being part of the Janua beta journey. Your feedback and patience h
 ---
 
 **Questions?** Email beta@janua.dev  
-**Issues?** https://github.com/janua/janua/issues  
+**Issues?** https://github.com/madfam-io/janua/issues  
 **Stay Updated**: Follow @janua on Twitter
 
 **Happy Building! 🚀**

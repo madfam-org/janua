@@ -313,7 +313,7 @@ Official SDKs available for:
 - **Python**: `janua`
 - **Vue**: `@janua/vue-sdk`
 - **Next.js**: `@janua/nextjs-sdk`
-- **Go**: `github.com/janua/go-sdk`
+- **Go**: `github.com/madfam-io/go-sdk`
 - **Flutter**: `janua_flutter`
 
 ## Related Documentation

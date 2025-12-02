@@ -161,6 +161,6 @@ The app demonstrates comprehensive session management:
 ## Support
 
 For issues or questions:
-- GitHub Issues: https://github.com/janua/janua-sdks
+- GitHub Issues: https://github.com/madfam-io/janua-sdks
 - Documentation: https://docs.janua.dev
 - Support: support@janua.dev

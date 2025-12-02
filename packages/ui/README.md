@@ -541,7 +541,7 @@ interface ButtonProps {
 
 ```bash
 # Clone the repo
-git clone https://github.com/janua/janua.git
+git clone https://github.com/madfam-io/janua.git
 
 # Navigate to UI package
 cd packages/ui

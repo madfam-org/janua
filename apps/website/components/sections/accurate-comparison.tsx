@@ -431,7 +431,7 @@ export function AccurateComparison() {
 
           <div className="mt-6 flex gap-4">
             <Button asChild>
-              <Link href="https://github.com/janua/janua" target="_blank">
+              <Link href="https://github.com/madfam-io/janua" target="_blank">
                 <ExternalLink className="w-4 h-4 mr-2" />
                 View Source Code
               </Link>

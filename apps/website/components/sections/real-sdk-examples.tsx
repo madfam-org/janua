@@ -113,9 +113,9 @@ Session: sess_123 - Chrome/120.0`
   {
     language: 'go',
     label: 'Go',
-    packageName: 'github.com/janua/go-sdk',
+    packageName: 'github.com/madfam-io/go-sdk',
     version: '1.0.0',
-    installation: 'go get github.com/janua/go-sdk',
+    installation: 'go get github.com/madfam-io/go-sdk',
     code: `package main
 
 import (
@@ -123,7 +123,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/janua/go-sdk/janua"
+    "github.com/madfam-io/go-sdk/janua"
 )
 
 func main() {
@@ -475,7 +475,7 @@ export function RealSDKExamples() {
                 Try in CodeSandbox
               </Button>
               <Button variant="outline" asChild>
-                <a href={`https://github.com/janua/${currentExample.language}-sdk`} target="_blank" rel="noopener">
+                <a href={`https://github.com/madfam-io/${currentExample.language}-sdk`} target="_blank" rel="noopener">
                   View Full Documentation
                 </a>
               </Button>

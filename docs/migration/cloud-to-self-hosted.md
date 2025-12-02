@@ -222,7 +222,7 @@ ls -lh janua_export.tar.gz.enc
 ssh user@your-server.com
 
 # Clone Janua repository
-git clone https://github.com/janua/janua.git
+git clone https://github.com/madfam-io/janua.git
 cd janua
 
 # Checkout latest stable release
@@ -750,7 +750,7 @@ Savings: $16,200-$52,200/year (67-87% cost reduction)
 ## Support & Resources
 
 **Self-Hosting Community**:
-- GitHub Discussions: https://github.com/janua/janua/discussions
+- GitHub Discussions: https://github.com/madfam-io/janua/discussions
 - Discord Server: https://discord.gg/janua
 - Documentation: https://docs.janua.dev
 

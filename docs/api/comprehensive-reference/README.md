@@ -939,7 +939,7 @@ package main
 
 import (
     "context"
-    "github.com/janua/go-sdk"
+    "github.com/madfam-io/go-sdk"
 )
 
 func main() {
@@ -1027,7 +1027,7 @@ https://docs.janua.dev/api-explorer
 ### Support
 - **API Support**: [api-support@janua.dev](mailto:api-support@janua.dev)
 - **Discord Community**: [https://discord.gg/janua](https://discord.gg/janua)
-- **GitHub Issues**: [https://github.com/janua/api-issues](https://github.com/janua/api-issues)
+- **GitHub Issues**: [https://github.com/madfam-io/api-issues](https://github.com/madfam-io/api-issues)
 
 ---
 

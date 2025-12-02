@@ -65,11 +65,11 @@ if claims:
     print(f"Authenticated: {claims.sub}")`
     },
     go: {
-      install: 'go get github.com/janua/janua-go',
+      install: 'go get github.com/madfam-io/janua-go',
       setup: `// main.go
 package main
 
-import "github.com/janua/janua-go"
+import "github.com/madfam-io/janua-go"
 
 func main() {
     client := janua.NewClient(

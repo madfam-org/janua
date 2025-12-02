@@ -24,7 +24,7 @@ export default function ExamplesPage() {
             title="Next.js SaaS Starter"
             description="Complete SaaS application with authentication, organizations, billing, and admin dashboard"
             tech={["Next.js 14", "TypeScript", "Tailwind CSS", "Prisma"]}
-            githubUrl="https://github.com/janua/nextjs-saas-starter"
+            githubUrl="https://github.com/madfam-io/nextjs-saas-starter"
             demoUrl="https://nextjs-saas-starter.janua.dev"
             difficulty="Advanced"
             stars={1240}
@@ -34,7 +34,7 @@ export default function ExamplesPage() {
             title="React Dashboard"
             description="Modern admin dashboard with role-based access control and real-time updates"
             tech={["React 18", "TypeScript", "Vite", "TanStack Query"]}
-            githubUrl="https://github.com/janua/react-dashboard"
+            githubUrl="https://github.com/madfam-io/react-dashboard"
             demoUrl="https://react-dashboard.janua.dev"
             difficulty="Intermediate"
             stars={856}
@@ -53,7 +53,7 @@ export default function ExamplesPage() {
             title="Next.js App Router"
             description="Modern Next.js app with App Router, server components, and middleware"
             tech={["Next.js 14", "TypeScript", "App Router"]}
-            githubUrl="https://github.com/janua/nextjs-app-router-example"
+            githubUrl="https://github.com/madfam-io/nextjs-app-router-example"
             demoUrl="https://nextjs-app-router.janua.dev"
             difficulty="Beginner"
           />
@@ -61,7 +61,7 @@ export default function ExamplesPage() {
             title="Next.js Pages Router"
             description="Traditional Next.js setup with Pages Router and API routes"
             tech={["Next.js 13", "TypeScript", "Pages Router"]}
-            githubUrl="https://github.com/janua/nextjs-pages-router-example"
+            githubUrl="https://github.com/madfam-io/nextjs-pages-router-example"
             demoUrl="https://nextjs-pages-router.janua.dev"
             difficulty="Beginner"
           />
@@ -69,7 +69,7 @@ export default function ExamplesPage() {
             title="React + Vite SPA"
             description="Single-page application with React Router and modern tooling"
             tech={["React 18", "Vite", "React Router"]}
-            githubUrl="https://github.com/janua/react-vite-spa-example"
+            githubUrl="https://github.com/madfam-io/react-vite-spa-example"
             demoUrl="https://react-vite-spa.janua.dev"
             difficulty="Beginner"
           />
@@ -77,7 +77,7 @@ export default function ExamplesPage() {
             title="Vue 3 + Nuxt"
             description="Full-stack Vue application with Nuxt 3 and server-side rendering"
             tech={["Vue 3", "Nuxt 3", "TypeScript"]}
-            githubUrl="https://github.com/janua/vue-nuxt-example"
+            githubUrl="https://github.com/madfam-io/vue-nuxt-example"
             demoUrl="https://vue-nuxt.janua.dev"
             difficulty="Intermediate"
           />
@@ -85,7 +85,7 @@ export default function ExamplesPage() {
             title="Express API"
             description="Node.js REST API with Express and authentication middleware"
             tech={["Express", "Node.js", "TypeScript"]}
-            githubUrl="https://github.com/janua/express-api-example"
+            githubUrl="https://github.com/madfam-io/express-api-example"
             demoUrl="https://express-api.janua.dev"
             difficulty="Intermediate"
           />
@@ -93,7 +93,7 @@ export default function ExamplesPage() {
             title="FastAPI Backend"
             description="Python API with FastAPI, async/await, and OpenAPI documentation"
             tech={["FastAPI", "Python", "Pydantic"]}
-            githubUrl="https://github.com/janua/fastapi-example"
+            githubUrl="https://github.com/madfam-io/fastapi-example"
             demoUrl="https://fastapi.janua.dev"
             difficulty="Intermediate"
           />
@@ -111,7 +111,7 @@ export default function ExamplesPage() {
             description="Complete online store with user accounts, order management, and payment integration"
             features={["User Registration", "Shopping Cart", "Order History", "Admin Panel"]}
             tech={["Next.js", "Stripe", "Prisma", "PostgreSQL"]}
-            githubUrl="https://github.com/janua/ecommerce-example"
+            githubUrl="https://github.com/madfam-io/ecommerce-example"
             demoUrl="https://ecommerce.janua.dev"
           />
           <UseCaseExample
@@ -119,7 +119,7 @@ export default function ExamplesPage() {
             description="Multi-tenant SaaS with organizations, billing, and feature flags"
             features={["Organizations", "RBAC", "Billing", "Feature Flags"]}
             tech={["Next.js", "Stripe", "Vercel", "PlanetScale"]}
-            githubUrl="https://github.com/janua/saas-example"
+            githubUrl="https://github.com/madfam-io/saas-example"
             demoUrl="https://saas.janua.dev"
           />
           <UseCaseExample
@@ -127,7 +127,7 @@ export default function ExamplesPage() {
             description="Social networking app with user profiles, posts, and real-time chat"
             features={["User Profiles", "Posts & Comments", "Real-time Chat", "File Uploads"]}
             tech={["React", "Socket.io", "MongoDB", "Cloudinary"]}
-            githubUrl="https://github.com/janua/social-platform-example"
+            githubUrl="https://github.com/madfam-io/social-platform-example"
             demoUrl="https://social.janua.dev"
           />
           <UseCaseExample
@@ -135,7 +135,7 @@ export default function ExamplesPage() {
             description="Team collaboration tool with projects, tasks, and time tracking"
             features={["Team Management", "Projects & Tasks", "Time Tracking", "Notifications"]}
             tech={["Vue", "Nuxt", "Supabase", "Tailwind"]}
-            githubUrl="https://github.com/janua/project-management-example"
+            githubUrl="https://github.com/madfam-io/project-management-example"
             demoUrl="https://pm.janua.dev"
           />
         </div>
@@ -223,14 +223,14 @@ export default function ExamplesPage() {
             description="One-click deployment template for Vercel"
             command="Deploy with Vercel"
             frameworks={["Next.js"]}
-            deployUrl="https://vercel.com/new/clone?repository-url=https://github.com/janua/nextjs-starter"
+            deployUrl="https://vercel.com/new/clone?repository-url=https://github.com/madfam-io/nextjs-starter"
           />
           <StarterTemplate
             name="Netlify Template"
             description="One-click deployment template for Netlify"
             command="Deploy to Netlify"
             frameworks={["React", "Vue"]}
-            deployUrl="https://app.netlify.com/start/deploy?repository=https://github.com/janua/react-starter"
+            deployUrl="https://app.netlify.com/start/deploy?repository=https://github.com/madfam-io/react-starter"
           />
         </div>
       </section>

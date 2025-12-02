@@ -32,7 +32,7 @@ For a quick production deployment with Docker Compose:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/janua/janua.git
+git clone https://github.com/madfam-io/janua.git
 cd janua
 
 # 2. Copy production environment template
@@ -1196,7 +1196,7 @@ appendfsync everysec
 
 - **Documentation**: https://docs.janua.dev
 - **API Reference**: https://api.janua.dev/docs
-- **GitHub Issues**: https://github.com/janua/janua/issues
+- **GitHub Issues**: https://github.com/madfam-io/janua/issues
 - **Discord Community**: https://discord.gg/janua
 - **Email Support**: support@janua.dev
 - **Security Issues**: security@janua.dev

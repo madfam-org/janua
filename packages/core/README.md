@@ -589,7 +589,7 @@ import type { User } from '@janua/core/types';
 
 ```bash
 # Clone the repo
-git clone https://github.com/janua/janua.git
+git clone https://github.com/madfam-io/janua.git
 
 # Navigate to core package
 cd packages/core

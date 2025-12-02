@@ -344,5 +344,5 @@ AGPL-3.0 License - see [LICENSE](./LICENSE) file for details.
 
 - 📖 [Documentation](https://docs.janua.dev)
 - 💬 [Discord Community](https://discord.gg/janua)
-- 🐛 [Report Issues](https://github.com/janua/janua/issues)
+- 🐛 [Report Issues](https://github.com/madfam-io/janua/issues)
 - 📧 [Email Support](mailto:support@janua.dev)

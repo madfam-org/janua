@@ -412,13 +412,13 @@ export function TransparencyRoadmap() {
           </p>
           <div className="flex gap-4 justify-center">
             <Button asChild>
-              <Link href="https://github.com/janua/janua" target="_blank">
+              <Link href="https://github.com/madfam-io/janua" target="_blank">
                 <GitBranch className="w-4 h-4 mr-2" />
                 View on GitHub
               </Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link href="https://github.com/janua/janua/issues">
+              <Link href="https://github.com/madfam-io/janua/issues">
                 Report Issues
               </Link>
             </Button>

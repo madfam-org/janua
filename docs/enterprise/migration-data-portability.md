@@ -1046,6 +1046,6 @@ class ZeroDowntimeMigration {
 ## Support & Resources
 
 - Migration Guide: https://docs.janua.dev/migration
-- Migration Tools: https://github.com/janua/migration-tools
+- Migration Tools: https://github.com/madfam-io/migration-tools
 - Support: migration@janua.dev
 - Professional Services: enterprise@janua.dev

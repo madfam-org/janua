@@ -1004,11 +1004,11 @@ async function deleteSensitiveData() {
 ### Documentation
 - **API Reference**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **Developer Guides**: [https://docs.janua.dev](https://docs.janua.dev)
-- **GitHub**: [https://github.com/janua/janua](https://github.com/janua/janua)
+- **GitHub**: [https://github.com/madfam-io/janua](https://github.com/madfam-io/janua)
 
 ### Community
 - **Discord**: [https://discord.gg/janua](https://discord.gg/janua)
-- **GitHub Discussions**: [https://github.com/janua/janua/discussions](https://github.com/janua/janua/discussions)
+- **GitHub Discussions**: [https://github.com/madfam-io/janua/discussions](https://github.com/madfam-io/janua/discussions)
 
 ### Support
 - **Email**: support@janua.dev

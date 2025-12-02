@@ -14,7 +14,7 @@ keywords:
   - webauthn
 home: https://janua.dev
 sources:
-  - https://github.com/janua/janua
+  - https://github.com/madfam-io/janua
 maintainers:
   - name: Janua Team
     email: team@janua.dev

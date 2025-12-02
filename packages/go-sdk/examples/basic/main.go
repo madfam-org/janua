@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	janua "github.com/janua/go-sdk/client"
-	"github.com/janua/go-sdk/models"
+	janua "github.com/madfam-io/go-sdk/client"
+	"github.com/madfam-io/go-sdk/models"
 )
 
 func main() {

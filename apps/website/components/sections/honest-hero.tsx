@@ -135,7 +135,7 @@ export function HonestHeroSection() {
             </Button>
 
             <Button size="lg" variant="outline" asChild>
-              <Link href="https://github.com/janua/janua" target="_blank" rel="noopener">
+              <Link href="https://github.com/madfam-io/janua" target="_blank" rel="noopener">
                 <GitBranch className="mr-2 w-4 h-4" />
                 View Source Code
               </Link>

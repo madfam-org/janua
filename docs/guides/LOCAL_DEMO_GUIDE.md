@@ -805,6 +805,6 @@ After completing local testing:
 ---
 
 **Questions or Issues?**
-- GitHub Discussions: https://github.com/janua/janua/discussions
+- GitHub Discussions: https://github.com/madfam-io/janua/discussions
 - Discord: https://discord.gg/janua
 - Email: support@janua.dev

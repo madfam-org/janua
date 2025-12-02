@@ -530,7 +530,7 @@ janua = Janua(
 )
 
 ### Go
-import "github.com/janua/janua-go"
+import "github.com/madfam-io/janua-go"
 
 client := janua.NewClient(
     janua.WithAPIKey(os.Getenv("JANUA_API_KEY")),

@@ -202,7 +202,7 @@ jobs:
           cd packages/javascript
           npm publish --access restricted
 
-  # Go SDK (github.com/janua/janua-go)
+  # Go SDK (github.com/madfam-io/janua-go)
   publish-go:
     needs: validate
     if: contains(fromJson(needs.validate.outputs.sdks_to_publish), 'go')

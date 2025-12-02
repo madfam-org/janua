@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/janua/go-sdk/auth"
-	"github.com/janua/go-sdk/models"
+	"github.com/madfam-io/go-sdk/auth"
+	"github.com/madfam-io/go-sdk/models"
 )
 
 // Client represents the Janua API client

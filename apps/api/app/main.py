@@ -281,7 +281,7 @@ Rate limit headers returned in response:
 ## Support
 
 - Documentation: https://docs.janua.dev
-- GitHub: https://github.com/janua/janua
+- GitHub: https://github.com/madfam-io/janua
 - Discord: https://discord.gg/janua
 - Email: support@janua.dev
 
@@ -290,7 +290,7 @@ Rate limit headers returned in response:
 - **TypeScript**: `npm install @janua/typescript-sdk`
 - **React UI**: `npm install @janua/ui`
 - **Python**: `pip install janua` (coming soon)
-- **Go**: `go get github.com/janua/janua-go` (coming soon)
+- **Go**: `go get github.com/madfam-io/janua-go` (coming soon)
     """,
     docs_url="/docs" if settings.ENABLE_DOCS else None,
     redoc_url="/redoc" if settings.ENABLE_DOCS else None,
