@@ -426,11 +426,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 allowed_hosts = [
     "janua.dev",
     "*.janua.dev",
-    "janua-api.railway.app",
-    "healthcheck.railway.app",
-    "*.railway.app",
     "localhost",
     "127.0.0.1",
+    # Docker internal hostnames for container-to-container communication
+    "janua-api",
+    "janua-api:8000",
 ]
 # Add test host for integration tests
 if settings.ENVIRONMENT == "test":
