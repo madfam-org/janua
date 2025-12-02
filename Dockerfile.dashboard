@@ -16,11 +16,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 # Note: apps/api is Python, no package.json
 COPY apps/admin/package.json ./apps/admin/
 COPY apps/dashboard/package.json ./apps/dashboard/
-COPY apps/demo/package.json ./apps/demo/
 COPY apps/docs/package.json ./apps/docs/
 COPY apps/edge-verify/package.json ./apps/edge-verify/
-COPY apps/landing/package.json ./apps/landing/
-COPY apps/marketing/package.json ./apps/marketing/
+COPY apps/website/package.json ./apps/website/
 
 # Copy all packages (needed for workspace)
 COPY packages/ ./packages/
@@ -59,10 +57,10 @@ COPY --from=builder /app/apps/dashboard/public ./apps/dashboard/public
 
 USER nextjs
 
-EXPOSE 3001
+EXPOSE 3000
 
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 CMD ["node", "apps/dashboard/server.js"]

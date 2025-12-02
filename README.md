@@ -84,21 +84,73 @@ python auth0_migrate.py --config config.json
 git clone https://github.com/madfam-io/janua.git
 cd janua
 
-# Start the backend (PostgreSQL + Redis + FastAPI)
+# Install dependencies (pnpm monorepo)
+pnpm install
+
+# Start infrastructure (PostgreSQL + Redis)
 cd apps/api
 docker-compose up -d postgres redis
+
+# Setup Python environment
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
 
-# In another terminal, start the demo app
-cd apps/demo
-npm install
-npm run dev
+# Start API
+uvicorn app.main:app --reload --port 8000
 
-# Open http://localhost:3001 (web) or http://localhost:8000 (API)
+# In another terminal, start the website
+cd apps/website
+pnpm dev
+
+# Open http://localhost:3001 (website) or http://localhost:8000/docs (API)
 ```
 
 **That's it.** You now have working auth with SSO, MFA, and passkeys.
+
+---
+
+## Monorepo Structure
+
+This is a **pnpm workspace monorepo**. All apps and packages are managed together.
+
+```
+janua/
+├── apps/
+│   ├── api/          # FastAPI backend (Python)
+│   ├── dashboard/    # User management UI (Next.js)
+│   ├── website/      # Public website + demos (Next.js)
+│   ├── admin/        # Internal admin tools
+│   └── docs/         # Documentation site
+├── packages/
+│   ├── ui/           # Shared React components (@janua/ui)
+│   ├── sdk/          # Client SDK (@janua/sdk)
+│   ├── database/     # Database schemas
+│   └── config/       # Shared configs
+└── deployment/
+    └── production/   # Docker, nginx, monitoring
+```
+
+### Monorepo Commands
+
+```bash
+# Install all dependencies
+pnpm install
+
+# Build all packages
+pnpm build
+
+# Run all apps in dev mode
+pnpm dev
+
+# Run specific app
+pnpm --filter @janua/website dev
+pnpm --filter @janua/dashboard dev
+
+# Lint/typecheck
+pnpm lint
+pnpm typecheck
+```
 
 ---
 
@@ -148,18 +200,30 @@ For CI/CD environments, set the `NPM_MADFAM_TOKEN` secret in your GitHub Actions
 ```bash
 # Clone and configure
 git clone https://github.com/madfam-io/janua.git
-cd janua/apps/api
-cp .env.example .env
-# Edit .env with your settings
+cd janua
 
-# Start services
-docker-compose up -d
+# Copy environment files
+cp .env.example .env
+cp apps/api/.env.example apps/api/.env
+cp apps/dashboard/.env.example apps/dashboard/.env
+cp apps/website/.env.example apps/website/.env
+
+# Edit .env files with your settings
+
+# Start all services
+cd deployment/production
+docker-compose -f docker-compose.production.yml up -d
 
 # Run migrations
-docker-compose exec api alembic upgrade head
+docker-compose exec janua-api alembic upgrade head
+```
 
-# Create admin user
-docker-compose exec api python scripts/create_admin.py
+**Build Docker Images:**
+```bash
+# From project root
+docker build -f Dockerfile.api -t janua/api:latest .
+docker build -f Dockerfile.dashboard -t janua/dashboard:latest .
+docker build -f Dockerfile.website -t janua/website:latest .
 ```
 
 **Kubernetes:**
@@ -171,7 +235,8 @@ helm install janua ./deployment/helm/janua \
 ```
 
 **Configuration:**
-- See [Deployment Guide](docs/DEPLOYMENT.md) for production setup
+- See [Production Deployment Guide](deployment/production/README.md) for bare metal/VPS setup
+- See [Deployment Guide](docs/DEPLOYMENT.md) for cloud deployment
 - See [Environment Variables](docs/guides/CONFIGURATION.md) for options
 
 ---

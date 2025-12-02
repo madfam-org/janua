@@ -7,7 +7,7 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - 'apps/landing/**'
+      - 'apps/website/**'
       - 'apps/api/**'
       - 'apps/dashboard/**'
       - 'packages/**'
@@ -17,7 +17,7 @@ on:
   pull_request:
     branches: [main, develop]
     paths:
-      - 'apps/landing/**'
+      - 'apps/website/**'
       - 'apps/api/**'
       - 'apps/dashboard/**'
       - 'packages/**'
@@ -97,17 +97,17 @@ jobs:
 
       - name: Install landing page dependencies
         run: |
-          cd apps/landing
+          cd apps/website
           npm install
 
       - name: Build landing page
         run: |
-          cd apps/landing
+          cd apps/website
           npm run build
 
       - name: Start landing page
         run: |
-          cd apps/landing
+          cd apps/website
           npm start &
           echo $! > /tmp/landing.pid
           echo "Landing page started in background on port 3000"
@@ -347,17 +347,17 @@ jobs:
 
       - name: Install landing page dependencies
         run: |
-          cd apps/landing
+          cd apps/website
           npm install
 
       - name: Build landing page
         run: |
-          cd apps/landing
+          cd apps/website
           npm run build
 
       - name: Start landing page
         run: |
-          cd apps/landing
+          cd apps/website
           npm start &
           echo $! > /tmp/landing.pid
           echo "Landing page started in background on port 3000"

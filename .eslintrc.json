@@ -47,7 +47,7 @@
       }
     },
     {
-      "files": ["apps/demo/**/*", "apps/*/e2e/**/*"],
+      "files": ["apps/website/app/demo/**/*", "apps/*/e2e/**/*"],
       "rules": {
         "no-console": "off"
       }

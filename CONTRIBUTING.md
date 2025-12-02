@@ -120,10 +120,18 @@ Set the `NPM_MADFAM_TOKEN` environment variable with your registry token.
 
 ### Quick Setup
 
+This is a **pnpm monorepo**. You'll need pnpm installed globally.
+
 ```bash
+# Install pnpm (if not already installed)
+npm install -g pnpm
+
 # Clone your fork
 git clone https://github.com/YOUR-USERNAME/janua.git
 cd janua
+
+# Install all dependencies (monorepo-wide)
+pnpm install
 
 # Backend setup
 cd apps/api
@@ -137,17 +145,35 @@ pip install -r requirements-test.txt
 alembic upgrade head
 
 # Start backend
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8000
 
-# In another terminal, frontend setup
-cd apps/demo
-npm install
-npm run dev
+# In another terminal, start frontend
+cd apps/website
+pnpm dev
 ```
 
 **Verify it works:**
-- Backend: http://localhost:8000/docs
-- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000/docs
+- Website: http://localhost:3001
+
+### Monorepo Commands
+
+```bash
+# From project root:
+pnpm install          # Install all dependencies
+pnpm build            # Build all packages
+pnpm dev              # Run all apps in dev mode
+pnpm lint             # Lint all packages
+pnpm typecheck        # Type check all packages
+
+# Run specific app:
+pnpm --filter @janua/website dev
+pnpm --filter @janua/dashboard dev
+pnpm --filter @janua/api dev
+
+# Add dependency to specific package:
+pnpm --filter @janua/website add react-hook-form
+```
 
 ### Running Tests
 
