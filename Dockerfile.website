@@ -1,0 +1,64 @@
+# Janua Website - Multi-stage Dockerfile for Next.js
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache libc6-compat
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+# Copy workspace config and all package.json files first
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
+
+# Copy ALL apps package.json files (needed for workspace resolution)
+COPY apps/admin/package.json ./apps/admin/
+COPY apps/dashboard/package.json ./apps/dashboard/
+COPY apps/docs/package.json ./apps/docs/
+COPY apps/edge-verify/package.json ./apps/edge-verify/
+COPY apps/website/package.json ./apps/website/
+
+# Copy all packages (needed for workspace)
+COPY packages/ ./packages/
+
+# Copy website source code BEFORE install
+COPY apps/website/ ./apps/website/
+
+# Override .npmrc to use public registry (workspace packages are local)
+RUN echo "registry=https://registry.npmjs.org/" > .npmrc
+
+# Install dependencies - force workspace linking for @janua/* packages
+RUN pnpm config set link-workspace-packages true && \
+    pnpm install --no-frozen-lockfile --shamefully-hoist
+
+# Build workspace packages first (website depends on typescript-sdk, ui, react-sdk)
+RUN pnpm --filter @janua/typescript-sdk build || true
+RUN pnpm --filter @janua/ui build || true
+
+# Build website
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm --filter @janua/website build
+
+# Production stage
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/apps/website/.next/standalone ./
+COPY --from=builder /app/apps/website/.next/static ./apps/website/.next/static
+# Public directory is optional - create empty if not exists
+RUN mkdir -p ./apps/website/public
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "apps/website/server.js"]

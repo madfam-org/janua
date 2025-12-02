@@ -128,6 +128,7 @@ services:
     depends_on:
       - janua-api
       - janua-dashboard
+      - janua-website
       - janua-docs
     networks:
       - janua-network
@@ -160,6 +161,33 @@ services:
       - NEXT_PUBLIC_API_URL=https://api.janua.dev
     ports:
       - "3000:3000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - janua-network
+
+  # Public Website (janua.dev)
+  janua-website:
+    image: janua/website:latest
+    container_name: janua-website
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=https://api.janua.dev
+      - NEXT_PUBLIC_APP_URL=https://app.janua.dev
+    ports:
+      - "3002:3000"
     healthcheck:
       test:
         [
