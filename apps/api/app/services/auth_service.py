@@ -185,15 +185,23 @@ class AuthService:
         if email:
             payload["email"] = email
 
-        # Use HS256 for test environment or when JWT_SECRET_KEY is a simple string
-        # RS256 requires PEM-formatted keys which are not suitable for simple string secrets
+        # Use RS256 with private key if available, otherwise fall back to HS256
         algorithm = settings.JWT_ALGORITHM
-        if settings.ENVIRONMENT == "test" or (
-            settings.JWT_SECRET_KEY and not settings.JWT_SECRET_KEY.startswith("-----BEGIN")
-        ):
+        signing_key = settings.JWT_SECRET_KEY
+
+        if algorithm == "RS256" and settings.JWT_PRIVATE_KEY:
+            # Use PEM private key for RS256
+            signing_key = settings.JWT_PRIVATE_KEY.replace("\\n", "\n")
+        elif algorithm == "RS256":
+            # RS256 requested but no private key available, fall back to HS256
             algorithm = "HS256"
 
-        token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=algorithm)
+        # Always use HS256 in test environment
+        if settings.ENVIRONMENT == "test":
+            algorithm = "HS256"
+            signing_key = settings.JWT_SECRET_KEY
+
+        token = jwt.encode(payload, signing_key, algorithm=algorithm)
 
         return token, jti, expires_at
 
@@ -218,15 +226,23 @@ class AuthService:
             "aud": settings.JWT_AUDIENCE,
         }
 
-        # Use HS256 for test environment or when JWT_SECRET_KEY is a simple string
-        # RS256 requires PEM-formatted keys which are not suitable for simple string secrets
+        # Use RS256 with private key if available, otherwise fall back to HS256
         algorithm = settings.JWT_ALGORITHM
-        if settings.ENVIRONMENT == "test" or (
-            settings.JWT_SECRET_KEY and not settings.JWT_SECRET_KEY.startswith("-----BEGIN")
-        ):
+        signing_key = settings.JWT_SECRET_KEY
+
+        if algorithm == "RS256" and settings.JWT_PRIVATE_KEY:
+            # Use PEM private key for RS256
+            signing_key = settings.JWT_PRIVATE_KEY.replace("\\n", "\n")
+        elif algorithm == "RS256":
+            # RS256 requested but no private key available, fall back to HS256
             algorithm = "HS256"
 
-        token = jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=algorithm)
+        # Always use HS256 in test environment
+        if settings.ENVIRONMENT == "test":
+            algorithm = "HS256"
+            signing_key = settings.JWT_SECRET_KEY
+
+        token = jwt.encode(payload, signing_key, algorithm=algorithm)
 
         return token, jti, family, expires_at
 
@@ -288,10 +304,21 @@ class AuthService:
     async def verify_token(token: str, token_type: str = "access") -> Optional[dict]:
         """Verify and decode JWT token"""
         try:
+            # Determine verification key based on algorithm
+            algorithm = settings.JWT_ALGORITHM
+            verify_key = settings.JWT_SECRET_KEY
+
+            if algorithm == "RS256" and settings.JWT_PUBLIC_KEY:
+                # Use PEM public key for RS256 verification
+                verify_key = settings.JWT_PUBLIC_KEY.replace("\\n", "\n")
+            elif algorithm == "RS256":
+                # RS256 requested but no public key, fall back to HS256
+                algorithm = "HS256"
+
             payload = jwt.decode(
                 token,
-                settings.JWT_SECRET_KEY,
-                algorithms=[settings.JWT_ALGORITHM],
+                verify_key,
+                algorithms=[algorithm],
                 audience=settings.JWT_AUDIENCE,
                 issuer=settings.JWT_ISSUER,
             )
