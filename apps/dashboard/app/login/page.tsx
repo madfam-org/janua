@@ -1,12 +1,39 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@janua/ui'
 import { Button } from '@janua/ui'
 import { Input } from '@janua/ui'
 import { Label } from '@janua/ui'
-import { Shield, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Shield, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
+
+// Storage keys - must match auth.tsx
+const STORAGE_KEYS = {
+  ACCESS_TOKEN: 'janua_access_token',
+  REFRESH_TOKEN: 'janua_refresh_token',
+  TOKEN_EXPIRES_AT: 'janua_token_expires_at',
+  USER: 'janua_user',
+  COOKIE: 'janua_token',
+} as const
+
+/**
+ * Clears all authentication state - called on login page load
+ * to ensure clean state when user arrives here
+ */
+function clearAuthStateOnLoad(reason: string | null): void {
+  // Only clear if there was a reason (session expired, etc.)
+  if (!reason) return
+
+  // Clear localStorage
+  localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN)
+  localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN)
+  localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRES_AT)
+  localStorage.removeItem(STORAGE_KEYS.USER)
+
+  // Clear cookie
+  document.cookie = `${STORAGE_KEYS.COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT`
+}
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -14,15 +41,29 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [sessionMessage, setSessionMessage] = useState('')
 
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirect') || '/'
+  const reason = searchParams.get('reason')
+
+  // Handle session expired or other reasons on page load
+  useEffect(() => {
+    if (reason === 'session_expired') {
+      setSessionMessage('Your session has expired. Please sign in again.')
+      clearAuthStateOnLoad(reason)
+    } else if (reason) {
+      setSessionMessage('Please sign in to continue.')
+      clearAuthStateOnLoad(reason)
+    }
+  }, [reason])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError('')
+    setSessionMessage('')
 
     try {
       const response = await fetch('/api/auth/login', {
@@ -42,11 +83,25 @@ function LoginForm() {
         throw new Error(data.message || 'Login failed')
       }
 
-      // Store token in cookie
-      document.cookie = `janua_token=${data.token}; path=/; secure; samesite=strict`
+      // Store token in cookie (for middleware)
+      document.cookie = `${STORAGE_KEYS.COOKIE}=${data.token}; path=/; secure; samesite=strict`
+
+      // Store tokens in localStorage (for SDK)
+      if (data.token) {
+        localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.token)
+      }
+      if (data.refresh_token) {
+        localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, data.refresh_token)
+      }
+      if (data.expires_in) {
+        const expiresAt = Date.now() + (data.expires_in * 1000)
+        localStorage.setItem(STORAGE_KEYS.TOKEN_EXPIRES_AT, expiresAt.toString())
+      }
 
       // Store user info in localStorage for quick access
-      localStorage.setItem('janua_user', JSON.stringify(data.user))
+      if (data.user) {
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(data.user))
+      }
 
       // Redirect to intended page
       router.push(redirectTo)
@@ -69,6 +124,13 @@ function LoginForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {sessionMessage && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md flex items-start gap-2">
+            <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800">{sessionMessage}</p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -80,6 +142,8 @@ function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               required
               disabled={isLoading}
+              autoComplete="email"
+              autoFocus
             />
           </div>
 
@@ -94,6 +158,7 @@ function LoginForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
+                autoComplete="current-password"
               />
               <Button
                 type="button"
@@ -113,8 +178,9 @@ function LoginForm() {
           </div>
 
           {error && (
-            <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
-              {error}
+            <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
             </div>
           )}
 

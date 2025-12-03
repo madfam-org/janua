@@ -515,11 +515,13 @@ export interface SdkEventMap {
   'token:expired': {};
   'auth:signedIn': { user: User };
   'auth:signedOut': {};
+  'auth:error': { error: unknown; message?: string };
   'error': { error: unknown };
   // Backward compatibility aliases
   'signIn': { user: User };
   'signOut': {};
   'tokenRefreshed': { tokens: TokenResponse };
+  'authError': { error: unknown; message?: string };
 }
 
 export type SdkEventType = keyof SdkEventMap;

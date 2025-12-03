@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/lib/auth'
-import { FeatureFlagProvider } from '@janua/feature-flags'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -20,15 +19,13 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
-          <FeatureFlagProvider
-            context={{
-              attributes: { app: 'dashboard', internal: true },
-            }}
-          >
-            {children}
-          </FeatureFlagProvider>
+          {children}
         </AuthProvider>
       </body>
     </html>
   )
 }
+
+// NOTE: FeatureFlagProvider temporarily removed due to React types conflict
+// between Next.js 15 (React 19) and @janua/feature-flags (React 18 types)
+// TODO: Re-add once types are aligned across the monorepo
