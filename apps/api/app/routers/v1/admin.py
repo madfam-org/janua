@@ -605,7 +605,7 @@ async def get_activity_logs(
                 user_id=str(log.user_id),
                 user_email=user.email if user else "unknown",
                 action=log.action,
-                details=log.details or {},
+                details=getattr(log, 'details', None) or getattr(log, 'activity_metadata', None) or {},
                 ip_address=log.ip_address,
                 user_agent=log.user_agent,
                 created_at=log.created_at,
