@@ -168,14 +168,22 @@ async def get_admin_stats(
     )
     active_sessions = result.scalar()
 
-    # Security statistics - MFA not yet implemented in schema
+    # Security statistics - fault-tolerant for missing tables/columns
     mfa_enabled_users = 0  # TODO: Add mfa_enabled column to users table
 
-    result = await db.execute(select(func.count(OAuthAccount.id)))
-    oauth_accounts = result.scalar()
+    # OAuth accounts - table may not exist yet
+    try:
+        result = await db.execute(select(func.count(OAuthAccount.id)))
+        oauth_accounts = result.scalar()
+    except Exception:
+        oauth_accounts = 0
 
-    result = await db.execute(select(func.count(Passkey.id)))
-    passkeys_registered = result.scalar()
+    # Passkeys - table may not exist yet
+    try:
+        result = await db.execute(select(func.count(Passkey.id)))
+        passkeys_registered = result.scalar()
+    except Exception:
+        passkeys_registered = 0
 
     # Recent activity
     last_24h = datetime.utcnow() - timedelta(hours=24)
