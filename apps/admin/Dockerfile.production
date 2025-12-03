@@ -38,9 +38,12 @@ WORKDIR /packages/react-sdk
 RUN npm install --legacy-peer-deps 2>/dev/null || true
 RUN npm run build 2>/dev/null || echo "No build script"
 
-# Copy feature-flags
+# Copy and build feature-flags
 WORKDIR /packages
 COPY packages/feature-flags ./feature-flags
+WORKDIR /packages/feature-flags
+RUN npm install --legacy-peer-deps 2>/dev/null || true
+RUN npm run build 2>/dev/null || echo "No build script"
 
 # ============================================
 # STAGE 3: Admin Dependencies
