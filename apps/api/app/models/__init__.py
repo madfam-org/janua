@@ -41,6 +41,7 @@ class User(Base):
     last_login = Column(DateTime)
     last_sign_in_at = Column(DateTime)  # Add last_sign_in_at field
     is_active = Column(Boolean, default=True)  # Add is_active field used by auth service
+    is_admin = Column(Boolean, default=False)  # Admin flag for system-wide admin access
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
