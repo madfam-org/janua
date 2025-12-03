@@ -1,23 +1,39 @@
 # Multi-stage Next.js Dockerfile for Janua Docs
 # Enclii-compliant: Port 4103
+# Build from repo root: docker build -f apps/docs/Dockerfile.production -t janua/docs:latest .
 
 # ============================================
-# STAGE 1: Dependencies
+# STAGE 1: UI Package Builder
+# ============================================
+FROM node:18-alpine AS ui-builder
+
+RUN apk add --no-cache libc6-compat
+WORKDIR /ui
+
+# Copy UI package
+COPY packages/ui/package.json packages/ui/package-lock.json* ./
+RUN npm install --legacy-peer-deps
+
+COPY packages/ui ./
+RUN npm run build 2>/dev/null || echo "No build script, using source directly"
+
+# ============================================
+# STAGE 2: Docs Dependencies
 # ============================================
 FROM node:18-alpine AS deps
 
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copy package files from monorepo context
-COPY apps/docs/package.json apps/docs/package-lock.json* ./
-COPY packages/ui/package.json ./packages-ui-package.json
+# Copy docs package.json and modify to remove @janua/ui dependency
+COPY apps/docs/package.json ./package.json.orig
+RUN cat package.json.orig | sed 's/"@janua\/ui": "\*",//' > package.json
 
-# Install dependencies
-RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+# Install dependencies without @janua/ui
+RUN npm install --legacy-peer-deps
 
 # ============================================
-# STAGE 2: Builder
+# STAGE 3: Builder
 # ============================================
 FROM node:18-alpine AS builder
 
@@ -26,14 +42,11 @@ WORKDIR /app
 # Copy dependencies
 COPY --from=deps /app/node_modules ./node_modules
 
-# Copy UI package for transpilation
-COPY packages/ui ./packages/ui
+# Copy UI package as local module
+COPY --from=ui-builder /ui ./node_modules/@janua/ui
 
 # Copy docs app source
 COPY apps/docs ./
-
-# Copy content directory
-COPY apps/docs/content ./content
 
 # Enable Next.js standalone output
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -42,7 +55,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # ============================================
-# STAGE 3: Runner
+# STAGE 4: Runner
 # ============================================
 FROM node:18-alpine AS runner
 
@@ -58,9 +71,6 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# Copy content for MDX if needed at runtime
-COPY --from=builder --chown=nextjs:nodejs /app/content ./content 2>/dev/null || true
 
 USER nextjs
 
