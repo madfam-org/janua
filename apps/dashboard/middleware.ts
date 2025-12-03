@@ -35,6 +35,7 @@ const PUBLIC_ROUTES = [
   '/api/',
   '/_next/',
   '/favicon.ico',
+  '/icon',
   '/health',
 ]
 
@@ -85,9 +86,9 @@ export const config = {
      * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * - favicon.ico, icon (favicon files)
      * - public folder
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|public).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|icon|public).*)',
   ],
 }
