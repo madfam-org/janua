@@ -4,7 +4,10 @@ module.exports = {
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
-    '../../packages/ui/**/*.{js,ts,jsx,tsx}',
+    // Use explicit src path to avoid scanning node_modules
+    '../../packages/ui/src/**/*.{js,ts,jsx,tsx}',
+    // Also include compiled dist for production builds
+    '../../packages/ui/dist/**/*.js',
   ],
   theme: {
     container: {
