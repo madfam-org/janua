@@ -29,21 +29,41 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     email_verified = Column(Boolean, default=False)
     password_hash = Column(String(255))
-    status = Column(SQLEnum(UserStatus), default=UserStatus.PENDING)
+    status = Column(SQLEnum(UserStatus), default=UserStatus.ACTIVE)
     first_name = Column(String(255))
     last_name = Column(String(255))
-    username = Column(String(50), unique=True)  # Add username field
+    username = Column(String(50), unique=True)
     phone = Column(String(50))
+    phone_number = Column(String(20))  # Additional phone field
     avatar_url = Column(String(500))
-    profile_image_url = Column(String(500))  # Add profile_image_url field
+    profile_image_url = Column(String(500))
     user_metadata = Column(JSONB, default={})
     tenant_id = Column(UUID(as_uuid=True), index=True)  # For multi-tenancy support
     last_login = Column(DateTime)
-    last_sign_in_at = Column(DateTime)  # Add last_sign_in_at field
-    is_active = Column(Boolean, default=True)  # Add is_active field used by auth service
+    last_sign_in_at = Column(DateTime)
+    is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)  # Admin flag for system-wide admin access
+
+    # MFA fields
+    mfa_enabled = Column(Boolean, default=False)
+    mfa_secret = Column(String(255))
+    mfa_backup_codes = Column(JSONB, default=[])
+
+    # Additional profile fields
+    display_name = Column(String(200))
+    bio = Column(Text)
+    phone_verified = Column(Boolean, default=False)
+    timezone = Column(String(50))
+    locale = Column(String(10))
+    email_verified_at = Column(DateTime)
+
+    # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    oauth_accounts = relationship("OAuthAccount", back_populates="user", cascade="all, delete-orphan")
+    passkeys = relationship("Passkey", back_populates="user", cascade="all, delete-orphan")
 
 
 class Organization(Base):
@@ -169,12 +189,17 @@ class OAuthAccount(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     provider = Column(SQLEnum(OAuthProvider), nullable=False)
-    provider_account_id = Column(String(255), nullable=False)
+    provider_user_id = Column(String(255), nullable=False)
+    provider_email = Column(String(255))
     access_token = Column(Text)
     refresh_token = Column(Text)
-    expires_at = Column(DateTime)
+    token_expires_at = Column(DateTime)
+    provider_data = Column(JSONB, default={})
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship
+    user = relationship("User", back_populates="oauth_accounts")
 
 
 class Passkey(Base):
@@ -184,12 +209,14 @@ class Passkey(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     credential_id = Column(String(500), unique=True, nullable=False)
     public_key = Column(Text, nullable=False)
-    counter = Column(Integer, default=0)
-    device_type = Column(String(255))
-    backed_up = Column(Boolean, default=False)
-    transports = Column(JSONB, default=[])
+    sign_count = Column(Integer, default=0)
+    name = Column(String(100))
+    authenticator_attachment = Column(String(50))  # platform or cross-platform
     created_at = Column(DateTime, default=datetime.utcnow)
     last_used_at = Column(DateTime)
+
+    # Relationship
+    user = relationship("User", back_populates="passkeys")
 
 
 class OrganizationInvitation(Base):
