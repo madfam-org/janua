@@ -1,6 +1,11 @@
 'use client'
 
 import { Avatar } from '@radix-ui/react-avatar'
+import { useState, useEffect } from 'react'
+import { apiCall } from '@/lib/auth'
+
+// API base URL for production
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
 interface Activity {
   id: string
@@ -10,8 +15,18 @@ interface Activity {
   type: 'signin' | 'signup' | 'passkey' | 'session' | 'error'
 }
 
-import { useState, useEffect } from 'react'
-import { apiCall } from '@/lib/auth'
+interface ActivityLog {
+  id: string
+  user_id: string
+  user_email: string
+  action: string
+  details: {
+    method?: string
+  }
+  ip_address: string
+  user_agent: string
+  created_at: string
+}
 
 export function RecentActivity() {
   const [activities, setActivities] = useState<Activity[]>([])
@@ -26,24 +41,85 @@ export function RecentActivity() {
     try {
       setIsLoading(true)
       setError(null)
-      
-      const response = await apiCall('/api/dashboard/recent-activity')
-      
+
+      // Use the real admin activity-logs endpoint
+      const response = await apiCall(`${API_BASE_URL}/api/v1/admin/activity-logs?per_page=10`)
+
       if (!response.ok) {
         throw new Error('Failed to fetch recent activity')
       }
-      
-      const data = await response.json()
-      setActivities(data.activities || [])
+
+      const data: ActivityLog[] = await response.json()
+
+      // Transform API response to Activity format
+      const transformedActivities: Activity[] = data.map((log) => ({
+        id: log.id,
+        user: log.user_email,
+        action: formatAction(log.action, log.details),
+        timestamp: formatTimeAgo(log.created_at),
+        type: mapActionType(log.action)
+      }))
+
+      setActivities(transformedActivities)
     } catch (err) {
       console.error('Error fetching activities:', err)
       setError(err instanceof Error ? err.message : 'Failed to load activities')
-      
-      // Fallback to empty state
       setActivities([])
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const formatAction = (action: string, details: { method?: string }): string => {
+    const method = details?.method ? ` via ${details.method}` : ''
+    switch (action) {
+      case 'signin':
+        return `Signed in${method}`
+      case 'signout':
+        return 'Signed out'
+      case 'signup':
+        return 'Created account'
+      case 'password_reset':
+        return 'Reset password'
+      case 'mfa_enabled':
+        return 'Enabled MFA'
+      case 'mfa_disabled':
+        return 'Disabled MFA'
+      case 'passkey_registered':
+        return 'Registered passkey'
+      default:
+        return action.replace(/_/g, ' ')
+    }
+  }
+
+  const mapActionType = (action: string): Activity['type'] => {
+    switch (action) {
+      case 'signin':
+        return 'signin'
+      case 'signup':
+        return 'signup'
+      case 'passkey_registered':
+        return 'passkey'
+      case 'signout':
+        return 'session'
+      default:
+        return 'signin'
+    }
+  }
+
+  const formatTimeAgo = (dateString: string): string => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+    return date.toLocaleDateString()
   }
 
   const getActivityColor = (type: Activity['type']) => {

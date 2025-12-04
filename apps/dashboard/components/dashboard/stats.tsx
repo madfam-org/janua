@@ -2,6 +2,11 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@janua/ui'
 import { Users, Shield, Key, Activity, TrendingUp, TrendingDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { apiCall } from '@/lib/auth'
+
+// API base URL for production
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
 interface StatCard {
   title: string
@@ -10,9 +15,6 @@ interface StatCard {
   trend: 'up' | 'down' | 'neutral'
   icon: React.ReactNode
 }
-
-import { useState, useEffect } from 'react'
-import { apiCall } from '@/lib/auth'
 
 export function DashboardStats() {
   const [stats, setStats] = useState<StatCard[]>([])
@@ -27,51 +29,54 @@ export function DashboardStats() {
     try {
       setIsLoading(true)
       setError(null)
-      
-      const response = await apiCall('/api/dashboard/stats')
-      
+
+      // Use the real admin stats endpoint
+      const response = await apiCall(`${API_BASE_URL}/api/v1/admin/stats`)
+
       if (!response.ok) {
         throw new Error('Failed to fetch stats')
       }
-      
+
       const data = await response.json()
-      
+
+      // Map API response to stat cards
+      // API returns: total_users, active_users, suspended_users, total_sessions, active_sessions, total_organizations
       const statsData: StatCard[] = [
         {
           title: 'Total Identities',
           value: data.total_users?.toLocaleString() || '0',
-          change: data.users_change || '0%',
-          trend: data.users_change?.startsWith('+') ? 'up' : data.users_change?.startsWith('-') ? 'down' : 'neutral',
+          change: '+0%',
+          trend: 'neutral',
           icon: <Users className="h-4 w-4 text-muted-foreground" />
         },
         {
           title: 'Active Sessions',
           value: data.active_sessions?.toLocaleString() || '0',
-          change: data.sessions_change || '0%',
-          trend: data.sessions_change?.startsWith('+') ? 'up' : data.sessions_change?.startsWith('-') ? 'down' : 'neutral',
+          change: '+0%',
+          trend: 'neutral',
           icon: <Key className="h-4 w-4 text-muted-foreground" />
         },
         {
           title: 'Organizations',
           value: data.total_organizations?.toLocaleString() || '0',
-          change: data.organizations_change || '0%',
-          trend: data.organizations_change?.startsWith('+') ? 'up' : data.organizations_change?.startsWith('-') ? 'down' : 'neutral',
+          change: '+0%',
+          trend: 'neutral',
           icon: <Shield className="h-4 w-4 text-muted-foreground" />
         },
         {
-          title: 'Auth Events',
-          value: data.auth_events ? `${(data.auth_events / 1000).toFixed(1)}K` : '0',
-          change: data.auth_events_change || '0%',
-          trend: data.auth_events_change?.startsWith('+') ? 'up' : data.auth_events_change?.startsWith('-') ? 'down' : 'neutral',
+          title: 'Active Users',
+          value: data.active_users?.toLocaleString() || '0',
+          change: '+0%',
+          trend: 'neutral',
           icon: <Activity className="h-4 w-4 text-muted-foreground" />
         }
       ]
-      
+
       setStats(statsData)
     } catch (err) {
       console.error('Error fetching stats:', err)
       setError(err instanceof Error ? err.message : 'Failed to load stats')
-      
+
       // Fallback to empty stats with error indicators
       setStats([
         {
@@ -96,7 +101,7 @@ export function DashboardStats() {
           icon: <Shield className="h-4 w-4 text-muted-foreground" />
         },
         {
-          title: 'Auth Events',
+          title: 'Active Users',
           value: 'Error',
           change: 'N/A',
           trend: 'neutral',
