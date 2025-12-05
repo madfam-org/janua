@@ -56,7 +56,7 @@ const socialLinks = [
   },
   {
     name: 'GitHub',
-    href: 'https://github.com/aureolabs/janua',
+    href: 'https://github.com/madfam-io/janua',
     icon: Github
   },
   {

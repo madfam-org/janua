@@ -52,9 +52,9 @@
 
 #### GitHub Links (6 found):
 - ✅ Main repository: `https://github.com/madfam-io/janua`
-- ✅ TypeScript SDK: `https://github.com/madfam-io/typescript-sdk`
+- ✅ TypeScript SDK: `https://github.com/madfam-io/janua/tree/main/apps/api/sdks/typescript`
 - ✅ Issues page: `https://github.com/madfam-io/janua/issues`
-- ✅ Aureo Labs repo: `https://github.com/aureolabs/janua`
+- ✅ MADFAM repo: `https://github.com/madfam-io/janua`
 - ✅ All links have proper `target="_blank"` or same-tab navigation
 
 #### App Integration Links (2 found):

@@ -428,7 +428,7 @@ AGPL-3.0 License. See [LICENSE](LICENSE) for details.
 
 - 📖 [Documentation](https://docs.janua.dev)
 - 💬 [Discord Community](https://discord.gg/janua)
-- 🐛 [Issue Tracker](https://github.com/madfam-io/typescript-sdk/issues)
+- 🐛 [Issue Tracker](https://github.com/madfam-io/janua/issues)
 - 📧 [Email Support](mailto:support@janua.dev)
 
 ## Changelog
