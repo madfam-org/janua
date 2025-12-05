@@ -252,14 +252,14 @@ export default function ExamplesPage() {
             description="SvelteKit application with authentication"
             author="@johndoe"
             tech={["Svelte", "SvelteKit", "TypeScript"]}
-            githubUrl="https://github.com/community/svelte-janua-example"
+            githubUrl="https://github.com/madfam-io/janua"
           />
           <CommunityExample
             title="Angular Dashboard"
             description="Angular admin dashboard with guards and services"
             author="@janedoe"
             tech={["Angular", "TypeScript", "RxJS"]}
-            githubUrl="https://github.com/community/angular-janua-example"
+            githubUrl="https://github.com/madfam-io/janua"
           />
         </div>
       </section>

@@ -207,14 +207,14 @@ export default function SDKsPage() {
             name="janua-svelte"
             description="SvelteKit integration with stores and actions"
             maintainer="@johndoe"
-            githubUrl="https://github.com/community/janua-svelte"
+            githubUrl="https://github.com/madfam-io/janua"
             installCommand="npm install janua-svelte"
           />
           <CommunitySDKCard
             name="janua-angular"
             description="Angular services and guards for authentication"
             maintainer="@janedoe"
-            githubUrl="https://github.com/community/janua-angular"
+            githubUrl="https://github.com/madfam-io/janua"
             installCommand="npm install janua-angular"
           />
         </div>

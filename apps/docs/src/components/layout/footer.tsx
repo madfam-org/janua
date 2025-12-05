@@ -65,7 +65,7 @@ export function Footer() {
             </div>
             <div className="flex items-center gap-6">
               <Link
-                href="https://github.com/janua"
+                href="https://github.com/madfam-io/janua"
                 className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
               >
                 GitHub
