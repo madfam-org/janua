@@ -202,6 +202,46 @@ class OAuthAccount(Base):
     user = relationship("User", back_populates="oauth_accounts")
 
 
+class OAuthClient(Base):
+    """
+    OAuth2 Client registration for applications using Janua as an OAuth Provider.
+
+    This enables external applications (like Enclii) to authenticate users via Janua's
+    OAuth2/OIDC endpoints. Each client gets a client_id and client_secret for the
+    OAuth2 authorization code flow.
+    """
+    __tablename__ = "oauth_clients"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+
+    # Client credentials
+    client_id = Column(String(255), unique=True, nullable=False, index=True)
+    client_secret_hash = Column(String(255), nullable=False)  # bcrypt hashed
+    client_secret_prefix = Column(String(20), nullable=False)  # For display: jns_abc...
+
+    # Configuration
+    name = Column(String(255), nullable=False)
+    description = Column(Text)
+    redirect_uris = Column(JSONB, default=[])  # Array of allowed redirect URIs
+    allowed_scopes = Column(JSONB, default=["openid", "profile", "email"])
+    grant_types = Column(JSONB, default=["authorization_code", "refresh_token"])
+
+    # Metadata
+    logo_url = Column(String(500))
+    website_url = Column(String(500))
+
+    # Status & Activity
+    is_active = Column(Boolean, default=True)
+    is_confidential = Column(Boolean, default=True)  # True = requires secret
+    last_used_at = Column(DateTime)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Passkey(Base):
     __tablename__ = "passkeys"
 

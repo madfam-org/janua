@@ -91,6 +91,9 @@ from app.routers.v1 import (
     oauth as oauth_v1,
 )
 from app.routers.v1 import (
+    oauth_clients as oauth_clients_v1,
+)
+from app.routers.v1 import (
     organization_members as organization_members_v1,
 )
 from app.routers.v1 import (
@@ -905,6 +908,7 @@ from app.routers.v1 import health as health_v1
 app.include_router(health_v1.router, prefix="/api/v1")
 app.include_router(auth_v1.router, prefix="/api/v1")
 app.include_router(oauth_v1.router, prefix="/api/v1")
+app.include_router(oauth_clients_v1.router, prefix="/api/v1")
 app.include_router(users_v1.router, prefix="/api/v1")
 app.include_router(sessions_v1.router, prefix="/api/v1")
 app.include_router(organizations_v1.router, prefix="/api/v1")
