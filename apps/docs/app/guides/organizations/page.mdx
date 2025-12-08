@@ -1,0 +1,226 @@
+# Organizations & Multi-Tenancy
+
+Build multi-tenant SaaS applications with Janua's organization management and role-based access control.
+
+## Overview
+
+Organizations in Janua enable you to build B2B SaaS applications where users belong to teams, companies, or groups. Each organization has its own members, roles, and permissions.
+
+## Key Features
+
+- **Multi-Tenant Architecture**: Isolated data and settings per organization
+- **Role-Based Access Control (RBAC)**: Flexible permission management
+- **Team Management**: Invite members, manage roles, handle transfers
+- **SSO Support**: Enterprise SSO per organization
+- **Custom Domains**: White-label experiences
+
+## Quick Start
+
+### Create an Organization
+
+```typescript
+import { janua } from '@janua/typescript-sdk'
+
+const org = await janua.organizations.create({
+  name: 'Acme Inc',
+  slug: 'acme',
+  metadata: {
+    industry: 'technology',
+    size: '50-200'
+  }
+})
+
+console.log('Organization created:', org.id)
+```
+
+### Invite Members
+
+```typescript
+// Invite a new member
+await janua.organizations.inviteMembers(org.id, {
+  emails: ['alice@acme.com', 'bob@acme.com'],
+  role: 'member'
+})
+
+// Invite with admin role
+await janua.organizations.inviteMembers(org.id, {
+  emails: ['cto@acme.com'],
+  role: 'admin'
+})
+```
+
+### Manage Roles
+
+```typescript
+// Update member role
+await janua.organizations.updateMemberRole(org.id, userId, {
+  role: 'admin'
+})
+
+// Remove member
+await janua.organizations.removeMember(org.id, userId)
+```
+
+## Organization Structure
+
+```
+Organization
+├── Members
+│   ├── Owner (1)
+│   ├── Admins (many)
+│   └── Members (many)
+├── Roles & Permissions
+│   ├── Built-in roles
+│   └── Custom roles
+├── Settings
+│   ├── SSO configuration
+│   ├── Security policies
+│   └── Branding
+└── Resources
+    └── Organization-scoped data
+```
+
+## Built-in Roles
+
+| Role | Description | Permissions |
+|------|-------------|-------------|
+| `owner` | Organization creator | Full access, billing, delete org |
+| `admin` | Administrator | Manage members, settings, roles |
+| `member` | Regular member | Access resources, view members |
+| `viewer` | Read-only access | View resources only |
+
+## Custom Roles
+
+Define custom roles with specific permissions:
+
+```typescript
+const customRole = await janua.organizations.createRole(org.id, {
+  name: 'Project Manager',
+  slug: 'project-manager',
+  permissions: [
+    'projects:read',
+    'projects:write',
+    'members:read',
+    'reports:read'
+  ]
+})
+```
+
+## API Reference
+
+### POST /api/v1/organizations
+
+Create a new organization.
+
+**Request:**
+```json
+{
+  "name": "Acme Inc",
+  "slug": "acme",
+  "metadata": {}
+}
+```
+
+### GET /api/v1/organizations/:org_id
+
+Get organization details.
+
+### GET /api/v1/organizations/:org_id/members
+
+List organization members with their roles.
+
+### POST /api/v1/organizations/:org_id/invitations
+
+Create member invitations.
+
+### PUT /api/v1/organizations/:org_id/members/:user_id
+
+Update member role.
+
+### DELETE /api/v1/organizations/:org_id/members/:user_id
+
+Remove member from organization.
+
+## React Example
+
+```tsx
+'use client'
+
+import { useState, useEffect } from 'react'
+import { janua, useOrganization } from '@janua/react-sdk'
+
+export function OrganizationMembers() {
+  const { organization, members, isLoading } = useOrganization()
+  const [inviteEmail, setInviteEmail] = useState('')
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await janua.organizations.inviteMembers(organization.id, {
+      emails: [inviteEmail],
+      role: 'member'
+    })
+    setInviteEmail('')
+  }
+
+  if (isLoading) return <div>Loading...</div>
+
+  return (
+    <div>
+      <h2>{organization.name} Members</h2>
+
+      <form onSubmit={handleInvite}>
+        <input
+          type="email"
+          value={inviteEmail}
+          onChange={(e) => setInviteEmail(e.target.value)}
+          placeholder="Email address"
+        />
+        <button type="submit">Invite</button>
+      </form>
+
+      <ul>
+        {members.map((member) => (
+          <li key={member.id}>
+            {member.user.email} - {member.role}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+```
+
+## Multi-Tenant Data Isolation
+
+Janua ensures data isolation between organizations:
+
+1. **Database Level**: All queries include organization context
+2. **API Level**: Authorization checks org membership
+3. **SDK Level**: Automatic org context in requests
+
+```typescript
+// SDK automatically includes org context
+const projects = await janua.resources.list('projects')
+// Returns only projects for the current organization
+```
+
+## Enterprise SSO
+
+Enable SSO for enterprise organizations:
+
+```typescript
+await janua.organizations.configureSso(org.id, {
+  provider: 'saml',
+  config: {
+    entryPoint: 'https://idp.acme.com/sso/saml',
+    certificate: '...',
+    issuer: 'janua'
+  }
+})
+```
+
+## Next Steps
+
+- [RBAC Deep Dive](/guides/organizations/rbac) - Advanced permission management
+- [Enterprise SSO](/guides/authentication) - Configure SAML/OIDC
+- [Session Management](/guides/sessions/management) - Manage user sessions

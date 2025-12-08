@@ -1,0 +1,423 @@
+# Authentication API Reference
+
+Complete API reference for Janua authentication endpoints.
+
+## Base URL
+
+```
+https://api.janua.dev/api/v1
+```
+
+## Authentication Endpoints
+
+### Login
+
+Authenticate a user with email and password.
+
+```http
+POST /auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "secure-password"
+}
+```
+
+**Response:**
+
+```json
+{
+  "user": {
+    "id": "usr_abc123",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "emailVerified": true,
+    "createdAt": "2024-01-15T10:00:00Z"
+  },
+  "accessToken": "eyJhbGciOiJSUzI1NiIs...",
+  "refreshToken": "rt_def456...",
+  "expiresIn": 900
+}
+```
+
+**Error Responses:**
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 401 | `INVALID_CREDENTIALS` | Email or password is incorrect |
+| 403 | `EMAIL_NOT_VERIFIED` | User must verify email first |
+| 403 | `MFA_REQUIRED` | Multi-factor authentication required |
+| 429 | `TOO_MANY_ATTEMPTS` | Rate limit exceeded |
+
+---
+
+### Register
+
+Create a new user account.
+
+```http
+POST /auth/register
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "secure-password",
+  "name": "John Doe",
+  "metadata": {
+    "referralCode": "ABC123"
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "user": {
+    "id": "usr_abc123",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "emailVerified": false,
+    "createdAt": "2024-01-15T10:00:00Z"
+  },
+  "accessToken": "eyJhbGciOiJSUzI1NiIs...",
+  "refreshToken": "rt_def456...",
+  "verificationEmailSent": true
+}
+```
+
+**Error Responses:**
+
+| Status | Code | Description |
+|--------|------|-------------|
+| 400 | `WEAK_PASSWORD` | Password does not meet requirements |
+| 409 | `USER_EXISTS` | Email already registered |
+| 422 | `VALIDATION_ERROR` | Invalid request body |
+
+---
+
+### Refresh Token
+
+Get a new access token using a refresh token.
+
+```http
+POST /auth/token/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "rt_def456..."
+}
+```
+
+**Response:**
+
+```json
+{
+  "accessToken": "eyJhbGciOiJSUzI1NiIs...",
+  "refreshToken": "rt_ghi789...",
+  "expiresIn": 900
+}
+```
+
+---
+
+### Get Current User
+
+Get the authenticated user's profile.
+
+```http
+GET /auth/me
+Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
+```
+
+**Response:**
+
+```json
+{
+  "id": "usr_abc123",
+  "email": "user@example.com",
+  "name": "John Doe",
+  "emailVerified": true,
+  "mfaEnabled": true,
+  "createdAt": "2024-01-15T10:00:00Z",
+  "updatedAt": "2024-01-20T14:30:00Z"
+}
+```
+
+---
+
+### Logout
+
+Invalidate the current session.
+
+```http
+POST /auth/logout
+Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
+```
+
+**Response:**
+
+```json
+{
+  "success": true
+}
+```
+
+---
+
+## Password Management
+
+### Request Password Reset
+
+```http
+POST /auth/password/reset/request
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+```
+
+**Response:**
+
+```json
+{
+  "message": "If an account exists, a reset email has been sent"
+}
+```
+
+---
+
+### Reset Password
+
+```http
+POST /auth/password/reset
+Content-Type: application/json
+
+{
+  "token": "reset_token_here",
+  "password": "new-secure-password"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true
+}
+```
+
+---
+
+### Change Password
+
+```http
+POST /auth/password/change
+Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
+Content-Type: application/json
+
+{
+  "currentPassword": "old-password",
+  "newPassword": "new-secure-password"
+}
+```
+
+---
+
+## Email Verification
+
+### Resend Verification Email
+
+```http
+POST /auth/email/verify/resend
+Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
+```
+
+---
+
+### Verify Email
+
+```http
+POST /auth/email/verify
+Content-Type: application/json
+
+{
+  "token": "verification_token"
+}
+```
+
+---
+
+## Multi-Factor Authentication
+
+### Enable MFA
+
+```http
+POST /auth/mfa/setup
+Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
+```
+
+**Response:**
+
+```json
+{
+  "secret": "JBSWY3DPEHPK3PXP",
+  "qrCode": "data:image/png;base64,..."
+}
+```
+
+---
+
+### Verify MFA Setup
+
+```http
+POST /auth/mfa/verify
+Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
+Content-Type: application/json
+
+{
+  "code": "123456"
+}
+```
+
+---
+
+### Disable MFA
+
+```http
+DELETE /auth/mfa
+Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
+Content-Type: application/json
+
+{
+  "code": "123456"
+}
+```
+
+---
+
+## Passkeys (WebAuthn)
+
+### Begin Registration
+
+```http
+POST /auth/passkey/register/begin
+Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
+Content-Type: application/json
+
+{
+  "displayName": "John's MacBook"
+}
+```
+
+**Response:**
+
+```json
+{
+  "options": {
+    "challenge": "...",
+    "rp": { "name": "Janua", "id": "janua.dev" },
+    "user": { "id": "...", "name": "...", "displayName": "..." },
+    "pubKeyCredParams": [...]
+  }
+}
+```
+
+---
+
+### Complete Registration
+
+```http
+POST /auth/passkey/register/complete
+Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
+Content-Type: application/json
+
+{
+  "credential": { ... }
+}
+```
+
+---
+
+### Begin Authentication
+
+```http
+POST /auth/passkey/authenticate/begin
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+```
+
+---
+
+### Complete Authentication
+
+```http
+POST /auth/passkey/authenticate/complete
+Content-Type: application/json
+
+{
+  "credential": { ... }
+}
+```
+
+---
+
+## OAuth / Social Login
+
+### Initiate OAuth Flow
+
+```http
+GET /auth/oauth/:provider?redirect_uri=https://app.example.com/callback
+```
+
+Supported providers: `google`, `github`, `microsoft`, `apple`, `discord`
+
+---
+
+### Handle OAuth Callback
+
+```http
+POST /auth/oauth/:provider/callback
+Content-Type: application/json
+
+{
+  "code": "authorization_code",
+  "state": "state_parameter"
+}
+```
+
+---
+
+## Error Response Format
+
+All error responses follow this format:
+
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable error message",
+    "details": { ... }
+  }
+}
+```
+
+## Rate Limits
+
+| Endpoint | Limit |
+|----------|-------|
+| `/auth/login` | 5 per 15 minutes per IP |
+| `/auth/register` | 3 per hour per IP |
+| `/auth/password/reset/request` | 3 per hour per email |
+| `/auth/mfa/verify` | 5 per 15 minutes per user |
+
+## Next Steps
+
+- [Authentication Guide](/guides/authentication) - Implementation guide
+- [Session Management](/guides/sessions/management) - Manage sessions
+- [Security Best Practices](/guides/security/best-practices) - Secure your app

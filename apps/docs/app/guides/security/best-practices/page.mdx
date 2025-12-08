@@ -1,0 +1,324 @@
+# Security Best Practices
+
+Essential security practices for implementing Janua authentication in your applications.
+
+## Overview
+
+Security is built into Janua's core, but proper implementation is crucial. This guide covers best practices for securing your authentication implementation.
+
+## Token Security
+
+### HTTP-Only Cookies
+
+Store tokens in HTTP-only cookies to prevent XSS attacks:
+
+```typescript
+// ✅ Recommended: HTTP-only cookies
+const janua = new Janua({
+  apiKey: 'your-api-key',
+  storage: 'cookie',
+  cookieOptions: {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'lax'
+  }
+})
+
+// ❌ Avoid: localStorage in production
+localStorage.setItem('access_token', token)
+```
+
+### Token Validation
+
+Always validate tokens server-side:
+
+```typescript
+// API route protection
+import { getSession } from '@janua/nextjs'
+
+export async function GET(request: Request) {
+  const session = await getSession(request)
+
+  if (!session) {
+    return new Response('Unauthorized', { status: 401 })
+  }
+
+  // Validate additional claims if needed
+  if (!session.user.emailVerified) {
+    return new Response('Email not verified', { status: 403 })
+  }
+
+  return Response.json({ data: 'protected data' })
+}
+```
+
+### Token Rotation
+
+Enable refresh token rotation for enhanced security:
+
+```typescript
+await janua.config.update({
+  security: {
+    rotateRefreshTokens: true,
+    reuseInterval: 10 // 10 second grace period
+  }
+})
+```
+
+## HTTPS Requirements
+
+**Always use HTTPS in production.** Janua enforces:
+
+- All authentication endpoints require HTTPS
+- Cookies are marked `Secure` in production
+- WebAuthn/Passkeys only work over HTTPS
+
+```typescript
+// Verify HTTPS in production
+if (process.env.NODE_ENV === 'production' && !request.url.startsWith('https')) {
+  return new Response('HTTPS required', { status: 403 })
+}
+```
+
+## Rate Limiting
+
+Janua includes built-in rate limiting, but implement additional protection:
+
+```typescript
+// Login attempt tracking
+const loginAttempts = new Map<string, number>()
+
+async function handleLogin(email: string, password: string, ip: string) {
+  const key = `${email}:${ip}`
+  const attempts = loginAttempts.get(key) || 0
+
+  if (attempts >= 5) {
+    throw new Error('Too many login attempts. Please try again later.')
+  }
+
+  try {
+    const result = await janua.signIn({ email, password })
+    loginAttempts.delete(key)
+    return result
+  } catch (error) {
+    loginAttempts.set(key, attempts + 1)
+    throw error
+  }
+}
+```
+
+## CSRF Protection
+
+### SameSite Cookies
+
+```typescript
+const janua = new Janua({
+  cookieOptions: {
+    sameSite: 'lax' // or 'strict' for more security
+  }
+})
+```
+
+### CSRF Tokens
+
+For state-changing operations:
+
+```typescript
+// Generate CSRF token
+const csrfToken = await janua.generateCsrfToken()
+
+// Validate on server
+app.post('/api/sensitive-action', async (req, res) => {
+  const isValid = await janua.validateCsrfToken(req.body.csrfToken)
+
+  if (!isValid) {
+    return res.status(403).json({ error: 'Invalid CSRF token' })
+  }
+
+  // Proceed with action
+})
+```
+
+## Content Security Policy
+
+Configure CSP headers to prevent XSS:
+
+```typescript
+// next.config.js
+module.exports = {
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: `
+              default-src 'self';
+              script-src 'self' 'unsafe-inline';
+              style-src 'self' 'unsafe-inline';
+              connect-src 'self' https://api.janua.dev;
+              frame-ancestors 'none';
+            `.replace(/\s+/g, ' ')
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## Password Security
+
+### Strong Password Requirements
+
+Janua enforces by default:
+
+- Minimum 12 characters
+- Mixed case letters
+- Numbers and special characters
+- Not in common password lists
+
+### Password Hashing
+
+Janua uses Argon2id for password hashing with:
+
+- Memory: 65536 KB
+- Iterations: 3
+- Parallelism: 4
+
+## Session Security
+
+### Absolute Session Lifetime
+
+Limit maximum session duration:
+
+```typescript
+await janua.config.update({
+  sessions: {
+    absoluteSessionLifetime: 2592000, // 30 days max
+    idleTimeout: 3600 // 1 hour of inactivity
+  }
+})
+```
+
+### Session Binding
+
+Bind sessions to user agent and IP (optional):
+
+```typescript
+await janua.config.update({
+  sessions: {
+    bindToUserAgent: true,
+    bindToIpRange: true // /24 subnet
+  }
+})
+```
+
+## MFA Best Practices
+
+### Require MFA for Sensitive Actions
+
+```typescript
+async function deletAccount(userId: string, mfaCode?: string) {
+  const user = await janua.users.get(userId)
+
+  if (user.mfaEnabled) {
+    if (!mfaCode) {
+      throw new Error('MFA required for this action')
+    }
+
+    const isValid = await janua.verifyMfaCode(userId, mfaCode)
+    if (!isValid) {
+      throw new Error('Invalid MFA code')
+    }
+  }
+
+  await janua.users.delete(userId)
+}
+```
+
+### MFA Recovery
+
+Provide secure recovery options:
+
+```typescript
+// Generate backup codes
+const { backupCodes } = await janua.mfa.generateBackupCodes(userId)
+
+// Display once, store hashed
+console.log('Save these codes:', backupCodes)
+```
+
+## Audit Logging
+
+Enable comprehensive audit logging:
+
+```typescript
+// Configure audit logging
+await janua.config.update({
+  audit: {
+    enabled: true,
+    events: [
+      'auth.login',
+      'auth.logout',
+      'auth.mfa.enabled',
+      'auth.password.changed',
+      'user.created',
+      'user.deleted',
+      'session.revoked'
+    ],
+    retention: 90 // days
+  }
+})
+
+// Query audit logs
+const logs = await janua.audit.query({
+  userId: userId,
+  startDate: new Date('2024-01-01'),
+  events: ['auth.login']
+})
+```
+
+## Security Headers Checklist
+
+```typescript
+// Recommended security headers
+const securityHeaders = {
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+}
+```
+
+## Vulnerability Reporting
+
+Found a security vulnerability? Please report it responsibly:
+
+- Email: security@janua.dev
+- Do not disclose publicly until patched
+- We aim to respond within 24 hours
+
+## Security Checklist
+
+Before going to production:
+
+- [ ] HTTPS enabled and enforced
+- [ ] HTTP-only cookies for tokens
+- [ ] CSRF protection implemented
+- [ ] Rate limiting configured
+- [ ] MFA available for users
+- [ ] Audit logging enabled
+- [ ] Security headers configured
+- [ ] Password requirements enforced
+- [ ] Session timeouts configured
+- [ ] Backup/recovery procedures tested
+
+## Next Steps
+
+- [Authentication](/guides/authentication) - Secure authentication methods
+- [Session Management](/guides/sessions/management) - Secure session handling
+- [Organizations](/guides/organizations) - Multi-tenant security

@@ -1,0 +1,192 @@
+# Passkeys & WebAuthn Authentication
+
+Implement passwordless authentication using passkeys (WebAuthn/FIDO2) for enhanced security and user experience.
+
+## Overview
+
+Passkeys provide a phishing-resistant, passwordless authentication method using biometrics, security keys, or device credentials. Built on WebAuthn/FIDO2 standards, passkeys offer superior security while simplifying the user experience.
+
+## Benefits
+
+- **Phishing Resistant**: Cryptographically bound to specific origins
+- **No Passwords**: Eliminate password-related vulnerabilities
+- **Better UX**: One-touch authentication with biometrics
+- **Cross-Platform**: Works across devices with cloud sync
+- **Strong Security**: Public key cryptography with hardware backing
+
+## Quick Start
+
+### 1. Register a Passkey
+
+```typescript
+import { janua } from '@janua/typescript-sdk'
+
+// Start passkey registration
+const { options } = await janua.auth.passkey.beginRegistration({
+  userId: currentUser.id,
+  userName: currentUser.email,
+  displayName: currentUser.name
+})
+
+// Browser WebAuthn API
+const credential = await navigator.credentials.create({
+  publicKey: options
+})
+
+// Complete registration
+const { passkey } = await janua.auth.passkey.completeRegistration({
+  userId: currentUser.id,
+  credential
+})
+
+console.log('Passkey registered:', passkey.id)
+```
+
+### 2. Authenticate with Passkey
+
+```typescript
+// Start authentication
+const { options } = await janua.auth.passkey.beginAuthentication({
+  email: 'user@example.com'
+})
+
+// Browser WebAuthn API
+const credential = await navigator.credentials.get({
+  publicKey: options,
+  mediation: 'conditional' // Enable autofill UI
+})
+
+// Complete authentication
+const { user, session } = await janua.auth.passkey.completeAuthentication({
+  credential
+})
+
+console.log('Authenticated as:', user.email)
+```
+
+## React Implementation
+
+```tsx
+'use client'
+
+import { useState, useEffect } from 'react'
+import { janua } from '@/lib/janua'
+
+export function PasskeyLogin() {
+  const [isSupported, setIsSupported] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    // Check if passkeys are supported
+    setIsSupported(
+      typeof window !== 'undefined' &&
+      window.PublicKeyCredential !== undefined
+    )
+  }, [])
+
+  const handlePasskeyLogin = async () => {
+    setIsLoading(true)
+    try {
+      const { options } = await janua.auth.passkey.beginAuthentication({})
+
+      const credential = await navigator.credentials.get({
+        publicKey: options,
+        mediation: 'conditional'
+      })
+
+      const { user, session } = await janua.auth.passkey.completeAuthentication({
+        credential
+      })
+
+      // User is now authenticated
+      window.location.href = '/dashboard'
+    } catch (error) {
+      console.error('Passkey authentication failed:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (!isSupported) {
+    return null
+  }
+
+  return (
+    <button
+      onClick={handlePasskeyLogin}
+      disabled={isLoading}
+      className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+    >
+      {isLoading ? 'Authenticating...' : 'Sign in with Passkey'}
+    </button>
+  )
+}
+```
+
+## API Reference
+
+### POST /api/v1/auth/passkey/register/begin
+
+Start passkey registration for an authenticated user.
+
+**Request:**
+```json
+{
+  "displayName": "John Doe"
+}
+```
+
+**Response:**
+```json
+{
+  "options": {
+    "challenge": "base64-encoded-challenge",
+    "rp": { "name": "Janua", "id": "janua.dev" },
+    "user": { "id": "user-id", "name": "user@example.com", "displayName": "John Doe" },
+    "pubKeyCredParams": [
+      { "alg": -7, "type": "public-key" },
+      { "alg": -257, "type": "public-key" }
+    ],
+    "authenticatorSelection": {
+      "residentKey": "required",
+      "userVerification": "preferred"
+    }
+  }
+}
+```
+
+### POST /api/v1/auth/passkey/register/complete
+
+Complete passkey registration with the credential from the browser.
+
+### POST /api/v1/auth/passkey/authenticate/begin
+
+Start passkey authentication.
+
+### POST /api/v1/auth/passkey/authenticate/complete
+
+Complete passkey authentication and receive tokens.
+
+## Browser Support
+
+| Browser | Support |
+|---------|---------|
+| Chrome 67+ | ✅ Full support |
+| Firefox 60+ | ✅ Full support |
+| Safari 13+ | ✅ Full support |
+| Edge 79+ | ✅ Full support |
+| Mobile Chrome | ✅ Full support |
+| Mobile Safari | ✅ Full support |
+
+## Security Considerations
+
+1. **HTTPS Required**: WebAuthn only works over HTTPS
+2. **Origin Binding**: Credentials are bound to the registering origin
+3. **User Verification**: Consider requiring biometric verification for sensitive operations
+4. **Fallback Methods**: Always provide alternative authentication methods
+
+## Next Steps
+
+- [Session Management](/guides/sessions/management) - Manage user sessions
+- [Multi-Factor Authentication](/guides/authentication) - Add additional security layers
+- [Security Best Practices](/guides/security/best-practices) - Secure your implementation

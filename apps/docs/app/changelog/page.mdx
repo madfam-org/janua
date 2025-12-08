@@ -1,0 +1,131 @@
+# Changelog
+
+All notable changes to Janua are documented here.
+
+## [Unreleased]
+
+### Added
+- OAuth provider configuration via API
+- Custom domain support for organizations
+- Bulk user import/export functionality
+
+### Changed
+- Improved session token rotation security
+- Enhanced rate limiting algorithms
+
+### Fixed
+- Edge case in passkey authentication flow
+- Session expiry calculation in certain timezones
+
+---
+
+## [1.0.0] - 2024-12-01
+
+### Added
+- **Core Authentication**
+  - Email/password authentication
+  - OAuth 2.0 / OIDC support (Google, GitHub, Microsoft, Apple, Discord)
+  - SAML 2.0 SSO integration
+  - Multi-factor authentication (TOTP, SMS)
+  - WebAuthn/Passkeys (FIDO2)
+  - Magic link authentication
+
+- **Session Management**
+  - JWT-based sessions with access/refresh tokens
+  - Configurable token lifetimes
+  - Device management and tracking
+  - Session revocation
+
+- **Organization Management**
+  - Multi-tenant architecture
+  - Role-based access control (RBAC)
+  - Member invitations
+  - Enterprise SSO per organization
+
+- **User Management**
+  - User profiles with metadata
+  - Email verification
+  - Password reset flows
+  - Account deletion (GDPR compliant)
+
+- **Security**
+  - Argon2id password hashing
+  - Rate limiting
+  - Audit logging
+  - CSRF protection
+
+- **SDKs**
+  - `@janua/nextjs` - Next.js 13+ App Router
+  - `@janua/react-sdk` - React hooks and components
+  - `@janua/vue-sdk` - Vue 3 composables
+  - `@janua/typescript-sdk` - Type-safe API client
+  - `janua-sdk` - Python integration
+  - `janua-go` - Go service integration
+
+- **Documentation**
+  - Comprehensive API reference
+  - Framework integration guides
+  - Security best practices
+  - Migration guides from Auth0, Clerk, Firebase
+
+---
+
+## [0.9.0] - 2024-11-15 (Beta)
+
+### Added
+- Initial public beta release
+- Core authentication features
+- Basic SDK support
+
+### Known Issues
+- Passkey support limited on some mobile browsers
+- SAML metadata import may require manual configuration
+
+---
+
+## Versioning
+
+Janua follows [Semantic Versioning](https://semver.org/):
+
+- **MAJOR** version for incompatible API changes
+- **MINOR** version for new functionality (backwards compatible)
+- **PATCH** version for bug fixes (backwards compatible)
+
+## Upgrade Guide
+
+### From 0.x to 1.0
+
+1. Update all SDK packages to version 1.0+
+2. Review breaking changes in authentication flow
+3. Migrate deprecated configuration options
+4. Test thoroughly in staging environment
+
+```bash
+# Update packages
+npm update @janua/nextjs @janua/react-sdk
+
+# Check for breaking changes
+npx @janua/cli upgrade-check
+```
+
+## Release Schedule
+
+- **Stable releases**: Monthly on the first Tuesday
+- **Patch releases**: As needed for security fixes
+- **Beta features**: Available on `beta` npm tag
+
+## Subscribe to Updates
+
+Stay informed about new releases:
+
+- [GitHub Releases](https://github.com/madfam-io/janua/releases)
+- [Discord Community](https://discord.gg/janua)
+- [Changelog RSS Feed](/changelog.rss)
+
+## Reporting Issues
+
+Found a bug? Please report it:
+
+1. Check [existing issues](https://github.com/madfam-io/janua/issues)
+2. Create a new issue with reproduction steps
+3. For security issues, email security@janua.dev

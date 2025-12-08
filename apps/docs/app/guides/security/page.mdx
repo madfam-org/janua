@@ -1,0 +1,143 @@
+# Security
+
+Comprehensive security documentation for implementing Janua safely in production.
+
+## Overview
+
+Janua is built with security as a core principle. This section covers security best practices, threat protection, and compliance considerations.
+
+## Security Guides
+
+### Implementation
+
+- [Security Best Practices](/guides/security/best-practices) - Essential security practices
+- [Rate Limiting](/guides/security/rate-limiting) - Protect against abuse
+- [CSRF Protection](/guides/security/csrf) - Cross-site request forgery prevention
+
+### Infrastructure
+
+- [Token Security](/guides/security/tokens) - Secure token handling
+- [Data Encryption](/guides/security/encryption) - Data at rest and in transit
+- [Audit Logging](/guides/security/audit) - Track security events
+
+## Security Features
+
+### Built-in Protection
+
+| Feature | Description |
+|---------|-------------|
+| **Password Hashing** | Argon2id with secure parameters |
+| **Rate Limiting** | Automatic brute-force protection |
+| **CSRF Protection** | Built into all SDKs |
+| **XSS Prevention** | Secure cookie defaults |
+| **SQL Injection** | Parameterized queries only |
+
+### Authentication Security
+
+- Multi-factor authentication (TOTP, SMS)
+- Passkeys/WebAuthn support
+- Configurable password policies
+- Account lockout after failed attempts
+
+### Session Security
+
+- Short-lived access tokens (15 min default)
+- Secure refresh token rotation
+- Optional session binding (IP, device)
+- Remote session revocation
+
+## Quick Security Checklist
+
+Before going to production:
+
+- [ ] HTTPS enforced on all endpoints
+- [ ] HTTP-only cookies for tokens
+- [ ] Secure password requirements enabled
+- [ ] MFA available for users
+- [ ] Rate limiting configured
+- [ ] Audit logging enabled
+- [ ] Security headers configured
+- [ ] CORS properly restricted
+- [ ] Session timeouts configured
+- [ ] Backup procedures tested
+
+## Password Policy
+
+Default password requirements:
+
+```
+- Minimum 12 characters
+- At least 1 uppercase letter
+- At least 1 lowercase letter
+- At least 1 number
+- At least 1 special character
+- Not in common password lists
+```
+
+Customize in your dashboard or via API:
+
+```typescript
+await janua.config.update({
+  security: {
+    passwordPolicy: {
+      minLength: 14,
+      requireUppercase: true,
+      requireLowercase: true,
+      requireNumbers: true,
+      requireSpecialChars: true,
+      checkCommonPasswords: true
+    }
+  }
+})
+```
+
+## Rate Limits
+
+Default rate limits (per IP):
+
+| Endpoint | Limit |
+|----------|-------|
+| Login attempts | 5 per 15 minutes |
+| Registration | 3 per hour |
+| Password reset | 3 per hour |
+| MFA verification | 5 per 15 minutes |
+
+## Security Headers
+
+Recommended headers for your application:
+
+```typescript
+const securityHeaders = {
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Content-Security-Policy': "default-src 'self'"
+}
+```
+
+## Vulnerability Reporting
+
+Found a security vulnerability?
+
+1. **DO NOT** disclose publicly
+2. Email: security@janua.dev
+3. Include detailed reproduction steps
+4. We respond within 24 hours
+5. Eligible for security researcher recognition
+
+## Compliance
+
+Janua supports compliance with:
+
+- **GDPR** - Data export, right to deletion
+- **SOC 2** - Audit logging, access controls
+- **HIPAA** - Available for enterprise customers
+- **ISO 27001** - Security management practices
+
+## Next Steps
+
+- [Security Best Practices](/guides/security/best-practices) - Detailed implementation guide
+- [Authentication](/guides/authentication) - Secure authentication methods
+- [Session Management](/guides/sessions/management) - Secure session handling

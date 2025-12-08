@@ -1,0 +1,323 @@
+# Next.js Integration
+
+Complete guide to integrating Janua with Next.js 13+ App Router and Pages Router.
+
+## Overview
+
+The `@janua/nextjs` SDK provides seamless integration with Next.js, including:
+
+- Server Components support
+- App Router middleware
+- API Route protection
+- Client-side hooks
+- Automatic token management
+
+## Installation
+
+```bash
+npm install @janua/nextjs
+# or
+pnpm add @janua/nextjs
+# or
+yarn add @janua/nextjs
+```
+
+## Quick Start
+
+### 1. Configure Environment Variables
+
+Create `.env.local`:
+
+```bash
+JANUA_API_KEY=your-api-key
+JANUA_API_URL=https://api.janua.dev
+NEXT_PUBLIC_JANUA_URL=https://api.janua.dev
+```
+
+### 2. Add Provider
+
+```tsx
+// app/providers.tsx
+'use client'
+
+import { JanuaProvider } from '@janua/nextjs'
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <JanuaProvider>
+      {children}
+    </JanuaProvider>
+  )
+}
+```
+
+```tsx
+// app/layout.tsx
+import { Providers } from './providers'
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  )
+}
+```
+
+### 3. Add Middleware
+
+```typescript
+// middleware.ts
+import { withJanua } from '@janua/nextjs/middleware'
+
+export default withJanua({
+  publicRoutes: ['/', '/login', '/signup', '/api/webhooks/*'],
+  signInUrl: '/login',
+})
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+}
+```
+
+## Authentication
+
+### Login Page
+
+```tsx
+// app/login/page.tsx
+'use client'
+
+import { useState } from 'react'
+import { useJanua } from '@janua/nextjs'
+import { useRouter } from 'next/navigation'
+
+export default function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const { signIn } = useJanua()
+  const router = useRouter()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    try {
+      await signIn({ email, password })
+      router.push('/dashboard')
+    } catch (err) {
+      setError('Invalid email or password')
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Email"
+        required
+      />
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="Password"
+        required
+      />
+      {error && <p className="text-red-500">{error}</p>}
+      <button type="submit">Sign In</button>
+    </form>
+  )
+}
+```
+
+### Protected Page
+
+```tsx
+// app/dashboard/page.tsx
+import { getSession } from '@janua/nextjs'
+import { redirect } from 'next/navigation'
+
+export default async function DashboardPage() {
+  const session = await getSession()
+
+  if (!session) {
+    redirect('/login')
+  }
+
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <p>Welcome, {session.user.email}</p>
+    </div>
+  )
+}
+```
+
+## Client Components
+
+### useSession Hook
+
+```tsx
+'use client'
+
+import { useSession } from '@janua/nextjs'
+
+export function UserMenu() {
+  const { session, isLoading, isAuthenticated } = useSession()
+
+  if (isLoading) return <div>Loading...</div>
+
+  if (!isAuthenticated) {
+    return <a href="/login">Sign In</a>
+  }
+
+  return (
+    <div>
+      <span>{session.user.email}</span>
+      <SignOutButton />
+    </div>
+  )
+}
+```
+
+### useJanua Hook
+
+```tsx
+'use client'
+
+import { useJanua } from '@janua/nextjs'
+
+export function SignOutButton() {
+  const { signOut, isLoading } = useJanua()
+
+  return (
+    <button onClick={() => signOut()} disabled={isLoading}>
+      {isLoading ? 'Signing out...' : 'Sign Out'}
+    </button>
+  )
+}
+```
+
+## Server Components
+
+### Getting Session
+
+```tsx
+// Server Component
+import { getSession } from '@janua/nextjs'
+
+export default async function ProfilePage() {
+  const session = await getSession()
+
+  return (
+    <div>
+      <h1>Profile</h1>
+      <pre>{JSON.stringify(session?.user, null, 2)}</pre>
+    </div>
+  )
+}
+```
+
+### API Routes
+
+```typescript
+// app/api/user/route.ts
+import { getSession } from '@janua/nextjs'
+import { NextResponse } from 'next/server'
+
+export async function GET() {
+  const session = await getSession()
+
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  return NextResponse.json({ user: session.user })
+}
+```
+
+## Advanced Configuration
+
+### Custom Middleware
+
+```typescript
+// middleware.ts
+import { withJanua } from '@janua/nextjs/middleware'
+import { NextResponse } from 'next/server'
+
+export default withJanua({
+  publicRoutes: ['/', '/login'],
+  signInUrl: '/login',
+
+  // Custom logic
+  beforeAuth: (req) => {
+    // Run before auth check
+    console.log('Request path:', req.nextUrl.pathname)
+  },
+
+  afterAuth: (auth, req) => {
+    // Run after auth check
+    if (auth && req.nextUrl.pathname === '/login') {
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
+  },
+})
+```
+
+### Organization Context
+
+```tsx
+'use client'
+
+import { useOrganization } from '@janua/nextjs'
+
+export function TeamSwitcher() {
+  const { organization, organizations, switchOrganization } = useOrganization()
+
+  return (
+    <select
+      value={organization?.id}
+      onChange={(e) => switchOrganization(e.target.value)}
+    >
+      {organizations.map((org) => (
+        <option key={org.id} value={org.id}>
+          {org.name}
+        </option>
+      ))}
+    </select>
+  )
+}
+```
+
+## Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `JANUA_API_KEY` | Server-side API key | Yes |
+| `JANUA_API_URL` | API URL | No (default: https://api.janua.dev) |
+| `NEXT_PUBLIC_JANUA_URL` | Client-side API URL | Yes |
+
+## TypeScript
+
+Full TypeScript support with exported types:
+
+```typescript
+import type { Session, User, Organization } from '@janua/nextjs'
+
+function processUser(user: User) {
+  console.log(user.email)
+}
+```
+
+## Next Steps
+
+- [Authentication](/guides/authentication) - Learn about auth methods
+- [Session Management](/guides/sessions/management) - Manage user sessions
+- [Organizations](/guides/organizations) - Multi-tenant support
+- [API Reference](/api) - Complete API documentation

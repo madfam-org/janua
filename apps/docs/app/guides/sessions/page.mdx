@@ -1,0 +1,151 @@
+# Session Management
+
+Complete guide to managing user sessions, tokens, and devices in Janua.
+
+## Overview
+
+Janua uses a modern, secure approach to session management with JWT tokens and optional session binding for enhanced security.
+
+## Session Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                        Client                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
+│  │ Access Token │  │Refresh Token │  │ Session Info │        │
+│  │  (15 min)    │  │  (7 days)    │  │  (device)    │        │
+│  └──────────────┘  └──────────────┘  └──────────────┘        │
+└──────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌──────────────────────────────────────────────────────────────┐
+│                      Janua API                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
+│  │ Token Verify │  │  Session DB  │  │ Device Track │        │
+│  └──────────────┘  └──────────────┘  └──────────────┘        │
+└──────────────────────────────────────────────────────────────┘
+```
+
+## Guides
+
+### Core Concepts
+
+- [Session Management](/guides/sessions/management) - Token lifecycle and refresh
+- [Device Management](/guides/sessions/devices) - Track and manage user devices
+- [Token Refresh](/guides/sessions/refresh) - Implement token refresh flows
+
+### Security
+
+- [Session Security](/guides/sessions/security) - Best practices for session security
+- [Token Binding](/guides/sessions/binding) - Bind sessions to devices/IPs
+
+## Quick Start
+
+### Check Session Status
+
+```typescript
+import { janua } from '@janua/typescript-sdk'
+
+const session = await janua.getSession()
+
+if (session) {
+  console.log('Logged in as:', session.user.email)
+  console.log('Expires at:', session.expiresAt)
+} else {
+  console.log('No active session')
+}
+```
+
+### Refresh Tokens
+
+```typescript
+// Automatic refresh (recommended)
+janua.onTokenExpiring(() => {
+  janua.refreshToken()
+})
+
+// Manual refresh
+const { accessToken, refreshToken } = await janua.refreshToken()
+```
+
+### Sign Out
+
+```typescript
+// Sign out current session
+await janua.signOut()
+
+// Sign out all sessions
+await janua.signOutFromAllDevices()
+```
+
+## Token Types
+
+| Token | Lifetime | Purpose | Storage |
+|-------|----------|---------|---------|
+| Access Token | 15 min | API authentication | Memory/Cookie |
+| Refresh Token | 7 days | Obtain new access token | HTTP-only cookie |
+| ID Token | 15 min | User information | Memory |
+
+## Configuration
+
+Configure session behavior in your Janua dashboard or via API:
+
+```typescript
+await janua.config.update({
+  sessions: {
+    // Token lifetimes
+    accessTokenLifetime: 900, // 15 minutes
+    refreshTokenLifetime: 604800, // 7 days
+
+    // Security
+    absoluteSessionLifetime: 2592000, // 30 days max
+    idleTimeout: 3600, // 1 hour idle timeout
+
+    // Features
+    singleSession: false, // Allow multiple sessions
+    rotateRefreshTokens: true,
+    requireMfaForNewDevices: true
+  }
+})
+```
+
+## React Integration
+
+```tsx
+'use client'
+
+import { useSession, useJanua } from '@janua/react-sdk'
+
+export function SessionStatus() {
+  const { session, isLoading } = useSession()
+  const { signOut } = useJanua()
+
+  if (isLoading) return <div>Loading...</div>
+
+  if (!session) {
+    return <a href="/login">Sign In</a>
+  }
+
+  return (
+    <div>
+      <p>Logged in as: {session.user.email}</p>
+      <button onClick={() => signOut()}>Sign Out</button>
+    </div>
+  )
+}
+```
+
+## API Reference
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/sessions` | GET | List active sessions |
+| `/api/v1/sessions/{id}` | DELETE | Revoke specific session |
+| `/api/v1/sessions` | DELETE | Revoke all sessions |
+| `/api/v1/auth/token/refresh` | POST | Refresh access token |
+
+## Next Steps
+
+- [Session Management Details](/guides/sessions/management)
+- [Authentication](/guides/authentication)
+- [Security Best Practices](/guides/security/best-practices)
