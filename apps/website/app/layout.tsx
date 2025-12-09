@@ -1,5 +1,6 @@
 import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/react'
+import { ThemeProvider, FloatingThemeToggle } from '@janua/ui'
 import '../styles/globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -51,11 +52,14 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <body className={`${inter.className} antialiased bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100`}>
-        <div className="relative">
-          {children}
-        </div>
+        <ThemeProvider>
+          <div className="relative">
+            {children}
+          </div>
+          <FloatingThemeToggle />
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>

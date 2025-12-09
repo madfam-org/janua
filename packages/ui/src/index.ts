@@ -80,6 +80,9 @@ export {
 // State Management
 export * from './stores'
 
+// Theme Toggle
+export * from './components/theme-toggle'
+
 // Utilities
 export * from './lib/utils'
 

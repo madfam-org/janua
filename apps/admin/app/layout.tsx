@@ -5,6 +5,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/lib/auth'
 import { FeatureFlagProvider } from '@janua/feature-flags'
+import { ThemeProvider, FloatingThemeToggle } from '@janua/ui'
 
 // const inter = Inter({ subsets: ['latin'] })
 
@@ -19,21 +20,24 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <body>{/* className={inter.className} */}
-        <AuthProvider>
-          <FeatureFlagProvider
-            context={{
-              attributes: {
-                app: 'admin',
-                internal: true,
-                superadmin: true,
-              },
-            }}
-          >
-            {children}
-          </FeatureFlagProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <FeatureFlagProvider
+              context={{
+                attributes: {
+                  app: 'admin',
+                  internal: true,
+                  superadmin: true,
+                },
+              }}
+            >
+              {children}
+            </FeatureFlagProvider>
+          </AuthProvider>
+          <FloatingThemeToggle />
+        </ThemeProvider>
       </body>
     </html>
   )
