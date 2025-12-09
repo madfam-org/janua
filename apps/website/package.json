@@ -18,9 +18,9 @@
     "test:all": "npm run test && npm run test:e2e"
   },
   "dependencies": {
-    "@janua/react-sdk": "*",
-    "@janua/typescript-sdk": "*",
-    "@janua/ui": "*",
+    "@janua/react-sdk": "workspace:*",
+    "@janua/typescript-sdk": "workspace:*",
+    "@janua/ui": "workspace:*",
     "@radix-ui/react-accordion": "^1.1.2",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-navigation-menu": "^1.1.4",

@@ -44,7 +44,7 @@
     "url": "https://github.com/madfam-io/janua/issues"
   },
   "dependencies": {
-    "@janua/typescript-sdk": "*"
+    "@janua/typescript-sdk": "workspace:*"
   },
   "peerDependencies": {
     "vue": "^3.0.0"

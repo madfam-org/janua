@@ -60,7 +60,7 @@
     "url": "https://github.com/madfam-io/janua/issues"
   },
   "dependencies": {
-    "@janua/typescript-sdk": "*",
+    "@janua/typescript-sdk": "workspace:*",
     "jose": "^5.0.0"
   },
   "peerDependencies": {

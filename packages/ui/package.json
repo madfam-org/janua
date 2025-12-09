@@ -20,7 +20,11 @@
       "types": "./src/components/auth/index.ts",
       "default": "./src/components/auth/index.ts"
     },
-    "./globals.css": "./src/globals.css"
+    "./globals.css": "./src/globals.css",
+    "./components/theme-toggle": {
+      "types": "./src/components/theme-toggle.tsx",
+      "default": "./src/components/theme-toggle.tsx"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -42,6 +46,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "lucide-react": "^0.303.0",
+    "next-themes": "^0.4.4",
     "tailwind-merge": "^2.2.0",
     "tailwindcss-animate": "^1.0.7",
     "zustand": "^5.0.8"

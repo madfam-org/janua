@@ -11,10 +11,10 @@
     "test:monitoring": "curl -s http://localhost:3004/api/metrics | head -20"
   },
   "dependencies": {
-    "@janua/typescript-sdk": "*",
-    "@janua/react-sdk": "*",
-    "@janua/ui": "*",
-    "@janua/feature-flags": "*",
+    "@janua/typescript-sdk": "workspace:*",
+    "@janua/react-sdk": "workspace:*",
+    "@janua/ui": "workspace:*",
+    "@janua/feature-flags": "workspace:*",
     "@radix-ui/react-avatar": "^1.0.4",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-dropdown-menu": "^2.0.6",

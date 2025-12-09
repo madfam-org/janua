@@ -26,12 +26,12 @@ COPY packages/ ./packages/
 # Copy dashboard source code BEFORE install
 COPY apps/dashboard/ ./apps/dashboard/
 
-# Override .npmrc to use public registry (workspace packages are local)
-RUN echo "registry=https://registry.npmjs.org/" > .npmrc
+# Copy .npmrc for npm.madfam.io registry configuration
+# Workspace packages are resolved locally, published @janua/* from npm.madfam.io
+COPY .npmrc ./
 
-# Install dependencies - force workspace linking for @janua/* packages
-RUN pnpm config set link-workspace-packages true && \
-    pnpm install --no-frozen-lockfile --shamefully-hoist
+# Install dependencies with workspace package linking
+RUN pnpm install --no-frozen-lockfile --shamefully-hoist
 
 # Build workspace packages first
 RUN pnpm --filter @janua/feature-flags build || true
