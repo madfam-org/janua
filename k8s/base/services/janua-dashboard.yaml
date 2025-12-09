@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: janua-dashboard
+  namespace: janua
+  labels:
+    app: janua-dashboard
+spec:
+  type: ClusterIP
+  ports:
+    - port: 4101
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    app: janua-dashboard

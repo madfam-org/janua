@@ -11,6 +11,10 @@ resources:
   - deployments/janua-docs.yaml
   - deployments/janua-website.yaml
   - services/janua-api.yaml
+  - services/janua-dashboard.yaml
+  - services/janua-admin.yaml
+  - services/janua-docs.yaml
+  - services/janua-website.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: janua

@@ -4,7 +4,7 @@
 
 ## Overview
 
-**Status**: 🟡 Private Alpha (Specification Phase)  
+**Status**: 🟢 Production Ready  
 **Purpose**: Open-source OAuth2/OIDC identity platform  
 **License**: AGPL v3  
 **Domain**: [janua.dev](https://janua.dev)
