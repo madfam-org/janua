@@ -215,26 +215,28 @@ async def signin(
         user_agent=req.headers.get("user-agent"),
     )
 
-    # Set secure cookies for web apps
+    # Set secure cookies for web apps (with optional cross-subdomain SSO)
     if settings.SECURE_COOKIES:
-        response.set_cookie(
-            key="access_token",
-            value=access_token,
-            httponly=True,
-            secure=True,
-            samesite="strict",
-            domain=settings.COOKIE_DOMAIN,
-            max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        )
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh_token,
-            httponly=True,
-            secure=True,
-            samesite="strict",
-            domain=settings.COOKIE_DOMAIN,
-            max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        )
+        cookie_kwargs = {
+            "httponly": True,
+            "secure": True,
+            "samesite": "lax",  # Use lax for cross-subdomain SSO compatibility
+            "max_age": settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        }
+        if settings.COOKIE_DOMAIN:
+            cookie_kwargs["domain"] = settings.COOKIE_DOMAIN
+
+        refresh_cookie_kwargs = {
+            "httponly": True,
+            "secure": True,
+            "samesite": "lax",
+            "max_age": settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        }
+        if settings.COOKIE_DOMAIN:
+            refresh_cookie_kwargs["domain"] = settings.COOKIE_DOMAIN
+
+        response.set_cookie(key="access_token", value=access_token, **cookie_kwargs)
+        response.set_cookie(key="refresh_token", value=refresh_token, **refresh_cookie_kwargs)
 
     return TokenResponse(
         access_token=access_token,
@@ -274,9 +276,12 @@ async def signout(
         blacklist_key = f"blacklist:{token}"
         await redis.setex(blacklist_key, 86400, "1")  # 24 hour blacklist
 
-        # Clear authentication cookies
-        response.delete_cookie("access_token")
-        response.delete_cookie("refresh_token")
+        # Clear authentication cookies (with domain if configured for SSO)
+        delete_kwargs = {}
+        if settings.COOKIE_DOMAIN:
+            delete_kwargs["domain"] = settings.COOKIE_DOMAIN
+        response.delete_cookie("access_token", **delete_kwargs)
+        response.delete_cookie("refresh_token", **delete_kwargs)
 
         logger.info("User signed out successfully", user_id=user_id)
         return {"message": "Successfully signed out"}
@@ -337,6 +342,64 @@ async def get_current_user(
         created_at=user.created_at.isoformat(),
         updated_at=user.updated_at.isoformat(),
     )
+
+
+@router.get("/session")
+async def check_session(
+    req: Request,
+    db=Depends(get_db),
+):
+    """
+    Check if the user has an active session via cookies.
+
+    This endpoint is used for silent authentication / SSO across subdomains.
+    It reads the access_token from HTTP-only cookies (set with COOKIE_DOMAIN)
+    and returns user info if valid.
+
+    Returns:
+        - 200 with user info if session is valid
+        - 401 if no session or invalid token
+    """
+    # Try to get access token from cookies
+    access_token = req.cookies.get("access_token")
+
+    if not access_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No session cookie found"
+        )
+
+    # Validate access token
+    payload = await AuthService.verify_token(access_token, token_type="access")
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session"
+        )
+
+    # Fetch user from database
+    from uuid import UUID
+
+    user = await db.get(User, UUID(payload.get("sub")))
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive"
+        )
+
+    return {
+        "authenticated": True,
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "name": user.name,
+            "email_verified": user.email_verified,
+            "is_admin": getattr(user, 'is_admin', False),
+        },
+        "session": {
+            "expires_at": payload.get("exp"),
+        }
+    }
 
 
 @router.post("/verify-email")

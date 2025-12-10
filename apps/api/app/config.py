@@ -65,6 +65,16 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = Field(default="development-secret-key-change-in-production")
     BCRYPT_ROUNDS: int = Field(default=12)
+
+    # Cookie Configuration (for cross-subdomain SSO)
+    COOKIE_DOMAIN: Optional[str] = Field(
+        default=None,
+        description="Domain for session cookies (e.g., '.janua.dev' for cross-subdomain SSO). None = current domain only."
+    )
+    SECURE_COOKIES: bool = Field(
+        default=True,
+        description="Use secure cookies (HTTPS only). Should be True in production."
+    )
     PASSWORD_MIN_LENGTH: int = Field(default=12)
     PASSWORD_REQUIRE_UPPERCASE: bool = Field(default=True)
     PASSWORD_REQUIRE_LOWERCASE: bool = Field(default=True)

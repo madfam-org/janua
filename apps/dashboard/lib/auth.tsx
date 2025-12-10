@@ -75,9 +75,10 @@ function clearAuthState(): void {
   localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRES_AT)
   localStorage.removeItem(STORAGE_KEYS.USER)
 
-  // Clear cookie
+  // Clear cookie (both local and cross-domain for SSO cleanup)
   document.cookie = `${STORAGE_KEYS.COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT`
   document.cookie = `${STORAGE_KEYS.COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; secure`
+  document.cookie = `${STORAGE_KEYS.COOKIE}=; path=/; domain=.janua.dev; expires=Thu, 01 Jan 1970 00:00:01 GMT`
 }
 
 /**
@@ -281,9 +282,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(response.user))
 
       // Also set cookie for middleware compatibility
+      // Use samesite=lax and domain=.janua.dev for cross-subdomain SSO (app.janua.dev ↔ admin.janua.dev)
       const token = await januaClient.getAccessToken()
       if (token) {
-        document.cookie = `${STORAGE_KEYS.COOKIE}=${token}; path=/; secure; samesite=strict`
+        const cookieDomain = window.location.hostname.includes('janua.dev') ? '; domain=.janua.dev' : ''
+        document.cookie = `${STORAGE_KEYS.COOKIE}=${token}; path=/${cookieDomain}; secure; samesite=lax`
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Login failed'

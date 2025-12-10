@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, desc, func, or_, select, update
+from sqlalchemy import and_, desc, func, or_, select, text, update
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -168,8 +168,9 @@ async def get_admin_stats(
     )
     active_sessions = result.scalar()
 
-    # Security statistics - fault-tolerant for missing tables/columns
-    mfa_enabled_users = 0  # TODO: Add mfa_enabled column to users table
+    # Security statistics - MFA enabled users count
+    result = await db.execute(select(func.count(User.id)).where(User.mfa_enabled == True))
+    mfa_enabled_users = result.scalar() or 0
 
     # OAuth accounts - table may not exist yet, so skip if query fails
     oauth_accounts = 0  # Default if table doesn't exist
@@ -218,13 +219,13 @@ async def get_system_health(
 
     # Check database
     try:
-        db.execute("SELECT 1")
+        await db.execute(text("SELECT 1"))
         database_status = "healthy"
-    except:
+    except Exception:
         database_status = "unhealthy"
 
     # Check cache (Redis in production)
-    from app.core.database import get_redis
+    from app.core.redis import get_redis
 
     try:
         redis_client = await get_redis()

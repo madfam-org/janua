@@ -222,23 +222,36 @@ async def oauth_callback(
 
         # Set cookies for web applications
         if settings.FRONTEND_URL:
+            # Build cookie kwargs with optional domain for cross-subdomain SSO
+            cookie_kwargs = {
+                "max_age": settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                "secure": settings.SECURE_COOKIES,
+                "httponly": True,
+                "samesite": "lax",
+            }
+            if settings.COOKIE_DOMAIN:
+                cookie_kwargs["domain"] = settings.COOKIE_DOMAIN
+
+            refresh_cookie_kwargs = {
+                "max_age": settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+                "secure": settings.SECURE_COOKIES,
+                "httponly": True,
+                "samesite": "lax",
+            }
+            if settings.COOKIE_DOMAIN:
+                refresh_cookie_kwargs["domain"] = settings.COOKIE_DOMAIN
+
             # Set secure HTTP-only cookies
             response.set_cookie(
                 key="access_token",
                 value=auth_data["access_token"],
-                max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                secure=settings.ENVIRONMENT == "production",
-                httponly=True,
-                samesite="lax",
+                **cookie_kwargs,
             )
 
             response.set_cookie(
                 key="refresh_token",
                 value=auth_data["refresh_token"],
-                max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-                secure=settings.ENVIRONMENT == "production",
-                httponly=True,
-                samesite="lax",
+                **refresh_cookie_kwargs,
             )
 
             # Redirect to frontend

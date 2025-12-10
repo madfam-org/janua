@@ -18,6 +18,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
+  checkSession: () => Promise<boolean>
   hasRole: (role: string) => boolean
   hasPermission: (permission: string) => boolean
 }
@@ -25,7 +26,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 const ALLOWED_ROLES = ['superadmin', 'admin']
-const REQUIRED_EMAIL_DOMAIN = '@janua.dev'
+// Allow both @janua.dev (Janua staff) and @madfam.io (organization owners)
+const ALLOWED_EMAIL_DOMAINS = ['@janua.dev', '@madfam.io']
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -34,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthorized = useCallback(() => {
     if (!user) return false
     const hasAllowedRole = user.roles?.some((role: string) => ALLOWED_ROLES.includes(role)) || false
-    const hasAllowedEmail = user.email?.endsWith(REQUIRED_EMAIL_DOMAIN) || false
+    const hasAllowedEmail = ALLOWED_EMAIL_DOMAINS.some(domain => user.email?.endsWith(domain)) || false
     return hasAllowedRole && hasAllowedEmail
   }, [user])
 
@@ -45,6 +47,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Failed to fetch user:', error)
       setUser(null)
+    }
+  }, [])
+
+  // Helper to read cookie value
+  const getCookie = (name: string): string | null => {
+    if (typeof document === 'undefined') return null
+    const value = `; ${document.cookie}`
+    const parts = value.split(`; ${name}=`)
+    if (parts.length === 2) {
+      return parts.pop()?.split(';').shift() || null
+    }
+    return null
+  }
+
+  // Check for existing session via HTTP-only cookies (for SSO)
+  const checkSession = useCallback(async (): Promise<boolean> => {
+    try {
+      // First, check if we have the SSO cookie from dashboard login
+      const ssoToken = getCookie('janua_token')
+      if (!ssoToken) {
+        console.log('[SSO] No janua_token cookie found')
+        return false
+      }
+
+      const apiBase = process.env.NEXT_PUBLIC_JANUA_API_URL || 'https://api.janua.dev'
+      
+      // Try to validate the token and get user info using the token from cookie
+      const response = await fetch(`${apiBase}/api/v1/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${ssoToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response.ok) {
+        const userData = await response.json()
+        if (userData && userData.id) {
+          console.log('[SSO] Session found via cookie, user:', userData.email)
+          // Store the token in localStorage for SDK to use
+          localStorage.setItem('janua_access_token', ssoToken)
+          // Update local state with user
+          setUser(userData as User)
+          return true
+        }
+      } else {
+        console.log('[SSO] Token validation failed:', response.status)
+      }
+      return false
+    } catch (error) {
+      console.error('[SSO] Session check failed:', error)
+      return false
     }
   }, [])
 
@@ -101,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         refreshUser,
+        checkSession,
         hasRole,
         hasPermission,
       }}

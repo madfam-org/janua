@@ -53,8 +53,9 @@ export default function DashboardPage() {
   }, [])
 
   const handleLogout = () => {
-    // Clear authentication
+    // Clear authentication (both local and cross-domain for SSO cleanup)
     document.cookie = 'janua_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT'
+    document.cookie = 'janua_token=; path=/; domain=.janua.dev; expires=Thu, 01 Jan 1970 00:00:01 GMT'
     localStorage.removeItem('janua_user')
     window.location.href = '/login'
   }

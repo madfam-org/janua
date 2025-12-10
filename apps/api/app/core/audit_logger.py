@@ -1,10 +1,18 @@
 """
 Enterprise Audit Logging System
 Tamper-proof audit logs with hash chain for compliance
+
+Features:
+- Hash-chain integrity verification
+- File-based fallback for compliance (never lose logs)
+- Multiple export formats (JSON, CSV, SIEM/CEF)
+- Compliance-aware retention policies
 """
 
 import hashlib
 import json
+import os
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
 from uuid import UUID
@@ -18,6 +26,48 @@ from app.models.enterprise import AuditLog, AuditEventType
 from app.core.tenant_context import TenantContext
 
 logger = structlog.get_logger()
+
+# Fallback log directory for compliance
+FALLBACK_LOG_DIR = os.environ.get("AUDIT_LOG_FALLBACK_DIR", "/var/log/janua/audit")
+
+
+def _ensure_fallback_dir() -> Path:
+    """Ensure fallback directory exists"""
+    path = Path(FALLBACK_LOG_DIR)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _write_fallback_log(event_data: Dict[str, Any]) -> bool:
+    """
+    Write audit event to fallback file when database is unavailable.
+    Uses append-only JSON Lines format for compliance.
+    """
+    try:
+        fallback_dir = _ensure_fallback_dir()
+        date_str = datetime.utcnow().strftime("%Y-%m-%d")
+        fallback_file = fallback_dir / f"audit-fallback-{date_str}.jsonl"
+
+        # Add fallback metadata
+        event_data["_fallback"] = True
+        event_data["_fallback_timestamp"] = datetime.utcnow().isoformat()
+
+        with open(fallback_file, "a") as f:
+            f.write(json.dumps(event_data, default=str) + "\n")
+
+        logger.warning(
+            "Audit event written to fallback file",
+            fallback_file=str(fallback_file),
+            event_name=event_data.get("event_name")
+        )
+        return True
+    except Exception as e:
+        logger.critical(
+            "COMPLIANCE ALERT: Failed to write audit event to fallback",
+            error=str(e),
+            event_data=event_data
+        )
+        return False
 
 
 class AuditLogger:
@@ -62,11 +112,30 @@ class AuditLogger:
             Created audit log entry
         """
 
+        # Prepare event data for fallback logging
+        fallback_event_data = {
+            "event_type": event_type.value,
+            "event_name": event_name,
+            "resource_type": resource_type,
+            "resource_id": resource_id,
+            "event_data": event_data,
+            "changes": changes,
+            "user_id": user_id,
+            "service_account_id": service_account_id,
+            "ip_address": ip_address,
+            "user_agent": user_agent,
+            "compliance_tags": compliance_tags,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
         try:
             # Get organization context
             org_id = TenantContext.get_organization_id()
             if not org_id:
-                logger.warning("No organization context for audit log")
+                logger.warning("No organization context for audit log - using fallback")
+                fallback_event_data["organization_id"] = None
+                fallback_event_data["_reason"] = "no_organization_context"
+                _write_fallback_log(fallback_event_data)
                 return None
 
             # Get the previous hash for this organization
@@ -112,7 +181,12 @@ class AuditLogger:
             return audit_log
 
         except Exception as e:
-            logger.error("Failed to create audit log", error=str(e))
+            logger.error("Failed to create audit log - using fallback", error=str(e))
+            # Use fallback to ensure compliance - never lose audit events
+            fallback_event_data["organization_id"] = org_id if 'org_id' in dir() else None
+            fallback_event_data["_reason"] = "database_error"
+            fallback_event_data["_error"] = str(e)
+            _write_fallback_log(fallback_event_data)
             # Audit logging failures should not break the application
             return None
 
@@ -505,6 +579,121 @@ def audit_event(
 
         return wrapper
     return decorator
+
+
+async def replay_fallback_logs(session: AsyncSession) -> Dict[str, Any]:
+    """
+    Replay fallback audit logs back into the database.
+    Should be called when database connectivity is restored.
+
+    Returns:
+        Summary of replay operation with success/failure counts
+    """
+    fallback_dir = Path(FALLBACK_LOG_DIR)
+    if not fallback_dir.exists():
+        return {"message": "No fallback directory found", "replayed": 0, "failed": 0}
+
+    results = {"replayed": 0, "failed": 0, "files_processed": [], "errors": []}
+    audit = AuditLogger()
+
+    # Find all fallback files
+    fallback_files = sorted(fallback_dir.glob("audit-fallback-*.jsonl"))
+
+    for fallback_file in fallback_files:
+        try:
+            with open(fallback_file, "r") as f:
+                for line_num, line in enumerate(f, 1):
+                    try:
+                        event_data = json.loads(line.strip())
+
+                        # Skip already-replayed entries
+                        if event_data.get("_replayed"):
+                            continue
+
+                        # Extract event data for replay
+                        event_type_str = event_data.get("event_type")
+                        if not event_type_str:
+                            continue
+
+                        event_type = AuditEventType(event_type_str)
+
+                        # Set organization context if available
+                        org_id = event_data.get("organization_id")
+                        if org_id:
+                            TenantContext.set_organization_id(org_id)
+
+                        # Replay the event (will go to database this time)
+                        await audit.log_event(
+                            session=session,
+                            event_type=event_type,
+                            event_name=event_data.get("event_name", ""),
+                            resource_type=event_data.get("resource_type"),
+                            resource_id=event_data.get("resource_id"),
+                            event_data=event_data.get("event_data"),
+                            changes=event_data.get("changes"),
+                            user_id=event_data.get("user_id"),
+                            service_account_id=event_data.get("service_account_id"),
+                            ip_address=event_data.get("ip_address"),
+                            user_agent=event_data.get("user_agent"),
+                            compliance_tags=event_data.get("compliance_tags")
+                        )
+
+                        results["replayed"] += 1
+
+                    except Exception as e:
+                        results["failed"] += 1
+                        results["errors"].append({
+                            "file": str(fallback_file),
+                            "line": line_num,
+                            "error": str(e)
+                        })
+
+            # Archive processed file
+            archive_name = fallback_file.with_suffix(".jsonl.replayed")
+            fallback_file.rename(archive_name)
+            results["files_processed"].append(str(fallback_file))
+
+            logger.info(
+                "Processed fallback audit log file",
+                file=str(fallback_file),
+                replayed=results["replayed"],
+                failed=results["failed"]
+            )
+
+        except Exception as e:
+            logger.error("Failed to process fallback file", file=str(fallback_file), error=str(e))
+            results["errors"].append({"file": str(fallback_file), "error": str(e)})
+
+    await session.commit()
+    return results
+
+
+def get_fallback_log_stats() -> Dict[str, Any]:
+    """
+    Get statistics about pending fallback logs.
+    Useful for monitoring and alerting.
+    """
+    fallback_dir = Path(FALLBACK_LOG_DIR)
+    if not fallback_dir.exists():
+        return {"pending_files": 0, "pending_events": 0, "oldest_file": None}
+
+    stats = {"pending_files": 0, "pending_events": 0, "oldest_file": None, "newest_file": None}
+
+    fallback_files = sorted(fallback_dir.glob("audit-fallback-*.jsonl"))
+    stats["pending_files"] = len(fallback_files)
+
+    for fallback_file in fallback_files:
+        try:
+            with open(fallback_file, "r") as f:
+                stats["pending_events"] += sum(1 for _ in f)
+
+            if stats["oldest_file"] is None:
+                stats["oldest_file"] = str(fallback_file)
+            stats["newest_file"] = str(fallback_file)
+        except Exception:
+            pass
+
+    return stats
 
 
 # Global audit logger instance

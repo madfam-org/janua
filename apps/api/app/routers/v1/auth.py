@@ -283,6 +283,78 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
     )
 
 
+@router.get("/session")
+async def check_session(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Check if the user has an active session via cookies.
+
+    This endpoint is used for silent authentication / SSO across subdomains.
+    It reads the access_token from HTTP-only cookies (set with COOKIE_DOMAIN)
+    and returns user info if valid.
+
+    Returns:
+        - 200 with user info if session is valid
+        - 401 if no session or invalid token
+    """
+    # Try to get access token from cookies
+    access_token = request.cookies.get("access_token")
+
+    if not access_token:
+        raise HTTPException(
+            status_code=401,
+            detail="No session cookie found"
+        )
+
+    # Validate access token
+    payload = AuthService.verify_token(access_token, token_type="access")
+    if not payload:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired session"
+        )
+
+    # Fetch user from database
+    from uuid import UUID as PyUUID
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token payload"
+        )
+
+    result = await db.execute(
+        select(User).where(User.id == PyUUID(user_id), User.status == UserStatus.ACTIVE)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="User not found or inactive"
+        )
+
+    return {
+        "authenticated": True,
+        "user": {
+            "id": str(user.id),
+            "email": user.email,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email_verified": user.email_verified,
+            "roles": getattr(user, 'roles', []),
+            "permissions": getattr(user, 'permissions', []),
+            "is_admin": getattr(user, 'is_admin', False),
+        },
+        "session": {
+            "expires_at": payload.get("exp"),
+        }
+    }
+
+
 # GET /login - Render login form for OAuth flows
 @router.get("/login")
 async def login_page(

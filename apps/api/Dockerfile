@@ -50,11 +50,11 @@ RUN useradd -m -u 1001 janua && \
 
 USER janua
 
-# Environment variables (inject via Docker Compose)
+# Environment variables (inject via Docker Compose/K8s)
+# Note: Don't set EMAIL_PROVIDER here - let it use default from config.py
 ENV DATABASE_URL="" \
     JWT_SECRET="" \
     CORS_ORIGINS="" \
-    EMAIL_PROVIDER="" \
     LOG_LEVEL="info"
 
 EXPOSE 4100
@@ -62,4 +62,4 @@ EXPOSE 4100
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:4100/health')" || exit 1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "4100", "--workers", "2"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "4100"]

@@ -42,17 +42,23 @@ const PUBLIC_ROUTES = [
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Get token from cookie
+  const token = request.cookies.get('janua_token')?.value
+  const hasValidToken = isValidTokenStructure(token)
+
+  // If user is authenticated and trying to access login page, redirect to home
+  if (pathname === '/login' && hasValidToken) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+
   // Allow access to public routes
   const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route))
   if (isPublicRoute) {
     return NextResponse.next()
   }
 
-  // Get token from cookie
-  const token = request.cookies.get('janua_token')?.value
-
   // Check if token exists and is structurally valid
-  if (!isValidTokenStructure(token)) {
+  if (!hasValidToken) {
     // Clear the invalid cookie
     const response = NextResponse.redirect(new URL('/login', request.url))
     response.cookies.set('janua_token', '', {

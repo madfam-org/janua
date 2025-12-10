@@ -31,8 +31,9 @@ function clearAuthStateOnLoad(reason: string | null): void {
   localStorage.removeItem(STORAGE_KEYS.TOKEN_EXPIRES_AT)
   localStorage.removeItem(STORAGE_KEYS.USER)
 
-  // Clear cookie
+  // Clear cookie (both local and cross-domain for SSO cleanup)
   document.cookie = `${STORAGE_KEYS.COOKIE}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT`
+  document.cookie = `${STORAGE_KEYS.COOKIE}=; path=/; domain=.janua.dev; expires=Thu, 01 Jan 1970 00:00:01 GMT`
 }
 
 function LoginForm() {
@@ -84,7 +85,9 @@ function LoginForm() {
       }
 
       // Store token in cookie (for middleware)
-      document.cookie = `${STORAGE_KEYS.COOKIE}=${data.token}; path=/; secure; samesite=strict`
+      // Use samesite=lax and domain=.janua.dev for cross-subdomain SSO (app.janua.dev ↔ admin.janua.dev)
+      const cookieDomain = window.location.hostname.includes('janua.dev') ? '; domain=.janua.dev' : ''
+      document.cookie = `${STORAGE_KEYS.COOKIE}=${data.token}; path=/${cookieDomain}; secure; samesite=lax`
 
       // Store tokens in localStorage (for SDK)
       if (data.token) {
