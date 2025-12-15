@@ -85,13 +85,13 @@
     "axios": "^1.0.0",
     "@apollo/client": "^3.8.0",
     "graphql": "^16.8.0",
-    "graphql-ws": "^5.14.0"
+    "graphql-ws": "^6.0.6"
   },
   "peerDependencies": {
     "axios": "^1.0.0",
     "@apollo/client": "^3.8.0",
     "graphql": "^16.8.0",
-    "graphql-ws": "^5.14.0"
+    "graphql-ws": "^6.0.6"
   },
   "peerDependenciesMeta": {
     "axios": {
