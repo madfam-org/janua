@@ -4,10 +4,14 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies
+# Install build dependencies (including xmlsec/lxml requirements)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    pkg-config \
+    libxml2-dev \
+    libxmlsec1-dev \
+    libxmlsec1-openssl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements file
@@ -20,6 +24,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 FROM python:3.11-slim AS runner
 
 WORKDIR /app
+
+# Install runtime dependencies for xmlsec
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libxml2 \
+    libxmlsec1 \
+    libxmlsec1-openssl \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN groupadd --system --gid 1001 python && \
