@@ -235,7 +235,7 @@ export function OrganizationSwitcher({
                         setIsOpen(false)
                       }}
                     >
-                      <div className="w-8 h-8 rounded-md bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
                         <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                           <path
                             fillRule="evenodd"
