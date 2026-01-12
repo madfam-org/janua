@@ -245,6 +245,15 @@ class ResilientRedisClient:
         )
         return bool(result)
 
+    async def setex(
+        self,
+        key: str,
+        time: int,
+        value: Any,
+    ) -> bool:
+        """Set value with expiration time (setex compatibility wrapper)"""
+        return await self.set(key, value, ex=time)
+
     async def delete(self, *keys: str) -> int:
         """Delete keys with fallback"""
         async def operation():
