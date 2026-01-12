@@ -607,13 +607,20 @@ async def handle_consent(
     action: str = Form(...),
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
-    current_user: User = Depends(get_current_user),
 ):
     """
     Handle OAuth consent form submission.
 
     User can either 'allow' or 'deny' the authorization request.
     """
+    # Get user from cookie or header (supports browser-based OAuth flow)
+    current_user = await get_user_from_cookie_or_header(request, db)
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+
     # Validate CSRF token
     if not await _validate_csrf_token(csrf_token, str(current_user.id), redis):
         raise HTTPException(
