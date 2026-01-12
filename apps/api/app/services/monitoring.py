@@ -516,7 +516,7 @@ class AlertManager:
             # Send email notification to admins
             try:
                 from app.config import settings
-                from app.core.database import get_redis
+                from app.core.redis import get_redis
                 from app.services.resend_email_service import get_resend_email_service
 
                 redis_client = await get_redis()

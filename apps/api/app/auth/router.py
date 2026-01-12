@@ -567,7 +567,7 @@ async def passkey_register_options(
     )
 
     # Store challenge in Redis with 5-minute expiry
-    from app.core.database import get_redis
+    from app.core.redis import get_redis
 
     challenge = bytes_to_base64url(options.challenge)
     redis_client = await get_redis()
@@ -615,7 +615,7 @@ async def passkey_register(
     import structlog
     from webauthn.helpers import base64url_to_bytes
 
-    from app.core.database import get_redis
+    from app.core.redis import get_redis
     from app.models import Passkey
     from app.routers.v1.passkeys import verify_registration_response as webauthn_verify
 

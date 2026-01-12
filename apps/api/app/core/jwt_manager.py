@@ -290,7 +290,7 @@ class JWTManager:
         family = payload.get("family")
 
         # Check if refresh token is blacklisted in Redis
-        from app.core.database import get_redis
+        from app.core.redis import get_redis
 
         redis_client = await get_redis()
 
@@ -390,7 +390,7 @@ class JWTManager:
             token_type: Type of token (access or refresh)
             ttl: Time to live in seconds (defaults to token expiry)
         """
-        from app.core.database import get_redis
+        from app.core.redis import get_redis
 
         redis_client = await get_redis()
 

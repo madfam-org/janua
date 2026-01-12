@@ -122,7 +122,7 @@ async def get_sso_service(db: AsyncSession = Depends(get_db)) -> SSOService:
     """
     Create SSO service instance with dependencies.
     """
-    from app.core.database import get_redis
+    from app.core.redis import get_redis
     from app.services.cache import CacheService
     from app.services.jwt_service import JWTService
 

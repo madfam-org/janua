@@ -730,7 +730,7 @@ async def toggle_maintenance_mode(
     # Implement maintenance mode in Redis with indefinite expiry
     import structlog
 
-    from app.core.database import get_redis
+    from app.core.redis import get_redis
 
     logger = structlog.get_logger()
     redis_client = await get_redis()

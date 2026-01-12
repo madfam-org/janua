@@ -135,7 +135,7 @@ async def get_registration_options(
     )
 
     # Store challenge in Redis with 5-minute expiry
-    from app.core.database import get_redis
+    from app.core.redis import get_redis
 
     challenge = bytes_to_base64url(options.challenge)
 
@@ -271,7 +271,7 @@ async def get_authentication_options(
     # Store challenge in Redis with 10-minute expiry
     import secrets
 
-    from app.core.database import get_redis
+    from app.core.redis import get_redis
 
     challenge = bytes_to_base64url(options.challenge)
 

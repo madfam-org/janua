@@ -671,7 +671,7 @@ async def invite_member(
     await db.commit()
 
     # Send invitation email
-    from app.core.database import get_redis
+    from app.core.redis import get_redis
     from app.services.resend_email_service import get_resend_email_service
 
     try:
