@@ -3,9 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { cn } from '@janua/ui/lib/utils'
-import { Button } from '@janua/ui'
-import { Badge } from '@janua/ui'
+import { cn, Button, Badge } from '@janua/ui'
 import {
   Shield,
   BarChart3,
