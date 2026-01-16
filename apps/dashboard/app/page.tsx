@@ -1,15 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@janua/ui'
 import { Button } from '@janua/ui'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@janua/ui'
-import { 
-  Users, 
-  Shield, 
-  Key, 
-  Activity, 
-  Building2, 
+import {
+  Users,
+  Shield,
+  Key,
+  Activity,
+  Building2,
   Webhook,
   BarChart3,
   Settings
@@ -23,10 +24,50 @@ import { OrganizationList } from '@/components/organizations/organization-list'
 import { WebhookList } from '@/components/webhooks/webhook-list'
 import { AuditList } from '@/components/audit/audit-list'
 
+const VALID_TABS = ['overview', 'identities', 'sessions', 'organizations', 'webhooks', 'audit'] as const
+type TabValue = typeof VALID_TABS[number]
+
+// Wrapper component to handle Suspense for useSearchParams
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState('overview')
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <DashboardContent />
+    </Suspense>
+  )
+}
+
+function DashboardLoading() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Loading dashboard...</p>
+      </div>
+    </div>
+  )
+}
+
+function DashboardContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Get tab from URL, default to 'overview'
+  const tabFromUrl = searchParams.get('tab') as TabValue | null
+  const activeTab = tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'overview'
+
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
+
+  // Handle tab change by updating URL
+  const handleTabChange = useCallback((value: string) => {
+    const newTab = value as TabValue
+    if (newTab === 'overview') {
+      // Remove tab param for overview (clean URL)
+      router.push('/', { scroll: false })
+    } else {
+      router.push(`/?tab=${newTab}`, { scroll: false })
+    }
+  }, [router])
 
   useEffect(() => {
     // Check authentication and load user data
@@ -116,7 +157,7 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">
               <BarChart3 className="h-4 w-4 mr-2" />

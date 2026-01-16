@@ -50,7 +50,13 @@ export function OrganizationList() {
       setLoading(true)
       setError(null)
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/organizations/`)
+      // Try admin endpoint first (for admin users), fall back to regular endpoint
+      let response = await apiCall(`${API_BASE_URL}/api/v1/admin/organizations`)
+
+      if (!response.ok) {
+        // Fall back to regular endpoint for non-admin users
+        response = await apiCall(`${API_BASE_URL}/api/v1/organizations/`)
+      }
 
       if (!response.ok) {
         throw new Error('Failed to fetch organizations')
