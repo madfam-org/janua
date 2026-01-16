@@ -632,8 +632,8 @@ importers:
         specifier: ^4.0.1
         version: 4.0.1
       twilio:
-        specifier: ^4.19.0
-        version: 4.23.0
+        specifier: ^5.10.7
+        version: 5.10.7
     devDependencies:
       '@types/bcrypt':
         specifier: ^5.0.2
@@ -9704,8 +9704,8 @@ packages:
   tunnel-rat@0.1.2:
     resolution: {integrity: sha512-lR5VHmkPhzdhrM092lI2nACsLO4QubF0/yoOhzX7c+wIpbN1GjHNzCc91QlpxBi+cnx8vVJ+Ur6vL5cEoQPFpQ==}
 
-  twilio@4.23.0:
-    resolution: {integrity: sha512-LdNBQfOe0dY2oJH2sAsrxazpgfFQo5yXGxe96QA8UWB5uu+433PrUbkv8gQ5RmrRCqUTPQ0aOrIyAdBr1aB03Q==}
+  twilio@5.10.7:
+    resolution: {integrity: sha512-pELNeyQqkJMW/UkbcdNGDfOjMyt1FXoYOKXBDqOViHmcdJ04cq8Ty3VsrEAabi97YesK3T2v5KP5XKPY8uUx9w==}
     engines: {node: '>=14.0'}
 
   type-check@0.4.0:
@@ -21047,7 +21047,7 @@ snapshots:
       - immer
       - react
 
-  twilio@4.23.0:
+  twilio@5.10.7:
     dependencies:
       axios: 1.13.2
       dayjs: 1.11.19
@@ -21055,7 +21055,6 @@ snapshots:
       jsonwebtoken: 9.0.2
       qs: 6.14.0
       scmp: 2.1.0
-      url-parse: 1.5.10
       xmlbuilder: 13.0.2
     transitivePeerDependencies:
       - debug
