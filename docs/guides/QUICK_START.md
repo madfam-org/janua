@@ -10,8 +10,8 @@ Everything is ready for you to demonstrate the complete Janua authentication pla
 
 ```bash
 # From repository root
-cd /Users/aldoruizluna/labspace/janua
-./scripts/start-local-demo.sh
+cd /path/to/janua
+./scripts/start-demo.sh
 ```
 
 **What This Does**:
@@ -62,16 +62,19 @@ cd /Users/aldoruizluna/labspace/janua
 ## Run Automated Tests (Optional but Recommended)
 
 ```bash
-# In a new terminal window
-./scripts/run-demo-tests.sh
+# In a new terminal window - run API tests
+cd apps/api
+pytest
+
+# Or run with coverage
+pytest --cov=app tests/
 ```
 
 **What This Validates**:
-✅ Core Authentication (signup, login, sessions)  
-✅ MFA & Passkeys (TOTP, WebAuthn)  
-✅ SSO Integration (OIDC, SAML)  
-✅ Performance (<100ms average response time)  
-✅ Landing Site (all pages accessible)  
+✅ Core Authentication (signup, login, sessions)
+✅ MFA & Passkeys (TOTP, WebAuthn)
+✅ SSO Integration (OIDC, SAML)
+✅ Performance (<100ms average response time)
 
 **Expected Result**: All tests passing with performance benchmarks
 

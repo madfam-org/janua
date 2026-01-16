@@ -142,14 +142,48 @@ async def get_org_scim_config(
 async def verify_org_access(
     org_id: UUID, user: User, db: AsyncSession
 ) -> Organization:
-    """Verify user has access to organization"""
+    """Verify user has admin access to organization for SCIM configuration"""
+    from app.models import organization_members
+
     result = await db.execute(select(Organization).where(Organization.id == org_id))
     org = result.scalar_one_or_none()
     if not org:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found"
         )
-    # TODO: Add proper org admin check
+
+    # Super admin always has access
+    if user.is_admin:
+        return org
+
+    # Organization owner always has access
+    if org.owner_id == user.id:
+        return org
+
+    # Check if user is an admin member of the organization
+    member_result = await db.execute(
+        select(organization_members).where(
+            and_(
+                organization_members.c.user_id == user.id,
+                organization_members.c.organization_id == org_id
+            )
+        )
+    )
+    member = member_result.first()
+
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not a member of this organization"
+        )
+
+    # SCIM configuration requires admin role
+    if member.role not in ("admin", "owner"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required to manage SCIM configuration"
+        )
+
     return org
 
 

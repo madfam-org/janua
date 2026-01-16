@@ -68,6 +68,8 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field(default="redis://localhost:6379/0", description="Redis connection URL")
     REDIS_POOL_SIZE: int = Field(default=10)
     REDIS_DECODE_RESPONSES: bool = Field(default=True)
+    REDIS_MAX_CONNECTIONS: int = Field(default=100, description="Maximum number of Redis connections in pool")
+    REDIS_CONNECTION_TIMEOUT: int = Field(default=5000, description="Redis connection timeout in milliseconds")
 
     # JWT
     JWT_SECRET_KEY: Optional[str] = Field(default=None)
@@ -178,6 +180,19 @@ class Settings(BaseSettings):
     SMTP_USERNAME: Optional[str] = Field(default=None)
     SMTP_PASSWORD: Optional[str] = Field(default=None)
     SMTP_TLS: bool = Field(default=True)
+
+    # SendGrid Configuration (alternative email provider)
+    SENDGRID_API_KEY: Optional[str] = Field(
+        default=None, description="SendGrid API key for email delivery"
+    )
+
+    # Payment Webhook Secrets
+    CONEKTA_WEBHOOK_SECRET: Optional[str] = Field(
+        default=None, description="Webhook signing secret for Conekta payment notifications"
+    )
+    STRIPE_WEBHOOK_SECRET: Optional[str] = Field(
+        default=None, description="Webhook signing secret for Stripe payment notifications"
+    )
 
     # Email aliases for easier access
     FROM_EMAIL: Optional[str] = Field(default=None)

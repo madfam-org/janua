@@ -6,7 +6,7 @@ Centralized email service for all MADFAM applications via Resend
 from typing import Any, Dict, List, Optional
 
 import structlog
-from app.services.resend_service import ResendService
+from app.services.resend_email_service import ResendEmailService as ResendService
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, EmailStr
 
@@ -390,7 +390,6 @@ def generate_fallback_html(template_id: str, variables: Dict[str, Any]) -> str:
             if v is not None
         ]
     )
-    ])
 
     return f"""
     <!DOCTYPE html>
