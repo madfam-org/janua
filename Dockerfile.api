@@ -56,15 +56,18 @@ RUN chown -R janua:python /app
 
 USER janua
 
-EXPOSE 8000
-
+# Default to MADFAM ecosystem standard port 4100
+ENV PORT=4100
 ENV PYTHONUNBUFFERED=1
 ENV ENVIRONMENT=production
 
-# Health check
+EXPOSE 4100
+
+# Health check - uses PORT environment variable
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:${PORT:-4100}/health || exit 1
 
 # Use entrypoint script that runs migrations before starting
 ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use shell form to read PORT environment variable (set via K8s or docker-compose)
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-4100}"]
