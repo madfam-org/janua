@@ -1,0 +1,179 @@
+version: "3.8"
+
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+      target: runner
+      args:
+        NEXT_PUBLIC_API_URL: http://95.217.198.239:8000
+        API_URL: http://janua-api:8000
+        BACKEND_URL: http://janua-api:8000
+    container_name: janua-dashboard
+    restart: unless-stopped
+    ports:
+      - "8010:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - NEXT_PUBLIC_API_URL=http://95.217.198.239:8000
+      - INTERNAL_API_URL=http://janua-api:8000
+    networks:
+      - solarpunk-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Janua API Service
+  api:
+    image: janua-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: janua-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.production
+    volumes:
+      - ./keys:/app/keys:ro  # JWT keys
+    networks:
+      - solarpunk-network
+      - janua-network
+    depends_on:
+      postgres-shared:
+        condition: service_healthy
+      redis-shared:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Janua Admin Panel
+  admin:
+    image: janua-admin:latest
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      target: production
+    container_name: janua-admin
+    restart: unless-stopped
+    ports:
+      - "8011:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://95.217.198.239:8000
+    networks:
+      - solarpunk-network
+    depends_on:
+      - api
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Shared PostgreSQL (ZFS-backed)
+  postgres-shared:
+    image: postgres:15-alpine
+    container_name: postgres-shared
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=GdI1iDHCyTSQIRv84+tIRAqQKhJRU4Fo
+      - POSTGRES_DB=postgres
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --data-checksums
+      - POSTGRES_HOST_AUTH_METHOD=md5
+    volumes:
+      - /data/postgres:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - solarpunk-network
+      - janua-network
+      - enclii-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # PostgreSQL tuning for ZFS
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=1GB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "work_mem=4MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+
+  # Shared Redis
+  redis-shared:
+    image: redis:7-alpine
+    container_name: redis-shared
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: redis-server --appendonly yes --appendfsync everysec
+    volumes:
+      - redis_data:/data
+    networks:
+      - solarpunk-network
+      - janua-network
+      - enclii-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  solarpunk-network:
+    external: true
+  janua-network:
+    external: true
+  enclii-network:
+    external: true
