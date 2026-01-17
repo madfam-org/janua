@@ -44,6 +44,9 @@ COPY --from=builder /install /usr/local
 # Copy application code (context is apps/api)
 COPY . /app
 
+# Make entrypoint executable
+RUN chmod +x /app/entrypoint.sh
+
 # Create non-root user and set ownership
 RUN useradd -m -u 1001 janua && \
     chown -R janua:janua /app
@@ -62,4 +65,6 @@ EXPOSE 4100
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:4100/health')" || exit 1
 
+# Use entrypoint for database migrations before app start
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "4100"]
