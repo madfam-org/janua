@@ -321,12 +321,17 @@ export interface TokenResponse {
 export type TokenPair = TokenResponse;
 
 // API Response interfaces (what comes from the server)
+// Note: The Janua API returns tokens nested under 'tokens', but we also support
+// flat structure for backwards compatibility with some endpoints
 export interface AuthApiResponse {
   user: User;
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  token_type: 'bearer';
+  // Nested token structure (what /api/v1/auth/login actually returns)
+  tokens?: TokenResponse;
+  // Flat token structure (for backwards compatibility)
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  token_type?: 'bearer';
 }
 
 // Client Response interfaces (what the SDK returns)

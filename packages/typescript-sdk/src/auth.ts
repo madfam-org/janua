@@ -60,12 +60,20 @@ export class Auth {
 
     const response = await this.http.post<AuthApiResponse>('/api/v1/auth/register', request);
 
+    // Extract tokens - support both nested (API actual) and flat (legacy) structures
+    const tokens = response.data.tokens || {
+      access_token: response.data.access_token!,
+      refresh_token: response.data.refresh_token!,
+      expires_in: response.data.expires_in!,
+      token_type: response.data.token_type || 'bearer'
+    };
+
     // Store tokens
-    if (response.data.access_token && response.data.refresh_token) {
+    if (tokens.access_token && tokens.refresh_token) {
       await this.tokenManager.setTokens({
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_at: Date.now() + (response.data.expires_in * 1000)
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: Date.now() + (tokens.expires_in * 1000)
       });
     }
 
@@ -77,10 +85,10 @@ export class Auth {
     return {
       user: response.data.user,
       tokens: {
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_in: response.data.expires_in,
-        token_type: response.data.token_type
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_in: tokens.expires_in,
+        token_type: tokens.token_type
       }
     };
   }
@@ -109,12 +117,20 @@ export class Auth {
       return response.data as any; // Return MFA challenge response
     }
 
+    // Extract tokens - support both nested (API actual) and flat (legacy) structures
+    const tokens = response.data.tokens || {
+      access_token: response.data.access_token!,
+      refresh_token: response.data.refresh_token!,
+      expires_in: response.data.expires_in!,
+      token_type: response.data.token_type || 'bearer'
+    };
+
     // Store tokens
-    if (response.data.access_token && response.data.refresh_token) {
+    if (tokens.access_token && tokens.refresh_token) {
       await this.tokenManager.setTokens({
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_at: Date.now() + (response.data.expires_in * 1000)
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: Date.now() + (tokens.expires_in * 1000)
       });
     }
 
@@ -126,10 +142,10 @@ export class Auth {
     return {
       user: response.data.user,
       tokens: {
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_in: response.data.expires_in,
-        token_type: response.data.token_type
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_in: tokens.expires_in,
+        token_type: tokens.token_type
       }
     };
   }
@@ -383,12 +399,20 @@ export class Auth {
 
     const response = await this.http.post<AuthApiResponse>('/api/v1/auth/mfa/verify', request);
 
+    // Extract tokens - support both nested (API actual) and flat (legacy) structures
+    const tokens = response.data.tokens || {
+      access_token: response.data.access_token!,
+      refresh_token: response.data.refresh_token!,
+      expires_in: response.data.expires_in!,
+      token_type: response.data.token_type || 'bearer'
+    };
+
     // Store tokens
-    if (response.data.access_token && response.data.refresh_token) {
+    if (tokens.access_token && tokens.refresh_token) {
       await this.tokenManager.setTokens({
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_at: Date.now() + (response.data.expires_in * 1000)
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: Date.now() + (tokens.expires_in * 1000)
       });
     }
 
@@ -400,10 +424,10 @@ export class Auth {
     return {
       user: response.data.user,
       tokens: {
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_in: response.data.expires_in,
-        token_type: response.data.token_type
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_in: tokens.expires_in,
+        token_type: tokens.token_type
       }
     };
   }
@@ -543,12 +567,20 @@ export class Auth {
       skipAuth: true
     });
 
+    // Extract tokens - support both nested (API actual) and flat (legacy) structures
+    const tokens = response.data.tokens || {
+      access_token: response.data.access_token!,
+      refresh_token: response.data.refresh_token!,
+      expires_in: response.data.expires_in!,
+      token_type: response.data.token_type || 'bearer'
+    };
+
     // Store tokens
-    if (response.data.access_token && response.data.refresh_token) {
+    if (tokens.access_token && tokens.refresh_token) {
       await this.tokenManager.setTokens({
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_at: Date.now() + (response.data.expires_in * 1000)
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: Date.now() + (tokens.expires_in * 1000)
       });
     }
 
@@ -560,10 +592,10 @@ export class Auth {
     return {
       user: response.data.user,
       tokens: {
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_in: response.data.expires_in,
-        token_type: response.data.token_type
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_in: tokens.expires_in,
+        token_type: tokens.token_type
       }
     };
   }
@@ -590,12 +622,17 @@ export class Auth {
       skipAuth: true
     });
 
+    // Extract tokens - support both nested (API actual) and flat (legacy) structures
+    const accessToken = response.data.tokens?.access_token || response.data.access_token;
+    const refreshToken = response.data.tokens?.refresh_token || response.data.refresh_token;
+    const expiresIn = response.data.tokens?.expires_in || response.data.expires_in;
+
     // Store tokens if present
-    if (response.data.access_token && response.data.refresh_token) {
+    if (accessToken && refreshToken) {
       await this.tokenManager.setTokens({
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_at: Date.now() + (response.data.expires_in * 1000)
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_at: Date.now() + (expiresIn * 1000)
       });
     }
 
