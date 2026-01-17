@@ -13,7 +13,8 @@ import {
   BarChart3,
   CreditCard,
   RefreshCw,
-  Loader2
+  Loader2,
+  KeyRound
 } from 'lucide-react'
 import { adminAPI, type AdminStats, type SystemHealth, type AdminUser, type AdminOrganization, type ActivityLog } from '@/lib/admin-api'
 import { useAuth } from '@/lib/auth'
@@ -28,6 +29,7 @@ export default function AdminPage() {
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'tenants', label: 'Tenants', icon: Building2 },
     { id: 'users', label: 'All Users', icon: Users },
+    { id: 'vault', label: 'Ecosystem Vault', icon: KeyRound },
     { id: 'infrastructure', label: 'Infrastructure', icon: Server },
     { id: 'activity', label: 'Activity', icon: Activity },
     { id: 'security', label: 'Security', icon: Shield },
@@ -147,6 +149,7 @@ export default function AdminPage() {
           {activeSection === 'overview' && <OverviewSection />}
           {activeSection === 'tenants' && <TenantsSection />}
           {activeSection === 'users' && <UsersSection />}
+          {activeSection === 'vault' && <VaultSection />}
           {activeSection === 'infrastructure' && <InfrastructureSection />}
           {activeSection === 'activity' && <ActivitySection />}
           {activeSection === 'security' && <SecuritySection />}
@@ -700,4 +703,25 @@ function SettingsSection() {
       </div>
     </div>
   )
+}
+
+function VaultSection() {
+  // Dynamic import to avoid SSR issues with the vault component
+  const [VaultComponent, setVaultComponent] = useState<React.ComponentType | null>(null)
+  
+  useEffect(() => {
+    import('@/components/vault/ecosystem-vault').then((mod) => {
+      setVaultComponent(() => mod.EcosystemVault)
+    })
+  }, [])
+
+  if (!VaultComponent) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  return <VaultComponent />
 }

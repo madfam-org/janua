@@ -1,5 +1,6 @@
 // Theme and Design System
 export * from './theme'
+export * from './themes/dual-skin'
 
 // Components
 export * from './components/button'
@@ -13,6 +14,10 @@ export * from './components/tabs'
 export * from './components/error-boundary'
 export * from './components/avatar'
 export * from './components/separator'
+export * from './components/table'
+export * from './components/checkbox'
+export * from './components/dropdown-menu'
+export * from './components/alert-dialog'
 
 // Authentication Components
 // Note: Selective export to avoid 'Invitation' type naming collision
