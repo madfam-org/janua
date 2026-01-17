@@ -171,6 +171,41 @@ Per [MADFAM Ecosystem Standard](https://github.com/madfam-org/solarpunk-foundry/
 
 ---
 
+## Admin Panel (admin.janua.dev)
+
+The Admin Panel is the internal management interface for Janua platform operators.
+
+**Access:** https://admin.janua.dev
+
+**Authorization Model:**
+Access to Janua Admin requires BOTH:
+1. **Email Domain**: Must be from an allowed domain (default: `@janua.dev`, `@madfam.io`)
+2. **User Role**: Must have an admin role (`superadmin` or `admin`)
+
+**Configuration (Environment Variables):**
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ALLOWED_ADMIN_DOMAINS` | Comma-separated allowed email domains | `@janua.dev,@madfam.io` |
+| `ALLOWED_ADMIN_ROLES` | Comma-separated allowed roles | `superadmin,admin` |
+
+**Adding New Platform Operators:**
+1. Create user in Janua with appropriate role (`superadmin` or `admin`)
+2. Ensure their email domain is in `ALLOWED_ADMIN_DOMAINS` (or add it)
+3. No code changes required - configuration-driven authorization
+
+**Key Files:**
+| Purpose | Location |
+|---------|----------|
+| Middleware (server-side auth) | `apps/admin/middleware.ts` |
+| Auth Context (client-side) | `apps/admin/lib/auth.tsx` |
+| Login Page | `apps/admin/app/login/page.tsx` |
+| Access Denied Page | `apps/admin/app/access-denied/page.tsx` |
+
+**Consistent with Enclii Dispatch:**
+Both admin interfaces (admin.janua.dev and admin.enclii.dev) use the same domain+role based authorization pattern for scalability and consistency.
+
+---
+
 ## API Reference
 
 **Local Base URL**: `http://localhost:4100`
