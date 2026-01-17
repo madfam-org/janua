@@ -744,4 +744,56 @@ pg_restore --list janua_backup_*.sql | head
 
 ---
 
+## Agent Session Protocol (Level 5 Autonomy)
+
+This section defines the operating protocol for AI agents (Claude Code, GitHub Copilot, etc.) when working in this repository.
+
+### Session Start
+1. **READ AI_CONTEXT.md** in the repository root for critical paths and directives
+2. Run `git status && git branch` to verify clean state and current branch
+3. Check for existing TodoWrite items from previous sessions
+4. Load any Serena memories: `list_memories()` → `read_memory()`
+
+### During Session
+1. **ALWAYS use feature branches** - never commit directly to main/master
+2. **ALWAYS run validation** before commits:
+   - Python: `pytest` in apps/api
+   - TypeScript: `pnpm typecheck && pnpm lint`
+3. **UPDATE TodoWrite** after completing each task
+4. **CHECKPOINT every 30 minutes** via `write_memory()` for session persistence
+
+### Secret Management Protocols (Safe-Patch Mode)
+**High-Value Targets**: You are PERMITTED to edit `.env` and `.env.local` files, but MUST adhere to:
+
+1. **Backup First**: Before ANY modification to a secret file:
+   ```bash
+   cp .env .env.bak  # Create immediate restore point
+   ```
+
+2. **Patch, Don't Purge**: NEVER overwrite with `> .env` (deletes existing keys). ALWAYS use:
+   ```bash
+   sed -i '' 's/OLD_VALUE/NEW_VALUE/' .env  # Modify specific key
+   echo "NEW_KEY=value" >> .env             # Append new key
+   ```
+
+3. **Placeholder Ban**: FORBIDDEN from writing values containing:
+   - `your_key_here`, `placeholder`, `example`, `xxx`, `TODO`
+   into active config files (`.env`, `.env.local`)
+
+### Session End
+1. Verify all TodoWrite items completed or documented
+2. Run final validation: `pnpm typecheck && pnpm lint`
+3. Save session state: `write_memory("session_summary", outcomes)`
+4. **DO NOT leave uncommitted changes** without explicit user approval
+
+### Validation Requirements
+| Change Type | Required Validation |
+|-------------|---------------------|
+| Python API | `cd apps/api && pytest` |
+| TypeScript | `pnpm typecheck && pnpm lint` |
+| Database migration | `alembic upgrade head` (local) |
+| Configuration | Manual review required |
+
+---
+
 *Janua - The Gatekeeper | One key for the whole city*
