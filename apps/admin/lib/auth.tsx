@@ -25,12 +25,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-const ALLOWED_ROLES = ['superadmin', 'admin']
-// Allow @janua.dev (Janua staff) and custom domains from environment
-// Set NEXT_PUBLIC_ALLOWED_EMAIL_DOMAINS to add additional domains (comma-separated)
-const DEFAULT_DOMAINS = ['@janua.dev']
-const customDomains = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAINS?.split(',').map(d => d.trim()) || []
-const ALLOWED_EMAIL_DOMAINS = [...DEFAULT_DOMAINS, ...customDomains]
+// Allowed roles (configurable via env)
+const DEFAULT_ROLES = ['superadmin', 'admin']
+const ALLOWED_ROLES = process.env.NEXT_PUBLIC_ALLOWED_ADMIN_ROLES
+  ? process.env.NEXT_PUBLIC_ALLOWED_ADMIN_ROLES.split(',').map((r) => r.trim())
+  : DEFAULT_ROLES
+
+// Allow @janua.dev and @madfam.io (platform operators) plus custom domains from environment
+const DEFAULT_DOMAINS = ['@janua.dev', '@madfam.io']
+const customDomains = process.env.NEXT_PUBLIC_ALLOWED_ADMIN_DOMAINS?.split(',').map(d => d.trim()) || []
+const ALLOWED_EMAIL_DOMAINS = [...new Set([...DEFAULT_DOMAINS, ...customDomains])]
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -47,9 +51,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const currentUser = await januaClient.auth.getCurrentUser()
       setUser(currentUser)
+      setMiddlewareCookies(currentUser)
     } catch (error) {
       console.error('Failed to fetch user:', error)
       setUser(null)
+      setMiddlewareCookies(null)
     }
   }, [])
 
@@ -62,6 +68,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return parts.pop()?.split(';').shift() || null
     }
     return null
+  }
+
+  // Helper to set middleware cookies for authorization
+  const setMiddlewareCookies = (userData: User | null) => {
+    if (typeof document === 'undefined') return
+
+    if (userData) {
+      const roles = userData.roles?.join(',') || ''
+      document.cookie = `janua_admin_email=${userData.email}; path=/; max-age=86400; SameSite=Strict`
+      document.cookie = `janua_admin_roles=${roles}; path=/; max-age=86400; SameSite=Strict`
+    } else {
+      document.cookie = 'janua_admin_email=; Max-Age=0; path=/'
+      document.cookie = 'janua_admin_roles=; Max-Age=0; path=/'
+    }
   }
 
   // Check for existing session via HTTP-only cookies (for SSO)
@@ -91,13 +111,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('[SSO] Session found via cookie, user:', userData.email)
           // Store the token in localStorage for SDK to use
           localStorage.setItem('janua_access_token', ssoToken)
-          // Update local state with user
+          // Update local state with user and set middleware cookies
           setUser(userData as User)
+          setMiddlewareCookies(userData as User)
           return true
         }
       } else {
         console.log('[SSO] Token validation failed:', response.status)
       }
+      setMiddlewareCookies(null)
       return false
     } catch (error) {
       console.error('[SSO] Session check failed:', error)
@@ -114,8 +136,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth()
 
-    const handleSignIn = ({ user: userData }: { user: User }) => setUser(userData)
-    const handleSignOut = () => setUser(null)
+    const handleSignIn = ({ user: userData }: { user: User }) => {
+      setUser(userData)
+      setMiddlewareCookies(userData)
+    }
+    const handleSignOut = () => {
+      setUser(null)
+      setMiddlewareCookies(null)
+    }
     const handleTokenRefresh = () => refreshUser()
 
     januaClient.on('signIn', handleSignIn)
@@ -132,11 +160,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const response = await januaClient.auth.signIn({ email, password })
     setUser(response.user)
+    setMiddlewareCookies(response.user)
   }
 
   const logout = async () => {
     await januaClient.auth.signOut()
     setUser(null)
+    setMiddlewareCookies(null)
     window.location.href = '/login'
   }
 

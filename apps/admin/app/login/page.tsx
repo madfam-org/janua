@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Shield, LogIn, Loader2 } from 'lucide-react'
+import { Shield, LogIn, Loader2, AlertTriangle } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 
 export default function LoginPage() {
@@ -73,8 +73,19 @@ export default function LoginPage() {
             <Shield className="h-8 w-8 text-destructive" />
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-foreground text-center mb-2">Janua Superadmin</h1>
+        <h1 className="text-2xl font-bold text-foreground text-center mb-2">Janua Admin</h1>
         <p className="text-sm text-muted-foreground text-center mb-6">Internal Platform Management</p>
+
+        {/* Restricted Access Notice */}
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 mb-6">
+          <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-foreground">Restricted Access</p>
+            <p className="text-muted-foreground">
+              Only authorized platform operators may access Janua Admin.
+            </p>
+          </div>
+        </div>
 
         <form onSubmit={handleLogin} className="space-y-4">
           {loginError && (
@@ -119,7 +130,7 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-4 text-xs text-muted-foreground text-center">
-          Admin access requires @janua.dev email and superadmin role
+          admin.janua.dev | Platform Operators Only
         </p>
       </div>
     </div>
