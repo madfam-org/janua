@@ -75,6 +75,7 @@ export function StatusBadge<T extends string = string>({
   config,
   showIcon = true,
   className,
+  variant: _variant, // Extract variant from props to prevent passing to Badge
   ...props
 }: StatusBadgeProps<T>) {
   const mergedConfig = { ...defaultStatusConfig, ...config } as StatusConfigMap

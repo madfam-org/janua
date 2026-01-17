@@ -268,7 +268,7 @@ export default function SSOSettingsPage() {
                 <div>
                   <CardTitle>SSO Configuration</CardTitle>
                   <CardDescription>
-                    Manage your organization's SSO settings
+                    Manage your organization&apos;s SSO settings
                   </CardDescription>
                 </div>
                 <Button variant="outline" size="sm" onClick={fetchConfigurations}>

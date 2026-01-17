@@ -11,10 +11,10 @@
     "test:monitoring": "curl -s http://localhost:3001/api/metrics | head -20"
   },
   "dependencies": {
-    "@janua/typescript-sdk": "workspace:*",
-    "@janua/react-sdk": "workspace:*",
-    "@janua/ui": "workspace:*",
     "@janua/feature-flags": "workspace:*",
+    "@janua/react-sdk": "workspace:*",
+    "@janua/typescript-sdk": "workspace:*",
+    "@janua/ui": "workspace:*",
     "@radix-ui/react-alert-dialog": "^1.0.5",
     "@radix-ui/react-avatar": "^1.0.4",
     "@radix-ui/react-checkbox": "^1.0.4",
@@ -47,7 +47,7 @@
     "autoprefixer": "^10.4.23",
     "eslint": "^8.56.0",
     "eslint-config-next": "14.2.25",
-    "eslint-plugin-tailwindcss": "^3.17.4",
+    "eslint-plugin-tailwindcss": "^3.18.2",
     "postcss": "^8.4.32",
     "tailwindcss": "3.4.17",
     "typescript": "^5.7.2"

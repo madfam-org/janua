@@ -68,6 +68,7 @@ export function RoleBadge<T extends string = string>({
   config,
   showIcon = false,
   className,
+  variant: _variant, // Extract variant from props to prevent passing to Badge
   ...props
 }: RoleBadgeProps<T>) {
   const mergedConfig = { ...defaultRoleConfig, ...config } as RoleConfigMap

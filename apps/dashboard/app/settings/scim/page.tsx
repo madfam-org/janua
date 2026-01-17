@@ -279,7 +279,7 @@ export default function SCIMSettingsPage() {
             <CardHeader>
               <CardTitle className="text-green-700 dark:text-green-300">New Bearer Token Generated</CardTitle>
               <CardDescription className="text-green-600 dark:text-green-400">
-                Copy this token now - it won't be shown again!
+                Copy this token now - it won&apos;t be shown again!
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -337,7 +337,7 @@ export default function SCIMSettingsPage() {
                   <div>
                     <CardTitle>SCIM Configuration</CardTitle>
                     <CardDescription>
-                      Manage your organization's SCIM provisioning settings
+                      Manage your organization&apos;s SCIM provisioning settings
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">

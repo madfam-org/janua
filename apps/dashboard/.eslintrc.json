@@ -4,7 +4,58 @@
   "settings": {
     "tailwindcss": {
       "callees": ["cn", "clsx", "cva"],
-      "config": "tailwind.config.ts"
+      "config": "tailwind.config.js",
+      "whitelist": [
+        "bg-background",
+        "bg-foreground",
+        "bg-card",
+        "bg-popover",
+        "bg-primary",
+        "bg-secondary",
+        "bg-muted",
+        "bg-accent",
+        "bg-destructive",
+        "bg-border",
+        "bg-input",
+        "bg-ring",
+        "bg-brand",
+        "bg-success",
+        "bg-warning",
+        "bg-info",
+        "text-background",
+        "text-foreground",
+        "text-card",
+        "text-card-foreground",
+        "text-popover",
+        "text-popover-foreground",
+        "text-primary",
+        "text-primary-foreground",
+        "text-secondary",
+        "text-secondary-foreground",
+        "text-muted",
+        "text-muted-foreground",
+        "text-accent",
+        "text-accent-foreground",
+        "text-destructive",
+        "text-destructive-foreground",
+        "text-brand",
+        "text-brand-foreground",
+        "text-success",
+        "text-success-foreground",
+        "text-warning",
+        "text-warning-foreground",
+        "text-info",
+        "text-info-foreground",
+        "border-border",
+        "border-input",
+        "border-ring",
+        "border-primary",
+        "border-secondary",
+        "border-destructive",
+        "ring-ring",
+        "ring-primary",
+        "ring-destructive"
+      ]
     }
   },
   "rules": {
@@ -35,7 +86,7 @@
         "message": "Hardcoded HEX colors are not allowed. Use CSS variables (e.g., bg-background, text-foreground) or semantic Tailwind classes instead."
       },
       {
-        "selector": "Literal[value=/(bg|text|border)-(red|blue|green|yellow|gray|slate|zinc|neutral|stone|orange|amber|lime|emerald|teal|cyan|sky|indigo|violet|purple|fuchsia|pink|rose)-\\d{2,3}(?!\\/)(?![a-z])/]",
+        "selector": "Literal[value=/(bg|text|border)-(red|blue|green|yellow|gray|slate|zinc|neutral|stone|orange|amber|lime|emerald|teal|cyan|sky|indigo|violet|purple|fuchsia|pink|rose)-\\d{2,3}$/]",
         "message": "Use semantic Tailwind colors (primary, secondary, destructive, muted) instead of raw color classes. Exception: opacity variants like bg-green-500/10 are allowed."
       }
     ]

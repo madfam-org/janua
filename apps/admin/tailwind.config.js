@@ -6,6 +6,9 @@ module.exports = {
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     '../../packages/ui/**/*.{js,ts,jsx,tsx}',
+    // @madfam/ui from solarpunk-foundry (workspace link or node_modules)
+    './node_modules/@madfam/ui/src/**/*.{ts,tsx}',
+    './node_modules/@madfam/ui/dist/**/*.{js,mjs}',
   ],
   theme: {
     container: {

@@ -84,9 +84,9 @@ export function DSRForm({
           <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
             <h4 className="text-sm font-semibold text-primary">What happens next?</h4>
             <ul className="mt-2 space-y-1 text-sm text-primary/80">
-              <li>• We'll verify your identity via email</li>
+              <li>• We&apos;ll verify your identity via email</li>
               <li>• Your request will be reviewed within 30 days (GDPR requirement)</li>
-              <li>• You'll receive email updates on the status</li>
+              <li>• You&apos;ll receive email updates on the status</li>
             </ul>
           </div>
 
