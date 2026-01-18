@@ -77,10 +77,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (userData) {
       // Handle both roles array and is_admin boolean from API
       let roles = userData.roles?.join(',') || ''
-      // If no roles but is_admin is true, treat as superadmin (highest privilege)
+
+      // If no roles array, derive from is_admin boolean
       if (!roles && (userData as any).is_admin) {
-        roles = 'superadmin'
+        // SECURITY: Only admin@madfam.io gets superadmin (highest privilege)
+        // Other is_admin users get 'admin' role (lower privilege)
+        const SUPERADMIN_EMAIL = 'admin@madfam.io'
+        roles = userData.email === SUPERADMIN_EMAIL ? 'superadmin' : 'admin'
       }
+
       // Get access token from localStorage (where SDK stores it)
       const accessToken = localStorage.getItem('janua_access_token') || ''
       document.cookie = `janua_token=${accessToken}; path=/; max-age=86400; SameSite=Strict`
