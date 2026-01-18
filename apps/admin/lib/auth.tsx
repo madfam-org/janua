@@ -76,9 +76,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (userData) {
       const roles = userData.roles?.join(',') || ''
+      // Get access token from localStorage (where SDK stores it)
+      const accessToken = localStorage.getItem('janua_access_token') || ''
+      document.cookie = `janua_token=${accessToken}; path=/; max-age=86400; SameSite=Strict`
       document.cookie = `janua_admin_email=${userData.email}; path=/; max-age=86400; SameSite=Strict`
       document.cookie = `janua_admin_roles=${roles}; path=/; max-age=86400; SameSite=Strict`
     } else {
+      document.cookie = 'janua_token=; Max-Age=0; path=/'
       document.cookie = 'janua_admin_email=; Max-Age=0; path=/'
       document.cookie = 'janua_admin_roles=; Max-Age=0; path=/'
     }

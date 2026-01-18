@@ -12,7 +12,7 @@ import type {
   Environment
 } from './types';
 import { HttpClient, createHttpClient } from './http-client';
-import { TokenManager, EnvUtils, EventEmitter, type TokenStorage } from './utils';
+import { TokenManager, EnvUtils, EventEmitter, LocalTokenStorage, SessionTokenStorage, MemoryTokenStorage, type TokenStorage } from './utils';
 import { logger } from './utils/logger';
 import { ConfigurationError } from './errors';
 import { Auth } from './auth';
@@ -215,6 +215,21 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
           return result instanceof Promise ? result : Promise.resolve(result);
         }
       };
+    } else if (this.config.tokenStorage) {
+      // Use specified storage type
+      switch (this.config.tokenStorage) {
+        case 'localStorage':
+          storage = new LocalTokenStorage();
+          break;
+        case 'sessionStorage':
+          storage = new SessionTokenStorage();
+          break;
+        case 'memory':
+          storage = new MemoryTokenStorage();
+          break;
+        default:
+          storage = EnvUtils.getDefaultStorage();
+      }
     } else {
       storage = EnvUtils.getDefaultStorage();
     }

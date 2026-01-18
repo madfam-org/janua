@@ -65,12 +65,15 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.pnpm ./apps/admin/.
 
 # Fix the symlinks: Remove broken symlinks and replace with copies from pnpm store
 # The symlinks in standalone point to relative paths that don't exist
+# Use find to dynamically locate the correct package paths (avoids hardcoding version hashes)
 RUN cd /app/apps/admin/.next/standalone/node_modules && \
     rm -f next react react-dom && \
-    # Create proper symlinks to the pnpm store we copied
-    ln -s ../../node_modules/.pnpm/next@15.1.6_@babel+core@7.28.5_@opentelemetry+api@1.9.0_@playwright+test@1.57.0_react-dom@18._adk77sadgjhptgvo6lh42iohzq/node_modules/next next && \
-    ln -s ../../node_modules/.pnpm/react@18.3.1/node_modules/react react && \
-    ln -s ../../node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom react-dom
+    NEXT_PATH=$(find ../../node_modules/.pnpm -type d -name "next" -path "*/node_modules/next" | head -1) && \
+    REACT_PATH=$(find ../../node_modules/.pnpm -type d -name "react" -path "*/react@*/node_modules/react" | head -1) && \
+    REACT_DOM_PATH=$(find ../../node_modules/.pnpm -type d -name "react-dom" -path "*/react-dom@*/node_modules/react-dom" | head -1) && \
+    ln -s "$NEXT_PATH" next && \
+    ln -s "$REACT_PATH" react && \
+    ln -s "$REACT_DOM_PATH" react-dom
 
 # Copy static files
 COPY --from=builder --chown=nextjs:nodejs /app/apps/admin/.next/static ./apps/admin/.next/standalone/.next/static

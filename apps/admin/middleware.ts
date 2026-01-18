@@ -47,6 +47,7 @@ function hasAllowedRole(rolesString: string | undefined): boolean {
 // Public paths that don't require authentication
 const publicPaths = [
   '/login',
+  '/access-denied',
   '/auth/callback',
   '/api/auth',
   '/api/health',
