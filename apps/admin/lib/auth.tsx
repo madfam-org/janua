@@ -77,9 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (userData) {
       // Handle both roles array and is_admin boolean from API
       let roles = userData.roles?.join(',') || ''
-      // If no roles but is_admin is true, treat as admin role
+      // If no roles but is_admin is true, treat as superadmin (highest privilege)
       if (!roles && (userData as any).is_admin) {
-        roles = 'admin'
+        roles = 'superadmin'
       }
       // Get access token from localStorage (where SDK stores it)
       const accessToken = localStorage.getItem('janua_access_token') || ''
