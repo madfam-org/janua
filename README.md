@@ -12,6 +12,29 @@
 
 ---
 
+## Production Status
+
+| Service | Domain | Status |
+|---------|--------|--------|
+| API / OIDC Provider | `auth.madfam.io` | ✅ Running on Enclii |
+| Admin Dashboard | `admin.janua.dev` | ✅ Running on Enclii |
+| User Dashboard | `app.janua.dev` | ✅ Running on Enclii |
+| Documentation | `docs.janua.dev` | ✅ Running on Enclii |
+| Website | `janua.dev` | ✅ Running on Enclii |
+
+**Infrastructure**: 2-Node Hetzner Cluster via [Enclii PaaS](https://github.com/madfam-org/enclii)
+- Production workloads on "The Sanctuary" (AX41-NVMe)
+- CI/CD builds on "The Forge" (CPX11)
+- Zero-trust ingress via Cloudflare Tunnel
+
+**Active SSO Integrations**:
+- [Enclii Dashboard](https://app.enclii.dev) (`enclii-web`)
+- [Enclii Admin/Dispatch](https://admin.enclii.dev) (`dispatch-admin`)
+- [Dhanam Ledger](https://dhanam.com) (`dhanam-ledger`)
+- [Dhanam Admin](https://admin.dhanam.com) (`dhanam-admin`)
+
+---
+
 ## What is this?
 
 A self-hosted authentication platform built with FastAPI and modern web technologies. Think Auth0 or Clerk, but you run it on your own infrastructure and the source code is yours.
