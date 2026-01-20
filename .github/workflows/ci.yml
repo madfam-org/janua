@@ -102,6 +102,11 @@ jobs:
           cache: 'pip'
           cache-dependency-path: apps/api/requirements*.txt
 
+      - name: Install system dependencies for xmlsec
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxmlsec1-dev pkg-config
+
       - name: Install dependencies
         working-directory: apps/api
         run: |
