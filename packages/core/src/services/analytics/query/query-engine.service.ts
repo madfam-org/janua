@@ -186,11 +186,12 @@ export class QueryEngineService extends EventEmitter {
       case 'day':
         d.setHours(0, 0, 0, 0);
         break;
-      case 'week':
+      case 'week': {
         const day = d.getDay();
         d.setDate(d.getDate() - day);
         d.setHours(0, 0, 0, 0);
         break;
+      }
       case 'month':
         d.setDate(1);
         d.setHours(0, 0, 0, 0);
@@ -223,10 +224,11 @@ export class QueryEngineService extends EventEmitter {
         case 'lt':
           if (!(value < filter.value)) return false;
           break;
-        case 'between':
+        case 'between': {
           const [min, max] = filter.value;
           if (!(value >= min && value <= max)) return false;
           break;
+        }
         case 'in':
           if (!filter.value.includes(value)) return false;
           break;
@@ -283,7 +285,7 @@ export class QueryEngineService extends EventEmitter {
    * Private: Apply ordering, limit, and offset
    */
   private applyPostProcessing(data: any[], query: AnalyticsQuery): any[] {
-    let results = [...data];
+    const results = [...data];
 
     // Apply ordering
     if (query.order_by && query.order_by.length > 0) {

@@ -511,12 +511,13 @@ export class MFAService extends EventEmitter {
 
     for (const condition of config.bypass_conditions) {
       switch (condition.type) {
-        case 'trusted_device':
+        case 'trusted_device': {
           const trustedDevices = this.trustedDevices.get(user_id);
           if (trustedDevices?.has(context.device_fingerprint)) {
             return true;
           }
           break;
+        }
 
         case 'trusted_network':
           if (config.trusted_networks?.includes(context.ip_address)) {
@@ -524,14 +525,15 @@ export class MFAService extends EventEmitter {
           }
           break;
 
-        case 'low_risk':
+        case 'low_risk': {
           const assessment = await this.assessRisk(context);
           if (assessment.score < 0.3) {
             return true;
           }
           break;
+        }
 
-        case 'recent_verification':
+        case 'recent_verification': {
           const lastVerification = this.getLastVerification(user_id);
           if (lastVerification) {
             const gracePeriod = config.grace_period_minutes || this.config.gracePeriod || 15;
@@ -541,6 +543,7 @@ export class MFAService extends EventEmitter {
             }
           }
           break;
+        }
       }
     }
 

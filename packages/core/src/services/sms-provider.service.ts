@@ -209,6 +209,7 @@ class MockProvider implements SMSProvider {
     
     // Log for development
     if (code) {
+      // Verification code logging handled by parent caller
     }
     
     return {

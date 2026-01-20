@@ -671,12 +671,13 @@ export class SessionManager extends EventEmitter {
       switch (config.action_on_exceed) {
         case 'deny':
           throw new Error('Maximum concurrent sessions exceeded');
-        case 'revoke_oldest':
-          const oldest = activeSessions.sort((a, b) => 
+        case 'revoke_oldest': {
+          const oldest = activeSessions.sort((a, b) =>
             a.created_at.getTime() - b.created_at.getTime()
           )[0];
           await this.revokeSession(oldest.id, 'Exceeded session limit');
           break;
+        }
         case 'alert':
           this.emit('security:session-limit-exceeded', {
             user_id: userId,

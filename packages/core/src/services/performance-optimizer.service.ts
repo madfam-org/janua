@@ -302,12 +302,14 @@ export class PerformanceOptimizerService extends EventEmitter {
 
   private async updateMetrics(): Promise<void> {
     const memUsage = process.memoryUsage();
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const totalMem = require('os').totalmem();
     
     this.metrics = {
       timestamp: new Date(),
       cpu: {
         usage: process.cpuUsage().user / 1000000,
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
         load: require('os').loadavg(),
       },
       memory: {
@@ -442,6 +444,7 @@ export class PerformanceOptimizerService extends EventEmitter {
     if (!this.config.enableClustering) return;
 
     if (cluster.isPrimary) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const numCPUs = require('os').cpus().length;
       
       for (let i = 0; i < numCPUs; i++) {

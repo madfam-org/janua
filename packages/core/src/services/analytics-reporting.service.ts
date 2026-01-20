@@ -923,10 +923,11 @@ export class AnalyticsReportingService extends EventEmitter {
         case 'lt':
           if (!(value < filter.value)) return false;
           break;
-        case 'between':
+        case 'between': {
           const [min, max] = filter.value;
           if (!(value >= min && value <= max)) return false;
           break;
+        }
         case 'in':
           if (!filter.value.includes(value)) return false;
           break;
@@ -1012,11 +1013,12 @@ export class AnalyticsReportingService extends EventEmitter {
       case 'day':
         d.setHours(0, 0, 0, 0);
         break;
-      case 'week':
+      case 'week': {
         const day = d.getDay();
         d.setDate(d.getDate() - day);
         d.setHours(0, 0, 0, 0);
         break;
+      }
       case 'month':
         d.setDate(1);
         d.setHours(0, 0, 0, 0);

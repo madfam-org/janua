@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 /**
  * Key Management Service (KMS) Integration
  * Supports AWS KMS, Google Cloud KMS, Azure Key Vault, and HashiCorp Vault

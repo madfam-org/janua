@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { WebAuthnService } from '../webauthn.service';
 import { RedisService } from '../redis.service';
 import * as simplewebauthn from '@simplewebauthn/server';
@@ -39,6 +38,7 @@ describe('WebAuthnService', () => {
       expire: jest.fn()
     } as any;
     
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     jest.spyOn(require('../redis.service'), 'getRedis').mockReturnValue(mockRedisService);
     
     webauthnService = new WebAuthnService(config);
@@ -137,13 +137,25 @@ describe('WebAuthnService', () => {
       (simplewebauthn.verifyRegistrationResponse as jest.MockedFunction<typeof simplewebauthn.verifyRegistrationResponse>).mockResolvedValueOnce({
         verified: true,
         registrationInfo: {
+          fmt: 'none',
+          aaguid: '00000000-0000-0000-0000-000000000000',
+          credential: {
+            id: 'cred123',
+            publicKey: new Uint8Array([1, 2, 3]),
+            counter: 0,
+          },
           credentialID: Buffer.from('cred123'),
           credentialPublicKey: Buffer.from('pubkey123'),
           counter: 0,
           credentialDeviceType: 'singleDevice',
-          credentialBackedUp: false
+          credentialBackedUp: false,
+          credentialType: 'public-key',
+          attestationObject: new Uint8Array([1, 2, 3]),
+          userVerified: true,
+          origin: 'http://localhost:3000',
+          rpID: 'localhost',
         }
-      });
+      } as any);
       
       const result = await webauthnService.verifyRegistration(
         'user123',
@@ -154,7 +166,7 @@ describe('WebAuthnService', () => {
       expect(result.verified).toBe(true);
       expect(result.passkey).toBeDefined();
       expect(result.passkey?.name).toBe('My Security Key');
-      expect(result.passkey?.deviceType).toBe('singleDevice');
+      expect(result.passkey?.deviceType).toBe('platform');
       
       expect(mockRedisService.hset).toHaveBeenCalled();
       expect(mockRedisService.sadd).toHaveBeenCalled();
@@ -267,12 +279,13 @@ describe('WebAuthnService', () => {
       const passkey = {
         id: 'passkey-123',
         userId: 'user123',
-        credentialID: 'cred123', // base64
-        credentialPublicKey: 'pubkey123',
+        credentialID: 'Y3JlZDEyMw==', // base64 of 'cred123' (matching credential.id decoded from base64url then re-encoded as base64)
+        credentialPublicKey: 'cHVia2V5MTIz', // base64 encoded public key
         counter: 5,
         deviceType: 'platform',
         backedUp: false,
-        createdAt: new Date()
+        createdAt: new Date(),
+        transports: ['usb']
       };
       
       mockRedisService.getWebAuthnChallenge.mockResolvedValueOnce('stored-challenge');

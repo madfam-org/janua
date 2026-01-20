@@ -566,6 +566,7 @@ export class PaymentComplianceService extends EventEmitter {
   }
 
   private generatePaymentFingerprint(context: any): string {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const crypto = require('crypto');
     const data = `${context.customerId}-${context.amount}-${context.currency}-${context.paymentMethod}`;
     return crypto.createHash('sha256').update(data).digest('hex');

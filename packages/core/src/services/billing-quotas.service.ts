@@ -426,7 +426,7 @@ export class BillingQuotasService extends EventEmitter {
     const percentage = (usage / quota) * 100;
     const cacheKey = `${organization_id}:${metric}`;
 
-    let enforcement: QuotaEnforcement = {
+    const enforcement: QuotaEnforcement = {
       metric,
       current_usage: usage,
       quota_limit: quota,

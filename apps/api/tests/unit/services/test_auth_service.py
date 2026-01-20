@@ -278,20 +278,30 @@ class TestSessionManagement:
         mock_user.id = UUID("12345678-1234-5678-9012-123456789abc")
         mock_user.tenant_id = UUID("87654321-4321-8765-2109-876543210def")
 
-        # Mock Session model
-        mock_session = MagicMock()
-        mock_session.id = UUID("12345678-1234-5678-9012-123456789012")
+        # Mock db.execute to return empty session list (no existing sessions)
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = []  # No existing sessions
+        mock_execute_result = MagicMock()
+        mock_execute_result.scalars.return_value = mock_scalars
+        mock_db.execute = AsyncMock(return_value=mock_execute_result)
 
-        # Mock the dependencies
+        # Track what gets added to db
+        added_session = None
+        def capture_add(obj):
+            nonlocal added_session
+            added_session = obj
+        mock_db.add = MagicMock(side_effect=capture_add)
+        mock_db.commit = AsyncMock()
+        mock_db.refresh = AsyncMock()
+
+        # Mock the dependencies (don't mock Session class - let it be created normally)
         with (
             patch("app.services.auth_service.get_redis", new_callable=AsyncMock) as mock_get_redis,
-            patch("app.services.auth_service.Session") as mock_session_class,
             patch("app.services.auth_service.SessionStore") as mock_session_store_class,
             patch.object(AuthService, "create_access_token") as mock_create_access,
             patch.object(AuthService, "create_refresh_token") as mock_create_refresh,
         ):
             mock_get_redis.return_value = mock_redis
-            mock_session_class.return_value = mock_session
             mock_session_store = MagicMock()
             mock_session_store.set = AsyncMock()
             mock_session_store_class.return_value = mock_session_store
@@ -309,17 +319,14 @@ class TestSessionManagement:
                 datetime.utcnow() + timedelta(days=30),
             )
 
-            mock_db.add = MagicMock()
-            mock_db.commit = AsyncMock()
-            mock_db.refresh = AsyncMock()
-
             access_token, refresh_token, session = await AuthService.create_session(
                 mock_db, mock_user, ip_address="127.0.0.1", user_agent="test-agent"
             )
 
             assert access_token == "access_token_123"
             assert refresh_token == "refresh_token_123"
-            assert session == mock_session
+            assert session is not None
+            assert session.user_id == mock_user.id
             mock_db.add.assert_called_once()
             mock_db.commit.assert_called_once()
 

@@ -275,11 +275,12 @@ export class CohortAnalyzerService extends EventEmitter {
       case 'day':
         cohortDate.setHours(0, 0, 0, 0);
         break;
-      case 'week':
+      case 'week': {
         const dayOfWeek = cohortDate.getDay();
         cohortDate.setDate(cohortDate.getDate() - dayOfWeek);
         cohortDate.setHours(0, 0, 0, 0);
         break;
+      }
       case 'month':
         cohortDate.setDate(1);
         cohortDate.setHours(0, 0, 0, 0);
