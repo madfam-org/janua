@@ -58,7 +58,7 @@ jobs:
           sleep 10
 
           echo "=== Deleting all old ReplicaSets ==="
-          kubectl delete rs -n $NAMESPACE -l app=janua-api --all --ignore-not-found
+          kubectl delete rs -n $NAMESPACE -l app=janua-api --ignore-not-found
           sleep 5
 
       - name: Delete corrupted deployment
