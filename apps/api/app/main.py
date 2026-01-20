@@ -587,8 +587,15 @@ def openid_configuration():
     """
     # Use API_BASE_URL for the actual API endpoints
     api_base_url = settings.API_BASE_URL.rstrip("/")
-    # Use BASE_URL as the issuer identifier (the main identity)
-    issuer = settings.BASE_URL.rstrip("/") if settings.BASE_URL else api_base_url
+    # Use JANUA_CUSTOM_DOMAIN as issuer if set (for white-label deployments like auth.madfam.io)
+    # This allows the API to serve tokens with a custom issuer while keeping BASE_URL for internal routing
+    custom_domain_issuer = os.getenv("JANUA_CUSTOM_DOMAIN")
+    if custom_domain_issuer:
+        issuer = f"https://{custom_domain_issuer}".rstrip("/")
+    elif settings.BASE_URL:
+        issuer = settings.BASE_URL.rstrip("/")
+    else:
+        issuer = api_base_url
 
     return {
         "issuer": issuer,

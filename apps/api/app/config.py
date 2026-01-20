@@ -4,7 +4,7 @@ Application configuration
 
 from typing import List, Optional, Union
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     API_BASE_URL: str = Field(
         default="https://api.janua.dev",
         description="Base URL for the API (used for SSO callbacks, OIDC discovery, etc.)"
+    )
+    JANUA_CUSTOM_DOMAIN: Optional[str] = Field(
+        default=None,
+        description="Custom domain for white-label deployments (e.g., auth.madfam.io). Used as OIDC issuer when set."
     )
     INTERNAL_BASE_URL: Optional[str] = Field(
         default=None, description="Internal service URL for Railway private networking"
@@ -548,6 +552,18 @@ class Settings(BaseSettings):
         otherwise falls back to public BASE_URL
         """
         return self.INTERNAL_BASE_URL or self.BASE_URL
+
+    @model_validator(mode="after")
+    def compute_jwt_issuer_from_custom_domain(self) -> "Settings":
+        """
+        If JANUA_CUSTOM_DOMAIN is set and JWT_ISSUER is still the default,
+        use the custom domain as the JWT issuer for white-label deployments.
+        """
+        default_issuer = "https://api.janua.dev"
+        if self.JANUA_CUSTOM_DOMAIN and self.JWT_ISSUER == default_issuer:
+            # Use custom domain as issuer (e.g., auth.madfam.io -> https://auth.madfam.io)
+            object.__setattr__(self, "JWT_ISSUER", f"https://{self.JANUA_CUSTOM_DOMAIN}")
+        return self
 
 
 # Create settings instance
