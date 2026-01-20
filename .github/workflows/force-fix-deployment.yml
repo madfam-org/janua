@@ -1,0 +1,201 @@
+name: Force Fix janua-api Deployment
+
+# Emergency workflow to fix janua-api when Switchyard has corrupted the deployment
+# This completely replaces the deployment with the correct spec from our manifests
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "fix-now" to confirm force fix'
+        required: true
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  NAMESPACE: janua
+
+jobs:
+  force-fix:
+    name: Force Fix janua-api
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'fix-now'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Pre-fix diagnostics
+        run: |
+          echo "=== Current State Before Fix ==="
+          echo ""
+          echo "--- Current Deployment ---"
+          kubectl get deployment janua-api -n $NAMESPACE -o yaml | head -100
+          echo ""
+          echo "--- Current Pods ---"
+          kubectl get pods -n $NAMESPACE -l app=janua-api -o wide
+          echo ""
+          echo "--- Current ReplicaSets ---"
+          kubectl get rs -n $NAMESPACE -l app=janua-api
+
+      - name: Stop Switchyard interference - Scale down
+        run: |
+          echo "=== Scaling down deployment to stop Switchyard reconciliation ==="
+          kubectl scale deployment janua-api -n $NAMESPACE --replicas=0
+          sleep 10
+
+          echo "=== Deleting all old ReplicaSets ==="
+          kubectl delete rs -n $NAMESPACE -l app=janua-api --all --ignore-not-found
+          sleep 5
+
+      - name: Delete corrupted deployment
+        run: |
+          echo "=== Deleting corrupted deployment ==="
+          kubectl delete deployment janua-api -n $NAMESPACE --ignore-not-found
+          sleep 5
+
+      - name: Apply fresh deployment from manifest
+        run: |
+          echo "=== Applying fresh deployment from k8s/base/deployments/janua-api.yaml ==="
+          kubectl apply -f k8s/base/deployments/janua-api.yaml
+          sleep 5
+
+      - name: Verify secrets exist
+        run: |
+          echo "=== Verifying required secrets ==="
+
+          if kubectl get secret janua-secrets -n $NAMESPACE >/dev/null 2>&1; then
+            echo "janua-secrets: EXISTS"
+            KEYS=$(kubectl get secret janua-secrets -n $NAMESPACE -o json | jq -r '.data | keys | join(", ")' 2>/dev/null || echo "cannot list keys")
+            echo "  Keys: $KEYS"
+          else
+            echo "ERROR: janua-secrets is MISSING!"
+            exit 1
+          fi
+
+          if kubectl get secret ghcr-credentials -n $NAMESPACE >/dev/null 2>&1; then
+            echo "ghcr-credentials: EXISTS"
+          else
+            echo "ERROR: ghcr-credentials is MISSING!"
+            exit 1
+          fi
+
+      - name: Patch with correct image
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=== Refreshing GHCR credentials ==="
+          kubectl delete secret ghcr-credentials -n $NAMESPACE --ignore-not-found
+          kubectl create secret docker-registry ghcr-credentials \
+            --namespace=$NAMESPACE \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=$GHCR_TOKEN \
+            --docker-email=ci@janua.dev
+
+          echo "=== Patching deployment with correct image ==="
+          kubectl patch deployment janua-api -n $NAMESPACE --type='strategic' -p='
+          spec:
+            template:
+              spec:
+                imagePullSecrets:
+                  - name: ghcr-credentials
+                containers:
+                  - name: janua-api
+                    image: ghcr.io/madfam-org/janua-api:latest
+                    imagePullPolicy: Always
+          '
+
+      - name: Remove Switchyard labels to prevent re-adoption
+        run: |
+          echo "=== Removing Switchyard management labels ==="
+          kubectl label deployment janua-api -n $NAMESPACE \
+            enclii.dev/managed-by- \
+            enclii.dev/project- \
+            enclii.dev/release- \
+            enclii.dev/deployment- \
+            enclii.dev/service- \
+            --overwrite 2>/dev/null || true
+
+          # Also remove from the pod template
+          kubectl patch deployment janua-api -n $NAMESPACE --type='json' -p='[
+            {"op": "remove", "path": "/spec/template/metadata/labels/enclii.dev~1managed-by"},
+            {"op": "remove", "path": "/spec/template/metadata/labels/enclii.dev~1project"},
+            {"op": "remove", "path": "/spec/template/metadata/labels/enclii.dev~1release"},
+            {"op": "remove", "path": "/spec/template/metadata/labels/enclii.dev~1deployment"},
+            {"op": "remove", "path": "/spec/template/metadata/labels/enclii.dev~1service"}
+          ]' 2>/dev/null || echo "Some labels already removed or don't exist"
+
+      - name: Wait for rollout
+        run: |
+          echo "=== Waiting for deployment rollout ==="
+          kubectl rollout status deployment/janua-api -n $NAMESPACE --timeout=300s
+
+      - name: Post-fix verification
+        run: |
+          echo "=== Post-Fix Verification ==="
+          echo ""
+
+          echo "--- Deployment Status ---"
+          kubectl get deployment janua-api -n $NAMESPACE -o wide
+          echo ""
+
+          echo "--- Pod Status ---"
+          kubectl get pods -n $NAMESPACE -l app=janua-api -o wide
+          echo ""
+
+          echo "--- Pod Environment (checking for secrets) ---"
+          POD=$(kubectl get pods -n $NAMESPACE -l app=janua-api -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+          if [ -n "$POD" ]; then
+            kubectl exec $POD -n $NAMESPACE -- env 2>/dev/null | grep -E "^(DATABASE_URL|REDIS_URL|JWT_|SECRET_KEY|PORT)=" | sed 's/=.*/=***/' || echo "Cannot exec into pod yet"
+          fi
+          echo ""
+
+          echo "--- Deployment Labels (should NOT have enclii.dev labels) ---"
+          kubectl get deployment janua-api -n $NAMESPACE -o jsonpath='{.metadata.labels}' | jq .
+          echo ""
+
+      - name: Health check
+        run: |
+          echo "=== Health Check ==="
+          sleep 30
+
+          # Check pod readiness
+          READY=$(kubectl get deployment janua-api -n $NAMESPACE -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+          DESIRED=$(kubectl get deployment janua-api -n $NAMESPACE -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "2")
+
+          echo "Ready: $READY / $DESIRED"
+
+          if [ "$READY" -ge "1" ]; then
+            echo "At least one pod is ready!"
+
+            # Try curl through the tunnel
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://api.janua.dev/health" 2>/dev/null || echo "000")
+            echo "api.janua.dev/health response: $HTTP_CODE"
+
+            if [ "$HTTP_CODE" == "200" ]; then
+              echo "SUCCESS: janua-api is healthy!"
+            else
+              echo "WARNING: API pod is ready but health endpoint returned $HTTP_CODE"
+              echo "May need time for Cloudflare tunnel to propagate"
+            fi
+          else
+            echo "ERROR: No pods are ready"
+            echo ""
+            echo "--- Pod Logs ---"
+            kubectl logs -n $NAMESPACE -l app=janua-api --tail=50 2>&1 || echo "Cannot get logs"
+            exit 1
+          fi
