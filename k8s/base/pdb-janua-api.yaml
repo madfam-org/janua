@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: janua-api-pdb
+  namespace: janua
+  labels:
+    app.kubernetes.io/name: janua-api
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: janua
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: janua-api

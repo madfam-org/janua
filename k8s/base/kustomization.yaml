@@ -17,6 +17,9 @@ resources:
   - services/janua-admin.yaml
   - services/janua-docs.yaml
   - services/janua-website.yaml
+  # High Availability (Added Jan 2026 - Operation Phoenix)
+  - pdb-janua-api.yaml
+  - hpa-janua-api.yaml
   # Certificate Management (requires cert-manager to be installed)
   # Uncomment after installing cert-manager:
   # kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml

@@ -7,18 +7,8 @@ resources:
   - ../../base
 
 # Production-specific patches
-patches:
-  # Enable hostNetwork for Cloudflare tunnel access
-  - patch: |-
-      - op: add
-        path: /spec/template/spec/hostNetwork
-        value: true
-      - op: add
-        path: /spec/template/spec/dnsPolicy
-        value: ClusterFirstWithHostNet
-    target:
-      kind: Deployment
-      name: janua-api
+# NOTE: hostNetwork patch REMOVED (Jan 2026) - was breaking ClusterIP routing
+# Cloudflare tunnel routes to Service:80, not host network
 
 # Image configuration for production
 # All images follow convention: ghcr.io/madfam-org/janua-{service}:{tag}
