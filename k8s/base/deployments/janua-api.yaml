@@ -34,7 +34,7 @@ spec:
           image: ghcr.io/madfam-org/janua-api:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 8000
+            - containerPort: 8080
               name: http
               protocol: TCP
           env:
@@ -71,7 +71,7 @@ spec:
                   key: secret-key
             # Configuration
             - name: PORT
-              value: "8000"
+              value: "8080"
             - name: ENVIRONMENT
               value: production
             - name: LOG_LEVEL
@@ -112,7 +112,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: 8000
+              port: 8080
               httpHeaders:
                 - name: Host
                   value: localhost
@@ -122,7 +122,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 8000
+              port: 8080
               httpHeaders:
                 - name: Host
                   value: localhost
@@ -132,7 +132,7 @@ spec:
           startupProbe:
             httpGet:
               path: /health
-              port: 8000
+              port: 8080
               httpHeaders:
                 - name: Host
                   value: localhost
