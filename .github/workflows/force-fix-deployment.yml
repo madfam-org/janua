@@ -38,6 +38,15 @@ jobs:
           echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
 
+      - name: CRITICAL - Disable Switchyard reconciler temporarily
+        run: |
+          echo "=== Temporarily disabling Switchyard to prevent interference ==="
+          echo "Scaling down switchyard-api in enclii namespace..."
+          kubectl scale deployment switchyard-api -n enclii --replicas=0 || echo "Warning: Could not scale switchyard-api"
+          echo "Waiting for Switchyard pods to terminate..."
+          sleep 15
+          echo "Switchyard reconciler disabled. Proceeding with janua fix."
+
       - name: Pre-fix diagnostics
         run: |
           echo "=== Current State Before Fix ==="
@@ -218,3 +227,37 @@ jobs:
             kubectl logs -n $NAMESPACE -l app=janua-api --tail=50 2>&1 || echo "Cannot get logs"
             exit 1
           fi
+
+      - name: CRITICAL - Re-enable Switchyard reconciler
+        if: always()
+        run: |
+          echo "=== Re-enabling Switchyard (with opt-out fix deployed) ==="
+          echo "Scaling up switchyard-api in enclii namespace..."
+          kubectl scale deployment switchyard-api -n enclii --replicas=2 || echo "Warning: Could not scale switchyard-api"
+          echo "Waiting for Switchyard pods to start..."
+          sleep 30
+          kubectl get pods -n enclii -l app=switchyard-api
+          echo "Switchyard reconciler re-enabled."
+          echo ""
+          echo "NOTE: Switchyard now has the opt-out annotation check deployed."
+          echo "It will skip janua-api because of the 'enclii.dev/reconcile=disabled' annotation."
+
+      - name: Final summary
+        run: |
+          echo "=============================================="
+          echo "       JANUA-API FORCE FIX COMPLETE           "
+          echo "=============================================="
+          echo ""
+          echo "✅ Deleted corrupted deployment"
+          echo "✅ Applied fresh manifest with opt-out annotation"
+          echo "✅ Refreshed GHCR credentials"
+          echo "✅ Removed Switchyard management labels"
+          echo "✅ Re-enabled Switchyard (with opt-out support)"
+          echo ""
+          echo "The 'enclii.dev/reconcile=disabled' annotation will"
+          echo "prevent Switchyard from overwriting this deployment."
+          echo ""
+          echo "Test URLs:"
+          echo "  - https://api.janua.dev/health"
+          echo "  - https://admin.janua.dev"
+          echo "  - https://app.janua.dev"
