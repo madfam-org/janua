@@ -453,7 +453,7 @@ async def authorize_get(
         # Store auth request in session/query params and redirect to login
         login_params = urlencode(
             {
-                "next": str(request.url),
+                "next": f"{settings.BASE_URL}{request.url.path}?{request.url.query}",
                 "client_id": client_id,
                 "client_name": client.name,
             }

@@ -148,7 +148,7 @@ async def oauth_authorize(
         # Build redirect URI if not provided
         if not redirect_uri:
             # Use the API base URL + callback endpoint
-            base_url = str(request.base_url).rstrip("/")
+            base_url = settings.API_BASE_URL.rstrip("/")
             redirect_uri = f"{base_url}/api/v1/auth/oauth/callback/{provider}"
 
         # Parse additional scopes if provided
@@ -208,7 +208,7 @@ async def oauth_callback(
         await redis_client.delete(f"oauth_state:{state}")
 
         # Build redirect URI (must match the one used in authorize)
-        base_url = str(request.base_url).rstrip("/")
+        base_url = settings.API_BASE_URL.rstrip("/")
         redirect_uri = f"{base_url}/api/v1/auth/oauth/callback/{provider}"
 
         # Handle OAuth callback
@@ -360,7 +360,7 @@ async def link_oauth_account(
         # ALWAYS use Janua's callback URL for OAuth providers
         # The provider (GitHub, etc.) will redirect back to Janua,
         # then Janua will redirect to the final_redirect
-        base_url = str(request.base_url).rstrip("/")
+        base_url = settings.API_BASE_URL.rstrip("/")
         oauth_callback_uri = f"{base_url}/api/v1/auth/oauth/link/callback/{provider}"
 
         # Get authorization URL using Janua's callback
@@ -444,7 +444,7 @@ async def link_oauth_callback(
         await redis_client.delete(f"oauth_state:{state}")
 
         # Build the callback URI that was used (must match for token exchange)
-        base_url = str(request.base_url).rstrip("/")
+        base_url = settings.API_BASE_URL.rstrip("/")
         oauth_callback_uri = f"{base_url}/api/v1/auth/oauth/link/callback/{provider}"
 
         # Exchange code for tokens
