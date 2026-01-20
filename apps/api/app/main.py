@@ -457,9 +457,11 @@ allowed_hosts = [
     # Kubernetes internal networking (service names)
     "janua-api.janua.svc.cluster.local",
     "janua-api.janua.svc.cluster.local:4100",
-    # Note: K8s health probes use Host header matching service name, not pod IPs.
-    # TrustedHostMiddleware doesn't support IP wildcards (10.42.*.*).
-    # If health checks fail, configure probes to use service hostname.
+    # K8s health probe IPs - allow internal cluster network
+    # Starlette TrustedHostMiddleware supports fnmatch-style wildcards
+    "10.*",
+    "10.*.*.*",
+    "10.42.*.*",
 ]
 # Add custom domain aliases from environment (e.g., auth.madfam.io for MADFAM deployment)
 custom_domain = os.getenv("JANUA_CUSTOM_DOMAIN")

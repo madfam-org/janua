@@ -69,28 +69,54 @@ jobs:
 
       - name: Update GHCR credentials in K8s (prevents 502 on deploy)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Prefer GHCR_PAT (Personal Access Token with read:packages scope) for external K8s pulls
+          # Fall back to GITHUB_TOKEN which works within GitHub Actions context
+          # NOTE: If using private GHCR packages, create a PAT at:
+          # https://github.com/settings/tokens/new?scopes=read:packages
+          # Then add as GHCR_PAT repository secret
+          GHCR_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          # Create docker-registry secret with fresh GITHUB_TOKEN
-          # This prevents ImagePullBackOff errors that cause 502 during rolling updates
+          # Create docker-registry secret for pulling images
+          # Uses GHCR_PAT if available (recommended), otherwise GITHUB_TOKEN
           kubectl delete secret ghcr-credentials -n janua --ignore-not-found
           kubectl create secret docker-registry ghcr-credentials \
             --namespace=janua \
             --docker-server=ghcr.io \
             --docker-username=${{ github.actor }} \
-            --docker-password=$GITHUB_TOKEN \
+            --docker-password=$GHCR_TOKEN \
             --docker-email=ci@janua.dev
           echo "✅ GHCR credentials updated in K8s"
 
-      - name: Deploy to Kubernetes (patch-only to preserve config)
+      - name: Deploy to Kubernetes (comprehensive deployment fix)
         run: |
           IMAGE="ghcr.io/madfam-org/janua-api:main-${{ steps.sha.outputs.short }}"
           echo "Deploying: $IMAGE"
-          # Use patch to update ONLY the image, preserving all other config (env vars, ports, etc.)
-          kubectl patch deployment janua-api -n janua \
-            --type='json' \
-            -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/image", "value": "'$IMAGE'"}]'
-          kubectl rollout status deployment/janua-api -n janua --timeout=180s
+
+          # 1. Remove Switchyard management labels that cause corrupted image paths
+          kubectl label deployment janua-api -n janua \
+            enclii.dev/managed-by- \
+            enclii.dev/project- \
+            enclii.dev/release- \
+            enclii.dev/deployment- \
+            --overwrite 2>/dev/null || true
+
+          # 2. Patch deployment with correct image, port, and imagePullSecrets
+          kubectl patch deployment janua-api -n janua --type='json' -p='[
+            {"op": "replace", "path": "/spec/template/spec/containers/0/image", "value": "'$IMAGE'"},
+            {"op": "replace", "path": "/spec/template/spec/containers/0/ports/0/containerPort", "value": 4100}
+          ]'
+
+          # 3. Ensure imagePullSecrets is set (add if missing)
+          kubectl patch deployment janua-api -n janua --type='strategic' -p='
+          spec:
+            template:
+              spec:
+                imagePullSecrets:
+                  - name: ghcr-credentials
+          ' 2>/dev/null || echo "imagePullSecrets already configured"
+
+          # 4. Wait for rollout with increased timeout
+          kubectl rollout status deployment/janua-api -n janua --timeout=300s
 
       - name: Verify deployment
         run: |
