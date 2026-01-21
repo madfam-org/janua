@@ -391,7 +391,8 @@ class TestIntegrationScenarios:
     @pytest.mark.asyncio
     async def test_webhook_with_audit_logging(self, mock_db, mock_redis):
         """Test webhook delivery with audit logging"""
-        _webhook_service = WebhookService(mock_db)  # Initialize service for context
+        # Note: WebhookService is initialized to verify it doesn't throw during audit tests
+        assert WebhookService(mock_db) is not None  # Verify service initializes correctly
         audit_logger = AuditLogger(mock_db)
         audit_logger.redis_client = mock_redis
 

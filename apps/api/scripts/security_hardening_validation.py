@@ -697,6 +697,7 @@ class SecurityValidator:
             'overall_status': overall_status,
             'security_score': round(security_score, 1),
             'total_checks': total_checks,
+            'passed_checks': passed_count,
             'summary': by_status,
             'severity_distribution': by_severity,
             'category_breakdown': by_category,

@@ -702,8 +702,11 @@ def test_user_with_mfa():
     return user
 
 # Import fixtures from async_fixtures.py for pytest auto-discovery
+# Pytest auto-discovers fixtures via import - used by test files
 try:
-    from fixtures.async_fixtures import async_redis_client  # noqa: F401
+    from fixtures.async_fixtures import async_redis_client
+    # Re-export to ensure pytest registers it (pylint: disable=unused-import)
+    __all__ = ['async_redis_client']
 except ImportError:
     # Fallback if fixtures not found
     @pytest.fixture
