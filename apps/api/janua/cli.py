@@ -167,19 +167,18 @@ async def run_migrations(upgrade: bool = True, downgrade: Optional[str] = None):
 
 
 async def create_user(email: str, password: Optional[str] = None, admin: bool = False, org: Optional[str] = None):
-    """Create a new user."""
+    """Create a new user. Currently a stub that needs database session implementation."""
     try:
-        from app.services.auth_service import AuthService
         import getpass
 
         if not password:
             password = getpass.getpass("Enter password: ")
 
-        _auth_service = AuthService()  # Keep reference for potential use
-
-        # This would need to be implemented with proper database session
-        print(f"Creating user: {email}")
-        print("User creation functionality needs database session implementation")
+        # TODO: Implement with proper database session and AuthService
+        # Placeholder message until full implementation
+        print(f"Creating user: {email} (admin={admin}, org={org})")
+        print(f"Password length: {len(password)} characters")
+        print("Note: User creation functionality needs database session implementation")
 
     except Exception as e:
         print(f"User creation failed: {e}")

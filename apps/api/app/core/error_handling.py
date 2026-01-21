@@ -14,7 +14,6 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.exc import SQLAlchemyError
-from pydantic import ValidationError as PydanticValidationError  # noqa: F401 - imported for potential future use
 
 # Import unified exception system
 from app.core.exceptions import JanuaAPIException

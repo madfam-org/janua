@@ -701,12 +701,9 @@ def test_user_with_mfa():
     # Note: mfa_secret would need to be added to model if MFA is used
     return user
 
-# Import and register fixtures from async_fixtures.py
+# Import fixtures from async_fixtures.py for pytest auto-discovery
 try:
-    from fixtures.async_fixtures import (
-        async_redis_client as _async_redis_client  # noqa: F401 - pytest fixture registration
-    )
-    async_redis_client = _async_redis_client  # Re-export for fixture registration
+    from fixtures.async_fixtures import async_redis_client  # noqa: F401
 except ImportError:
     # Fallback if fixtures not found
     @pytest.fixture
