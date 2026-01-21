@@ -106,10 +106,17 @@ jobs:
                   - name: janua-api
                     image: ghcr.io/madfam-org/janua-api:latest
                     imagePullPolicy: Always
+                    ports:
+                      - containerPort: 8080
                     env:
                       - name: TRUST_ALL_HOSTS
                         value: "true"
           '
+
+          # Fix Service targetPort to match container port (8080)
+          kubectl patch svc janua-api -n janua --type='json' \
+            -p='[{"op": "replace", "path": "/spec/ports/0/targetPort", "value": 8080}]' \
+            2>/dev/null || echo "Service targetPort already set to 8080"
 
           echo "Waiting for janua-api rollout..."
           kubectl rollout status deployment/janua-api -n janua --timeout=300s || {
