@@ -7,13 +7,13 @@ pytestmark = pytest.mark.asyncio
 Working unit tests for AuthService - matches actual implementation
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import UUID, uuid4
 
 import pytest
 
-from app.models import AuditLog, Session, User
+from app.models import AuditLog, Session
 from app.services.auth_service import AuthService
 
 

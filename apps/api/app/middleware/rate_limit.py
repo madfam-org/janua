@@ -3,9 +3,8 @@ Rate limiting middleware for API protection
 """
 
 import time
-from typing import Dict, Optional, Tuple
-from datetime import datetime, timedelta
-import hashlib
+from typing import Optional
+from datetime import datetime
 import json
 
 from fastapi import Request, HTTPException, status

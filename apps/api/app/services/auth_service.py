@@ -1,5 +1,4 @@
 import hashlib
-import hmac
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
@@ -13,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.redis import SessionStore, get_redis
-from app.models import AuditLog, Organization, Session, User
+from app.models import AuditLog, Session, User
 
 logger = structlog.get_logger()
 

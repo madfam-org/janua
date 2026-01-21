@@ -2,7 +2,7 @@
 White-label and branding API endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, Dict, Any, List
@@ -15,7 +15,7 @@ from app.dependencies import get_current_user, require_admin
 from ...models import User, Organization
 from app.models.white_label import (
     BrandingConfiguration, BrandingLevel, ThemeMode,
-    CustomDomain, EmailTemplate, PageCustomization, ThemePreset
+    CustomDomain, EmailTemplate, ThemePreset
 )
 
 logger = logging.getLogger(__name__)

@@ -58,7 +58,7 @@ export const columns: ColumnDef<User>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
         >
           User
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          <ArrowUpDown className="ml-2 size-4" />
         </Button>
       )
     },
@@ -69,7 +69,7 @@ export const columns: ColumnDef<User>[] = [
           <span className="font-medium">
             {user.firstName} {user.lastName}
           </span>
-          <span className="text-sm text-muted-foreground">{user.email}</span>
+          <span className="text-muted-foreground text-sm">{user.email}</span>
         </div>
       )
     },
@@ -96,7 +96,7 @@ export const columns: ColumnDef<User>[] = [
     cell: ({ row }) => {
       const mfaEnabled = row.getValue('mfaEnabled') as boolean
       return mfaEnabled ? (
-        <Shield className="h-4 w-4 text-green-600 dark:text-green-400" />
+        <Shield className="size-4 text-green-600 dark:text-green-400" />
       ) : (
         <span className="text-muted-foreground text-sm">-</span>
       )
@@ -119,7 +119,7 @@ export const columns: ColumnDef<User>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
         >
           Last Sign In
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          <ArrowUpDown className="ml-2 size-4" />
         </Button>
       )
     },
@@ -143,9 +143,9 @@ export const columns: ColumnDef<User>[] = [
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
+            <Button variant="ghost" className="size-8 p-0">
               <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
+              <MoreHorizontal className="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -153,19 +153,19 @@ export const columns: ColumnDef<User>[] = [
             <DropdownMenuItem
               onClick={() => meta.onAction({ type: 'reset_password', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
             >
-              <KeyRound className="mr-2 h-4 w-4" />
+              <KeyRound className="mr-2 size-4" />
               Reset Password
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => meta.onAction({ type: 'view_sessions', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
             >
-              <Eye className="mr-2 h-4 w-4" />
+              <Eye className="mr-2 size-4" />
               View Sessions
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => meta.onAction({ type: 'change_role', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
             >
-              <UserCog className="mr-2 h-4 w-4" />
+              <UserCog className="mr-2 size-4" />
               Change Role
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -173,7 +173,7 @@ export const columns: ColumnDef<User>[] = [
               <DropdownMenuItem
                 onClick={() => meta.onAction({ type: 'unban', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
               >
-                <CheckCircle2 className="mr-2 h-4 w-4" />
+                <CheckCircle2 className="mr-2 size-4" />
                 Unban User
               </DropdownMenuItem>
             ) : (
@@ -181,7 +181,7 @@ export const columns: ColumnDef<User>[] = [
                 className="text-destructive"
                 onClick={() => meta.onAction({ type: 'ban', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
               >
-                <Ban className="mr-2 h-4 w-4" />
+                <Ban className="mr-2 size-4" />
                 Ban User
               </DropdownMenuItem>
             )}
@@ -189,7 +189,7 @@ export const columns: ColumnDef<User>[] = [
               className="text-destructive"
               onClick={() => meta.onAction({ type: 'delete', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
             >
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 className="mr-2 size-4" />
               Delete User
             </DropdownMenuItem>
           </DropdownMenuContent>

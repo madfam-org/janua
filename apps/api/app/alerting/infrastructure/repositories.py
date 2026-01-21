@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Any
 import redis.asyncio as redis
 
 from ..domain.models.alert import Alert, AlertStatus, AlertSeverity, AlertMetrics
-from ..domain.models.rule import AlertRule, RuleCondition, ComparisonOperator
+from ..domain.models.rule import AlertRule
 from ..domain.models.notification import NotificationChannel, NotificationTemplate
 from ..application.services.alert_orchestrator import AlertRepository, RuleRepository
 from ..application.services.notification_dispatcher import ChannelRepository, TemplateRepository

@@ -170,13 +170,12 @@ async def create_user(email: str, password: Optional[str] = None, admin: bool = 
     """Create a new user."""
     try:
         from app.services.auth_service import AuthService
-        from app.database import get_db
         import getpass
 
         if not password:
             password = getpass.getpass("Enter password: ")
 
-        auth_service = AuthService()
+        AuthService()
 
         # This would need to be implemented with proper database session
         print(f"Creating user: {email}")

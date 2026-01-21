@@ -3,24 +3,14 @@ Compliance Monitor Main Orchestrator
 High-level orchestration and SOC2 compliance logic.
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from pathlib import Path
-import json
-import psutil
 import redis.asyncio as aioredis
-from sqlalchemy import select, and_, func
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_session
-from app.models.audit import AuditLog
-from app.models.users import User
-from app.models.organizations import Organization
-from app.monitoring.stability import SystemMetrics
 
-from .control_status import ControlStatus, EvidenceType, ControlResult, ComplianceEvidence
+from .control_status import ControlStatus, ControlResult, ComplianceEvidence
 from .control_monitor import ControlMonitor
 from .evidence_collector import EvidenceCollector
 

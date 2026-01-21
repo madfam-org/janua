@@ -15,12 +15,9 @@ Events Handled:
 - customer.created, updated, deleted
 """
 
-import hashlib
-import hmac
 import os
 from typing import Dict, Any
 from datetime import datetime
-from uuid import UUID
 
 from fastapi import APIRouter, Request, HTTPException, status, Depends, Header
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,15 +27,11 @@ from app.core.database import get_db
 from app.models.billing import (
     Subscription,
     Invoice,
-    PaymentMethod,
     WebhookEvent,
     SubscriptionStatus,
-    PaymentStatus,
-    InvoiceStatus
+    PaymentStatus
 )
-from app.services.payment.router import PaymentRouter, ProviderName
 from app.services.payment.conekta_provider import ConektaProvider
-from app.services.payment.stripe_provider import StripeProvider
 from app.services.payment.polar_provider import PolarProvider
 
 
@@ -236,7 +229,6 @@ async def process_conekta_order_event(
 ):
     """Process Conekta order events."""
     # Handle one-time orders if needed
-    pass
 
 
 # ============================================================================
@@ -408,7 +400,6 @@ async def process_stripe_payment_method_event(
 ):
     """Process Stripe payment method events."""
     # Handle payment method attached/detached if needed
-    pass
 
 
 # ============================================================================

@@ -35,7 +35,7 @@ export function DSRForm({
         <form onSubmit={onSubmit} className="space-y-6">
           <div className="space-y-2">
             <label className="font-medium">Request Type</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {REQUEST_TYPES.map((type) => (
                 <div
                   key={type.value}
@@ -53,14 +53,14 @@ export function DSRForm({
                       value={type.value}
                       checked={selectedType === type.value}
                       onChange={(e) => onTypeChange(e.target.value as DataSubjectRightType)}
-                      className="mt-1 h-4 w-4"
+                      className="mt-1 size-4"
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <span className="font-medium">{type.label}</span>
-                        <span className="text-xs text-muted-foreground">{type.gdprArticle}</span>
+                        <span className="text-muted-foreground text-xs">{type.gdprArticle}</span>
                       </div>
-                      <p className="mt-1 text-sm text-muted-foreground">{type.description}</p>
+                      <p className="text-muted-foreground mt-1 text-sm">{type.description}</p>
                     </div>
                   </label>
                 </div>
@@ -76,14 +76,14 @@ export function DSRForm({
                 onChange={(e) => onReasonChange(e.target.value)}
                 placeholder="Please provide details about your request..."
                 rows={4}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="border-input bg-background focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1"
               />
             </div>
           )}
 
-          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
-            <h4 className="text-sm font-semibold text-primary">What happens next?</h4>
-            <ul className="mt-2 space-y-1 text-sm text-primary/80">
+          <div className="border-primary/30 bg-primary/5 rounded-lg border p-4">
+            <h4 className="text-primary text-sm font-semibold">What happens next?</h4>
+            <ul className="text-primary/80 mt-2 space-y-1 text-sm">
               <li>• We&apos;ll verify your identity via email</li>
               <li>• Your request will be reviewed within 30 days (GDPR requirement)</li>
               <li>• You&apos;ll receive email updates on the status</li>
@@ -94,12 +94,12 @@ export function DSRForm({
             <Button type="submit" disabled={submitting}>
               {submitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 size-4 animate-spin" />
                   Submitting...
                 </>
               ) : (
                 <>
-                  <FileText className="h-4 w-4 mr-2" />
+                  <FileText className="mr-2 size-4" />
                   Submit Request
                 </>
               )}

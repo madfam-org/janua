@@ -81,7 +81,7 @@ class OrganizationController:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=e.message)
         except ApplicationError as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=e.message)
-        except Exception as e:
+        except Exception:
             self.db.rollback()
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
@@ -219,7 +219,7 @@ class OrganizationController:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=e.message)
         except ApplicationError as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=e.message)
-        except Exception as e:
+        except Exception:
             self.db.rollback()
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 
@@ -304,7 +304,7 @@ class OrganizationController:
 
         except ApplicationError as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=e.message)
-        except Exception as e:
+        except Exception:
             self.db.rollback()
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
 

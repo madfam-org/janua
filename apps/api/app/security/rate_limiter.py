@@ -3,15 +3,13 @@ Advanced Rate Limiting System
 Provides sophisticated rate limiting with multiple algorithms and Redis backend
 """
 
-import asyncio
 import time
 import json
-from typing import Dict, List, Optional, Tuple, Union
-from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+from dataclasses import dataclass
 from enum import Enum
 import redis.asyncio as redis
-from fastapi import Request, HTTPException
+from fastapi import Request
 from fastapi.responses import JSONResponse
 import structlog
 
@@ -447,7 +445,7 @@ class RateLimitMiddleware:
     def _get_applicable_limits(self, request: Request) -> List[str]:
         """Determine which rate limits apply to this request"""
         path = request.url.path
-        method = request.method
+        request.method
 
         # Route-specific limits
         limits = []

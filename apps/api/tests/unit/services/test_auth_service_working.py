@@ -9,7 +9,6 @@ Working tests for AuthService
 
 from unittest.mock import AsyncMock, Mock, patch
 
-import bcrypt
 import pytest
 
 from app.services.auth_service import AuthService

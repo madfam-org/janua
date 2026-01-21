@@ -8,7 +8,6 @@ Unit tests for MonitoringService - simplified to match actual implementation
 
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from datetime import datetime
 
 from app.services.monitoring import (
     MonitoringService,

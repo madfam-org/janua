@@ -11,16 +11,11 @@ Target: 23% → 80%+ coverage
 Covers: Conekta (Mexico), Fungies.io (International), pricing, subscriptions
 """
 
-import asyncio
-import json
-from datetime import datetime, timedelta
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 import pytest
 
-from app.models.user import Tenant
 from app.services.billing_service import PRICING_TIERS, BillingService
 
 

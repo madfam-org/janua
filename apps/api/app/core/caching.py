@@ -8,11 +8,10 @@ Provides decorators and utilities for caching hot paths with:
 - Performance monitoring
 """
 
-import asyncio
 import hashlib
 import json
 from functools import wraps
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Optional
 import structlog
 
 from app.core.redis import get_redis, ResilientRedisClient
@@ -215,7 +214,7 @@ class CacheManager:
             await cache_manager.invalidate_pattern("org:abc123:*")
         """
         try:
-            client = await self._get_client()
+            await self._get_client()
 
             # Note: This requires access to raw Redis for SCAN operation
             # For now, we'll log a warning

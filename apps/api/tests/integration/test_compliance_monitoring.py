@@ -4,17 +4,8 @@ Comprehensive testing of compliance framework monitoring, evidence collection, a
 """
 
 import pytest
-import pytest_asyncio
-from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timedelta
-import json
 import asyncio
-from tests.fixtures.external_mocks import (
-    mock_all_external_dependencies,
-    mock_db_session,
-    mock_redis_client,
-    sample_compliance_data
-)
 
 pytestmark = pytest.mark.asyncio
 
@@ -55,7 +46,6 @@ class TestComplianceFrameworkMonitoring:
             compliance_monitor = ComplianceMonitor(mock_db_session) if hasattr(ComplianceMonitor, '__init__') else ComplianceMonitor()
 
             sox_controls = ["AC-1", "AC-2", "AC-3", "AU-1", "AU-2"]
-            sox_requirements = ["segregation_of_duties", "access_controls", "audit_logging"]
 
             # Test SOX-specific monitoring methods
             sox_methods = [
@@ -102,7 +92,6 @@ class TestComplianceFrameworkMonitoring:
             compliance_monitor = ComplianceMonitor(mock_db_session) if hasattr(ComplianceMonitor, '__init__') else ComplianceMonitor()
 
             gdpr_controls = ["DPA-1", "DPA-2", "RTB-1", "PIA-1"]
-            gdpr_requirements = ["data_minimization", "consent_management", "breach_notification"]
 
             # Test GDPR-specific monitoring methods
             gdpr_methods = [
@@ -148,7 +137,6 @@ class TestComplianceFrameworkMonitoring:
             compliance_monitor = ComplianceMonitor(mock_db_session) if hasattr(ComplianceMonitor, '__init__') else ComplianceMonitor()
 
             hipaa_controls = ["164.308", "164.310", "164.312"]
-            hipaa_requirements = ["encryption", "access_logs", "audit_controls"]
 
             # Test HIPAA-specific monitoring methods
             hipaa_methods = [
@@ -194,7 +182,6 @@ class TestComplianceFrameworkMonitoring:
             compliance_monitor = ComplianceMonitor(mock_db_session) if hasattr(ComplianceMonitor, '__init__') else ComplianceMonitor()
 
             iso_controls = ["A.9.1.1", "A.9.2.1", "A.12.6.1"]
-            iso_requirements = ["access_control_policy", "user_access_management", "secure_disposal"]
 
             # Test ISO 27001-specific monitoring methods
             iso_methods = [

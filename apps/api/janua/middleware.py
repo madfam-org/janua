@@ -5,7 +5,7 @@ Provides a pre-configured middleware stack for FastAPI applications
 integrating Janua authentication and security features.
 """
 
-from typing import List, Type
+from typing import List
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware

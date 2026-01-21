@@ -1,8 +1,7 @@
 """Tests for the authentication module."""
 
 import pytest
-from unittest.mock import Mock, MagicMock
-from datetime import datetime
+from unittest.mock import Mock
 from uuid import uuid4
 
 from janua.auth import AuthClient
@@ -10,13 +9,7 @@ from janua.types import (
     User,
     Session,
     AuthTokens,
-    UserRole,
-    UserStatus,
     OAuthProvider,
-)
-from janua.exceptions import (
-    AuthenticationError,
-    ValidationError,
 )
 
 

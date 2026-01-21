@@ -6,11 +6,9 @@ in a way that translates well to all platform SDKs.
 """
 
 import asyncio
-import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Protocol, Union
+from typing import Any, Dict, Optional, Protocol
 from enum import Enum
-from abc import ABC, abstractmethod
 
 from .error_handling import AuthenticationError, ConfigurationError
 

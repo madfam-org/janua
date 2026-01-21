@@ -7,9 +7,7 @@ Working tests for JWT Service
 """
 
 import pytest
-import jwt
-from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, patch
 from app.services.jwt_service import JWTService
 
 

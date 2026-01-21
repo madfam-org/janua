@@ -9,14 +9,12 @@ Tests organization CRUD, member management, RBAC, and billing integration
 """
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, MagicMock, patch
-import json
+from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
 import uuid
 
-from app.models import User, UserStatus, OrganizationRole, Organization
+from app.models import OrganizationRole
 
 
 @pytest.mark.asyncio

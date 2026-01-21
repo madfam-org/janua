@@ -1,7 +1,6 @@
 """Authentication module for the Janua SDK."""
 
 from typing import Optional, Dict, Any
-from datetime import datetime
 
 from .http_client import HTTPClient
 from .types import (
@@ -14,11 +13,6 @@ from .types import (
     EmailVerificationRequest,
     OAuthProvider,
     JanuaConfig,
-)
-from .exceptions import (
-    AuthenticationError,
-    ValidationError,
-    JanuaError,
 )
 
 

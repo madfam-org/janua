@@ -4,7 +4,6 @@ Validation script for Phase 3 optimizations.
 Tests the logic of our caching and N+1 fixes without requiring a full environment.
 """
 
-import ast
 import re
 
 print("="*60)

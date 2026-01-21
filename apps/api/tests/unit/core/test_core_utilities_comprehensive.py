@@ -4,11 +4,7 @@ This test covers core utilities, middleware, error handling, and configuration.
 Expected to cover 600+ lines across core modules.
 """
 
-import pytest
-import json
-from datetime import datetime, timedelta
-from unittest.mock import patch, AsyncMock, MagicMock, PropertyMock
-from fastapi import HTTPException, Request
+from unittest.mock import patch, AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 
 # Import the app and core modules for testing

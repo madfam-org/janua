@@ -6,10 +6,8 @@ idiomatic patterns during SDK generation.
 """
 
 import asyncio
-import time
-from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union, TypeVar, Generic
+from typing import Any, Dict, List, Optional, TypeVar, Generic
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
@@ -145,7 +143,6 @@ class BaseAPIClient(ABC):
         - Swift: Uses URLSession
         - Kotlin: Uses OkHttp or Retrofit
         """
-        pass
 
     @abstractmethod
     async def _handle_authentication(self, headers: Dict[str, str]) -> Dict[str, str]:
@@ -155,7 +152,6 @@ class BaseAPIClient(ABC):
         Platform-specific implementations will handle token management,
         refresh logic, and header formatting.
         """
-        pass
 
     @abstractmethod
     async def _handle_rate_limiting(self) -> None:
@@ -164,7 +160,6 @@ class BaseAPIClient(ABC):
 
         Implements intelligent rate limiting to prevent hitting API limits.
         """
-        pass
 
     async def _apply_retry_logic(
         self,

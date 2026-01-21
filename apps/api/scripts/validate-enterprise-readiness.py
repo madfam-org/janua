@@ -8,8 +8,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-import subprocess
+from typing import Dict, Any
 import requests
 from datetime import datetime
 
@@ -508,7 +507,7 @@ class EnterpriseReadinessValidator:
             try:
                 async with session.get(f"{self.base_url}/api/v1/health") as response:
                     return response.status == 200
-            except:
+            except Exception:
                 return False
 
         async def test_concurrency():

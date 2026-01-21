@@ -11,7 +11,7 @@ interface TestResult {
 }
 
 test.describe('Focused Link and Interactive Element Testing', () => {
-  let results: TestResult[] = [];
+  const results: TestResult[] = [];
 
   const addResult = (result: TestResult) => {
     results.push(result);

@@ -5,7 +5,7 @@ Repository for SSO session management
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Session as SSOSessionModel  # Using regular Session model for SSO sessions

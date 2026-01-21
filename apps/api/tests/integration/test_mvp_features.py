@@ -1,5 +1,4 @@
 import pytest
-from httpx import AsyncClient
 
 pytestmark = pytest.mark.asyncio
 
@@ -8,8 +7,7 @@ Integration tests for MVP features
 Tests organization members, RBAC, webhooks, and audit logging
 """
 import pytest
-import asyncio
-from uuid import uuid4, UUID
+from uuid import uuid4
 from datetime import datetime, timedelta
 from unittest.mock import Mock, AsyncMock, patch
 
@@ -18,7 +16,7 @@ from app.services.rbac_service import RBACService
 from app.services.webhook_enhanced import WebhookService
 from app.services.audit_logger import AuditLogger, AuditAction
 from app.core.jwt_manager import JWTManager
-from app.models import User, Organization, OrganizationMember
+from app.models import User, OrganizationMember
 
 
 @pytest.fixture
@@ -353,7 +351,7 @@ class TestIntegrationScenarios:
     @pytest.mark.asyncio
     async def test_complete_member_lifecycle(self, mock_db, mock_redis):
         """Test complete member lifecycle from invitation to removal"""
-        member_service = OrganizationMemberService(mock_db, mock_redis)
+        OrganizationMemberService(mock_db, mock_redis)
         rbac_service = RBACService(mock_db, mock_redis)
 
         org_id = uuid4()
@@ -393,7 +391,7 @@ class TestIntegrationScenarios:
     @pytest.mark.asyncio
     async def test_webhook_with_audit_logging(self, mock_db, mock_redis):
         """Test webhook delivery with audit logging"""
-        webhook_service = WebhookService(mock_db, mock_redis)
+        WebhookService(mock_db, mock_redis)
         audit_logger = AuditLogger(mock_db)
         audit_logger.redis_client = mock_redis
 

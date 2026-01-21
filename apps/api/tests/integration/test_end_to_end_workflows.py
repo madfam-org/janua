@@ -9,15 +9,12 @@ Tests complete user journeys and business processes
 """
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, MagicMock, patch
-import json
-from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
 import uuid
 import asyncio
 
-from app.models import User, UserStatus, OrganizationRole, Organization
+from app.models import UserStatus, OrganizationRole
 
 
 @pytest.mark.asyncio
@@ -494,7 +491,7 @@ class TestOrganizationMemberLifecycle:
                         headers=headers
                     )
                     assert invite_response.status_code == 201
-                    invitation_id = invite_response.json()["id"]
+                    invite_response.json()["id"]
 
         # Step 2: New user accepts invitation
         member_token = "member_access_token"

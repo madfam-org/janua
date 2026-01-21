@@ -5,7 +5,6 @@ Advanced log analysis, pattern detection, and metrics extraction
 
 import json
 import re
-import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple, Set
 from dataclasses import dataclass, field

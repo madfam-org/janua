@@ -4,7 +4,7 @@ Compliance and data protection models for GDPR, SOC 2, HIPAA, and other framewor
 
 import enum
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SQLEnum

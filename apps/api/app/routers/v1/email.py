@@ -217,34 +217,44 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
     try:
         resend_service = ResendService()
 
-        # Build tags for tracking
-        tags = request.tags or {}
-        tags["source_app"] = request.source_app
-        tags["source_type"] = request.source_type or "notification"
+        # Build tags for tracking (convert dict to list format expected by Resend)
+        tag_list = [
+            {"name": "source_app", "value": request.source_app},
+            {"name": "source_type", "value": request.source_type or "notification"},
+        ]
+        if request.tags:
+            tag_list.extend([{"name": k, "value": v} for k, v in request.tags.items()])
 
-        result = await resend_service.send_email(
-            to=request.to,
-            subject=request.subject,
-            html=request.html,
-            text=request.text,
-            from_email=request.from_email,
-            from_name=request.from_name,
-            reply_to=request.reply_to,
-            cc=request.cc,
-            bcc=request.bcc,
-            attachments=request.attachments,
-            tags=tags,
-        )
+        # Note: ResendEmailService uses settings for from_email/from_name
+        # Custom from_email, from_name, and attachments are not currently supported
+        # Send to each recipient (service expects single email address)
+        results = []
+        for recipient in request.to:
+            result = await resend_service.send_email(
+                to_email=recipient,
+                subject=request.subject,
+                html_content=request.html or "",
+                text_content=request.text,
+                reply_to=request.reply_to,
+                cc=request.cc,
+                bcc=request.bcc,
+                tags=tag_list,
+            )
+            results.append(result)
+
+        # Use the last result for the response (all should succeed or fail together)
+        last_result = results[-1] if results else None
+        message_id = last_result.message_id if last_result else None
 
         logger.info(
             "Email sent",
-            message_id=result.get("id"),
+            message_id=message_id,
             source_app=request.source_app,
             source_type=request.source_type,
             recipients=len(request.to),
         )
 
-        return EmailResponse(success=True, message_id=result.get("id"))
+        return EmailResponse(success=True, message_id=message_id)
 
     except Exception as e:
         logger.error("Failed to send email", error=str(e), source_app=request.source_app)
@@ -281,30 +291,40 @@ async def send_template_email(
         subject = template["subject"].format(**request.variables)
 
         # Render HTML from template
-        html = await render_template(request.template, request.variables)
+        html_content = await render_template(request.template, request.variables)
 
-        result = await resend_service.send_email(
-            to=request.to,
-            subject=subject,
-            html=html,
-            from_email=request.from_email,
-            from_name=request.from_name,
-            attachments=request.attachments,
-            tags={
-                "source_app": request.source_app,
-                "source_type": request.source_type or "notification",
-                "template": request.template,
-            },
-        )
+        # Build tags list format expected by Resend
+        tag_list = [
+            {"name": "source_app", "value": request.source_app},
+            {"name": "source_type", "value": request.source_type or "notification"},
+            {"name": "template", "value": request.template},
+        ]
+
+        # Note: ResendEmailService uses settings for from_email/from_name
+        # Custom from_email, from_name, and attachments are not currently supported
+        # Send to each recipient (service expects single email address)
+        results = []
+        for recipient in request.to:
+            result = await resend_service.send_email(
+                to_email=recipient,
+                subject=subject,
+                html_content=html_content,
+                tags=tag_list,
+            )
+            results.append(result)
+
+        # Use the last result for the response
+        last_result = results[-1] if results else None
+        message_id = last_result.message_id if last_result else None
 
         logger.info(
             "Template email sent",
-            message_id=result.get("id"),
+            message_id=message_id,
             template=request.template,
             source_app=request.source_app,
         )
 
-        return EmailResponse(success=True, message_id=result.get("id"))
+        return EmailResponse(success=True, message_id=message_id)
 
     except Exception as e:
         logger.error(
@@ -354,16 +374,29 @@ async def render_template(template_id: str, variables: Dict[str, Any]) -> str:
     Render an email template with variables.
     Templates are stored in templates/emails/ directory.
     """
-    import os
+    import re
     from pathlib import Path
 
-    # Try to load template file
-    template_path = (
-        Path(__file__).parent.parent.parent.parent
-        / "templates"
-        / "emails"
-        / f"{template_id.replace('/', '_')}.html"
-    )
+    # Security: Validate template_id is a known template to prevent path injection
+    if template_id not in EMAIL_TEMPLATES:
+        raise ValueError(f"Unknown template: {template_id}")
+
+    # Security: Validate template_id format - only allow alphanumeric, hyphen, underscore, and forward slash
+    if not re.match(r'^[a-zA-Z0-9/_-]+$', template_id):
+        raise ValueError(f"Invalid template ID format: {template_id}")
+
+    # Define the templates base directory
+    templates_base = (
+        Path(__file__).parent.parent.parent.parent / "templates" / "emails"
+    ).resolve()
+
+    # Build template filename (replace / with _ for filesystem safety)
+    template_filename = f"{template_id.replace('/', '_')}.html"
+    template_path = (templates_base / template_filename).resolve()
+
+    # Security: Verify the resolved path is within the templates directory (prevent path traversal)
+    if not str(template_path).startswith(str(templates_base)):
+        raise ValueError(f"Invalid template path: {template_id}")
 
     if template_path.exists():
         with open(template_path, "r") as f:

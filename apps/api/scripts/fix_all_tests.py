@@ -6,11 +6,9 @@ Automatically fixes common test issues to achieve 100% pass rate
 
 import os
 import re
-import sys
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List
 import subprocess
-import ast
 
 
 class UniversalTestFixer:
@@ -55,7 +53,6 @@ class UniversalTestFixer:
                 content = f.read()
                 
             original_content = content
-            fixes_in_file = 0
             
             # Apply each fix pattern
             content = self.fix_async_decorators(content)

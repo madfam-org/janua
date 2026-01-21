@@ -156,8 +156,8 @@ export function OrganizationList() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">Loading organizations...</span>
+        <Loader2 className="text-muted-foreground size-8 animate-spin" />
+        <span className="text-muted-foreground ml-2">Loading organizations...</span>
       </div>
     )
   }
@@ -165,11 +165,11 @@ export function OrganizationList() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Failed to Load Organizations</h3>
+        <AlertCircle className="text-destructive mb-4 size-12" />
+        <h3 className="mb-2 text-lg font-semibold">Failed to Load Organizations</h3>
         <p className="text-muted-foreground mb-4">{error}</p>
         <Button onClick={fetchOrganizations} variant="outline">
-          <RefreshCw className="h-4 w-4 mr-2" />
+          <RefreshCw className="mr-2 size-4" />
           Try Again
         </Button>
       </div>
@@ -180,22 +180,22 @@ export function OrganizationList() {
     <div className="space-y-4">
       {/* Search and Create Bar */}
       <div className="flex items-center justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+        <div className="relative max-w-md flex-1">
+          <Search className="text-muted-foreground absolute left-2 top-2.5 size-4" />
           <input
             placeholder="Search organizations..."
-            className="w-full pl-8 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            className="focus:ring-primary w-full rounded-md border py-2 pl-8 pr-4 focus:outline-none focus:ring-2"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={fetchOrganizations}>
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshCw className="mr-2 size-4" />
             Refresh
           </Button>
           <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="mr-2 size-4" />
             Create Organization
           </Button>
         </div>
@@ -203,9 +203,9 @@ export function OrganizationList() {
 
       {/* Organization Cards */}
       {filteredOrganizations.length === 0 ? (
-        <div className="text-center py-12">
-          <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No Organizations Found</h3>
+        <div className="py-12 text-center">
+          <Building2 className="text-muted-foreground mx-auto mb-4 size-12" />
+          <h3 className="mb-2 text-lg font-semibold">No Organizations Found</h3>
           <p className="text-muted-foreground">
             {searchTerm ? 'No organizations match your search' : 'Create your first organization to get started'}
           </p>
@@ -213,50 +213,50 @@ export function OrganizationList() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredOrganizations.map((org) => (
-            <div key={org.id} className="rounded-lg border bg-card p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-4">
+            <div key={org.id} className="bg-card rounded-lg border p-6 transition-shadow hover:shadow-md">
+              <div className="mb-4 flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-muted rounded-lg">
-                    <Building2 className="h-5 w-5" />
+                  <div className="bg-muted rounded-lg p-2">
+                    <Building2 className="size-5" />
                   </div>
                   <div>
                     <h3 className="font-semibold">{org.name}</h3>
-                    <p className="text-sm text-muted-foreground">/{org.slug}</p>
+                    <p className="text-muted-foreground text-sm">/{org.slug}</p>
                   </div>
                 </div>
                 <Button variant="ghost" size="sm">
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreHorizontal className="size-4" />
                 </Button>
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Plan</span>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPlanColor(org.plan)}`}>
+                  <span className="text-muted-foreground text-sm">Plan</span>
+                  <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getPlanColor(org.plan)}`}>
                     {org.plan}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Status</span>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(org.status)}`}>
+                  <span className="text-muted-foreground text-sm">Status</span>
+                  <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getStatusColor(org.status)}`}>
                     {org.status}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Members</span>
+                  <span className="text-muted-foreground text-sm">Members</span>
                   <div className="flex items-center gap-1">
-                    <Users className="h-3 w-3" />
+                    <Users className="size-3" />
                     <span className="text-sm font-medium">{org.members}</span>
                   </div>
                 </div>
 
-                <div className="pt-3 border-t">
-                  <div className="text-xs text-muted-foreground">
+                <div className="border-t pt-3">
+                  <div className="text-muted-foreground text-xs">
                     Owner: {org.owner}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-muted-foreground text-xs">
                     Created: {org.createdAt}
                   </div>
                 </div>
@@ -267,7 +267,7 @@ export function OrganizationList() {
       )}
 
       {/* Summary */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex items-center justify-between text-sm">
         <div>
           Showing {filteredOrganizations.length} of {organizations.length} organizations
         </div>

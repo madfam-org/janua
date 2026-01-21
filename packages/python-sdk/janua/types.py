@@ -7,7 +7,7 @@ the SDK, implemented using Pydantic for validation and serialization.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, ConfigDict
@@ -176,7 +176,6 @@ class AuthResponse(BaseResponse):
 
 class SignInResponse(AuthResponse):
     """Sign in response with user and tokens."""
-    pass
 
 
 class RefreshTokenRequest(BaseModel):

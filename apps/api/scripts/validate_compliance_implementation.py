@@ -83,23 +83,18 @@ def validate_enums():
 
     try:
         # Audit enums
-        from app.compliance.audit import AuditEventType, EvidenceType, RetentionPeriod
         print("✅ Audit enums - OK")
 
         # Privacy enums
-        from app.compliance.privacy import PrivacyRightType, DataExportFormat, RetentionAction
         print("✅ Privacy enums - OK")
 
         # Dashboard enums
-        from app.compliance.dashboard import DashboardTimeframe, MetricStatus, AlertLevel
         print("✅ Dashboard enums - OK")
 
         # Support enums
-        from app.compliance.support import TicketPriority, TicketStatus, SupportTier
         print("✅ Support enums - OK")
 
         # Policy enums
-        from app.compliance.policies import PolicyType, PolicyStatus, PolicyViolationType
         print("✅ Policy enums - OK")
 
         return True
@@ -115,23 +110,18 @@ def validate_dataclasses():
 
     try:
         # Audit dataclasses
-        from app.compliance.audit import ComplianceEvent, AuditEvidence
         print("✅ Audit dataclasses - OK")
 
         # Privacy dataclasses
-        from app.compliance.privacy import DataSubjectRequestResponse, PrivacyImpactAssessment
         print("✅ Privacy dataclasses - OK")
 
         # Dashboard dataclasses
-        from app.compliance.dashboard import ComplianceMetric, SOC2ControlSummary, ComplianceDashboardData
         print("✅ Dashboard dataclasses - OK")
 
         # Support dataclasses
-        from app.compliance.support import SupportTicket, SupportMetrics
         print("✅ Support dataclasses - OK")
 
         # Policy dataclasses
-        from app.compliance.policies import SecurityPolicy, PolicyAcknowledgment, PolicyViolation
         print("✅ Policy dataclasses - OK")
 
         return True

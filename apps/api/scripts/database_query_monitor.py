@@ -23,8 +23,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-from app.database import get_db, engine
-from app.config import settings
 
 logging.basicConfig(
     level=logging.INFO,

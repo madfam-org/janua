@@ -6,16 +6,14 @@ from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 import structlog
 
-from app.config import settings
 from app.core.database import get_db
-from app.core.redis import get_redis
 from app.models.user import User, Session
 from app.services.auth_service import AuthService
 

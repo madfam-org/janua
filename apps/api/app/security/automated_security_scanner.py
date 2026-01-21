@@ -5,19 +5,15 @@ Continuous vulnerability assessment with OWASP, CVE scanning, and dependency aud
 
 import asyncio
 import json
-import os
 import re
-import subprocess
 import hashlib
-from typing import Dict, Any, List, Optional, Set, Tuple
-from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional
+from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 import logging
 import aiofiles
-import httpx
-import semver
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -543,7 +539,7 @@ class AutomatedSecurityScanner:
                                 references=["https://owasp.org/www-project-top-ten/2017/A3_2017-Sensitive_Data_Exposure"],
                                 discovered_at=datetime.utcnow()
                             ))
-                except Exception as e:
+                except Exception:
                     # Skip binary files or files that can't be read
                     pass
         

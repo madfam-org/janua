@@ -19,8 +19,7 @@ from uuid import UUID
 import structlog
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, desc
-from sqlalchemy.sql import func
+from sqlalchemy import select, and_, desc
 
 from app.models.enterprise import AuditLog, AuditEventType
 from app.core.tenant_context import TenantContext

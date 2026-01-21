@@ -5,7 +5,6 @@ Pydantic models for OAuth2 client registration and management.
 These schemas support Janua acting as an OAuth2 Provider (IdP).
 """
 
-import re
 from datetime import datetime
 from typing import List, Optional
 from urllib.parse import urlparse

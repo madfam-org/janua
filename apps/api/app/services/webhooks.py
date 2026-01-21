@@ -2,7 +2,6 @@
 Webhook service for event notifications
 """
 
-import json
 import logging
 import hashlib
 import hmac
@@ -289,7 +288,8 @@ class WebhookService:
         db.commit()
         db.refresh(endpoint)
         
-        logger.info(f"Registered webhook endpoint: {url}")
+        # SECURITY: Use parameterized logging to prevent log injection
+        logger.info("Registered webhook endpoint", url=url)
         
         return endpoint
     
@@ -328,7 +328,8 @@ class WebhookService:
         db.commit()
         db.refresh(endpoint)
         
-        logger.info(f"Updated webhook endpoint: {endpoint_id}")
+        # SECURITY: Use parameterized logging to prevent log injection
+        logger.info("Updated webhook endpoint", endpoint_id=endpoint_id)
         
         return endpoint
     
@@ -349,7 +350,8 @@ class WebhookService:
         db.delete(endpoint)
         db.commit()
         
-        logger.info(f"Deleted webhook endpoint: {endpoint_id}")
+        # SECURITY: Use parameterized logging to prevent log injection
+        logger.info("Deleted webhook endpoint", endpoint_id=endpoint_id)
         
         return True
     

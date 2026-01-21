@@ -6,17 +6,11 @@ Target: 43% → 80%+ coverage
 Covers: signup, login, password reset, email verification, JWT handling
 """
 
-import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
-from fastapi import HTTPException, status
-import jwt
-from sqlalchemy.orm import Session
+from fastapi import HTTPException
 
 from app.main import app
-from app.models import User, UserStatus
 
 
 class TestAuthRouterInitialization:

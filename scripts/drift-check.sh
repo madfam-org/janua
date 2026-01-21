@@ -32,19 +32,54 @@ echo "Current:  $CURRENT"
 echo ""
 
 # ============================================================================
+# Helper function to extract container image for a deployment
+# Uses yq if available, falls back to awk-based parsing
+# ============================================================================
+extract_deployment_image() {
+    local file="$1"
+    local deploy_name="$2"
+
+    # Try yq first (proper YAML parsing)
+    if command -v yq &>/dev/null; then
+        yq eval "select(.kind == \"Deployment\" and .metadata.name == \"$deploy_name\") | .spec.template.spec.containers[0].image" "$file" 2>/dev/null | grep -v "^null$" | head -1
+        return
+    fi
+
+    # Fallback: Use awk to properly parse within document boundaries
+    # This handles multi-document YAML by tracking document boundaries (---)
+    awk -v deploy="$deploy_name" '
+    BEGIN { in_deploy=0; in_containers=0; found_image="" }
+    /^---/ { in_deploy=0; in_containers=0 }
+    /kind: Deployment/ { is_deployment=1 }
+    /^  name: / && is_deployment {
+        gsub(/^  name: /, "");
+        gsub(/[[:space:]]*$/, "");
+        if ($0 == deploy) { in_deploy=1 }
+        is_deployment=0
+    }
+    in_deploy && /containers:/ { in_containers=1 }
+    in_deploy && in_containers && /image:/ {
+        gsub(/.*image: */, "");
+        gsub(/[[:space:]]*$/, "");
+        gsub(/"/, "");
+        if ($0 != "" && found_image == "") { found_image=$0 }
+    }
+    END { print found_image }
+    ' "$file"
+}
+
+# ============================================================================
 # Deployment Image Comparison
 # ============================================================================
 echo "## Deployment Images"
 echo ""
 
 for DEPLOY in janua-api janua-dashboard janua-admin janua-docs janua-website; do
-    # Extract image from expected manifests
-    EXPECTED_IMAGE=$(grep -A 100 "name: $DEPLOY" "$EXPECTED" 2>/dev/null | \
-        grep -m1 "image:" | awk '{print $2}' | tr -d '"' || echo "")
+    # Extract image from expected manifests (using proper YAML parsing)
+    EXPECTED_IMAGE=$(extract_deployment_image "$EXPECTED" "$DEPLOY")
 
     # Extract image from current cluster state
-    CURRENT_IMAGE=$(grep -A 100 "name: $DEPLOY" "$CURRENT" 2>/dev/null | \
-        grep -m1 "image:" | awk '{print $2}' | tr -d '"' || echo "")
+    CURRENT_IMAGE=$(extract_deployment_image "$CURRENT" "$DEPLOY")
 
     # Handle cases where deployment might not exist
     if [[ -z "$EXPECTED_IMAGE" ]] && [[ -z "$CURRENT_IMAGE" ]]; then

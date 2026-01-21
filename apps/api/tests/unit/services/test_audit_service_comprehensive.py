@@ -11,14 +11,11 @@ Covers: Security events, compliance reporting, risk assessment, suspicious activ
 """
 
 import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
 import uuid
 
 from app.services.audit_service import AuditService
-from app.models import AuditLog
 
 
 class TestAuditServiceInitialization:

@@ -5,7 +5,7 @@ Supports Conekta (Mexico), Stripe (International), and Polar (Products).
 """
 
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from enum import Enum
 
 from sqlalchemy import (

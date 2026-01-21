@@ -1,8 +1,6 @@
 """User management module for the Janua SDK."""
 
 from typing import Optional, Dict, Any, List
-from uuid import UUID
-from datetime import datetime
 
 from .http_client import HTTPClient
 from .types import (
@@ -12,12 +10,6 @@ from .types import (
     UserRole,
     ListResponse,
     JanuaConfig,
-)
-from .exceptions import (
-    NotFoundError,
-    ValidationError,
-    AuthorizationError,
-    JanuaError,
 )
 
 

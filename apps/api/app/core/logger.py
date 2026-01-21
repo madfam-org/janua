@@ -5,7 +5,6 @@ Replaces print() statements with structured JSON logging
 
 import logging
 import sys
-import json
 from datetime import datetime
 from typing import Any, Dict, Optional
 from pythonjsonlogger import jsonlogger

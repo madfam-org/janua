@@ -208,7 +208,7 @@ export function FeatureGate({ feature, children, fallback }: FeatureGateProps) {
 
   if (loading) {
     return (
-      <div className="animate-pulse bg-muted rounded-lg h-32" />
+      <div className="bg-muted h-32 animate-pulse rounded-lg" />
     )
   }
 
@@ -240,11 +240,11 @@ export function FeatureLockedCard({ feature }: FeatureLockedCardProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-muted rounded-lg">
-              <Lock className="h-5 w-5 text-muted-foreground" />
+            <div className="bg-muted rounded-lg p-2">
+              <Lock className="text-muted-foreground size-5" />
             </div>
             <div>
-              <CardTitle className="text-lg flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg">
                 {featureDef.name}
                 <Badge variant="secondary">{planLabel}</Badge>
               </CardTitle>
@@ -254,15 +254,15 @@ export function FeatureLockedCard({ feature }: FeatureLockedCardProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Sparkles className="h-4 w-4" />
+        <div className="bg-muted/50 flex items-center justify-between rounded-lg p-4">
+          <div className="text-muted-foreground flex items-center gap-2 text-sm">
+            <Sparkles className="size-4" />
             <span>Upgrade to {planLabel} to unlock this feature</span>
           </div>
           <Button size="sm" variant="outline" asChild>
             <a href="https://janua.dev/pricing" target="_blank" rel="noopener noreferrer">
               View Plans
-              <ArrowRight className="h-4 w-4 ml-2" />
+              <ArrowRight className="ml-2 size-4" />
             </a>
           </Button>
         </div>
@@ -288,7 +288,7 @@ export function FeatureBadge({ feature, showLock = true }: FeatureBadgeProps) {
 
   return (
     <Badge variant="secondary" className="flex items-center gap-1">
-      {showLock && <Lock className="h-3 w-3" />}
+      {showLock && <Lock className="size-3" />}
       {planLabel}
     </Badge>
   )

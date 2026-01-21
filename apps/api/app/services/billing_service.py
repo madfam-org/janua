@@ -7,8 +7,6 @@ Provider Strategy:
 - Detection: Geolocation + billing address validation
 """
 
-from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
@@ -137,7 +135,7 @@ class BillingService:
                     )
                     await payment_response.raise_for_status()
                     payment_method = await payment_response.json()
-                    payment_method_id = payment_method["id"]
+                    payment_method["id"]
 
                 # Create subscription
                 response = await client.post(

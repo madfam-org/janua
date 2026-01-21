@@ -9,19 +9,16 @@ Tests JWT, cache, email, billing, and other core services
 """
 
 import pytest
-import pytest_asyncio
-from httpx import AsyncClient
 from unittest.mock import AsyncMock, MagicMock, patch
 import json
 from datetime import datetime, timedelta
 import uuid
-import jwt as pyjwt
 
 from app.services.jwt_service import JWTService
 from app.services.auth_service import AuthService
 from app.services.email_service import EmailService
 from app.services.billing_service import BillingService
-from app.models import User, UserStatus
+from app.models import UserStatus
 
 
 @pytest.mark.asyncio
@@ -772,7 +769,7 @@ class TestServiceIntegrationEdgeCases:
                 decoded = jwt_service.verify_token(token)
                 if decoded:
                     valid_count += 1
-            except:
+            except Exception:
                 pass
 
         # Most tokens should be valid

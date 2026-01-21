@@ -1,5 +1,4 @@
 from typing import Optional
-from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status

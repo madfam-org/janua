@@ -30,22 +30,22 @@ export function MaskedValue({ maskedValue, fullValue, onReveal, revealed }: Mask
       <Button
         variant="ghost"
         size="sm"
-        className="h-6 w-6 p-0"
+        className="size-6 p-0"
         onClick={revealed ? handleCopy : onReveal}
       >
         {revealed ? (
           copied ? (
-            <Check className="h-3 w-3 text-primary" />
+            <Check className="text-primary size-3" />
           ) : (
-            <Copy className="h-3 w-3" />
+            <Copy className="size-3" />
           )
         ) : (
-          <Eye className="h-3 w-3" />
+          <Eye className="size-3" />
         )}
       </Button>
       {revealed && (
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onReveal}>
-          <EyeOff className="h-3 w-3" />
+        <Button variant="ghost" size="sm" className="size-6 p-0" onClick={onReveal}>
+          <EyeOff className="size-3" />
         </Button>
       )}
     </div>

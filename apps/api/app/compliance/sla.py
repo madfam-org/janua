@@ -6,7 +6,7 @@ Tracks service level objectives, uptime guarantees, and enterprise performance r
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -14,12 +14,10 @@ import json
 import statistics
 import redis.asyncio as aioredis
 import psutil
-from sqlalchemy import select, and_, func, desc
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_, func
 
 from app.core.database import get_session
 from app.models.audit import AuditLog
-from app.monitoring.stability import SystemMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -345,7 +343,6 @@ class SLAMonitor:
 
         # Calculate breach information
         breach_measurements = [m for m in measurements if m.status in [SLAStatus.BREACH, SLAStatus.CRITICAL]]
-        breach_durations = []
 
         if breach_measurements:
             # Calculate breach duration (simplified - assumes continuous monitoring)
@@ -523,7 +520,6 @@ class SLAMonitor:
             # Simulate API response time measurement
             # In real implementation, this would make actual API calls
             import time
-            import aiohttp
 
             start_time = time.time()
 

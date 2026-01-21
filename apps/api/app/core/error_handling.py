@@ -17,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from pydantic import ValidationError
 
 # Import unified exception system
-from app.core.exceptions import JanuaException, JanuaAPIException
+from app.core.exceptions import JanuaAPIException
 
 logger = structlog.get_logger()
 

@@ -14,9 +14,9 @@ export function ServiceStatus({ name, status }: ServiceStatusProps) {
     : 'bg-muted text-muted-foreground'
 
   return (
-    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-      <div className="text-sm font-medium text-foreground">{name}</div>
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusColor}`}>
+    <div className="bg-muted flex items-center justify-between rounded-lg p-3">
+      <div className="text-foreground text-sm font-medium">{name}</div>
+      <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusColor}`}>
         {status}
       </span>
     </div>

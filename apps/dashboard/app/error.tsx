@@ -28,11 +28,11 @@ export default function Error({
                       error.message?.toLowerCase().includes('forbidden')
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <Card className="max-w-lg w-full">
+    <div className="bg-background flex min-h-screen items-center justify-center p-4">
+      <Card className="w-full max-w-lg">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-500" />
+            <AlertTriangle className="size-5 text-amber-500" />
             <CardTitle>
               {isAuthError ? 'Authentication Error' : 'Something went wrong'}
             </CardTitle>
@@ -46,12 +46,12 @@ export default function Error({
 
         <CardContent>
           {process.env.NODE_ENV === 'development' && (
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="text-sm font-mono text-foreground break-all">
+            <div className="bg-muted rounded-lg p-3">
+              <p className="text-foreground break-all font-mono text-sm">
                 {error.message}
               </p>
               {error.digest && (
-                <p className="text-xs text-muted-foreground mt-2">
+                <p className="text-muted-foreground mt-2 text-xs">
                   Error ID: {error.digest}
                 </p>
               )}
@@ -59,7 +59,7 @@ export default function Error({
           )}
 
           {!process.env.NODE_ENV && error.digest && (
-            <div className="text-sm text-muted-foreground">
+            <div className="text-muted-foreground text-sm">
               Reference ID: <code className="font-mono">{error.digest}</code>
             </div>
           )}
@@ -72,7 +72,7 @@ export default function Error({
                 onClick={() => window.location.href = '/sign-in'}
                 className="flex-1"
               >
-                <LogOut className="mr-2 h-4 w-4" />
+                <LogOut className="mr-2 size-4" />
                 Sign In Again
               </Button>
               <Button
@@ -80,7 +80,7 @@ export default function Error({
                 variant="outline"
                 className="flex-1"
               >
-                <RefreshCw className="mr-2 h-4 w-4" />
+                <RefreshCw className="mr-2 size-4" />
                 Try Again
               </Button>
             </>
@@ -90,7 +90,7 @@ export default function Error({
                 onClick={reset}
                 className="flex-1"
               >
-                <RefreshCw className="mr-2 h-4 w-4" />
+                <RefreshCw className="mr-2 size-4" />
                 Try Again
               </Button>
               <Button

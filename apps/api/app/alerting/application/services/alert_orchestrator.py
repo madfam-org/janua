@@ -4,11 +4,11 @@ Coordinates alert lifecycle management and business workflows
 """
 
 import asyncio
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
-from ...domain.models.alert import Alert, AlertStatus, AlertSeverity, AlertAggregate
+from ...domain.models.alert import Alert, AlertStatus, AlertAggregate
 from ...domain.models.rule import AlertRule
 from ...domain.services.alert_evaluator import AlertEvaluatorService, EvaluationResult
 from .notification_dispatcher import NotificationDispatcher

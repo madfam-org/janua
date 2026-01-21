@@ -5,11 +5,9 @@ Systematically checks and reports on test suite health
 """
 
 import subprocess
-import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
-import time
+from typing import Dict
 from collections import defaultdict
 
 

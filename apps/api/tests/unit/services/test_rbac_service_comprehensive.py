@@ -12,7 +12,6 @@ Tests:
 - Cache management
 """
 
-from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID, uuid4
 
@@ -557,7 +556,7 @@ class TestPolicyCRUD:
         mock_db.query.return_value.filter.return_value = policy_result
 
         updates = {"name": "New Name"}
-        updated_policy = await rbac_service.update_policy(policy_id, updates, uuid4())
+        await rbac_service.update_policy(policy_id, updates, uuid4())
 
         assert mock_policy.name == "New Name"
         mock_db.commit.assert_called_once()

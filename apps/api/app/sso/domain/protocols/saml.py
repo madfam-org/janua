@@ -4,9 +4,8 @@ SAML 2.0 protocol implementation
 
 import base64
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, Optional
-from urllib.parse import urlencode
 
 try:
     from lxml import etree
@@ -21,7 +20,7 @@ except ImportError:
     OneLogin_Saml2_Settings = None
     OneLogin_Saml2_Utils = None
 
-from .base import SSOProtocol, UserProvisioningData
+from .base import SSOProtocol
 from ...exceptions import AuthenticationError, ValidationError
 
 

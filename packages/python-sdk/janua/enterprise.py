@@ -3,7 +3,7 @@ Enterprise License Management for Janua Python SDK
 This module handles license validation and feature gating for enterprise features
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from enum import Enum
 import requests

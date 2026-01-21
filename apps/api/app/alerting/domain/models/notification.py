@@ -299,17 +299,14 @@ class AbstractNotificationStrategy(ABC):
     @abstractmethod
     async def send(self, request: NotificationRequest) -> bool:
         """Send notification using this strategy"""
-        pass
     
     @abstractmethod
     async def validate_config(self, config: Dict[str, Any]) -> bool:
         """Validate channel configuration for this strategy"""
-        pass
     
     @abstractmethod
     def get_channel_type(self) -> str:
         """Get supported channel type"""
-        pass
     
     def _log_attempt(self, request: NotificationRequest, action: str) -> None:
         """Log notification attempt"""

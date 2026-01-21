@@ -47,28 +47,28 @@ export function DashboardStats() {
           value: data.total_users?.toLocaleString() || '0',
           change: '+0%',
           trend: 'neutral',
-          icon: <Users className="h-4 w-4 text-muted-foreground" />
+          icon: <Users className="text-muted-foreground size-4" />
         },
         {
           title: 'Active Sessions',
           value: data.active_sessions?.toLocaleString() || '0',
           change: '+0%',
           trend: 'neutral',
-          icon: <Key className="h-4 w-4 text-muted-foreground" />
+          icon: <Key className="text-muted-foreground size-4" />
         },
         {
           title: 'Organizations',
           value: data.total_organizations?.toLocaleString() || '0',
           change: '+0%',
           trend: 'neutral',
-          icon: <Shield className="h-4 w-4 text-muted-foreground" />
+          icon: <Shield className="text-muted-foreground size-4" />
         },
         {
           title: 'Active Users',
           value: data.active_users?.toLocaleString() || '0',
           change: '+0%',
           trend: 'neutral',
-          icon: <Activity className="h-4 w-4 text-muted-foreground" />
+          icon: <Activity className="text-muted-foreground size-4" />
         }
       ]
 
@@ -84,28 +84,28 @@ export function DashboardStats() {
           value: 'Error',
           change: 'N/A',
           trend: 'neutral',
-          icon: <Users className="h-4 w-4 text-muted-foreground" />
+          icon: <Users className="text-muted-foreground size-4" />
         },
         {
           title: 'Active Sessions',
           value: 'Error',
           change: 'N/A',
           trend: 'neutral',
-          icon: <Key className="h-4 w-4 text-muted-foreground" />
+          icon: <Key className="text-muted-foreground size-4" />
         },
         {
           title: 'Organizations',
           value: 'Error',
           change: 'N/A',
           trend: 'neutral',
-          icon: <Shield className="h-4 w-4 text-muted-foreground" />
+          icon: <Shield className="text-muted-foreground size-4" />
         },
         {
           title: 'Active Users',
           value: 'Error',
           change: 'N/A',
           trend: 'neutral',
-          icon: <Activity className="h-4 w-4 text-muted-foreground" />
+          icon: <Activity className="text-muted-foreground size-4" />
         }
       ])
     } finally {
@@ -119,12 +119,12 @@ export function DashboardStats() {
         {[...Array(4)].map((_, index) => (
           <Card key={index}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div className="h-4 w-24 bg-muted animate-pulse rounded" />
-              <div className="h-4 w-4 bg-muted animate-pulse rounded" />
+              <div className="bg-muted h-4 w-24 animate-pulse rounded" />
+              <div className="bg-muted size-4 animate-pulse rounded" />
             </CardHeader>
             <CardContent>
-              <div className="h-8 w-16 bg-muted animate-pulse rounded mb-2" />
-              <div className="h-3 w-32 bg-muted animate-pulse rounded" />
+              <div className="bg-muted mb-2 h-8 w-16 animate-pulse rounded" />
+              <div className="bg-muted h-3 w-32 animate-pulse rounded" />
             </CardContent>
           </Card>
         ))}
@@ -135,11 +135,11 @@ export function DashboardStats() {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       {error && (
-        <div className="col-span-full p-4 bg-destructive/10 border border-destructive/30 rounded-md">
-          <p className="text-sm text-destructive">Error loading dashboard stats: {error}</p>
+        <div className="bg-destructive/10 border-destructive/30 col-span-full rounded-md border p-4">
+          <p className="text-destructive text-sm">Error loading dashboard stats: {error}</p>
           <button
             onClick={fetchStats}
-            className="mt-2 text-sm text-destructive underline hover:no-underline"
+            className="text-destructive mt-2 text-sm underline hover:no-underline"
           >
             Try again
           </button>
@@ -156,11 +156,11 @@ export function DashboardStats() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stat.value}</div>
-            <p className="text-xs text-muted-foreground flex items-center">
+            <p className="text-muted-foreground flex items-center text-xs">
               {stat.trend === 'up' ? (
-                <TrendingUp className="h-3 w-3 text-green-600 dark:text-green-400 mr-1" />
+                <TrendingUp className="mr-1 size-3 text-green-600 dark:text-green-400" />
               ) : stat.trend === 'down' ? (
-                <TrendingDown className="h-3 w-3 text-destructive mr-1" />
+                <TrendingDown className="text-destructive mr-1 size-3" />
               ) : null}
               <span className={
                 stat.trend === 'up' ? 'text-green-600 dark:text-green-400' :

@@ -4,8 +4,7 @@ GraphQL schema definition for Janua API.
 
 import strawberry
 from strawberry.types import Info
-from strawberry.extensions import Extension
-from typing import List, Optional, Any
+from typing import List, Optional
 from datetime import datetime
 import json
 

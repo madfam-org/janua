@@ -2,7 +2,6 @@
 Unit tests for custom exception classes
 """
 
-import pytest
 from app.exceptions import (
     JanuaAPIException,
     AuthenticationError,

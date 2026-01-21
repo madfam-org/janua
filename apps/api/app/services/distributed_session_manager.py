@@ -3,7 +3,6 @@ Enterprise-Grade Distributed Session Management
 Handles session state across multiple instances with Redis backend
 """
 
-import asyncio
 import hashlib
 import json
 import logging
@@ -11,17 +10,16 @@ import secrets
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 import redis.asyncio as redis
 from redis.asyncio.lock import Lock
-from sqlalchemy import delete, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.logging import logger
 from app.models import Session as DBSession
-from app.models import User
 
 logger = logging.getLogger(__name__)
 

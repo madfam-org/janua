@@ -24,7 +24,6 @@ try:
 except ImportError:
     pass
 
-import hashlib
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -36,7 +35,6 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 # Secure password hashing context - using bcrypt 2b to avoid passlib wrap bug detection issue
 pwd_context = CryptContext(
@@ -50,7 +48,6 @@ import os
 import secrets
 from datetime import datetime
 
-import asyncpg
 import redis.asyncio as redis
 
 # Setup logger early

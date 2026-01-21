@@ -100,7 +100,6 @@ class PermissionError(JanuaError):
 
 class AuthorizationError(PermissionError):
     """Raised when authorization fails (alias for PermissionError)."""
-    pass
 
 
 class RateLimitError(JanuaError):
@@ -136,7 +135,6 @@ class NetworkError(JanuaError):
 
 class NetworkConnectionError(NetworkError):
     """Raised when a network connection error occurs (alias for NetworkError)."""
-    pass
 
 
 class ServerError(JanuaError):

@@ -100,7 +100,29 @@
   "pnpm": {
     "overrides": {
       "@types/react": "18.2.79",
-      "@types/react-dom": "18.2.25"
+      "@types/react-dom": "18.2.25",
+      "tar": ">=6.2.2",
+      "diff": ">=5.2.0",
+      "next": ">=15.2.3",
+      "cookie": ">=0.7.0",
+      "cross-spawn": ">=7.0.5",
+      "path-to-regexp": ">=8.0.0",
+      "send": ">=0.19.0",
+      "serve-static": ">=1.16.0",
+      "body-parser": ">=1.20.3",
+      "express": ">=4.21.1",
+      "ws": ">=8.17.1",
+      "undici": ">=6.19.8",
+      "http-proxy-middleware": ">=3.0.3",
+      "webpack-dev-middleware": ">=7.4.2",
+      "browserify-sign": ">=4.2.3",
+      "elliptic": ">=6.6.0",
+      "ip": ">=2.0.1",
+      "jose": ">=4.15.9",
+      "nanoid": ">=3.3.8",
+      "postcss": ">=8.4.49",
+      "semver": ">=7.5.4",
+      "tough-cookie": ">=4.1.4"
     }
   }
 }

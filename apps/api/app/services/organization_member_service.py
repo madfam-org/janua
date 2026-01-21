@@ -2,16 +2,16 @@
 Organization Member Service
 Ported from TypeScript implementation with full feature parity
 """
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 from uuid import UUID, uuid4
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_
 import secrets
 import json
 from fastapi import HTTPException, status
 
-from ..models import OrganizationMember, OrganizationInvitation, Organization, User
+from ..models import OrganizationMember, OrganizationInvitation
 from ..core.redis_config import RedisService
 from ..core.events import EventEmitter
 

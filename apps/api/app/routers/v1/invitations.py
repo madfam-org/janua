@@ -2,10 +2,10 @@
 Invitation management API endpoints.
 """
 
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, select, func
+from sqlalchemy import and_, select, func
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_org_admin

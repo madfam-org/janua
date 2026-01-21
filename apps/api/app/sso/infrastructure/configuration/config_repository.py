@@ -5,7 +5,7 @@ Repository for SSO configuration management
 from typing import List, Optional
 import json
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import SSOConfiguration as SSOConfigModel

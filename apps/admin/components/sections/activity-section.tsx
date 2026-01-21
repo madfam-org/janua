@@ -25,15 +25,15 @@ export function ActivitySection() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="text-primary size-8 animate-spin" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 text-center">
+      <div className="bg-destructive/10 border-destructive/20 rounded-lg border p-6 text-center">
         <p className="text-destructive">{error}</p>
       </div>
     )
@@ -41,23 +41,23 @@ export function ActivitySection() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-foreground">Activity Logs</h2>
+      <h2 className="text-foreground text-2xl font-bold">Activity Logs</h2>
 
-      <div className="bg-card rounded-lg border border-border">
-        <div className="divide-y divide-border">
+      <div className="bg-card border-border rounded-lg border">
+        <div className="divide-border divide-y">
           {logs.map((log) => (
-            <div key={log.id} className="p-4 hover:bg-muted/50">
+            <div key={log.id} className="hover:bg-muted/50 p-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-medium text-foreground">{log.action}</p>
-                  <p className="text-xs text-muted-foreground">{log.user_email}</p>
+                  <p className="text-foreground text-sm font-medium">{log.action}</p>
+                  <p className="text-muted-foreground text-xs">{log.user_email}</p>
                 </div>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-muted-foreground text-xs">
                   {new Date(log.created_at).toLocaleString()}
                 </span>
               </div>
               {log.ip_address && (
-                <p className="mt-1 text-xs text-muted-foreground">IP: {log.ip_address}</p>
+                <p className="text-muted-foreground mt-1 text-xs">IP: {log.ip_address}</p>
               )}
             </div>
           ))}

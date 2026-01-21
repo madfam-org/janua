@@ -3,19 +3,15 @@ Passkeys/WebAuthn API endpoints for passwordless authentication.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime
 from pydantic import BaseModel, Field
-import json
-import base64
 
-from app.auth import get_current_user, require_permissions
+from app.auth import get_current_user
 from app.models import User
 from app.services.webauthn import WebAuthnService
 from app.services.audit import AuditService
 from app.services.session_manager import SessionManager
 from app.database import get_db
-from app.utils.validation import validate_domain
-from app.exceptions import ValidationError, AuthenticationError
 
 router = APIRouter(prefix="/api/v1/passkeys", tags=["passkeys"])
 
@@ -290,7 +286,7 @@ async def get_authentication_options(
         
         return AuthenticationOptionsResponse(**auth_options)
         
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate authentication options"
@@ -423,7 +419,7 @@ async def list_passkeys(
             for pk in passkeys
         ]
         
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve passkeys"
@@ -491,7 +487,7 @@ async def update_passkey(
         
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update passkey"
@@ -555,7 +551,7 @@ async def delete_passkey(
         
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete passkey"

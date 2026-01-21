@@ -4,13 +4,8 @@ Targets modules with substantial missing lines for maximum coverage improvement
 """
 
 import pytest
-import pytest_asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock
 from datetime import datetime, timedelta
-import json
-from httpx import AsyncClient
-from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 pytestmark = pytest.mark.asyncio
 

@@ -15,8 +15,8 @@ export function VaultSection() {
 
   if (!VaultComponent) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="text-primary size-8 animate-spin" />
       </div>
     )
   }

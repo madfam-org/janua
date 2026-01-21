@@ -171,7 +171,7 @@ def test_database_url_processing(mock_env):
             from app.config import settings
 
             # Test URL processing
-            db_manager = DatabaseManager()
+            DatabaseManager()
 
             # Check that DATABASE_URL is processed correctly
             assert settings.DATABASE_URL.startswith('postgresql')
@@ -208,7 +208,7 @@ def test_database_async_configuration(mock_env):
             from app.core.database_manager import DatabaseManager
 
             # Test that async engine is used
-            db_manager = DatabaseManager()
+            DatabaseManager()
             mock_engine.assert_called_once()
 
             # Should use asyncpg driver

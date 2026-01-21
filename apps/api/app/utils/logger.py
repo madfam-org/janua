@@ -7,7 +7,7 @@ by environment and severity level.
 
 import logging
 import sys
-from typing import Any, Dict, Optional
+from typing import Any
 from app.config import settings
 
 # Configure structured logging

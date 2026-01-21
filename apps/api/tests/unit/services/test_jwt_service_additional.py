@@ -5,8 +5,7 @@ Focus on key rotation, JWKS endpoints, and edge cases
 
 import json
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from cryptography.hazmat.backends import default_backend

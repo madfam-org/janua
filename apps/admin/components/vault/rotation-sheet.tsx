@@ -84,14 +84,14 @@ export function RotationSheet({ secret, onRotate }: RotationSheetProps) {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
           <Button variant="ghost" size="sm" className="h-8">
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshCw className="mr-2 size-4" />
             Rotate
           </Button>
         </SheetTrigger>
         <SheetContent className="w-[500px] sm:max-w-[500px]">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5 text-primary" />
+              <Key className="text-primary size-5" />
               Rotate Secret: {secret.name}
             </SheetTitle>
             <SheetDescription>
@@ -99,20 +99,20 @@ export function RotationSheet({ secret, onRotate }: RotationSheetProps) {
             </SheetDescription>
           </SheetHeader>
 
-          <div className="py-6 space-y-6">
+          <div className="space-y-6 py-6">
             {/* Secret info */}
             <div className="space-y-2">
               <Label className="text-muted-foreground">Current Secret</Label>
-              <div className="p-3 bg-muted rounded-lg font-mono text-sm">{secret.maskedValue}</div>
+              <div className="bg-muted rounded-lg p-3 font-mono text-sm">{secret.maskedValue}</div>
             </div>
 
             {/* Overdue warning */}
             {isOverdue && (
-              <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div className="bg-destructive/10 border-destructive/30 flex items-start gap-3 rounded-lg border p-3">
+                <AlertTriangle className="text-destructive mt-0.5 size-5 shrink-0" />
                 <div>
-                  <p className="font-medium text-destructive">Rotation Overdue</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-destructive font-medium">Rotation Overdue</p>
+                  <p className="text-muted-foreground text-sm">
                     This secret was due for rotation on {new Date(secret.nextRotation).toLocaleDateString()}
                   </p>
                 </div>
@@ -191,16 +191,16 @@ export function RotationSheet({ secret, onRotate }: RotationSheetProps) {
 
                 {/* Danger zone */}
                 <div className="danger-zone mt-6">
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                    <span className="font-semibold text-destructive">Danger Zone</span>
+                  <div className="mb-2 flex items-center gap-2">
+                    <AlertTriangle className="text-destructive size-4" />
+                    <span className="text-destructive font-semibold">Danger Zone</span>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-4">
+                  <p className="text-muted-foreground mb-4 text-sm">
                     Rotating this secret will immediately invalidate the old value. Ensure all dependent services
                     can handle the change.
                   </p>
                   <Button type="submit" variant="destructive" className="w-full">
-                    <RefreshCw className="mr-2 h-4 w-4" />
+                    <RefreshCw className="mr-2 size-4" />
                     Initiate Rotation
                   </Button>
                 </div>
@@ -217,7 +217,7 @@ export function RotationSheet({ secret, onRotate }: RotationSheetProps) {
             <AlertDialogTitle>Confirm Secret Rotation</AlertDialogTitle>
             <AlertDialogDescription>
               You are about to rotate the secret <strong>{secret.name}</strong>. This will:
-              <ul className="list-disc list-inside mt-2 space-y-1">
+              <ul className="mt-2 list-inside list-disc space-y-1">
                 <li>Invalidate the current secret immediately</li>
                 <li>Update {secret.dependentServices.length} dependent service(s)</li>
                 <li>Trigger webhook notifications</li>
@@ -234,7 +234,7 @@ export function RotationSheet({ secret, onRotate }: RotationSheetProps) {
             >
               {loading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 size-4 animate-spin" />
                   Rotating...
                 </>
               ) : (

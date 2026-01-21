@@ -9,7 +9,6 @@ Detects user country from:
 
 from typing import Optional, Dict, Any
 import httpx
-from functools import lru_cache
 import logging
 
 logger = logging.getLogger(__name__)

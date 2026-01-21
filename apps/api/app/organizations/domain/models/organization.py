@@ -4,10 +4,9 @@ Organization domain model (Aggregate Root)
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from uuid import UUID, uuid4
 
-from app.models import OrganizationRole
 
 
 @dataclass

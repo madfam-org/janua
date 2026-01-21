@@ -43,20 +43,20 @@ export function OverviewSection() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="text-primary size-8 animate-spin" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 text-center">
-        <AlertTriangle className="h-8 w-8 text-destructive mx-auto mb-2" />
+      <div className="bg-destructive/10 border-destructive/20 rounded-lg border p-6 text-center">
+        <AlertTriangle className="text-destructive mx-auto mb-2 size-8" />
         <p className="text-destructive">{error}</p>
         <button
           onClick={fetchData}
-          className="mt-4 px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90"
+          className="bg-destructive text-destructive-foreground hover:bg-destructive/90 mt-4 rounded-lg px-4 py-2"
         >
           Retry
         </button>
@@ -76,30 +76,30 @@ export function OverviewSection() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-foreground">Platform Overview</h2>
+        <h2 className="text-foreground text-2xl font-bold">Platform Overview</h2>
         <button
           onClick={fetchData}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted"
+          className="text-muted-foreground hover:text-foreground border-border hover:bg-muted flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
         >
-          <RefreshCw className="h-4 w-4" />
+          <RefreshCw className="size-4" />
           Refresh
         </button>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {statItems.map((stat) => {
           const Icon = stat.icon
           return (
-            <div key={stat.label} className="bg-card p-6 rounded-lg border border-border">
-              <div className="flex items-center justify-between mb-2">
-                <Icon className="h-5 w-5 text-muted-foreground" />
+            <div key={stat.label} className="bg-card border-border rounded-lg border p-6">
+              <div className="mb-2 flex items-center justify-between">
+                <Icon className="text-muted-foreground size-5" />
                 {stat.change && (
-                  <span className="text-sm text-muted-foreground">{stat.change}</span>
+                  <span className="text-muted-foreground text-sm">{stat.change}</span>
                 )}
               </div>
-              <div className="text-2xl font-bold text-foreground">{stat.value}</div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
+              <div className="text-foreground text-2xl font-bold">{stat.value}</div>
+              <div className="text-muted-foreground text-sm">{stat.label}</div>
             </div>
           )
         })}
@@ -107,12 +107,12 @@ export function OverviewSection() {
 
       {/* System Health */}
       {health && (
-        <div className="bg-card rounded-lg border border-border">
-          <div className="px-6 py-4 border-b border-border">
-            <h3 className="text-lg font-semibold text-foreground">System Health</h3>
+        <div className="bg-card border-border rounded-lg border">
+          <div className="border-border border-b px-6 py-4">
+            <h3 className="text-foreground text-lg font-semibold">System Health</h3>
           </div>
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <ServiceStatus name="Database" status={health.database} />
               <ServiceStatus name="Cache (Redis)" status={health.cache} />
               <ServiceStatus name="Storage" status={health.storage} />
@@ -120,8 +120,8 @@ export function OverviewSection() {
               <ServiceStatus name="Environment" status={health.environment} />
               <ServiceStatus name="Version" status={health.version} />
             </div>
-            <div className="mt-4 pt-4 border-t border-border">
-              <p className="text-sm text-muted-foreground">
+            <div className="border-border mt-4 border-t pt-4">
+              <p className="text-muted-foreground text-sm">
                 Uptime: {Math.floor(health.uptime / 3600)}h {Math.floor((health.uptime % 3600) / 60)}m
               </p>
             </div>

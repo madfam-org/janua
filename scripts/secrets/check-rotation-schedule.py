@@ -217,7 +217,10 @@ def format_text_report(overdue: list, due_soon: list, upcoming: list) -> str:
 
 def format_json_output(overdue: list, due_soon: list, upcoming: list) -> str:
     """Format JSON output for programmatic consumption."""
-    def secret_to_dict(s: SecretStatus) -> dict:
+    # Security note: secret_to_dict outputs SECRET ROTATION METADATA only
+    # (id, name, owner, rotation dates, policy) - NOT actual secret values/credentials.
+    # This is intentional for rotation schedule monitoring and is safe to output.
+    def secret_to_dict(s: SecretStatus) -> dict:  # nosec B105 - metadata only, no credentials
         return {
             "id": s.id,
             "name": s.name,

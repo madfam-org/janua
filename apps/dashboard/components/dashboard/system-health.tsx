@@ -80,9 +80,9 @@ export function SystemHealth() {
     return (
       <div className="space-y-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="flex items-center justify-between animate-pulse">
-            <div className="h-4 bg-muted rounded w-32"></div>
-            <div className="h-4 bg-muted rounded w-16"></div>
+          <div key={i} className="flex animate-pulse items-center justify-between">
+            <div className="bg-muted h-4 w-32 rounded"></div>
+            <div className="bg-muted h-4 w-16 rounded"></div>
           </div>
         ))}
       </div>
@@ -92,12 +92,12 @@ export function SystemHealth() {
   if (error && !metrics) {
     return (
       <div className="space-y-4">
-        <div className="text-sm text-destructive flex items-center gap-2">
-          <Activity className="h-4 w-4" />
+        <div className="text-destructive flex items-center gap-2 text-sm">
+          <Activity className="size-4" />
           <span>Unable to load metrics</span>
         </div>
         <Button variant="outline" size="sm" onClick={fetchMetrics}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+          <RefreshCw className="mr-2 size-4" />
           Retry
         </Button>
       </div>
@@ -109,8 +109,8 @@ export function SystemHealth() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium flex items-center gap-2">
-          <Server className="h-4 w-4 text-muted-foreground" />
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <Server className="text-muted-foreground size-4" />
           API Response Time
         </span>
         <span className={`text-sm font-medium ${getStatusColor(m?.api_response_time_ms || 0, { good: 50, warning: 200 })}`}>
@@ -119,8 +119,8 @@ export function SystemHealth() {
       </div>
 
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium flex items-center gap-2">
-          <Database className="h-4 w-4 text-muted-foreground" />
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <Database className="text-muted-foreground size-4" />
           Database Latency
         </span>
         <span className={`text-sm font-medium ${getStatusColor(m?.database_latency_ms || 0, { good: 10, warning: 50 })}`}>
@@ -129,8 +129,8 @@ export function SystemHealth() {
       </div>
 
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium flex items-center gap-2">
-          <Zap className="h-4 w-4 text-muted-foreground" />
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <Zap className="text-muted-foreground size-4" />
           Redis Latency
         </span>
         <span className={`text-sm font-medium ${getStatusColor(m?.redis_latency_ms || 0, { good: 5, warning: 20 })}`}>
@@ -139,8 +139,8 @@ export function SystemHealth() {
       </div>
 
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium flex items-center gap-2">
-          <Activity className="h-4 w-4 text-muted-foreground" />
+        <span className="flex items-center gap-2 text-sm font-medium">
+          <Activity className="text-muted-foreground size-4" />
           Cache Success Rate
         </span>
         <span className={`text-sm font-medium ${getPercentColor(m?.cache_hit_rate_percent || 0)}`}>
@@ -149,9 +149,9 @@ export function SystemHealth() {
       </div>
 
       {/* Status indicator and refresh */}
-      <div className="pt-2 border-t flex items-center justify-between text-xs text-muted-foreground">
+      <div className="text-muted-foreground flex items-center justify-between border-t pt-2 text-xs">
         <div className="flex items-center gap-2">
-          <div className={`h-2 w-2 rounded-full ${metrics?.status === 'healthy' ? 'bg-green-500 dark:bg-green-400' : 'bg-yellow-500 dark:bg-yellow-400'}`}></div>
+          <div className={`size-2 rounded-full ${metrics?.status === 'healthy' ? 'bg-green-500 dark:bg-green-400' : 'bg-yellow-500 dark:bg-yellow-400'}`}></div>
           <span>{metrics?.status === 'healthy' ? 'All systems operational' : 'Degraded'}</span>
         </div>
         <Button
@@ -161,7 +161,7 @@ export function SystemHealth() {
           disabled={loading}
           className="h-6 px-2"
         >
-          <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`size-3 ${loading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
     </div>

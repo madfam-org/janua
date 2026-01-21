@@ -19,7 +19,7 @@ export function PrivacyRightsInfo() {
         <CardDescription>Understanding your rights under GDPR and privacy laws</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
           {PRIVACY_RIGHTS.map((right) => (
             <div key={right.title} className="flex items-start space-x-2">
               <span className="text-primary font-bold">•</span>

@@ -70,7 +70,6 @@ class PaymentProvider(ABC):
     @abstractmethod
     def provider_name(self) -> str:
         """Return provider name (conekta, stripe, polar)."""
-        pass
 
     # ============================================================================
     # Customer Management
@@ -94,7 +93,6 @@ class PaymentProvider(ABC):
                 "created": 1234567890
             }
         """
-        pass
 
     @abstractmethod
     async def get_customer(self, customer_id: str) -> Dict[str, Any]:
@@ -107,7 +105,6 @@ class PaymentProvider(ABC):
         Returns:
             Customer details dict
         """
-        pass
 
     @abstractmethod
     async def update_customer(
@@ -125,7 +122,6 @@ class PaymentProvider(ABC):
         Returns:
             Updated customer dict
         """
-        pass
 
     @abstractmethod
     async def delete_customer(self, customer_id: str) -> bool:
@@ -138,7 +134,6 @@ class PaymentProvider(ABC):
         Returns:
             True if successful
         """
-        pass
 
     # ============================================================================
     # Payment Method Management
@@ -170,7 +165,6 @@ class PaymentProvider(ABC):
                 "exp_year": 2025
             }
         """
-        pass
 
     @abstractmethod
     async def get_payment_method(self, payment_method_id: str) -> Dict[str, Any]:
@@ -183,7 +177,6 @@ class PaymentProvider(ABC):
         Returns:
             Payment method dict
         """
-        pass
 
     @abstractmethod
     async def list_payment_methods(
@@ -201,7 +194,6 @@ class PaymentProvider(ABC):
         Returns:
             List of payment method dicts
         """
-        pass
 
     @abstractmethod
     async def delete_payment_method(self, payment_method_id: str) -> bool:
@@ -214,7 +206,6 @@ class PaymentProvider(ABC):
         Returns:
             True if successful
         """
-        pass
 
     @abstractmethod
     async def set_default_payment_method(
@@ -232,7 +223,6 @@ class PaymentProvider(ABC):
         Returns:
             Updated customer dict
         """
-        pass
 
     # ============================================================================
     # Subscription Management
@@ -261,7 +251,6 @@ class PaymentProvider(ABC):
                 "trial_end": 1235777890
             }
         """
-        pass
 
     @abstractmethod
     async def get_subscription(self, subscription_id: str) -> Dict[str, Any]:
@@ -274,7 +263,6 @@ class PaymentProvider(ABC):
         Returns:
             Subscription dict
         """
-        pass
 
     @abstractmethod
     async def update_subscription(
@@ -292,7 +280,6 @@ class PaymentProvider(ABC):
         Returns:
             Updated subscription dict
         """
-        pass
 
     @abstractmethod
     async def cancel_subscription(
@@ -310,7 +297,6 @@ class PaymentProvider(ABC):
         Returns:
             Updated subscription dict
         """
-        pass
 
     @abstractmethod
     async def resume_subscription(self, subscription_id: str) -> Dict[str, Any]:
@@ -323,7 +309,6 @@ class PaymentProvider(ABC):
         Returns:
             Updated subscription dict
         """
-        pass
 
     # ============================================================================
     # Invoice Management
@@ -340,7 +325,6 @@ class PaymentProvider(ABC):
         Returns:
             Invoice dict with amount, status, line items, etc
         """
-        pass
 
     @abstractmethod
     async def list_invoices(
@@ -358,7 +342,6 @@ class PaymentProvider(ABC):
         Returns:
             List of invoice dicts
         """
-        pass
 
     @abstractmethod
     async def pay_invoice(self, invoice_id: str) -> Dict[str, Any]:
@@ -371,7 +354,6 @@ class PaymentProvider(ABC):
         Returns:
             Updated invoice dict
         """
-        pass
 
     # ============================================================================
     # Webhook Handling
@@ -395,7 +377,6 @@ class PaymentProvider(ABC):
         Returns:
             True if signature is valid
         """
-        pass
 
     @abstractmethod
     def parse_webhook_event(
@@ -411,7 +392,6 @@ class PaymentProvider(ABC):
         Returns:
             WebhookEvent with standardized structure
         """
-        pass
 
     # ============================================================================
     # Plan/Price Management
@@ -425,7 +405,6 @@ class PaymentProvider(ABC):
         Returns:
             List of plan dicts
         """
-        pass
 
     @abstractmethod
     async def get_plan(self, plan_id: str) -> Dict[str, Any]:
@@ -438,7 +417,6 @@ class PaymentProvider(ABC):
         Returns:
             Plan dict
         """
-        pass
 
     # ============================================================================
     # Utility Methods

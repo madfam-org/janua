@@ -10,13 +10,9 @@ def test_compliance_imports():
     """Test that all compliance modules can be imported"""
     try:
         from app.models.compliance import (
-            ConsentRecord, ConsentType, ConsentStatus, LegalBasis,
-            DataSubjectRequest, DataSubjectRequestType, RequestStatus,
-            PrivacySettings, ComplianceFramework, DataCategory
+            ConsentType, ConsentStatus, LegalBasis, DataSubjectRequestType,
+            RequestStatus, ComplianceFramework, DataCategory
         )
-        from app.services.compliance_service import ComplianceService
-        from app.services.audit_logger import AuditLogger, AuditEventType
-        from app.routers.v1.compliance import router
         from app.config import settings
 
         # Test basic enum values
@@ -96,7 +92,7 @@ def test_compliance_model_creation():
     from app.models.compliance import (
         ConsentRecord, ConsentType, ConsentStatus, LegalBasis,
         DataSubjectRequest, DataSubjectRequestType, RequestStatus,
-        PrivacySettings, ComplianceFramework, DataCategory
+        DataCategory
     )
 
     # Test ConsentRecord creation

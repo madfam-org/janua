@@ -5,7 +5,6 @@ Concrete implementation for Slack notification delivery
 
 import json
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime
 import httpx
 
 from ...domain.models.notification import NotificationRequest, AbstractNotificationStrategy

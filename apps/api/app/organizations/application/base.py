@@ -3,7 +3,7 @@ Base classes for CQRS pattern
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 # Type variables for commands, queries, and results
 TCommand = TypeVar('TCommand')
@@ -13,12 +13,10 @@ TResult = TypeVar('TResult')
 
 class Command(ABC):
     """Base class for commands (write operations)"""
-    pass
 
 
 class Query(ABC):
     """Base class for queries (read operations)"""
-    pass
 
 
 class CommandHandler(ABC, Generic[TCommand, TResult]):
@@ -27,7 +25,6 @@ class CommandHandler(ABC, Generic[TCommand, TResult]):
     @abstractmethod
     async def handle(self, command: TCommand) -> TResult:
         """Handle the command and return result"""
-        pass
 
 
 class QueryHandler(ABC, Generic[TQuery, TResult]):
@@ -36,7 +33,6 @@ class QueryHandler(ABC, Generic[TQuery, TResult]):
     @abstractmethod
     async def handle(self, query: TQuery) -> TResult:
         """Handle the query and return result"""
-        pass
 
 
 class ApplicationError(Exception):
@@ -50,19 +46,15 @@ class ApplicationError(Exception):
 
 class ValidationError(ApplicationError):
     """Raised when validation fails"""
-    pass
 
 
 class NotFoundError(ApplicationError):
     """Raised when a resource is not found"""
-    pass
 
 
 class PermissionError(ApplicationError):
     """Raised when user lacks required permissions"""
-    pass
 
 
 class ConflictError(ApplicationError):
     """Raised when there's a business rule conflict"""
-    pass

@@ -2,17 +2,12 @@
 Enhanced email service with failover, tracking, and advanced features
 """
 
-import asyncio
-import smtplib
 import secrets
-import hashlib
-import logging
-import aiohttp
-from datetime import datetime, timedelta
+from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
 from enum import Enum

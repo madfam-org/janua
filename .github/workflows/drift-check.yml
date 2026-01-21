@@ -35,6 +35,11 @@ jobs:
         with:
           version: 'v1.29.0'
 
+      - name: Setup yq for YAML parsing
+        uses: mikefarah/yq@v4
+        with:
+          cmd: echo "yq installed"
+
       - name: Configure kubeconfig
         run: |
           mkdir -p ~/.kube

@@ -5,11 +5,11 @@ Admin API endpoints for system management
 import time
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, desc, func, or_, select, text, update
+from sqlalchemy import desc, func, or_, select, text, update
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -23,14 +23,10 @@ APPLICATION_START_TIME = time.time()
 
 from ...models import (
     ActivityLog,
-    EmailVerification,
-    MagicLink,
     OAuthAccount,
     OAuthProvider,
     Organization,
-    OrganizationMember,
     Passkey,
-    PasswordReset,
     User,
     UserStatus,
     organization_members,
@@ -706,9 +702,8 @@ async def revoke_all_sessions_admin(
             raise HTTPException(status_code=400, detail="Invalid user ID")
     else:
         # Revoke all sessions except admin's current session
-        from fastapi import Request
+        pass
 
-        from app.routers.v1.auth import get_current_session_jti
 
         # Get current session JTI from the access token
         # Note: We need the request object to extract the token

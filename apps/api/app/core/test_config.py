@@ -3,22 +3,17 @@ Comprehensive Test Configuration for Janua API
 Production-ready test infrastructure with 85%+ coverage targets
 """
 
-import os
 import asyncio
 import pytest
-from typing import AsyncGenerator, Generator, Any
+from typing import AsyncGenerator
 
 import structlog
 from httpx import AsyncClient
-from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
 from app.main import app
-from app.config import settings
 from ..models import Base
-from app.core.database_manager import db_manager
 from app.core.jwt_manager import jwt_manager
 
 # Configure test logging

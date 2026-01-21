@@ -3,8 +3,8 @@ APM Dashboard API Routes
 Endpoints for accessing performance monitoring data and metrics
 """
 
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+from typing import Dict, Any, Optional
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import PlainTextResponse
 import structlog

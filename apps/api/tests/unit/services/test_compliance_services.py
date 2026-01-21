@@ -4,15 +4,7 @@ Tests for compliance-related services including audit, privacy, policies, and in
 """
 
 import pytest
-import pytest_asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
-import json
-import asyncio
-import sys
-from httpx import AsyncClient
-from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from unittest.mock import Mock, AsyncMock, patch
 
 pytestmark = pytest.mark.asyncio
 
@@ -41,7 +33,7 @@ class TestComplianceAuditManager:
     def test_audit_manager_initialization(self):
         """Test audit manager can be initialized and has required methods"""
         try:
-            from app.compliance.audit import ComplianceAudit, AuditManager, AuditTracker
+            from app.compliance.audit import AuditManager
 
             mock_db = AsyncMock()
             audit_manager = AuditManager(mock_db) if hasattr(AuditManager, '__init__') else AuditManager()
@@ -82,7 +74,7 @@ class TestComplianceDashboard:
     def test_dashboard_manager_initialization(self):
         """Test dashboard manager can track compliance metrics"""
         try:
-            from app.compliance.dashboard import ComplianceDashboard, DashboardManager, MetricsAggregator
+            from app.compliance.dashboard import ComplianceDashboard
 
             mock_db = AsyncMock()
             dashboard = ComplianceDashboard(mock_db) if hasattr(ComplianceDashboard, '__init__') else ComplianceDashboard()
@@ -123,7 +115,7 @@ class TestIncidentResponseManager:
     def test_incident_manager_initialization(self):
         """Test incident response manager handles compliance incidents"""
         try:
-            from app.compliance.incident_response import IncidentResponseManager, ComplianceIncident, ResponseTeam
+            from app.compliance.incident_response import IncidentResponseManager
 
             mock_db = AsyncMock()
             incident_manager = IncidentResponseManager(mock_db) if hasattr(IncidentResponseManager, '__init__') else IncidentResponseManager()
@@ -164,7 +156,7 @@ class TestPolicyEngine:
     def test_policy_manager_initialization(self):
         """Test policy manager handles compliance policies"""
         try:
-            from app.compliance.policies import PolicyManager, CompliancePolicy, PolicyEngine
+            from app.compliance.policies import PolicyManager
 
             mock_db = AsyncMock()
             policy_manager = PolicyManager(mock_db) if hasattr(PolicyManager, '__init__') else PolicyManager()
@@ -205,7 +197,7 @@ class TestPrivacyManager:
     def test_privacy_manager_initialization(self):
         """Test privacy manager handles data protection requirements"""
         try:
-            from app.compliance.privacy import PrivacyManager, DataProtection, ConsentManager
+            from app.compliance.privacy import PrivacyManager
 
             mock_db = AsyncMock()
             privacy_manager = PrivacyManager(mock_db) if hasattr(PrivacyManager, '__init__') else PrivacyManager()
@@ -246,7 +238,7 @@ class TestComplianceSupport:
     def test_support_manager_initialization(self):
         """Test compliance support manager handles support requests"""
         try:
-            from app.compliance.support import ComplianceSupport, SupportTicket, KnowledgeBase
+            from app.compliance.support import ComplianceSupport
 
             mock_db = AsyncMock()
             support_manager = ComplianceSupport(mock_db) if hasattr(ComplianceSupport, '__init__') else ComplianceSupport()

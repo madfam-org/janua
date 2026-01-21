@@ -3,14 +3,13 @@ Notification Strategy Domain Service
 Registry and coordination for notification delivery strategies
 """
 
-from typing import Dict, List, Optional, Set, Type
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Set
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from ..models.notification import (
-    NotificationRequest, NotificationChannel, NotificationStrategy,
-    AbstractNotificationStrategy, NotificationStatus, NotificationPriority
+    NotificationRequest, NotificationChannel, AbstractNotificationStrategy,
+    NotificationPriority
 )
 import structlog
 logger = structlog.get_logger()

@@ -6,12 +6,10 @@ and provide graceful degradation when Redis is unavailable.
 """
 
 from typing import Optional, Any, Dict, Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-import asyncio
 import structlog
 import redis.asyncio as redis
-from functools import wraps
 
 logger = structlog.get_logger()
 

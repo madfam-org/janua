@@ -3,14 +3,12 @@ Billing Webhook Handlers - Complete Implementation
 """
 
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import hmac
 import hashlib
-import json
 
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import select
 import structlog
 
 from app.models.user import Tenant, Subscription

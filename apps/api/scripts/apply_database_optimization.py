@@ -249,7 +249,7 @@ class DatabaseOptimizer:
             check_query = "SELECT COUNT(*) as count FROM pg_stat_statements LIMIT 1"
             await self.connection.fetchrow(check_query)
             has_pg_stat_statements = True
-        except:
+        except Exception:
             has_pg_stat_statements = False
             logger.warning("⚠️  pg_stat_statements extension not available")
         

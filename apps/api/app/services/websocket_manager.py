@@ -2,10 +2,9 @@
 WebSocket connection manager for real-time events.
 """
 
-from typing import Dict, List, Set, Optional, Any
-from fastapi import WebSocket, WebSocketDisconnect
+from typing import Dict, Set, Optional, Any
+from fastapi import WebSocket
 from datetime import datetime
-import json
 import asyncio
 from enum import Enum
 
@@ -139,7 +138,7 @@ class ConnectionManager:
         # Close WebSocket
         try:
             await connection["websocket"].close()
-        except:
+        except Exception:
             pass
         
         # Remove connection

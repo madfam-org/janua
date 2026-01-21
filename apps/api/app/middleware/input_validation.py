@@ -6,18 +6,16 @@ Enterprise-grade validation for all API inputs with security focus
 import re
 import json
 import bleach
-from typing import Any, Dict, List, Optional, Union, Set
-from fastapi import Request, HTTPException, status
+from typing import Any, Dict, List, Optional, Set
+from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from pydantic import BaseModel, Field, field_validator, EmailStr
 from email_validator import validate_email, EmailNotValidError
 import phonenumbers
-from datetime import datetime, date
+from datetime import datetime
 import ipaddress
 import urllib.parse
 import logging
-import hashlib
 
 logger = logging.getLogger(__name__)
 

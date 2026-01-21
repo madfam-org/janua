@@ -4,8 +4,8 @@ Tests session validation, refresh, revocation, and multi-device scenarios
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from uuid import UUID, uuid4
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
 import pytest
 from jose import jwt

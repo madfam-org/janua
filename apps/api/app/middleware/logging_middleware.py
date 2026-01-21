@@ -4,8 +4,6 @@ Automatic request/response logging with correlation IDs and structured output
 """
 
 import time
-import uuid
-import json
 from typing import Callable, Optional, Dict, Any
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
@@ -15,7 +13,6 @@ import structlog
 
 from app.logging.structured_logger import (
     structured_logger,
-    LogContext,
     request_logging_context,
     generate_correlation_id
 )

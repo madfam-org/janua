@@ -4,16 +4,12 @@ This test covers all major v1 router endpoints to maximize coverage.
 Expected to cover 800+ lines across router modules.
 """
 
-import pytest
-import json
 from datetime import datetime, timedelta
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch
 from fastapi.testclient import TestClient
-from httpx import AsyncClient
 
 # Import the app for testing
 from app.main import app
-from app.database import get_db
 
 
 class TestHealthRouter:

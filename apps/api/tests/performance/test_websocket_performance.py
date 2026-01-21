@@ -13,7 +13,6 @@ import asyncio
 import statistics
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import psutil
@@ -596,7 +595,7 @@ class TestWebSocketStability:
 
             while time.time() < end_time:
                 # Send ping
-                ping_start = time.time()
+                time.time()
                 await client.send_message({"type": "ping"})
                 ping_count += 1
 

@@ -80,9 +80,9 @@ function AdminPageContent() {
 
   if (authLoading || isCheckingSession) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+          <Loader2 className="text-primary mx-auto mb-4 size-8 animate-spin" />
           <p className="text-muted-foreground">Checking session...</p>
         </div>
       </div>
@@ -91,9 +91,9 @@ function AdminPageContent() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+          <Loader2 className="text-primary mx-auto mb-4 size-8 animate-spin" />
           <p className="text-muted-foreground">Redirecting to login...</p>
         </div>
       </div>
@@ -115,30 +115,30 @@ function AdminPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background min-h-screen">
       {/* Header */}
-      <header className="bg-card border-b border-border">
+      <header className="bg-card border-border border-b">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="p-2 bg-destructive/10 rounded-lg">
-                <Shield className="h-6 w-6 text-destructive" />
+              <div className="bg-destructive/10 rounded-lg p-2">
+                <Shield className="text-destructive size-6" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-foreground">Janua Superadmin</h1>
-                <p className="text-sm text-muted-foreground">Internal Platform Management</p>
+                <h1 className="text-foreground text-xl font-bold">Janua Superadmin</h1>
+                <p className="text-muted-foreground text-sm">Internal Platform Management</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="px-3 py-1 bg-destructive/10 text-destructive text-xs font-medium rounded-full">
+              <span className="bg-destructive/10 text-destructive rounded-full px-3 py-1 text-xs font-medium">
                 INTERNAL ONLY
               </span>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-muted-foreground text-sm">
                 {user?.email}
               </div>
               <button
                 onClick={logout}
-                className="text-sm text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground text-sm"
               >
                 Sign Out
               </button>
@@ -149,21 +149,21 @@ function AdminPageContent() {
 
       <div className="flex">
         {/* Sidebar */}
-        <aside className="w-64 bg-card border-r border-border min-h-screen">
-          <nav className="p-4 space-y-1">
+        <aside className="bg-card border-border min-h-screen w-64 border-r">
+          <nav className="space-y-1 p-4">
             {sections.map((section) => {
               const Icon = section.icon
               return (
                 <button
                   key={section.id}
                   onClick={() => setActiveSection(section.id)}
-                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                  className={`flex w-full items-center space-x-3 rounded-lg px-3 py-2 transition-colors ${
                     activeSection === section.id
                       ? 'bg-primary/10 text-primary'
                       : 'text-muted-foreground hover:bg-muted'
                   }`}
                 >
-                  <Icon className="h-5 w-5" />
+                  <Icon className="size-5" />
                   <span className="text-sm font-medium">{section.label}</span>
                 </button>
               )
@@ -183,9 +183,9 @@ function AdminPageContent() {
 export default function AdminPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+          <Loader2 className="text-primary mx-auto mb-4 size-8 animate-spin" />
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>

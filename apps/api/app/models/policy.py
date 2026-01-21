@@ -11,7 +11,7 @@ import enum
 from . import Policy as PolicyModel, Role as RoleModel
 
 # Additional SQLAlchemy models for Policy system
-from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Integer, Enum as SQLEnum
+from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey
 from app.models.types import GUID as UUID, JSON as JSONB
 from . import Base
 import uuid

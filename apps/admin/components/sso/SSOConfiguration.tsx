@@ -201,7 +201,7 @@ export function SSOConfiguration({ organizationId }: SSOConfigurationProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Shield className="h-5 w-5" />
+              <Shield className="size-5" />
               <CardTitle>Single Sign-On (SSO)</CardTitle>
             </div>
             {config && (
@@ -223,7 +223,7 @@ export function SSOConfiguration({ organizationId }: SSOConfigurationProps) {
         <CardContent>
           {error && (
             <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
+              <AlertCircle className="size-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
@@ -265,7 +265,7 @@ export function SSOConfiguration({ organizationId }: SSOConfigurationProps) {
                     <div className="space-y-2">
                       <Label>Service Provider URLs</Label>
                       <div className="space-y-2 text-sm">
-                        <div className="flex items-center justify-between p-2 bg-muted rounded">
+                        <div className="bg-muted flex items-center justify-between rounded p-2">
                           <span>Entity ID:</span>
                           <div className="flex items-center space-x-2">
                             <code>{config.samlEntityId}</code>
@@ -274,11 +274,11 @@ export function SSOConfiguration({ organizationId }: SSOConfigurationProps) {
                               variant="ghost"
                               onClick={() => copyToClipboard(config.samlEntityId || '')}
                             >
-                              <Copy className="h-3 w-3" />
+                              <Copy className="size-3" />
                             </Button>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between p-2 bg-muted rounded">
+                        <div className="bg-muted flex items-center justify-between rounded p-2">
                           <span>ACS URL:</span>
                           <div className="flex items-center space-x-2">
                             <code>{config.samlAcsUrl}</code>
@@ -287,7 +287,7 @@ export function SSOConfiguration({ organizationId }: SSOConfigurationProps) {
                               variant="ghost"
                               onClick={() => copyToClipboard(config.samlAcsUrl || '')}
                             >
-                              <Copy className="h-3 w-3" />
+                              <Copy className="size-3" />
                             </Button>
                           </div>
                         </div>
@@ -298,7 +298,7 @@ export function SSOConfiguration({ organizationId }: SSOConfigurationProps) {
                         onClick={downloadSPMetadata}
                         className="mt-2"
                       >
-                        <Download className="h-4 w-4 mr-2" />
+                        <Download className="mr-2 size-4" />
                         Download SP Metadata
                       </Button>
                     </div>
@@ -342,7 +342,7 @@ export function SSOConfiguration({ organizationId }: SSOConfigurationProps) {
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Just-In-Time (JIT) Provisioning</Label>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-muted-foreground text-sm">
                     Automatically create user accounts on first SSO login
                   </p>
                 </div>
@@ -377,13 +377,13 @@ export function SSOConfiguration({ organizationId }: SSOConfigurationProps) {
                   />
                   <Button onClick={handleAddDomain}>Add</Button>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   {allowedDomains.map((domain) => (
                     <Badge key={domain} variant="secondary">
                       {domain}
                       <button
                         onClick={() => handleRemoveDomain(domain)}
-                        className="ml-2 text-xs hover:text-destructive"
+                        className="hover:text-destructive ml-2 text-xs"
                       >
                         ×
                       </button>
@@ -406,9 +406,9 @@ export function SSOConfiguration({ organizationId }: SSOConfigurationProps) {
                 {testResult && (
                   <Alert variant={testResult.success ? 'default' : 'destructive'}>
                     {testResult.success ? (
-                      <CheckCircle className="h-4 w-4" />
+                      <CheckCircle className="size-4" />
                     ) : (
-                      <XCircle className="h-4 w-4" />
+                      <XCircle className="size-4" />
                     )}
                     <AlertDescription>{testResult.message}</AlertDescription>
                   </Alert>
@@ -426,7 +426,7 @@ export function SSOConfiguration({ organizationId }: SSOConfigurationProps) {
                       variant="ghost"
                       onClick={() => copyToClipboard(`${window.location.origin}/api/v1/sso/initiate?organization_slug=${organizationId}`)}
                     >
-                      <Copy className="h-4 w-4" />
+                      <Copy className="size-4" />
                     </Button>
                   </div>
                 </div>
@@ -434,7 +434,7 @@ export function SSOConfiguration({ organizationId }: SSOConfigurationProps) {
             </TabsContent>
           </Tabs>
 
-          <div className="flex justify-end mt-6">
+          <div className="mt-6 flex justify-end">
             <Button onClick={handleSaveConfiguration}>
               Save Configuration
             </Button>

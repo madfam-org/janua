@@ -17,7 +17,7 @@ import logging
 import sys
 import time
 from datetime import datetime
-from typing import Dict, List, Any, Tuple
+from typing import Dict, Any
 import argparse
 
 logging.basicConfig(
@@ -197,7 +197,6 @@ class PerformanceValidator:
         
         try:
             import aiohttp
-            import asyncio
             
             # Test cache hit rates by making repeated requests
             async with aiohttp.ClientSession() as session:

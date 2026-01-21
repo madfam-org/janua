@@ -56,11 +56,11 @@ export default function Error({
                          error.message?.toLowerCase().includes('fatal')
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <Card className="max-w-lg w-full border-destructive/30">
+    <div className="bg-background flex min-h-screen items-center justify-center p-4">
+      <Card className="border-destructive/30 w-full max-w-lg">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <ShieldAlert className={`h-5 w-5 ${isCriticalError ? 'text-red-600' : 'text-amber-500'}`} />
+            <ShieldAlert className={`size-5 ${isCriticalError ? 'text-red-600' : 'text-amber-500'}`} />
             <CardTitle>
               {isPermissionError 
                 ? 'Access Denied' 
@@ -80,26 +80,26 @@ export default function Error({
 
         <CardContent className="space-y-4">
           {/* Always show error details in admin panel */}
-          <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
-            <p className="text-sm font-semibold text-destructive mb-1">
+          <div className="bg-destructive/10 border-destructive/30 rounded-lg border p-3">
+            <p className="text-destructive mb-1 text-sm font-semibold">
               Error Details:
             </p>
-            <p className="text-sm font-mono text-destructive/90 break-all">
+            <p className="text-destructive/90 break-all font-mono text-sm">
               {error.message}
             </p>
             {error.stack && process.env.NODE_ENV === 'development' && (
               <details className="mt-2">
-                <summary className="text-xs text-destructive/80 cursor-pointer">
+                <summary className="text-destructive/80 cursor-pointer text-xs">
                   Stack Trace
                 </summary>
-                <pre className="mt-1 text-xs font-mono text-destructive/80 overflow-auto max-h-32">
+                <pre className="text-destructive/80 mt-1 max-h-32 overflow-auto font-mono text-xs">
                   {error.stack}
                 </pre>
               </details>
             )}
           </div>
 
-          <div className="text-sm space-y-1">
+          <div className="space-y-1 text-sm">
             <p className="text-muted-foreground">
               Error ID: <code className="font-mono text-xs">{error.digest || 'unknown'}</code>
             </p>
@@ -109,7 +109,7 @@ export default function Error({
           </div>
 
           {isCriticalError && (
-            <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3">
               <p className="text-sm text-yellow-600 dark:text-yellow-400">
                 ⚠️ The technical team has been automatically notified of this issue.
               </p>
@@ -124,7 +124,7 @@ export default function Error({
               className="flex-1"
               variant={isCriticalError ? 'destructive' : 'default'}
             >
-              <RefreshCw className="mr-2 h-4 w-4" />
+              <RefreshCw className="mr-2 size-4" />
               {isCriticalError ? 'Retry Operation' : 'Try Again'}
             </Button>
           )}
@@ -133,7 +133,7 @@ export default function Error({
             variant="outline"
             className="flex-1"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
+            <ArrowLeft className="mr-2 size-4" />
             Go Back
           </Button>
         </CardFooter>

@@ -4,18 +4,18 @@ JWT Token Management Service
 
 import json
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 from uuid import uuid4
 
 import structlog
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from jose import JWTError, jwk, jwt
+from jose import JWTError, jwt
 
 from app.config import settings
 from app.exceptions import AuthenticationError, TokenError
-from app.models import TokenClaims, TokenPair
+from app.models import TokenPair
 from app.schemas.token import TokenPairResponse
 
 logger = structlog.get_logger()

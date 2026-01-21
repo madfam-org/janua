@@ -11,23 +11,18 @@ Covers: ConsentService, DataSubjectRightsService, DataRetentionService, Complian
 """
 
 import pytest
-import asyncio
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timedelta
-from uuid import uuid4, UUID
-import json
+from uuid import uuid4
 
 from app.services.compliance_service import (
     ConsentService, DataSubjectRightsService, DataRetentionService, ComplianceService
 )
 from app.models.compliance import (
-    ConsentRecord, ConsentType, ConsentStatus, LegalBasis,
-    DataRetentionPolicy, DataSubjectRequest, DataSubjectRequestType, RequestStatus,
-    PrivacySettings, DataBreachIncident, ComplianceReport, ComplianceControl,
-    DataCategory, ComplianceFramework
+    ConsentType, ConsentStatus, LegalBasis, DataSubjectRequestType,
+    RequestStatus, DataCategory, ComplianceFramework
 )
-from app.services.audit_logger import AuditLogger, AuditEventType
-from app.models import User
+from app.services.audit_logger import AuditEventType
 
 
 class TestConsentServiceInitialization:

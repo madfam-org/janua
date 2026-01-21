@@ -6,7 +6,7 @@ ensuring no silent error handlers and consistent error tracking.
 """
 
 import traceback
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Optional, Callable
 from functools import wraps
 import structlog
 
@@ -257,7 +257,7 @@ ANTI-PATTERN 1: Silent Exception with pass
 ❌ BAD:
 try:
     await redis.get("key")
-except:
+except Exception:
     pass  # Silent failure!
 
 ✅ GOOD:
@@ -278,7 +278,7 @@ ANTI-PATTERN 2: Silent Exception with return
 ❌ BAD:
 try:
     user = await get_user(user_id)
-except:
+except Exception:
     return None  # What went wrong? We'll never know!
 
 ✅ GOOD:

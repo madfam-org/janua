@@ -18,14 +18,12 @@ import ssl
 import logging
 import sys
 import json
-import subprocess
 import time
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple
+from datetime import datetime
+from typing import Dict, List, Any, Optional
 import argparse
 from dataclasses import dataclass, asdict
 import socket
-import hashlib
 import secrets
 
 logging.basicConfig(
@@ -285,7 +283,7 @@ class SecurityValidator:
                 signin_url = f"{self.api_url}/beta/signin"
                 
                 # Make multiple rapid requests to test rate limiting
-                start_time = time.time()
+                time.time()
                 requests_made = 0
                 rate_limited = False
                 
@@ -678,7 +676,7 @@ class SecurityValidator:
         total_checks = len(self.results)
         critical_failed = len([c for c in self.results if c.severity == 'CRITICAL' and c.status == 'FAILED'])
         high_failed = len([c for c in self.results if c.severity == 'HIGH' and c.status == 'FAILED'])
-        passed_checks = by_status['PASSED']
+        by_status['PASSED']
         
         # Security score calculation (weighted by severity)
         score_deductions = (critical_failed * 20) + (high_failed * 10) + (by_status['FAILED'] * 5)

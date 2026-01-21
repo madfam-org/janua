@@ -3,23 +3,17 @@ Load Testing Infrastructure
 Enterprise-grade load testing with Locust, performance scenarios, and real-time monitoring
 """
 
-import asyncio
-import json
 import os
 import time
 import random
-from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional
+from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 import logging
 import statistics
-import numpy as np
-from locust import HttpUser, task, between, events
-from locust.env import Environment
-from locust.stats import StatsEntry
-import pandas as pd
+from locust import HttpUser, task, between
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -664,7 +658,6 @@ class LoadTestingInfrastructure:
         """Execute Locust test"""
         
         from locust.env import Environment
-        from locust.stats import stats_printer, stats_history
         from locust.log import setup_logging
         
         # Setup logging

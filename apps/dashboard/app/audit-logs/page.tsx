@@ -10,7 +10,6 @@ import {
   Lock,
   ArrowLeft,
   Search,
-  Filter,
   RefreshCw,
   Loader2,
   AlertCircle,
@@ -149,7 +148,7 @@ export default function AuditLogsPage() {
 
   const getEventIcon = (eventType: string) => {
     const IconComponent = eventIcons[eventType] || eventIcons.default
-    return <IconComponent className="h-4 w-4" />
+    return <IconComponent className="size-4" />
   }
 
   const getEventLabel = (eventType: string) => {
@@ -186,22 +185,20 @@ export default function AuditLogsPage() {
     }
   }
 
-  const uniqueEventTypes = Array.from(new Set(logs.map((l) => l.event_type)))
-
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background min-h-screen">
       {/* Header */}
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Link href="/settings" className="text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="h-5 w-5" />
+                <ArrowLeft className="size-5" />
               </Link>
-              <Lock className="h-8 w-8 text-primary" />
+              <Lock className="text-primary size-8" />
               <div>
                 <h1 className="text-2xl font-bold">Audit Logs</h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   View security events and user activity
                 </p>
               </div>
@@ -211,12 +208,12 @@ export default function AuditLogsPage() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 space-y-6">
+      <div className="container mx-auto space-y-6 px-4 py-8">
         {error && (
           <Card className="border-destructive">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-destructive">
-                <AlertCircle className="h-5 w-5" />
+              <div className="text-destructive flex items-center gap-2">
+                <AlertCircle className="size-5" />
                 <span>{error}</span>
               </div>
             </CardContent>
@@ -235,7 +232,7 @@ export default function AuditLogsPage() {
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={handleExport}>
-                  <Download className="h-4 w-4 mr-2" />
+                  <Download className="mr-2 size-4" />
                   Export
                 </Button>
                 <Button
@@ -246,15 +243,15 @@ export default function AuditLogsPage() {
                     fetchLogs()
                   }}
                 >
-                  <RefreshCw className="h-4 w-4" />
+                  <RefreshCw className="size-4" />
                 </Button>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <div className="mb-6 flex flex-col gap-4 md:flex-row">
+              <div className="relative flex-1">
+                <Search className="text-muted-foreground absolute left-3 top-1/2 size-4 -translate-y-1/2" />
                 <Input
                   placeholder="Search by email, event type, or IP address..."
                   value={searchQuery}
@@ -264,7 +261,7 @@ export default function AuditLogsPage() {
               </div>
               <div className="flex gap-2">
                 <select
-                  className="h-10 px-3 border rounded-md bg-background text-sm"
+                  className="bg-background h-10 rounded-md border px-3 text-sm"
                   value={eventFilter}
                   onChange={(e) => {
                     setEventFilter(e.target.value)
@@ -284,16 +281,16 @@ export default function AuditLogsPage() {
             </div>
 
             {loading && page === 1 ? (
-              <div className="text-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-                <p className="mt-2 text-sm text-muted-foreground">Loading audit logs...</p>
+              <div className="py-8 text-center">
+                <Loader2 className="text-muted-foreground mx-auto size-8 animate-spin" />
+                <p className="text-muted-foreground mt-2 text-sm">Loading audit logs...</p>
               </div>
             ) : filteredLogs.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Lock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <div className="text-muted-foreground py-8 text-center">
+                <Lock className="mx-auto mb-4 size-12 opacity-50" />
                 <p>No audit logs found</p>
                 {searchQuery && (
-                  <p className="text-sm mt-2">Try adjusting your search criteria</p>
+                  <p className="mt-2 text-sm">Try adjusting your search criteria</p>
                 )}
               </div>
             ) : (
@@ -301,12 +298,12 @@ export default function AuditLogsPage() {
                 {filteredLogs.map((log) => (
                   <div
                     key={log.id}
-                    className={`flex items-start justify-between p-4 border rounded-lg ${
+                    className={`flex items-start justify-between rounded-lg border p-4 ${
                       !log.success ? 'border-destructive/30 bg-destructive/5' : ''
                     }`}
                   >
                     <div className="flex items-start gap-4">
-                      <div className={`p-2 rounded-full bg-muted ${!log.success ? 'bg-destructive/10' : ''}`}>
+                      <div className={`bg-muted rounded-full p-2 ${!log.success ? 'bg-destructive/10' : ''}`}>
                         {getEventIcon(log.event_type)}
                       </div>
                       <div>
@@ -316,10 +313,10 @@ export default function AuditLogsPage() {
                             {log.success ? 'Success' : 'Failed'}
                           </Badge>
                         </div>
-                        <div className="text-sm text-muted-foreground mt-1">
+                        <div className="text-muted-foreground mt-1 text-sm">
                           {log.actor_email && (
                             <span className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
+                              <User className="size-3" />
                               {log.actor_email}
                             </span>
                           )}
@@ -328,21 +325,21 @@ export default function AuditLogsPage() {
                           )}
                         </div>
                         {log.action && log.action !== log.event_type && (
-                          <p className="text-sm mt-1">{log.action}</p>
+                          <p className="mt-1 text-sm">{log.action}</p>
                         )}
                         {log.details && Object.keys(log.details).length > 0 && (
                           <details className="mt-2">
-                            <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                            <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-xs">
                               Show details
                             </summary>
-                            <pre className="mt-2 text-xs bg-muted p-2 rounded overflow-auto max-h-32">
+                            <pre className="bg-muted mt-2 max-h-32 overflow-auto rounded p-2 text-xs">
                               {JSON.stringify(log.details, null, 2)}
                             </pre>
                           </details>
                         )}
                       </div>
                     </div>
-                    <div className="text-sm text-muted-foreground whitespace-nowrap">
+                    <div className="text-muted-foreground whitespace-nowrap text-sm">
                       {formatDate(log.timestamp)}
                     </div>
                   </div>
@@ -351,7 +348,7 @@ export default function AuditLogsPage() {
             )}
 
             {hasMore && !loading && (
-              <div className="text-center mt-6">
+              <div className="mt-6 text-center">
                 <Button
                   variant="outline"
                   onClick={() => setPage((p) => p + 1)}
@@ -359,7 +356,7 @@ export default function AuditLogsPage() {
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Loader2 className="mr-2 size-4 animate-spin" />
                       Loading...
                     </>
                   ) : (
@@ -376,7 +373,7 @@ export default function AuditLogsPage() {
           <CardHeader>
             <CardTitle className="text-base">About Audit Logs</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground space-y-2">
+          <CardContent className="text-muted-foreground space-y-2 text-sm">
             <p>
               Audit logs record all security-relevant events in your organization, including user
               authentication, settings changes, and administrative actions.

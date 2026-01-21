@@ -3,9 +3,8 @@ Centralized async fixtures for consistent testing
 """
 import asyncio
 import pytest
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import AsyncGenerator, Generator
 
 
 class AsyncDatabaseSession:

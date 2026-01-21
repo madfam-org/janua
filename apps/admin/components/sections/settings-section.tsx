@@ -21,19 +21,19 @@ export function SettingsSection() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-foreground">Platform Settings</h2>
+      <h2 className="text-foreground text-2xl font-bold">Platform Settings</h2>
 
-      <div className="bg-card p-6 rounded-lg border border-border">
+      <div className="bg-card border-border rounded-lg border p-6">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="font-medium text-foreground">Maintenance Mode</h4>
-              <p className="text-sm text-muted-foreground">Temporarily disable access to the platform</p>
+              <h4 className="text-foreground font-medium">Maintenance Mode</h4>
+              <p className="text-muted-foreground text-sm">Temporarily disable access to the platform</p>
             </div>
             <button
               onClick={handleMaintenanceToggle}
               disabled={saving}
-              className={`px-4 py-2 rounded-lg ${
+              className={`rounded-lg px-4 py-2 ${
                 maintenanceMode
                   ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'

@@ -7,8 +7,7 @@ Covers: Session creation, validation, refresh, revocation, analytics, SSO migrat
 
 import json
 from datetime import datetime, timedelta
-from typing import Any, Dict
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -314,7 +313,7 @@ class TestSessionValidation:
         mock_result.scalar_one_or_none.return_value = mock_session
         mock_db.execute.return_value = mock_result
 
-        result = await session_manager.validate_session("some_token")
+        await session_manager.validate_session("some_token")
 
         # Should fall back to database
         assert mock_db.execute.called
@@ -398,7 +397,7 @@ class TestSessionRefresh:
     @pytest.mark.asyncio
     async def test_refresh_rotates_token(self, session_manager, mock_redis, sample_session_data):
         """Test that refresh generates new token"""
-        original_hash = sample_session_data["token_hash"]
+        sample_session_data["token_hash"]
         mock_redis.get.return_value = json.dumps(sample_session_data).encode()
 
         result = await session_manager.refresh_session("test-session-123")

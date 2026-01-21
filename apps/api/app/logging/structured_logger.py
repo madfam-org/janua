@@ -5,12 +5,11 @@ Comprehensive logging framework with structured output, correlation IDs, and cen
 
 import os
 import sys
-import json
 import time
 import uuid
 import asyncio
 import traceback
-from typing import Dict, Any, Optional, List, Union, Callable
+from typing import Dict, Any, Optional, Callable
 from datetime import datetime
 from enum import Enum
 from contextlib import contextmanager, asynccontextmanager

@@ -1,22 +1,16 @@
 """Passkeys (WebAuthn) module for the Janua SDK."""
 
-from typing import Optional, Dict, Any, List
-from datetime import datetime
+from typing import Optional, Dict, Any
 
 from .http_client import HTTPClient
 from .types import (
     Passkey,
     PasskeyChallenge,
-    PasskeyCredential,
     ListResponse,
     JanuaConfig,
 )
 from .exceptions import (
-    NotFoundError,
     ValidationError,
-    AuthenticationError,
-    AuthorizationError,
-    JanuaError,
 )
 
 

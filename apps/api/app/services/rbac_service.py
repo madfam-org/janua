@@ -2,12 +2,11 @@
 Role-Based Access Control Service
 Enterprise-grade RBAC with policy engine
 """
-from typing import Optional, List, Dict, Any, Set
+from typing import Optional, List, Dict, Set
 from uuid import UUID
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
-import json
+from sqlalchemy import and_
 import re
 from fastapi import HTTPException, status
 
@@ -32,7 +31,6 @@ class Permission:
     action = None
 from ..core.redis import ResilientRedisClient
 from ..core.events import EventEmitter
-from ..core.caching import cache_permissions
 
 
 class RBACService:

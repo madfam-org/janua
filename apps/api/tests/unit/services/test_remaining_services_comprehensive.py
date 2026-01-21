@@ -9,10 +9,8 @@ Expected to cover 800+ lines across service modules.
 """
 
 import pytest
-import json
 from datetime import datetime, timedelta
-from unittest.mock import patch, AsyncMock, MagicMock
-from uuid import uuid4
+from unittest.mock import patch, AsyncMock
 
 # Import service modules for testing
 
@@ -535,7 +533,6 @@ class TestJWTService:
     def setup_method(self):
         """Setup before each test."""
         from app.services.jwt_service import JWTService
-        from unittest.mock import Mock
         
         # Create mock database and redis
         mock_db = AsyncMock()

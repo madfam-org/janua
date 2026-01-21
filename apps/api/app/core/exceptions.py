@@ -377,7 +377,6 @@ class JanuaServiceException(JanuaException):
     Used for errors that occur within services but aren't necessarily
     meant to be exposed directly to API clients.
     """
-    pass
 
 
 class DatabaseError(JanuaServiceException):

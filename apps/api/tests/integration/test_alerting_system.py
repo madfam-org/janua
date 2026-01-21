@@ -4,20 +4,8 @@ Comprehensive testing of alert creation, processing, management, and notificatio
 """
 
 import pytest
-import pytest_asyncio
-from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime, timedelta
-import json
+from unittest.mock import AsyncMock
 import asyncio
-from tests.fixtures.external_mocks import (
-    mock_all_external_dependencies,
-    mock_db_session,
-    mock_redis_client,
-    mock_email_service,
-    mock_webhook_service,
-    mock_slack_client,
-    sample_alert_data
-)
 
 pytestmark = pytest.mark.asyncio
 

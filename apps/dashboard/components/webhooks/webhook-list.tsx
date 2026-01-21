@@ -159,8 +159,8 @@ export function WebhookList() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">Loading webhooks...</span>
+        <Loader2 className="text-muted-foreground size-8 animate-spin" />
+        <span className="text-muted-foreground ml-2">Loading webhooks...</span>
       </div>
     )
   }
@@ -168,8 +168,8 @@ export function WebhookList() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Failed to Load Webhooks</h3>
+        <AlertCircle className="text-destructive mb-4 size-12" />
+        <h3 className="mb-2 text-lg font-semibold">Failed to Load Webhooks</h3>
         <p className="text-muted-foreground mb-4">{error}</p>
         <Button onClick={fetchWebhooks} variant="outline">
           Try Again
@@ -181,41 +181,41 @@ export function WebhookList() {
   return (
     <div className="space-y-4">
       {/* Stats Banner */}
-      <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
+      <div className="bg-muted/50 grid grid-cols-3 gap-4 rounded-lg p-4">
         <div>
           <div className="text-2xl font-bold">{webhooks.length}</div>
-          <div className="text-sm text-muted-foreground">Total Endpoints</div>
+          <div className="text-muted-foreground text-sm">Total Endpoints</div>
         </div>
         <div>
           <div className="text-2xl font-bold text-green-600 dark:text-green-400">
             {webhooks.filter(w => w.is_active).length}
           </div>
-          <div className="text-sm text-muted-foreground">Active</div>
+          <div className="text-muted-foreground text-sm">Active</div>
         </div>
         <div>
           <div className="text-2xl font-bold">{eventTypes.length}</div>
-          <div className="text-sm text-muted-foreground">Event Types</div>
+          <div className="text-muted-foreground text-sm">Event Types</div>
         </div>
       </div>
 
       {/* Search Bar */}
       <div className="flex items-center justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+        <div className="relative max-w-md flex-1">
+          <Search className="text-muted-foreground absolute left-2 top-2.5 size-4" />
           <input
             placeholder="Search webhooks by URL or description..."
-            className="w-full pl-8 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            className="focus:ring-primary w-full rounded-md border py-2 pl-8 pr-4 focus:outline-none focus:ring-2"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
         <div className="flex items-center space-x-2">
           <Button variant="outline" size="sm" onClick={fetchWebhooks}>
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshCw className="mr-2 size-4" />
             Refresh
           </Button>
           <Button size="sm" disabled title="Create webhook endpoint">
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="mr-2 size-4" />
             Add Webhook
           </Button>
         </div>
@@ -225,7 +225,7 @@ export function WebhookList() {
       <div className="rounded-md border">
         <table className="w-full">
           <thead>
-            <tr className="border-b bg-muted/50">
+            <tr className="bg-muted/50 border-b">
               <th className="p-4 text-left text-sm font-medium">Endpoint</th>
               <th className="p-4 text-left text-sm font-medium">Events</th>
               <th className="p-4 text-left text-sm font-medium">Secret</th>
@@ -237,20 +237,20 @@ export function WebhookList() {
           <tbody>
             {filteredWebhooks.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                <td colSpan={6} className="text-muted-foreground p-8 text-center">
                   {searchTerm ? 'No webhooks match your search' : 'No webhooks configured yet'}
                 </td>
               </tr>
             ) : (
               filteredWebhooks.map((webhook) => (
-                <tr key={webhook.id} className="border-b hover:bg-muted/50">
+                <tr key={webhook.id} className="hover:bg-muted/50 border-b">
                   <td className="p-4">
                     <div>
-                      <div className="font-mono text-sm truncate max-w-[250px]" title={webhook.url}>
+                      <div className="max-w-[250px] truncate font-mono text-sm" title={webhook.url}>
                         {webhook.url}
                       </div>
                       {webhook.description && (
-                        <div className="text-xs text-muted-foreground">{webhook.description}</div>
+                        <div className="text-muted-foreground text-xs">{webhook.description}</div>
                       )}
                     </div>
                   </td>
@@ -259,13 +259,13 @@ export function WebhookList() {
                       {webhook.events.slice(0, 2).map(event => (
                         <span
                           key={event}
-                          className="px-2 py-0.5 text-xs bg-primary/10 text-primary rounded"
+                          className="bg-primary/10 text-primary rounded px-2 py-0.5 text-xs"
                         >
                           {event}
                         </span>
                       ))}
                       {webhook.events.length > 2 && (
-                        <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded">
+                        <span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs">
                           +{webhook.events.length - 2} more
                         </span>
                       )}
@@ -273,7 +273,7 @@ export function WebhookList() {
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-2">
-                      <code className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                      <code className="bg-muted rounded px-2 py-1 font-mono text-xs">
                         {showSecret[webhook.id]
                           ? webhook.secret.slice(0, 16) + '...'
                           : '••••••••••••'}
@@ -285,9 +285,9 @@ export function WebhookList() {
                         title={showSecret[webhook.id] ? 'Hide secret' : 'Show secret'}
                       >
                         {showSecret[webhook.id] ? (
-                          <EyeOff className="h-3 w-3" />
+                          <EyeOff className="size-3" />
                         ) : (
-                          <Eye className="h-3 w-3" />
+                          <Eye className="size-3" />
                         )}
                       </Button>
                       <Button
@@ -296,24 +296,24 @@ export function WebhookList() {
                         onClick={() => copySecret(webhook.secret)}
                         title="Copy secret"
                       >
-                        <Copy className="h-3 w-3" />
+                        <Copy className="size-3" />
                       </Button>
                     </div>
                   </td>
                   <td className="p-4">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
                       webhook.is_active
                         ? 'bg-green-500/10 text-green-600 dark:text-green-400'
                         : 'bg-muted text-muted-foreground'
                     }`}>
                       {webhook.is_active ? (
-                        <><CheckCircle2 className="h-3 w-3 mr-1" /> Active</>
+                        <><CheckCircle2 className="mr-1 size-3" /> Active</>
                       ) : (
-                        <><XCircle className="h-3 w-3 mr-1" /> Inactive</>
+                        <><XCircle className="mr-1 size-3" /> Inactive</>
                       )}
                     </span>
                   </td>
-                  <td className="p-4 text-sm text-muted-foreground">
+                  <td className="text-muted-foreground p-4 text-sm">
                     {formatDateTime(webhook.created_at)}
                   </td>
                   <td className="p-4">
@@ -324,7 +324,7 @@ export function WebhookList() {
                         onClick={() => testWebhook(webhook.id)}
                         title="Send test webhook"
                       >
-                        <Send className="h-4 w-4" />
+                        <Send className="size-4" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -333,7 +333,7 @@ export function WebhookList() {
                         title="Delete webhook"
                         className="text-destructive hover:text-destructive"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="size-4" />
                       </Button>
                     </div>
                   </td>
@@ -346,13 +346,13 @@ export function WebhookList() {
 
       {/* Available Event Types */}
       {eventTypes.length > 0 && (
-        <div className="p-4 bg-muted/30 rounded-lg">
-          <h4 className="text-sm font-medium mb-2">Available Event Types</h4>
+        <div className="bg-muted/30 rounded-lg p-4">
+          <h4 className="mb-2 text-sm font-medium">Available Event Types</h4>
           <div className="flex flex-wrap gap-2">
             {eventTypes.map(type => (
               <span
                 key={type}
-                className="px-2 py-1 text-xs bg-background border rounded"
+                className="bg-background rounded border px-2 py-1 text-xs"
               >
                 {type}
               </span>
@@ -362,7 +362,7 @@ export function WebhookList() {
       )}
 
       {/* Summary */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex items-center justify-between text-sm">
         <div>
           Showing {filteredWebhooks.length} of {webhooks.length} webhooks
         </div>

@@ -2,7 +2,7 @@
 
 import os
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from janua import JanuaClient, create_client
 from janua.exceptions import ConfigurationError
 

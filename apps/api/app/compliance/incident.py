@@ -3,21 +3,18 @@ Security incident response system for enterprise compliance and SOC2 requirement
 Automated incident detection, classification, response coordination, and compliance reporting.
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from dataclasses import dataclass, asdict
 from pathlib import Path
 import json
 import uuid
-from sqlalchemy import select, and_, func, desc
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_, func
 
 from app.core.database import get_session
 from app.models.audit import AuditLog
-from app.models.users import User
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)

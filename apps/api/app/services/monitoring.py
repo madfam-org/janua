@@ -6,9 +6,9 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import aiohttp
 import psutil
@@ -446,7 +446,7 @@ class AlertManager:
 
             # Evaluate
             return eval(condition)
-        except:
+        except Exception:
             return False
 
     async def _trigger_alert(self, rule: Dict[str, Any], value: float):

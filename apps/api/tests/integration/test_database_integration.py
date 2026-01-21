@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta
 import pytest
 
 pytestmark = pytest.mark.asyncio
@@ -13,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from unittest.mock import patch, AsyncMock
 
-from app.core.database import init_db, get_db, engine
+from app.core.database import init_db
 
 
 class TestDatabaseIntegration:

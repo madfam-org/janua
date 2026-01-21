@@ -46,7 +46,7 @@ class HttpClient:
             message = error_data.get("message", response.text)
             code = error_data.get("code", "UNKNOWN_ERROR")
             details = error_data.get("details", {})
-        except:
+        except Exception:
             message = response.text or response.reason_phrase
             code = "UNKNOWN_ERROR"
             details = {}

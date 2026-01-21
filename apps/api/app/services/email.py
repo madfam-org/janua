@@ -1,9 +1,7 @@
 # Email service
 import logging
-from typing import Optional, Dict, Any
-from datetime import datetime
+from typing import Optional
 
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 

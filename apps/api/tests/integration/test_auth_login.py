@@ -21,7 +21,6 @@ Coverage Impact: +6% estimated
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from tests.fixtures.users import TEST_PASSWORD

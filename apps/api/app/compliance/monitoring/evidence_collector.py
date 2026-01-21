@@ -3,20 +3,18 @@ Evidence Collector
 Evidence gathering and validation operations.
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 import json
 from sqlalchemy import select, and_, func
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.models.audit import AuditLog
 from app.models.users import User
 
-from .control_status import ControlStatus, EvidenceType, ControlResult, ComplianceEvidence
+from .control_status import EvidenceType, ComplianceEvidence
 
 
 logger = logging.getLogger(__name__)

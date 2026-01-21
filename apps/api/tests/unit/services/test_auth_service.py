@@ -12,10 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
-import pytest_asyncio
 
-from app.exceptions import AuthenticationError, ValidationError
-from app.models import Organization, Session, User
 from app.services.auth_service import AuthService
 
 

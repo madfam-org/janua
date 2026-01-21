@@ -6,9 +6,8 @@ Validates readiness for enterprise customer onboarding process
 import asyncio
 import json
 import requests
-import time
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, Any
 from datetime import datetime
 
 
@@ -147,7 +146,7 @@ class EnterpriseOnboardingValidator:
                         self.results["documentation_gaps"].append(
                             f"{doc_name} appears incomplete (< 500 characters)"
                         )
-                except:
+                except Exception:
                     pass
 
             else:
@@ -312,7 +311,7 @@ class EnterpriseOnboardingValidator:
                     "details": f"Missing headers: {', '.join(missing_headers)}"
                 }
 
-        except:
+        except Exception:
             return {"passed": False, "details": "Could not check security headers"}
 
     async def _check_auth_security(self) -> Dict[str, Any]:
@@ -335,7 +334,7 @@ class EnterpriseOnboardingValidator:
             else:
                 return {"passed": False, "details": "Weak passwords accepted"}
 
-        except:
+        except Exception:
             return {"passed": False, "details": "Could not test authentication"}
 
     async def _check_rate_limiting(self) -> Dict[str, Any]:
@@ -354,7 +353,7 @@ class EnterpriseOnboardingValidator:
 
             return {"passed": False, "details": "No rate limiting detected"}
 
-        except:
+        except Exception:
             return {"passed": False, "details": "Could not test rate limiting"}
 
     async def _check_input_validation(self) -> Dict[str, Any]:
@@ -376,7 +375,7 @@ class EnterpriseOnboardingValidator:
             else:
                 return {"passed": False, "details": "Possible SQL injection vulnerability"}
 
-        except:
+        except Exception:
             return {"passed": False, "details": "Could not test input validation"}
 
     async def validate_deployment_options(self):
@@ -442,7 +441,7 @@ class EnterpriseOnboardingValidator:
                     "status": "AVAILABLE"
                 })
                 category["score"] += 25
-        except:
+        except Exception:
             category["items"].append({
                 "name": "Webhook Support",
                 "status": "UNAVAILABLE"
@@ -457,7 +456,7 @@ class EnterpriseOnboardingValidator:
                     "status": "AVAILABLE"
                 })
                 category["score"] += 25
-        except:
+        except Exception:
             pass
 
         # Check GraphQL support
@@ -469,7 +468,7 @@ class EnterpriseOnboardingValidator:
                     "status": "AVAILABLE"
                 })
                 category["score"] += 25
-        except:
+        except Exception:
             category["items"].append({
                 "name": "GraphQL Support",
                 "status": "UNAVAILABLE"
@@ -484,7 +483,7 @@ class EnterpriseOnboardingValidator:
                     "status": "AVAILABLE"
                 })
                 category["score"] += 25
-        except:
+        except Exception:
             category["items"].append({
                 "name": "SCIM Provisioning",
                 "status": "UNAVAILABLE"
@@ -521,7 +520,7 @@ class EnterpriseOnboardingValidator:
                 if isinstance(data, dict) and len(data) > 2:
                     category["score"] += 10
 
-        except:
+        except Exception:
             category["items"].append({
                 "name": "Health Monitoring",
                 "status": "UNAVAILABLE"
@@ -536,7 +535,7 @@ class EnterpriseOnboardingValidator:
                     "status": "AVAILABLE"
                 })
                 category["score"] += 20
-        except:
+        except Exception:
             category["items"].append({
                 "name": "Metrics Endpoint",
                 "status": "UNAVAILABLE"
@@ -615,7 +614,7 @@ class EnterpriseOnboardingValidator:
                 response = requests.get(f"{self.base_url}{endpoint}", timeout=5)
                 if response.status_code < 500:
                     gdpr_score += 1
-            except:
+            except Exception:
                 pass
 
         if gdpr_score >= 2:
@@ -639,7 +638,7 @@ class EnterpriseOnboardingValidator:
                     "status": "IMPLEMENTED"
                 })
                 category["score"] += 35
-        except:
+        except Exception:
             category["items"].append({
                 "name": "Audit Logging",
                 "status": "NOT_IMPLEMENTED"
@@ -654,7 +653,7 @@ class EnterpriseOnboardingValidator:
                     "status": "IMPLEMENTED"
                 })
                 category["score"] += 35
-        except:
+        except Exception:
             category["items"].append({
                 "name": "Data Retention Policies",
                 "status": "NOT_IMPLEMENTED"

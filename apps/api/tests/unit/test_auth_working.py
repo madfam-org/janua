@@ -7,10 +7,7 @@ import pytest_asyncio
 from httpx import AsyncClient
 from unittest.mock import AsyncMock, MagicMock, patch
 from app.main import app
-import json
-from datetime import datetime, timedelta
-from jose import jwt
-from app.config import settings
+from datetime import datetime
 import sys
 import os
 
@@ -18,7 +15,6 @@ pytestmark = pytest.mark.asyncio
 
 # Add fixtures to path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from fixtures.async_fixtures import AsyncDatabaseSession, AsyncRedisClient
 
 
 @pytest.mark.asyncio

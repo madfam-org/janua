@@ -19,10 +19,8 @@ Coverage Impact: +8% estimated
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 from unittest.mock import AsyncMock, patch
 
-from app.services.auth_service import AuthService
 from app.models.user import User
 
 
@@ -160,7 +158,6 @@ async def test_signup_rate_limiting(client: AsyncClient):
     """
     # This test is skipped because rate limiting is mocked in conftest.py
     # Manual testing: Run without MockLimiter to verify rate limiting works
-    pass
 
 
 
@@ -395,7 +392,6 @@ async def test_email_verification_expired_token(client: AsyncClient):
     """
     # This would require creating an expired token
     # Implementation depends on token generation logic
-    pass
 
 
 

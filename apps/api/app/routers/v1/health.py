@@ -4,10 +4,8 @@ Health check endpoints for monitoring integration
 
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, Any
-import asyncio
 from datetime import datetime
 
-from app.core.database_manager import get_database_health
 from app.core.redis import get_redis
 from app.core.redis_circuit_breaker import ResilientRedisClient
 

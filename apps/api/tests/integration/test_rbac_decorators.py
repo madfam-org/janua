@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
-import pytest_asyncio
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession

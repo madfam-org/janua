@@ -6,8 +6,6 @@ This helps prevent unauthorized access and allows users to manage their device s
 """
 
 import hashlib
-import re
-import secrets
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 from uuid import UUID
@@ -56,8 +54,7 @@ except ImportError:
 
         return FallbackUA(ua_string)
 
-from app.config import settings
-from app.models import Session, TrustedDevice, User
+from app.models import Session, TrustedDevice
 
 logger = structlog.get_logger(__name__)
 

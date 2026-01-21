@@ -6,7 +6,7 @@ This resolves pytest async fixture injection issues
 
 import re
 from pathlib import Path
-from typing import List, Tuple
+from typing import Tuple
 
 
 def convert_test_file(file_path: Path) -> Tuple[int, int]:
@@ -24,9 +24,7 @@ def convert_test_file(file_path: Path) -> Tuple[int, int]:
     methods_converted = 0
 
     i = 0
-    current_indent = 0
     in_class = False
-    class_indent = 0
 
     while i < len(lines):
         line = lines[i]
@@ -34,7 +32,7 @@ def convert_test_file(file_path: Path) -> Tuple[int, int]:
         # Detect class definition
         if re.match(r'^class Test\w+:', line):
             in_class = True
-            class_indent = len(line) - len(line.lstrip())
+            len(line) - len(line.lstrip())
             classes_removed += 1
 
             # Skip the class definition and its docstring

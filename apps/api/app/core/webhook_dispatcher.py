@@ -15,7 +15,6 @@ import structlog
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_
-from sqlalchemy.sql import func
 
 from ..models import WebhookEndpoint, WebhookEvent, WebhookDelivery, WebhookStatus
 from app.core.tenant_context import TenantContext

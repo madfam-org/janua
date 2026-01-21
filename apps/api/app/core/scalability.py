@@ -16,12 +16,9 @@ import time
 import psutil
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, asdict
 from contextlib import asynccontextmanager
-import weakref
-import threading
-from concurrent.futures import ThreadPoolExecutor
 
 from app.config import settings
 from app.core.performance import cache_manager

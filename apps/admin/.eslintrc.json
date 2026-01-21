@@ -35,7 +35,7 @@
         "message": "Hardcoded HEX colors are not allowed. Use CSS variables (e.g., bg-background, text-foreground) or semantic Tailwind classes instead."
       },
       {
-        "selector": "Literal[value=/(bg|text|border)-(red|blue|green|yellow|gray|slate|zinc|neutral|stone|orange|amber|lime|emerald|teal|cyan|sky|indigo|violet|purple|fuchsia|pink|rose)-\\d{2,3}(?!\\/)(?![a-z])/]",
+        "selector": "Literal[value=/^(bg|text|border)-(red|blue|green|yellow|gray|slate|zinc|neutral|stone|orange|amber|lime|emerald|teal|cyan|sky|indigo|violet|purple|fuchsia|pink|rose)-\\d+$/]",
         "message": "Use semantic Tailwind colors (primary, secondary, destructive, muted) instead of raw color classes. Exception: opacity variants like bg-green-500/10 are allowed."
       }
     ]

@@ -1,4 +1,3 @@
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 
 pytestmark = pytest.mark.asyncio
@@ -9,7 +8,6 @@ Testing multi-tenancy, RBAC, SCIM, audit logging, and webhooks
 """
 
 import pytest
-import asyncio
 import json
 import hmac
 import hashlib
@@ -23,11 +21,9 @@ from app.models import (
     Organization,
     OrganizationMember,
     OrganizationRole,
-    AuditLog,
     WebhookEndpoint,
     WebhookDelivery,
-    WebhookStatus,
-    WebhookEventType
+    WebhookStatus
 )
 
 # Mock missing imports for tests

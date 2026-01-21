@@ -9,20 +9,16 @@ Tests model relationships, constraints, migrations, and transactions
 """
 
 import pytest
-import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.exc import IntegrityError
-from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timedelta
 import uuid
 
 from app.models import (
     User, UserStatus, Organization, OrganizationRole, OrganizationMember,
-    Session, EmailVerification, PasswordReset, MagicLink, ActivityLog,
-    Invitation, OAuthProvider, WebhookStatus
+    Session, EmailVerification, ActivityLog
 )
-from app.core.database import get_db
 
 
 @pytest.mark.asyncio

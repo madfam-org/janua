@@ -7,12 +7,8 @@ Covers: TOTP setup, verification, backup codes, recovery
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
+from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
-from fastapi import HTTPException, status
-import pyotp
-import base64
 
 from app.main import app
 
@@ -444,7 +440,6 @@ class TestTOTPLibraryIntegration:
     def test_totp_verification(self):
         """Test TOTP code verification"""
         import pyotp
-        import time
 
         secret = "JBSWY3DPEHPK3PXP"  # Fixed secret for testing
         totp = pyotp.TOTP(secret)

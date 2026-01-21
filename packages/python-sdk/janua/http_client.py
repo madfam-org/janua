@@ -1,10 +1,9 @@
 """HTTP client for making API requests with retry logic and error handling."""
 
 import time
-from typing import Any, Dict, Optional, Union, TypeVar, Generic
-from urllib.parse import urljoin
+from typing import Any, Dict, Optional, TypeVar
 import httpx
-from httpx import Response, HTTPStatusError, TimeoutException, NetworkError
+from httpx import Response, TimeoutException, NetworkError
 
 from .exceptions import (
     JanuaError,
@@ -237,7 +236,7 @@ class HTTPClient:
                 if not self._should_retry(last_error, attempt):
                     raise last_error
                 
-            except (AuthenticationError, AuthorizationError, NotFoundError, ValidationError) as e:
+            except (AuthenticationError, AuthorizationError, NotFoundError, ValidationError):
                 # Don't retry client errors
                 raise
                 

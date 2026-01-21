@@ -8,8 +8,6 @@ Unit tests for main FastAPI application
 """
 
 import pytest
-import pytest_asyncio
-from httpx import AsyncClient
 from unittest.mock import AsyncMock, patch
 
 from app.main import app

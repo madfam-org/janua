@@ -12,7 +12,6 @@ import structlog
 from jinja2 import Template
 
 from .alert_models import Alert, NotificationChannel
-from .alert_types import AlertChannel
 
 logger = structlog.get_logger()
 

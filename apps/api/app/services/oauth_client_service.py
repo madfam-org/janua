@@ -4,7 +4,6 @@ OAuth2 Client Management Service
 Business logic for managing OAuth2 clients that use Janua as an OAuth Provider.
 """
 
-import hashlib
 import logging
 import secrets
 import uuid
@@ -15,7 +14,7 @@ import bcrypt
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import AuditLog, OAuthClient, Organization, OrganizationMember, User
+from app.models import AuditLog, OAuthClient, OrganizationMember, User
 from app.schemas.oauth_client import OAuthClientCreate, OAuthClientUpdate
 
 logger = logging.getLogger(__name__)

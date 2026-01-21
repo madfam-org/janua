@@ -41,10 +41,10 @@ interface SSOConfiguration {
 }
 
 const statusIcons = {
-  active: <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />,
-  pending: <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />,
-  disabled: <XCircle className="h-4 w-4 text-muted-foreground" />,
-  error: <XCircle className="h-4 w-4 text-destructive" />,
+  active: <CheckCircle2 className="size-4 text-green-600 dark:text-green-400" />,
+  pending: <AlertCircle className="size-4 text-yellow-600 dark:text-yellow-400" />,
+  disabled: <XCircle className="text-muted-foreground size-4" />,
+  error: <XCircle className="text-destructive size-4" />,
 }
 
 const statusLabels = {
@@ -159,29 +159,29 @@ export default function SSOSettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-          <p className="mt-2 text-sm text-muted-foreground">Loading SSO configurations...</p>
+          <Loader2 className="text-muted-foreground mx-auto size-8 animate-spin" />
+          <p className="text-muted-foreground mt-2 text-sm">Loading SSO configurations...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background min-h-screen">
       {/* Header */}
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Link href="/settings" className="text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="h-5 w-5" />
+                <ArrowLeft className="size-5" />
               </Link>
-              <Key className="h-8 w-8 text-primary" />
+              <Key className="text-primary size-8" />
               <div>
                 <h1 className="text-2xl font-bold">Single Sign-On (SSO)</h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Configure enterprise SSO with SAML 2.0 or OIDC
                 </p>
               </div>
@@ -191,12 +191,12 @@ export default function SSOSettingsPage() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 space-y-6">
+      <div className="container mx-auto space-y-6 px-4 py-8">
         {error && (
           <Card className="border-destructive">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-destructive">
-                <AlertCircle className="h-5 w-5" />
+              <div className="text-destructive flex items-center gap-2">
+                <AlertCircle className="size-5" />
                 <span>{error}</span>
               </div>
             </CardContent>
@@ -213,12 +213,12 @@ export default function SSOSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card className="cursor-pointer hover:border-primary/50 transition-colors">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Card className="hover:border-primary/50 cursor-pointer transition-colors">
                   <CardHeader>
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-lg">
-                        <Shield className="h-6 w-6 text-primary" />
+                      <div className="bg-primary/10 rounded-lg p-2">
+                        <Shield className="text-primary size-6" />
                       </div>
                       <div>
                         <CardTitle className="text-base">SAML 2.0</CardTitle>
@@ -230,17 +230,17 @@ export default function SSOSettingsPage() {
                   </CardHeader>
                   <CardContent>
                     <Button className="w-full" variant="outline">
-                      <Plus className="h-4 w-4 mr-2" />
+                      <Plus className="mr-2 size-4" />
                       Configure SAML
                     </Button>
                   </CardContent>
                 </Card>
 
-                <Card className="cursor-pointer hover:border-primary/50 transition-colors">
+                <Card className="hover:border-primary/50 cursor-pointer transition-colors">
                   <CardHeader>
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-500/10 rounded-lg">
-                        <Globe className="h-6 w-6 text-green-600 dark:text-green-400" />
+                      <div className="rounded-lg bg-green-500/10 p-2">
+                        <Globe className="size-6 text-green-600 dark:text-green-400" />
                       </div>
                       <div>
                         <CardTitle className="text-base">OpenID Connect</CardTitle>
@@ -252,7 +252,7 @@ export default function SSOSettingsPage() {
                   </CardHeader>
                   <CardContent>
                     <Button className="w-full" variant="outline">
-                      <Plus className="h-4 w-4 mr-2" />
+                      <Plus className="mr-2 size-4" />
                       Configure OIDC
                     </Button>
                   </CardContent>
@@ -272,7 +272,7 @@ export default function SSOSettingsPage() {
                   </CardDescription>
                 </div>
                 <Button variant="outline" size="sm" onClick={fetchConfigurations}>
-                  <RefreshCw className="h-4 w-4 mr-2" />
+                  <RefreshCw className="mr-2 size-4" />
                   Refresh
                 </Button>
               </div>
@@ -281,14 +281,14 @@ export default function SSOSettingsPage() {
               {configurations.map((config) => (
                 <div
                   key={config.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
+                  className="flex items-center justify-between rounded-lg border p-4"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="p-2 bg-muted rounded-lg">
+                    <div className="bg-muted rounded-lg p-2">
                       {config.provider === 'saml' ? (
-                        <Shield className="h-5 w-5" />
+                        <Shield className="size-5" />
                       ) : (
-                        <Globe className="h-5 w-5" />
+                        <Globe className="size-5" />
                       )}
                     </div>
                     <div>
@@ -298,18 +298,18 @@ export default function SSOSettingsPage() {
                         </span>
                         <div className="flex items-center gap-1">
                           {statusIcons[config.status]}
-                          <span className="text-sm text-muted-foreground">
+                          <span className="text-muted-foreground text-sm">
                             {statusLabels[config.status]}
                           </span>
                         </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-muted-foreground text-sm">
                         {config.provider === 'saml'
                           ? config.saml_entity_id || 'Entity ID not set'
                           : config.oidc_issuer || 'Issuer not set'}
                       </div>
                       {config.allowed_domains.length > 0 && (
-                        <div className="flex gap-1 mt-1">
+                        <div className="mt-1 flex gap-1">
                           {config.allowed_domains.map((domain) => (
                             <Badge key={domain} variant="outline" className="text-xs">
                               {domain}
@@ -327,7 +327,7 @@ export default function SSOSettingsPage() {
                       disabled={testing === config.id}
                     >
                       {testing === config.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="size-4 animate-spin" />
                       ) : (
                         'Test'
                       )}
@@ -340,7 +340,7 @@ export default function SSOSettingsPage() {
                       {config.enabled ? 'Disable' : 'Enable'}
                     </Button>
                     <Button variant="outline" size="sm">
-                      <Settings className="h-4 w-4" />
+                      <Settings className="size-4" />
                     </Button>
                   </div>
                 </div>
@@ -350,7 +350,7 @@ export default function SSOSettingsPage() {
         )}
 
         {/* Information Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Service Provider Details</CardTitle>
@@ -361,13 +361,13 @@ export default function SSOSettingsPage() {
             <CardContent className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">ACS URL:</span>
-                <code className="bg-muted px-2 py-1 rounded text-xs">
+                <code className="bg-muted rounded px-2 py-1 text-xs">
                   {API_BASE_URL}/api/v1/sso/saml/acs
                 </code>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Entity ID:</span>
-                <code className="bg-muted px-2 py-1 rounded text-xs">
+                <code className="bg-muted rounded px-2 py-1 text-xs">
                   {API_BASE_URL}/api/v1/sso/metadata/{organizationId || '{org_id}'}
                 </code>
               </div>
@@ -382,7 +382,7 @@ export default function SSOSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 When enabled, users who authenticate via SSO will automatically
                 receive accounts with the default role you specify.
               </p>

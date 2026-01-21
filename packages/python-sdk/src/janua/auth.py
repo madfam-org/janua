@@ -10,7 +10,6 @@ from .types import (
     PasswordResetConfirm,
     VerifyEmailRequest,
     MagicLinkRequest,
-    OAuthProvider,
     PasskeyRegistrationOptions,
 )
 

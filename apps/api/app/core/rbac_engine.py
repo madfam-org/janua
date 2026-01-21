@@ -3,19 +3,16 @@ Role-Based Access Control (RBAC) Engine
 Hierarchical permission system with dynamic role evaluation
 """
 
-from typing import List, Set, Optional, Dict, Any
+from typing import List, Set, Optional, Dict
 from enum import Enum
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_
 from functools import wraps
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status
 
 from app.models.enterprise import (
     OrganizationMember,
-    OrganizationRole,
-    PermissionDefinition,
-    PermissionScope,
     RoleType
 )
 from app.models import OrganizationCustomRole

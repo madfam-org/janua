@@ -5,10 +5,7 @@ These tests actually verify the authentication system works correctly.
 
 import pytest
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, MagicMock, patch
 from app.main import app
-import json
-from datetime import datetime, timedelta
 
 pytestmark = pytest.mark.asyncio
 
@@ -234,7 +231,7 @@ class TestInputValidation:
                 response_text = str(response.json()).lower()
                 assert "sql" not in response_text
                 assert "syntax" not in response_text
-            except:
+            except Exception:
                 # If response is not JSON, just check the raw text
                 response_text = response.text.lower()
                 assert "sql" not in response_text

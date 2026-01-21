@@ -13,7 +13,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 import structlog
 
-from app.monitoring.apm import apm_collector, trace_context, performance_context
+from app.monitoring.apm import apm_collector
 from app.core.models import RequestContext
 
 logger = structlog.get_logger()
@@ -329,7 +329,7 @@ def monitor_external_api(service_name: str):
 
                     result = await func(*args, **kwargs)
                     return result
-                except Exception as e:
+                except Exception:
                     # Record external API error
                     apm_collector.record_error("external_api_error", service_name)
                     raise
@@ -351,7 +351,7 @@ def monitor_external_api(service_name: str):
 
                     result = func(*args, **kwargs)
                     return result
-                except Exception as e:
+                except Exception:
                     # Record external API error
                     apm_collector.record_error("external_api_error", service_name)
                     raise

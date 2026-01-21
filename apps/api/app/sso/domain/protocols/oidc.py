@@ -3,11 +3,8 @@ OpenID Connect (OIDC) protocol implementation
 """
 
 import base64
-import hashlib
-import json
 import secrets
-import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, Optional
 from urllib.parse import urlencode
 
@@ -15,7 +12,7 @@ import httpx
 import jwt
 from cryptography.hazmat.primitives import serialization
 
-from .base import SSOProtocol, UserProvisioningData
+from .base import SSOProtocol
 from ...exceptions import AuthenticationError, ValidationError
 
 

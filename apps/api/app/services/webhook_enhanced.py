@@ -8,7 +8,7 @@ import hashlib
 import hmac
 import time
 import asyncio
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from enum import Enum
 import httpx
@@ -18,7 +18,6 @@ from sqlalchemy import and_
 from app.models import WebhookEndpoint, WebhookEvent, WebhookDelivery
 from app.services.cache import CacheService
 from app.services.audit_logger import AuditLogger, AuditAction
-from app.config import settings
 
 
 logger = logging.getLogger(__name__)

@@ -4,15 +4,7 @@ Tests for all API router modules including auth, users, billing, organizations, 
 """
 
 import pytest
-import pytest_asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
-import json
-import asyncio
-import sys
-from httpx import AsyncClient
-from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from unittest.mock import Mock, patch
 
 pytestmark = pytest.mark.asyncio
 
@@ -77,7 +69,7 @@ class TestAuthRouter:
                 expected_paths = ['/login', '/logout', '/register', '/refresh', '/verify']
                 for expected_path in expected_paths:
                     # Check if any route contains the expected path pattern
-                    path_exists = any(expected_path in path for path in route_paths)
+                    any(expected_path in path for path in route_paths)
                     # Note: Path existence is optional since routes may have different patterns
 
         except ImportError:
@@ -119,7 +111,7 @@ class TestUsersRouter:
                 expected_paths = ['/users', '/profile', '/settings', '/preferences']
                 for expected_path in expected_paths:
                     # Check if any route contains the expected path pattern
-                    path_exists = any(expected_path in path for path in route_paths)
+                    any(expected_path in path for path in route_paths)
                     # Note: Path existence is optional since routes may have different patterns
 
         except ImportError:
@@ -155,7 +147,7 @@ class TestBillingRouter:
                 # Common billing endpoints
                 expected_paths = ['/subscription', '/payment', '/invoice', '/billing']
                 for expected_path in expected_paths:
-                    path_exists = any(expected_path in path for path in route_paths)
+                    any(expected_path in path for path in route_paths)
 
         except ImportError:
             pytest.skip("Billing router not available")
@@ -190,7 +182,7 @@ class TestOrganizationsRouter:
                 # Common organization endpoints
                 expected_paths = ['/org', '/organization', '/team', '/members']
                 for expected_path in expected_paths:
-                    path_exists = any(expected_path in path for path in route_paths)
+                    any(expected_path in path for path in route_paths)
 
         except ImportError:
             pytest.skip("Organizations router not available")
@@ -225,7 +217,7 @@ class TestAdminRouter:
                 # Common admin endpoints
                 expected_paths = ['/admin', '/dashboard', '/users', '/system']
                 for expected_path in expected_paths:
-                    path_exists = any(expected_path in path for path in route_paths)
+                    any(expected_path in path for path in route_paths)
 
         except ImportError:
             pytest.skip("Admin router not available")

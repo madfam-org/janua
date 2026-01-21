@@ -3,7 +3,6 @@ Simplified Beta Authentication System
 Minimal viable authentication for beta launch while complex system is debugged
 """
 
-import hashlib
 import os
 import secrets
 from datetime import datetime, timedelta

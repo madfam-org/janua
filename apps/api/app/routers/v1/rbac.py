@@ -2,7 +2,7 @@
 RBAC API Routes
 Role-based access control and policy management
 """
-from typing import List, Optional, Dict, Set
+from typing import List, Optional, Dict
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session

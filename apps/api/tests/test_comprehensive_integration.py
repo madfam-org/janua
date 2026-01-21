@@ -4,13 +4,9 @@ Tests complex workflows and cross-module interactions
 """
 
 import pytest
-import pytest_asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
-import json
+from unittest.mock import AsyncMock
+from datetime import datetime
 from httpx import AsyncClient
-from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 pytestmark = pytest.mark.asyncio
 

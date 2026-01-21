@@ -5,7 +5,7 @@ This module provides standardized response patterns specifically designed
 for SDK generation and consumption across multiple platforms.
 """
 
-from typing import Any, Dict, Generic, List, Optional, TypeVar, Union
+from typing import Any, Dict, Generic, List, Optional, TypeVar
 from datetime import datetime
 from pydantic import BaseModel, Field
 from enum import Enum
@@ -210,17 +210,14 @@ BulkOperationResult.model_rebuild()
 # SDK Response Type Aliases for common patterns
 class UserSDKResponse(SDKDataResponse["UserResponse"]):
     """User-specific SDK response"""
-    pass
 
 
 class OrganizationSDKResponse(SDKDataResponse["OrganizationResponse"]):
     """Organization-specific SDK response"""
-    pass
 
 
 class SessionSDKResponse(SDKDataResponse["SessionResponse"]):
     """Session-specific SDK response"""
-    pass
 
 
 # Export commonly used types for SDK generation

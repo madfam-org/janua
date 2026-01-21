@@ -5,12 +5,10 @@ Handles SAML metadata generation and parsing for SP and IdP metadata exchange.
 Supports both SP-initiated and IdP-initiated flows with certificate embedding.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
-import base64
-import re
 
 from app.sso.domain.services.certificate_manager import CertificateManager
 

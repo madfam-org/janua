@@ -2,18 +2,14 @@
 Risk assessment service for Zero-Trust authentication
 """
 
-import asyncio
-import hashlib
-import json
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func
+from sqlalchemy import select, and_, func
 try:
     import numpy as np
     from sklearn.ensemble import IsolationForest
-    import geoip2.database
     import user_agents
     ML_AVAILABLE = True
     # Type aliases for when ML is available
@@ -46,7 +42,6 @@ except ImportError:
     PolicyEvaluation = None
     AdaptiveChallenge = None
     AuthenticationMethod = None
-from ..database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -217,7 +212,7 @@ class RiskAssessmentService:
                     country = response.country.iso_code
                     if country in self._get_high_risk_countries():
                         risk_score += 0.2
-                except:
+                except Exception:
                     pass
             
         except Exception as e:
@@ -756,7 +751,7 @@ class RiskAssessmentService:
                 )
             else:
                 return self._evaluate_condition(conditions, context)
-        except:
+        except Exception:
             return False
     
     def _evaluate_condition(

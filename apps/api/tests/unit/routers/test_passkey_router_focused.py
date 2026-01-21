@@ -5,10 +5,9 @@ Covers: WebAuthn registration, authentication, and management endpoints
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
+from unittest.mock import patch, MagicMock
+from datetime import datetime
 from fastapi.testclient import TestClient
-from fastapi import HTTPException, status
 import uuid
 import base64
 

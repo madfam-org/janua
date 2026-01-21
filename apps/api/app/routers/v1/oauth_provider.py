@@ -13,12 +13,13 @@ Based on RFC 6749 (OAuth 2.0) and OpenID Connect Core 1.0
 """
 
 import hashlib
+import html
 import json
 import os
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Optional
 from urllib.parse import urlencode, urlparse
 
 import structlog
@@ -32,7 +33,7 @@ from app.config import settings
 from app.core.database import get_db
 from app.core.jwt_manager import jwt_manager
 from app.core.redis import get_redis, ResilientRedisClient
-from app.dependencies import get_current_user, get_current_user_optional
+from app.dependencies import get_current_user
 from app.models import OAuthClient, Organization, OrganizationMember, User
 from app.services.consent_service import ConsentService
 
@@ -507,22 +508,30 @@ async def authorize_get(
                 scope_display.append({"scope": s, "name": s, "description": f"Access {s}"})
 
         # Pre-generate scope items HTML (avoids f-string bracket issues in Python <3.12)
+        # SECURITY: All user-controlled content is HTML escaped to prevent XSS
         scope_items_html = ""
         for s in scope_display:
+            escaped_name = html.escape(s["name"])
+            escaped_desc = html.escape(s["description"])
             scope_items_html += f'''
             <div class="scope-item">
                 <svg class="scope-icon" fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
                 </svg>
                 <div class="scope-text">
-                    <h4>{s["name"]}</h4>
-                    <p>{s["description"]}</p>
+                    <h4>{escaped_name}</h4>
+                    <p>{escaped_desc}</p>
                 </div>
             </div>
             '''
 
-        # Pre-generate redirect URI display
+        # Pre-generate redirect URI display (escaped for XSS protection)
         redirect_display = redirect_uri.split("//")[1].split("/")[0] if "//" in redirect_uri else redirect_uri
+        escaped_redirect_display = html.escape(redirect_display)
+
+        # SECURITY: Escape all user-controlled content for the consent HTML
+        escaped_client_name = html.escape(client.name or "Unknown Application")
+        escaped_user_email = html.escape(current_user.email or "")
 
         # Store authorization request for POST handler
         auth_request_id = secrets.token_urlsafe(16)
@@ -548,7 +557,7 @@ async def authorize_get(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Authorize {client.name} - Janua</title>
+    <title>Authorize {escaped_client_name} - Janua</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{
@@ -622,8 +631,8 @@ async def authorize_get(
         </div>
 
         <div class="client-info">
-            <div class="client-name">{client.name}</div>
-            <div class="client-url">{redirect_display}</div>
+            <div class="client-name">{escaped_client_name}</div>
+            <div class="client-url">{escaped_redirect_display}</div>
         </div>
 
         <div class="scopes-section">
@@ -632,7 +641,7 @@ async def authorize_get(
         </div>
 
         <div class="user-info">
-            Signed in as <strong>{current_user.email}</strong>
+            Signed in as <strong>{escaped_user_email}</strong>
         </div>
 
         <form method="POST" action="/api/v1/oauth/consent">

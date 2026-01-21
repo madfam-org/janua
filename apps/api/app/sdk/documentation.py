@@ -5,7 +5,7 @@ Extends FastAPI's OpenAPI generation with SDK-specific metadata,
 examples, and platform-specific code generation hints.
 """
 
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional
 from enum import Enum
 from pydantic import BaseModel
 from fastapi import FastAPI

@@ -1,6 +1,6 @@
 """Event emitter for application events"""
 
-from typing import Dict, List, Callable, Any
+from typing import Dict, List, Callable
 from datetime import datetime
 import asyncio
 import structlog

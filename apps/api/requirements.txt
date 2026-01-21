@@ -1,83 +1,81 @@
 # Core dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-python-jose[cryptography]==3.3.0
-pydantic[email]==2.5.0
-pydantic-settings==2.1.0
+fastapi>=0.115.0  # Updated for security fixes
+uvicorn[standard]>=0.32.0  # Updated for security fixes
+python-multipart>=0.0.18  # CVE-2024-24762, CVE-2024-53981
+pyjwt[crypto]>=2.10.0  # Replaces python-jose (CVE-2024-33663, CVE-2024-33664)
+pydantic[email]>=2.10.0  # Updated for security fixes
+pydantic-settings>=2.6.0  # Updated for security fixes
 
 # Database
-sqlalchemy==2.0.23
-asyncpg==0.29.0
-psycopg2-binary==2.9.9
-alembic==1.12.1
+sqlalchemy>=2.0.36  # Updated for security fixes
+asyncpg>=0.30.0  # Updated for security fixes
+psycopg2-binary>=2.9.10  # Updated for security fixes
+alembic>=1.14.0  # Updated for security fixes
 
 # Authentication & Security
 passlib[bcrypt]==1.7.4
 bcrypt==4.2.1  # Pin to 4.x for passlib 1.7.4 compatibility (bcrypt 5.0 breaks passlib)
-pyjwt==2.8.0
-pyotp==2.9.0
-qrcode==7.4.2
-python-decouple==3.8
+pyotp>=2.9.0
+qrcode>=8.0
+python-decouple>=3.8
 
 # SSO Libraries
-python3-saml==1.16.0
-lxml==5.1.0
-xmlsec==1.3.15
-cryptography==41.0.7
+python3-saml>=1.16.0
+lxml>=5.3.0  # Updated for security fixes
+xmlsec>=1.3.15
+cryptography>=43.0.0  # CVE-2023-50782, CVE-2024-26130, CVE-2024-0727
 
 # Redis
-redis==5.0.1
-aioredis==2.0.1
+redis>=5.2.0  # Updated for security fixes
+aioredis>=2.0.1
 
 # Email
-resend==0.8.0
+resend>=2.5.0  # Updated
 
 # Cloud & Storage
-boto3==1.34.21
-aiofiles==23.2.1
+boto3>=1.35.0  # Updated for security fixes
+aiofiles>=24.1.0  # Updated
 
 # Payment Processing
-stripe==7.10.0
+stripe>=11.0.0  # Updated for security fixes
 
 # Templates & Email
-jinja2==3.1.2
-email-validator==2.1.0
+jinja2>=3.1.5  # CVE-2024-22195, CVE-2024-34064, CVE-2024-56201, CVE-2024-56326, CVE-2025-27516
+email-validator>=2.2.0  # Updated
 
 # Monitoring & Observability
-opentelemetry-api==1.21.0
-opentelemetry-sdk==1.21.0
-opentelemetry-exporter-jaeger==1.21.0
-opentelemetry-exporter-prometheus==0.42b0
-prometheus-client==0.19.0
-python-json-logger==2.0.7
+opentelemetry-api>=1.29.0  # Updated for security fixes
+opentelemetry-sdk>=1.29.0  # Updated for security fixes
+opentelemetry-exporter-otlp>=1.29.0  # Modern replacement for jaeger
+prometheus-client>=0.21.0  # Updated
+python-json-logger>=2.0.7
 
 # Data Analysis & Visualization (for analytics features)
-plotly==5.18.0
-scikit-learn==1.3.2
+plotly>=5.24.0  # Updated
+scikit-learn>=1.6.0  # CVE-2024-5206
 
 # GraphQL
-strawberry-graphql==0.215.1
+strawberry-graphql>=0.262.0  # Updated
 
 # Performance Testing
-locust==2.20.0
+locust>=2.32.0  # Updated
 
 # Phone Number Validation
-phonenumbers==8.13.26
+phonenumbers>=8.13.51  # Updated
 
 # Utilities
-bleach==6.1.0
-structlog==24.1.0
-webauthn==2.0.0
-slowapi==0.1.9
-httpx==0.27.2  # Updated for Starlette 0.27.0 compatibility
-python-dateutil==2.8.2
-pytz==2023.3
-psutil==5.9.6
-aiohttp==3.9.1
+bleach>=6.2.0  # Updated for security
+structlog>=24.4.0  # Updated
+webauthn>=2.2.0  # Updated for security
+slowapi>=0.1.9
+httpx>=0.28.0  # Updated for security fixes
+python-dateutil>=2.9.0  # Updated
+pytz>=2024.2  # Updated
+psutil>=6.1.0  # Updated
+aiohttp>=3.11.0  # CVE-2024-23334, CVE-2024-23829, CVE-2024-27306, CVE-2024-30251
 
 # Development & Testing (optional)
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-black==23.11.0
+pytest>=8.3.0  # Updated
+pytest-asyncio>=0.24.0  # Updated
+pytest-cov>=6.0.0  # Updated
+black>=24.10.0  # Updated

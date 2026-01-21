@@ -11,7 +11,6 @@ from sqlalchemy import and_, select
 from app.database import get_db
 from app.models import User, Organization, organization_members
 from app.routers.v1.auth import get_current_user
-from .schemas import OrganizationRole
 
 
 async def get_user_organization_role(db: Session, user_id: uuid.UUID, org_id: uuid.UUID) -> Optional[str]:

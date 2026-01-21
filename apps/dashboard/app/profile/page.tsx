@@ -237,9 +237,9 @@ export default function ProfilePage() {
     const userAgent = session.user_agent?.toLowerCase() || ''
 
     if (deviceType === 'mobile' || userAgent.includes('iphone') || userAgent.includes('android')) {
-      return <Smartphone className="h-4 w-4" />
+      return <Smartphone className="size-4" />
     }
-    return <Monitor className="h-4 w-4" />
+    return <Monitor className="size-4" />
   }
 
   const getDeviceName = (session: UserSession) => {
@@ -261,10 +261,10 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-          <p className="mt-2 text-sm text-muted-foreground">Loading profile...</p>
+          <Loader2 className="text-muted-foreground mx-auto size-8 animate-spin" />
+          <p className="text-muted-foreground mt-2 text-sm">Loading profile...</p>
         </div>
       </div>
     )
@@ -272,13 +272,13 @@ export default function ProfilePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Failed to Load Profile</h2>
+          <AlertCircle className="text-destructive mx-auto mb-4 size-12" />
+          <h2 className="mb-2 text-xl font-semibold">Failed to Load Profile</h2>
           <p className="text-muted-foreground mb-4">{error}</p>
           <Button onClick={fetchProfileData} variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshCw className="mr-2 size-4" />
             Try Again
           </Button>
         </div>
@@ -288,9 +288,9 @@ export default function ProfilePage() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <h2 className="text-xl font-semibold mb-2">Profile not found</h2>
+          <h2 className="mb-2 text-xl font-semibold">Profile not found</h2>
           <p className="text-muted-foreground">Unable to load user profile</p>
         </div>
       </div>
@@ -298,15 +298,15 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background min-h-screen">
       {/* Header */}
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto p-4">
           <div className="flex items-center space-x-4">
-            <User className="h-8 w-8 text-primary" />
+            <User className="text-primary size-8" />
             <div>
               <h1 className="text-2xl font-bold">Profile Settings</h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Manage your account and security settings
               </p>
             </div>
@@ -327,7 +327,7 @@ export default function ProfilePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
-                  <User className="h-5 w-5" />
+                  <User className="size-5" />
                   <span>Profile Information</span>
                 </CardTitle>
                 <CardDescription>
@@ -336,7 +336,7 @@ export default function ProfilePage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center space-x-4">
-                  <Avatar className="h-20 w-20">
+                  <Avatar className="size-20">
                     <AvatarImage src={profile.avatar_url || undefined} />
                     <AvatarFallback className="text-lg">
                       {profile.name?.charAt(0) || profile.email.charAt(0).toUpperCase()}
@@ -345,11 +345,11 @@ export default function ProfilePage() {
                   <div className="space-y-1">
                     <h3 className="text-lg font-medium">{profile.name || 'No name set'}</h3>
                     <div className="flex items-center space-x-2">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">{profile.email}</span>
+                      <Mail className="text-muted-foreground size-4" />
+                      <span className="text-muted-foreground text-sm">{profile.email}</span>
                       {profile.email_verified && (
                         <Badge variant="secondary" className="text-xs">
-                          <Shield className="h-3 w-3 mr-1" />
+                          <Shield className="mr-1 size-3" />
                           Verified
                         </Badge>
                       )}
@@ -359,7 +359,7 @@ export default function ProfilePage() {
 
                 <Separator />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="name">Display Name</Label>
                     {editMode ? (
@@ -370,7 +370,7 @@ export default function ProfilePage() {
                         placeholder="Enter your name"
                       />
                     ) : (
-                      <div className="px-3 py-2 border rounded-md bg-muted">
+                      <div className="bg-muted rounded-md border px-3 py-2">
                         {profile.name || 'No name set'}
                       </div>
                     )}
@@ -378,7 +378,7 @@ export default function ProfilePage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="email">Email Address</Label>
-                    <div className="px-3 py-2 border rounded-md bg-muted text-muted-foreground">
+                    <div className="bg-muted text-muted-foreground rounded-md border px-3 py-2">
                       {profile.email}
                     </div>
                   </div>
@@ -393,7 +393,7 @@ export default function ProfilePage() {
                         placeholder="https://example.com/avatar.jpg"
                       />
                     ) : (
-                      <div className="px-3 py-2 border rounded-md bg-muted">
+                      <div className="bg-muted rounded-md border px-3 py-2">
                         {profile.avatar_url || 'No avatar set'}
                       </div>
                     )}
@@ -401,7 +401,7 @@ export default function ProfilePage() {
 
                   <div className="space-y-2">
                     <Label>Account Status</Label>
-                    <div className="px-3 py-2 border rounded-md bg-muted">
+                    <div className="bg-muted rounded-md border px-3 py-2">
                       <Badge variant={profile.is_active ? "default" : "destructive"}>
                         {profile.is_active ? "Active" : "Inactive"}
                       </Badge>
@@ -430,7 +430,7 @@ export default function ProfilePage() {
                     </>
                   ) : (
                     <Button onClick={() => setEditMode(true)}>
-                      <Edit3 className="h-4 w-4 mr-2" />
+                      <Edit3 className="mr-2 size-4" />
                       Edit Profile
                     </Button>
                   )}
@@ -440,20 +440,20 @@ export default function ProfilePage() {
 
                 <div className="space-y-4">
                   <h4 className="text-sm font-medium">Account Information</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
                     <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <Calendar className="text-muted-foreground size-4" />
                       <span className="text-muted-foreground">Created:</span>
                       <span>{formatDate(profile.created_at)}</span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Edit3 className="h-4 w-4 text-muted-foreground" />
+                      <Edit3 className="text-muted-foreground size-4" />
                       <span className="text-muted-foreground">Updated:</span>
                       <span>{formatDate(profile.updated_at)}</span>
                     </div>
                     {profile.last_login_at && (
                       <div className="flex items-center space-x-2">
-                        <Activity className="h-4 w-4 text-muted-foreground" />
+                        <Activity className="text-muted-foreground size-4" />
                         <span className="text-muted-foreground">Last Login:</span>
                         <span>{formatDate(profile.last_login_at)}</span>
                       </div>
@@ -469,7 +469,7 @@ export default function ProfilePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
-                  <Key className="h-5 w-5" />
+                  <Key className="size-5" />
                   <span>Change Password</span>
                 </CardTitle>
                 <CardDescription>
@@ -516,7 +516,7 @@ export default function ProfilePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
-                  <Trash2 className="h-5 w-5 text-destructive" />
+                  <Trash2 className="text-destructive size-5" />
                   <span>Danger Zone</span>
                 </CardTitle>
                 <CardDescription>
@@ -527,7 +527,7 @@ export default function ProfilePage() {
                 <Button variant="destructive" size="sm">
                   Delete Account
                 </Button>
-                <p className="text-xs text-muted-foreground mt-2">
+                <p className="text-muted-foreground mt-2 text-xs">
                   This action cannot be undone. All your data will be permanently deleted.
                 </p>
               </CardContent>
@@ -541,7 +541,7 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center space-x-2">
-                      <Monitor className="h-5 w-5" />
+                      <Monitor className="size-5" />
                       <span>Active Sessions</span>
                     </CardTitle>
                     <CardDescription>
@@ -549,19 +549,19 @@ export default function ProfilePage() {
                     </CardDescription>
                   </div>
                   <Button variant="outline" size="sm" onClick={fetchProfileData}>
-                    <RefreshCw className="h-4 w-4 mr-2" />
+                    <RefreshCw className="mr-2 size-4" />
                     Refresh
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {sessions.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
+                  <div className="text-muted-foreground py-8 text-center">
                     No active sessions found
                   </div>
                 ) : (
                   sessions.map((session) => (
-                    <div key={session.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={session.id} className="flex items-center justify-between rounded-lg border p-4">
                       <div className="flex items-center space-x-4">
                         {getDeviceIcon(session)}
                         <div className="space-y-1">
@@ -576,15 +576,15 @@ export default function ProfilePage() {
                               <Badge variant="destructive" className="text-xs">Revoked</Badge>
                             )}
                           </div>
-                          <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                          <div className="text-muted-foreground flex items-center space-x-4 text-sm">
                             {session.ip_address && (
                               <div className="flex items-center space-x-1">
-                                <MapPin className="h-3 w-3" />
+                                <MapPin className="size-3" />
                                 <span>{session.ip_address}</span>
                               </div>
                             )}
                             <div className="flex items-center space-x-1">
-                              <Activity className="h-3 w-3" />
+                              <Activity className="size-3" />
                               <span>Last active {formatDate(session.last_activity_at)}</span>
                             </div>
                           </div>
@@ -605,10 +605,10 @@ export default function ProfilePage() {
 
                 <Separator />
 
-                <div className="flex justify-between items-center">
+                <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-sm font-medium">Sign out all devices</h4>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-muted-foreground text-xs">
                       This will sign you out on all devices except this one
                     </p>
                   </div>

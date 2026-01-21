@@ -4,11 +4,10 @@ Handles read/write splitting, failover, and monitoring for PostgreSQL replicatio
 """
 
 import asyncio
-import time
 import random
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 import asyncpg
 import structlog

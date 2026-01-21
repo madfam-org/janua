@@ -5,7 +5,6 @@ Redis cache service for session management and caching
 import json
 import logging
 from typing import Optional, Any, Dict, List
-from datetime import timedelta
 import redis.asyncio as redis
 import pickle
 
@@ -122,11 +121,11 @@ class CacheService:
                 try:
                     # Try as string
                     return value.decode('utf-8')
-                except:
+                except Exception:
                     # Try pickle for complex objects
                     try:
                         return pickle.loads(value)
-                    except:
+                    except Exception:
                         return value
                         
         except Exception as e:
@@ -145,7 +144,8 @@ class CacheService:
             return True
             
         except Exception as e:
-            logger.error(f"Cache delete error for key {key}: {e}")
+            # SECURITY: Use parameterized logging to prevent log injection
+            logger.error("Cache delete error", key=key, error=str(e))
             return False
     
     async def exists(self, key: str, namespace: Optional[str] = None) -> bool:

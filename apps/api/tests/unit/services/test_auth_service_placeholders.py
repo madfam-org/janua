@@ -2,7 +2,6 @@
 Tests for AuthService placeholder methods to achieve 95%+ coverage
 """
 
-import pytest
 
 from app.services.auth_service import AuthService
 

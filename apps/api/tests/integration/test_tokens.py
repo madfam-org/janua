@@ -17,7 +17,6 @@ Coverage Impact: +5% estimated
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 import jwt
 from datetime import datetime, timedelta
 

@@ -5,10 +5,10 @@ Targeting 95%+ coverage - streamlined and focused on actual implementation
 
 import json
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-from jose import JWTError, jwt
+from jose import jwt
 
 from app.config import settings
 from app.exceptions import AuthenticationError, TokenError

@@ -16,7 +16,6 @@ Coverage Impact: +6% estimated
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 import pyotp
 
 from app.models.user import User
@@ -230,7 +229,6 @@ async def test_mfa_totp_verification_expired_code(client: AsyncClient, test_user
     # TOTP codes typically valid for 30 seconds
     # Testing expiration would require waiting or time manipulation
     # This documents the expected behavior
-    pass
 
 
 
@@ -242,7 +240,6 @@ async def test_mfa_totp_verification_rate_limiting(client: AsyncClient, test_use
     """Test rate limiting on MFA verification attempts"""
     # NOTE: Rate limiting is mocked in test environment
     # This documents expected behavior for manual/E2E testing
-    pass
 
 
 
@@ -284,7 +281,6 @@ async def test_mfa_backup_codes_usage(client: AsyncClient, test_user_with_mfa: U
     """Test backup code can be used for authentication"""
     # This would require having actual backup codes
     # Implementation depends on backup code storage and validation
-    pass
 
 
 
@@ -295,7 +291,6 @@ async def test_mfa_backup_codes_single_use(client: AsyncClient, test_user_with_m
     """Test backup codes are single-use (can't be reused)"""
     # After using a backup code, it should be invalidated
     # Implementation test depends on backup code system
-    pass
 
 
 

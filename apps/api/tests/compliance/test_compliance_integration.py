@@ -1,4 +1,3 @@
-from tests.fixtures.async_fixtures import async_db_session, async_redis_client
 import pytest
 
 pytestmark = pytest.mark.asyncio
@@ -11,16 +10,13 @@ import pytest
 import asyncio
 from datetime import datetime, timedelta
 from uuid import uuid4
-from unittest.mock import AsyncMock, Mock
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.compliance import (
-    ConsentRecord, ConsentType, ConsentStatus, LegalBasis,
-    DataSubjectRequest, DataSubjectRequestType, RequestStatus,
-    PrivacySettings, ComplianceFramework, DataCategory
+    ConsentType, ConsentStatus, LegalBasis, DataSubjectRequestType,
+    RequestStatus, ComplianceFramework, DataCategory
 )
 from app.services.compliance_service import ComplianceService
-from app.services.audit_logger import AuditLogger, AuditEventType
+from app.services.audit_logger import AuditLogger
 
 
 class TestComplianceIntegration:
@@ -220,7 +216,6 @@ class TestComplianceIntegration:
     async def test_privacy_settings_defaults(self, compliance_service, sample_user_id, sample_tenant_id, async_db_session):
         """Test privacy-by-default settings"""
         from app.models.compliance import PrivacySettings
-        from sqlalchemy import select
 
         # 1. Create default privacy settings for new user
         privacy_settings = PrivacySettings(

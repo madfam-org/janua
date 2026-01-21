@@ -3,23 +3,20 @@ Compliance monitoring system for automated control effectiveness tracking and ev
 Supports SOC2 Trust Services Criteria monitoring and enterprise compliance requirements.
 """
 
-import asyncio
 import json
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-import psutil
 import redis.asyncio as aioredis
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.models.audit import AuditLog
-from app.models.organizations import Organization
 from app.models.users import User
 from app.monitoring.stability import SystemMetrics
 
@@ -321,7 +318,7 @@ class ComplianceMonitor:
                     exceptions.append(f"Excessive admin users: {admin_count}")
 
                 # Check recent privileged actions
-                privileged_actions = await self._get_privileged_audit_logs(session)
+                await self._get_privileged_audit_logs(session)
                 evidence_items.append(f"privileged_access_log_{datetime.utcnow().date()}")
 
                 status = (
@@ -613,7 +610,7 @@ class ComplianceMonitor:
         try:
             async with get_session() as session:
                 # Check recent user provisioning
-                recent_users = await self._get_recent_user_provisioning(session)
+                await self._get_recent_user_provisioning(session)
 
                 # Verify proper role assignment
                 improper_roles = await self._check_role_assignments(session)

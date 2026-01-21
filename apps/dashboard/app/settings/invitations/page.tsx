@@ -176,28 +176,28 @@ export default function InvitationsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-          <p className="mt-2 text-sm text-muted-foreground">Loading invitations...</p>
+          <Loader2 className="text-muted-foreground mx-auto size-8 animate-spin" />
+          <p className="text-muted-foreground mt-2 text-sm">Loading invitations...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background min-h-screen">
       {/* Header */}
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto p-4">
           <div className="flex items-center space-x-4">
             <Link href="/settings" className="text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="size-5" />
             </Link>
-            <UserPlus className="h-8 w-8 text-primary" />
+            <UserPlus className="text-primary size-8" />
             <div>
               <h1 className="text-2xl font-bold">Team Invitations</h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Invite team members to join your organization
               </p>
             </div>
@@ -205,31 +205,31 @@ export default function InvitationsPage() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 space-y-6">
+      <div className="container mx-auto space-y-6 px-4 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold">{stats.total}</div>
-              <p className="text-sm text-muted-foreground">Total Invitations</p>
+              <p className="text-muted-foreground text-sm">Total Invitations</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.pending}</div>
-              <p className="text-sm text-muted-foreground">Pending</p>
+              <p className="text-muted-foreground text-sm">Pending</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.accepted}</div>
-              <p className="text-sm text-muted-foreground">Accepted</p>
+              <p className="text-muted-foreground text-sm">Accepted</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-muted-foreground">{stats.expired}</div>
-              <p className="text-sm text-muted-foreground">Expired</p>
+              <div className="text-muted-foreground text-2xl font-bold">{stats.expired}</div>
+              <p className="text-muted-foreground text-sm">Expired</p>
             </CardContent>
           </Card>
         </div>
@@ -238,7 +238,7 @@ export default function InvitationsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5" />
+              <Send className="size-5" />
               Send Invitation
             </CardTitle>
             <CardDescription>
@@ -247,7 +247,7 @@ export default function InvitationsPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSendInvite} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
                   <Input
@@ -263,7 +263,7 @@ export default function InvitationsPage() {
                   <Label htmlFor="role">Role</Label>
                   <select
                     id="role"
-                    className="w-full h-10 px-3 border rounded-md bg-background"
+                    className="bg-background h-10 w-full rounded-md border px-3"
                     value={newInvite.role}
                     onChange={(e) => setNewInvite({ ...newInvite, role: e.target.value as 'member' | 'admin' })}
                   >
@@ -286,18 +286,18 @@ export default function InvitationsPage() {
                 <Button type="submit" disabled={sending || !newInvite.email}>
                   {sending ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <Loader2 className="mr-2 size-4 animate-spin" />
                       Sending...
                     </>
                   ) : (
                     <>
-                      <Send className="h-4 w-4 mr-2" />
+                      <Send className="mr-2 size-4" />
                       Send Invitation
                     </>
                   )}
                 </Button>
                 <Button type="button" variant="outline">
-                  <Upload className="h-4 w-4 mr-2" />
+                  <Upload className="mr-2 size-4" />
                   Bulk Upload
                 </Button>
               </div>
@@ -317,7 +317,7 @@ export default function InvitationsPage() {
               </div>
               <div className="flex gap-2">
                 <select
-                  className="h-9 px-3 border rounded-md bg-background text-sm"
+                  className="bg-background h-9 rounded-md border px-3 text-sm"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                 >
@@ -328,15 +328,15 @@ export default function InvitationsPage() {
                   <option value="revoked">Revoked</option>
                 </select>
                 <Button variant="outline" size="sm" onClick={fetchInvitations}>
-                  <RefreshCw className="h-4 w-4" />
+                  <RefreshCw className="size-4" />
                 </Button>
               </div>
             </div>
           </CardHeader>
           <CardContent>
             {filteredInvitations.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <div className="text-muted-foreground py-8 text-center">
+                <Mail className="mx-auto mb-4 size-12 opacity-50" />
                 <p>No invitations found</p>
               </div>
             ) : (
@@ -348,11 +348,11 @@ export default function InvitationsPage() {
                   return (
                     <div
                       key={invitation.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
+                      className="flex items-center justify-between rounded-lg border p-4"
                     >
                       <div className="flex items-center gap-4">
-                        <div className={`p-2 rounded-full bg-muted`}>
-                          <StatusIcon className={`h-4 w-4 ${config.color}`} />
+                        <div className={`bg-muted rounded-full p-2`}>
+                          <StatusIcon className={`size-4 ${config.color}`} />
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
@@ -360,7 +360,7 @@ export default function InvitationsPage() {
                             <Badge variant={config.badge}>{invitation.status}</Badge>
                             <Badge variant="outline">{invitation.role}</Badge>
                           </div>
-                          <div className="text-sm text-muted-foreground">
+                          <div className="text-muted-foreground text-sm">
                             Invited {formatDate(invitation.created_at)}
                             {invitation.status === 'pending' && !isExpired(invitation.expires_at) && (
                               <> &bull; Expires {formatDate(invitation.expires_at)}</>
@@ -378,7 +378,7 @@ export default function InvitationsPage() {
                             size="sm"
                             onClick={() => handleResend(invitation.id)}
                           >
-                            <Send className="h-4 w-4 mr-1" />
+                            <Send className="mr-1 size-4" />
                             Resend
                           </Button>
                           <Button
@@ -386,7 +386,7 @@ export default function InvitationsPage() {
                             size="sm"
                             onClick={() => handleRevoke(invitation.id)}
                           >
-                            <Trash2 className="h-4 w-4 mr-1" />
+                            <Trash2 className="mr-1 size-4" />
                             Revoke
                           </Button>
                         </div>

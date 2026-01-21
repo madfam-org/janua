@@ -1,5 +1,5 @@
 # Migration models - placeholder for enterprise features
-from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Text, Integer, Enum as SQLEnum
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Enum as SQLEnum
 from app.models.types import GUID as UUID, JSON as JSONB
 from datetime import datetime
 import uuid

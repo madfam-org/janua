@@ -7,9 +7,8 @@ import time
 import json
 import asyncio
 import traceback
-from typing import Dict, Any, Optional, List, Callable
-from datetime import datetime, timedelta
-from contextlib import asynccontextmanager
+from typing import Dict, Any, Optional
+from datetime import datetime
 from functools import wraps
 import logging
 
@@ -459,7 +458,7 @@ class DatabaseMonitoring:
                     
                     return result
                     
-                except Exception as e:
+                except Exception:
                     # Record failed query
                     error_rate.labels(
                         error_type="database_error",

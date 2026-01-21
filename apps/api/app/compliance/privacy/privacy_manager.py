@@ -14,8 +14,8 @@ from ..audit import AuditLogger
 from .data_subject_handler import DataSubjectRequestHandler
 from .consent_manager import ConsentManager
 from .retention_manager import RetentionManager
-from .privacy_types import PrivacyRightType, DataExportFormat, RetentionAction
-from .privacy_models import DataSubjectRequestResponse, PrivacyImpactAssessment
+from .privacy_types import DataExportFormat, RetentionAction
+from .privacy_models import DataSubjectRequestResponse
 
 logger = logging.getLogger(__name__)
 

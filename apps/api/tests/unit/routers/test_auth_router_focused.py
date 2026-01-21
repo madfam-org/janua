@@ -5,10 +5,9 @@ Covers: actual endpoints and response patterns from the implementation
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
+from unittest.mock import patch, MagicMock
+from datetime import datetime
 from fastapi.testclient import TestClient
-from fastapi import HTTPException, status
 
 from app.main import app
 

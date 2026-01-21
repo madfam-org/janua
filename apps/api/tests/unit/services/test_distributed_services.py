@@ -4,15 +4,7 @@ Tests for distributed system services including session management, websockets, 
 """
 
 import pytest
-import pytest_asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
-import json
-import asyncio
-import sys
-from httpx import AsyncClient
-from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from unittest.mock import Mock, AsyncMock, patch
 
 pytestmark = pytest.mark.asyncio
 
@@ -40,7 +32,7 @@ class TestDistributedSessionManager:
     def test_session_manager_initialization(self):
         """Test distributed session manager initializes with redis and database"""
         try:
-            from app.services.distributed_session_manager import DistributedSessionManager, SessionStore, SessionReplication
+            from app.services.distributed_session_manager import DistributedSessionManager
 
             mock_redis = AsyncMock()
             mock_db = AsyncMock()
@@ -101,7 +93,7 @@ class TestWebSocketManager:
     def test_websocket_manager_initialization(self):
         """Test WebSocket manager handles connections and messaging"""
         try:
-            from app.services.websocket_manager import WebSocketManager, ConnectionPool, MessageRouter
+            from app.services.websocket_manager import WebSocketManager
 
             ws_manager = WebSocketManager() if not hasattr(WebSocketManager, '__init__') else WebSocketManager(AsyncMock())
 
@@ -157,7 +149,7 @@ class TestStorageService:
     def test_storage_service_initialization(self):
         """Test storage service handles file operations"""
         try:
-            from app.services.storage import StorageService, FileManager, CloudStorage
+            from app.services.storage import StorageService
 
             storage_service = StorageService() if not hasattr(StorageService, '__init__') else StorageService(AsyncMock())
 
@@ -213,7 +205,7 @@ class TestPolicyEngine:
     def test_policy_engine_initialization(self):
         """Test policy engine handles business policies and rules"""
         try:
-            from app.services.policy_engine import PolicyEngine, PolicyManager, RuleEngine
+            from app.services.policy_engine import PolicyEngine
 
             policy_engine = PolicyEngine() if not hasattr(PolicyEngine, '__init__') else PolicyEngine(AsyncMock())
 
@@ -253,7 +245,7 @@ class TestRiskAssessmentService:
     def test_risk_service_initialization(self):
         """Test risk assessment service analyzes security and business risks"""
         try:
-            from app.services.risk_assessment_service import RiskAssessmentService, RiskAnalyzer, ThreatAnalysis
+            from app.services.risk_assessment_service import RiskAssessmentService
 
             risk_service = RiskAssessmentService() if not hasattr(RiskAssessmentService, '__init__') else RiskAssessmentService(AsyncMock())
 

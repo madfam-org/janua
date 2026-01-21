@@ -7,10 +7,8 @@ Comprehensive unit tests for rate limiting middleware
 """
 
 import pytest
-import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta
-from fastapi import Request, HTTPException, status
+from fastapi import Request, status
 from starlette.responses import Response
 
 from app.middleware.rate_limit import RateLimitMiddleware, RateLimitExceeded

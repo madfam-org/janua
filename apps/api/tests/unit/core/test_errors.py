@@ -2,7 +2,6 @@
 Comprehensive tests for app.core.errors module
 """
 
-import pytest
 from fastapi import status
 from app.core.errors import (
     JanuaAPIException,

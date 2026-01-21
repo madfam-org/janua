@@ -17,7 +17,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user, require_org_admin
+from app.dependencies import get_current_user
 from app.models import User, Organization
 from app.models.enterprise import (
     SCIMConfiguration,
@@ -235,7 +235,8 @@ async def create_scim_config(
     await db.commit()
     await db.refresh(scim_config)
 
-    logger.info(f"Created SCIM config for org {org_id}")
+    # Use parameterized logging to prevent log injection
+    logger.info("Created SCIM config for org %s", org_id)
 
     return SCIMConfigResponse(
         id=str(scim_config.id),
@@ -321,7 +322,8 @@ async def update_scim_config(
     await db.commit()
     await db.refresh(scim_config)
 
-    logger.info(f"Updated SCIM config for org {org_id}")
+    # Use parameterized logging to prevent log injection
+    logger.info("Updated SCIM config for org %s", org_id)
 
     token_prefix = None
     if scim_config.bearer_token:
@@ -364,7 +366,8 @@ async def delete_scim_config(
     await db.delete(scim_config)
     await db.commit()
 
-    logger.info(f"Deleted SCIM config for org {org_id}")
+    # Use parameterized logging to prevent log injection
+    logger.info("Deleted SCIM config for org %s", org_id)
 
 
 @router.post("/config/token", response_model=SCIMTokenResponse)
@@ -395,7 +398,8 @@ async def rotate_scim_token(
 
     await db.commit()
 
-    logger.info(f"Rotated SCIM token for org {org_id}")
+    # Use parameterized logging to prevent log injection
+    logger.info("Rotated SCIM token for org %s", org_id)
 
     return SCIMTokenResponse(
         bearer_token=new_token,

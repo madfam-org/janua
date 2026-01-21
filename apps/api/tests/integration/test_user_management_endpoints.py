@@ -9,15 +9,12 @@ Tests CRUD operations, user profiles, settings, and permissions
 """
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, MagicMock, patch
-import json
+from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
 import uuid
 
-from app.models import User, UserStatus, OrganizationRole
-from app.services.auth_service import AuthService
+from app.models import UserStatus, OrganizationRole
 
 
 @pytest.mark.asyncio

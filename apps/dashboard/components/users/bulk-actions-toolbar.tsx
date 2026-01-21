@@ -16,7 +16,7 @@ export function BulkActionsToolbar({
   onClear,
 }: BulkActionsToolbarProps) {
   return (
-    <div className="flex items-center gap-2 p-2 bg-muted rounded-lg animate-fade-in">
+    <div className="bg-muted animate-fade-in flex items-center gap-2 rounded-lg p-2">
       <span className="text-sm font-medium">
         {selectedCount} selected
       </span>
@@ -25,7 +25,7 @@ export function BulkActionsToolbar({
         size="sm"
         onClick={() => onAction('reset_password')}
       >
-        <KeyRound className="mr-2 h-4 w-4" />
+        <KeyRound className="mr-2 size-4" />
         Reset Passwords
       </Button>
       <Button
@@ -33,7 +33,7 @@ export function BulkActionsToolbar({
         size="sm"
         onClick={() => onAction('ban')}
       >
-        <Ban className="mr-2 h-4 w-4" />
+        <Ban className="mr-2 size-4" />
         Ban Selected
       </Button>
       <Button
@@ -41,11 +41,11 @@ export function BulkActionsToolbar({
         size="sm"
         onClick={() => onAction('delete')}
       >
-        <Trash2 className="mr-2 h-4 w-4" />
+        <Trash2 className="mr-2 size-4" />
         Delete Selected
       </Button>
       <Button variant="ghost" size="sm" onClick={onClear}>
-        <X className="h-4 w-4" />
+        <X className="size-4" />
       </Button>
     </div>
   )

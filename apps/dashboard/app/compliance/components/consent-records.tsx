@@ -21,10 +21,10 @@ export function ConsentRecords({ consents, onWithdraw }: ConsentRecordsProps) {
       </CardHeader>
       <CardContent>
         {consents.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <div className="text-muted-foreground py-8 text-center">
+            <Shield className="mx-auto mb-4 size-12 opacity-50" />
             <p>No consent records found</p>
-            <p className="text-sm mt-2">
+            <p className="mt-2 text-sm">
               Your consent preferences will appear here once you interact with consent prompts
             </p>
           </div>
@@ -33,7 +33,7 @@ export function ConsentRecords({ consents, onWithdraw }: ConsentRecordsProps) {
             {consents.map((consent) => (
               <div
                 key={consent.id}
-                className={`flex items-center justify-between p-4 border rounded-lg ${
+                className={`flex items-center justify-between rounded-lg border p-4 ${
                   consent.granted
                     ? 'border-green-500/30 bg-green-500/10'
                     : 'border-border'
@@ -46,7 +46,7 @@ export function ConsentRecords({ consents, onWithdraw }: ConsentRecordsProps) {
                       {consent.granted ? 'Granted' : 'Withdrawn'}
                     </Badge>
                   </div>
-                  <div className="text-sm text-muted-foreground mt-1">
+                  <div className="text-muted-foreground mt-1 text-sm">
                     Legal basis: {consent.legal_basis}
                     {consent.granted && consent.granted_at && <> &bull; Granted {formatDate(consent.granted_at)}</>}
                     {!consent.granted && consent.withdrawn_at && (

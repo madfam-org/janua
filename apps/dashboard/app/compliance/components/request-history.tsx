@@ -23,14 +23,14 @@ export function RequestHistory({ requests, onRefresh }: RequestHistoryProps) {
             <CardDescription>Track the status of your data requests</CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={onRefresh}>
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="size-4" />
           </Button>
         </div>
       </CardHeader>
       <CardContent>
         {requests.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <div className="text-muted-foreground py-8 text-center">
+            <FileText className="mx-auto mb-4 size-12 opacity-50" />
             <p>No data requests submitted yet</p>
           </div>
         ) : (
@@ -41,17 +41,17 @@ export function RequestHistory({ requests, onRefresh }: RequestHistoryProps) {
               const type = REQUEST_TYPES.find((t) => t.value === request.request_type)
 
               return (
-                <div key={request.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={request.id} className="flex items-center justify-between rounded-lg border p-4">
                   <div className="flex items-center gap-4">
-                    <div className="p-2 rounded-full bg-muted">
-                      <StatusIcon className={`h-4 w-4 ${config.color}`} />
+                    <div className="bg-muted rounded-full p-2">
+                      <StatusIcon className={`size-4 ${config.color}`} />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{type?.label || request.request_type}</span>
                         <Badge variant={config.badge}>{config.label}</Badge>
                       </div>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-muted-foreground text-sm">
                         Submitted {formatDate(request.requested_at)}
                         {request.completed_at && <> &bull; Completed {formatDate(request.completed_at)}</>}
                       </div>
@@ -61,7 +61,7 @@ export function RequestHistory({ requests, onRefresh }: RequestHistoryProps) {
                   {request.data_export_url && request.status === 'completed' && (
                     <Button variant="outline" size="sm" asChild>
                       <a href={request.data_export_url} target="_blank" rel="noopener noreferrer">
-                        <Download className="h-4 w-4 mr-1" />
+                        <Download className="mr-1 size-4" />
                         Download
                       </a>
                     </Button>

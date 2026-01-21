@@ -9,11 +9,10 @@ Complete unit tests for JWTService to achieve 100% coverage
 import pytest
 from unittest.mock import Mock, patch, MagicMock, AsyncMock
 from datetime import datetime, timedelta, timezone
-import json
 from uuid import uuid4
 
 from app.services.jwt_service import JWTService
-from app.exceptions import AuthenticationError, TokenError
+from app.exceptions import TokenError
 
 
 class TestJWTServiceInitialization:

@@ -6,7 +6,6 @@ Supports RS256 (asymmetric) for production and HS256 (symmetric) for testing
 
 import base64
 import secrets
-import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional, Tuple
 
@@ -14,12 +13,10 @@ import jwt
 import structlog
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.database_manager import get_db_session
 
 logger = structlog.get_logger()
 

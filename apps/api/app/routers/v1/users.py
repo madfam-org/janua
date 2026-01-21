@@ -5,8 +5,8 @@ User management endpoints
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_, select, func, update
-from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import or_, select, func, update
+from pydantic import BaseModel, Field
 from datetime import datetime
 import uuid
 import os

@@ -11,7 +11,7 @@ interface TestResult {
 }
 
 test.describe('100% Functionality Test', () => {
-  let results: TestResult[] = [];
+  const results: TestResult[] = [];
 
   const addResult = (result: TestResult) => {
     results.push(result);

@@ -139,8 +139,8 @@ export function IdentityList() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">Loading identities...</span>
+        <Loader2 className="text-muted-foreground size-8 animate-spin" />
+        <span className="text-muted-foreground ml-2">Loading identities...</span>
       </div>
     )
   }
@@ -148,8 +148,8 @@ export function IdentityList() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Failed to Load Identities</h3>
+        <AlertCircle className="text-destructive mb-4 size-12" />
+        <h3 className="mb-2 text-lg font-semibold">Failed to Load Identities</h3>
         <p className="text-muted-foreground mb-4">{error}</p>
         <Button onClick={fetchIdentities} variant="outline">
           Try Again
@@ -164,16 +164,16 @@ export function IdentityList() {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="text-muted-foreground absolute left-2 top-2.5 size-4" />
             <input
               placeholder="Search identities..."
-              className="pl-8 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              className="focus:ring-primary rounded-md border py-2 pl-8 pr-4 focus:outline-none focus:ring-2"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <Button variant="outline" size="sm">
-            <Filter className="h-4 w-4 mr-2" />
+            <Filter className="mr-2 size-4" />
             Filter
           </Button>
         </div>
@@ -182,7 +182,7 @@ export function IdentityList() {
             Refresh
           </Button>
           <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
+            <Download className="mr-2 size-4" />
             Export
           </Button>
         </div>
@@ -192,7 +192,7 @@ export function IdentityList() {
       <div className="rounded-md border">
         <table className="w-full">
           <thead>
-            <tr className="border-b bg-muted/50">
+            <tr className="bg-muted/50 border-b">
               <th className="p-4 text-left text-sm font-medium">Identity</th>
               <th className="p-4 text-left text-sm font-medium">Status</th>
               <th className="p-4 text-left text-sm font-medium">Auth Methods</th>
@@ -204,42 +204,42 @@ export function IdentityList() {
           <tbody>
             {filteredIdentities.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                <td colSpan={6} className="text-muted-foreground p-8 text-center">
                   {searchTerm ? 'No identities match your search' : 'No identities found'}
                 </td>
               </tr>
             ) : (
               filteredIdentities.map((identity) => (
-                <tr key={identity.id} className="border-b hover:bg-muted/50">
+                <tr key={identity.id} className="hover:bg-muted/50 border-b">
                   <td className="p-4">
                     <div>
                       <div className="font-medium">{identity.name}</div>
-                      <div className="text-sm text-muted-foreground">{identity.email}</div>
+                      <div className="text-muted-foreground text-sm">{identity.email}</div>
                     </div>
                   </td>
                   <td className="p-4">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(identity.status)}`}>
+                    <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getStatusColor(identity.status)}`}>
                       {identity.status}
                     </span>
                   </td>
                   <td className="p-4">
                     <div className="flex gap-1">
                       {identity.authMethods.map((method) => (
-                        <span key={method} className="inline-flex items-center px-2 py-1 rounded-md bg-muted text-xs">
+                        <span key={method} className="bg-muted inline-flex items-center rounded-md px-2 py-1 text-xs">
                           {method}
                         </span>
                       ))}
                     </div>
                   </td>
-                  <td className="p-4 text-sm text-muted-foreground">
+                  <td className="text-muted-foreground p-4 text-sm">
                     {identity.lastSignIn}
                   </td>
-                  <td className="p-4 text-sm text-muted-foreground font-mono">
+                  <td className="text-muted-foreground p-4 font-mono text-sm">
                     {identity.id.slice(0, 8)}...
                   </td>
                   <td className="p-4">
                     <Button variant="ghost" size="sm">
-                      <MoreHorizontal className="h-4 w-4" />
+                      <MoreHorizontal className="size-4" />
                     </Button>
                   </td>
                 </tr>
@@ -251,7 +251,7 @@ export function IdentityList() {
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
+        <div className="text-muted-foreground text-sm">
           Showing {filteredIdentities.length} of {identities.length} identities
         </div>
         <div className="flex space-x-2">

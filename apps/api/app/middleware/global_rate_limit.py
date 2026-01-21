@@ -3,21 +3,17 @@ Global Rate Limiting Configuration for ALL Endpoints
 Ensures 100% endpoint coverage with appropriate limits per endpoint category
 """
 
-import asyncio
 import hashlib
-import json
 import logging
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta
-from typing import Callable, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import redis.asyncio as redis
-from fastapi import HTTPException, Request, status
+from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -317,7 +313,6 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
             from uuid import UUID
 
             from sqlalchemy import select
-            from sqlalchemy.ext.asyncio import AsyncSession
 
             from app.core.database import get_db_session
             from app.models import Organization, OrganizationMember
@@ -486,7 +481,6 @@ class AdvancedRateLimitFeatures:
             from uuid import UUID
 
             from sqlalchemy import select
-            from sqlalchemy.ext.asyncio import AsyncSession
 
             from app.models import OrganizationMember, Subscription
 

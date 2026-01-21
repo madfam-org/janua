@@ -59,10 +59,10 @@ interface SCIMSyncStatusResponse {
 }
 
 const statusIcons = {
-  active: <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />,
-  pending: <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />,
-  disabled: <XCircle className="h-4 w-4 text-muted-foreground" />,
-  error: <XCircle className="h-4 w-4 text-destructive" />,
+  active: <CheckCircle2 className="size-4 text-green-600 dark:text-green-400" />,
+  pending: <AlertCircle className="size-4 text-yellow-600 dark:text-yellow-400" />,
+  disabled: <XCircle className="text-muted-foreground size-4" />,
+  error: <XCircle className="text-destructive size-4" />,
 }
 
 const providerLabels: Record<string, string> = {
@@ -229,29 +229,29 @@ export default function SCIMSettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-          <p className="mt-2 text-sm text-muted-foreground">Loading SCIM configuration...</p>
+          <Loader2 className="text-muted-foreground mx-auto size-8 animate-spin" />
+          <p className="text-muted-foreground mt-2 text-sm">Loading SCIM configuration...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background min-h-screen">
       {/* Header */}
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Link href="/settings" className="text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="h-5 w-5" />
+                <ArrowLeft className="size-5" />
               </Link>
-              <Users className="h-8 w-8 text-primary" />
+              <Users className="text-primary size-8" />
               <div>
                 <h1 className="text-2xl font-bold">SCIM Provisioning</h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Automate user provisioning from your identity provider
                 </p>
               </div>
@@ -261,12 +261,12 @@ export default function SCIMSettingsPage() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 space-y-6">
+      <div className="container mx-auto space-y-6 px-4 py-8">
         {error && (
           <Card className="border-destructive">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-destructive">
-                <AlertCircle className="h-5 w-5" />
+              <div className="text-destructive flex items-center gap-2">
+                <AlertCircle className="size-5" />
                 <span>{error}</span>
               </div>
             </CardContent>
@@ -284,7 +284,7 @@ export default function SCIMSettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center space-x-2">
-                <code className="flex-1 p-3 bg-white border rounded font-mono text-sm break-all">
+                <code className="flex-1 break-all rounded border bg-white p-3 font-mono text-sm">
                   {newToken}
                 </code>
                 <Button
@@ -342,21 +342,21 @@ export default function SCIMSettingsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" onClick={fetchSCIMConfig}>
-                      <RefreshCw className="h-4 w-4 mr-2" />
+                      <RefreshCw className="mr-2 size-4" />
                       Refresh
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setShowWizard(true)}>
-                      <Settings className="h-4 w-4 mr-2" />
+                      <Settings className="mr-2 size-4" />
                       Edit
                     </Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center justify-between rounded-lg border p-4">
                   <div className="flex items-center gap-4">
-                    <div className="p-2 bg-muted rounded-lg">
-                      <Users className="h-5 w-5" />
+                    <div className="bg-muted rounded-lg p-2">
+                      <Users className="size-5" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
@@ -365,16 +365,16 @@ export default function SCIMSettingsPage() {
                         </span>
                         <div className="flex items-center gap-1">
                           {config.enabled ? statusIcons.active : statusIcons.disabled}
-                          <span className="text-sm text-muted-foreground">
+                          <span className="text-muted-foreground text-sm">
                             {config.enabled ? 'Active' : 'Disabled'}
                           </span>
                         </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-muted-foreground text-sm">
                         SCIM Endpoint: {config.base_url}
                       </div>
                       {config.bearer_token_prefix && (
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-muted-foreground text-sm">
                           Token: {config.bearer_token_prefix}...
                         </div>
                       )}
@@ -388,10 +388,10 @@ export default function SCIMSettingsPage() {
                       disabled={rotatingToken}
                     >
                       {rotatingToken ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="size-4 animate-spin" />
                       ) : (
                         <>
-                          <RotateCcw className="h-4 w-4 mr-2" />
+                          <RotateCcw className="mr-2 size-4" />
                           Rotate Token
                         </>
                       )}
@@ -409,7 +409,7 @@ export default function SCIMSettingsPage() {
                       className="text-destructive hover:text-destructive"
                       onClick={handleDelete}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="size-4" />
                     </Button>
                   </div>
                 </div>
@@ -438,10 +438,10 @@ export default function SCIMSettingsPage() {
                     {syncStatus.recent_operations.slice(0, 10).map((op) => (
                       <div
                         key={op.id}
-                        className="flex items-center justify-between p-3 border rounded-lg text-sm"
+                        className="flex items-center justify-between rounded-lg border p-3 text-sm"
                       >
                         <div className="flex items-center gap-3">
-                          <div className={`h-2 w-2 rounded-full ${
+                          <div className={`size-2 rounded-full ${
                             op.status === 'success' ? 'bg-green-500' :
                             op.status === 'failed' ? 'bg-red-500' : 'bg-yellow-500'
                           }`} />
@@ -466,7 +466,7 @@ export default function SCIMSettingsPage() {
             )}
 
             {/* Information Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">SCIM Endpoint Details</CardTitle>
@@ -475,21 +475,21 @@ export default function SCIMSettingsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
-                  <div className="flex justify-between items-center">
+                  <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Base URL:</span>
-                    <code className="bg-muted px-2 py-1 rounded text-xs">
+                    <code className="bg-muted rounded px-2 py-1 text-xs">
                       {config.base_url}
                     </code>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Users Endpoint:</span>
-                    <code className="bg-muted px-2 py-1 rounded text-xs">
+                    <code className="bg-muted rounded px-2 py-1 text-xs">
                       {config.base_url}/Users
                     </code>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Groups Endpoint:</span>
-                    <code className="bg-muted px-2 py-1 rounded text-xs">
+                    <code className="bg-muted rounded px-2 py-1 text-xs">
                       {config.base_url}/Groups
                     </code>
                   </div>
@@ -506,27 +506,27 @@ export default function SCIMSettingsPage() {
                 <CardContent>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <CheckCircle2 className="size-4 text-green-500" />
                       <span>User Create</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <CheckCircle2 className="size-4 text-green-500" />
                       <span>User Update</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <CheckCircle2 className="size-4 text-green-500" />
                       <span>User Delete</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <CheckCircle2 className="size-4 text-green-500" />
                       <span>User Patch</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <CheckCircle2 className="size-4 text-green-500" />
                       <span>Group Create</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <CheckCircle2 className="size-4 text-green-500" />
                       <span>Group Update</span>
                     </div>
                   </div>

@@ -3,24 +3,18 @@ Security Policy Management for enterprise compliance.
 Automated policy distribution, acknowledgment tracking, version control, and violation detection.
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from dataclasses import dataclass, asdict
 import uuid
-import json
 import hashlib
-import aiofiles
 import redis.asyncio as aioredis
-from sqlalchemy import select, and_, func, desc, text
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import select, and_, func
 
 from app.core.database import get_session
 from app.models.audit import AuditLog
-from app.models.users import User
 from app.core.config import get_settings
 from .audit import AuditLogger, AuditEventType, EvidenceType
 from .monitor import ComplianceMonitor
@@ -813,12 +807,10 @@ class PolicyManager:
     async def _send_policy_notifications(self, policy: SecurityPolicy, notification_groups: List[str]):
         """Send notifications about new/updated policy"""
         # Implementation would send email/Slack notifications
-        pass
 
     async def _send_acknowledgment_notifications(self, policy: SecurityPolicy, user_ids: List[str]):
         """Send acknowledgment request notifications"""
         # Implementation would send notification to users
-        pass
 
     async def _analyze_event_for_violations(self, event: AuditLog) -> Optional[PolicyViolation]:
         """Analyze audit event for potential policy violations"""

@@ -7,6 +7,8 @@ provider configuration from discovery endpoints.
 Reference: https://openid.net/specs/openid-connect-discovery-1_0.html
 """
 
+import ipaddress
+import socket
 from typing import Dict, Any, Optional
 from urllib.parse import urlparse
 import httpx
@@ -176,24 +178,62 @@ class OIDCDiscoveryService:
         }
     
     def _validate_issuer(self, issuer: str) -> None:
-        """Validate issuer URL format."""
+        """
+        Validate issuer URL format.
+
+        SECURITY: Includes SSRF protection to prevent requests to internal networks.
+        """
         if not issuer:
             raise ValueError("Issuer is required")
-        
+
         if not issuer.startswith(("http://", "https://")):
             raise ValueError("Issuer must be a valid HTTPS URL")
-        
+
+        parsed = urlparse(issuer)
+        if not parsed.netloc:
+            raise ValueError("Invalid issuer URL")
+
+        # SECURITY: SSRF protection - block internal network access
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError("Invalid issuer URL: missing hostname")
+
+        # Block localhost variants
+        blocked_hostnames = ['localhost', '127.0.0.1', '::1', '0.0.0.0']
+        if hostname.lower() in blocked_hostnames:
+            raise ValueError("SSRF protection: localhost URLs are not allowed")
+
+        # Resolve hostname and check for private IPs
+        try:
+            ip_addresses = socket.getaddrinfo(hostname, None)
+            for family, _, _, _, sockaddr in ip_addresses:
+                ip_str = sockaddr[0]
+                ip_obj = ipaddress.ip_address(ip_str)
+
+                # Block private, loopback, link-local, and reserved ranges
+                if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved:
+                    raise ValueError(
+                        f"SSRF protection: URLs resolving to internal networks are not allowed"
+                    )
+
+                # Specifically block cloud metadata endpoints
+                if ip_str in ['169.254.169.254', '169.254.170.2']:
+                    raise ValueError("SSRF protection: cloud metadata endpoints are not allowed")
+        except socket.gaierror:
+            # DNS resolution failed - this is acceptable for validation
+            pass
+        except ValueError as e:
+            if "SSRF protection" in str(e):
+                raise
+            # Other ValueError from ip_address parsing - continue validation
+
         # Production should use HTTPS
-        if issuer.startswith("http://") and not issuer.startswith("http://localhost"):
+        if issuer.startswith("http://"):
             import warnings
             warnings.warn(
                 "Using HTTP for OIDC discovery in production is insecure. Use HTTPS.",
                 UserWarning
             )
-        
-        parsed = urlparse(issuer)
-        if not parsed.netloc:
-            raise ValueError("Invalid issuer URL")
     
     def _build_discovery_url(self, issuer: str) -> str:
         """Build discovery URL from issuer."""

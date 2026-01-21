@@ -77,7 +77,7 @@ export function PrivacySettingsSection({
 
           <div className="space-y-2 rounded-lg border p-4">
             <label className="font-medium">Profile Visibility</label>
-            <p className="text-sm text-muted-foreground">Control who can see your profile</p>
+            <p className="text-muted-foreground text-sm">Control who can see your profile</p>
             <div className="mt-3 space-y-2">
               {PROFILE_VISIBILITY_OPTIONS.map((option) => (
                 <label
@@ -96,11 +96,11 @@ export function PrivacySettingsSection({
                     onChange={(e) =>
                       updatePref('profile_visibility', e.target.value as 'public' | 'private' | 'organization')
                     }
-                    className="mt-1 h-4 w-4"
+                    className="mt-1 size-4"
                   />
                   <div>
                     <p className="font-medium">{option.label}</p>
-                    <p className="text-sm text-muted-foreground">{option.description}</p>
+                    <p className="text-muted-foreground text-sm">{option.description}</p>
                   </div>
                 </label>
               ))}
@@ -112,7 +112,7 @@ export function PrivacySettingsSection({
           <Button onClick={onSave} disabled={saving}>
             {saving ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="mr-2 size-4 animate-spin" />
                 Saving...
               </>
             ) : (

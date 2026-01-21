@@ -9,14 +9,12 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.models.compliance import (
     DataSubjectRequest, DataSubjectRequestType, RequestStatus, 
     DataCategory, ComplianceFramework
 )
-from app.models.users import User
 from ..audit import AuditLogger, AuditEventType, EvidenceType
 
 from .privacy_types import DataExportFormat

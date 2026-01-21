@@ -5,7 +5,7 @@ These error classes provide consistent error handling across all SDK platforms
 while maintaining platform-specific idioms and conventions.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 from abc import ABC
 

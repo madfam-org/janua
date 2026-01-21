@@ -7,9 +7,7 @@ Working unit tests for MonitoringService - matches actual implementation
 """
 
 import pytest
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
-from datetime import datetime
-import json
+from unittest.mock import Mock, patch, AsyncMock
 import time
 
 from app.services.monitoring import (

@@ -3,17 +3,12 @@ Comprehensive tests for AuditLogger service
 Target: 95%+ coverage (from 54% baseline)
 """
 
-import hashlib
-import json
-import uuid
-from datetime import datetime, timedelta
-from typing import Any, Dict
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from datetime import datetime
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from botocore.exceptions import ClientError
 
-from app.models import AuditLog
 from app.services.audit_logger import AuditEventType, AuditLogger, AuditMiddleware
 
 pytestmark = pytest.mark.asyncio

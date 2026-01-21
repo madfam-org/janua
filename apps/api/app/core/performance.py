@@ -7,7 +7,7 @@ import asyncio
 import time
 import logging
 from functools import wraps
-from typing import Dict, Any, Optional, Callable, Awaitable
+from typing import Dict, Any, Optional, Callable
 from contextlib import asynccontextmanager
 import weakref
 import json
@@ -15,7 +15,7 @@ import hashlib
 from datetime import datetime, timedelta
 
 import redis.asyncio as redis
-from fastapi import Request, Response
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,7 +46,7 @@ class PerformanceMonitoringMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         
         start_time = time.perf_counter()
-        request_id = id(request)
+        id(request)
         
         # Add performance context to request
         request.state.start_time = start_time

@@ -23,7 +23,6 @@ class SSOProtocol(ABC):
         Returns:
             Dict containing auth_url, protocol-specific params, and request metadata
         """
-        pass
 
     @abstractmethod
     async def handle_callback(
@@ -37,7 +36,6 @@ class SSOProtocol(ABC):
         Returns:
             Dict containing user data, session info, and tokens
         """
-        pass
 
     @abstractmethod
     async def validate_configuration(
@@ -50,17 +48,14 @@ class SSOProtocol(ABC):
         Returns:
             True if configuration is valid
         """
-        pass
 
     @abstractmethod
     def get_protocol_name(self) -> str:
         """Return the protocol name (e.g., 'saml2', 'oidc')"""
-        pass
 
     @abstractmethod
     def get_required_config_fields(self) -> list[str]:
         """Return list of required configuration fields for this protocol"""
-        pass
 
 
 class SSOConfiguration:

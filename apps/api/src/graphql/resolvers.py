@@ -3,14 +3,10 @@ GraphQL Resolvers for Janua Platform
 Implements all queries, mutations, and subscriptions defined in the schema
 """
 
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional
 from graphql import GraphQLError
-import asyncio
-import json
 
-from app.auth import get_current_user, require_permissions
-from app.models import User, Organization, Team, Session, ApiKey
+from app.auth import require_permissions
 from app.services import (
     UserService,
     OrganizationService,
@@ -25,9 +21,7 @@ from app.services import (
     InvitationsService,
     RateLimiter
 )
-from app.database import get_db
-from app.utils import generate_token, hash_password, verify_password
-from app.exceptions import ValidationError, AuthenticationError, PermissionError
+from app.exceptions import ValidationError, AuthenticationError
 
 # Initialize services
 user_service = UserService()
@@ -631,7 +625,6 @@ class Subscription:
 async def send_invitation_email(invitation: Dict):
     """Send invitation email to user"""
     # Implementation would send actual email
-    pass
 
 
 # ==================== EXPORT RESOLVERS ====================

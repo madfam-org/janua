@@ -3,9 +3,9 @@ SSO/SAML API endpoints for enterprise authentication
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -128,8 +128,8 @@ async def get_sso_service(db: AsyncSession = Depends(get_db)) -> SSOService:
 
     # Initialize dependencies
     redis_client = await get_redis()
-    cache_service = CacheService(redis_client)
-    jwt_service = JWTService()
+    cache_service = CacheService()  # Singleton, no arguments needed
+    jwt_service = JWTService(db, redis_client)  # Requires db and redis
 
     # Create and return SSO service
     return SSOService(db=db, cache=cache_service, jwt_service=jwt_service)
@@ -446,7 +446,8 @@ async def oidc_callback(
     """
     try:
         if error:
-            logger.error(f"OIDC error: {error} - {error_description}")
+            # SECURITY: Use parameterized logging to prevent log injection
+            logger.error("OIDC error", error=error, description=error_description)
             raise HTTPException(
                 status_code=400, detail=error_description or "Authentication failed"
             )

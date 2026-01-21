@@ -4,7 +4,6 @@ Certificate Management Service for SSO
 Handles X.509 certificates for SAML, certificate validation, storage, and rotation.
 """
 
-import base64
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
@@ -16,7 +15,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 
-from ...exceptions import ValidationError, ConfigurationError
+from ...exceptions import ValidationError
 
 
 class CertificateManager:

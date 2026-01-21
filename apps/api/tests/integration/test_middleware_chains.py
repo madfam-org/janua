@@ -4,9 +4,7 @@ This test covers middleware execution order, error handling, performance monitor
 Expected to cover 500+ lines across middleware and core modules.
 """
 
-import pytest
 import asyncio
-import json
 import time
 from fastapi.testclient import TestClient
 from httpx import AsyncClient

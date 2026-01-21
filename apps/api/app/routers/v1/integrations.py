@@ -124,8 +124,11 @@ async def get_integration_token(
         db.add(activity)
         await db.commit()
 
+        # SECURITY: Use parameterized logging to prevent log injection
         logger.info(
-            f"Integration token accessed: user={current_user.id}, provider={provider}"
+            "Integration token accessed",
+            user_id=str(current_user.id),
+            provider=provider,
         )
 
         return IntegrationTokenResponse(
@@ -141,7 +144,8 @@ async def get_integration_token(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrieving integration token: {e}")
+        # SECURITY: Use parameterized logging to prevent log injection
+        logger.error("Error retrieving integration token", error=str(e))
         raise HTTPException(
             status_code=500,
             detail="Failed to retrieve integration token"

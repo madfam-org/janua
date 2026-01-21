@@ -3,10 +3,9 @@ Interactive API Documentation Generator
 Generates comprehensive OpenAPI documentation with examples, schemas, and interactive features
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
-from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 
 
 def custom_openapi(app: FastAPI) -> Dict[str, Any]:

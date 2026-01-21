@@ -12,8 +12,7 @@ import pytest
 import asyncio
 from datetime import datetime, timedelta
 from uuid import uuid4
-from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Dict, Any
+from unittest.mock import patch
 
 from app.services.risk_assessment_service import RiskAssessmentService
 

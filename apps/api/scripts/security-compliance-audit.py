@@ -5,16 +5,12 @@ Comprehensive security validation for enterprise authentication platform
 """
 import asyncio
 import json
-import subprocess
 import sys
-import time
-import hashlib
 import secrets
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 from datetime import datetime
 import requests
-import re
 
 
 class SecurityComplianceAuditor:
@@ -122,7 +118,7 @@ class SecurityComplianceAuditor:
                 },
                 timeout=5
             )
-        except:
+        except Exception:
             pass
 
         # Try multiple failed login attempts

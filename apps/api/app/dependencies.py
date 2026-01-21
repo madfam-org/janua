@@ -12,8 +12,7 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.core.redis import get_redis, ResilientRedisClient
-from .models import User, UserStatus, Organization, OrganizationMember
-from app.services.auth_service import AuthService
+from .models import User, UserStatus, OrganizationMember
 
 security = HTTPBearer()
 # Optional security scheme for endpoints that work with or without authentication
@@ -49,9 +48,16 @@ async def get_email_service():
     return EmailService(redis_client=redis_client)
 
 
-async def get_jwt_service():
+async def get_jwt_service(
+    db: AsyncSession = Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis)
+):
     """
-    Get JWTService instance.
+    Get JWTService instance with database and redis dependencies.
+
+    Args:
+        db: Database session
+        redis: Redis client
 
     Returns:
         JWTService: Configured JWT service instance
@@ -65,17 +71,12 @@ async def get_jwt_service():
     """
     from app.services.jwt_service import JWTService
 
-    return JWTService()
+    return JWTService(db, redis)
 
 
-async def get_audit_service(
-    db: AsyncSession = Depends(get_db)
-):
+async def get_audit_service():
     """
-    Get AuditService instance with database dependency.
-
-    Args:
-        db: Database session
+    Get AuditService instance.
 
     Returns:
         AuditService: Configured audit service instance
@@ -83,30 +84,26 @@ async def get_audit_service(
     Example usage in router:
         @router.post("/action")
         async def perform_action(
-            audit_service: AuditService = Depends(get_audit_service)
+            audit_service: AuditService = Depends(get_audit_service),
+            db: AsyncSession = Depends(get_db)
         ):
-            await audit_service.log_action(...)
+            await audit_service.log_action(db, ...)
     """
     from app.services.audit_service import AuditService
 
-    return AuditService(db)
+    return AuditService()
 
 
-async def get_webhook_service(
-    db: AsyncSession = Depends(get_db)
-):
+async def get_webhook_service():
     """
-    Get WebhookService instance with database dependency.
-
-    Args:
-        db: Database session
+    Get WebhookService instance.
 
     Returns:
         WebhookService: Configured webhook service instance
     """
     from app.services.webhooks import WebhookService
 
-    return WebhookService(db)
+    return WebhookService()
 
 
 async def get_rbac_service(
@@ -165,7 +162,6 @@ async def get_current_user(
 ) -> User:
     """Get current authenticated user from JWT token (cached for 5 minutes)"""
     from app.core.jwt_manager import jwt_manager
-    import json
 
     token = credentials.credentials
 

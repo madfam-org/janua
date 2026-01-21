@@ -534,7 +534,8 @@ async def link_oauth_callback(
 
         await db.commit()
 
-        logger.info(f"Successfully linked {provider} account for user {user_id}")
+        # SECURITY: Use parameterized logging to prevent log injection
+        logger.info("Successfully linked OAuth account", provider=provider, user_id=user_id)
 
         # Redirect to final destination or return success
         if final_redirect:

@@ -10,7 +10,6 @@ Usage:
         assert test_user.email == "test@example.com"
 """
 
-import pytest
 import pytest_asyncio
 from datetime import datetime, timedelta
 from typing import AsyncGenerator

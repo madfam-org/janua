@@ -2,16 +2,14 @@
 Enterprise models for advanced features
 """
 
-from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Text, Integer, Enum as SQLEnum, JSON
+from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Text, Integer, Enum as SQLEnum
 from app.models.types import GUID as UUID, JSON as JSONB
-from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 import enum
 
 from . import Base
 # Import models from main models module for convenience
-from . import Organization, OrganizationMember, OrganizationRole, WebhookEndpoint, WebhookDelivery, WebhookStatus, AuditLog
 
 
 class SSOProvider(str, enum.Enum):

@@ -6,7 +6,6 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, select, delete
-import uuid
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_admin

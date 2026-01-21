@@ -56,9 +56,9 @@ export default function LoginPage() {
 
   if (authLoading || isCheckingSession) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+          <Loader2 className="text-primary mx-auto mb-4 size-8 animate-spin" />
           <p className="text-muted-foreground">Checking session...</p>
         </div>
       </div>
@@ -66,21 +66,21 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="bg-card p-8 rounded-lg border border-border w-full max-w-md">
-        <div className="flex items-center justify-center mb-6">
-          <div className="p-3 bg-destructive/10 rounded-lg">
-            <Shield className="h-8 w-8 text-destructive" />
+    <div className="bg-background flex min-h-screen items-center justify-center">
+      <div className="bg-card border-border w-full max-w-md rounded-lg border p-8">
+        <div className="mb-6 flex items-center justify-center">
+          <div className="bg-destructive/10 rounded-lg p-3">
+            <Shield className="text-destructive size-8" />
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-foreground text-center mb-2">Janua Admin</h1>
-        <p className="text-sm text-muted-foreground text-center mb-6">Internal Platform Management</p>
+        <h1 className="text-foreground mb-2 text-center text-2xl font-bold">Janua Admin</h1>
+        <p className="text-muted-foreground mb-6 text-center text-sm">Internal Platform Management</p>
 
         {/* Restricted Access Notice */}
-        <div className="flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 mb-6">
-          <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-500" />
           <div className="text-sm">
-            <p className="font-medium text-foreground">Restricted Access</p>
+            <p className="text-foreground font-medium">Restricted Access</p>
             <p className="text-muted-foreground">
               Only authorized platform operators may access Janua Admin.
             </p>
@@ -89,28 +89,28 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           {loginError && (
-            <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-destructive text-sm">
+            <div className="bg-destructive/10 border-destructive/30 text-destructive rounded-lg border p-3 text-sm">
               {loginError}
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Email</label>
+            <label className="text-foreground mb-1 block text-sm font-medium">Email</label>
             <input
               type="email"
               value={loginEmail}
               onChange={(e) => setLoginEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring"
+              className="border-input bg-background text-foreground focus:ring-ring focus:border-ring w-full rounded-lg border px-3 py-2 focus:ring-2"
               placeholder="admin@janua.dev"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Password</label>
+            <label className="text-foreground mb-1 block text-sm font-medium">Password</label>
             <input
               type="password"
               value={loginPassword}
               onChange={(e) => setLoginPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring"
+              className="border-input bg-background text-foreground focus:ring-ring focus:border-ring w-full rounded-lg border px-3 py-2 focus:ring-2"
               placeholder="********"
               required
             />
@@ -118,18 +118,18 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoggingIn}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 disabled:opacity-50"
           >
             {isLoggingIn ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="size-4 animate-spin" />
             ) : (
-              <LogIn className="h-4 w-4" />
+              <LogIn className="size-4" />
             )}
             Sign In
           </button>
         </form>
 
-        <p className="mt-4 text-xs text-muted-foreground text-center">
+        <p className="text-muted-foreground mt-4 text-center text-xs">
           admin.janua.dev | Platform Operators Only
         </p>
       </div>

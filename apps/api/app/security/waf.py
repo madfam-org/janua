@@ -7,10 +7,10 @@ import re
 import json
 import hashlib
 import ipaddress
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from fastapi import Request, HTTPException
+from datetime import datetime
+from fastapi import Request
 from fastapi.responses import JSONResponse
 import structlog
 

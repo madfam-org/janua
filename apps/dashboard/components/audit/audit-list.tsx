@@ -202,8 +202,8 @@ export function AuditList() {
   if (loading && logs.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">Loading audit logs...</span>
+        <Loader2 className="text-muted-foreground size-8 animate-spin" />
+        <span className="text-muted-foreground ml-2">Loading audit logs...</span>
       </div>
     )
   }
@@ -211,8 +211,8 @@ export function AuditList() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Failed to Load Audit Logs</h3>
+        <AlertCircle className="text-destructive mb-4 size-12" />
+        <h3 className="mb-2 text-lg font-semibold">Failed to Load Audit Logs</h3>
         <p className="text-muted-foreground mb-4">{error}</p>
         <Button onClick={() => fetchLogs()} variant="outline">
           Try Again
@@ -225,35 +225,35 @@ export function AuditList() {
     <div className="space-y-4">
       {/* Stats Banner */}
       {stats && (
-        <div className="grid grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg">
+        <div className="bg-muted/50 grid grid-cols-4 gap-4 rounded-lg p-4">
           <div>
             <div className="text-2xl font-bold">{stats.total_events}</div>
-            <div className="text-sm text-muted-foreground">Total Events</div>
+            <div className="text-muted-foreground text-sm">Total Events</div>
           </div>
           <div>
             <div className="text-2xl font-bold">{stats.unique_users}</div>
-            <div className="text-sm text-muted-foreground">Unique Users</div>
+            <div className="text-muted-foreground text-sm">Unique Users</div>
           </div>
           <div>
             <div className="text-2xl font-bold">{stats.unique_ips}</div>
-            <div className="text-sm text-muted-foreground">Unique IPs</div>
+            <div className="text-muted-foreground text-sm">Unique IPs</div>
           </div>
           <div>
             <div className="text-2xl font-bold">
               {Object.keys(stats.events_by_action).length}
             </div>
-            <div className="text-sm text-muted-foreground">Action Types</div>
+            <div className="text-muted-foreground text-sm">Action Types</div>
           </div>
         </div>
       )}
 
       {/* Search and Filters */}
       <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+        <div className="relative max-w-md flex-1">
+          <Search className="text-muted-foreground absolute left-2 top-2.5 size-4" />
           <input
             placeholder="Search by user, action, IP, or resource..."
-            className="w-full pl-8 pr-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            className="focus:ring-primary w-full rounded-md border py-2 pl-8 pr-4 focus:outline-none focus:ring-2"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -264,16 +264,16 @@ export function AuditList() {
             size="sm"
             onClick={() => setShowFilters(!showFilters)}
           >
-            <Filter className="h-4 w-4 mr-2" />
+            <Filter className="mr-2 size-4" />
             Filters
-            <ChevronDown className={`h-4 w-4 ml-1 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`ml-1 size-4 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
           </Button>
           <Button variant="outline" size="sm" onClick={() => fetchLogs()}>
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshCw className="mr-2 size-4" />
             Refresh
           </Button>
           <Button variant="outline" size="sm" onClick={() => exportLogs('json')}>
-            <Download className="h-4 w-4 mr-2" />
+            <Download className="mr-2 size-4" />
             Export
           </Button>
         </div>
@@ -281,11 +281,11 @@ export function AuditList() {
 
       {/* Filter Panel */}
       {showFilters && (
-        <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+        <div className="bg-muted/30 space-y-3 rounded-lg p-4">
           <div className="flex items-center gap-4">
             <label className="text-sm font-medium">Action Type:</label>
             <select
-              className="px-3 py-1.5 border rounded-md text-sm"
+              className="rounded-md border px-3 py-1.5 text-sm"
               value={selectedAction}
               onChange={(e) => {
                 setSelectedAction(e.target.value)
@@ -306,7 +306,7 @@ export function AuditList() {
       <div className="rounded-md border">
         <table className="w-full">
           <thead>
-            <tr className="border-b bg-muted/50">
+            <tr className="bg-muted/50 border-b">
               <th className="p-4 text-left text-sm font-medium">Timestamp</th>
               <th className="p-4 text-left text-sm font-medium">Action</th>
               <th className="p-4 text-left text-sm font-medium">User</th>
@@ -318,34 +318,34 @@ export function AuditList() {
           <tbody>
             {filteredLogs.length === 0 ? (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                <td colSpan={6} className="text-muted-foreground p-8 text-center">
                   {searchTerm ? 'No audit logs match your search' : 'No audit logs found'}
                 </td>
               </tr>
             ) : (
               filteredLogs.map((log) => (
-                <tr key={log.id} className="border-b hover:bg-muted/50">
+                <tr key={log.id} className="hover:bg-muted/50 border-b">
                   <td className="p-4">
                     <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <Clock className="text-muted-foreground size-4" />
                       <div>
                         <div className="text-sm font-medium">{formatTimeAgo(log.timestamp)}</div>
-                        <div className="text-xs text-muted-foreground">{formatDateTime(log.timestamp)}</div>
+                        <div className="text-muted-foreground text-xs">{formatDateTime(log.timestamp)}</div>
                       </div>
                     </div>
                   </td>
                   <td className="p-4">
-                    <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${getActionColor(log.action)}`}>
+                    <span className={`inline-flex rounded px-2 py-1 text-xs font-medium ${getActionColor(log.action)}`}>
                       {log.action}
                     </span>
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
+                      <User className="text-muted-foreground size-4" />
                       <div>
                         <div className="text-sm">{log.user_email || 'System'}</div>
                         {log.user_id && (
-                          <div className="text-xs text-muted-foreground font-mono">
+                          <div className="text-muted-foreground font-mono text-xs">
                             {log.user_id.slice(0, 8)}...
                           </div>
                         )}
@@ -357,7 +357,7 @@ export function AuditList() {
                       <div>
                         <div className="text-sm font-medium">{log.resource_type}</div>
                         {log.resource_id && (
-                          <div className="text-xs text-muted-foreground font-mono">
+                          <div className="text-muted-foreground font-mono text-xs">
                             {log.resource_id.slice(0, 8)}...
                           </div>
                         )}
@@ -368,8 +368,8 @@ export function AuditList() {
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-mono">{log.ip_address || '-'}</span>
+                      <Globe className="text-muted-foreground size-4" />
+                      <span className="font-mono text-sm">{log.ip_address || '-'}</span>
                     </div>
                   </td>
                   <td className="p-4">
@@ -380,7 +380,7 @@ export function AuditList() {
                         onClick={() => alert(JSON.stringify(log.details, null, 2))}
                         title="View details"
                       >
-                        <Shield className="h-4 w-4" />
+                        <Shield className="size-4" />
                       </Button>
                     ) : (
                       <span className="text-muted-foreground">-</span>
@@ -394,7 +394,7 @@ export function AuditList() {
       </div>
 
       {/* Load More */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex items-center justify-between text-sm">
         <div>
           Showing {filteredLogs.length} audit log entries
         </div>
@@ -406,7 +406,7 @@ export function AuditList() {
             disabled={loading}
           >
             {loading ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading...</>
+              <><Loader2 className="mr-2 size-4 animate-spin" /> Loading...</>
             ) : (
               'Load More'
             )}
@@ -416,15 +416,15 @@ export function AuditList() {
 
       {/* Top Actions */}
       {stats && Object.keys(stats.events_by_action).length > 0 && (
-        <div className="p-4 bg-muted/30 rounded-lg">
-          <h4 className="text-sm font-medium mb-3">Top Actions (Last 30 Days)</h4>
+        <div className="bg-muted/30 rounded-lg p-4">
+          <h4 className="mb-3 text-sm font-medium">Top Actions (Last 30 Days)</h4>
           <div className="grid grid-cols-4 gap-4">
             {Object.entries(stats.events_by_action)
               .sort(([, a], [, b]) => b - a)
               .slice(0, 8)
               .map(([action, count]) => (
-                <div key={action} className="flex items-center justify-between p-2 bg-background rounded border">
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${getActionColor(action)}`}>
+                <div key={action} className="bg-background flex items-center justify-between rounded border p-2">
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${getActionColor(action)}`}>
                     {action}
                   </span>
                   <span className="text-sm font-medium">{count}</span>

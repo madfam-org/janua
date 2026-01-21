@@ -3,9 +3,9 @@ Comprehensive Auth Service Test Suite - Targeting 80%+ Coverage
 Tests user creation, authentication, session management, and security features
 """
 
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from uuid import UUID, uuid4
+from datetime import datetime
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
 import pytest
 

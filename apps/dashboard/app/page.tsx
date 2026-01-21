@@ -38,9 +38,9 @@ export default function DashboardPage() {
 
 function DashboardLoading() {
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="bg-background flex min-h-screen items-center justify-center">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <div className="border-primary mx-auto mb-4 size-8 animate-spin rounded-full border-b-2"></div>
         <p className="text-muted-foreground">Loading dashboard...</p>
       </div>
     </div>
@@ -116,9 +116,9 @@ function DashboardContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <div className="border-primary mx-auto mb-4 size-8 animate-spin rounded-full border-b-2"></div>
           <p className="text-muted-foreground">Loading dashboard...</p>
         </div>
       </div>
@@ -126,16 +126,16 @@ function DashboardContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background min-h-screen">
       {/* Header */}
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Shield className="h-8 w-8 text-primary" />
+              <Shield className="text-primary size-8" />
               <div>
                 <h1 className="text-2xl font-bold">Janua Dashboard</h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Welcome back, {user?.name || user?.email || 'User'}
                 </p>
               </div>
@@ -143,7 +143,7 @@ function DashboardContent() {
             <div className="flex items-center space-x-4">
               <Button variant="outline" size="sm" asChild>
                 <a href="/settings">
-                  <Settings className="h-4 w-4 mr-2" />
+                  <Settings className="mr-2 size-4" />
                   Settings
                 </a>
               </Button>
@@ -160,27 +160,27 @@ function DashboardContent() {
         <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="overview">
-              <BarChart3 className="h-4 w-4 mr-2" />
+              <BarChart3 className="mr-2 size-4" />
               Overview
             </TabsTrigger>
             <TabsTrigger value="identities">
-              <Users className="h-4 w-4 mr-2" />
+              <Users className="mr-2 size-4" />
               Identities
             </TabsTrigger>
             <TabsTrigger value="sessions">
-              <Key className="h-4 w-4 mr-2" />
+              <Key className="mr-2 size-4" />
               Sessions
             </TabsTrigger>
             <TabsTrigger value="organizations">
-              <Building2 className="h-4 w-4 mr-2" />
+              <Building2 className="mr-2 size-4" />
               Organizations
             </TabsTrigger>
             <TabsTrigger value="webhooks">
-              <Webhook className="h-4 w-4 mr-2" />
+              <Webhook className="mr-2 size-4" />
               Webhooks
             </TabsTrigger>
             <TabsTrigger value="audit">
-              <Activity className="h-4 w-4 mr-2" />
+              <Activity className="mr-2 size-4" />
               Audit
             </TabsTrigger>
           </TabsList>

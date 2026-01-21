@@ -2,20 +2,19 @@
 Comprehensive compliance API endpoints for GDPR, SOC 2, HIPAA, and other frameworks
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Dict, Any, Optional
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import User
 from app.models.compliance import (
-    ConsentType, ConsentStatus, LegalBasis, DataCategory,
-    DataSubjectRequestType, RequestStatus, ComplianceFramework
+    ConsentType, LegalBasis, DataCategory, DataSubjectRequestType,
+    ComplianceFramework
 )
 from app.services.compliance_service import ComplianceService
 from app.services.audit_logger import AuditLogger

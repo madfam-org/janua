@@ -9,22 +9,20 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, validator
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
 from app.routers.v1.auth import get_current_user
 from app.dependencies import require_verified_email
-from app.services.email import EmailService
 
 from ...models import (
     Organization,
     OrganizationCustomRole,
     OrganizationInvitation,
-    OrganizationMember,
     OrganizationRole,
     User,
     organization_members,
@@ -175,7 +173,7 @@ async def check_organization_permission(
         cached_org = await redis.get(cache_key)
         if cached_org:
             # Cached org data found, reconstruct object
-            org_data = json.loads(cached_org)
+            json.loads(cached_org)
             # We still need to query to get the full ORM object for relationships
             # But we can verify it exists first
             pass  # Continue to DB query for full object
@@ -495,7 +493,7 @@ async def list_organization_members(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization ID")
 
-    org = await check_organization_permission(db, current_user, org_uuid)
+    await check_organization_permission(db, current_user, org_uuid)
 
     # Get members with their roles
     result_set = await db.execute(
@@ -837,7 +835,7 @@ async def revoke_invitation(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID")
 
-    org = await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
+    await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
 
     invitation_result = await db.execute(
         select(OrganizationInvitation).where(
@@ -874,7 +872,7 @@ async def create_custom_role(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization ID")
 
-    org = await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
+    await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
 
     # Check if role name already exists
     existing_result = await db.execute(
@@ -1002,7 +1000,7 @@ async def delete_custom_role(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid ID")
 
-    org = await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
+    await check_organization_permission(db, current_user, org_uuid, OrganizationRole.ADMIN)
 
     role_result = await db.execute(
         select(OrganizationCustomRole).where(

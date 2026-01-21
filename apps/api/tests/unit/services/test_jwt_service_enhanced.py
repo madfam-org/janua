@@ -4,16 +4,15 @@ Targeting 95%+ coverage from 70% baseline
 Fixes failing tests and covers missing lines
 """
 
-import json
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock
 from uuid import uuid4
 
 import pytest
 from jose import JWTError, jwt
 
 from app.config import settings
-from app.exceptions import AuthenticationError, TokenError
+from app.exceptions import TokenError
 from app.services.jwt_service import JWTService
 
 pytestmark = pytest.mark.asyncio
@@ -418,7 +417,7 @@ class TestTokenRefresh:
         
         refresh_token = await jwt_service.create_refresh_token(identity_id="user-123")
         
-        result = await jwt_service.refresh_tokens(refresh_token)
+        await jwt_service.refresh_tokens(refresh_token)
         
         # Verify new tokens created
         mock_token_pair.assert_called_once()

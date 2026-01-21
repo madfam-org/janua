@@ -3,16 +3,15 @@ Unified Database Manager for Janua API
 Standardizes on async SQLAlchemy with comprehensive health monitoring
 """
 
-import asyncio
 import time
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator
 
 import structlog
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool, StaticPool
+from sqlalchemy.pool import StaticPool
 
 from app.config import settings
 

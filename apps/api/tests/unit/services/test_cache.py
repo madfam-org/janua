@@ -9,7 +9,7 @@ Comprehensive tests for app.services.cache module
 import pytest
 import json
 import pickle
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 from datetime import timedelta
 
 from app.services.cache import CacheService

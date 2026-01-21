@@ -6,10 +6,9 @@ import secrets
 import string
 from datetime import datetime, timedelta
 from typing import List, Optional
-from uuid import UUID
 
 from app.models import OrganizationRole
-from ..models.membership import Membership, OrganizationInvitation
+from ..models.membership import OrganizationInvitation
 
 
 class MembershipService:

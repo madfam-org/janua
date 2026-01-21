@@ -7,14 +7,13 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc, select, func, delete
+from sqlalchemy import and_, desc, select, func, delete
 from pydantic import BaseModel, Field
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_admin
 from app.models import AuditLog
 from app.services.audit_logger import AuditLogger, AuditAction
-from app.services.cache import CacheService
 
 
 router = APIRouter(prefix="/v1/audit-logs", tags=["audit-logs"])

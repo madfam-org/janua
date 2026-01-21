@@ -169,11 +169,8 @@ async def setup_oidc_provider(
     Microsoft, Okta, etc. - just provide issuer and credentials.
     """
     try:
-        from sqlalchemy.orm import Session
+        pass
 
-        from app.database import get_db
-        from app.models import SSOProvider
-        from app.sso.domain.protocols.base import SSOProtocol
         from app.sso.domain.services.oidc_discovery import OIDCDiscoveryService
 
         # Discover configuration

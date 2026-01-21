@@ -181,29 +181,29 @@ export default function CompliancePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-          <p className="mt-2 text-sm text-muted-foreground">Loading compliance data...</p>
+          <Loader2 className="text-muted-foreground mx-auto size-8 animate-spin" />
+          <p className="text-muted-foreground mt-2 text-sm">Loading compliance data...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background min-h-screen">
       {/* Header */}
       <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Link href="/settings" className="text-muted-foreground hover:text-foreground">
-                <ArrowLeft className="h-5 w-5" />
+                <ArrowLeft className="size-5" />
               </Link>
-              <FileCheck className="h-8 w-8 text-primary" />
+              <FileCheck className="text-primary size-8" />
               <div>
                 <h1 className="text-2xl font-bold">Privacy & Compliance</h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Manage your privacy settings and exercise your data rights
                 </p>
               </div>
@@ -217,8 +217,8 @@ export default function CompliancePage() {
         {error && (
           <Card className="border-destructive mb-6">
             <CardContent className="pt-6">
-              <div className="flex items-center gap-2 text-destructive">
-                <AlertCircle className="h-5 w-5" />
+              <div className="text-destructive flex items-center gap-2">
+                <AlertCircle className="size-5" />
                 <span>{error}</span>
               </div>
             </CardContent>
@@ -228,15 +228,15 @@ export default function CompliancePage() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="privacy" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
+              <Settings className="size-4" />
               Privacy Settings
             </TabsTrigger>
             <TabsTrigger value="requests" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
+              <FileText className="size-4" />
               Data Requests
             </TabsTrigger>
             <TabsTrigger value="consent" className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
+              <Shield className="size-4" />
               Consent Management
             </TabsTrigger>
           </TabsList>

@@ -9,11 +9,9 @@ Tests core auth flows without problematic fields
 """
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, MagicMock, patch
-import json
-from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
+from datetime import datetime
 import uuid
 
 from app.models import UserStatus

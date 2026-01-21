@@ -118,8 +118,8 @@ function LoginForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
-        <div className="flex justify-center mb-4">
-          <Shield className="h-12 w-12 text-primary" />
+        <div className="mb-4 flex justify-center">
+          <Shield className="text-primary size-12" />
         </div>
         <CardTitle className="text-2xl">Sign in to Janua</CardTitle>
         <CardDescription>
@@ -128,8 +128,8 @@ function LoginForm() {
       </CardHeader>
       <CardContent>
         {sessionMessage && (
-          <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-md flex items-start gap-2">
-            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+            <AlertCircle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <p className="text-sm text-amber-700 dark:text-amber-300">{sessionMessage}</p>
           </div>
         )}
@@ -172,17 +172,17 @@ function LoginForm() {
                 disabled={isLoading}
               >
                 {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
+                  <EyeOff className="size-4" />
                 ) : (
-                  <Eye className="h-4 w-4" />
+                  <Eye className="size-4" />
                 )}
               </Button>
             </div>
           </div>
 
           {error && (
-            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            <div className="text-destructive bg-destructive/10 flex items-start gap-2 rounded-md p-3 text-sm">
+              <AlertCircle className="mt-0.5 size-5 shrink-0" />
               <span>{error}</span>
             </div>
           )}
@@ -194,7 +194,7 @@ function LoginForm() {
           >
             {isLoading ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 size-4 animate-spin" />
                 Signing in...
               </>
             ) : (
@@ -202,7 +202,7 @@ function LoginForm() {
             )}
           </Button>
 
-          <div className="text-center text-sm text-muted-foreground">
+          <div className="text-muted-foreground text-center text-sm">
             Don&apos;t have an account?{' '}
             <a href="#" className="text-primary hover:underline">
               Contact support
@@ -218,8 +218,8 @@ function LoginFormFallback() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
-        <div className="flex justify-center mb-4">
-          <Shield className="h-12 w-12 text-primary" />
+        <div className="mb-4 flex justify-center">
+          <Shield className="text-primary size-12" />
         </div>
         <CardTitle className="text-2xl">Sign in to Janua</CardTitle>
         <CardDescription>
@@ -228,7 +228,7 @@ function LoginFormFallback() {
       </CardHeader>
       <CardContent>
         <div className="flex justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <Loader2 className="text-primary size-8 animate-spin" />
         </div>
       </CardContent>
     </Card>
@@ -237,7 +237,7 @@ function LoginFormFallback() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="bg-background flex min-h-screen items-center justify-center p-4">
       <Suspense fallback={<LoginFormFallback />}>
         <LoginForm />
       </Suspense>

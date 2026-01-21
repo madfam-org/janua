@@ -25,19 +25,19 @@ export function InfrastructureSection() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="text-primary size-8 animate-spin" />
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-foreground">Infrastructure</h2>
+      <h2 className="text-foreground text-2xl font-bold">Infrastructure</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-card p-6 rounded-lg border border-border">
-          <h3 className="text-lg font-semibold mb-4 text-foreground">Backend Services</h3>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="bg-card border-border rounded-lg border p-6">
+          <h3 className="text-foreground mb-4 text-lg font-semibold">Backend Services</h3>
           <div className="space-y-3">
             {health && (
               <>
@@ -51,22 +51,22 @@ export function InfrastructureSection() {
           </div>
         </div>
 
-        <div className="bg-card p-6 rounded-lg border border-border">
-          <h3 className="text-lg font-semibold mb-4 text-foreground">Deployment Info</h3>
+        <div className="bg-card border-border rounded-lg border p-6">
+          <h3 className="text-foreground mb-4 text-lg font-semibold">Deployment Info</h3>
           <div className="space-y-2 text-sm">
             {health && (
               <>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Environment</span>
-                  <span className="font-medium text-foreground">{health.environment}</span>
+                  <span className="text-foreground font-medium">{health.environment}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Version</span>
-                  <span className="font-medium text-foreground">{health.version}</span>
+                  <span className="text-foreground font-medium">{health.version}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Uptime</span>
-                  <span className="font-medium text-foreground">
+                  <span className="text-foreground font-medium">
                     {Math.floor(health.uptime / 3600)}h {Math.floor((health.uptime % 3600) / 60)}m
                   </span>
                 </div>

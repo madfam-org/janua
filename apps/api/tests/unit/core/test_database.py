@@ -7,8 +7,7 @@ Unit tests for database module
 """
 
 import pytest
-import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db, init_db
@@ -116,7 +115,6 @@ class TestDatabaseConfiguration:
             mock_settings.DATABASE_URL = "postgresql://user:pass@localhost/db"
             
             # Import after patching to get the corrected URL
-            from app.core import database
             
             # The corrected URL should be used for asyncpg
             # This is a conceptual test - the actual correction happens at import time

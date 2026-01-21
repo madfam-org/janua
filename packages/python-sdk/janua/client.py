@@ -1,8 +1,7 @@
 """Main Janua SDK client for authentication and user management."""
 
 import os
-from typing import Optional, Dict, Any, List
-from urllib.parse import urljoin
+from typing import Optional, Dict, Any
 
 from .http_client import HTTPClient
 from .auth import AuthClient
@@ -13,15 +12,9 @@ from .webhooks import WebhooksClient
 from .mfa import MFAClient
 from .passkeys import PasskeysClient
 from .types import (
-    User,
-    Session,
-    Organization,
-    MFASettings,
-    Passkey,
-    WebhookEndpoint,
     JanuaConfig,
 )
-from .exceptions import JanuaError, ConfigurationError
+from .exceptions import ConfigurationError
 
 
 class JanuaClient:

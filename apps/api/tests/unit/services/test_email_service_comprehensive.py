@@ -11,11 +11,8 @@ Covers: EmailService with verification, password reset, welcome emails, token ma
 """
 
 import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
-import secrets
-import hashlib
+from unittest.mock import AsyncMock, patch
+from datetime import datetime
 import smtplib
 from pathlib import Path
 
@@ -43,7 +40,7 @@ class TestEmailServiceInitialization:
     def test_email_service_template_directory(self):
         """Test email service template directory is set correctly"""
         service = EmailService()
-        expected_path = Path(__file__).parent.parent.parent.parent / "app" / "templates" / "email"
+        Path(__file__).parent.parent.parent.parent / "app" / "templates" / "email"
         assert service.template_dir.name == "email"
 
     def test_get_email_service_factory(self):

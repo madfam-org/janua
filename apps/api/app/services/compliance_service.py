@@ -2,26 +2,23 @@
 Compliance service for GDPR, SOC 2, HIPAA, and other frameworks
 """
 
-import asyncio
 import uuid
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func, text
-from sqlalchemy.orm import selectinload
 
 from app.models import User
 from app.models.compliance import (
     ConsentRecord, ConsentType, ConsentStatus, LegalBasis,
     DataRetentionPolicy, DataSubjectRequest, DataSubjectRequestType, RequestStatus,
-    PrivacySettings, DataBreachIncident, ComplianceReport, ComplianceControl,
-    DataCategory, ComplianceFramework
+    PrivacySettings, DataBreachIncident, ComplianceReport, DataCategory,
+    ComplianceFramework
 )
 from app.services.audit_logger import AuditLogger, AuditEventType
 from app.core.logging import logger
-from app.config import settings
 
 
 class ConsentService:

@@ -3,19 +3,16 @@ Data Privacy and GDPR Automation for enterprise compliance.
 Automated data subject request handling, retention management, and privacy compliance.
 """
 
-import asyncio
 import logging
 import json
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union, Tuple
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from dataclasses import dataclass, asdict
 import uuid
 import aiofiles
 import redis.asyncio as aioredis
-from sqlalchemy import select, and_, func, desc, delete, text
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import select, and_, desc, delete
 
 from app.core.database import get_session
 from app.models.compliance import (
@@ -24,7 +21,6 @@ from app.models.compliance import (
     DataCategory, LegalBasis, ComplianceFramework
 )
 from app.models.users import User
-from app.models.audit import AuditLog
 from app.core.config import get_settings
 from .audit import AuditLogger, AuditEventType, EvidenceType
 

@@ -25,15 +25,15 @@ export function UsersSection() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="text-primary size-8 animate-spin" />
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 text-center">
+      <div className="bg-destructive/10 border-destructive/20 rounded-lg border p-6 text-center">
         <p className="text-destructive">{error}</p>
       </div>
     )
@@ -42,38 +42,38 @@ export function UsersSection() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-foreground">User Management</h2>
-        <span className="text-sm text-muted-foreground">{users.length} users</span>
+        <h2 className="text-foreground text-2xl font-bold">User Management</h2>
+        <span className="text-muted-foreground text-sm">{users.length} users</span>
       </div>
 
-      <div className="bg-card rounded-lg border border-border">
+      <div className="bg-card border-border rounded-lg border">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-border">
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">User</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">MFA</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Orgs</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Sessions</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">Last Sign In</th>
+            <tr className="border-border border-b">
+              <th className="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase">User</th>
+              <th className="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase">Status</th>
+              <th className="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase">MFA</th>
+              <th className="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase">Orgs</th>
+              <th className="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase">Sessions</th>
+              <th className="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase">Last Sign In</th>
             </tr>
           </thead>
           <tbody>
             {users.map((user) => (
-              <tr key={user.id} className="border-b border-border hover:bg-muted/50">
+              <tr key={user.id} className="border-border hover:bg-muted/50 border-b">
                 <td className="px-6 py-4">
                   <div>
-                    <div className="text-sm font-medium text-foreground">
+                    <div className="text-foreground text-sm font-medium">
                       {user.first_name} {user.last_name}
                       {user.is_admin && (
-                        <span className="ml-2 px-1.5 py-0.5 text-xs bg-destructive/10 text-destructive rounded">Admin</span>
+                        <span className="bg-destructive/10 text-destructive ml-2 rounded px-1.5 py-0.5 text-xs">Admin</span>
                       )}
                     </div>
-                    <div className="text-xs text-muted-foreground">{user.email}</div>
+                    <div className="text-muted-foreground text-xs">{user.email}</div>
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                  <span className={`rounded-full px-2 py-1 text-xs font-medium ${
                     user.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
                     user.status === 'suspended' ? 'bg-destructive/10 text-destructive' :
                     'bg-muted text-muted-foreground'
@@ -88,9 +88,9 @@ export function UsersSection() {
                     <span className="text-muted-foreground">Disabled</span>
                   )}
                 </td>
-                <td className="px-6 py-4 text-sm text-foreground">{user.organizations_count}</td>
-                <td className="px-6 py-4 text-sm text-foreground">{user.sessions_count}</td>
-                <td className="px-6 py-4 text-sm text-muted-foreground">
+                <td className="text-foreground px-6 py-4 text-sm">{user.organizations_count}</td>
+                <td className="text-foreground px-6 py-4 text-sm">{user.sessions_count}</td>
+                <td className="text-muted-foreground px-6 py-4 text-sm">
                   {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : 'Never'}
                 </td>
               </tr>

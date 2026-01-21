@@ -5,12 +5,11 @@ Provides version detection, compatibility checking, and graceful handling
 of API changes across different client SDK versions.
 """
 
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set
 from enum import Enum
 from dataclasses import dataclass
 from datetime import datetime, date
 import re
-from packaging import version
 
 
 class APIVersion(str, Enum):

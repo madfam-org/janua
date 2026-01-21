@@ -243,8 +243,8 @@ export function UsersDataTable() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">Loading users...</span>
+        <Loader2 className="text-muted-foreground size-8 animate-spin" />
+        <span className="text-muted-foreground ml-2">Loading users...</span>
       </div>
     )
   }
@@ -253,11 +253,11 @@ export function UsersDataTable() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <AlertCircle className="h-12 w-12 text-destructive mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Failed to Load Users</h3>
+        <AlertCircle className="text-destructive mb-4 size-12" />
+        <h3 className="mb-2 text-lg font-semibold">Failed to Load Users</h3>
         <p className="text-muted-foreground mb-4">{error}</p>
         <Button onClick={fetchUsers} variant="outline">
-          <RefreshCw className="mr-2 h-4 w-4" />
+          <RefreshCw className="mr-2 size-4" />
           Try Again
         </Button>
       </div>
@@ -271,14 +271,14 @@ export function UsersDataTable() {
         <div className="flex items-center gap-2">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="text-muted-foreground absolute left-2 top-2.5 size-4" />
             <Input
               placeholder="Search users..."
               value={(table.getColumn('email')?.getFilterValue() as string) ?? ''}
               onChange={(event) =>
                 table.getColumn('email')?.setFilterValue(event.target.value)
               }
-              className="pl-8 w-[250px]"
+              className="w-[250px] pl-8"
             />
           </div>
 
@@ -307,18 +307,18 @@ export function UsersDataTable() {
               }}
             >
               Clear all
-              <X className="ml-2 h-4 w-4" />
+              <X className="ml-2 size-4" />
             </Button>
           )}
         </div>
 
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={fetchUsers}>
-            <RefreshCw className="mr-2 h-4 w-4" />
+            <RefreshCw className="mr-2 size-4" />
             Refresh
           </Button>
           <Button variant="outline" size="sm">
-            <Download className="mr-2 h-4 w-4" />
+            <Download className="mr-2 size-4" />
             Export
           </Button>
         </div>
@@ -385,7 +385,7 @@ export function UsersDataTable() {
 
       {/* Pagination */}
       <div className="flex items-center justify-between px-2">
-        <div className="text-sm text-muted-foreground">
+        <div className="text-muted-foreground text-sm">
           {selectedCount > 0
             ? `${selectedCount} of ${table.getFilteredRowModel().rows.length} row(s) selected`
             : `${table.getFilteredRowModel().rows.length} user(s)`}

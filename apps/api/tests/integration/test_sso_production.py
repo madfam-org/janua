@@ -5,12 +5,6 @@ Tests SAML and OIDC flows with real libraries and certificate validation.
 """
 
 import pytest
-from datetime import datetime, timedelta
-from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509.oid import NameOID
-import base64
 import os
 
 from app.sso.domain.services.certificate_manager import CertificateManager
@@ -275,7 +269,6 @@ class TestOIDCIntegration:
         """Test OIDC token validation."""
         # This would test JWT token validation
         # Using standard JWT libraries
-        pass
     
     @pytest.mark.skipif(
         not os.getenv('OIDC_INTEGRATION_TESTS'),
@@ -284,7 +277,6 @@ class TestOIDCIntegration:
     def test_oidc_discovery(self):
         """Test OIDC discovery endpoint."""
         # This would test fetching OIDC configuration from discovery endpoint
-        pass
 
 
 class TestSSOEndToEnd:

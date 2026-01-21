@@ -183,8 +183,8 @@ export function EcosystemVault() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2 text-muted-foreground">Loading vault...</span>
+        <Loader2 className="text-primary size-8 animate-spin" />
+        <span className="text-muted-foreground ml-2">Loading vault...</span>
       </div>
     )
   }
@@ -192,11 +192,11 @@ export function EcosystemVault() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Failed to Load Vault</h3>
+        <AlertTriangle className="text-destructive mb-4 size-12" />
+        <h3 className="mb-2 text-lg font-semibold">Failed to Load Vault</h3>
         <p className="text-muted-foreground mb-4">{error}</p>
         <Button onClick={fetchSecrets} variant="outline">
-          <RefreshCw className="mr-2 h-4 w-4" />
+          <RefreshCw className="mr-2 size-4" />
           Try Again
         </Button>
       </div>
@@ -208,8 +208,8 @@ export function EcosystemVault() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Key className="h-6 w-6 text-primary" />
+          <h2 className="flex items-center gap-2 text-2xl font-bold">
+            <Key className="text-primary size-6" />
             Ecosystem Vault
           </h2>
           <p className="text-muted-foreground">Manage platform secrets and API keys</p>
@@ -217,12 +217,12 @@ export function EcosystemVault() {
         <div className="flex items-center gap-2">
           {overdueCount > 0 && (
             <Badge variant="destructive" className="animate-pulse-glow">
-              <AlertTriangle className="h-3 w-3 mr-1" />
+              <AlertTriangle className="mr-1 size-3" />
               {overdueCount} overdue
             </Badge>
           )}
           <Button variant="outline" onClick={fetchSecrets}>
-            <RefreshCw className="mr-2 h-4 w-4" />
+            <RefreshCw className="mr-2 size-4" />
             Refresh
           </Button>
         </div>
@@ -277,7 +277,7 @@ export function EcosystemVault() {
                       <div className="flex flex-col">
                         <span className="font-mono font-medium">{secret.name}</span>
                         {secret.description && (
-                          <span className="text-xs text-muted-foreground">{secret.description}</span>
+                          <span className="text-muted-foreground text-xs">{secret.description}</span>
                         )}
                       </div>
                     </TableCell>
@@ -298,14 +298,14 @@ export function EcosystemVault() {
                         revealed={isRevealed}
                       />
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-muted-foreground text-sm">
                       {new Date(secret.lastRotated).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
                       <div
                         className={`flex items-center gap-1 text-sm ${isOverdue ? 'text-destructive' : 'text-muted-foreground'}`}
                       >
-                        {isOverdue && <AlertTriangle className="h-3 w-3" />}
+                        {isOverdue && <AlertTriangle className="size-3" />}
                         {new Date(secret.nextRotation).toLocaleDateString()}
                       </div>
                     </TableCell>
@@ -322,8 +322,8 @@ export function EcosystemVault() {
 
       {/* Auto-hide notice */}
       {revealedSecrets.size > 0 && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Clock className="h-4 w-4" />
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Clock className="size-4" />
           Revealed secrets will auto-hide in 30 seconds
         </div>
       )}

@@ -30,7 +30,7 @@ export function FacetedFilter({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 border-dashed">
-          <Filter className="mr-2 h-4 w-4" />
+          <Filter className="mr-2 size-4" />
           {title}
           {selectedValues.length > 0 && (
             <Badge variant="secondary" className="ml-2">

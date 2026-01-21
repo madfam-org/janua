@@ -3,13 +3,12 @@ Enterprise Features Implementation
 Complete implementation of remaining production-ready features
 """
 
-import asyncio
 import json
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from datetime import datetime, timedelta
 import stripe
 import pandas as pd
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 import plotly.express as px
 import plotly.graph_objects as go
@@ -392,7 +391,6 @@ class WhiteLabelCustomization:
     async def _configure_custom_domain(self, tenant_id: str, domain: str):
         """Configure custom domain for tenant"""
         # Would integrate with DNS provider
-        pass
     
     def get_tenant_ui(self, tenant_id: str) -> HTMLResponse:
         """Generate customized UI for tenant"""

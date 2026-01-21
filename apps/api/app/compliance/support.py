@@ -3,22 +3,15 @@ Enterprise Support System for SLA-driven customer support compliance.
 Automated ticket routing, escalation, response time tracking, and support analytics.
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from dataclasses import dataclass, asdict
 import uuid
 import json
 import redis.asyncio as aioredis
-from sqlalchemy import select, and_, func, desc, case, text
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.dialects.postgresql import insert
 
-from app.core.database import get_session
-from app.models.audit import AuditLog
-from app.models.users import User
 from app.core.config import get_settings
 from .audit import AuditLogger, AuditEventType, EvidenceType
 from .sla import SLAMonitor, ServiceLevelObjective
@@ -881,12 +874,10 @@ class SupportSystem:
     async def _notify_agent_assignment(self, ticket: SupportTicket, agent_id: str):
         """Notify agent of ticket assignment"""
         # Implementation would send email/Slack notification
-        pass
 
     async def _notify_customer_response(self, ticket: SupportTicket, response: str):
         """Notify customer of agent response"""
         # Implementation would send email notification
-        pass
 
     async def _notify_escalation(
         self,
@@ -896,4 +887,3 @@ class SupportSystem:
     ):
         """Notify escalation target"""
         # Implementation would send urgent notification
-        pass

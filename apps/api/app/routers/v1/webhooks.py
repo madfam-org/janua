@@ -135,7 +135,7 @@ async def check_webhook_permission(
         # Check if user has organization permission
         if endpoint.organization_id:
             # Check organization membership and role
-            from app.models import OrganizationMember, OrganizationRole
+            from app.models import OrganizationMember
 
             member_result = await db.execute(
                 select(OrganizationMember).where(
@@ -254,7 +254,7 @@ async def update_webhook_endpoint(
 ):
     """Update webhook endpoint configuration"""
 
-    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
+    await check_webhook_permission(db, current_user, endpoint_id)
 
     # Update endpoint
     updated_endpoint = await webhook_service.update_endpoint(
@@ -278,7 +278,7 @@ async def delete_webhook_endpoint(
 ):
     """Delete webhook endpoint"""
 
-    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
+    await check_webhook_permission(db, current_user, endpoint_id)
 
     # Delete endpoint
     deleted = await webhook_service.delete_endpoint(db, str(endpoint_id))
@@ -300,7 +300,7 @@ async def test_webhook_endpoint(
 ):
     """Send test webhook to endpoint"""
 
-    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
+    await check_webhook_permission(db, current_user, endpoint_id)
 
     # Send test webhook
     success = await webhook_service.test_endpoint(db, str(endpoint_id))
@@ -322,7 +322,7 @@ async def get_webhook_endpoint_stats(
 ):
     """Get webhook endpoint delivery statistics"""
 
-    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
+    await check_webhook_permission(db, current_user, endpoint_id)
 
     # Get statistics
     stats = await webhook_service.get_endpoint_stats(db, str(endpoint_id), days=days)
@@ -340,7 +340,7 @@ async def list_webhook_events(
 ):
     """List webhook events for an endpoint"""
 
-    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
+    await check_webhook_permission(db, current_user, endpoint_id)
 
     # Get events delivered to this endpoint
     events_stmt = (
@@ -369,7 +369,7 @@ async def list_webhook_deliveries(
 ):
     """List webhook delivery attempts for an endpoint"""
 
-    endpoint = await check_webhook_permission(db, current_user, endpoint_id)
+    await check_webhook_permission(db, current_user, endpoint_id)
 
     # Get deliveries for this endpoint
     result = await db.execute(

@@ -3,30 +3,22 @@ Complete Enterprise Compliance Service Implementation
 Implements GDPR, SOC2, HIPAA, PCI-DSS compliance requirements
 """
 
-import asyncio
-import hashlib
-import json
 import uuid
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional
 from uuid import UUID
-from enum import Enum
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func, text, update, delete
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, and_, func, delete
 
-from app.models import User, Organization
+from app.models import User
 from app.models.compliance import (
-    ConsentRecord, ConsentType, ConsentStatus, LegalBasis,
-    DataRetentionPolicy, DataSubjectRequest, DataSubjectRequestType, RequestStatus,
-    PrivacySettings, DataBreachIncident, ComplianceReport, ComplianceControl,
-    DataCategory, ComplianceFramework, ControlStatus, BreachSeverity
+    ConsentRecord, ConsentStatus, DataSubjectRequest, DataSubjectRequestType,
+    RequestStatus, DataBreachIncident, ComplianceControl, ControlStatus,
+    BreachSeverity
 )
 from app.services.audit_logger import AuditLogger, AuditEventType
-from app.core.logging import logger
 from app.config import settings
-from app.utils.encryption import encrypt_pii, decrypt_pii, anonymize_data
 from app.utils.notifications import send_compliance_alert
 
 

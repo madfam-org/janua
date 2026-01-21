@@ -237,7 +237,7 @@ async def revoke_session(
     """
     Revoke a specific session, logging out that device.
     """
-    from sqlalchemy import select, update
+    from sqlalchemy import select
     from app.models import Session
     from app.core.jwt_manager import jwt_manager
 
@@ -286,7 +286,6 @@ async def revoke_all_sessions(
 
     Optionally keeps the current session active.
     """
-    from app.services.auth_service import AuthService
 
     # Get current session fingerprint if keeping current
     current_fingerprint = None

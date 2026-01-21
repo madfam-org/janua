@@ -3,14 +3,12 @@ Alert Evaluator Domain Service
 Core domain service for evaluating alert rules against metrics
 """
 
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Protocol, Tuple
-from abc import ABC, abstractmethod
 
 from ..models.rule import AlertRule
-from ..models.alert import Alert, AlertMetrics, AlertSeverity, AlertStatus
+from ..models.alert import Alert, AlertMetrics, AlertStatus
 import structlog
 logger = structlog.get_logger()
 

@@ -7,16 +7,13 @@ pytestmark = pytest.mark.asyncio
 Comprehensive unit tests for JWT service
 """
 
-import json
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
-from jose import JWTError, jwt
+from jose import JWTError
 
-from app.exceptions import AuthenticationError, TokenError
-from app.models import TokenClaims, TokenPair
+from app.exceptions import TokenError
 from app.services.jwt_service import JWTService
 
 

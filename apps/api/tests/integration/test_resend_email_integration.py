@@ -4,13 +4,12 @@ Tests email delivery, template rendering, and enterprise email flows
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import redis.asyncio as redis
 
-from app.config import settings
-from app.services.resend_email_service import EmailDeliveryStatus, EmailPriority, ResendEmailService
+from app.services.resend_email_service import EmailPriority, ResendEmailService
 
 
 @pytest.fixture
@@ -336,7 +335,6 @@ class TestEmailTemplateRendering:
         """Test graceful handling of missing templates"""
         # This would test template fallback mechanisms if implemented
         # Currently templates are required, so this verifies error handling
-        pass
 
 
 class TestEmailMetadata:

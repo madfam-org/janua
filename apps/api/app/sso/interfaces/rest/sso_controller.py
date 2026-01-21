@@ -3,7 +3,7 @@ REST API controller for SSO operations
 """
 
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -80,7 +80,7 @@ class SSOController:
             
         except (ValidationError, AuthenticationError) as e:
             raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
+        except Exception:
             raise HTTPException(status_code=500, detail="Internal server error")
     
     async def handle_saml_callback(
@@ -132,7 +132,7 @@ class SSOController:
             
         except (ValidationError, AuthenticationError) as e:
             raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
+        except Exception:
             raise HTTPException(status_code=500, detail="Internal server error")
     
     async def handle_oidc_callback(
@@ -180,7 +180,7 @@ class SSOController:
             
         except (ValidationError, AuthenticationError) as e:
             raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
+        except Exception:
             raise HTTPException(status_code=500, detail="Internal server error")
     
     async def initiate_logout(
@@ -226,7 +226,7 @@ class SSOController:
             
         except (ValidationError, AuthenticationError) as e:
             raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
+        except Exception:
             raise HTTPException(status_code=500, detail="Internal server error")
     
     async def configure_sso(
@@ -277,7 +277,7 @@ class SSOController:
             
         except ValidationError as e:
             raise HTTPException(status_code=400, detail=str(e))
-        except Exception as e:
+        except Exception:
             raise HTTPException(status_code=500, detail="Internal server error")
     
     async def get_sso_configuration(
@@ -310,7 +310,7 @@ class SSOController:
                 ]
             }
             
-        except Exception as e:
+        except Exception:
             raise HTTPException(status_code=500, detail="Internal server error")
     
     async def get_supported_protocols(self):
@@ -335,19 +335,21 @@ class SSOController:
     
     async def _get_orchestrator(self, db: AsyncSession) -> SSOOrchestrator:
         """Get SSO orchestrator with dependencies"""
-        
+
         # This would typically be injected via DI container
+        from ....core.redis import get_redis
         from ....services.cache import CacheService
         from ....services.jwt_service import JWTService
         from ....services.audit_logger import AuditLogger
-        
+
         config_repo = SSOConfigurationRepository(db)
         session_repo = SSOSessionRepository(db)
         user_provisioning = UserProvisioningService(db)
-        cache_service = CacheService()
-        jwt_service = JWTService()
-        audit_logger = AuditLogger()
-        
+        cache_service = CacheService()  # Singleton, no arguments needed
+        redis_client = await get_redis()
+        jwt_service = JWTService(db, redis_client)  # Requires db and redis
+        audit_logger = AuditLogger(db)  # Requires db
+
         return SSOOrchestrator(
             config_repository=config_repo,
             session_repository=session_repo,

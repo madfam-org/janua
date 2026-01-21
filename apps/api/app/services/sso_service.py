@@ -3,17 +3,12 @@ SSO/SAML service for enterprise authentication
 """
 
 import base64
-import hashlib
 import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote, urlencode
+from urllib.parse import urlencode
 
 import httpx
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 try:
     from lxml import etree
@@ -28,12 +23,11 @@ except ImportError:
     OneLogin_Saml2_Auth = None
     OneLogin_Saml2_Settings = None
     OneLogin_Saml2_Utils = None
-from typing import Optional as Opt
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Organization, User
+from ..models import User
 
 try:
     from ..models import IDPMetadata, SSOConfiguration, SSOProvider, SSOSession, SSOStatus
@@ -181,7 +175,6 @@ class SSOService:
             and not organization_id.startswith("org-")
         ):
             # Likely called with provider_id from tests
-            provider_id = organization_id
             if return_url and isinstance(return_url, dict):
                 # Second param is provider_config, not return_url
                 provider_config = return_url

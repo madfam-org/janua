@@ -7,8 +7,7 @@ Comprehensive unit tests for MonitoringService
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock, AsyncMock
-from datetime import datetime, timedelta
+from unittest.mock import Mock, patch, AsyncMock
 
 from app.services.monitoring import (
     MonitoringService,

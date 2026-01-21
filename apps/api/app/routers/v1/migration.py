@@ -2,8 +2,8 @@
 Migration API endpoints for data portability and user migration
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional, Dict, Any, List
@@ -11,11 +11,10 @@ from pydantic import BaseModel, Field
 import logging
 import asyncio
 import json
-from datetime import datetime
 
 from app.core.database_manager import get_db
-from app.dependencies import get_current_user, require_admin
-from app.models import User, Organization
+from app.dependencies import require_admin
+from app.models import User
 from app.models.migration import (
     MigrationJob, MigrationProvider, MigrationStatus,
     MigratedUser, MigrationLog, MigrationTemplate

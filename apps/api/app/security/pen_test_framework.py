@@ -9,10 +9,10 @@ import json
 import re
 import ssl
 import socket
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime
-from urllib.parse import urljoin, urlparse, parse_qs
+from urllib.parse import urljoin, urlparse
 from enum import Enum
 import structlog
 
@@ -596,7 +596,7 @@ class PenetrationTestSuite:
 
                 with socket.create_connection((hostname, port), timeout=10) as sock:
                     with context.wrap_socket(sock, server_hostname=hostname) as ssock:
-                        cert = ssock.getpeercert()
+                        ssock.getpeercert()
                         cipher = ssock.cipher()
 
                         # Check for weak ciphers

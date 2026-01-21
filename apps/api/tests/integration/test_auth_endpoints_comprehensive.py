@@ -9,17 +9,12 @@ Tests complete auth flows, JWT handling, MFA, and session management
 """
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, MagicMock, patch
-import json
-from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch
+from datetime import datetime
 import uuid
 
-from app.models import User, UserStatus, EmailVerification, PasswordReset, MagicLink, ActivityLog
-from app.services.jwt_service import JWTService
-from app.services.auth_service import AuthService
-from app.services.email_service import EmailService
+from app.models import UserStatus
 
 
 @pytest.mark.asyncio

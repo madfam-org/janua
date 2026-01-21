@@ -5,7 +5,6 @@ Manages global platform configuration that can be modified via API.
 
 from typing import Any, Dict, List, Optional
 from uuid import UUID
-import json
 import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,7 +106,9 @@ class SystemSettingsService:
         # Invalidate cache
         self._cache.pop(key, None)
 
-        logger.info(f"System setting updated: {key}")
+        # Sanitize key for logging to prevent log injection
+        safe_key = key.replace("\n", "").replace("\r", "")[:100]
+        logger.info("System setting updated: %s", safe_key)
         return setting
 
     async def delete_setting(self, key: str) -> bool:
@@ -264,7 +265,9 @@ class SystemSettingsService:
         self._cors_cache = None
 
         scope = f"org:{organization_id}" if organization_id else "system"
-        logger.info(f"CORS origin added [{scope}]: {origin}")
+        # Sanitize origin for logging to prevent log injection
+        safe_origin = origin.replace("\n", "").replace("\r", "")[:200]
+        logger.info("CORS origin added [%s]: %s", scope, safe_origin)
         return cors_origin
 
     async def remove_cors_origin(
@@ -286,7 +289,9 @@ class SystemSettingsService:
             await self.db.commit()
             self._cors_cache = None
             scope = f"org:{organization_id}" if organization_id else "system"
-            logger.info(f"CORS origin removed [{scope}]: {origin}")
+            # Sanitize origin for logging to prevent log injection
+            safe_origin = origin.replace("\n", "").replace("\r", "")[:200]
+            logger.info("CORS origin removed [%s]: %s", scope, safe_origin)
             return True
 
         return False

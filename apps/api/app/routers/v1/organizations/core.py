@@ -3,8 +3,6 @@ Core organization CRUD operations
 Basic organization management endpoints
 """
 
-import uuid
-from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, select

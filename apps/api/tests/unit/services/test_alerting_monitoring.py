@@ -4,15 +4,7 @@ Tests for alerting system, monitoring services, and SLA management.
 """
 
 import pytest
-import pytest_asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
-import json
-import asyncio
-import sys
-from httpx import AsyncClient
-from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from unittest.mock import Mock, AsyncMock, patch
 
 pytestmark = pytest.mark.asyncio
 

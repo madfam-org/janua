@@ -6,7 +6,7 @@ consents and storing new consent grants.
 """
 
 from datetime import datetime
-from typing import List, Optional, Set
+from typing import List, Set
 from uuid import UUID
 
 import structlog

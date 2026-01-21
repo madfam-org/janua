@@ -8,12 +8,10 @@ Working unit tests for BillingService - matches actual implementation
 
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from uuid import uuid4, UUID
-from decimal import Decimal
+from uuid import uuid4
 import httpx
 
 from app.services.billing_service import BillingService, PRICING_TIERS
-from app.models import Organization
 
 
 @pytest.fixture(autouse=True)

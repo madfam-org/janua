@@ -10,11 +10,10 @@ import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
-from typing import AsyncGenerator, Dict, Any, List
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import AsyncGenerator, Dict, Any
+from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime, timedelta
 import uuid
-import json
 
 # Set test environment variables before any imports
 os.environ.update({
@@ -34,7 +33,7 @@ os.environ.update({
 from app.main import app
 from app.core.database import Base, get_db
 from app.core.redis import get_redis
-from app.models import User, UserStatus, Organization, OrganizationRole, OrganizationMember
+from app.models import User, UserStatus, Organization, OrganizationRole
 
 
 @pytest_asyncio.fixture(scope="session")

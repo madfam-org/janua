@@ -6,7 +6,6 @@ import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
-import asyncio
 
 # Set minimal test environment variables
 TEST_ENV = {

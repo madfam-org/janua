@@ -3,8 +3,6 @@ Passkeys/WebAuthn authentication endpoints
 """
 
 import base64
-import hashlib
-import json
 import secrets
 import uuid
 from datetime import datetime, timedelta
@@ -17,7 +15,6 @@ from sqlalchemy.orm import Session
 from webauthn import (
     generate_authentication_options,
     generate_registration_options,
-    options_to_json,
     verify_authentication_response,
     verify_registration_response,
 )
@@ -347,7 +344,7 @@ async def verify_authentication(
     passkey.last_used_at = datetime.utcnow()
 
     # Create session and tokens
-    session_id = str(secrets.token_urlsafe(32))
+    str(secrets.token_urlsafe(32))
     access_token_jti = str(secrets.token_urlsafe(32))
     refresh_token_jti = str(secrets.token_urlsafe(32))
 

@@ -9,8 +9,6 @@ Unit tests for authentication router
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, patch
-from fastapi import HTTPException
 
 from app.auth.router import (
     SignUpRequest,

@@ -9,7 +9,6 @@ from sqlalchemy import select, and_, or_, func
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
-import json
 import structlog
 
 from ...models import User
@@ -21,8 +20,6 @@ from app.models.enterprise import (
 )
 from app.core.database_manager import get_db
 from app.core.tenant_context import TenantContext
-from app.core.rbac_engine import rbac_engine, ResourceType, Action
-from app.core.jwt_manager import get_current_user
 
 logger = structlog.get_logger()
 
@@ -67,7 +64,7 @@ async def verify_scim_token(authorization: str = Header(None), db: AsyncSession 
             detail="Missing or invalid authorization header"
         )
 
-    token = authorization.replace("Bearer ", "")
+    authorization.replace("Bearer ", "")
 
     # In production, verify against SCIM tokens stored in database
     # For now, we'll check if it's a valid JWT or API key
@@ -1222,7 +1219,6 @@ async def get_group_members(db: AsyncSession, org_id: UUID, role_id: UUID) -> Li
 
 async def update_group_members(db: AsyncSession, org_id: UUID, role_id: UUID, members: List[Dict], replace: bool = False):
     """Update group members"""
-    from sqlalchemy import delete
 
     if replace:
         # Remove all existing members with this role (just update their role, don't remove from org)

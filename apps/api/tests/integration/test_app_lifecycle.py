@@ -15,8 +15,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from httpx import AsyncClient
 
-from app.core.redis import get_redis
-from app.database import engine, init_db
 
 # These imports will be covered by importing the app
 from app.main import app

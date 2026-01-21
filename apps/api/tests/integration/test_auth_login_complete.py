@@ -17,11 +17,8 @@ Coverage Impact: +6% estimated
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timedelta
 
 from app.models.user import User
-from app.services.auth_service import AuthService
 
 
 class TestUserLogin:
@@ -350,7 +347,6 @@ class TestLoginSecurity:
         """Test brute force protection via rate limiting"""
         # NOTE: Rate limiting is mocked in conftest.py
         # This documents expected behavior for manual/E2E testing
-        pass
 
 
 # Export test count for coverage reporting

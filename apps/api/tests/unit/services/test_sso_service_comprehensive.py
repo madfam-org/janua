@@ -9,11 +9,9 @@ Expected to cover 231 lines in app/services/sso_service.py
 """
 
 import pytest
-import asyncio
 from datetime import datetime, timedelta
 from uuid import uuid4
-from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Dict, Any
+from unittest.mock import MagicMock, patch
 import xml.etree.ElementTree as ET
 
 from app.services.sso_service import SSOService
@@ -55,7 +53,7 @@ class TestSAMLIntegration:
 
     def setup_method(self):
         """Setup for each test."""
-        from unittest.mock import Mock, AsyncMock
+        from unittest.mock import AsyncMock
         
         # Create mock dependencies
         mock_db = AsyncMock()
@@ -167,7 +165,7 @@ class TestOIDCIntegration:
 
     def setup_method(self):
         """Setup for each test."""
-        from unittest.mock import Mock, AsyncMock
+        from unittest.mock import AsyncMock
         
         # Create mock dependencies
         mock_db = AsyncMock()
@@ -304,7 +302,7 @@ class TestIdentityProviderManagement:
 
     def setup_method(self):
         """Setup for each test."""
-        from unittest.mock import Mock, AsyncMock
+        from unittest.mock import AsyncMock
         
         # Create mock dependencies
         mock_db = AsyncMock()
@@ -431,7 +429,7 @@ class TestUserProvisioning:
 
     def setup_method(self):
         """Setup for each test."""
-        from unittest.mock import Mock, AsyncMock
+        from unittest.mock import AsyncMock
         
         # Create mock dependencies
         mock_db = AsyncMock()
@@ -521,7 +519,7 @@ class TestJustInTimeProvisioning:
 
     def setup_method(self):
         """Setup for each test."""
-        from unittest.mock import Mock, AsyncMock
+        from unittest.mock import AsyncMock
         
         # Create mock dependencies
         mock_db = AsyncMock()
@@ -590,7 +588,7 @@ class TestSessionManagement:
 
     def setup_method(self):
         """Setup for each test."""
-        from unittest.mock import Mock, AsyncMock
+        from unittest.mock import AsyncMock
         
         # Create mock dependencies
         mock_db = AsyncMock()
@@ -676,7 +674,7 @@ class TestErrorHandling:
 
     def setup_method(self):
         """Setup for each test."""
-        from unittest.mock import Mock, AsyncMock
+        from unittest.mock import AsyncMock
         
         # Create mock dependencies
         mock_db = AsyncMock()

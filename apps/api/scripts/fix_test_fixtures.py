@@ -14,7 +14,7 @@ Changes:
 import ast
 import sys
 from pathlib import Path
-from typing import List, Tuple
+from typing import Tuple
 
 
 class FixtureRewriter(ast.NodeTransformer):
@@ -33,7 +33,7 @@ class FixtureRewriter(ast.NodeTransformer):
         if node.args.args[0].arg != 'self':
             return node
 
-        original_args = len(node.args.args)
+        len(node.args.args)
         modified = False
         new_args = []
 

@@ -3,12 +3,11 @@ Global test configuration and fixtures
 Comprehensive test infrastructure with 85%+ coverage targets
 """
 import os
-import sys
 import pytest
 import pytest_asyncio
 import asyncio
-from typing import AsyncGenerator, Generator, Any
-from unittest.mock import patch, AsyncMock, MagicMock, Mock
+from typing import AsyncGenerator
+from unittest.mock import patch, AsyncMock, MagicMock
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
@@ -705,12 +704,7 @@ def test_user_with_mfa():
 # Import and register fixtures from async_fixtures.py
 try:
     from fixtures.async_fixtures import (
-        async_db_session,
-        async_redis_client,
-        async_http_client,
-        mock_jwt_service,
-        mock_auth_service,
-        async_event_loop
+        async_redis_client
     )
 except ImportError:
     # Fallback if fixtures not found

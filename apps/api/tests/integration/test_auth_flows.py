@@ -9,14 +9,12 @@ Expected to cover 1000+ lines across auth modules.
 """
 
 import asyncio
-import json
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
 
-from app.config import settings
 
 # These imports will be covered by importing the app
 from app.main import app

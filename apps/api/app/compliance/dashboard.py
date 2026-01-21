@@ -6,24 +6,22 @@ SOC2 control effectiveness, compliance metrics, and SLA performance visualizatio
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from dataclasses import dataclass, asdict
 import json
 import uuid
 import redis.asyncio as aioredis
-from sqlalchemy import select, and_, func, desc, case, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_, func, desc
 
 from app.core.database import get_session
 from app.models.compliance import (
-    ComplianceReport, ComplianceControl, DataBreachIncident,
-    ComplianceFramework, DataSubjectRequest, RequestStatus
+    ComplianceControl, DataBreachIncident, ComplianceFramework,
+    DataSubjectRequest, RequestStatus
 )
 from app.models.audit import AuditLog
-from app.models.users import User
 from app.core.config import get_settings
-from .audit import AuditLogger, AuditEventType
+from .audit import AuditLogger
 from .monitor import ComplianceMonitor, ControlStatus
 from .sla import SLAMonitor
 
@@ -573,7 +571,7 @@ class ComplianceDashboard:
         """Get response time metrics for various services"""
 
         time_window = self._get_time_window(timeframe)
-        start_time = datetime.utcnow() - time_window
+        datetime.utcnow() - time_window
 
         # Simplified response time analysis
         # In production, this would query actual performance metrics

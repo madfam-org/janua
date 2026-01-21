@@ -6,8 +6,6 @@ from fastapi import APIRouter, Depends, Request, WebSocket, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from strawberry.fastapi import GraphQLRouter
 from strawberry.subscriptions import GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL
-import strawberry
-from typing import Any, Optional
 
 from app.database import get_db
 from app.dependencies import get_current_user_optional

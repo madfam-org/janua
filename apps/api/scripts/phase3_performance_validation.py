@@ -186,7 +186,7 @@ class Phase3PerformanceValidator:
                             timeout=aiohttp.ClientTimeout(total=5)
                         ) as response:
                             pass  # Just trigger audit logs
-                    except:
+                    except Exception:
                         pass  # Ignore errors during audit log creation
 
                 if (i + 1) % 20 == 0:
@@ -238,7 +238,7 @@ class Phase3PerformanceValidator:
                         cache_hits.append(cache_status == 'HIT')
 
                     # Check for query count header (if available)
-                    query_count = response.headers.get('X-Query-Count')
+                    response.headers.get('X-Query-Count')
 
                     if response.status >= 400:
                         errors.append(f"HTTP {response.status}")

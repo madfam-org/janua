@@ -6,8 +6,7 @@ Tests the circuit breaker pattern implementation for Redis operations.
 
 import pytest
 import asyncio
-from datetime import datetime, timedelta
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock
 import redis.asyncio as redis
 
 from app.core.redis_circuit_breaker import (

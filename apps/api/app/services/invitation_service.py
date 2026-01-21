@@ -2,12 +2,8 @@
 Service for managing organization invitations.
 """
 
-import secrets
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
-import asyncio
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_

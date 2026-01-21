@@ -5,7 +5,7 @@ Email service for sending verification, password reset, and notification emails
 import smtplib
 import secrets
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr

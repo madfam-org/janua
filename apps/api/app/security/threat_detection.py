@@ -5,7 +5,6 @@ Real-time threat detection with ML-based anomaly detection and automated respons
 
 import asyncio
 import json
-import hashlib
 import ipaddress
 from typing import Dict, Any, List, Optional, Set, Tuple
 from datetime import datetime, timedelta
@@ -13,13 +12,10 @@ from collections import defaultdict, deque
 from enum import Enum
 import logging
 import re
-import math
 from dataclasses import dataclass, field
-import numpy as np
 from sklearn.ensemble import IsolationForest
 import joblib
 import redis.asyncio as aioredis
-import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +114,7 @@ class AdvancedThreatDetectionSystem:
         try:
             # Try to load pre-trained model
             self.anomaly_detector = joblib.load('models/anomaly_detector.pkl')
-        except:
+        except Exception:
             # Create new model if not available
             self.anomaly_detector = IsolationForest(
                 contamination=0.1,
@@ -159,7 +155,7 @@ class AdvancedThreatDetectionSystem:
         ip = request_data.get('ip_address', '')
         user_id = request_data.get('user_id')
         path = request_data.get('path', '')
-        method = request_data.get('method', '')
+        request_data.get('method', '')
         headers = request_data.get('headers', {})
         body = request_data.get('body', '')
         query_params = request_data.get('query_params', {})
@@ -715,7 +711,6 @@ class AdvancedThreatDetectionSystem:
         
         # Would integrate with real threat feeds
         # For example: AbuseIPDB, AlienVault OTX, etc.
-        pass
     
     async def _load_ip_reputation(self):
         """Load IP reputation database"""

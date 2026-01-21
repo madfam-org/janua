@@ -160,11 +160,11 @@ export function RecentActivity() {
       <div className="space-y-4">
         {[...Array(5)].map((_, index) => (
           <div key={index} className="flex items-start space-x-3">
-            <div className="w-6 h-6 bg-muted animate-pulse rounded" />
+            <div className="bg-muted size-6 animate-pulse rounded" />
             <div className="flex-1 space-y-2">
-              <div className="h-4 w-32 bg-muted animate-pulse rounded" />
-              <div className="h-3 w-24 bg-muted animate-pulse rounded" />
-              <div className="h-3 w-16 bg-muted animate-pulse rounded" />
+              <div className="bg-muted h-4 w-32 animate-pulse rounded" />
+              <div className="bg-muted h-3 w-24 animate-pulse rounded" />
+              <div className="bg-muted h-3 w-16 animate-pulse rounded" />
             </div>
           </div>
         ))}
@@ -174,11 +174,11 @@ export function RecentActivity() {
 
   if (error) {
     return (
-      <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-md">
-        <p className="text-sm text-destructive">Error loading recent activity: {error}</p>
+      <div className="bg-destructive/10 border-destructive/30 rounded-md border p-4">
+        <p className="text-destructive text-sm">Error loading recent activity: {error}</p>
         <button
           onClick={fetchActivities}
-          className="mt-2 text-sm text-destructive underline hover:no-underline"
+          className="text-destructive mt-2 text-sm underline hover:no-underline"
         >
           Try again
         </button>
@@ -188,7 +188,7 @@ export function RecentActivity() {
 
   if (activities.length === 0) {
     return (
-      <div className="p-4 text-center text-muted-foreground">
+      <div className="text-muted-foreground p-4 text-center">
         <p className="text-sm">No recent activity found</p>
       </div>
     )
@@ -205,10 +205,10 @@ export function RecentActivity() {
             <p className="text-sm font-medium leading-none">
               {activity.user}
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               {activity.action}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {activity.timestamp}
             </p>
           </div>

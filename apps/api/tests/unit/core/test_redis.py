@@ -8,8 +8,8 @@ Unit tests for Redis module
 
 import pytest
 import pytest_asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, patch
+from datetime import datetime
 
 from app.core.redis import init_redis, get_redis, RateLimiter, SessionStore
 
@@ -269,7 +269,6 @@ class TestSessionStore:
             json.dumps(session_data)
         ]
         
-        import json
         result = await self.session_store.get_all_user_sessions("user_123")
         
         assert len(result) == 2

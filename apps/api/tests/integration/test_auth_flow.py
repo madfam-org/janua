@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 pytestmark = pytest.mark.asyncio
 
@@ -8,7 +7,6 @@ Integration tests for authentication flow
 """
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 from app.main import app
 

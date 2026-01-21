@@ -8,20 +8,19 @@ import asyncio
 import uuid
 import psutil
 import structlog
-from typing import Dict, List, Optional, Any, Callable, Union
+from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from functools import wraps
 from contextlib import asynccontextmanager
 import redis.asyncio as aioredis
-from prometheus_client import Counter, Histogram, Gauge, Summary, CollectorRegistry, generate_latest
+from prometheus_client import Counter, Histogram, Gauge, CollectorRegistry, generate_latest
 from opentelemetry import trace, metrics
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.exporter.prometheus import PrometheusMetricReader
 
 from app.config import settings
@@ -624,7 +623,7 @@ def profile_performance(operation: Optional[str] = None):
                 apm_collector.end_performance_profile(request_id)
                 return result
 
-            except Exception as e:
+            except Exception:
                 apm_collector.increment_profile_counter(request_id, "error")
                 apm_collector.end_performance_profile(request_id)
                 raise
@@ -640,7 +639,7 @@ def profile_performance(operation: Optional[str] = None):
                 apm_collector.end_performance_profile(request_id)
                 return result
 
-            except Exception as e:
+            except Exception:
                 apm_collector.increment_profile_counter(request_id, "error")
                 apm_collector.end_performance_profile(request_id)
                 raise
@@ -673,7 +672,7 @@ async def performance_context(request_id: str, operation: str):
     try:
         yield request_id
         apm_collector.end_performance_profile(request_id)
-    except Exception as e:
+    except Exception:
         apm_collector.increment_profile_counter(request_id, "error")
         apm_collector.end_performance_profile(request_id)
         raise

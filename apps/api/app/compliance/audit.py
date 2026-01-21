@@ -3,29 +3,24 @@ Compliance Audit Trail System for enterprise SOC2 requirements.
 Automated evidence collection, retention, correlation, and integrity verification.
 """
 
-import asyncio
 import logging
 import hashlib
 import json
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union, Tuple
+from typing import Dict, List, Optional, Any, Union
 from enum import Enum
 from dataclasses import dataclass, asdict
 from pathlib import Path
 import uuid
 import aiofiles
 import redis.asyncio as aioredis
-from sqlalchemy import select, and_, func, desc, text
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import select, and_, text
 
 from app.core.database import get_session
 from app.models.audit import AuditLog
 from app.models.compliance import (
-    ComplianceReport, ComplianceControl, DataBreachIncident,
     ComplianceFramework
 )
-from app.models.users import User
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)

@@ -3,12 +3,9 @@ Resend email service for enterprise-grade email delivery
 Replaces SendGrid with Resend for better developer experience and reliability
 """
 
-import asyncio
-import hashlib
-import logging
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional

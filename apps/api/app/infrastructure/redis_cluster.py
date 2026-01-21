@@ -6,10 +6,9 @@ High availability Redis with automatic failover and load balancing
 import asyncio
 import json
 import time
-import random
-from typing import Dict, List, Optional, Any, Tuple, Union
+from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 import redis.asyncio as redis
 from redis.sentinel import Sentinel

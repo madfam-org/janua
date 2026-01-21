@@ -1,8 +1,6 @@
 # Migration service - placeholder for enterprise migration features
-from typing import Optional, Dict, Any, List
-from datetime import datetime
+from typing import Dict, Any
 import logging
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -48,19 +46,15 @@ class MigrationService:
 
     async def _migrate_auth0(self, config: Dict[str, Any]) -> None:
         """Auth0 migration handler"""
-        pass
 
     async def _migrate_okta(self, config: Dict[str, Any]) -> None:
         """Okta migration handler"""
-        pass
 
     async def _migrate_firebase(self, config: Dict[str, Any]) -> None:
         """Firebase migration handler"""
-        pass
 
     async def _migrate_cognito(self, config: Dict[str, Any]) -> None:
         """AWS Cognito migration handler"""
-        pass
 
     async def export_users(
         self,

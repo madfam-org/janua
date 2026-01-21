@@ -4,10 +4,9 @@ Core alert management and coordination between evaluation and notification syste
 """
 
 import asyncio
-import time
 import uuid
 import json
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import redis.asyncio as aioredis
 import structlog

@@ -9,7 +9,6 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 
 from sqlalchemy import select, and_, desc
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
 from app.models.compliance import (

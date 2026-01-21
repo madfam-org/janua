@@ -6,7 +6,6 @@ This file demonstrates various SDK features and usage patterns.
 
 import asyncio
 import os
-from typing import Optional
 
 from janua import (
     JanuaClient,

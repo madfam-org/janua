@@ -4,10 +4,8 @@ This test covers MFA setup, TOTP, SMS, and passkey authentication flows.
 Expected to cover 400+ lines across MFA and passkey router modules.
 """
 
-import pytest
-import json
 from datetime import datetime
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 # Import the app for testing
