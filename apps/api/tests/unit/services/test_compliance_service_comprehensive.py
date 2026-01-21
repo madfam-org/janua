@@ -40,12 +40,12 @@ class TestConsentServiceInitialization:
 
     def test_consent_enums_available(self):
         """Test that consent-related enums are properly configured"""
-        assert ConsentType.MARKETING in ConsentType
-        assert ConsentType.ANALYTICS in ConsentType
-        assert ConsentStatus.GIVEN in ConsentStatus
-        assert ConsentStatus.WITHDRAWN in ConsentStatus
-        assert LegalBasis.CONSENT in LegalBasis
-        assert DataCategory.IDENTITY in DataCategory
+        assert isinstance(ConsentType.MARKETING, ConsentType)
+        assert isinstance(ConsentType.ANALYTICS, ConsentType)
+        assert isinstance(ConsentStatus.GIVEN, ConsentStatus)
+        assert isinstance(ConsentStatus.WITHDRAWN, ConsentStatus)
+        assert isinstance(LegalBasis.CONSENT, LegalBasis)
+        assert isinstance(DataCategory.IDENTITY, DataCategory)
 
 
 class TestConsentManagement:

@@ -73,15 +73,15 @@ class TestComplianceServiceBasics:
 
     def test_compliance_enums_available(self):
         """Test that compliance-related enums are properly configured"""
-        assert ConsentType.MARKETING in ConsentType
-        assert ConsentType.ANALYTICS in ConsentType
-        assert ConsentStatus.GIVEN in ConsentStatus
-        assert ConsentStatus.WITHDRAWN in ConsentStatus
-        assert LegalBasis.CONSENT in LegalBasis
-        assert DataCategory.IDENTITY in DataCategory
-        assert DataSubjectRequestType.ACCESS in DataSubjectRequestType
-        assert RequestStatus.RECEIVED in RequestStatus
-        assert ComplianceFramework.GDPR in ComplianceFramework
+        assert isinstance(ConsentType.MARKETING, ConsentType)
+        assert isinstance(ConsentType.ANALYTICS, ConsentType)
+        assert isinstance(ConsentStatus.GIVEN, ConsentStatus)
+        assert isinstance(ConsentStatus.WITHDRAWN, ConsentStatus)
+        assert isinstance(LegalBasis.CONSENT, LegalBasis)
+        assert isinstance(DataCategory.IDENTITY, DataCategory)
+        assert isinstance(DataSubjectRequestType.ACCESS, DataSubjectRequestType)
+        assert isinstance(RequestStatus.RECEIVED, RequestStatus)
+        assert isinstance(ComplianceFramework.GDPR, ComplianceFramework)
 
 
 class TestComplianceScoring:
@@ -222,7 +222,7 @@ class TestConsentWorkflow:
         ]
 
         for consent_type in required_types:
-            assert consent_type in ConsentType
+            assert isinstance(consent_type, ConsentType)
 
     def test_consent_statuses_available(self):
         """Test that all required consent statuses are available"""
@@ -234,7 +234,7 @@ class TestConsentWorkflow:
         ]
 
         for status in required_statuses:
-            assert status in ConsentStatus
+            assert isinstance(status, ConsentStatus)
 
     def test_legal_basis_options_available(self):
         """Test that all GDPR legal basis options are available"""
@@ -248,7 +248,7 @@ class TestConsentWorkflow:
         ]
 
         for basis in required_bases:
-            assert basis in LegalBasis
+            assert isinstance(basis, LegalBasis)
 
 
 class TestDataSubjectRights:
@@ -266,7 +266,7 @@ class TestDataSubjectRights:
         ]
 
         for request_type in required_types:
-            assert request_type in DataSubjectRequestType
+            assert isinstance(request_type, DataSubjectRequestType)
 
     def test_request_statuses_available(self):
         """Test that all request statuses are available"""
@@ -280,7 +280,7 @@ class TestDataSubjectRights:
         ]
 
         for status in required_statuses:
-            assert status in RequestStatus
+            assert isinstance(status, RequestStatus)
 
     @pytest.mark.asyncio
     async def test_dsr_service_basic_workflow(self):
@@ -316,7 +316,7 @@ class TestDataRetention:
         ]
 
         for category in required_categories:
-            assert category in DataCategory
+            assert isinstance(category, DataCategory)
 
     def test_compliance_frameworks_available(self):
         """Test that all compliance frameworks are available"""
@@ -330,7 +330,7 @@ class TestDataRetention:
         ]
 
         for framework in required_frameworks:
-            assert framework in ComplianceFramework
+            assert isinstance(framework, ComplianceFramework)
 
     @pytest.mark.asyncio
     async def test_retention_service_basic_workflow(self):
@@ -401,7 +401,7 @@ class TestComplianceIntegration:
         ]
 
         for event in gdpr_events:
-            assert event in AuditEventType
+            assert isinstance(event, AuditEventType)
 
         soc2_events = [
             AuditEventType.SOC2_ACCESS_GRANTED,
@@ -413,7 +413,7 @@ class TestComplianceIntegration:
         ]
 
         for event in soc2_events:
-            assert event in AuditEventType
+            assert isinstance(event, AuditEventType)
 
         hipaa_events = [
             AuditEventType.HIPAA_PHI_ACCESS,
@@ -426,7 +426,7 @@ class TestComplianceIntegration:
         ]
 
         for event in hipaa_events:
-            assert event in AuditEventType
+            assert isinstance(event, AuditEventType)
 
 
 class TestComplianceValidation:
@@ -473,8 +473,8 @@ class TestComplianceBusinessLogic:
     def test_gdpr_compliance_requirements(self):
         """Test GDPR compliance requirements are covered"""
         # Test Article 7 - Consent requirements
-        assert ConsentType.MARKETING in ConsentType
-        assert LegalBasis.CONSENT in LegalBasis
+        assert isinstance(ConsentType.MARKETING, ConsentType)
+        assert isinstance(LegalBasis.CONSENT, LegalBasis)
 
         # Test Article 15-22 - Data subject rights
         rights_articles = {
@@ -487,7 +487,7 @@ class TestComplianceBusinessLogic:
         }
 
         for right, article in rights_articles.items():
-            assert right in DataSubjectRequestType
+            assert isinstance(right, DataSubjectRequestType)
 
     def test_soc2_compliance_requirements(self):
         """Test SOC 2 compliance requirements are covered"""
@@ -501,7 +501,7 @@ class TestComplianceBusinessLogic:
         ]
 
         for control in soc2_controls:
-            assert control in AuditEventType
+            assert isinstance(control, AuditEventType)
 
     def test_hipaa_compliance_requirements(self):
         """Test HIPAA compliance requirements are covered"""
@@ -515,7 +515,7 @@ class TestComplianceBusinessLogic:
         ]
 
         for safeguard in hipaa_safeguards:
-            assert safeguard in AuditEventType
+            assert isinstance(safeguard, AuditEventType)
 
     def test_data_classification_coverage(self):
         """Test that data classification covers common categories"""
@@ -529,7 +529,7 @@ class TestComplianceBusinessLogic:
         ]
 
         for category in pii_categories:
-            assert category in DataCategory
+            assert isinstance(category, DataCategory)
 
     def test_retention_policy_logic(self):
         """Test retention policy business logic"""

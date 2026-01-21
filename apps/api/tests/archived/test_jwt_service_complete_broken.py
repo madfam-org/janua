@@ -38,7 +38,7 @@ class TestJWTServiceInitialization:
         service = JWTService(db, redis)
 
         # Mock existing key data
-        key_data = {
+        _key_data = {
             'kid': 'test-kid-123',
             'private_key': 'test-private-key',
             'public_key': 'test-public-key'

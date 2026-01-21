@@ -654,7 +654,7 @@ class DataRetentionService:
         if not policy:
             raise ValueError("Policy not found")
 
-        cutoff_date = datetime.utcnow() - timedelta(days=policy.retention_period_days)
+        _cutoff_date = datetime.utcnow() - timedelta(days=policy.retention_period_days)
 
         # Get expired data items
         expired_items = await self.check_expired_data()

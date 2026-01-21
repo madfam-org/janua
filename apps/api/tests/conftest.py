@@ -478,7 +478,7 @@ def mock_database_dependency():
             # - auth.py: db.commit() (sync)
             # - auth_service.py: await db.commit() (async)
 
-            async def async_noop(*args, **kwargs):
+            async def _async_noop(*args, **kwargs):
                 """No-op coroutine for async operations"""
                 return None
 

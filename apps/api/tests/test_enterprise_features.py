@@ -264,7 +264,7 @@ class TestSCIMIntegration:
         await db_session.commit()
 
         # Simulate SCIM token (in production, would be validated)
-        headers = {
+        _headers = {
             "Authorization": "Bearer scim-token-123",
             "Content-Type": "application/json"
         }

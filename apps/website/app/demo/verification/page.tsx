@@ -9,31 +9,27 @@ export default function VerificationShowcase() {
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
 
-  // Email verification handlers
-  const handleSendEmailCode = async (email: string) => {
-    // removed console.log
+  // Email verification handlers - kept for reference but handlers are inline
+  const _handleSendEmailCode = async (email: string) => {
     setStatus('success')
     setMessage(`Verification code sent to ${email}`)
     setTimeout(() => setStatus('idle'), 3000)
   }
 
-  const handleVerifyEmail = async (code: string) => {
-    // removed console.log
+  const _handleVerifyEmail = async (_code: string) => {
     setStatus('success')
     setMessage('Email verified successfully!')
     setTimeout(() => setStatus('idle'), 3000)
   }
 
-  // Phone verification handlers
-  const handleSendPhoneCode = async (phone: string) => {
-    // removed console.log
+  // Phone verification handlers - kept for reference but handlers are inline
+  const _handleSendPhoneCode = async (phone: string) => {
     setStatus('success')
     setMessage(`Verification code sent to ${phone}`)
     setTimeout(() => setStatus('idle'), 3000)
   }
 
-  const handleVerifyPhone = async (code: string) => {
-    // removed console.log
+  const _handleVerifyPhone = async (_code: string) => {
     setStatus('success')
     setMessage('Phone number verified successfully!')
     setTimeout(() => setStatus('idle'), 3000)
@@ -126,7 +122,7 @@ export default function VerificationShowcase() {
                 setMessage('Verification email resent!')
                 setTimeout(() => setStatus('idle'), 3000)
               }}
-              onVerify={async (token) => {
+              onVerify={async (_token) => {
                 // removed console.log
                 setStatus('success')
                 setMessage('Email verified successfully!')
@@ -153,7 +149,7 @@ export default function VerificationShowcase() {
                 setMessage(`Verification code sent to ${phone}`)
                 setTimeout(() => setStatus('idle'), 3000)
               }}
-              onVerifyCode={async (code) => {
+              onVerifyCode={async (_code) => {
                 // removed console.log
                 setStatus('success')
                 setMessage('Phone number verified successfully!')

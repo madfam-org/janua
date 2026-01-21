@@ -104,7 +104,7 @@ class TestUserCreation:
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         with patch.object(AuthService, "create_audit_log", new_callable=AsyncMock):
-            user = await AuthService.create_user(
+            _user = await AuthService.create_user(
                 db=mock_db,
                 email="newuser@example.com",
                 password="StrongPass123!",
@@ -147,7 +147,7 @@ class TestUserCreation:
         mock_db.execute = AsyncMock(return_value=mock_result)
 
         with patch.object(AuthService, "create_audit_log", new_callable=AsyncMock):
-            user = await AuthService.create_user(
+            _user = await AuthService.create_user(
                 db=mock_db,
                 email="user@example.com",
                 password="StrongPass123!",

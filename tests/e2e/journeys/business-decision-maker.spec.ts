@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { BusinessDecisionMakerPersona } from '../fixtures/personas';
 import { JourneyMetricsTracker } from '../helpers/journey-metrics';
-import { ContentValidator } from '../helpers/content-validator';
 
 test.describe('Business Decision Maker Journey', () => {
   let metrics: JourneyMetricsTracker;
@@ -126,7 +125,7 @@ test.describe('Business Decision Maker Journey', () => {
     metrics.checkpoint('account-created');
 
     // Evaluate feature availability
-    const expectedFeatures = {
+    const _expectedFeatures = {
       'dashboard': true,
       'profile-management': true,
       'security-settings': true,

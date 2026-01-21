@@ -1059,100 +1059,100 @@ export class BillingService extends EventEmitter {
   }
   
   private async sendAlertNotification(
-    organizationId: string,
-    alert: BillingAlert
+    _organizationId: string,
+    _alert: BillingAlert
   ): Promise<void> {
     // Would integrate with notification service
   }
-  
+
   // Stripe Integration Methods (stubs)
-  private async createStripeProduct(plan: BillingPlan): Promise<any> {
+  private async createStripeProduct(_plan: BillingPlan): Promise<any> {
     return { id: `prod_${Math.random().toString(36).substring(2)}` };
   }
-  
-  private async createStripePrice(plan: BillingPlan, productId: string): Promise<any> {
+
+  private async createStripePrice(_plan: BillingPlan, _productId: string): Promise<any> {
     return { id: `price_${Math.random().toString(36).substring(2)}` };
   }
-  
+
   private async createStripeSubscription(
-    organizationId: string,
-    priceId: string,
-    paymentMethodId?: string,
-    trialDays?: number
+    _organizationId: string,
+    _priceId: string,
+    _paymentMethodId?: string,
+    _trialDays?: number
   ): Promise<any> {
     return {
       id: `sub_${Math.random().toString(36).substring(2)}`,
       customer: `cus_${Math.random().toString(36).substring(2)}`
     };
   }
-  
+
   private async updateStripeSubscription(
     subscriptionId: string,
     updates: Record<string, any>
   ): Promise<any> {
     return { id: subscriptionId, ...updates };
   }
-  
+
   private async cancelStripeSubscription(
     subscriptionId: string,
-    immediately: boolean
+    _immediately: boolean
   ): Promise<any> {
     return { id: subscriptionId, status: 'canceled' };
   }
-  
+
   private async reactivateStripeSubscription(subscriptionId: string): Promise<any> {
     return { id: subscriptionId, status: 'active' };
   }
-  
-  private async getOrCreateStripeCustomer(organizationId: string): Promise<any> {
+
+  private async getOrCreateStripeCustomer(_organizationId: string): Promise<any> {
     return { id: `cus_${Math.random().toString(36).substring(2)}` };
   }
-  
+
   private async updateStripeCustomer(customerId: string, updates: Record<string, any>): Promise<any> {
     return { id: customerId, ...updates };
   }
-  
+
   private async attachStripePaymentMethod(paymentMethodId: string, customerId: string): Promise<any> {
     return { id: paymentMethodId, customer: customerId };
   }
-  
+
   private async detachStripePaymentMethod(paymentMethodId: string): Promise<any> {
     return { id: paymentMethodId, customer: null };
   }
-  
+
   private async getStripeInvoice(invoiceId: string): Promise<any> {
     return {
       id: invoiceId,
       pdf: `https://stripe.com/invoices/${invoiceId}/pdf`
     };
   }
-  
+
   private async createStripeCheckoutSession(
-    organizationId: string,
-    priceId: string,
-    successUrl: string,
-    cancelUrl: string
+    _organizationId: string,
+    _priceId: string,
+    _successUrl: string,
+    _cancelUrl: string
   ): Promise<any> {
     return { id: `cs_${Math.random().toString(36).substring(2)}` };
   }
-  
-  private async handleCheckoutComplete(session: any): Promise<void> {
+
+  private async handleCheckoutComplete(_session: any): Promise<void> {
     // Handle checkout completion
   }
-  
-  private async handlePaymentSuccess(invoice: any): Promise<void> {
+
+  private async handlePaymentSuccess(_invoice: any): Promise<void> {
     // Handle successful payment
   }
-  
-  private async handlePaymentFailure(invoice: any): Promise<void> {
+
+  private async handlePaymentFailure(_invoice: any): Promise<void> {
     // Handle failed payment
   }
-  
-  private async handleSubscriptionUpdate(subscription: any): Promise<void> {
+
+  private async handleSubscriptionUpdate(_subscription: any): Promise<void> {
     // Handle subscription update
   }
-  
-  private async handleSubscriptionDeleted(subscription: any): Promise<void> {
+
+  private async handleSubscriptionDeleted(_subscription: any): Promise<void> {
     // Handle subscription deletion
   }
   

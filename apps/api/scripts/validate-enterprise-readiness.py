@@ -240,7 +240,7 @@ class EnterpriseReadinessValidator:
                     password_policy_score += 1
 
             except requests.exceptions.RequestException:
-                pass
+                pass  # Intentionally ignoring - network errors expected during password policy testing
 
         if password_policy_score >= 2:
             category["tests"].append({
@@ -274,7 +274,7 @@ class EnterpriseReadinessValidator:
                     break
 
             except requests.exceptions.RequestException:
-                pass
+                pass  # Intentionally ignoring - network errors expected during rate limit testing
 
         if rate_limit_score > 0:
             category["tests"].append({
@@ -358,7 +358,7 @@ class EnterpriseReadinessValidator:
                     sso_score += 1
 
             except requests.exceptions.RequestException:
-                pass
+                pass  # Intentionally ignoring - network errors expected during SSO endpoint check
 
         if sso_score >= 2:
             category["tests"].append({
@@ -480,7 +480,7 @@ class EnterpriseReadinessValidator:
                     successful_requests += 1
 
             except requests.exceptions.RequestException:
-                pass
+                pass  # Intentionally ignoring - network errors expected during response time testing
 
         if response_times:
             avg_response_time = sum(response_times) / len(response_times)

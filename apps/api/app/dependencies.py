@@ -185,8 +185,7 @@ async def get_current_user(
     except HTTPException:
         raise
     except Exception:
-        # If cache fails, continue with database query
-        pass
+        pass  # Intentionally ignoring - cache failure is non-critical, continue with database query
 
     # Get user using async session
     result = await db.execute(
@@ -202,15 +201,14 @@ async def get_current_user(
         try:
             await redis.set(cache_key, "invalid", ex=60)  # 1 minute
         except Exception:
-            pass
+            pass  # Intentionally ignoring - caching negative result is optional optimization
         raise HTTPException(status_code=401, detail="User not found")
 
     # Cache positive result (user exists and is active)
     try:
         await redis.set(cache_key, "valid", ex=300)  # 5 minutes
     except Exception:
-        # If caching fails, still return the user
-        pass
+        pass  # Intentionally ignoring - caching is optional optimization, user authentication succeeded
 
     return user
 

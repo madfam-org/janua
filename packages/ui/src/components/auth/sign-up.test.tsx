@@ -43,7 +43,7 @@ describe('SignUp', () => {
     })
 
     it('should render password strength meter when enabled', () => {
-      const user = userEvent.setup()
+      const _user = userEvent.setup()
       render(<SignUp showPasswordStrength={true} />)
 
       const passwordInput = screen.getByLabelText(/password/i)
@@ -110,17 +110,17 @@ describe('SignUp', () => {
 
   describe('Form Validation', () => {
     it('should require first name', async () => {
-      const user = userEvent.setup()
+      const _user = userEvent.setup()
       render(<SignUp />)
 
-      const submitButton = screen.getByRole('button', { name: /create account/i })
+      const _submitButton = screen.getByRole('button', { name: /create account/i })
       const firstNameInput = screen.getByLabelText(/first name/i)
 
       expect(firstNameInput).toHaveAttribute('required')
     })
 
     it('should require last name', async () => {
-      const user = userEvent.setup()
+      const _user = userEvent.setup()
       render(<SignUp />)
 
       const lastNameInput = screen.getByLabelText(/last name/i)
@@ -129,7 +129,7 @@ describe('SignUp', () => {
     })
 
     it('should require email', async () => {
-      const user = userEvent.setup()
+      const _user = userEvent.setup()
       render(<SignUp />)
 
       const emailInput = screen.getByLabelText(/email/i)
@@ -138,7 +138,7 @@ describe('SignUp', () => {
     })
 
     it('should require password', async () => {
-      const user = userEvent.setup()
+      const _user = userEvent.setup()
       render(<SignUp />)
 
       const passwordInput = screen.getByLabelText(/password/i)
@@ -147,7 +147,7 @@ describe('SignUp', () => {
     })
 
     it('should require terms agreement', async () => {
-      const user = userEvent.setup()
+      const _user = userEvent.setup()
       render(<SignUp />)
 
       const termsCheckbox = screen.getByRole('checkbox', { name: /terms/i })

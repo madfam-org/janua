@@ -280,9 +280,9 @@ class TestOIDCDiscoveryEdgeCases:
             mock_client.return_value.__aenter__.return_value.get = AsyncMock(
                 return_value=mock_response
             )
-            
-            config = await service.discover_configuration("https://example.com/")
-            
+
+            _config = await service.discover_configuration("https://example.com/")
+
             # Should have normalized to remove trailing slash
             call_url = mock_client.return_value.__aenter__.return_value.get.call_args[0][0]
             assert not call_url.endswith("//.well-known")

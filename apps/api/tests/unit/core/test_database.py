@@ -47,8 +47,8 @@ class TestDatabaseFunctions:
                 async for db_session in get_db():
                     pass  # This should trigger the commit error
             except Exception:
-                pass
-            
+                pass  # Intentionally ignoring - testing that rollback is called on commit error
+
             mock_session.rollback.assert_called_once()
             mock_session.close.assert_called_once()
     

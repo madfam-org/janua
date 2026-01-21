@@ -147,7 +147,7 @@ class EnterpriseOnboardingValidator:
                             f"{doc_name} appears incomplete (< 500 characters)"
                         )
                 except Exception:
-                    pass
+                    pass  # Intentionally ignoring - file read errors during doc validation are non-critical
 
             else:
                 category["items"].append({
@@ -457,7 +457,7 @@ class EnterpriseOnboardingValidator:
                 })
                 category["score"] += 25
         except Exception:
-            pass
+            pass  # Intentionally ignoring - network errors expected during API versioning check
 
         # Check GraphQL support
         try:
@@ -615,7 +615,7 @@ class EnterpriseOnboardingValidator:
                 if response.status_code < 500:
                     gdpr_score += 1
             except Exception:
-                pass
+                pass  # Intentionally ignoring - network errors expected during GDPR endpoint check
 
         if gdpr_score >= 2:
             category["items"].append({

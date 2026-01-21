@@ -38,8 +38,8 @@ interface HardwareTokenProvider {
 class YubiKeyProvider implements HardwareTokenProvider {
   name = 'YubiKey';
   type: TokenType = 'yubikey';
-  
-  async register(userId: string, challenge?: string): Promise<HardwareToken> {
+
+  async register(_userId: string, _challenge?: string): Promise<HardwareToken> {
     // In production, this would integrate with Yubico API
     const token: HardwareToken = {
       id: `yubikey-${crypto.randomBytes(16).toString('hex')}`,

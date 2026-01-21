@@ -127,7 +127,7 @@ class TestUserCreation:
 
         # Mock user creation
         with patch.object(AuthService, "create_audit_log") as mock_audit:
-            user = await AuthService.create_user(
+            _user = await AuthService.create_user(
                 db=mock_db, email="test@example.com", password="TestPassword123!", name="Test User"
             )
 
@@ -178,7 +178,7 @@ class TestUserCreation:
         tenant_id = uuid4()
 
         with patch.object(AuthService, "create_audit_log") as mock_audit:
-            user = await AuthService.create_user(
+            _user = await AuthService.create_user(
                 db=mock_db,
                 email="test@example.com",
                 password="TestPassword123!",

@@ -9,8 +9,7 @@ import { EventEmitter } from 'events';
 import {
   Insight,
   InsightDefinition,
-  InsightAction,
-  TimeRange
+  InsightAction
 } from '../core/types';
 
 export class InsightEngineService extends EventEmitter {

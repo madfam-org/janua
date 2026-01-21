@@ -326,7 +326,8 @@ class AlertManager:
 
         # Persist to Redis
         if self.redis_client:
-            rule_key = f"alert_rule:{rule.rule_id}"
+            # TODO: Implement Redis persistence for alert rules
+            _rule_key = f"alert_rule:{rule.rule_id}"
             # Store rule data - implementation depends on serialization needs
 
     async def add_notification_channel(self, channel: NotificationChannel):
@@ -335,7 +336,8 @@ class AlertManager:
 
         # Persist to Redis
         if self.redis_client:
-            channel_key = f"notification_channel:{channel.channel_id}"
+            # TODO: Implement Redis persistence for notification channels
+            _channel_key = f"notification_channel:{channel.channel_id}"
             # Store channel data - implementation depends on serialization needs
 
     async def acknowledge_alert(self, alert_id: str, acknowledged_by: str):

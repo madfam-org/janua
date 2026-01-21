@@ -560,7 +560,8 @@ class AdvancedRateLimitFeatures:
 
         # Allow 20% burst capacity for short periods
         burst_multiplier = 1.2
-        burst_key = f"burst:{client_id}:{path}"
+        # TODO: Implement Redis-based burst tracking using this key
+        _burst_key = f"burst:{client_id}:{path}"
 
         # Check if client has used burst recently
         # For now, always allow burst

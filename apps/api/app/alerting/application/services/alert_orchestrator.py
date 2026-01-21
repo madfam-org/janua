@@ -326,7 +326,7 @@ class AlertOrchestrator:
             
             # Calculate response times
             acknowledged_alerts = [a for a in active_alerts if a.acknowledged_at]
-            resolved_events = [e for e in recent_events if e.event_type == "resolved"]
+            _resolved_events = [e for e in recent_events if e.event_type == "resolved"]
             
             avg_acknowledgment_time = 0.0
             if acknowledged_alerts:

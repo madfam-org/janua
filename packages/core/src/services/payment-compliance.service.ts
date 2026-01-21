@@ -159,7 +159,7 @@ export class PaymentComplianceService extends EventEmitter {
     this.registerEdgeCase('3ds_challenge', {
       scenario: '3D Secure authentication required',
       handler: async (context) => {
-        const { amount, currency, cardIssuer } = context;
+        const { amount, currency } = context;
 
         // Check for SCA exemptions
         if (await this.qualifiesForSCAExemption(amount, currency, context)) {
@@ -206,7 +206,7 @@ export class PaymentComplianceService extends EventEmitter {
     this.registerEdgeCase('webhook_failure', {
       scenario: 'Webhook delivery failure',
       handler: async (context) => {
-        const { webhook, attempt } = context;
+        const { attempt } = context;
         const maxAttempts = 5;
 
         if (attempt >= maxAttempts) {
@@ -287,7 +287,7 @@ export class PaymentComplianceService extends EventEmitter {
     this.registerEdgeCase('complex_refund', {
       scenario: 'Complex refund scenario',
       handler: async (context) => {
-        const { paymentId, refundAmount, originalAmount, reason } = context;
+        const { paymentId, refundAmount, originalAmount } = context;
 
         // Check refund eligibility
         const eligible = await this.checkRefundEligibility(paymentId);

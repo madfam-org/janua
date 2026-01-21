@@ -61,11 +61,11 @@ async def get_redis() -> redis.Redis:
         # Test connection
         try:
             await redis_client.ping()
-            # Use parameterized logging to prevent log injection
-            logger.info("Connected to Redis at %s:%s", conn_params['host'], conn_params['port'])
+            # Log connection success with host (non-sensitive) - port omitted to reduce noise
+            logger.info("Connected to Redis at %s", conn_params['host'])
         except Exception as e:
-            # Use parameterized logging to prevent log injection
-            logger.error("Failed to connect to Redis: %s", e)
+            # Log error type only, not full exception details which may contain connection strings
+            logger.error("Failed to connect to Redis: %s", type(e).__name__)
             raise
 
     return redis_client

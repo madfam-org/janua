@@ -528,7 +528,7 @@ class TestPolicyCRUD:
             mock_policy = Mock()
             mock_policy_class.return_value = mock_policy
 
-            policy = await rbac_service.create_policy(
+            _policy = await rbac_service.create_policy(
                 organization_id=org_id,
                 name="Test Policy",
                 permission="custom:action",

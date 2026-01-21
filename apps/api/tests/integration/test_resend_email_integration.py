@@ -67,7 +67,7 @@ class TestResendEmailService:
         """Test delivery status tracking in Redis"""
         with patch("app.services.resend_email_service.settings.RESEND_API_KEY", None):
             with patch("app.services.resend_email_service.settings.ENVIRONMENT", "development"):
-                result = await email_service.send_email(
+                _result = await email_service.send_email(
                     to_email="test@example.com",
                     subject="Test Email",
                     html_content="<p>Test</p>",

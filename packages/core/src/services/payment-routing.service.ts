@@ -4,9 +4,7 @@ import { ConektaProvider } from './providers/conekta.provider';
 import { StripeProvider } from './providers/stripe.provider';
 import {
   PaymentProvider,
-  Currency,
-  PaymentIntent,
-  CheckoutSession
+  Currency
 } from '../types/payment.types';
 
 interface RoutingDecision {
@@ -90,7 +88,7 @@ export class PaymentRoutingService extends EventEmitter {
 
   private initializeHealthMonitoring(): void {
     // Initialize health metrics for each provider
-    for (const [name, provider] of this.providers) {
+    for (const [name, _provider] of this.providers) {
       this.healthMetrics.set(name, {
         provider: name,
         healthy: true,
@@ -411,7 +409,7 @@ export class PaymentRoutingService extends EventEmitter {
     return usdAmount * (rates[to] || 1);
   }
 
-  private isEUCountry(country: string): boolean {
+  private _isEUCountry(country: string): boolean {
     const euCountries = [
       'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR',
       'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL',
@@ -422,7 +420,7 @@ export class PaymentRoutingService extends EventEmitter {
 
   private requiresTaxCompliance(country: string): boolean {
     // Countries requiring special tax compliance
-    return this.isEUCountry(country) ||
+    return this._isEUCountry(country) ||
            ['GB', 'AU', 'NZ', 'JP', 'KR', 'SG', 'IN'].includes(country);
   }
 
@@ -543,7 +541,7 @@ export class PaymentRoutingService extends EventEmitter {
     optimizations: string[];
   }> {
     const routing = await this.selectOptimalProvider(context);
-    const provider = this.providers.get(routing.provider)!;
+    const _provider = this.providers.get(routing.provider)!;
 
     const optimizations: string[] = [];
     let uxScore = 70; // Base UX score
@@ -557,7 +555,7 @@ export class PaymentRoutingService extends EventEmitter {
       uxScore += 10;
     }
 
-    if (this.isEUCountry(context.country)) {
+    if (this._isEUCountry(context.country)) {
       paymentMethods.push('sepa_debit', 'ideal');
       optimizations.push('Enable SEPA for EU customers');
       uxScore += 5;

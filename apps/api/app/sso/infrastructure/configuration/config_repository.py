@@ -27,7 +27,7 @@ class SSOConfigurationRepository:
             try:
                 self._redis = await get_redis()
             except Exception:
-                pass  # Redis is optional, continue without caching
+                pass  # Intentionally ignoring - Redis is optional, continue without caching
         return self._redis
 
     async def _cache_get(self, key: str) -> Optional[dict]:
@@ -39,7 +39,7 @@ class SSOConfigurationRepository:
                 if cached:
                     return json.loads(cached)
         except Exception:
-            pass
+            pass  # Intentionally ignoring - cache read failure falls through to database
         return None
 
     async def _cache_set(self, key: str, value: dict, ttl: int = 900):
@@ -49,7 +49,7 @@ class SSOConfigurationRepository:
             if redis:
                 await redis.set(key, json.dumps(value, default=str), ex=ttl)
         except Exception:
-            pass
+            pass  # Intentionally ignoring - cache write failure is non-critical
 
     async def _cache_delete(self, pattern: str):
         """Delete from cache by pattern"""
@@ -60,7 +60,7 @@ class SSOConfigurationRepository:
                 if keys:
                     await redis.delete(*keys)
         except Exception:
-            pass
+            pass  # Intentionally ignoring - cache delete failure is non-critical
 
     async def create(self, config: SSOConfiguration) -> SSOConfiguration:
         """Create new SSO configuration"""

@@ -160,12 +160,12 @@ class TestTokenCreation:
         mock_result.token_type = "Bearer"
         mock_token_pair.return_value = mock_result
         
-        result = await jwt_service.create_tokens(
+        _result = await jwt_service.create_tokens(
             identity_id="user-123",
             tenant_id="tenant-456",
             organization_id="org-789"
         )
-        
+
         # Verify Redis calls for JTI storage
         assert mock_redis.setex.call_count == 2
         
@@ -178,14 +178,14 @@ class TestTokenCreation:
         mock_result = MagicMock()
         mock_result.access_token = "access_token"
         mock_token_pair.return_value = mock_result
-        
+
         custom = {"department": "engineering"}
-        result = await jwt_service.create_tokens(
+        _result = await jwt_service.create_tokens(
             identity_id="user-123",
             tenant_id="tenant-456",
             custom_claims=custom
         )
-        
+
         mock_token_pair.assert_called_once()
 
 

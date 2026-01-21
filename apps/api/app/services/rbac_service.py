@@ -151,8 +151,7 @@ class RBACService:
             if cached_role is not None:
                 return cached_role if cached_role != 'null' else None
         except Exception:
-            # If cache fails, proceed with database query
-            pass
+            pass  # Intentionally ignoring - cache failure falls through to database query
 
         # Platform super admin check
         user = self.db.query(User).filter(User.id == user_id).first()
@@ -161,7 +160,7 @@ class RBACService:
             try:
                 await self.redis.set(cache_key, 'super_admin', ex=300)
             except Exception:
-                pass
+                pass  # Intentionally ignoring - caching super_admin role is optional optimization
             return 'super_admin'
 
         if not organization_id:
@@ -169,7 +168,7 @@ class RBACService:
             try:
                 await self.redis.set(cache_key, 'null', ex=300)
             except Exception:
-                pass
+                pass  # Intentionally ignoring - caching null role is optional optimization
             return None
 
         # Organization member role
@@ -191,8 +190,7 @@ class RBACService:
                 ex=300  # 5 minutes
             )
         except Exception:
-            # If caching fails, still return the result
-            pass
+            pass  # Intentionally ignoring - caching role is optional optimization, return result anyway
 
         return role
 
@@ -427,8 +425,7 @@ class RBACService:
             if all_keys:
                 await self.redis.delete(*all_keys)
         except Exception:
-            # If cache clear fails, log but don't break the operation
-            pass
+            pass  # Intentionally ignoring - cache clear failure is non-critical, operation proceeds
 
     async def enforce_permission(
         self,

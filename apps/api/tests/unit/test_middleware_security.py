@@ -54,17 +54,18 @@ def test_security_headers_middleware_structure(mock_env):
     """Test security headers middleware structure"""
     try:
         from app.middleware.security_headers import SecurityHeadersMiddleware
-        
-        # Test middleware initialization
-        middleware = SecurityHeadersMiddleware()
+
+        # Test middleware initialization with required app parameter
+        mock_app = MagicMock()
+        middleware = SecurityHeadersMiddleware(mock_app)
         assert middleware is not None
-        
+
         # Check for required attributes/methods
         expected_methods = ['__call__', '__init__']
         for method in expected_methods:
             if hasattr(middleware, method):
                 assert callable(getattr(middleware, method))
-                
+
     except ImportError as e:
         pytest.skip(f"Security headers middleware structure test failed: {e}")
 
@@ -74,20 +75,21 @@ async def test_security_headers_middleware_functionality(mock_env):
     """Test security headers middleware functionality"""
     try:
         from app.middleware.security_headers import SecurityHeadersMiddleware
-        
-        # Create middleware instance
-        middleware = SecurityHeadersMiddleware()
-        
+
+        # Create middleware instance with required app parameter
+        mock_app = MagicMock()
+        middleware = SecurityHeadersMiddleware(mock_app)
+
         # Mock request and response
         mock_request = MagicMock()
         mock_response = MagicMock()
         mock_call_next = AsyncMock(return_value=mock_response)
-        
+
         # Test middleware call
         if hasattr(middleware, '__call__'):
             result = await middleware(mock_request, mock_call_next)
             assert result is not None
-            
+
     except ImportError as e:
         pytest.skip(f"Security headers middleware functionality test failed: {e}")
 

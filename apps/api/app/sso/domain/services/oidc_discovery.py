@@ -321,7 +321,7 @@ class OIDCDiscoveryService:
                 if cached:
                     return cached
             except Exception:
-                pass  # Fall through to memory cache
+                pass  # Intentionally ignoring - cache service failure falls through to memory cache
         
         # Try memory cache
         if issuer in self._memory_cache:
@@ -362,7 +362,7 @@ class OIDCDiscoveryService:
                     ttl=self.DISCOVERY_CACHE_TTL
                 )
             except Exception:
-                pass  # Fall back to memory cache
+                pass  # Intentionally ignoring - cache service failure falls back to memory cache
         
         # Always store in memory cache as fallback
         self._memory_cache[issuer] = cached_config
@@ -382,8 +382,8 @@ class OIDCDiscoveryService:
                 try:
                     await self.cache_service.delete(cache_key)
                 except Exception:
-                    pass
-            
+                    pass  # Intentionally ignoring - cache service delete failure is non-critical
+
             if issuer in self._memory_cache:
                 del self._memory_cache[issuer]
         else:

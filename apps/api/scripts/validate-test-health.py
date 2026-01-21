@@ -186,8 +186,8 @@ class TestHealthValidator:
                     self.issues.append(f"Common issue detected: {issue}")
                     
         except Exception:
-            pass
-            
+            pass  # Intentionally ignoring - test execution failure is handled by continuing analysis
+
     def generate_report(self) -> Dict:
         """Generate comprehensive health report"""
         print("\n" + "=" * 50)

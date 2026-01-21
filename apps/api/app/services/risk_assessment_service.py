@@ -213,8 +213,8 @@ class RiskAssessmentService:
                     if country in self._get_high_risk_countries():
                         risk_score += 0.2
                 except Exception:
-                    pass
-            
+                    pass  # Intentionally ignoring - GeoIP lookup failure is non-critical for risk assessment
+
         except Exception as e:
             logger.warning(f"Location risk assessment error: {e}")
             risk_score = 0.3

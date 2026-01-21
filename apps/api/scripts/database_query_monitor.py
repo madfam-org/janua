@@ -305,7 +305,7 @@ async def validate_phase3_n_plus_one_fixes():
         test_password = "QueryMonitor123!@#"
 
         # Signup
-        signup_response = client.post("/beta/signup", json={
+        _signup_response = client.post("/beta/signup", json={
             "email": test_email,
             "password": test_password,
             "name": "Query Monitor"

@@ -436,10 +436,10 @@ async def initiate_mfa_recovery(email: str, db: Session = Depends(get_db)):
         # Don't reveal if user exists or has MFA
         return {"message": "If MFA is enabled, recovery instructions have been sent"}
 
-    # Generate recovery token
+    # Generate recovery token (stored for future recovery link feature)
     from app.core.jwt_manager import create_access_token
 
-    recovery_token = create_access_token(
+    _recovery_token = create_access_token(
         data={"sub": str(user.id), "purpose": "mfa_recovery"},
         expires_delta=timedelta(hours=1),  # Short-lived recovery token
     )

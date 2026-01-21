@@ -182,7 +182,7 @@ async def get_user_from_cookie_or_header(
                 if user:
                     return user
         except Exception:
-            pass
+            pass  # Intentionally ignoring - JWT verification failure handled by trying cookie auth next
 
     # Second, try to get user from cookie
     access_token = request.cookies.get("janua_access_token")
@@ -197,7 +197,7 @@ async def get_user_from_cookie_or_header(
                 if user:
                     return user
         except Exception:
-            pass
+            pass  # Intentionally ignoring - cookie JWT verification failure means user is not authenticated
 
     return None
 
@@ -1281,7 +1281,7 @@ async def introspect(
                 decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
                 client_id, client_secret = decoded.split(":", 1)
             except Exception:
-                pass
+                pass  # Intentionally ignoring - Basic auth decode failure handled by checking client_id below
 
     if not client_id:
         raise HTTPException(
@@ -1351,7 +1351,7 @@ async def revoke(
                 decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
                 client_id, client_secret = decoded.split(":", 1)
             except Exception:
-                pass
+                pass  # Intentionally ignoring - Basic auth decode failure handled by checking client_id below
 
     if client_id:
         client = await _get_oauth_client(client_id, db)

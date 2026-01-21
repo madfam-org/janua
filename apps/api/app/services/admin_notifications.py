@@ -147,7 +147,8 @@ class AdminNotificationService:
         """Check if notification is within rate limit"""
         # For now, implement basic in-memory rate limiting
         # In production, this should use Redis
-        rate_limit_key = f"admin_notification_rate_limit:{category}"
+        # TODO: Implement Redis-based rate limiting using this key
+        _rate_limit_key = f"admin_notification_rate_limit:{category}"
         # Simplified implementation - would use Redis in production
         return True
 

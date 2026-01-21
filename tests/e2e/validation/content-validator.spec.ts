@@ -43,7 +43,7 @@ test.describe('Content Validation', () => {
 
     // Get all feature cards from homepage
     const featureCards = page.locator('[data-testid^="feature-"]');
-    const count = await featureCards.count();
+    const _count = await featureCards.count();
 
     // Verify each claimed feature
     const features = [
@@ -140,13 +140,13 @@ test.describe('Content Validation', () => {
     await page.goto('http://localhost:3000/compare');
 
     // Verify Janua claims
-    const januaColumn = page.locator('th:has-text("Janua")').locator('..');
-    
+    const _januaColumn = page.locator('th:has-text("Janua")').locator('..');
+
     // Check pricing claim
     await expect(page.locator('text=$0 - $49/mo')).toBeVisible();
 
     // Check feature claims in table
-    const table = page.locator('table');
+    const _table = page.locator('table');
     
     // Open source
     const openSourceRow = page.locator('tr:has-text("Open Source")');
@@ -224,7 +224,7 @@ test.describe('Content Validation', () => {
     await page.goto('http://localhost:3000/features');
 
     // Check for dangerous claims of unimplemented features
-    const content = await page.content();
+    const _content = await page.content();
     
     // Should NOT claim features we haven't implemented
     // (These would be added in future weeks)
@@ -270,7 +270,7 @@ test.describe('Content-Code Alignment', () => {
     }
   });
 
-  test('Future features are clearly marked', async ({ page }) => {
+  test('Future features are clearly marked', async ({ _page }) => {
     // Features planned for Week 5+ should be marked appropriately
     // E.g., "Coming Soon", "Enterprise", etc.
     

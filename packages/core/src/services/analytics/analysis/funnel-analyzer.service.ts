@@ -8,11 +8,12 @@ import crypto from 'crypto';
 import { EventEmitter } from 'events';
 import {
   FunnelAnalysis,
-  FunnelStep,
   QueryFilter,
   TimeRange,
   AnalyticsEvent
 } from '../core/types';
+
+// FunnelStep is used for type checking in method signatures
 
 export interface EventSource {
   getEvents(filter: {

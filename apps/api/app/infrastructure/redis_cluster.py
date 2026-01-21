@@ -461,7 +461,7 @@ class RedisClusterManager:
             master_info = sentinel_info.get(self.master_name, {})
             failover_in_progress = master_info.get('flags', '').find('failover') != -1
         except Exception:
-            pass
+            pass  # Intentionally ignoring - sentinel info query failure is non-critical for status reporting
 
         return RedisClusterStatus(
             master_node=master_nodes[0] if master_nodes else None,

@@ -124,7 +124,7 @@ async function main() {
     },
   });
 
-  const userRole = await prisma.role.upsert({
+  const _userRole = await prisma.role.upsert({
     where: { name: "user" },
     update: {},
     create: {
@@ -142,7 +142,7 @@ async function main() {
     },
   });
 
-  const teamLeadRole = await prisma.role.upsert({
+  const _teamLeadRole = await prisma.role.upsert({
     where: { name: "team_lead" },
     update: {},
     create: {
@@ -207,7 +207,7 @@ async function main() {
   console.log("✅ Created demo team and added admin");
 
   // Create demo subscription
-  const demoSubscription = await prisma.subscription.create({
+  const _demoSubscription = await prisma.subscription.create({
     data: {
       tenant_id: demoTenant.id,
       plan_id: "professional_monthly",

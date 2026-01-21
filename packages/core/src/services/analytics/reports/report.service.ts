@@ -7,9 +7,7 @@
 import crypto from 'crypto';
 import { EventEmitter } from 'events';
 import {
-  Report,
-  ReportFilter,
-  AccessControl
+  Report
 } from '../core/types';
 
 export class ReportService extends EventEmitter {

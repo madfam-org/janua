@@ -366,7 +366,7 @@ export class BatchValidator {
     let failed = 0;
     const warnings: string[] = [];
     
-    for (const [key, value] of this.results.entries()) {
+    for (const [_key, value] of this.results.entries()) {
       if (Array.isArray(value)) {
         // Pricing results
         for (const item of value) {

@@ -102,8 +102,8 @@ class TestBillingIntegrationFlows:
         try:
             from app.services.billing_service import BillingService
 
-            mock_db = AsyncMock()
-            billing_service = BillingService(mock_db)
+            # BillingService __init__ takes no arguments
+            billing_service = BillingService()
 
             # Test subscription creation, updates, and cancellation
             subscription_data = {
@@ -135,8 +135,8 @@ class TestBillingIntegrationFlows:
         try:
             from app.services.billing_service import BillingService
 
-            mock_db = AsyncMock()
-            billing_service = BillingService(mock_db)
+            # BillingService __init__ takes no arguments
+            billing_service = BillingService()
 
             # Test complete payment flow
             payment_data = {

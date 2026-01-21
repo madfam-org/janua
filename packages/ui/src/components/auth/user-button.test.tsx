@@ -370,7 +370,7 @@ describe('UserButton', () => {
   describe('Menu Positioning', () => {
     it('should align menu to end', async () => {
       const user = userEvent.setup()
-      const { container } = render(<UserButton user={mockUser} />)
+      const { container: _container } = render(<UserButton user={mockUser} />)
 
       const button = screen.getByRole('button', { name: /user menu/i })
       await user.click(button)

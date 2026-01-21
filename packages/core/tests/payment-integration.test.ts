@@ -573,7 +573,7 @@ describe('Payment Integration Tests', () => {
     });
 
     it('should handle webhook idempotency', async () => {
-      const event = {
+      const _event = {
         id: 'evt_123',
         type: 'payment_intent.succeeded',
         data: { object: { id: 'pi_123', amount: 1000 } }

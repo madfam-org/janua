@@ -21,6 +21,23 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 logger = logging.getLogger(__name__)
 
 
+def _redact_email(email: str) -> str:
+    """Redact email address for logging (shows first 2 chars and domain)."""
+    if not email or "@" not in email:
+        return "[redacted]"
+    local, domain = email.split("@", 1)
+    if len(local) <= 2:
+        return f"{local[0]}***@{domain}"
+    return f"{local[:2]}***@{domain}"
+
+
+def _redact_emails(emails: list | str) -> str:
+    """Redact list of emails for logging."""
+    if isinstance(emails, str):
+        return _redact_email(emails)
+    return ", ".join(_redact_email(e) for e in emails[:3]) + (f" (+{len(emails)-3} more)" if len(emails) > 3 else "")
+
+
 class ResendService:
     """
     Resend email service for transactional emails.
@@ -64,7 +81,8 @@ class ResendService:
             autoescape=True
         )
 
-        logger.info("ResendService initialized with from_email=%s", self.from_email)
+        # Log initialization without exposing full email
+        logger.info("ResendService initialized with from_domain=%s", self.from_email.split("@")[-1] if "@" in self.from_email else "unknown")
 
     def _format_from(self, from_email: Optional[str] = None) -> str:
         """Format sender email with name."""
@@ -138,21 +156,22 @@ class ResendService:
             # Send email
             response = resend.Emails.send(params)
 
+            # Log success with redacted recipient
             logger.info(
-                "Email sent successfully: id=%s, to=%s, subject=%s",
+                "Email sent successfully: id=%s, to=%s, subject_length=%d",
                 response.get("id"),
-                recipients,
-                subject
+                _redact_emails(recipients),
+                len(subject)
             )
 
             return response
 
         except Exception as e:
+            # Log error with redacted recipient
             logger.error(
-                "Failed to send email: to=%s, subject=%s, error=%s",
-                to,
-                subject,
-                str(e)
+                "Failed to send email: to=%s, error_type=%s",
+                _redact_emails(to),
+                type(e).__name__
             )
             raise
 
@@ -238,11 +257,12 @@ class ResendService:
             )
 
         except Exception as e:
+            # Log error with redacted recipient
             logger.error(
-                "Failed to send template email: template=%s, to=%s, error=%s",
+                "Failed to send template email: template=%s, to=%s, error_type=%s",
                 template,
-                to,
-                str(e)
+                _redact_emails(to),
+                type(e).__name__
             )
             raise
 
@@ -274,7 +294,7 @@ class ResendService:
             return results
 
         except Exception as e:
-            logger.error("Failed to send batch emails: error=%s", str(e))
+            logger.error("Failed to send batch emails: error_type=%s", type(e).__name__)
             raise
 
 

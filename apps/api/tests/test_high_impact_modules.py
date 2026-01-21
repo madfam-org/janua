@@ -121,12 +121,10 @@ class TestAdvancedAuthenticationFlows:
         try:
             from app.services.auth_service import AuthService
 
-            mock_db = AsyncMock()
-            auth_service = AuthService(mock_db)
-
+            # AuthService uses static methods, no instantiation needed
             # Test MFA setup if method exists
-            if hasattr(auth_service, 'setup_mfa'):
-                result = await auth_service.setup_mfa(
+            if hasattr(AuthService, 'setup_mfa'):
+                result = await AuthService.setup_mfa(
                     user_id="user123",
                     method="totp"
                 )
@@ -140,12 +138,10 @@ class TestAdvancedAuthenticationFlows:
         try:
             from app.services.auth_service import AuthService
 
-            mock_db = AsyncMock()
-            auth_service = AuthService(mock_db)
-
+            # AuthService uses static methods, no instantiation needed
             # Test password reset if method exists
-            if hasattr(auth_service, 'initiate_password_reset'):
-                result = await auth_service.initiate_password_reset(
+            if hasattr(AuthService, 'initiate_password_reset'):
+                result = await AuthService.initiate_password_reset(
                     email="user@example.com"
                 )
                 assert result is not None or result is None
@@ -158,12 +154,12 @@ class TestAdvancedAuthenticationFlows:
         try:
             from app.services.auth_service import AuthService
 
-            mock_db = AsyncMock()
-            auth_service = AuthService(mock_db)
-
+            # AuthService uses static methods, no instantiation needed
             # Test session invalidation if method exists
-            if hasattr(auth_service, 'invalidate_all_sessions'):
-                result = await auth_service.invalidate_all_sessions(
+            if hasattr(AuthService, 'invalidate_all_sessions'):
+                mock_db = AsyncMock()
+                result = await AuthService.invalidate_all_sessions(
+                    db=mock_db,
                     user_id="user123"
                 )
                 assert result is not None or result is None
@@ -180,8 +176,8 @@ class TestBillingServiceAdvanced:
         try:
             from app.services.billing_service import BillingService
 
-            mock_db = AsyncMock()
-            billing_service = BillingService(mock_db)
+            # BillingService __init__ takes no arguments
+            billing_service = BillingService()
 
             # Test subscription creation if method exists
             if hasattr(billing_service, 'create_subscription'):
@@ -201,8 +197,8 @@ class TestBillingServiceAdvanced:
         try:
             from app.services.billing_service import BillingService
 
-            mock_db = AsyncMock()
-            billing_service = BillingService(mock_db)
+            # BillingService __init__ takes no arguments
+            billing_service = BillingService()
 
             # Test invoice generation if method exists
             if hasattr(billing_service, 'generate_invoice'):
@@ -224,8 +220,8 @@ class TestBillingServiceAdvanced:
         try:
             from app.services.billing_service import BillingService
 
-            mock_db = AsyncMock()
-            billing_service = BillingService(mock_db)
+            # BillingService __init__ takes no arguments
+            billing_service = BillingService()
 
             # Test payment processing if method exists
             if hasattr(billing_service, 'process_payment'):

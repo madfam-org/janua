@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@/test/test-utils'
 import userEvent from '@testing-library/user-event'
 import { DeviceManagement } from './device-management'
 import type { TrustedDevice } from './device-management'
-import { setupMockTime, restoreRealTime, isRelativeTime } from '@/test/utils'
 
 describe('DeviceManagement', () => {
   const mockOnTrustDevice = vi.fn()

@@ -1028,31 +1028,31 @@ export class AnalyticsReportingService extends EventEmitter {
     return d.toISOString();
   }
 
-  private formatForVisualization(data: any[], config: VisualizationConfig): any {
+  private formatForVisualization(data: any[], _config: VisualizationConfig): any {
     // Format data based on chart type
     return data;
   }
 
-  private async scheduleReport(report: Report): Promise<void> {
+  private async scheduleReport(_report: Report): Promise<void> {
     // Schedule report execution
     // In production, use proper job scheduler
   }
 
   private async getFunnelStepUsers(
-    step: { event_type: string; filters?: QueryFilter[] },
-    timeRange: TimeRange
+    _step: { event_type: string; filters?: QueryFilter[] },
+    _timeRange: TimeRange
   ): Promise<Set<string>> {
     // Get users who performed the event
     const users = new Set<string>();
-    
+
     // Implementation would query actual event data
-    
+
     return users;
   }
 
   private async getCohorts(
-    definition: CohortAnalysis['cohort_definition'],
-    periodType: string
+    _definition: CohortAnalysis['cohort_definition'],
+    _periodType: string
   ): Promise<Array<{ date: Date; users: Set<string> }>> {
     // Get cohorts based on definition
     return [];
@@ -1077,19 +1077,19 @@ export class AnalyticsReportingService extends EventEmitter {
   }
 
   private async getRetainedUsers(
-    cohortUsers: Set<string>,
-    metric: CohortAnalysis['retention_metric'],
-    start: Date,
-    end: Date
+    _cohortUsers: Set<string>,
+    _metric: CohortAnalysis['retention_metric'],
+    _start: Date,
+    _end: Date
   ): Promise<Set<string>> {
     // Get users who performed retention event
     return new Set();
   }
 
   private async generateInsight(
-    definition: InsightDefinition,
-    organizationId?: string,
-    timeRange?: TimeRange
+    _definition: InsightDefinition,
+    _organizationId?: string,
+    _timeRange?: TimeRange
   ): Promise<Insight | null> {
     // Generate insight based on definition
     return null;
@@ -1123,32 +1123,32 @@ export class AnalyticsReportingService extends EventEmitter {
   }
 
   private performLinearRegression(
-    data: TimeSeriesData[],
-    periods: number,
-    periodType: string
+    _data: TimeSeriesData[],
+    _periods: number,
+    _periodType: string
   ): TimeSeriesData[] {
     // Simple linear regression for demo
     const forecast: TimeSeriesData[] = [];
-    
+
     // Implementation would use proper forecasting
-    
+
     return forecast;
   }
 
-  private async getUserEvents(userId: string, timeRange?: TimeRange): Promise<AnalyticsEvent[]> {
+  private async getUserEvents(userId: string, _timeRange?: TimeRange): Promise<AnalyticsEvent[]> {
     const allEvents: AnalyticsEvent[] = [];
-    
+
     for (const events of this.events.values()) {
       const userEvents = events.filter(e => e.user_id === userId);
       allEvents.push(...userEvents);
     }
-    
+
     return allEvents;
   }
 
   private async getOrganizationEvents(
     organizationId: string,
-    timeRange?: TimeRange
+    _timeRange?: TimeRange
   ): Promise<AnalyticsEvent[]> {
     const allEvents: AnalyticsEvent[] = [];
     

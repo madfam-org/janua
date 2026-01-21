@@ -676,7 +676,7 @@ export class BillingQuotasService extends EventEmitter {
    */
   async processPayment(
     invoice_id: string,
-    payment_method_id: string
+    _payment_method_id: string
   ): Promise<Invoice> {
     // Find invoice
     let targetInvoice: Invoice | null = null;

@@ -121,15 +121,15 @@ class TestDatabaseErrorHandling:
             # Execute invalid operation
             await test_db_session.execute(text("INVALID SQL"))
         except Exception:
-            pass
-        
+            pass  # Intentionally ignoring - invalid SQL execution is expected to fail
+
         # Session should still be in a usable state for cleanup
         # (This tests that the session doesn't get permanently corrupted)
         try:
             await test_db_session.rollback()
         except Exception:
-            pass  # Rollback might also fail, which is OK
-        
+            pass  # Intentionally ignoring - rollback may fail after invalid SQL, which is OK
+
         # We should be able to execute a simple query after cleanup
         result = await test_db_session.execute(text("SELECT 1 as test"))
         row = result.fetchone()

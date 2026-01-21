@@ -8,9 +8,7 @@ import crypto from 'crypto';
 import { EventEmitter } from 'events';
 import {
   AnalyticsEvent,
-  AnalyticsConfig,
-  TimeSeriesData,
-  MetricDefinition
+  AnalyticsConfig
 } from '../core/types';
 
 export class EventTrackerService extends EventEmitter {

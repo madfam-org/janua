@@ -299,7 +299,7 @@ async def bootstrap_admin_user():
                     logger.info("Admin already member of organization", org=default_org_slug)
             else:
                 # Create default organization with admin as owner (enterprise tier for MADFAM)
-                org, membership = await create_organization_with_membership(
+                _org, _membership = await create_organization_with_membership(
                     session=session,
                     owner=admin_user,
                     name="MADFAM",

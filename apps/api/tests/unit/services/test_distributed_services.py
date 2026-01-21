@@ -151,7 +151,8 @@ class TestStorageService:
         try:
             from app.services.storage import StorageService
 
-            storage_service = StorageService() if not hasattr(StorageService, '__init__') else StorageService(AsyncMock())
+            # StorageService __init__ takes no arguments
+            storage_service = StorageService()
 
             # Verify storage service has file methods
             public_methods = [method for method in dir(storage_service)
@@ -247,7 +248,8 @@ class TestRiskAssessmentService:
         try:
             from app.services.risk_assessment_service import RiskAssessmentService
 
-            risk_service = RiskAssessmentService() if not hasattr(RiskAssessmentService, '__init__') else RiskAssessmentService(AsyncMock())
+            # RiskAssessmentService __init__ takes no arguments
+            risk_service = RiskAssessmentService()
 
             # Verify risk service has assessment methods
             public_methods = [method for method in dir(risk_service)

@@ -7,8 +7,7 @@
 import { EventEmitter } from 'events';
 import {
   Report,
-  ReportWidget,
-  VisualizationConfig
+  ReportWidget
 } from '../core/types';
 
 export interface ReportDataSource {

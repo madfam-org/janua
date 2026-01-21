@@ -139,8 +139,8 @@ class ConnectionManager:
         try:
             await connection["websocket"].close()
         except Exception:
-            pass
-        
+            pass  # Intentionally ignoring - websocket may already be closed or in invalid state
+
         # Remove connection
         del self.active_connections[connection_id]
     

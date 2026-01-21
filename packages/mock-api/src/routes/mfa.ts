@@ -1,12 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../database';
 
 export const mfaRouter = Router();
 
 // Get MFA status
-mfaRouter.get('/status', (req: Request, res: Response) => {
-  const userId = (req as any).userId;
-  
+mfaRouter.get('/status', (_req: Request, res: Response) => {
   res.json({
     enabled: false,
     methods: [],
@@ -16,7 +13,6 @@ mfaRouter.get('/status', (req: Request, res: Response) => {
 
 // Enable MFA
 mfaRouter.post('/enable', (req: Request, res: Response) => {
-  const userId = (req as any).userId;
   const { method } = req.body;
   
   if (!method || !['totp', 'sms'].includes(method)) {
@@ -55,18 +51,14 @@ mfaRouter.post('/verify', (req: Request, res: Response) => {
 });
 
 // Disable MFA
-mfaRouter.post('/disable', (req: Request, res: Response) => {
-  const userId = (req as any).userId;
-  
+mfaRouter.post('/disable', (_req: Request, res: Response) => {
   res.json({
     message: 'MFA disabled successfully'
   });
 });
 
 // Generate backup codes
-mfaRouter.post('/backup-codes', (req: Request, res: Response) => {
-  const userId = (req as any).userId;
-  
+mfaRouter.post('/backup-codes', (_req: Request, res: Response) => {
   const codes = Array.from({ length: 8 }, () => 
     'BACKUP-' + Math.random().toString(36).substring(2, 6).toUpperCase() + 
     '-' + Math.random().toString(36).substring(2, 6).toUpperCase()

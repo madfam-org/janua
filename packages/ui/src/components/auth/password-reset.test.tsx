@@ -408,7 +408,7 @@ describe('PasswordReset', () => {
       await user.type(passwordInput, 'short')
 
       const { container } = render(<PasswordReset step="reset" />)
-      const passwordInput2 = container.querySelector('input[type="password"]') as HTMLInputElement
+      const _passwordInput2 = container.querySelector('input[type="password"]') as HTMLInputElement
 
       // Just verify weak passwords are detected
       expect(screen.getByText('Weak')).toBeInTheDocument()

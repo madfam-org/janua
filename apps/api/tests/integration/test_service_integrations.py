@@ -28,7 +28,9 @@ class TestJWTServiceIntegration:
     @pytest.mark.asyncio
     async def test_jwt_token_lifecycle(self):
         """Test complete JWT token lifecycle"""
-        jwt_service = JWTService()
+        mock_db = AsyncMock()
+        mock_redis = AsyncMock()
+        jwt_service = JWTService(mock_db, mock_redis)
 
         # Test token creation
         user_data = {
@@ -61,7 +63,9 @@ class TestJWTServiceIntegration:
     @pytest.mark.asyncio
     async def test_jwt_token_expiration(self):
         """Test JWT token expiration handling"""
-        jwt_service = JWTService()
+        mock_db = AsyncMock()
+        mock_redis = AsyncMock()
+        jwt_service = JWTService(mock_db, mock_redis)
 
         user_data = {
             "user_id": str(uuid.uuid4()),
@@ -87,7 +91,9 @@ class TestJWTServiceIntegration:
     @pytest.mark.asyncio
     async def test_jwt_token_validation_security(self):
         """Test JWT token validation security"""
-        jwt_service = JWTService()
+        mock_db = AsyncMock()
+        mock_redis = AsyncMock()
+        jwt_service = JWTService(mock_db, mock_redis)
 
         # Test invalid tokens
         invalid_tokens = [
@@ -105,7 +111,9 @@ class TestJWTServiceIntegration:
     @pytest.mark.asyncio
     async def test_jwt_token_refresh_flow(self):
         """Test JWT token refresh flow"""
-        jwt_service = JWTService()
+        mock_db = AsyncMock()
+        mock_redis = AsyncMock()
+        jwt_service = JWTService(mock_db, mock_redis)
 
         user_data = {
             "user_id": str(uuid.uuid4()),
@@ -129,7 +137,9 @@ class TestJWTServiceIntegration:
     @pytest.mark.asyncio
     async def test_jwt_custom_claims(self):
         """Test JWT with custom claims"""
-        jwt_service = JWTService()
+        mock_db = AsyncMock()
+        mock_redis = AsyncMock()
+        jwt_service = JWTService(mock_db, mock_redis)
 
         user_data = {
             "user_id": str(uuid.uuid4()),
@@ -664,7 +674,9 @@ class TestServiceIntegrationEdgeCases:
     @pytest.mark.asyncio
     async def test_jwt_secret_rotation(self):
         """Test JWT secret key rotation"""
-        jwt_service = JWTService()
+        mock_db = AsyncMock()
+        mock_redis = AsyncMock()
+        jwt_service = JWTService(mock_db, mock_redis)
 
         user_data = {
             "user_id": str(uuid.uuid4()),
@@ -723,7 +735,9 @@ class TestServiceIntegrationEdgeCases:
         """Test concurrent service operations"""
         import asyncio
 
-        jwt_service = JWTService()
+        mock_db = AsyncMock()
+        mock_redis = AsyncMock()
+        jwt_service = JWTService(mock_db, mock_redis)
 
         user_data = {
             "user_id": str(uuid.uuid4()),
@@ -750,7 +764,9 @@ class TestServiceIntegrationEdgeCases:
     @pytest.mark.asyncio
     async def test_service_memory_usage(self):
         """Test service memory usage under load"""
-        jwt_service = JWTService()
+        mock_db = AsyncMock()
+        mock_redis = AsyncMock()
+        jwt_service = JWTService(mock_db, mock_redis)
 
         # Create many tokens to test memory usage
         tokens = []
@@ -770,7 +786,7 @@ class TestServiceIntegrationEdgeCases:
                 if decoded:
                     valid_count += 1
             except Exception:
-                pass
+                pass  # Intentionally ignoring - some token verification failures may occur under load
 
         # Most tokens should be valid
         assert valid_count >= 950  # Allow for some potential failures

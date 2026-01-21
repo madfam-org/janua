@@ -511,7 +511,7 @@ class TestAuthenticationEdgeCases:
                 mock_user = MagicMock()
                 mock_auth_service.return_value.create_user.return_value = mock_user
 
-                response1 = await test_client.post("/api/v1/auth/signup", json=signup_data)
+                _response1 = await test_client.post("/api/v1/auth/signup", json=signup_data)
 
                 # Second signup with same email should fail
                 mock_auth_service.return_value.create_user.side_effect = Exception("Email already exists")

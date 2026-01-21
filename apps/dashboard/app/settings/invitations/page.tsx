@@ -6,8 +6,6 @@ import { Button } from '@janua/ui'
 import { Input } from '@janua/ui'
 import { Label } from '@janua/ui'
 import { Badge } from '@janua/ui'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@janua/ui'
-import { Separator } from '@janua/ui'
 import Link from 'next/link'
 import {
   UserPlus,
@@ -58,7 +56,7 @@ export default function InvitationsPage() {
   const [stats, setStats] = useState<InvitationStats>({ total: 0, pending: 0, accepted: 0, expired: 0 })
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [_error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [newInvite, setNewInvite] = useState({ email: '', role: 'member', message: '' })
 

@@ -109,7 +109,7 @@ export class QueryCacheService extends EventEmitter {
 
     // Invalidate matching keys
     const regex = new RegExp(pattern);
-    for (const [key, entry] of this.cache.entries()) {
+    for (const [key, _entry] of this.cache.entries()) {
       if (regex.test(key)) {
         this.cache.delete(key);
         invalidatedCount++;

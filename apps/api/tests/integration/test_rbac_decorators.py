@@ -281,7 +281,7 @@ class TestDecoratorErrorHandling:
             try:
                 # Exception should propagate through decorator (FastAPI handles it)
                 with pytest.raises(Exception) as exc_info:
-                    response = client.get(
+                    _response = client.get(
                         "/test/require-permission", params={"current_user_id": test_user_id}
                     )
 
@@ -302,7 +302,7 @@ class TestDecoratorErrorHandling:
                 test_app.dependency_overrides[get_db] = override_get_db
 
                 try:
-                    response = client.get(
+                    _response = client.get(
                         "/test/require-permission", params={"current_user_id": test_user_id}
                     )
 

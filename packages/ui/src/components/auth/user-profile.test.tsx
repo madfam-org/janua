@@ -505,7 +505,7 @@ describe('UserProfile', () => {
     })
 
     it('should have descriptive button text', async () => {
-      const user = userEvent.setup()
+      const _user = userEvent.setup()
       render(<UserProfile user={mockUser} onUpdateProfile={mockOnUpdateProfile} />)
 
       expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument()

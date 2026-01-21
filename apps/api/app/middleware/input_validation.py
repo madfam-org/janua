@@ -184,9 +184,9 @@ class InputValidator:
     def validate_email(email: str) -> bool:
         """Validate email address format and domain"""
         try:
-            # Use email-validator library
-            validated = validate_email(email, check_deliverability=False)
-            
+            # Use email-validator library (validates and normalizes)
+            _validated = validate_email(email, check_deliverability=False)
+
             # Additional checks
             if len(email) > ValidationRules.MAX_EMAIL_LENGTH:
                 return False

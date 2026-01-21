@@ -23,6 +23,28 @@ logger = logging.getLogger(__name__)
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://app.janua.dev")
 
 
+def _redact_email(email: str) -> str:
+    """Redact email address for logging (shows first 2 chars and domain)."""
+    if not email or "@" not in email:
+        return "[redacted]"
+    local, domain = email.split("@", 1)
+    if len(local) <= 2:
+        return f"{local[0]}***@{domain}"
+    return f"{local[:2]}***@{domain}"
+
+
+def _redact_ip(ip_address: str) -> str:
+    """Redact IP address for logging (shows first two octets only)."""
+    if not ip_address:
+        return "[redacted]"
+    parts = ip_address.split(".")
+    if len(parts) == 4:  # IPv4
+        return f"{parts[0]}.{parts[1]}.*.*"
+    elif ":" in ip_address:  # IPv6
+        return ip_address[:ip_address.find(":", 4) + 1] + "***"
+    return "[redacted]"
+
+
 # ============================================================================
 # Invitation Emails
 # ============================================================================
@@ -68,15 +90,15 @@ async def send_invitation_email(
 
         logger.info(
             "Invitation email sent: email=%s, org=%s",
-            invitee_email,
+            _redact_email(invitee_email),
             organization_name
         )
 
     except Exception as e:
         logger.error(
-            "Failed to send invitation email: email=%s, error=%s",
-            invitee_email,
-            str(e)
+            "Failed to send invitation email: email=%s, error_type=%s",
+            _redact_email(invitee_email),
+            type(e).__name__
         )
         raise
 
@@ -113,14 +135,14 @@ async def send_invitation_accepted_email(
 
         logger.info(
             "Invitation accepted email sent: inviter=%s, invitee=%s",
-            inviter_email,
-            invitee_email
+            _redact_email(inviter_email),
+            _redact_email(invitee_email)
         )
 
     except Exception as e:
         logger.error(
-            "Failed to send invitation accepted email: error=%s",
-            str(e)
+            "Failed to send invitation accepted email: error_type=%s",
+            type(e).__name__
         )
         # Don't raise - this is a nice-to-have notification
 
@@ -172,8 +194,8 @@ async def send_sso_configured_email(
 
     except Exception as e:
         logger.error(
-            "Failed to send SSO configured email: error=%s",
-            str(e)
+            "Failed to send SSO configured email: error_type=%s",
+            type(e).__name__
         )
         # Don't raise - this is a nice-to-have notification
 
@@ -214,16 +236,17 @@ async def send_sso_login_notification(
             tags={"type": "sso_login", "ip": ip_address}
         )
 
+        # Log with redacted PII
         logger.info(
             "SSO login notification sent: email=%s, ip=%s",
-            user_email,
-            ip_address
+            _redact_email(user_email),
+            _redact_ip(ip_address)
         )
 
     except Exception as e:
         logger.error(
-            "Failed to send SSO login notification: error=%s",
-            str(e)
+            "Failed to send SSO login notification: error_type=%s",
+            type(e).__name__
         )
         # Don't raise - login should still succeed
 
@@ -274,17 +297,17 @@ async def send_invoice_payment_failed_email(
             tags={"type": "payment_failed", "invoice": invoice_number}
         )
 
+        # Log with redacted email
         logger.info(
-            "Payment failed email sent: email=%s, invoice=%s, amount=%s",
-            billing_email,
-            invoice_number,
-            formatted_amount
+            "Payment failed email sent: email=%s, invoice=%s",
+            _redact_email(billing_email),
+            invoice_number
         )
 
     except Exception as e:
         logger.error(
-            "Failed to send payment failed email: error=%s",
-            str(e)
+            "Failed to send payment failed email: error_type=%s",
+            type(e).__name__
         )
         raise
 
@@ -325,16 +348,17 @@ async def send_subscription_canceled_email(
             tags={"type": "subscription_canceled", "org": organization_name}
         )
 
+        # Log with redacted email
         logger.info(
             "Subscription canceled email sent: email=%s, org=%s",
-            billing_email,
+            _redact_email(billing_email),
             organization_name
         )
 
     except Exception as e:
         logger.error(
-            "Failed to send subscription canceled email: error=%s",
-            str(e)
+            "Failed to send subscription canceled email: error_type=%s",
+            type(e).__name__
         )
         # Don't raise - cancellation should still proceed
 
@@ -377,14 +401,14 @@ async def send_data_export_ready_email(
 
         logger.info(
             "Data export ready email sent: email=%s, export_id=%s",
-            user_email,
+            _redact_email(user_email),
             export_id
         )
 
     except Exception as e:
         logger.error(
-            "Failed to send data export ready email: error=%s",
-            str(e)
+            "Failed to send data export ready email: error_type=%s",
+            type(e).__name__
         )
         raise
 
@@ -420,12 +444,12 @@ async def send_account_deletion_confirmation_email(
 
         logger.info(
             "Account deletion confirmation email sent: email=%s",
-            user_email
+            _redact_email(user_email)
         )
 
     except Exception as e:
         logger.error(
-            "Failed to send account deletion confirmation email: error=%s",
-            str(e)
+            "Failed to send account deletion confirmation email: error_type=%s",
+            type(e).__name__
         )
         raise

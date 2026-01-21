@@ -307,7 +307,7 @@ export class AnalyticsReportingService extends EventEmitter {
    */
   async generateInsights(
     organizationId?: string,
-    timeRange?: TimeRange
+    _timeRange?: TimeRange
   ): Promise<Insight[]> {
     // Return recent insights
     return this.insightEngine.getInsights({

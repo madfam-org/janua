@@ -690,7 +690,7 @@ def get_fallback_log_stats() -> Dict[str, Any]:
                 stats["oldest_file"] = str(fallback_file)
             stats["newest_file"] = str(fallback_file)
         except Exception:
-            pass
+            pass  # Intentionally ignoring - file read errors during stats collection are non-critical
 
     return stats
 

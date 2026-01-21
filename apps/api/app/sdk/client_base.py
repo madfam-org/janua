@@ -322,7 +322,7 @@ class PaginatedResult(Generic[T]):
         prev_params["page"] = self.current_page - 1
 
         response = await self.client._request("GET", self.endpoint, params=prev_params)
-        return PaginatedResult(self.client, self.endpoint, self.params, prev_params)
+        return PaginatedResult(self.client, self.endpoint, self.params, response)
 
     async def all_pages(self) -> List[T]:
         """
