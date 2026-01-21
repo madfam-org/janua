@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "janua",
+  "version": "1.0.0",
+  "description": "Janua SSO - MADFAM Identity Provider",
+  "lastUpdated": "2026-01-21",
+
+  "domains": {
+    "production": {
+      "api": "https://api.janua.dev",
+      "apiAlias": "https://auth.madfam.io",
+      "dashboard": "https://app.janua.dev",
+      "dashboardAlias": "https://dashboard.madfam.io",
+      "admin": "https://admin.janua.dev",
+      "adminAlias": "https://admin.madfam.io",
+      "docs": "https://docs.janua.dev"
+    }
+  },
+
+  "ports": {
+    "api": 8000,
+    "dashboard": 4101,
+    "admin": 4102
+  },
+
+  "kubernetes": {
+    "namespace": "janua",
+    "deployments": ["janua-api", "janua-dashboard", "janua-admin"],
+    "secrets": ["janua-secrets"],
+    "manifests": {
+      "api": "infra/k8s/production/api-deployment.yaml",
+      "dashboard": "infra/k8s/production/dashboard-deployment.yaml",
+      "admin": "infra/k8s/production/admin-deployment.yaml"
+    }
+  },
+
+  "entryPoints": {
+    "api": {
+      "path": "apps/api/src/main.ts",
+      "framework": "NestJS",
+      "healthCheck": "/api/health"
+    },
+    "dashboard": {
+      "path": "apps/dashboard/src/main.tsx",
+      "framework": "React",
+      "healthCheck": "/health"
+    },
+    "admin": {
+      "path": "apps/admin/src/main.tsx",
+      "framework": "React",
+      "healthCheck": "/health"
+    }
+  },
+
+  "criticalEndpoints": {
+    "oidcDiscovery": "/.well-known/openid-configuration",
+    "jwks": "/.well-known/jwks.json",
+    "authorize": "/oauth/authorize",
+    "token": "/oauth/token",
+    "userinfo": "/oauth/userinfo"
+  },
+
+  "buildCommands": {
+    "api": "pnpm build:api",
+    "dashboard": "pnpm build:dashboard",
+    "admin": "pnpm build:admin",
+    "all": "pnpm build"
+  },
+
+  "testCommands": {
+    "unit": "pnpm test",
+    "e2e": "pnpm test:e2e",
+    "lint": "pnpm lint"
+  },
+
+  "dependencies": {
+    "ecosystem": [],
+    "external": ["PostgreSQL", "Redis"]
+  },
+
+  "dependents": [
+    {
+      "name": "enclii",
+      "integration": "OIDC",
+      "clientId": "enclii-platform"
+    },
+    {
+      "name": "dhanam",
+      "integration": "OIDC",
+      "clientId": "jnc_uE2zp9ume_Fd6jMl1elL6wqjiECM711t"
+    }
+  ]
+}
