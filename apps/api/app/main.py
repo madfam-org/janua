@@ -606,27 +606,29 @@ def openid_configuration():
     Returns the OIDC provider configuration document per RFC 8414.
     Used by clients to automatically configure OAuth2/OIDC integration.
     """
-    # Use API_BASE_URL for the actual API endpoints
-    api_base_url = settings.API_BASE_URL.rstrip("/")
-    # Use JANUA_CUSTOM_DOMAIN as issuer if set (for white-label deployments like auth.madfam.io)
-    # This allows the API to serve tokens with a custom issuer while keeping BASE_URL for internal routing
-    custom_domain_issuer = os.getenv("JANUA_CUSTOM_DOMAIN")
-    if custom_domain_issuer:
-        issuer = f"https://{custom_domain_issuer}".rstrip("/")
-    elif settings.BASE_URL:
-        issuer = settings.BASE_URL.rstrip("/")
+    # Use JANUA_CUSTOM_DOMAIN for ALL URLs if set (for white-label deployments like auth.madfam.io)
+    # This ensures issuer and all endpoints use the same domain for OIDC compliance
+    # The OIDC spec requires issuer URL to match the domain serving the endpoints
+    custom_domain = os.getenv("JANUA_CUSTOM_DOMAIN")
+    if custom_domain:
+        # Custom domain: use it for issuer AND all endpoints
+        base_url = f"https://{custom_domain}".rstrip("/")
     else:
-        issuer = api_base_url
+        # Default: use API_BASE_URL
+        base_url = settings.API_BASE_URL.rstrip("/")
+
+    # Issuer is always the base_url (consistent with endpoints)
+    issuer = base_url
 
     return {
         "issuer": issuer,
-        "authorization_endpoint": f"{api_base_url}/api/v1/oauth/authorize",
-        "token_endpoint": f"{api_base_url}/api/v1/oauth/token",
-        "userinfo_endpoint": f"{api_base_url}/api/v1/oauth/userinfo",
-        "jwks_uri": f"{api_base_url}/.well-known/jwks.json",
-        "introspection_endpoint": f"{api_base_url}/api/v1/oauth/introspect",
-        "revocation_endpoint": f"{api_base_url}/api/v1/oauth/revoke",
-        "registration_endpoint": f"{api_base_url}/api/v1/oauth/register",
+        "authorization_endpoint": f"{base_url}/api/v1/oauth/authorize",
+        "token_endpoint": f"{base_url}/api/v1/oauth/token",
+        "userinfo_endpoint": f"{base_url}/api/v1/oauth/userinfo",
+        "jwks_uri": f"{base_url}/.well-known/jwks.json",
+        "introspection_endpoint": f"{base_url}/api/v1/oauth/introspect",
+        "revocation_endpoint": f"{base_url}/api/v1/oauth/revoke",
+        "registration_endpoint": f"{base_url}/api/v1/oauth/register",
         "response_types_supported": ["code", "token", "id_token", "code token", "code id_token", "token id_token", "code token id_token"],
         "response_modes_supported": ["query", "fragment", "form_post"],
         "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
