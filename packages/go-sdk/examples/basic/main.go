@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	janua "github.com/madfam-org/go-sdk/client"
-	"github.com/madfam-org/go-sdk/models"
+	janua "github.com/madfam-org/janua/packages/go-sdk/client"
+	"github.com/madfam-org/janua/packages/go-sdk/models"
 )
 
 // maskSecret masks a secret string, showing only the first few characters

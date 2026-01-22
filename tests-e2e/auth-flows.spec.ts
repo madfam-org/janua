@@ -91,7 +91,7 @@ test.describe('Authentication Flows E2E', () => {
 
   // TODO: QA Engineer - Add these critical E2E tests:
 
-  test.skip('Login with invalid credentials shows error', async ({ _page }) => {
+  test.skip('Login with invalid credentials shows error', async ({ page }) => {
     /**
      * TODO: Test error handling for invalid login
      *
@@ -103,7 +103,7 @@ test.describe('Authentication Flows E2E', () => {
      */
   });
 
-  test.skip('Password reset flow complete journey', async ({ _page }) => {
+  test.skip('Password reset flow complete journey', async ({ page }) => {
     /**
      * TODO: Test password reset workflow
      *
@@ -119,7 +119,7 @@ test.describe('Authentication Flows E2E', () => {
      */
   });
 
-  test.skip('MFA enrollment and login flow', async ({ _page }) => {
+  test.skip('MFA enrollment and login flow', async ({ page }) => {
     /**
      * TODO: Test MFA setup and usage
      *
@@ -136,7 +136,7 @@ test.describe('Authentication Flows E2E', () => {
      */
   });
 
-  test.skip('Session persistence across page refreshes', async ({ _page }) => {
+  test.skip('Session persistence across page refreshes', async ({ page }) => {
     /**
      * TODO: Test session management
      *
@@ -147,7 +147,7 @@ test.describe('Authentication Flows E2E', () => {
      */
   });
 
-  test.skip('Logout clears session and redirects', async ({ _page }) => {
+  test.skip('Logout clears session and redirects', async ({ page }) => {
     /**
      * TODO: Test logout functionality
      *
@@ -159,7 +159,7 @@ test.describe('Authentication Flows E2E', () => {
      */
   });
 
-  test.skip('Protected route redirects to login when not authenticated', async ({ _page }) => {
+  test.skip('Protected route redirects to login when not authenticated', async ({ page }) => {
     /**
      * TODO: Test auth guards
      *
@@ -170,7 +170,7 @@ test.describe('Authentication Flows E2E', () => {
      */
   });
 
-  test.skip('Social login flow (Google OAuth)', async ({ _page }) => {
+  test.skip('Social login flow (Google OAuth)', async ({ page }) => {
     /**
      * TODO: Test OAuth integration (when implemented)
      *
@@ -183,7 +183,7 @@ test.describe('Authentication Flows E2E', () => {
      */
   });
 
-  test.skip('Account lockout after multiple failed login attempts', async ({ _page }) => {
+  test.skip('Account lockout after multiple failed login attempts', async ({ page }) => {
     /**
      * TODO: Test brute force protection
      *
@@ -196,7 +196,7 @@ test.describe('Authentication Flows E2E', () => {
      */
   });
 
-  test.skip('Email verification required for login', async ({ _page }) => {
+  test.skip('Email verification required for login', async ({ page }) => {
     /**
      * TODO: Test email verification enforcement
      *
@@ -220,7 +220,7 @@ test.describe('Session Management E2E', () => {
      */
   });
 
-  test.skip('Session timeout after inactivity', async ({ _page }) => {
+  test.skip('Session timeout after inactivity', async ({ page }) => {
     /**
      * TODO: Test session expiration
      *
