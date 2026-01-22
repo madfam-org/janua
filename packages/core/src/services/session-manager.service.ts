@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import crypto from 'crypto';
-import { createHash, createHmac } from 'crypto';
+import { createHmac } from 'crypto';
 
 export interface Session {
   id: string;

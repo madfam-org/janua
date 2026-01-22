@@ -3,7 +3,7 @@
  */
 
 import { JanuaClient, createClient } from '../index';
-import { AuthenticationMethod, APIStatus } from '../types/base';
+import { APIStatus } from '../types/base';
 import { AuthenticationError, ValidationError } from '../errors';
 
 // Mock axios to avoid real HTTP requests

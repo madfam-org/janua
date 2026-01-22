@@ -71,7 +71,7 @@ export class HealthCheckService extends EventEmitter {
       healthy = false;
     }
 
-    const latency = Date.now() - startTime;
+    const _latency = Date.now() - startTime;
 
     // Get historical data
     const history = await this.getServiceHealthHistory(service);

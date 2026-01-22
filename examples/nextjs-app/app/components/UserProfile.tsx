@@ -4,7 +4,7 @@ import { useAuth, useUser } from '@janua/react-sdk';
 
 export function UserProfile() {
   const { signOut } = useAuth();
-  const { user, updateProfile } = useUser();
+  const { user, updateProfile: _updateProfile } = useUser();
 
   if (!user) return null;
 

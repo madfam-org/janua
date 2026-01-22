@@ -26,7 +26,7 @@ tests.push({
   name: '@janua/nextjs',
   path: '../packages/nextjs-sdk',
   test: () => {
-    const nextjs = require('../packages/nextjs-sdk/dist/index.js');
+    const _nextjs = require('../packages/nextjs-sdk/dist/index.js');
     const app = require('../packages/nextjs-sdk/dist/app/index.js');
     const middleware = require('../packages/nextjs-sdk/dist/middleware.js');
     

@@ -5,7 +5,7 @@
  * with platform-appropriate TypeScript implementation.
  */
 
-import { TokenResponse, AuthenticationMethod } from '../types/base';
+import { TokenResponse } from '../types/base';
 import { AuthenticationError } from '../errors';
 
 export interface TokenStorage {

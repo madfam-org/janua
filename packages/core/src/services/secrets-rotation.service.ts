@@ -135,7 +135,7 @@ export class SecretsRotationService extends EventEmitter {
     const newSecret = await this.generateSecret(config);
     
     // Store in KMS
-    const storedSecret = await this.kms.storeKey({
+    await this.kms.storeKey({
       keyId: newSecret.id,
       keyMaterial: newSecret.keyMaterial,
       metadata: newSecret

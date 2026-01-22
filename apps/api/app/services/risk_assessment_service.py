@@ -27,7 +27,6 @@ try:
     from ..models.zero_trust import (
         RiskAssessment, RiskLevel, DeviceProfile, DeviceTrustLevel,
         AccessPolicy, AccessDecision, BehaviorBaseline, ThreatIntelligence,
-        PolicyEvaluation, AdaptiveChallenge, AuthenticationMethod
     )
     ZERO_TRUST_MODELS_AVAILABLE = True
 except ImportError:
@@ -40,9 +39,6 @@ except ImportError:
     AccessDecision = None
     BehaviorBaseline = None
     ThreatIntelligence = None
-    PolicyEvaluation = None
-    AdaptiveChallenge = None
-    AuthenticationMethod = None
 
 logger = logging.getLogger(__name__)
 

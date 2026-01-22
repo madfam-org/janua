@@ -2,7 +2,6 @@ import { EventEmitter } from 'events';
 import { Redis } from 'ioredis';
 import Stripe from 'stripe';
 import {
-  PaymentProvider,
   PaymentIntent,
   PaymentMethod,
   Customer,

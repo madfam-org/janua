@@ -40,9 +40,9 @@ sessionsRouter.post('/verify', (req: Request, res: Response) => {
 
 // Revoke session
 sessionsRouter.delete('/:id', (req: Request, res: Response) => {
-  const userId = (req as any).userId;
+  const _userId = (req as any).userId;
   const sessionId = req.params.id;
-  
+
   // In a real app, you'd invalidate the session here
   res.json({
     message: 'Session revoked successfully',

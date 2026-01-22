@@ -18,8 +18,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.config import settings
 from app.core.database import Base
 # Import all models to register them with SQLAlchemy metadata for Alembic migrations
-# Using explicit model imports is not practical here as Alembic needs all models registered
-import app.models  # noqa: F401 - ensures all models are registered with Base.metadata
+# Note: This import has a side effect of registering models with Base.metadata
+from app import models as _models  # noqa: F401
 
 # Alembic Config object
 config = context.config

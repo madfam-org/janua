@@ -16,7 +16,7 @@ class TestCertificateManager:
     
     def test_generate_self_signed_certificate(self, tmp_path):
         """Test generating self-signed certificate."""
-        manager = CertificateManager(cert_dir=str(tmp_path))
+        manager = CertificateManager(storage_path=str(tmp_path))
         
         cert_pem, key_pem = manager.generate_self_signed_certificate(
             common_name="test.janua.dev",
@@ -34,7 +34,7 @@ class TestCertificateManager:
     
     def test_validate_certificate_expiry(self, tmp_path):
         """Test certificate expiry validation."""
-        manager = CertificateManager(cert_dir=str(tmp_path))
+        manager = CertificateManager(storage_path=str(tmp_path))
         
         # Generate short-lived certificate
         cert_pem, _ = manager.generate_self_signed_certificate(
@@ -54,7 +54,7 @@ class TestCertificateManager:
     
     def test_extract_public_key(self, tmp_path):
         """Test extracting public key from certificate."""
-        manager = CertificateManager(cert_dir=str(tmp_path))
+        manager = CertificateManager(storage_path=str(tmp_path))
         
         cert_pem, _ = manager.generate_self_signed_certificate(
             common_name="test.janua.dev"
@@ -66,7 +66,7 @@ class TestCertificateManager:
     
     def test_store_and_load_certificate(self, tmp_path):
         """Test storing and loading certificate."""
-        manager = CertificateManager(cert_dir=str(tmp_path))
+        manager = CertificateManager(storage_path=str(tmp_path))
         
         # Generate certificate
         cert_pem, _ = manager.generate_self_signed_certificate(
@@ -83,7 +83,7 @@ class TestCertificateManager:
     
     def test_convert_pem_to_der(self, tmp_path):
         """Test PEM to DER conversion."""
-        manager = CertificateManager(cert_dir=str(tmp_path))
+        manager = CertificateManager(storage_path=str(tmp_path))
         
         cert_pem, _ = manager.generate_self_signed_certificate(
             common_name="test.janua.dev"
@@ -107,7 +107,7 @@ class TestMetadataManager:
     
     def test_generate_sp_metadata(self, tmp_path):
         """Test generating SP metadata."""
-        cert_manager = CertificateManager(cert_dir=str(tmp_path))
+        cert_manager = CertificateManager(storage_path=str(tmp_path))
         metadata_manager = MetadataManager(cert_manager)
         
         # Generate certificate for metadata
@@ -136,7 +136,7 @@ class TestMetadataManager:
     
     def test_parse_idp_metadata(self, tmp_path):
         """Test parsing IdP metadata."""
-        cert_manager = CertificateManager(cert_dir=str(tmp_path))
+        cert_manager = CertificateManager(storage_path=str(tmp_path))
         metadata_manager = MetadataManager(cert_manager)
         
         # Generate certificate for IdP
@@ -183,7 +183,7 @@ class TestMetadataManager:
     
     def test_validate_metadata(self, tmp_path):
         """Test metadata validation."""
-        cert_manager = CertificateManager(cert_dir=str(tmp_path))
+        cert_manager = CertificateManager(storage_path=str(tmp_path))
         metadata_manager = MetadataManager(cert_manager)
         
         # Generate certificate
@@ -206,7 +206,7 @@ class TestMetadataManager:
     
     def test_validate_expired_metadata(self, tmp_path):
         """Test validation of expired metadata."""
-        cert_manager = CertificateManager(cert_dir=str(tmp_path))
+        cert_manager = CertificateManager(storage_path=str(tmp_path))
         metadata_manager = MetadataManager(cert_manager)
         
         # Create expired metadata
@@ -242,7 +242,7 @@ class TestSAMLIntegration:
         # This test would require a real SAML IdP
         # For now, we test the components that don't require external services
         
-        cert_manager = CertificateManager(cert_dir=str(tmp_path))
+        cert_manager = CertificateManager(storage_path=str(tmp_path))
         metadata_manager = MetadataManager(cert_manager)
         
         # Generate SP certificate
@@ -284,7 +284,7 @@ class TestSSOEndToEnd:
     
     def test_saml_metadata_exchange(self, tmp_path):
         """Test complete SAML metadata exchange flow."""
-        cert_manager = CertificateManager(cert_dir=str(tmp_path))
+        cert_manager = CertificateManager(storage_path=str(tmp_path))
         metadata_manager = MetadataManager(cert_manager)
         
         # Step 1: Generate SP certificate

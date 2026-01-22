@@ -1,11 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../database';
 
 export const passkeysRouter = Router();
 
 // Get passkeys for user
 passkeysRouter.get('/', (req: Request, res: Response) => {
-  const userId = (req as any).userId;
+  const _userId = (req as any).userId;
   
   // Mock passkeys
   res.json([

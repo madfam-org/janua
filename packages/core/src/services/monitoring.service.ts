@@ -1,11 +1,11 @@
 import { EventEmitter } from 'events';
 import { Redis } from 'ioredis';
-import { Registry, Counter, Histogram, Gauge, Summary } from 'prom-client';
+import { Registry, Counter, Histogram, Gauge } from 'prom-client';
 import { createLogger } from '../utils/logger';
 import { AlertingService, Alert } from './alerting.service';
 import { HealthCheckService, HealthStatus } from './health-check.service';
 
-const logger = createLogger('Monitoring');
+const _logger = createLogger('Monitoring');
 
 interface MetricPoint {
   timestamp: number;

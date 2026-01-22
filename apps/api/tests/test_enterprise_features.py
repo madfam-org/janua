@@ -39,10 +39,7 @@ rbac_engine = None
 audit_logger = None
 webhook_dispatcher = None
 
-try:
-    from app.core.test_config import TestDataFactory, TestUtils
-except ImportError:
-    pass  # Test utilities not available; tests will skip or fail appropriately
+# Test utilities (TestDataFactory, TestUtils) are available via conftest.py if needed
 
 
 class TestTenantContext:

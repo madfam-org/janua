@@ -767,9 +767,9 @@ export class MFAService extends EventEmitter {
   /**
    * Detect VPN/Proxy (simplified - in production use IP intelligence service)
    */
-  private async detectVPN(ip: string): Promise<boolean> {
+  private async detectVPN(_ip: string): Promise<boolean> {
     // Check common VPN/proxy IP ranges
-    const vpnRanges = [
+    const _vpnRanges = [
       '10.0.0.0/8',
       '172.16.0.0/12',
       '192.168.0.0/16'

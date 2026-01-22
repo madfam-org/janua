@@ -26,7 +26,7 @@ function sanitizeId(text: string): string {
  * Sanitize text content for display.
  * Escapes HTML entities to prevent XSS.
  */
-function sanitizeText(text: string): string {
+function _sanitizeText(text: string): string {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;

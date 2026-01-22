@@ -4,7 +4,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { createHash, randomBytes } from 'crypto';
+import { randomBytes } from 'crypto';
 import jwt from 'jsonwebtoken';
 
 export interface SessionToken {

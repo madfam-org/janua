@@ -222,7 +222,7 @@ class RSASecurIDProvider implements HardwareTokenProvider {
       // In production, verify with RSA Authentication Manager
       // For now, simulate time-based token verification
       const currentTime = Math.floor(Date.now() / 60000); // minute-based
-      const expectedCode = crypto
+      const _expectedCode = crypto
         .createHash('sha256')
         .update(`${tokenId}-${currentTime}`)
         .digest('hex')

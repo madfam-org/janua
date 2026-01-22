@@ -10,8 +10,6 @@ from . import (
     UserStatus,
     Organization,
     OrganizationMember,
-    AuditLog,
-    ActivityLog,
 )
 
 # Aliases for backward compatibility

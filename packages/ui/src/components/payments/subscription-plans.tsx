@@ -74,7 +74,7 @@ export function SubscriptionPlans({
     const price = getPrice(plan);
     if (price === null || price === undefined) return 'Custom pricing';
 
-    const currency = plan.currency_usd; // Default to USD, can detect user locale
+    const _currency = plan.currency_usd; // Default to USD, can detect user locale
     return `$${price.toFixed(2)}/${selectedInterval === 'monthly' ? 'mo' : 'yr'}`;
   };
 

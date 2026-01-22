@@ -3,8 +3,8 @@
  * High-performance JWT verification at the edge
  */
 
-import { verifyJWT, JWTPayload } from './jwt'
-import { getJWKS, JWKSCache } from './jwks'
+import { verifyJWT } from './jwt'
+import { JWKSCache } from './jwks'
 import { RateLimiter } from './rate-limiter'
 
 export interface Env {

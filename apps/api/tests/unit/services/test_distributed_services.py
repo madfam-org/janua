@@ -37,8 +37,8 @@ class TestDistributedSessionManager:
             mock_redis = AsyncMock()
             mock_db = AsyncMock()
             session_manager = DistributedSessionManager(
-                redis=mock_redis,
-                db=mock_db
+                redis_client=mock_redis,
+                db_session=mock_db
             ) if hasattr(DistributedSessionManager, '__init__') else DistributedSessionManager()
 
             # Verify session manager has session methods

@@ -325,7 +325,7 @@ export class PolicyEngine extends EventEmitter {
     // Check subject attributes
     const subjectAttrs = context.subject.attributes || {};
     const resourceAttrs = context.resource.attributes || {};
-    const envAttrs = {
+    const _envAttrs = {
       time: context.environment.time,
       ip_address: context.environment.ip_address,
       mfa_verified: context.environment.mfa_verified,
@@ -673,8 +673,8 @@ export class PolicyEngine extends EventEmitter {
   /**
    * Check if cache entry is still valid
    */
-  private isCacheValid(entry: PolicyEvaluationResult, now: number): boolean {
-    const ttl = this.config.cacheTTL || this.CACHE_TTL_MS;
+  private isCacheValid(_entry: PolicyEvaluationResult, _now: number): boolean {
+    const _ttl = this.config.cacheTTL || this.CACHE_TTL_MS;
     // Rough estimation - would need to store timestamp in production
     return true; // Simplified for now
   }

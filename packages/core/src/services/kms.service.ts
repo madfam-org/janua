@@ -196,7 +196,7 @@ class VaultProvider implements KMSProvider {
   }
 
   async createKey(params: any): Promise<{ keyId: string; arn: string }> {
-    const response = await this.vaultClient.write(`transit/keys/${params.name}`, params);
+    const _response = await this.vaultClient.write(`transit/keys/${params.name}`, params);
     return {
       keyId: params.name,
       arn: `vault://transit/keys/${params.name}`

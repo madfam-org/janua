@@ -89,7 +89,7 @@ class MockDatabase {
     this.emailToUser.set(user.email, user.id);
 
     // Create default organization for user
-    const org = await this.createOrganization({
+    await this.createOrganization({
       name: `${data.name || data.email}'s Organization`,
       owner_id: user.id
     });

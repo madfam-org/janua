@@ -2,7 +2,6 @@
  * Janua JavaScript/TypeScript SDK
  */
 
-import { z } from 'zod'
 import { verifyToken, type JWTPayload } from './jwt'
 import { JWKSCache } from './jwks'
 import type {
