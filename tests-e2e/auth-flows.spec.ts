@@ -209,7 +209,7 @@ test.describe('Authentication Flows E2E', () => {
 });
 
 test.describe('Session Management E2E', () => {
-  test.skip('Multiple concurrent sessions from different devices', async ({ _browser }) => {
+  test.skip('Multiple concurrent sessions from different devices', async ({ browser }) => {
     /**
      * TODO: Test multi-device sessions
      *
