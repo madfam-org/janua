@@ -18,6 +18,40 @@ from starlette.responses import JSONResponse
 logger = logging.getLogger(__name__)
 
 
+def _redact_client_id(client_id: str) -> str:
+    """Redact client identifier for logging.
+
+    Security: This function sanitizes client identifiers before logging to prevent
+    clear-text logging of user IDs, API keys, and IP addresses (CWE-532, CWE-117).
+    """
+    if not client_id:
+        return "[redacted]"
+
+    if client_id.startswith("user:"):
+        # Redact user ID - show first 8 chars of UUID
+        user_id = client_id[5:]
+        if len(user_id) > 8:
+            return f"user:{user_id[:8]}***"
+        return f"user:{user_id[:2]}***"
+
+    if client_id.startswith("api:"):
+        # API key hash - show first 4 chars
+        api_hash = client_id[4:]
+        return f"api:{api_hash[:4]}***"
+
+    if client_id.startswith("ip:"):
+        # Redact IP address - show first two octets only
+        ip = client_id[3:]
+        parts = ip.split(".")
+        if len(parts) == 4:  # IPv4
+            return f"ip:{parts[0]}.{parts[1]}.*.*"
+        elif ":" in ip:  # IPv6
+            return f"ip:{ip[:ip.find(':', 4) + 1]}***"
+        return "ip:[redacted]"
+
+    return "[redacted]"
+
+
 class EndpointRateLimitConfig:
     """Configuration for different endpoint categories"""
 
@@ -168,8 +202,13 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
         )
 
         if not is_allowed:
-            # Rate limit exceeded
-            logger.warning(f"Rate limit exceeded for {client_id} on {path}")
+            # Rate limit exceeded - log with redacted client ID (CWE-117 prevention)
+            redacted_id = _redact_client_id(client_id)  # nosec B608 - data is redacted before logging
+            logger.warning(
+                "Rate limit exceeded: client=%s, path=%s",
+                redacted_id,
+                path
+            )
 
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -216,8 +255,8 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
         # Check for API key in headers
         api_key = request.headers.get("X-API-Key")
         if api_key:
-            # Hash the API key for storage
-            hashed_key = hashlib.sha256(api_key.encode()).hexdigest()[:16]
+            # Hash the API key for storage - SHA256 is secure (not weak)
+            hashed_key = hashlib.sha256(api_key.encode()).hexdigest()[:16]  # nosec B324 - SHA256 is cryptographically secure
             return f"api:{hashed_key}"
 
         # Fall back to IP address
@@ -296,7 +335,13 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
             return int(base_limit * multiplier)
 
         except Exception as e:
-            logger.warning(f"Failed to apply tier multiplier for {client_id}: {e}")
+            # Log with redacted client ID (CWE-117 prevention)
+            redacted_id = _redact_client_id(client_id)  # nosec B608 - data is redacted before logging
+            logger.warning(
+                "Failed to apply tier multiplier: client=%s, error_type=%s",
+                redacted_id,
+                type(e).__name__
+            )
             return base_limit
 
     async def _get_user_tier(self, user_id: str) -> str:
@@ -342,7 +387,14 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
             return "free"
 
         except Exception as e:
-            logger.warning(f"Failed to fetch user tier for {user_id}: {e}")
+            # Log with redacted user ID (CWE-117 prevention)
+            # Only show first 8 chars of UUID for debugging
+            redacted_user = user_id[:8] + "***" if len(user_id) > 8 else user_id[:2] + "***"  # nosec B608
+            logger.warning(
+                "Failed to fetch user tier: user=%s, error_type=%s",
+                redacted_user,
+                type(e).__name__
+            )
             return "free"
 
     async def check_rate_limit(
@@ -364,7 +416,11 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
                     key, max_requests, time_window, current_time
                 )
             except Exception as e:
-                logger.error(f"Redis rate limit check failed: {e}")
+                # Log error without exposing internal details (CWE-117 prevention)
+                logger.error(
+                    "Redis rate limit check failed: error_type=%s",
+                    type(e).__name__
+                )
                 # Fall back to local cache
 
         # Use local in-memory cache as fallback
@@ -456,7 +512,10 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
         self.last_cleanup = current_time
 
         if expired_keys:
-            logger.debug(f"Cleaned up {len(expired_keys)} expired rate limit entries")
+            logger.debug(
+                "Cleaned up expired rate limit entries: count=%d",
+                len(expired_keys)
+            )
 
 
 class AdvancedRateLimitFeatures:
@@ -518,7 +577,14 @@ class AdvancedRateLimitFeatures:
                     return "free"
 
         except Exception as e:
-            logger.warning(f"Failed to fetch user tier for {user_id}: {e}")
+            # Log with redacted user ID (CWE-117 prevention)
+            user_id_str = str(user_id)
+            redacted_user = user_id_str[:8] + "***" if len(user_id_str) > 8 else user_id_str[:2] + "***"  # nosec B608
+            logger.warning(
+                "Failed to fetch user tier: user=%s, error_type=%s",
+                redacted_user,
+                type(e).__name__
+            )
             return "free"  # Default to free on error
 
     @staticmethod
@@ -575,7 +641,7 @@ class AdvancedRateLimitFeatures:
     def get_circuit_breaker_status(cls, path: str) -> bool:
         """
         Check if endpoint should be circuit-broken due to failures.
-        
+
         Uses a simple circuit breaker pattern:
         - CLOSED: Normal operation (returns False)
         - OPEN: Too many failures, reject requests (returns True)
@@ -583,15 +649,15 @@ class AdvancedRateLimitFeatures:
         """
         if path not in cls._endpoint_failures:
             return False
-        
+
         state = cls._endpoint_failures[path]
         failure_count = state.get("failures", 0)
         circuit_opened = state.get("circuit_opened")
-        
+
         # Not enough failures to open circuit
         if failure_count < cls._circuit_breaker_threshold:
             return False
-        
+
         # Circuit is open - check if timeout has passed for recovery attempt
         if circuit_opened:
             time_since_open = time.time() - circuit_opened
@@ -600,7 +666,7 @@ class AdvancedRateLimitFeatures:
                 state["half_open"] = True
                 return False
             return True  # Circuit still open
-        
+
         return False
 
     @classmethod
@@ -608,17 +674,19 @@ class AdvancedRateLimitFeatures:
         """Record a failure for circuit breaker tracking"""
         if path not in cls._endpoint_failures:
             cls._endpoint_failures[path] = {"failures": 0}
-        
+
         state = cls._endpoint_failures[path]
         state["failures"] = state.get("failures", 0) + 1
         state["last_failure"] = time.time()
-        
+
         if state["failures"] >= cls._circuit_breaker_threshold:
             if not state.get("circuit_opened"):
                 state["circuit_opened"] = time.time()
+                # Log circuit breaker open with parameterized logging (CWE-117 prevention)
                 logger.warning(
-                    f"Circuit breaker opened for endpoint: {path}",
-                    extra={"failures": state["failures"]}
+                    "Circuit breaker opened for endpoint: path=%s, failures=%d",
+                    path,
+                    state["failures"]
                 )
 
     @classmethod
@@ -629,7 +697,7 @@ class AdvancedRateLimitFeatures:
             if state.get("half_open"):
                 # Recovery successful, reset circuit
                 cls._endpoint_failures[path] = {"failures": 0}
-                logger.info(f"Circuit breaker closed for endpoint: {path}")
+                logger.info("Circuit breaker closed for endpoint: path=%s", path)
 
 
 def create_rate_limit_middleware(app, redis_url: Optional[str] = None):
@@ -641,6 +709,10 @@ def create_rate_limit_middleware(app, redis_url: Optional[str] = None):
             redis_client = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
             logger.info("Redis connected for distributed rate limiting")
         except Exception as e:
-            logger.warning(f"Redis connection failed, using local rate limiting: {e}")
+            # Log without exposing connection details (CWE-117 prevention)
+            logger.warning(
+                "Redis connection failed, using local rate limiting: error_type=%s",
+                type(e).__name__
+            )
 
     return GlobalRateLimitMiddleware(app, redis_client)

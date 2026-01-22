@@ -97,7 +97,7 @@ async def send_invitation_email(
         )
 
         # Log with redacted PII - email is sanitized before logging
-        redacted = _redact_email(invitee_email)  # lgtm[py/clear-text-logging-sensitive-data]
+        redacted = _redact_email(invitee_email)  # nosec B608 - data is redacted before logging
         logger.info(
             "Invitation email sent: email=%s, org=%s",
             redacted,
@@ -144,8 +144,8 @@ async def send_invitation_accepted_email(
         )
 
         # Log with redacted PII - emails are sanitized before logging
-        redacted_inviter = _redact_email(inviter_email)  # lgtm[py/clear-text-logging-sensitive-data]
-        redacted_invitee = _redact_email(invitee_email)  # lgtm[py/clear-text-logging-sensitive-data]
+        redacted_inviter = _redact_email(inviter_email)  # nosec B608 - data is redacted before logging
+        redacted_invitee = _redact_email(invitee_email)  # nosec B608 - data is redacted before logging
         logger.info(
             "Invitation accepted email sent: inviter=%s, invitee=%s",
             redacted_inviter,
@@ -250,8 +250,8 @@ async def send_sso_login_notification(
         )
 
         # Log with redacted PII - email and IP are sanitized before logging
-        redacted_email = _redact_email(user_email)  # lgtm[py/clear-text-logging-sensitive-data]
-        redacted_ip = _redact_ip(ip_address)  # lgtm[py/clear-text-logging-sensitive-data]
+        redacted_email = _redact_email(user_email)  # nosec B608 - data is redacted before logging
+        redacted_ip = _redact_ip(ip_address)  # nosec B608 - data is redacted before logging
         logger.info(
             "SSO login notification sent: email=%s, ip=%s",
             redacted_email,
@@ -313,7 +313,7 @@ async def send_invoice_payment_failed_email(
         )
 
         # Log with redacted email - sanitized before logging
-        redacted = _redact_email(billing_email)  # lgtm[py/clear-text-logging-sensitive-data]
+        redacted = _redact_email(billing_email)  # nosec B608 - data is redacted before logging
         logger.info(
             "Payment failed email sent: email=%s, invoice=%s",
             redacted,
@@ -365,7 +365,7 @@ async def send_subscription_canceled_email(
         )
 
         # Log with redacted email - sanitized before logging
-        redacted = _redact_email(billing_email)  # lgtm[py/clear-text-logging-sensitive-data]
+        redacted = _redact_email(billing_email)  # nosec B608 - data is redacted before logging
         logger.info(
             "Subscription canceled email sent: email=%s, org=%s",
             redacted,
@@ -417,7 +417,7 @@ async def send_data_export_ready_email(
         )
 
         # Log with redacted email - sanitized before logging
-        redacted = _redact_email(user_email)  # lgtm[py/clear-text-logging-sensitive-data]
+        redacted = _redact_email(user_email)  # nosec B608 - data is redacted before logging
         logger.info(
             "Data export ready email sent: email=%s, export_id=%s",
             redacted,
@@ -462,7 +462,7 @@ async def send_account_deletion_confirmation_email(
         )
 
         # Log with redacted email - sanitized before logging
-        redacted = _redact_email(user_email)  # lgtm[py/clear-text-logging-sensitive-data]
+        redacted = _redact_email(user_email)  # nosec B608 - data is redacted before logging
         logger.info(
             "Account deletion confirmation email sent: email=%s",
             redacted
