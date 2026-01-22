@@ -767,6 +767,104 @@ except ImportError:
     pass
 
 
+# Fallback fixture definitions - always available regardless of import status
+# These ensure tests can run even if the fixtures package import fails
+@pytest.fixture
+def mock_db_session():
+    """Mock database session for testing"""
+    return AsyncMock()
+
+
+@pytest.fixture
+def mock_redis_client():
+    """Mock Redis client for testing"""
+    mock_redis = AsyncMock()
+    mock_redis.get.return_value = None
+    mock_redis.set.return_value = True
+    mock_redis.delete.return_value = 1
+    mock_redis.exists.return_value = False
+    return mock_redis
+
+
+@pytest.fixture
+def mock_email_service():
+    """Mock email service for notification testing"""
+    mock_service = AsyncMock()
+    mock_service.send_email.return_value = {"message_id": "test-123", "status": "sent"}
+    return mock_service
+
+
+@pytest.fixture
+def mock_webhook_service():
+    """Mock webhook service for notification testing"""
+    mock_service = AsyncMock()
+    mock_service.send_webhook.return_value = {"status": "delivered", "response_code": 200}
+    return mock_service
+
+
+@pytest.fixture
+def mock_slack_client():
+    """Mock Slack client for notification testing"""
+    mock_client = AsyncMock()
+    mock_client.chat_postMessage.return_value = {"ok": True, "ts": "1234567890.123"}
+    return mock_client
+
+
+@pytest.fixture
+def sample_user_data():
+    """Sample user data for testing"""
+    return {
+        "id": "test-user-123",
+        "email": "test@example.com",
+        "name": "Test User",
+        "role": "user",
+        "organization_id": "test-org-123",
+        "created_at": "2023-01-01T00:00:00Z",
+        "is_active": True,
+    }
+
+
+@pytest.fixture
+def sample_organization_data():
+    """Sample organization data for testing"""
+    return {
+        "id": "test-org-123",
+        "name": "Test Organization",
+        "domain": "test.example.com",
+        "plan": "enterprise",
+        "created_at": "2023-01-01T00:00:00Z",
+        "settings": {"sso_enabled": True, "mfa_required": True},
+    }
+
+
+@pytest.fixture
+def sample_alert_data():
+    """Sample alert data for testing"""
+    return {
+        "id": "alert-123",
+        "title": "Test Alert",
+        "description": "Test alert description",
+        "severity": "high",
+        "status": "active",
+        "created_at": "2023-01-01T00:00:00Z",
+        "conditions": {"metric": "error_rate", "threshold": 0.05, "operator": ">"},
+    }
+
+
+@pytest.fixture
+def sample_compliance_data():
+    """Sample compliance data for testing"""
+    return {
+        "control_id": "SOC2-CC1.1",
+        "title": "Control Environment",
+        "description": "Entity demonstrates commitment to integrity and ethical values",
+        "status": "implemented",
+        "evidence": ["policy_doc.pdf", "training_records.xlsx"],
+        "last_tested": "2023-01-01T00:00:00Z",
+        "next_review": "2023-07-01T00:00:00Z",
+    }
+
+
 # Export all utilities
 __all__ = [
     "TestConfig",
