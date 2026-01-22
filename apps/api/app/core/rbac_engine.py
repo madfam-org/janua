@@ -11,11 +11,8 @@ from sqlalchemy import select, and_
 from functools import wraps
 from fastapi import HTTPException, status
 
-from app.models.enterprise import (
-    OrganizationMember,
-    RoleType
-)
-from app.models import OrganizationCustomRole
+from app.models.enterprise import RoleType
+from app.models import OrganizationMember, OrganizationCustomRole
 from app.core.tenant_context import TenantContext
 
 logger = structlog.get_logger()

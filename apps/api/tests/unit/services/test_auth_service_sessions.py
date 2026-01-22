@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import pytest
-from jose import jwt
+import jwt
 
 from app.config import settings
 from app.services.auth_service import AuthService

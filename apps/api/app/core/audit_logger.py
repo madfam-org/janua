@@ -21,7 +21,8 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc
 
-from app.models.enterprise import AuditLog, AuditEventType
+from app.models import AuditLog
+from app.models.enterprise import AuditEventType
 from app.core.tenant_context import TenantContext
 
 logger = structlog.get_logger()

@@ -5,7 +5,8 @@ from typing import Optional, Tuple
 from uuid import UUID
 
 import structlog
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -460,7 +461,7 @@ class AuthService:
 
             return payload
 
-        except JWTError as e:
+        except (jwt.exceptions.DecodeError, jwt.exceptions.ExpiredSignatureError, InvalidTokenError) as e:
             logger.warning("Token verification failed", error=str(e))
             return None
 

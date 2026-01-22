@@ -234,15 +234,15 @@ class TestEdgeCasesAndErrorHandling:
         jwt_service.redis.get = AsyncMock(return_value=None)  # JTI not found
 
         # Create a token without proper signing for testing code path
-        from jose import jwt as jose_jwt
+        import jwt as pyjwt
 
-        test_token = jose_jwt.encode(
+        test_token = pyjwt.encode(
             {"sub": "user-123", "type": "access", "jti": "missing-jti"},
             "test-key",
             algorithm="HS256",
         )
 
-        with patch("jose.jwt.decode") as mock_decode:
+        with patch("jwt.decode") as mock_decode:
             mock_decode.return_value = {
                 "sub": "user-123",
                 "type": "access",

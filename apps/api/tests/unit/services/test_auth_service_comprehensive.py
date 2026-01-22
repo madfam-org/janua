@@ -279,7 +279,7 @@ class TestTokenCreation:
 
         assert isinstance(token, str)
         # Decode to verify organization is in payload
-        from jose import jwt
+        import jwt
 
         from app.config import settings
 

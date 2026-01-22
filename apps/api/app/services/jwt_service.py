@@ -11,7 +11,8 @@ import structlog
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError
 
 from app.config import settings
 from app.exceptions import AuthenticationError, TokenError
@@ -314,7 +315,7 @@ class JWTService:
 
             return claims
 
-        except JWTError as e:
+        except (jwt.exceptions.DecodeError, jwt.exceptions.ExpiredSignatureError, InvalidTokenError) as e:
             logger.warning("JWT verification failed", error=str(e))
             raise AuthenticationError(f"Invalid token: {str(e)}")
 
@@ -384,7 +385,7 @@ class JWTService:
 
             return payload
 
-        except JWTError as e:
+        except (jwt.exceptions.DecodeError, jwt.exceptions.ExpiredSignatureError, InvalidTokenError) as e:
             raise ValueError(f"Invalid token: {e}")
 
     async def revoke_token(self, token: str, jti: str):

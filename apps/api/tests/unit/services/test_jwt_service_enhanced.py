@@ -9,7 +9,8 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from uuid import uuid4
 
 import pytest
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError
 
 from app.config import settings
 from app.exceptions import TokenError
