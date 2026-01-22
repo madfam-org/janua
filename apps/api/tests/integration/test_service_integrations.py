@@ -313,8 +313,7 @@ class TestEmailServiceIntegration:
 
             result = await email_service.send_password_reset_email(
                 reset_data["email"],
-                reset_data["first_name"],
-                reset_data["reset_token"]
+                reset_data["first_name"]
             )
 
             assert result is True
@@ -575,6 +574,7 @@ class TestAuthServiceIntegration:
             mock_auth.return_value = mock_user
 
             result = await auth_service.authenticate_user(
+                test_db_session,
                 credentials["email"],
                 credentials["password"]
             )

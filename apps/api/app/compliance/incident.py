@@ -345,13 +345,13 @@ class IncidentResponse:
             return metrics
 
         # Calculate metrics
-        for severity in IncidentSeverity:
+        for severity in list(IncidentSeverity):
             metrics["incidents_by_severity"][severity] = len([i for i in incidents if i.severity == severity])
 
-        for category in IncidentCategory:
+        for category in list(IncidentCategory):
             metrics["incidents_by_category"][category] = len([i for i in incidents if i.category == category])
 
-        for status in IncidentStatus:
+        for status in list(IncidentStatus):
             metrics["incidents_by_status"][status] = len([i for i in incidents if i.status == status])
 
         # Response time metrics

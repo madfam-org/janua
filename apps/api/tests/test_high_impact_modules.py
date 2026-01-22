@@ -181,12 +181,12 @@ class TestBillingServiceAdvanced:
 
             # Test subscription creation if method exists
             if hasattr(billing_service, 'create_subscription'):
-                subscription_data = {
-                    "user_id": "user123",
-                    "plan_id": "premium",
-                    "billing_cycle": "monthly"
-                }
-                result = await billing_service.create_subscription(subscription_data)
+                # create_subscription expects (customer_id, tier, country, ...)
+                result = await billing_service.create_subscription(
+                    customer_id="cust_123",
+                    tier="pro",
+                    country="US"
+                )
                 assert result is not None or result is None
         except (ImportError, Exception):
             pytest.skip("Subscription management not available")

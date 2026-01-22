@@ -97,7 +97,7 @@ async def get_oauth_providers():
     """Get list of available OAuth providers"""
     providers = []
 
-    for provider in OAuthProvider:
+    for provider in list(OAuthProvider):
         config = OAuthService.get_provider_config(provider)
         if config:
             providers.append(
@@ -629,7 +629,7 @@ async def get_linked_accounts(
 
     # Get available providers
     all_providers = []
-    for provider in OAuthProvider:
+    for provider in list(OAuthProvider):
         config = OAuthService.get_provider_config(provider)
         if config:
             linked_account = next((acc for acc in oauth_accounts if acc.provider == provider), None)

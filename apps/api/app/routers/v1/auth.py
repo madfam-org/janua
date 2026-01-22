@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.core.url_security import validate_redirect_url
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.services.auth_service import AuthService
@@ -412,7 +413,9 @@ async def login_page(
 
     # Escape values for HTML safety
     import html
-    next_url = html.escape(next or "/")
+    # SECURITY: Validate the 'next' URL to prevent open redirect attacks (CWE-601)
+    safe_next = validate_redirect_url(next or "/", default_url="/")
+    next_url = html.escape(safe_next)
     app_name = html.escape(client_name or "Application")
 
     html_content = f'''
@@ -532,7 +535,7 @@ async def login_page(
 <body>
     <div class="login-container">
         <div class="logo">
-            <h1>🔐 Janua</h1>
+            <h1>&#128274; Janua</h1>
             <p>Identity Platform</p>
         </div>
 
@@ -584,9 +587,17 @@ async def login_form(
     3. Redirects to the 'next' URL (typically OAuth authorize)
 
     This works without JavaScript, avoiding CSP issues with inline scripts.
+
+    SECURITY: The 'next' parameter is validated to prevent open redirect attacks (CWE-601).
+    Only redirects to trusted Janua ecosystem domains are allowed.
     """
     from fastapi.responses import RedirectResponse, HTMLResponse
     import html
+
+    # SECURITY: Validate redirect URL to prevent open redirect attacks (CWE-601)
+    # This must be done BEFORE any authentication to ensure malicious URLs
+    # are rejected even on failed login attempts (to avoid leaking validation status)
+    safe_next = validate_redirect_url(next, default_url="/")
 
     # Helper to return error page
     def make_error_page(error_message: str) -> HTMLResponse:
@@ -659,7 +670,7 @@ async def login_form(
         </div>
         <div class="error">{html.escape(error_message)}</div>
         <form method="POST" action="/api/v1/auth/login-form">
-            <input type="hidden" name="next" value="{html.escape(next)}">
+            <input type="hidden" name="next" value="{html.escape(safe_next)}">
             <div class="form-group">
                 <label for="email">Email</label>
                 <input type="email" id="email" name="email" value="{html.escape(email)}" required autofocus>
@@ -720,8 +731,9 @@ async def login_form(
         db, user, ip_address=request.client.host, user_agent=request.headers.get("user-agent")
     )
 
-    # Create redirect response with cookies
-    response = RedirectResponse(url=next, status_code=302)
+    # SECURITY: Create redirect response with validated URL (CWE-601 mitigation)
+    # The safe_next URL was validated at the start of this function
+    response = RedirectResponse(url=safe_next, status_code=302)
     response.set_cookie(
         key="janua_access_token",
         value=access_token,
@@ -1021,12 +1033,18 @@ async def send_magic_link(
         await db.commit()
         await db.refresh(user)
 
+    # SECURITY: Validate the redirect URL to prevent open redirect attacks
+    safe_redirect_url = None
+    if magic_link_data.redirect_url:
+        safe_redirect_url = validate_redirect_url(magic_link_data.redirect_url, default_url=None)
+        # If validation failed (returned None), we simply won't include a redirect
+
     # Create magic link token
     magic_token = secrets.token_urlsafe(32)
     magic_link = MagicLink(
         user_id=user.id,
         token=magic_token,
-        redirect_url=magic_link_data.redirect_url,
+        redirect_url=safe_redirect_url,  # Use validated URL
         expires_at=datetime.utcnow() + timedelta(minutes=15),
     )
     db.add(magic_link)
@@ -1034,7 +1052,7 @@ async def send_magic_link(
 
     # Send email in background
     background_tasks.add_task(
-        EmailService.send_magic_link_email, user.email, magic_token, magic_link_data.redirect_url
+        EmailService.send_magic_link_email, user.email, magic_token, safe_redirect_url
     )
 
     return {"message": "Magic link sent to email"}

@@ -242,7 +242,7 @@ async def list_integrations(
         linked_providers = {acc.provider: acc for acc in oauth_accounts}
 
         integrations = []
-        for provider in OAuthProvider:
+        for provider in list(OAuthProvider):
             oauth_account = linked_providers.get(provider)
 
             can_access_repos = False

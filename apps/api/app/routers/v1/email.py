@@ -4,7 +4,6 @@ Centralized email service for all MADFAM applications via Resend
 """
 
 from typing import Any, Dict, List, Optional
-import re
 
 import structlog
 from app.services.resend_email_service import ResendEmailService as ResendService
@@ -183,6 +182,31 @@ EMAIL_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "optional": ["app_name", "next_steps", "dashboard_url"],
         "subject": "You're all set up!",
     },
+}
+
+# ==========================================
+# Security: Template filename whitelist
+# Maps template IDs to their safe filenames (no user input in path construction)
+# ==========================================
+
+TEMPLATE_FILENAMES: Dict[str, str] = {
+    "auth/welcome": "auth_welcome.html",
+    "auth/password-reset": "auth_password-reset.html",
+    "auth/email-verification": "auth_email-verification.html",
+    "auth/magic-link": "auth_magic-link.html",
+    "billing/invoice": "billing_invoice.html",
+    "billing/payment-succeeded": "billing_payment-succeeded.html",
+    "billing/payment-failed": "billing_payment-failed.html",
+    "billing/subscription-created": "billing_subscription-created.html",
+    "billing/subscription-cancelled": "billing_subscription-cancelled.html",
+    "transactional/quote-ready": "transactional_quote-ready.html",
+    "transactional/order-confirmation": "transactional_order-confirmation.html",
+    "transactional/certificate": "transactional_certificate.html",
+    "transactional/enrollment": "transactional_enrollment.html",
+    "transactional/budget-alert": "transactional_budget-alert.html",
+    "invitation/team-invite": "invitation_team-invite.html",
+    "invitation/creator-invite": "invitation_creator-invite.html",
+    "onboarding/complete": "onboarding_complete.html",
 }
 
 
@@ -370,50 +394,83 @@ async def health_check():
 # ==========================================
 
 
+def _get_safe_template_path(template_id: str) -> str:
+    """
+    Get the safe template file path for a given template ID.
+
+    Security: This function uses a strict whitelist approach to prevent path injection.
+    The template filename is looked up from a predefined dictionary rather than
+    being constructed from user input.
+
+    Args:
+        template_id: The template identifier (e.g., "auth/welcome")
+
+    Returns:
+        Absolute path to the template file
+
+    Raises:
+        ValueError: If template_id is not in the whitelist
+    """
+    from pathlib import Path
+
+    # Security: Strict whitelist validation - template_id must exist in both registries
+    if template_id not in EMAIL_TEMPLATES:
+        raise ValueError(f"Unknown template: {template_id}")
+
+    if template_id not in TEMPLATE_FILENAMES:
+        raise ValueError(f"Template filename not registered: {template_id}")
+
+    # Security: Get filename from whitelist (no user input in path construction)
+    safe_filename: str = TEMPLATE_FILENAMES[template_id]
+
+    # Define the templates base directory
+    templates_base: Path = (
+        Path(__file__).parent.parent.parent.parent / "templates" / "emails"
+    ).resolve()
+
+    # Security: Construct path using only whitelisted filename
+    template_path: Path = templates_base / safe_filename
+
+    # Security: Final validation - ensure resolved path is within templates directory
+    # This is defense-in-depth in case the whitelist is somehow corrupted
+    resolved_path: Path = template_path.resolve()
+    try:
+        resolved_path.relative_to(templates_base)
+    except ValueError:
+        # Path traversal detected - should never happen with proper whitelist
+        raise ValueError(f"Invalid template path detected: {template_id}")
+
+    return str(resolved_path)
+
+
 async def render_template(template_id: str, variables: Dict[str, Any]) -> str:
     """
     Render an email template with variables.
     Templates are stored in templates/emails/ directory.
 
-    Security: This function validates template_id against a whitelist and uses
-    Path.resolve() with base directory validation to prevent path traversal attacks.
+    Security: This function uses _get_safe_template_path() which implements
+    strict whitelist-based path resolution to prevent path traversal attacks.
+    User input (template_id) is validated against a whitelist before any
+    file operations occur.
     """
     from pathlib import Path
 
-    # Security: Validate template_id is a known template to prevent path injection
-    if template_id not in EMAIL_TEMPLATES:
-        raise ValueError(f"Unknown template: {template_id}")
-
-    # Security: Validate template_id format - only allow alphanumeric, hyphen, underscore, and forward slash
-    if not re.match(r'^[a-zA-Z0-9/_-]+$', template_id):
-        raise ValueError(f"Invalid template ID format: {template_id}")
-
-    # Define the templates base directory and resolve to absolute path
-    templates_base = (
-        Path(__file__).parent.parent.parent.parent / "templates" / "emails"
-    ).resolve()
-
-    # Build template filename (replace / with _ for filesystem safety)
-    template_filename = f"{template_id.replace('/', '_')}.html"
-
-    # Security: Use resolve() and verify the resolved path is within the templates directory
-    # This prevents path traversal attacks (e.g., ../../../etc/passwd)
-    template_path = (templates_base / template_filename).resolve()
-
-    # Security: Verify the resolved path is within the templates directory (prevent path traversal)
     try:
-        template_path.relative_to(templates_base)
-    except ValueError:
-        # Path is outside templates_base - this is a path traversal attempt
-        raise ValueError(f"Invalid template path: {template_id}")
+        # Security: Get safe path using whitelist lookup (no user input in path)
+        template_path_str: str = _get_safe_template_path(template_id)
+        template_path: Path = Path(template_path_str)
 
-    if template_path.exists():
-        with open(template_path, "r") as f:
-            template_content = f.read()
-        # Simple variable substitution
-        for key, value in variables.items():
-            template_content = template_content.replace(f"{{{{{key}}}}}", str(value))
-        return template_content
+        if template_path.exists():
+            # Security: Path has been validated by _get_safe_template_path
+            template_content: str = template_path.read_text(encoding="utf-8")
+            # Simple variable substitution
+            for key, value in variables.items():
+                template_content = template_content.replace(f"{{{{{key}}}}}", str(value))
+            return template_content
+
+    except ValueError:
+        # Template not in whitelist - fall through to fallback
+        pass
 
     # Fallback: Generate simple HTML from variables
     return generate_fallback_html(template_id, variables)

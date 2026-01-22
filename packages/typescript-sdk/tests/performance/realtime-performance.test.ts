@@ -191,7 +191,12 @@ describe('WebSocket Performance Tests', () => {
 
   afterEach(async () => {
     // Cleanup all clients
-    await Promise.all(clients.map(client => client.disconnect()));
+    await Promise.all(clients.map(client => {
+      if (client && typeof client.disconnect === 'function') {
+        return client.disconnect();
+      }
+      return Promise.resolve();
+    }));
     clients = [];
   });
 
@@ -230,7 +235,9 @@ describe('WebSocket Performance Tests', () => {
 
         connectionPromises.push(connectPromise);
         clients.push(client);
-        client.connect();
+        if (typeof client.connect === 'function') {
+          client.connect();
+        }
 
         // Small delay to stagger connections
         await sleep(10);
@@ -255,7 +262,9 @@ describe('WebSocket Performance Tests', () => {
       expect(connectionStats.p95).toBeLessThan(PERF_CONFIG.latency_threshold.p95);
 
       console.log('\n[Performance] Light Load Test Results:');
-      console.log(metrics.getReport());
+      if (metrics && typeof metrics.getReport === 'function') {
+        console.log(metrics.getReport());
+      }
     }, 15000); // 15 second timeout
 
     it('should handle 50 concurrent connections (medium load)', async () => {
@@ -291,7 +300,9 @@ describe('WebSocket Performance Tests', () => {
 
         connectionPromises.push(connectPromise);
         clients.push(client);
-        client.connect();
+        if (typeof client.connect === 'function') {
+          client.connect();
+        }
 
         // Very small delay
         if (i % 10 === 0) {
@@ -317,7 +328,9 @@ describe('WebSocket Performance Tests', () => {
       expect(connectionStats.p95).toBeLessThan(PERF_CONFIG.latency_threshold.p95);
 
       console.log('\n[Performance] Medium Load Test Results:');
-      console.log(metrics.getReport());
+      if (metrics && typeof metrics.getReport === 'function') {
+        console.log(metrics.getReport());
+      }
     }, 30000);
 
     it('should handle 100 concurrent connections (heavy load)', async () => {
@@ -359,7 +372,9 @@ describe('WebSocket Performance Tests', () => {
 
           batchPromises.push(connectPromise);
           clients.push(client);
-          client.connect();
+          if (typeof client.connect === 'function') {
+            client.connect();
+          }
         }
 
         await Promise.all(batchPromises);
@@ -383,7 +398,9 @@ describe('WebSocket Performance Tests', () => {
       expect(memoryStats.max).toBeLessThan(PERF_CONFIG.memory_threshold.max_heap_mb);
 
       console.log('\n[Performance] Heavy Load Test Results:');
-      console.log(metrics.getReport());
+      if (metrics && typeof metrics.getReport === 'function') {
+        console.log(metrics.getReport());
+      }
     }, 60000);
   });
 
@@ -412,7 +429,9 @@ describe('WebSocket Performance Tests', () => {
         client.on('error', (error: unknown) => {
           reject(error instanceof Error ? error : new Error(String(error)));
         });
-        client.connect();
+        if (typeof client.connect === 'function') {
+          client.connect();
+        }
         setTimeout(() => reject(new Error('Connection timeout')), 5000);
       });
 
@@ -473,7 +492,9 @@ describe('WebSocket Performance Tests', () => {
       expect(messageStats.p95).toBeLessThan(PERF_CONFIG.latency_threshold.p95);
 
       console.log('\n[Performance] Message Throughput Test Results:');
-      console.log(metrics.getReport());
+      if (metrics && typeof metrics.getReport === 'function') {
+        console.log(metrics.getReport());
+      }
       console.log(`Target: ${messagesPerSecond} msg/s, Actual: ${actualThroughput.toFixed(2)} msg/s`);
       console.log(`Delivery Rate: ${((receivedMessages.length / totalMessages) * 100).toFixed(2)}%`);
     }, 30000);
@@ -498,7 +519,9 @@ describe('WebSocket Performance Tests', () => {
         client.on('error', (error: unknown) => {
           reject(error instanceof Error ? error : new Error(String(error)));
         });
-        client.connect();
+        if (typeof client.connect === 'function') {
+          client.connect();
+        }
         setTimeout(() => reject(new Error('Connection timeout')), 5000);
       });
 
@@ -548,7 +571,9 @@ describe('WebSocket Performance Tests', () => {
       expect(finalMetrics.errors.length).toBe(0);
 
       console.log('\n[Performance] Burst Traffic Test Results:');
-      console.log(metrics.getReport());
+      if (metrics && typeof metrics.getReport === 'function') {
+        console.log(metrics.getReport());
+      }
       console.log(`Delivery Rate: ${deliveryRate.toFixed(2)}%`);
     }, 30000);
   });
@@ -610,7 +635,9 @@ describe('WebSocket Performance Tests', () => {
         client.on('error', (error: unknown) => {
           reject(error instanceof Error ? error : new Error(String(error)));
         });
-        client.connect();
+        if (typeof client.connect === 'function') {
+          client.connect();
+        }
         setTimeout(() => reject(new Error('Connection timeout')), 5000);
       });
 
@@ -633,7 +660,9 @@ describe('WebSocket Performance Tests', () => {
       expect(latencyStats.p95).toBeLessThan(PERF_CONFIG.latency_threshold.p95);
 
       console.log('\n[Performance] Connection Stability Test Results:');
-      console.log(metrics.getReport());
+      if (metrics && typeof metrics.getReport === 'function') {
+        console.log(metrics.getReport());
+      }
       console.log(`Pings: ${pingCount}, Pongs: ${pongCount}, Rate: ${pongRate.toFixed(2)}%`);
       console.log(`Latency P95: ${latencyStats.p95.toFixed(2)}ms, P99: ${latencyStats.p99.toFixed(2)}ms`);
     }, (PERF_CONFIG.stability_test.duration_minutes * 60 + 10) * 1000);
@@ -662,12 +691,16 @@ describe('WebSocket Performance Tests', () => {
           client.on('error', (error: unknown) => {
             reject(error instanceof Error ? error : new Error(String(error)));
           });
-          client.connect();
+          if (typeof client.connect === 'function') {
+            client.connect();
+          }
           setTimeout(() => reject(new Error('Connection timeout')), 5000);
         });
 
         await sleep(100);
-        await client.disconnect();
+        if (client && typeof client.disconnect === 'function') {
+          await client.disconnect();
+        }
 
         // Memory snapshot every 10 cycles
         if (i % 10 === 0) {
@@ -718,7 +751,7 @@ describe('GraphQL Subscription Performance Tests', () => {
   });
 
   afterEach(async () => {
-    if (client.websocket) {
+    if (client?.websocket && typeof client.websocket.disconnect === 'function') {
       await client.websocket.disconnect();
     }
   });

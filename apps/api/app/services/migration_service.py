@@ -34,7 +34,8 @@ class MigrationService:
         Yields progress updates as an async generator for streaming.
         """
         if job_id:
-            logger.info(f"Starting migration job {job_id} with batch_size {batch_size}")
+            # Use parameterized logging to prevent log injection
+            logger.info("Starting migration job %s with batch_size %s", job_id, batch_size)
             # Yield progress updates for streaming response
             yield {
                 "type": "start",
@@ -49,7 +50,8 @@ class MigrationService:
                 "message": "Migration feature placeholder completed"
             }
         else:
-            logger.info(f"Starting migration for org {organization_id} from {provider}")
+            # Use parameterized logging to prevent log injection
+            logger.info("Starting migration for org %s from %s", organization_id, provider)
             yield {
                 "id": "migration_job_id",
                 "status": "pending",
@@ -66,7 +68,8 @@ class MigrationService:
 
     async def cancel_migration(self, job_id: str) -> bool:
         """Cancel a migration job"""
-        logger.info(f"Cancelling migration job {job_id}")
+        # Use parameterized logging to prevent log injection
+        logger.info("Cancelling migration job %s", job_id)
         return True
 
     async def _migrate_auth0(self, config: Dict[str, Any]) -> None:

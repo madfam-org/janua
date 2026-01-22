@@ -114,7 +114,12 @@ class TestBillingIntegrationFlows:
 
             # Test each step of lifecycle if methods exist
             if hasattr(billing_service, 'create_subscription'):
-                result = await billing_service.create_subscription(subscription_data)
+                # create_subscription expects (customer_id, tier, country, ...)
+                result = await billing_service.create_subscription(
+                    customer_id="cust_123",
+                    tier="pro",
+                    country="US"
+                )
                 assert result is not None or result is None
 
             if hasattr(billing_service, 'update_subscription'):

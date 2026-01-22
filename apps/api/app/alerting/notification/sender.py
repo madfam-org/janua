@@ -8,7 +8,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import httpx
 import structlog
-from jinja2 import Template
+from jinja2 import Template, select_autoescape, Environment
 
 from ..models import NotificationChannel, Alert
 
@@ -20,6 +20,8 @@ class NotificationSender:
 
     def __init__(self):
         self.http_client = httpx.AsyncClient(timeout=30.0)
+        # Create a Jinja2 environment with autoescape enabled for HTML templates
+        self.jinja_env = Environment(autoescape=select_autoescape(['html', 'xml']))
 
     async def send_email(self, channel: NotificationChannel, alert: Alert) -> bool:
         """Send email notification"""
@@ -38,8 +40,8 @@ class NotificationSender:
             # Create email content
             subject = f"[{alert.severity.value.upper()}] {alert.title}"
 
-            # HTML email template
-            html_template = Template("""
+            # HTML email template with autoescape enabled
+            html_template = self.jinja_env.from_string("""
             <html>
             <head><title>Janua Alert</title></head>
             <body>

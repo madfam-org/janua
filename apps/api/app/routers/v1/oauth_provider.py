@@ -33,6 +33,7 @@ from app.config import settings
 from app.core.database import get_db
 from app.core.jwt_manager import jwt_manager
 from app.core.redis import get_redis, ResilientRedisClient
+from app.core.url_security import is_safe_redirect_url, validate_oauth_redirect_uri
 from app.dependencies import get_current_user
 from app.models import OAuthClient, Organization, OrganizationMember, User
 from app.services.consent_service import ConsentService
@@ -305,20 +306,15 @@ async def _get_oauth_client(client_id: str, db: AsyncSession) -> OAuthClient | N
 
 
 def _validate_redirect_uri(redirect_uri: str, allowed_uris: list[str]) -> bool:
-    """Validate that redirect_uri is in the allowed list."""
-    parsed = urlparse(redirect_uri)
-    # Normalize the URI (remove trailing slash)
-    normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path.rstrip('/')}"
+    """
+    Validate that redirect_uri is in the allowed list.
 
-    for allowed in allowed_uris:
-        allowed_parsed = urlparse(allowed)
-        allowed_normalized = (
-            f"{allowed_parsed.scheme}://{allowed_parsed.netloc}{allowed_parsed.path.rstrip('/')}"
-        )
-        if normalized == allowed_normalized:
-            return True
-
-    return False
+    SECURITY: This function prevents open redirect attacks (CWE-601) by
+    ensuring the redirect URI exactly matches one of the pre-registered
+    URIs for the OAuth client. This is a critical security control.
+    """
+    # Use centralized validation from url_security module
+    return validate_oauth_redirect_uri(redirect_uri, allowed_uris)
 
 
 def _verify_pkce(code_verifier: str, code_challenge: str, method: str = "S256") -> bool:
@@ -384,6 +380,33 @@ def _generate_id_token(
     return jwt_manager.encode_token(claims)
 
 
+def _build_safe_callback_url(redirect_uri: str, params: dict) -> str:
+    """
+    Build a callback URL with query parameters.
+
+    SECURITY: The redirect_uri MUST have been validated against the OAuth client's
+    registered redirect URIs BEFORE calling this function. This function assumes
+    the redirect_uri is already trusted.
+
+    Args:
+        redirect_uri: The validated redirect URI from the OAuth client
+        params: Query parameters to append (code, state, error, etc.)
+
+    Returns:
+        The complete callback URL with query parameters
+    """
+    # Double-check that the redirect_uri is not a dangerous scheme
+    # This is defense-in-depth even though validation should have happened earlier
+    if not is_safe_redirect_url(redirect_uri, allow_relative=False):
+        logger.error(
+            "Attempted to build callback URL with unsafe redirect_uri",
+            redirect_uri_prefix=redirect_uri[:50] if redirect_uri else None,
+        )
+        raise ValueError("Invalid redirect URI")
+
+    return f"{redirect_uri}?{urlencode(params)}"
+
+
 # ============================================================================
 # OAuth2 Authorization Endpoint
 # ============================================================================
@@ -437,7 +460,8 @@ async def authorize_get(
             detail="invalid_client: Client is disabled",
         )
 
-    # Validate redirect_uri
+    # SECURITY: Validate redirect_uri against registered URIs (CWE-601 prevention)
+    # This MUST happen before ANY redirect to prevent open redirect attacks
     if not _validate_redirect_uri(redirect_uri, client.redirect_uris):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -464,6 +488,9 @@ async def authorize_get(
         # Use request host to preserve white-label domain (e.g., auth.madfam.io)
         scheme = "https" if settings.ENVIRONMENT == "production" else request.url.scheme
         request_host = request.headers.get("host", urlparse(settings.API_BASE_URL).netloc)
+
+        # SECURITY: Build login redirect URL using internal path only
+        # The login_url is a relative path to our own login endpoint, which is safe
         login_params = urlencode(
             {
                 "next": f"{scheme}://{request_host}{request.url.path}?{request.url.query}",
@@ -680,12 +707,13 @@ async def authorize_get(
     client.last_used_at = datetime.utcnow()
     await db.commit()
 
-    # Redirect back to client with authorization code
+    # SECURITY: Redirect back to client with authorization code
+    # The redirect_uri was validated at the start of this function against the client's registered URIs
     callback_params = {"code": auth_code}
     if state:
         callback_params["state"] = state
 
-    callback_url = f"{redirect_uri}?{urlencode(callback_params)}"
+    callback_url = _build_safe_callback_url(redirect_uri, callback_params)
     return RedirectResponse(url=callback_url, status_code=302)
 
 
@@ -735,12 +763,21 @@ async def handle_consent(
     redirect_uri = auth_request["redirect_uri"]
     state = auth_request.get("state")
 
+    # SECURITY: Re-validate redirect_uri from stored request
+    # Even though it was validated when stored, defense-in-depth requires re-validation
+    client = await _get_oauth_client(auth_request["client_id"], db)
+    if not client or not _validate_redirect_uri(redirect_uri, client.redirect_uris):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid_redirect_uri: URI validation failed",
+        )
+
     if action == "deny":
         # User denied the request
         error_params = {"error": "access_denied", "error_description": "User denied the request"}
         if state:
             error_params["state"] = state
-        error_url = f"{redirect_uri}?{urlencode(error_params)}"
+        error_url = _build_safe_callback_url(redirect_uri, error_params)
         return RedirectResponse(url=error_url, status_code=302)
 
     # User approved - store consent
@@ -770,17 +807,16 @@ async def handle_consent(
     await _store_auth_code(auth_code, code_data, redis)
 
     # Update client last_used_at
-    client = await _get_oauth_client(client_id, db)
     if client:
         client.last_used_at = datetime.utcnow()
         await db.commit()
 
-    # Redirect with code
+    # SECURITY: Redirect with code using validated redirect_uri
     callback_params = {"code": auth_code}
     if state:
         callback_params["state"] = state
 
-    callback_url = f"{redirect_uri}?{urlencode(callback_params)}"
+    callback_url = _build_safe_callback_url(redirect_uri, callback_params)
 
     logger.info(
         "OAuth consent granted",
@@ -834,6 +870,7 @@ async def authorize_post(
     if not client or not client.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_client")
 
+    # SECURITY: Validate redirect_uri against registered URIs (CWE-601 prevention)
     if not _validate_redirect_uri(redirect_uri, client.redirect_uris):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_redirect_uri")
 
@@ -882,12 +919,12 @@ async def authorize_post(
     client.last_used_at = datetime.utcnow()
     await db.commit()
 
-    # Redirect with code
+    # SECURITY: Redirect with code using validated redirect_uri
     callback_params = {"code": auth_code}
     if state:
         callback_params["state"] = state
 
-    callback_url = f"{redirect_uri}?{urlencode(callback_params)}"
+    callback_url = _build_safe_callback_url(redirect_uri, callback_params)
     return RedirectResponse(url=callback_url, status_code=302)
 
 

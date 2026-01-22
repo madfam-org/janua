@@ -175,7 +175,7 @@ class TestTokenRevocation:
         with patch.object(service, "_decode_token_unsafe") as mock_decode:
             mock_decode.return_value = {"jti": token_id, "exp": expiry.timestamp()}
 
-            await service.revoke_token(token)
+            await service.revoke_token(token, token_id)
 
             mock_redis.setex.assert_called_once()
 

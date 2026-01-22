@@ -110,7 +110,7 @@ class MetricsCollector:
     def get_metric(self, metric_name: str) -> Optional[Dict[str, Any]]:
         """Get metric value"""
         # Check all metric types
-        for metric_type in MetricType:
+        for metric_type in list(MetricType):
             key = f"{metric_name}:{metric_type.value}"
             if key in self._metrics:
                 return self._metrics[key]
@@ -663,7 +663,13 @@ class MonitoringService:
         tags: Optional[Dict[str, str]] = None,
     ):
         """Trigger an alert"""
-        await self.alerting.send_alert(title, message, severity, tags)
+        alert = {
+            "name": title,
+            "message": message,
+            "severity": severity,
+            "tags": tags or {},
+        }
+        await self.alerting.send_alert(alert)
 
     def track_request(self, path: str, method: str, duration: float, status_code: int):
         """Track HTTP request metrics"""
