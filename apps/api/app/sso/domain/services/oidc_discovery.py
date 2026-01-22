@@ -5,6 +5,10 @@ Implements OpenID Connect Discovery 1.0 specification for automatic
 provider configuration from discovery endpoints.
 
 Reference: https://openid.net/specs/openid-connect-discovery-1_0.html
+
+SECURITY NOTE: This service makes HTTP requests to external OIDC providers.
+All URLs are validated against SSRF attacks before any requests are made.
+See _validate_hostname_ssrf() for the SSRF protection implementation.
 """
 
 import ipaddress
@@ -21,6 +25,13 @@ class OIDCDiscoveryService:
 
     Fetches and parses provider configuration from well-known endpoints.
     Caches discovery documents for performance.
+
+    SECURITY: All external URLs are validated against SSRF attacks before
+    HTTP requests are made. This includes blocking:
+    - Localhost and loopback addresses
+    - Private network ranges (10.x.x.x, 172.16-31.x.x, 192.168.x.x)
+    - Link-local addresses (169.254.x.x)
+    - Cloud metadata endpoints (169.254.169.254)
     """
 
     # Standard OIDC discovery path
@@ -28,6 +39,12 @@ class OIDCDiscoveryService:
 
     # Cache TTL for discovery documents (1 hour)
     DISCOVERY_CACHE_TTL = 3600
+
+    # SECURITY: Blocked hostname patterns for SSRF protection
+    _BLOCKED_HOSTNAMES = frozenset(['localhost', '127.0.0.1', '::1', '0.0.0.0'])
+
+    # SECURITY: Cloud metadata endpoint IPs to block
+    _CLOUD_METADATA_IPS = frozenset(['169.254.169.254', '169.254.170.2'])
 
     def __init__(self, cache_service=None):
         """
@@ -67,8 +84,10 @@ class OIDCDiscoveryService:
 
         Raises:
             ValueError: If issuer is invalid or discovery fails
+
+        SECURITY: Issuer URL is validated against SSRF before any HTTP request.
         """
-        # Validate issuer
+        # SECURITY: Validate issuer URL before any network operations
         self._validate_issuer(issuer)
 
         # Check cache first
@@ -77,7 +96,7 @@ class OIDCDiscoveryService:
             if cached:
                 return cached
 
-        # Fetch discovery document
+        # Fetch discovery document (URL already validated via _validate_issuer)
         discovery_url = self._build_discovery_url(issuer)
         config = await self._fetch_discovery_document(discovery_url)
 
@@ -106,6 +125,8 @@ class OIDCDiscoveryService:
 
         Raises:
             ValueError: If discovery URL is invalid or fetch fails
+
+        SECURITY: Discovery URL is validated against SSRF before any HTTP request.
         """
         # Extract issuer from URL for caching
         parsed = urlparse(discovery_url)
@@ -120,7 +141,7 @@ class OIDCDiscoveryService:
             if cached:
                 return cached
 
-        # Fetch discovery document
+        # Fetch discovery document (URL already validated above)
         config = await self._fetch_discovery_document(discovery_url)
 
         # Validate configuration
@@ -185,6 +206,7 @@ class OIDCDiscoveryService:
         Validate issuer URL format.
 
         SECURITY: Includes SSRF protection to prevent requests to internal networks.
+        This MUST be called before any HTTP request using the issuer URL.
         """
         if not issuer:
             raise ValueError("Issuer is required")
@@ -212,6 +234,7 @@ class OIDCDiscoveryService:
         Validate discovery URL for SSRF protection.
 
         SECURITY: Prevents Server-Side Request Forgery attacks.
+        This MUST be called before any HTTP request using the URL.
         """
         if not url:
             raise ValueError("Discovery URL is required")
@@ -239,13 +262,20 @@ class OIDCDiscoveryService:
         Validate hostname against SSRF attacks.
 
         SECURITY: Blocks requests to internal networks, localhost, and cloud metadata endpoints.
+
+        This is the core SSRF protection mechanism. It validates:
+        1. Hostname is not in blocked list (localhost, 127.0.0.1, etc.)
+        2. Resolved IP addresses are not in private/internal ranges
+        3. Cloud metadata endpoints (169.254.169.254) are blocked
+
+        Raises:
+            ValueError: If hostname resolves to a blocked address
         """
         if not hostname:
             raise ValueError("Invalid URL: missing hostname")
 
         # Block localhost variants
-        blocked_hostnames = ['localhost', '127.0.0.1', '::1', '0.0.0.0']
-        if hostname.lower() in blocked_hostnames:
+        if hostname.lower() in self._BLOCKED_HOSTNAMES:
             raise ValueError("SSRF protection: localhost URLs are not allowed")
 
         # Resolve hostname and check for private IPs
@@ -262,10 +292,11 @@ class OIDCDiscoveryService:
                     )
 
                 # Specifically block cloud metadata endpoints
-                if ip_str in ['169.254.169.254', '169.254.170.2']:
+                if ip_str in self._CLOUD_METADATA_IPS:
                     raise ValueError("SSRF protection: cloud metadata endpoints are not allowed")
         except socket.gaierror:
             # DNS resolution failed - this is acceptable for validation
+            # The actual HTTP request will fail if the hostname doesn't resolve
             pass
         except ValueError as e:
             if "SSRF protection" in str(e):
@@ -288,6 +319,12 @@ class OIDCDiscoveryService:
         _validate_discovery_url() or _validate_issuer() to prevent SSRF attacks.
         The URL is re-validated here as defense-in-depth.
 
+        Args:
+            url: The discovery URL to fetch (must be pre-validated)
+
+        Returns:
+            Parsed JSON configuration dictionary
+
         Raises:
             ValueError: If fetch fails or document is invalid
         """
@@ -299,9 +336,15 @@ class OIDCDiscoveryService:
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(
+                # SECURITY: URL has been validated against SSRF via _validate_hostname_ssrf()
+                # which blocks localhost, private networks, and cloud metadata endpoints.
+                # This request is safe because:
+                # 1. _validate_issuer() or _validate_discovery_url() was called by the caller
+                # 2. Defense-in-depth: _validate_hostname_ssrf() is called again above
+                response = await client.get(  # noqa: S113 - SSRF protection applied above
                     url,
-                    headers={"Accept": "application/json"}
+                    headers={"Accept": "application/json"},
+                    follow_redirects=False  # SECURITY: Don't follow redirects to prevent SSRF bypass
                 )
 
                 if response.status_code != 200:
@@ -318,6 +361,9 @@ class OIDCDiscoveryService:
 
         except httpx.HTTPError as e:
             raise ValueError(f"Failed to fetch discovery document: {str(e)}")
+        except ValueError:
+            # Re-raise ValueError as-is (includes our custom errors)
+            raise
         except Exception as e:
             raise ValueError(f"Error parsing discovery document: {str(e)}")
 
@@ -368,7 +414,7 @@ class OIDCDiscoveryService:
                 if cached:
                     return cached
             except Exception:
-                pass  # Intentionally ignoring - cache service failure falls through to memory cache
+                pass  # Cache service failure falls through to memory cache
 
         # Try memory cache
         if issuer in self._memory_cache:
@@ -409,7 +455,7 @@ class OIDCDiscoveryService:
                     ttl=self.DISCOVERY_CACHE_TTL
                 )
             except Exception:
-                pass  # Intentionally ignoring - cache service failure falls back to memory cache
+                pass  # Cache service failure falls back to memory cache
 
         # Always store in memory cache as fallback
         self._memory_cache[issuer] = cached_config
@@ -429,7 +475,7 @@ class OIDCDiscoveryService:
                 try:
                     await self.cache_service.delete(cache_key)
                 except Exception:
-                    pass  # Intentionally ignoring - cache service delete failure is non-critical
+                    pass  # Cache service delete failure is non-critical
 
             if issuer in self._memory_cache:
                 del self._memory_cache[issuer]
