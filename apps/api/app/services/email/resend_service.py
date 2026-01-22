@@ -166,7 +166,7 @@ class ResendService:
             response = resend.Emails.send(params)
 
             # Log success with redacted recipient - sanitized before logging
-            redacted = _redact_emails(recipients)  # lgtm[py/clear-text-logging-sensitive-data]
+            redacted = _redact_emails(recipients)  # nosec B608 - data is redacted before logging
             logger.info(
                 "Email sent successfully: id=%s, to=%s, subject_length=%d",
                 response.get("id"),
@@ -178,7 +178,7 @@ class ResendService:
 
         except Exception as e:
             # Log error with redacted recipient - sanitized before logging
-            redacted = _redact_emails(to)  # lgtm[py/clear-text-logging-sensitive-data]
+            redacted = _redact_emails(to)  # nosec B608 - data is redacted before logging
             logger.error(
                 "Failed to send email: to=%s, error_type=%s",
                 redacted,
@@ -269,7 +269,7 @@ class ResendService:
 
         except Exception as e:
             # Log error with redacted recipient - sanitized before logging
-            redacted = _redact_emails(to)  # lgtm[py/clear-text-logging-sensitive-data]
+            redacted = _redact_emails(to)  # nosec B608 - data is redacted before logging
             logger.error(
                 "Failed to send template email: template=%s, to=%s, error_type=%s",
                 template,
