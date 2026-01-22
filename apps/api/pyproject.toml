@@ -212,6 +212,10 @@ module = [
     "webauthn.*",
     "saml2.*",
     "onelogin.*",
+    "stripe.*",
+    "plotly.*",
+    "locust.*",
+    "conekta.*",
 ]
 ignore_missing_imports = true
 

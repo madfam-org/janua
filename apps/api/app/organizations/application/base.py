@@ -1,9 +1,10 @@
 """
 Base classes for CQRS pattern
 """
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, Optional
 
 # Type variables for commands, queries, and results
 TCommand = TypeVar('TCommand')
@@ -38,7 +39,7 @@ class QueryHandler(ABC, Generic[TQuery, TResult]):
 class ApplicationError(Exception):
     """Base class for application layer errors"""
 
-    def __init__(self, message: str, error_code: str = None):
+    def __init__(self, message: str, error_code: Optional[str] = None):
         super().__init__(message)
         self.message = message
         self.error_code = error_code or self.__class__.__name__

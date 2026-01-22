@@ -1,6 +1,7 @@
 """
 SAML 2.0 protocol implementation
 """
+from __future__ import annotations
 
 import base64
 import uuid

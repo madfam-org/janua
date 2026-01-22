@@ -8,7 +8,7 @@ across PostgreSQL and SQLite.
 
 import json
 import uuid
-from sqlalchemy import TypeDecorator, CHAR, Text
+from sqlalchemy import TypeDecorator, CHAR, Text, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB as PG_JSONB
 
 
@@ -80,4 +80,28 @@ class JSON(TypeDecorator):
             if isinstance(value, str):
                 value = json.loads(value)
             # else: value is already a dict/list from JSONB, return as-is
+        return value
+
+
+class InetAddress(TypeDecorator):
+    """
+    Platform-independent INET/IP address type.
+
+    Uses PostgreSQL INET type when available, otherwise VARCHAR(45) for SQLite.
+    This allows the same model to work with both PostgreSQL and SQLite.
+    """
+    impl = String
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            from sqlalchemy.dialects.postgresql import INET
+            return dialect.type_descriptor(INET())
+        else:
+            return dialect.type_descriptor(String(45))
+
+    def process_bind_param(self, value, dialect):
+        return str(value) if value is not None else None
+
+    def process_result_value(self, value, dialect):
         return value

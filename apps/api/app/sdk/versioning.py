@@ -4,6 +4,7 @@ API versioning and compatibility management for SDK consumption.
 Provides version detection, compatibility checking, and graceful handling
 of API changes across different client SDK versions.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set
 from enum import Enum
@@ -38,9 +39,9 @@ class VersionInfo:
     end_of_life_date: Optional[date] = None
     is_stable: bool = True
     is_preview: bool = False
-    supported_features: Set[str] = None
-    breaking_changes: List[str] = None
-    migration_notes: List[str] = None
+    supported_features: Optional[Set[str]] = None
+    breaking_changes: Optional[List[str]] = None
+    migration_notes: Optional[List[str]] = None
 
     def __post_init__(self):
         if self.supported_features is None:

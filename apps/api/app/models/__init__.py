@@ -5,12 +5,12 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
 from app.models.types import GUID as UUID
 from app.models.types import JSON as JSONB
+from app.models.types import InetAddress
 
 Base = declarative_base()
 
@@ -501,7 +501,7 @@ class AuditLog(Base):
     resource_type = Column(String(100))
     resource_id = Column(UUID(as_uuid=True))
     details = Column(JSONB, default={})
-    ip_address = Column(INET)  # PostgreSQL native inet type
+    ip_address = Column(InetAddress)  # Cross-database IP address type
     user_agent = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 

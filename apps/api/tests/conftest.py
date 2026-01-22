@@ -730,6 +730,7 @@ try:
     from tests.fixtures import users as _users_fixtures  # noqa: F401 - Pytest auto-discovers fixtures
     from tests.fixtures import organizations as _organizations_fixtures  # noqa: F401 - Pytest auto-discovers fixtures
     from tests.fixtures import sessions as _sessions_fixtures  # noqa: F401 - Pytest auto-discovers fixtures
+    from tests.fixtures import external_mocks as _external_mocks  # noqa: F401 - Pytest auto-discovers fixtures
 except ImportError:
     # Fixture modules may not be available in all test environments
     pass
