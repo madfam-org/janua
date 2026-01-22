@@ -4,7 +4,7 @@ Unit tests for URL security validation module.
 Tests the open redirect prevention functionality (CWE-601 mitigation).
 """
 
-import pytest
+import pytest  # noqa: F401 - pytest is used implicitly by test framework
 
 from app.core.url_security import (
     is_safe_redirect_url,
@@ -12,7 +12,7 @@ from app.core.url_security import (
     validate_oauth_redirect_uri,
     get_allowed_redirect_hosts,
     _host_matches_pattern,
-)  # noqa: F401 - Test imports
+)
 
 
 class TestHostMatching:

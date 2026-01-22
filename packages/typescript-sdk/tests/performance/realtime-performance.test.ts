@@ -212,6 +212,10 @@ describe('WebSocket Performance Tests', () => {
           autoReconnect: false,
         });
 
+        if (!client || typeof client.on !== 'function' || typeof client.connect !== 'function') {
+          throw new Error('Failed to create WebSocketClient');
+        }
+
         const connectPromise = new Promise<void>((resolve, reject) => {
           client.on('connected', () => {
             const connectionTime = Date.now() - startTime;
@@ -271,6 +275,10 @@ describe('WebSocket Performance Tests', () => {
           token: `${MOCK_AUTH_TOKEN}-${i}`,
           autoReconnect: false,
         });
+
+        if (!client || typeof client.on !== 'function' || typeof client.connect !== 'function') {
+          throw new Error('Failed to create WebSocketClient');
+        }
 
         const connectPromise = new Promise<void>((resolve, reject) => {
           client.on('connected', () => {
@@ -338,6 +346,10 @@ describe('WebSocket Performance Tests', () => {
             autoReconnect: false,
           });
 
+          if (!client || typeof client.on !== 'function' || typeof client.connect !== 'function') {
+            throw new Error('Failed to create WebSocketClient');
+          }
+
           const connectPromise = new Promise<void>((resolve, reject) => {
             client.on('connected', () => {
               const connectionTime = Date.now() - startTime;
@@ -398,6 +410,10 @@ describe('WebSocket Performance Tests', () => {
         token: MOCK_AUTH_TOKEN,
         autoReconnect: false,
       });
+
+      if (!client || typeof client.on !== 'function' || typeof client.connect !== 'function' || typeof client.subscribe !== 'function' || typeof client.publish !== 'function') {
+        throw new Error('Failed to create WebSocketClient');
+      }
 
       clients.push(client);
 
@@ -484,6 +500,11 @@ describe('WebSocket Performance Tests', () => {
         token: MOCK_AUTH_TOKEN,
         autoReconnect: false,
       });
+
+      if (!client || typeof client.on !== 'function' || typeof client.connect !== 'function' || typeof client.subscribe !== 'function' || typeof client.publish !== 'function') {
+        throw new Error('Failed to create WebSocketClient');
+      }
+
       clients.push(client);
 
       await new Promise<void>((resolve, reject) => {
@@ -560,6 +581,11 @@ describe('WebSocket Performance Tests', () => {
         autoReconnect: true,
         heartbeatInterval: pingIntervalMs,
       });
+
+      if (!client || typeof client.on !== 'function' || typeof client.connect !== 'function') {
+        throw new Error('Failed to create WebSocketClient');
+      }
+
       clients.push(client);
 
       let pingCount = 0;
@@ -643,6 +669,10 @@ describe('WebSocket Performance Tests', () => {
           token: `${MOCK_AUTH_TOKEN}-${i}`,
           autoReconnect: false,
         });
+
+        if (!client || typeof client.on !== 'function' || typeof client.connect !== 'function' || typeof client.disconnect !== 'function') {
+          throw new Error('Failed to create WebSocketClient');
+        }
 
         await new Promise<void>((resolve, reject) => {
           client.on('connected', () => resolve());

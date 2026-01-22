@@ -220,10 +220,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         if response:
             response_headers = self._sanitize_headers(dict(response.headers))
 
-        # Response body logging is skipped to avoid complexity
-        # Note: Capturing response body would require custom response handling
-        response_body = None
-
         # Determine log level based on status code
         if status_code >= 500:
             log_level = "error"
@@ -254,12 +250,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         if error_details:
             log_data.update(error_details)
-
-        # Note: response_body is intentionally not captured to avoid
-        # complexity and performance overhead. The check below is kept
-        # for future extensibility if response body logging is enabled.
-        if response_body is not None:
-            log_data["response_body"] = response_body
 
         structured_logger._log(log_level, "HTTP request completed", **log_data)
 

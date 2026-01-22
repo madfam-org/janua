@@ -41,7 +41,7 @@ describe('Payment Integration Tests', () => {
     });
 
     // Initialize services
-    paymentGateway = new PaymentGatewayService(redis);
+    paymentGateway = new PaymentGatewayService();
     paymentGateway.registerProvider(conektaProvider);
     paymentGateway.registerProvider(stripeProvider);
 
