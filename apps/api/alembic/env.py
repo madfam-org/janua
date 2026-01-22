@@ -19,7 +19,10 @@ from app.config import settings
 from app.core.database import Base
 # Import all models to register them with SQLAlchemy metadata for Alembic migrations
 # Note: This import has a side effect of registering models with Base.metadata
-from app import models as _models  # noqa: F401
+from app import models  # noqa: F401 - Side effect import for SQLAlchemy metadata registration
+
+# Reference to prevent unused import warning (models must be imported for Alembic)
+__all__ = ["models"]
 
 # Alembic Config object
 config = context.config

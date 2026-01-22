@@ -8,7 +8,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import httpx
 import structlog
-from jinja2 import Template, select_autoescape, Environment
+from jinja2 import select_autoescape, Environment
 
 from ..models import NotificationChannel, Alert
 

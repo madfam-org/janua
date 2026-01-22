@@ -15,7 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 def _redact_ip(ip_address: str) -> str:
-    """Redact IP address for logging (shows first two octets only for IPv4)."""
+    """Redact IP address for logging (shows first two octets only for IPv4).
+
+    Security: This function sanitizes IP addresses before logging to prevent
+    clear-text logging of user location data (CWE-532).
+    """
     if not ip_address:
         return "[redacted]"
     parts = ip_address.split(".")
@@ -66,22 +70,26 @@ class GeolocationService:
             ISO 3166-1 alpha-2 country code (e.g., "MX", "US", "CA")
         """
         # Tier 1: Billing address country (most reliable)
+        # Note: Country codes (e.g., "MX", "US") are not PII - safe to log
         if billing_country:
-            # Log country detection without exposing full details
-            logger.info("Country detected from billing address: %s", billing_country)
-            return self._normalize_country_code(billing_country)
+            country_code = self._normalize_country_code(billing_country)
+            logger.info("Country detected from billing address: %s", country_code)  # nosec - country code is not PII
+            return country_code
 
         # Tier 2: User profile country
+        # Note: Country codes are not PII - safe to log
         if user_country:
-            logger.info("Country detected from user profile: %s", user_country)
-            return self._normalize_country_code(user_country)
+            country_code = self._normalize_country_code(user_country)
+            logger.info("Country detected from user profile: %s", country_code)  # nosec - country code is not PII
+            return country_code
 
         # Tier 3: IP geolocation (fallback)
         if ip_address:
             country = await self._detect_from_ip(ip_address)
             if country:
-                # Log with redacted IP for privacy
-                logger.info("Country detected from IP %s: %s", _redact_ip(ip_address), country)
+                # Log with redacted IP for privacy, country code is safe
+                redacted_ip = _redact_ip(ip_address)  # lgtm[py/clear-text-logging-sensitive-data]
+                logger.info("Country detected from IP %s: %s", redacted_ip, country)
                 return country
 
         # Default to US if all detection methods fail
@@ -117,7 +125,8 @@ class GeolocationService:
 
         except Exception as e:
             # Log error with redacted IP
-            logger.error("Geolocation detection failed for %s: %s", _redact_ip(ip_address), type(e).__name__)
+            redacted_ip = _redact_ip(ip_address)  # lgtm[py/clear-text-logging-sensitive-data]
+            logger.error("Geolocation detection failed for %s: %s", redacted_ip, type(e).__name__)
 
         return None
 

@@ -727,12 +727,9 @@ except ImportError:
 # Enable database-dependent fixtures for integration tests
 # Pytest auto-discovers fixtures via import; we import the modules to register them
 try:
-    from tests.fixtures import users as _users_fixtures
-    from tests.fixtures import organizations as _organizations_fixtures
-    from tests.fixtures import sessions as _sessions_fixtures
-    # Ensure modules are referenced to prevent removal by optimizers
-    _fixtures_loaded = (_users_fixtures, _organizations_fixtures, _sessions_fixtures)
-    del _fixtures_loaded
+    from tests.fixtures import users as _users_fixtures  # noqa: F401 - Pytest auto-discovers fixtures
+    from tests.fixtures import organizations as _organizations_fixtures  # noqa: F401 - Pytest auto-discovers fixtures
+    from tests.fixtures import sessions as _sessions_fixtures  # noqa: F401 - Pytest auto-discovers fixtures
 except ImportError:
     # Fixture modules may not be available in all test environments
     pass

@@ -2,23 +2,20 @@
 List memberships query and handler
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import List
+from typing import List, TYPE_CHECKING
 from uuid import UUID
 
-from app.models import User
 from ..base import Query, QueryHandler, NotFoundError, PermissionError
-from ...domain.models.membership import Membership
 from ...domain.services.membership_service import MembershipService
-from ...infrastructure.repositories.organization_repository import OrganizationRepository
 
-
-@dataclass
-class MembershipWithUser:
-    """Membership with user details"""
-
-    membership: Membership
-    user: User
+if TYPE_CHECKING:
+    from ...infrastructure.repositories.organization_repository import (
+        OrganizationRepository,
+        MembershipWithUser,
+    )
 
 
 @dataclass

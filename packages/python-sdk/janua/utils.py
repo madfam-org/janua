@@ -465,8 +465,10 @@ def retry_with_backoff(
                 
                 time.sleep(min(actual_delay, max_delay))
                 delay *= exponential_base
-    
-    raise last_exception
+
+    if last_exception is not None:
+        raise last_exception
+    raise RuntimeError(f"Function failed after {max_attempts} attempts")
 
 
 def validate_email(email: str) -> bool:

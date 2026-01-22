@@ -458,7 +458,18 @@ test.describe('Focused Link and Interactive Element Testing', () => {
           const target = await link.getAttribute('target');
           const linkText = await link.textContent();
 
-          if (href && href.includes('github.com')) {
+          // Use proper URL parsing to validate GitHub URLs
+          let isValidGitHubUrl = false;
+          try {
+            if (href) {
+              const urlObj = new URL(href);
+              isValidGitHubUrl = urlObj.hostname === 'github.com' || urlObj.hostname.endsWith('.github.com');
+            }
+          } catch {
+            isValidGitHubUrl = false;
+          }
+
+          if (isValidGitHubUrl) {
             addResult({
               element: `GitHub Link: ${linkText?.trim() || `Link ${i + 1}`}`,
               location: 'Various Sections',

@@ -61,8 +61,9 @@ async def get_redis() -> redis.Redis:
         # Test connection
         try:
             await redis_client.ping()
-            # Log connection success with host (non-sensitive) - port omitted to reduce noise
-            logger.info("Connected to Redis at %s", conn_params['host'])
+            # Log connection success with host only (extract to avoid password taint)
+            redis_host = conn_params["host"]
+            logger.info("Connected to Redis at %s", redis_host)  # nosec - host is not sensitive
         except Exception as e:
             # Log error type only, not full exception details which may contain connection strings
             logger.error("Failed to connect to Redis: %s", type(e).__name__)

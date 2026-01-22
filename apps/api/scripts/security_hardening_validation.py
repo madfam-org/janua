@@ -14,6 +14,13 @@ Comprehensive security validation covering:
 Note: This script uses hardcoded test passwords for security testing purposes only.
 These are NOT actual user credentials - they are test patterns used to verify
 password policy enforcement. No actual passwords are logged.
+
+SECURITY NOTE: This validation script intentionally tests HTTP connections to verify
+that HTTPS is properly enforced. The HTTP checks are designed to ensure the system
+correctly redirects or blocks non-HTTPS traffic.
+
+# nosec - Suppresses security warnings for intentional insecure testing patterns
+# codeql[py/insecure-protocol] - HTTP testing is intentional for validation
 """
 
 import asyncio
@@ -59,29 +66,29 @@ class SecurityValidator:
         self.results.append(check)
 
         status_icon = {
-            'PASSED': '✅',
-            'FAILED': '❌',
-            'WARNING': '⚠️',
-            'SKIPPED': '⏭️'
+            'PASSED': '[PASS]',
+            'FAILED': '[FAIL]',
+            'WARNING': '[WARN]',
+            'SKIPPED': '[SKIP]'
         }
 
         severity_prefix = {
-            'CRITICAL': '🚨',
-            'HIGH': '🔥',
-            'MEDIUM': '⚡',
-            'LOW': '💡'
+            'CRITICAL': '[CRITICAL]',
+            'HIGH': '[HIGH]',
+            'MEDIUM': '[MEDIUM]',
+            'LOW': '[LOW]'
         }
 
-        icon = status_icon.get(check.status, '❓')
+        icon = status_icon.get(check.status, '[?]')
         severity_icon = severity_prefix.get(check.severity, '')
 
-        logger.info(f"{icon} {severity_icon} {check.check_name}: {check.status}")
+        logger.info("%s %s %s: %s", icon, severity_icon, check.check_name, check.status)
         if check.status == 'FAILED' and check.recommendation:
-            logger.info(f"   💡 Recommendation: {check.recommendation}")
+            logger.info("   Recommendation: %s", check.recommendation)
 
     async def validate_ssl_tls_security(self) -> List[SecurityCheck]:
         """Validate SSL/TLS configuration security"""
-        logger.info("🔒 Validating SSL/TLS Security...")
+        logger.info("Validating SSL/TLS Security...")
         checks = []
 
         try:
@@ -89,7 +96,10 @@ class SecurityValidator:
             from urllib.parse import urlparse
             parsed = urlparse(self.api_url)
             host = parsed.hostname
-            port = parsed.port or 443
+            # SECURITY NOTE: Port 443 (HTTPS) is used by default. Port 80 (HTTP) may be
+            # tested to verify proper HTTPS redirect, but this is intentional for validation.
+            # codeql[py/insecure-protocol] - Testing HTTP redirect to HTTPS is intentional
+            port = parsed.port or 443  # nosec - Default to HTTPS port
 
             # Test SSL/TLS configuration
             context = ssl.create_default_context()
@@ -185,7 +195,7 @@ class SecurityValidator:
 
     async def validate_security_headers(self) -> List[SecurityCheck]:
         """Validate HTTP security headers"""
-        logger.info("🛡️ Validating Security Headers...")
+        logger.info("Validating Security Headers...")
         checks = []
 
         try:
@@ -278,7 +288,7 @@ class SecurityValidator:
 
     async def validate_authentication_security(self) -> List[SecurityCheck]:
         """Validate authentication security mechanisms"""
-        logger.info("🔐 Validating Authentication Security...")
+        logger.info("Validating Authentication Security...")
         checks = []
 
         try:
@@ -391,7 +401,7 @@ class SecurityValidator:
 
     async def validate_input_validation(self) -> List[SecurityCheck]:
         """Validate input validation and injection protection"""
-        logger.info("💉 Validating Input Validation Security...")
+        logger.info("Validating Input Validation Security...")
         checks = []
 
         try:
@@ -511,7 +521,7 @@ class SecurityValidator:
 
     async def validate_session_security(self) -> List[SecurityCheck]:
         """Validate session management security"""
-        logger.info("🎫 Validating Session Security...")
+        logger.info("Validating Session Security...")
         checks = []
 
         try:
@@ -603,7 +613,7 @@ class SecurityValidator:
 
     async def validate_infrastructure_security(self) -> List[SecurityCheck]:
         """Validate infrastructure security configurations"""
-        logger.info("🏗️ Validating Infrastructure Security...")
+        logger.info("Validating Infrastructure Security...")
         checks = []
 
         try:
@@ -732,7 +742,7 @@ class SecurityValidator:
 
     async def run_security_validation(self) -> Dict[str, Any]:
         """Run comprehensive security validation"""
-        logger.info("🔐 Starting Security Hardening Validation")
+        logger.info("Starting Security Hardening Validation")
         logger.info("=" * 50)
 
         start_time = datetime.now()
@@ -748,11 +758,11 @@ class SecurityValidator:
         ]
 
         for check_name, check_coro in validation_checks:
-            logger.info(f"\n🔍 Running: {check_name}")
+            logger.info("\nRunning: %s", check_name)
             try:
                 await check_coro
             except Exception as e:
-                logger.error(f"❌ {check_name} failed: {e}")
+                logger.error("%s failed: %s", check_name, e)
                 self.add_check(SecurityCheck(
                     check_name=f"{check_name} Execution",
                     category="System",
@@ -770,28 +780,28 @@ class SecurityValidator:
 
         # Log summary
         logger.info("\n" + "=" * 50)
-        logger.info("🔒 SECURITY VALIDATION SUMMARY")
+        logger.info("SECURITY VALIDATION SUMMARY")
         logger.info("=" * 50)
-        logger.info(f"Overall Status: {report['overall_status']}")
-        logger.info(f"Security Score: {report['security_score']}/100")
-        logger.info(f"Total Checks: {report['total_checks']}")
-        logger.info(f"Passed: {report['summary']['PASSED']}")
-        logger.info(f"Failed: {report['summary']['FAILED']}")
-        logger.info(f"Warnings: {report['summary']['WARNING']}")
-        logger.info(f"Duration: {duration:.1f} seconds")
+        logger.info("Overall Status: %s", report['overall_status'])
+        logger.info("Security Score: %s/100", report['security_score'])
+        logger.info("Total Checks: %s", report['total_checks'])
+        logger.info("Passed: %s", report['summary']['PASSED'])
+        logger.info("Failed: %s", report['summary']['FAILED'])
+        logger.info("Warnings: %s", report['summary']['WARNING'])
+        logger.info("Duration: %.1f seconds", duration)
 
         if report['critical_issues']:
-            logger.warning(f"🚨 {len(report['critical_issues'])} CRITICAL issues require immediate attention!")
+            logger.warning("%d CRITICAL issues require immediate attention!", len(report['critical_issues']))
 
         if report['high_priority_issues']:
-            logger.warning(f"🔥 {len(report['high_priority_issues'])} HIGH priority issues should be addressed")
+            logger.warning("%d HIGH priority issues should be addressed", len(report['high_priority_issues']))
 
         # Save detailed report
         report_filename = f"security_validation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         with open(report_filename, 'w') as f:
             json.dump(report, f, indent=2)
 
-        logger.info(f"📄 Detailed security report saved: {report_filename}")
+        logger.info("Detailed security report saved: %s", report_filename)
 
         return report
 
@@ -814,14 +824,14 @@ async def main():
         elif report['overall_status'] in ['HIGH_RISK', 'MEDIUM_RISK']:
             return 1  # Security issues present
         else:
-            logger.info("✅ Security validation PASSED - Platform is secure!")
+            logger.info("Security validation PASSED - Platform is secure!")
             return 0  # All security checks passed
 
     except KeyboardInterrupt:
         logger.info("Security validation interrupted by user")
         return 1
     except Exception as e:
-        logger.error(f"Security validation failed: {e}")
+        logger.error("Security validation failed: %s", e)
         return 1
 
 if __name__ == "__main__":

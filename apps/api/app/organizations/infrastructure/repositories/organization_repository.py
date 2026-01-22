@@ -2,8 +2,11 @@
 Organization repository implementation
 """
 
+from __future__ import annotations
+
+from dataclasses import dataclass
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import and_, func
@@ -15,9 +18,19 @@ from app.models import (
     User,
     organization_members
 )
-from ...application.queries.list_memberships import MembershipWithUser
 from ...domain.models.organization import Organization
 from ...domain.models.membership import Membership, OrganizationInvitation
+
+if TYPE_CHECKING:
+    pass  # No circular imports needed here
+
+
+@dataclass
+class MembershipWithUser:
+    """Membership with user details - defined here to avoid circular import"""
+
+    membership: Membership
+    user: User
 
 
 class OrganizationRepository:

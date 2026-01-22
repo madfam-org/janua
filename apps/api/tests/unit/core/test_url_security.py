@@ -12,7 +12,7 @@ from app.core.url_security import (
     validate_oauth_redirect_uri,
     get_allowed_redirect_hosts,
     _host_matches_pattern,
-)
+)  # noqa: F401 - Test imports
 
 
 class TestHostMatching:

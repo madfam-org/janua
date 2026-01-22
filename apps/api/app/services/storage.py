@@ -8,7 +8,6 @@ import hashlib
 import mimetypes
 from typing import Optional, Dict, Any
 from datetime import datetime
-from urllib.parse import urlparse
 import logging
 
 from app.config import settings

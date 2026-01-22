@@ -23,9 +23,7 @@ describe('GraphQL Client Integration', () => {
   });
 
   afterEach(() => {
-    if (mockServer) {
-      mockServer.close();
-    }
+    mockServer?.close();
   });
 
   describe('Queries', () => {
@@ -248,12 +246,8 @@ describe('WebSocket Client Integration', () => {
   });
 
   afterEach(async () => {
-    if (wsClient) {
-      await wsClient.disconnect();
-    }
-    if (mockWsServer) {
-      mockWsServer.close();
-    }
+    await wsClient.disconnect();
+    mockWsServer?.close();
   });
 
   describe('Connection Management', () => {

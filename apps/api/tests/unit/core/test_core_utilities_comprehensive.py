@@ -179,9 +179,9 @@ class TestJWTManager:
 
         # Mock token creation
         with patch.object(jwt_manager, 'create_access_token') as mock_create:
-            mock_create.return_value = "mock_jwt_token"
+            mock_create.return_value = ("mock_jwt_token", "mock_jti", None)
 
-            token = jwt_manager.create_access_token(data={"sub": "user_123"})
+            token, jti, expires = jwt_manager.create_access_token(user_id="user_123", email="test@example.com")
             assert token == "mock_jwt_token"
 
     def test_token_validation(self):
@@ -338,10 +338,14 @@ class TestLoggingConfiguration:
         with patch.object(audit_logger, 'log_event') as mock_log:
             mock_log.return_value = True
 
+            # Note: Actual log_event is async and takes different params,
+            # but we're testing the mock behavior here
             result = audit_logger.log_event(
+                session=None,
                 event_type="user_login",
+                event_name="user.login",
                 user_id="user_123",
-                details={"ip": "192.168.1.1"}
+                event_data={"ip": "192.168.1.1"}
             )
             assert result is True
 

@@ -14,11 +14,11 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-# revision identifiers, used by Alembic.  # noqa: F841 - required by Alembic
-revision: str = '001'
-down_revision: Union[str, None] = '000'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+# revision identifiers, used by Alembic.
+revision: str = '001'  # noqa: F841 - Required by Alembic
+down_revision: Union[str, None] = '000'  # noqa: F841 - Required by Alembic
+branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841 - Required by Alembic
+depends_on: Union[str, Sequence[str], None] = None  # noqa: F841 - Required by Alembic
 
 
 def upgrade() -> None:

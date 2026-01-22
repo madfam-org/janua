@@ -24,25 +24,21 @@ describe('Payment Integration Tests', () => {
     });
 
     // Initialize providers
-    conektaProvider = new ConektaProvider(
-      {
-        privateKey: process.env.CONEKTA_TEST_KEY || 'test_key',
-        publicKey: process.env.CONEKTA_PUBLIC_TEST_KEY || 'test_public_key',
-        webhookSecret: 'test_webhook_secret',
-        locale: 'es'
-      },
+    conektaProvider = new ConektaProvider({
+      privateKey: process.env.CONEKTA_TEST_KEY || 'test_key',
+      publicKey: process.env.CONEKTA_PUBLIC_TEST_KEY || 'test_public_key',
+      webhookSecret: 'test_webhook_secret',
+      locale: 'es',
       redis
-    );
+    });
 
-    stripeProvider = new StripeProvider(
-      {
-        secretKey: process.env.STRIPE_TEST_KEY || 'sk_test_123',
-        publishableKey: process.env.STRIPE_PUBLIC_TEST_KEY || 'pk_test_123',
-        webhookSecret: 'test_webhook_secret',
-        apiVersion: '2023-10-16'
-      },
+    stripeProvider = new StripeProvider({
+      secretKey: process.env.STRIPE_TEST_KEY || 'sk_test_123',
+      publishableKey: process.env.STRIPE_PUBLIC_TEST_KEY || 'pk_test_123',
+      webhookSecret: 'test_webhook_secret',
+      apiVersion: '2023-10-16',
       redis
-    );
+    });
 
     // Initialize services
     paymentGateway = new PaymentGatewayService(redis);

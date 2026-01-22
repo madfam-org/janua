@@ -254,7 +254,9 @@ class RedisClusterManager:
                 logger.error("Unexpected error executing Redis command", command=command, error=str(e))
                 raise
 
-        raise last_error
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError(f"Redis command '{command}' failed after {self.max_retries} retries")
 
     async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
         """Set a key-value pair"""

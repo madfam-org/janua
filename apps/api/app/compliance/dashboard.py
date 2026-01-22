@@ -321,8 +321,7 @@ class ComplianceDashboard:
 
                 family_summary[family]["total_controls"] += 1
 
-                # Calculate effectiveness score
-                effectiveness_score = 100  # Default to fully effective
+                # Calculate effectiveness score based on rating
                 if control.effectiveness_rating == "effective":
                     effectiveness_score = 100
                 elif control.effectiveness_rating == "partially_effective":
@@ -330,7 +329,7 @@ class ComplianceDashboard:
                 elif control.effectiveness_rating == "ineffective":
                     effectiveness_score = 0
                 else:
-                    effectiveness_score = 50  # Not tested
+                    effectiveness_score = 50  # Not tested or unknown rating
 
                 if effectiveness_score >= 85:
                     family_summary[family]["effective_controls"] += 1

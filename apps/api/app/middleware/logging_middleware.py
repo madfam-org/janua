@@ -255,7 +255,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         if error_details:
             log_data.update(error_details)
 
-        if response_body:
+        # Note: response_body is intentionally not captured to avoid
+        # complexity and performance overhead. The check below is kept
+        # for future extensibility if response body logging is enabled.
+        if response_body is not None:
             log_data["response_body"] = response_body
 
         structured_logger._log(log_level, "HTTP request completed", **log_data)

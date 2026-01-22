@@ -106,7 +106,8 @@ class TestBillingIntegrationFlows:
             billing_service = BillingService()
 
             # Test subscription creation, updates, and cancellation
-            subscription_data = {
+            # Note: subscription_data is defined for documentation purposes
+            _subscription_data = {
                 "user_id": "user123",
                 "plan": "premium",
                 "billing_cycle": "monthly"

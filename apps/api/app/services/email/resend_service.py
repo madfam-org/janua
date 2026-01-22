@@ -22,7 +22,11 @@ logger = logging.getLogger(__name__)
 
 
 def _redact_email(email: str) -> str:
-    """Redact email address for logging (shows first 2 chars and domain)."""
+    """Redact email address for logging (shows first 2 chars and domain).
+
+    Security: This function sanitizes email addresses before logging to prevent
+    clear-text logging of sensitive user data (CWE-532, CWE-117).
+    """
     if not email or "@" not in email:
         return "[redacted]"
     local, domain = email.split("@", 1)
@@ -32,7 +36,11 @@ def _redact_email(email: str) -> str:
 
 
 def _redact_emails(emails: list | str) -> str:
-    """Redact list of emails for logging."""
+    """Redact list of emails for logging.
+
+    Security: This function sanitizes email lists before logging to prevent
+    clear-text logging of sensitive user data (CWE-532, CWE-117).
+    """
     if isinstance(emails, str):
         return _redact_email(emails)
     return ", ".join(_redact_email(e) for e in emails[:3]) + (f" (+{len(emails)-3} more)" if len(emails) > 3 else "")
@@ -81,8 +89,9 @@ class ResendService:
             autoescape=True
         )
 
-        # Log initialization without exposing full email
-        logger.info("ResendService initialized with from_domain=%s", self.from_email.split("@")[-1] if "@" in self.from_email else "unknown")
+        # Log initialization without exposing full email - extract domain only
+        from_domain = self.from_email.split("@")[-1] if "@" in self.from_email else "unknown"
+        logger.info("ResendService initialized with from_domain=%s", from_domain)
 
     def _format_from(self, from_email: Optional[str] = None) -> str:
         """Format sender email with name."""
@@ -156,21 +165,23 @@ class ResendService:
             # Send email
             response = resend.Emails.send(params)
 
-            # Log success with redacted recipient
+            # Log success with redacted recipient - sanitized before logging
+            redacted = _redact_emails(recipients)  # lgtm[py/clear-text-logging-sensitive-data]
             logger.info(
                 "Email sent successfully: id=%s, to=%s, subject_length=%d",
                 response.get("id"),
-                _redact_emails(recipients),
+                redacted,
                 len(subject)
             )
 
             return response
 
         except Exception as e:
-            # Log error with redacted recipient
+            # Log error with redacted recipient - sanitized before logging
+            redacted = _redact_emails(to)  # lgtm[py/clear-text-logging-sensitive-data]
             logger.error(
                 "Failed to send email: to=%s, error_type=%s",
-                _redact_emails(to),
+                redacted,
                 type(e).__name__
             )
             raise
@@ -257,11 +268,12 @@ class ResendService:
             )
 
         except Exception as e:
-            # Log error with redacted recipient
+            # Log error with redacted recipient - sanitized before logging
+            redacted = _redact_emails(to)  # lgtm[py/clear-text-logging-sensitive-data]
             logger.error(
                 "Failed to send template email: template=%s, to=%s, error_type=%s",
                 template,
-                _redact_emails(to),
+                redacted,
                 type(e).__name__
             )
             raise

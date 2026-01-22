@@ -284,9 +284,19 @@ class OIDCDiscoveryService:
         """
         Fetch discovery document from URL.
 
+        SECURITY: This method MUST only be called after URL validation via
+        _validate_discovery_url() or _validate_issuer() to prevent SSRF attacks.
+        The URL is re-validated here as defense-in-depth.
+
         Raises:
             ValueError: If fetch fails or document is invalid
         """
+        # SECURITY: Defense-in-depth - re-validate URL before making request
+        # This ensures SSRF protection even if caller forgets to validate
+        parsed = urlparse(url)
+        if parsed.hostname:
+            self._validate_hostname_ssrf(parsed.hostname)
+
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(
