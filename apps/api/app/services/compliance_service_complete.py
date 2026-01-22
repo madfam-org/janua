@@ -13,9 +13,15 @@ from sqlalchemy import select, and_, func, delete
 
 from app.models import User
 from app.models.compliance import (
-    ConsentRecord, ConsentStatus, DataSubjectRequest, DataSubjectRequestType,
-    RequestStatus, DataBreachIncident, ComplianceControl, ControlStatus,
-    BreachSeverity
+    ConsentRecord,
+    ConsentStatus,
+    DataSubjectRequest,
+    DataSubjectRequestType,
+    RequestStatus,
+    DataBreachIncident,
+    ComplianceControl,
+    ControlStatus,
+    BreachSeverity,
 )
 from app.services.audit_logger import AuditLogger, AuditEventType
 from app.config import settings
@@ -33,9 +39,7 @@ class EnterpriseComplianceService:
     # ==================== GDPR Compliance ====================
 
     async def handle_data_subject_request(
-        self,
-        request_id: UUID,
-        processor_id: Optional[UUID] = None
+        self, request_id: UUID, processor_id: Optional[UUID] = None
     ) -> Dict[str, Any]:
         """Process GDPR data subject request (access, deletion, portability)"""
 
@@ -74,13 +78,13 @@ class EnterpriseComplianceService:
                 details={
                     "type": request.request_type.value,
                     "status": "completed",
-                    "processor": str(processor_id)
+                    "processor": str(processor_id),
                 },
                 compliance_context={
                     "framework": "GDPR",
                     "article": self._get_gdpr_article(request.request_type),
-                    "response_time_days": (datetime.utcnow() - request.received_at).days
-                }
+                    "response_time_days": (datetime.utcnow() - request.received_at).days,
+                },
             )
 
         except Exception as e:
@@ -103,7 +107,7 @@ class EnterpriseComplianceService:
                 "name": f"{user.first_name} {user.last_name}",
                 "phone": user.phone,
                 "created_at": user.created_at.isoformat(),
-                "last_login": user.last_login.isoformat() if user.last_login else None
+                "last_login": user.last_login.isoformat() if user.last_login else None,
             }
 
             # Get consent records
@@ -111,11 +115,8 @@ class EnterpriseComplianceService:
                 select(ConsentRecord).where(ConsentRecord.user_id == user.id)
             )
             user_data["consents"] = [
-                {
-                    "purpose": c.purpose,
-                    "given_at": c.given_at.isoformat(),
-                    "status": c.status.value
-                } for c in consents.scalars()
+                {"purpose": c.purpose, "given_at": c.given_at.isoformat(), "status": c.status.value}
+                for c in consents.scalars()
             ]
 
             # Get audit logs
@@ -147,9 +148,7 @@ class EnterpriseComplianceService:
             deleted_items.append("user_profile")
 
             # Delete consent records
-            await self.db.execute(
-                delete(ConsentRecord).where(ConsentRecord.user_id == user.id)
-            )
+            await self.db.execute(delete(ConsentRecord).where(ConsentRecord.user_id == user.id))
             deleted_items.append("consent_records")
 
         await self.db.commit()
@@ -157,7 +156,7 @@ class EnterpriseComplianceService:
         return {
             "deleted_items": deleted_items,
             "deletion_method": "anonymization",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     async def _process_portability_request(self, request: DataSubjectRequest) -> Dict:
@@ -171,7 +170,7 @@ class EnterpriseComplianceService:
             "export_timestamp": datetime.utcnow().isoformat(),
             "format": "JSON",
             "gdpr_article": "20",
-            "data": user_data
+            "data": user_data,
         }
 
         # Could also generate CSV, XML, etc.
@@ -180,9 +179,7 @@ class EnterpriseComplianceService:
     # ==================== SOC 2 Compliance ====================
 
     async def perform_soc2_control_assessment(
-        self,
-        control_id: UUID,
-        assessor_id: UUID
+        self, control_id: UUID, assessor_id: UUID
     ) -> ComplianceControl:
         """Perform SOC 2 control assessment"""
 
@@ -194,7 +191,9 @@ class EnterpriseComplianceService:
         assessment_results = await self._run_soc2_control_tests(control)
 
         # Update control status
-        control.status = ControlStatus.COMPLIANT if assessment_results["passed"] else ControlStatus.NON_COMPLIANT
+        control.status = (
+            ControlStatus.COMPLIANT if assessment_results["passed"] else ControlStatus.NON_COMPLIANT
+        )
         control.last_assessed = datetime.utcnow()
         control.assessed_by = assessor_id
         control.evidence = assessment_results["evidence"]
@@ -210,7 +209,7 @@ class EnterpriseComplianceService:
             await send_compliance_alert(
                 title=f"SOC 2 Control {control.control_id} Non-Compliant",
                 severity="high",
-                details=assessment_results["findings"]
+                details=assessment_results["findings"],
             )
 
         return control
@@ -218,11 +217,7 @@ class EnterpriseComplianceService:
     async def _run_soc2_control_tests(self, control: ComplianceControl) -> Dict:
         """Run automated SOC 2 control tests"""
 
-        results = {
-            "passed": True,
-            "evidence": [],
-            "findings": []
-        }
+        results = {"passed": True, "evidence": [], "findings": []}
 
         # Security controls (SOC 2 TSC)
         if control.category == "security":
@@ -265,26 +260,23 @@ class EnterpriseComplianceService:
                     results["passed"] = False
                     results["findings"].append(f"{unencrypted_data} unencrypted sensitive fields")
 
-        results["evidence"].append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "test_results": results["findings"] if results["findings"] else ["All tests passed"]
-        })
+        results["evidence"].append(
+            {
+                "timestamp": datetime.utcnow().isoformat(),
+                "test_results": results["findings"]
+                if results["findings"]
+                else ["All tests passed"],
+            }
+        )
 
         return results
 
     # ==================== HIPAA Compliance ====================
 
-    async def ensure_hipaa_compliance(
-        self,
-        organization_id: UUID
-    ) -> Dict[str, Any]:
+    async def ensure_hipaa_compliance(self, organization_id: UUID) -> Dict[str, Any]:
         """Ensure HIPAA compliance for healthcare organizations"""
 
-        compliance_status = {
-            "compliant": True,
-            "issues": [],
-            "safeguards": {}
-        }
+        compliance_status = {"compliant": True, "issues": [], "safeguards": {}}
 
         # Administrative Safeguards
         admin_safeguards = await self._check_hipaa_administrative_safeguards(organization_id)
@@ -303,15 +295,15 @@ class EnterpriseComplianceService:
             for safeguard, status in safeguards.items():
                 if not status["compliant"]:
                     compliance_status["compliant"] = False
-                    compliance_status["issues"].append({
-                        "category": category,
-                        "safeguard": safeguard,
-                        "issue": status["issue"]
-                    })
+                    compliance_status["issues"].append(
+                        {"category": category, "safeguard": safeguard, "issue": status["issue"]}
+                    )
 
         # Generate compliance report
         if not compliance_status["compliant"]:
-            await self._generate_hipaa_remediation_plan(organization_id, compliance_status["issues"])
+            await self._generate_hipaa_remediation_plan(
+                organization_id, compliance_status["issues"]
+            )
 
         return compliance_status
 
@@ -321,28 +313,34 @@ class EnterpriseComplianceService:
         return {
             "access_control": {
                 "compliant": await self._check_unique_user_identification(org_id),
-                "issue": None if await self._check_unique_user_identification(org_id) else "Shared user accounts detected"
+                "issue": None
+                if await self._check_unique_user_identification(org_id)
+                else "Shared user accounts detected",
             },
             "audit_controls": {
                 "compliant": await self._check_audit_log_integrity(org_id),
-                "issue": None if await self._check_audit_log_integrity(org_id) else "Audit logs can be modified"
+                "issue": None
+                if await self._check_audit_log_integrity(org_id)
+                else "Audit logs can be modified",
             },
             "integrity_controls": {
                 "compliant": await self._check_data_integrity_controls(org_id),
-                "issue": None if await self._check_data_integrity_controls(org_id) else "No data integrity verification"
+                "issue": None
+                if await self._check_data_integrity_controls(org_id)
+                else "No data integrity verification",
             },
             "transmission_security": {
                 "compliant": await self._check_transmission_encryption(org_id),
-                "issue": None if await self._check_transmission_encryption(org_id) else "Unencrypted data transmission detected"
-            }
+                "issue": None
+                if await self._check_transmission_encryption(org_id)
+                else "Unencrypted data transmission detected",
+            },
         }
 
     # ==================== PCI-DSS Compliance ====================
 
     async def validate_pci_compliance(
-        self,
-        organization_id: UUID,
-        compliance_level: str = "Level 4"
+        self, organization_id: UUID, compliance_level: str = "Level 4"
     ) -> Dict[str, Any]:
         """Validate PCI-DSS compliance"""
 
@@ -355,7 +353,9 @@ class EnterpriseComplianceService:
         requirements["passwords"] = await self._check_default_passwords(organization_id)
 
         # Requirement 3: Cardholder Data Protection
-        requirements["data_protection"] = await self._check_cardholder_data_protection(organization_id)
+        requirements["data_protection"] = await self._check_cardholder_data_protection(
+            organization_id
+        )
 
         # Requirement 4: Encryption in Transit
         requirements["encryption"] = await self._check_transmission_encryption(organization_id)
@@ -367,7 +367,9 @@ class EnterpriseComplianceService:
         requirements["logging"] = await self._check_pci_logging_requirements(organization_id)
 
         # Requirement 11: Security Testing
-        requirements["security_testing"] = await self._check_security_testing_schedule(organization_id)
+        requirements["security_testing"] = await self._check_security_testing_schedule(
+            organization_id
+        )
 
         # Requirement 12: Security Policy
         requirements["security_policy"] = await self._check_security_policy_exists(organization_id)
@@ -384,15 +386,13 @@ class EnterpriseComplianceService:
             "is_compliant": compliance_score == 100,
             "requirements": requirements,
             "assessment_date": datetime.utcnow().isoformat(),
-            "next_assessment_due": (datetime.utcnow() + timedelta(days=90)).isoformat()
+            "next_assessment_due": (datetime.utcnow() + timedelta(days=90)).isoformat(),
         }
 
     # ==================== Breach Management ====================
 
     async def report_data_breach(
-        self,
-        organization_id: UUID,
-        breach_details: Dict[str, Any]
+        self, organization_id: UUID, breach_details: Dict[str, Any]
     ) -> DataBreachIncident:
         """Report and manage data breach incident"""
 
@@ -407,7 +407,7 @@ class EnterpriseComplianceService:
             breach_description=breach_details.get("description"),
             root_cause=breach_details.get("root_cause"),
             discovery_method=breach_details.get("discovery_method"),
-            systems_affected=breach_details.get("systems", [])
+            systems_affected=breach_details.get("systems", []),
         )
 
         self.db.add(breach)
@@ -429,21 +429,25 @@ class EnterpriseComplianceService:
 
         # GDPR - Notify supervisory authority within 72 hours
         if breach.severity in [BreachSeverity.HIGH, BreachSeverity.CRITICAL]:
-            notifications_sent.append({
-                "recipient": "supervisory_authority",
-                "framework": "GDPR",
-                "deadline": (breach.discovered_at + timedelta(hours=72)).isoformat(),
-                "sent_at": datetime.utcnow().isoformat()
-            })
+            notifications_sent.append(
+                {
+                    "recipient": "supervisory_authority",
+                    "framework": "GDPR",
+                    "deadline": (breach.discovered_at + timedelta(hours=72)).isoformat(),
+                    "sent_at": datetime.utcnow().isoformat(),
+                }
+            )
 
         # Notify affected users if high risk
         if breach.affected_users_count > 0 and breach.severity == BreachSeverity.CRITICAL:
-            notifications_sent.append({
-                "recipient": "affected_users",
-                "count": breach.affected_users_count,
-                "method": "email",
-                "sent_at": datetime.utcnow().isoformat()
-            })
+            notifications_sent.append(
+                {
+                    "recipient": "affected_users",
+                    "count": breach.affected_users_count,
+                    "method": "email",
+                    "sent_at": datetime.utcnow().isoformat(),
+                }
+            )
 
         # Update breach record
         breach.notifications_sent_at = datetime.utcnow()
@@ -493,7 +497,7 @@ class EnterpriseComplianceService:
             DataSubjectRequestType.RECTIFICATION: "Article 16",
             DataSubjectRequestType.PORTABILITY: "Article 20",
             DataSubjectRequestType.RESTRICTION: "Article 18",
-            DataSubjectRequestType.OBJECTION: "Article 21"
+            DataSubjectRequestType.OBJECTION: "Article 21",
         }
         return mapping.get(request_type, "Unknown")
 
@@ -510,10 +514,7 @@ class EnterpriseComplianceService:
         cutoff_date = datetime.utcnow() - timedelta(days=days)
         result = await self.db.execute(
             select(func.count(User.id)).where(
-                and_(
-                    User.last_login < cutoff_date,
-                    User.is_active == True
-                )
+                and_(User.last_login < cutoff_date, User.is_active == True)
             )
         )
         return result.scalar() or 0
@@ -528,10 +529,7 @@ class EnterpriseComplianceService:
         findings_count = len(assessment_results.get("findings", []))
         return min(100, findings_count * 20)  # 20 points per finding, max 100
 
-    async def generate_compliance_dashboard(
-        self,
-        organization_id: UUID
-    ) -> Dict[str, Any]:
+    async def generate_compliance_dashboard(self, organization_id: UUID) -> Dict[str, Any]:
         """Generate comprehensive compliance dashboard"""
 
         dashboard = {
@@ -540,21 +538,21 @@ class EnterpriseComplianceService:
             "frameworks": {},
             "overall_score": 0,
             "critical_issues": [],
-            "upcoming_audits": []
+            "upcoming_audits": [],
         }
 
         # GDPR Status
         dashboard["frameworks"]["gdpr"] = {
             "compliant": True,
             "pending_requests": await self._count_pending_dsrs(organization_id),
-            "consent_coverage": await self._calculate_consent_coverage(organization_id)
+            "consent_coverage": await self._calculate_consent_coverage(organization_id),
         }
 
         # SOC 2 Status
         dashboard["frameworks"]["soc2"] = {
             "compliant": True,
             "controls_assessed": await self._count_assessed_controls(organization_id),
-            "non_compliant_controls": await self._count_non_compliant_controls(organization_id)
+            "non_compliant_controls": await self._count_non_compliant_controls(organization_id),
         }
 
         # Calculate overall score
@@ -576,7 +574,9 @@ class EnterpriseComplianceService:
             select(func.count(DataSubjectRequest.id)).where(
                 and_(
                     DataSubjectRequest.organization_id == org_id,
-                    DataSubjectRequest.status.in_([RequestStatus.RECEIVED, RequestStatus.IN_PROGRESS])
+                    DataSubjectRequest.status.in_(
+                        [RequestStatus.RECEIVED, RequestStatus.IN_PROGRESS]
+                    ),
                 )
             )
         )
@@ -599,7 +599,7 @@ class EnterpriseComplianceService:
             select(func.count(func.distinct(ConsentRecord.user_id))).where(
                 and_(
                     ConsentRecord.organization_id == org_id,
-                    ConsentRecord.status == ConsentStatus.GIVEN
+                    ConsentRecord.status == ConsentStatus.GIVEN,
                 )
             )
         )

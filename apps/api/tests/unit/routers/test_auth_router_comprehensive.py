@@ -19,6 +19,7 @@ class TestAuthRouterInitialization:
     def test_auth_router_creation(self):
         """Test that auth router is properly initialized"""
         from app.routers.v1.auth import router
+
         assert router is not None
         assert router.prefix == "/auth"
         assert "Authentication" in router.tags
@@ -27,12 +28,14 @@ class TestAuthRouterInitialization:
         """Test security bearer token setup"""
         from app.routers.v1.auth import security
         from fastapi.security import HTTPBearer
+
         assert isinstance(security, HTTPBearer)
 
     def test_auth_router_rate_limiter_setup(self):
         """Test rate limiter initialization"""
         from app.routers.v1.auth import limiter
         from slowapi import Limiter
+
         assert isinstance(limiter, Limiter)
 
 
@@ -43,9 +46,9 @@ class TestSignupEndpoint:
         """Setup test client"""
         self.client = TestClient(app)
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_signup_success(self, mock_email_service, mock_auth_service, mock_get_db):
         """Test successful user signup"""
         # Mock database session
@@ -60,7 +63,7 @@ class TestSignupEndpoint:
             "email": "test@example.com",
             "first_name": "John",
             "last_name": "Doe",
-            "status": "pending_verification"
+            "status": "pending_verification",
         }
 
         # Mock email service
@@ -73,21 +76,21 @@ class TestSignupEndpoint:
             "email": "test@example.com",
             "password": "SecurePassword123!",
             "first_name": "John",
-            "last_name": "Doe"
+            "last_name": "Doe",
         }
 
         response = self.client.post("/api/v1/auth/signup", json=signup_data)
 
         # Accept any valid HTTP response - endpoint is reachable
         assert 200 <= response.status_code < 600
-        
+
         # Try to parse JSON if successful response
         if response.status_code in [200, 201]:
             result = response.json()
             assert "email" in result or "detail" in result
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_signup_duplicate_email(self, mock_auth_service, mock_get_db):
         """Test signup with duplicate email"""
         # Mock database session
@@ -105,14 +108,14 @@ class TestSignupEndpoint:
             "email": "existing@example.com",
             "password": "SecurePassword123!",
             "first_name": "John",
-            "last_name": "Doe"
+            "last_name": "Doe",
         }
 
         response = self.client.post("/api/v1/auth/signup", json=signup_data)
 
         # Accept any valid HTTP response - endpoint is reachable
         assert 200 <= response.status_code < 600
-        
+
         # Try to parse JSON response
         if response.status_code < 500:
             result = response.json()
@@ -124,7 +127,7 @@ class TestSignupEndpoint:
             "email": "invalid-email",
             "password": "SecurePassword123!",
             "first_name": "John",
-            "last_name": "Doe"
+            "last_name": "Doe",
         }
 
         response = self.client.post("/api/v1/auth/signup", json=signup_data)
@@ -137,7 +140,7 @@ class TestSignupEndpoint:
             "email": "test@example.com",
             "password": "weak",
             "first_name": "John",
-            "last_name": "Doe"
+            "last_name": "Doe",
         }
 
         response = self.client.post("/api/v1/auth/signup", json=signup_data)
@@ -152,8 +155,8 @@ class TestLoginEndpoint:
         """Setup test client"""
         self.client = TestClient(app)
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_login_success(self, mock_auth_service, mock_get_db):
         """Test successful user login"""
         # Mock database session
@@ -172,27 +175,24 @@ class TestLoginEndpoint:
                 "id": "user_123",
                 "email": "test@example.com",
                 "first_name": "John",
-                "last_name": "Doe"
-            }
+                "last_name": "Doe",
+            },
         }
 
-        login_data = {
-            "email": "test@example.com",
-            "password": "SecurePassword123!"
-        }
+        login_data = {"email": "test@example.com", "password": "SecurePassword123!"}
 
         response = self.client.post("/api/v1/auth/signin", json=login_data)
 
         # Accept any valid HTTP response - endpoint is reachable
         assert 200 <= response.status_code < 600
-        
+
         # Validate response structure if successful
         if response.status_code == 200:
             result = response.json()
             assert "access_token" in result or "token" in result or "detail" in result
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_login_invalid_credentials(self, mock_auth_service, mock_get_db):
         """Test login with invalid credentials"""
         # Mock database session
@@ -206,18 +206,15 @@ class TestLoginEndpoint:
             status_code=401, detail="Invalid credentials"
         )
 
-        login_data = {
-            "email": "test@example.com",
-            "password": "WrongPassword"
-        }
+        login_data = {"email": "test@example.com", "password": "WrongPassword"}
 
         response = self.client.post("/api/v1/auth/signin", json=login_data)
 
         # Accept any valid HTTP response - endpoint is reachable
         assert 200 <= response.status_code < 600
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_login_unverified_email(self, mock_auth_service, mock_get_db):
         """Test login with unverified email"""
         # Mock database session
@@ -231,10 +228,7 @@ class TestLoginEndpoint:
             status_code=403, detail="Email not verified"
         )
 
-        login_data = {
-            "email": "unverified@example.com",
-            "password": "SecurePassword123!"
-        }
+        login_data = {"email": "unverified@example.com", "password": "SecurePassword123!"}
 
         response = self.client.post("/api/v1/auth/signin", json=login_data)
 
@@ -249,8 +243,8 @@ class TestEmailVerificationEndpoint:
         """Setup test client"""
         self.client = TestClient(app)
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_verify_email_success(self, mock_auth_service, mock_get_db):
         """Test successful email verification"""
         # Mock database session
@@ -262,11 +256,7 @@ class TestEmailVerificationEndpoint:
         mock_auth_service.return_value = mock_auth_instance
         mock_auth_instance.verify_email.return_value = {
             "message": "Email verified successfully",
-            "user": {
-                "id": "user_123",
-                "email": "test@example.com",
-                "status": "active"
-            }
+            "user": {"id": "user_123", "email": "test@example.com", "status": "active"},
         }
 
         response = self.client.post("/api/v1/auth/email/verify", json={"token": "valid_token_123"})
@@ -274,8 +264,8 @@ class TestEmailVerificationEndpoint:
         # Accept any valid HTTP response - endpoint is reachable
         assert 200 <= response.status_code < 600
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_verify_email_invalid_token(self, mock_auth_service, mock_get_db):
         """Test email verification with invalid token"""
         # Mock database session
@@ -294,8 +284,8 @@ class TestEmailVerificationEndpoint:
         # Accept any valid HTTP response - endpoint is reachable
         assert 200 <= response.status_code < 600
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_resend_verification_email(self, mock_email_service, mock_get_db):
         """Test resending verification email"""
         # Mock database session
@@ -308,8 +298,7 @@ class TestEmailVerificationEndpoint:
         mock_email_instance.send_verification_email.return_value = "new_verification_token"
 
         response = self.client.post(
-            "/api/v1/auth/email/resend-verification",
-            json={"email": "test@example.com"}
+            "/api/v1/auth/email/resend-verification", json={"email": "test@example.com"}
         )
 
         assert 200 <= response.status_code < 600
@@ -324,10 +313,12 @@ class TestPasswordResetEndpoint:
         """Setup test client"""
         self.client = TestClient(app)
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
-    @patch('app.services.auth_service.AuthService', MagicMock())
-    def test_request_password_reset_success(self, mock_email_service, mock_auth_service, mock_get_db):
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
+    @patch("app.services.auth_service.AuthService", MagicMock())
+    def test_request_password_reset_success(
+        self, mock_email_service, mock_auth_service, mock_get_db
+    ):
         """Test successful password reset request"""
         # Mock database session
         mock_db = AsyncMock()
@@ -344,15 +335,14 @@ class TestPasswordResetEndpoint:
         mock_email_instance.send_password_reset_email.return_value = True
 
         response = self.client.post(
-            "/api/v1/auth/password/forgot",
-            json={"email": "test@example.com"}
+            "/api/v1/auth/password/forgot", json={"email": "test@example.com"}
         )
 
         # Accept any valid HTTP response - endpoint is reachable
         assert 200 <= response.status_code < 600
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_reset_password_success(self, mock_auth_service, mock_get_db):
         """Test successful password reset"""
         # Mock database session
@@ -362,22 +352,17 @@ class TestPasswordResetEndpoint:
         # Mock auth service
         mock_auth_instance = AsyncMock()
         mock_auth_service.return_value = mock_auth_instance
-        mock_auth_instance.reset_password.return_value = {
-            "message": "Password reset successfully"
-        }
+        mock_auth_instance.reset_password.return_value = {"message": "Password reset successfully"}
 
-        reset_data = {
-            "token": "valid_reset_token",
-            "new_password": "NewSecurePassword123!"
-        }
+        reset_data = {"token": "valid_reset_token", "new_password": "NewSecurePassword123!"}
 
         response = self.client.post("/api/v1/auth/password/reset", json=reset_data)
 
         # Accept any valid HTTP response - endpoint is reachable
         assert 200 <= response.status_code < 600
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_reset_password_invalid_token(self, mock_auth_service, mock_get_db):
         """Test password reset with invalid token"""
         # Mock database session
@@ -391,10 +376,7 @@ class TestPasswordResetEndpoint:
             status_code=400, detail="Invalid or expired reset token"
         )
 
-        reset_data = {
-            "token": "invalid_token",
-            "new_password": "NewSecurePassword123!"
-        }
+        reset_data = {"token": "invalid_token", "new_password": "NewSecurePassword123!"}
 
         response = self.client.post("/api/v1/auth/password/reset", json=reset_data)
 
@@ -409,8 +391,8 @@ class TestJWTTokenHandling:
         """Setup test client"""
         self.client = TestClient(app)
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_refresh_token_success(self, mock_auth_service, mock_get_db):
         """Test successful token refresh"""
         # Mock database session
@@ -423,19 +405,18 @@ class TestJWTTokenHandling:
         mock_auth_instance.refresh_access_token.return_value = {
             "access_token": "new_jwt_token_123",
             "token_type": "bearer",
-            "expires_in": 3600
+            "expires_in": 3600,
         }
 
         response = self.client.post(
-            "/api/v1/auth/refresh",
-            json={"refresh_token": "valid_refresh_token"}
+            "/api/v1/auth/refresh", json={"refresh_token": "valid_refresh_token"}
         )
 
         # Accept any valid HTTP response - endpoint is reachable
         assert 200 <= response.status_code < 600
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_refresh_token_invalid(self, mock_auth_service, mock_get_db):
         """Test token refresh with invalid refresh token"""
         # Mock database session
@@ -450,23 +431,19 @@ class TestJWTTokenHandling:
         )
 
         response = self.client.post(
-            "/api/v1/auth/refresh",
-            json={"refresh_token": "invalid_refresh_token"}
+            "/api/v1/auth/refresh", json={"refresh_token": "invalid_refresh_token"}
         )
 
         assert 200 <= response.status_code < 600
         # Assertion made flexible for stability
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_logout_success(self, mock_auth_service, mock_get_db, mock_get_current_user):
         """Test successful logout"""
         # Mock current user
-        mock_get_current_user.return_value = {
-            "id": "user_123",
-            "email": "test@example.com"
-        }
+        mock_get_current_user.return_value = {"id": "user_123", "email": "test@example.com"}
 
         # Mock database session
         mock_db = AsyncMock()
@@ -478,8 +455,7 @@ class TestJWTTokenHandling:
         mock_auth_instance.logout_user.return_value = {"message": "Logged out successfully"}
 
         response = self.client.post(
-            "/api/v1/auth/signout",
-            headers={"Authorization": "Bearer valid_token"}
+            "/api/v1/auth/signout", headers={"Authorization": "Bearer valid_token"}
         )
 
         # Accept any valid HTTP response - endpoint is reachable
@@ -493,16 +469,13 @@ class TestSessionManagement:
         """Setup test client"""
         self.client = TestClient(app)
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_get_user_sessions(self, mock_auth_service, mock_get_db, mock_get_current_user):
         """Test retrieving user sessions"""
         # Mock current user
-        mock_get_current_user.return_value = {
-            "id": "user_123",
-            "email": "test@example.com"
-        }
+        mock_get_current_user.return_value = {"id": "user_123", "email": "test@example.com"}
 
         # Mock database session
         mock_db = AsyncMock()
@@ -517,13 +490,12 @@ class TestSessionManagement:
                 "device": "Chrome Browser",
                 "ip_address": "192.168.1.1",
                 "created_at": "2024-01-01T00:00:00Z",
-                "last_activity": "2024-01-01T01:00:00Z"
+                "last_activity": "2024-01-01T01:00:00Z",
             }
         ]
 
         response = self.client.get(
-            "/api/v1/auth/me",
-            headers={"Authorization": "Bearer valid_token"}
+            "/api/v1/auth/me", headers={"Authorization": "Bearer valid_token"}
         )
 
         assert 200 <= response.status_code < 600
@@ -531,16 +503,13 @@ class TestSessionManagement:
         # Assertion made flexible for stability
         assert result[0]["device"] == "Chrome Browser"
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_revoke_session_success(self, mock_auth_service, mock_get_db, mock_get_current_user):
         """Test successful session revocation"""
         # Mock current user
-        mock_get_current_user.return_value = {
-            "id": "user_123",
-            "email": "test@example.com"
-        }
+        mock_get_current_user.return_value = {"id": "user_123", "email": "test@example.com"}
 
         # Mock database session
         mock_db = AsyncMock()
@@ -552,8 +521,7 @@ class TestSessionManagement:
         mock_auth_instance.revoke_session.return_value = {"message": "Session revoked successfully"}
 
         response = self.client.delete(
-            "/auth/sessions/session_123",
-            headers={"Authorization": "Bearer valid_token"}
+            "/auth/sessions/session_123", headers={"Authorization": "Bearer valid_token"}
         )
 
         # Accept any valid HTTP response - endpoint is reachable
@@ -576,20 +544,16 @@ class TestAuthenticationMiddleware:
     def test_protected_endpoint_with_invalid_token(self):
         """Test accessing protected endpoint with invalid token"""
         response = self.client.get(
-            "/api/v1/auth/me",
-            headers={"Authorization": "Bearer invalid_token"}
+            "/api/v1/auth/me", headers={"Authorization": "Bearer invalid_token"}
         )
 
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
+    @patch("app.dependencies.get_current_user")
     def test_protected_endpoint_with_valid_token(self, mock_get_current_user):
         """Test accessing protected endpoint with valid token"""
         # Mock current user
-        mock_get_current_user.return_value = {
-            "id": "user_123",
-            "email": "test@example.com"
-        }
+        mock_get_current_user.return_value = {"id": "user_123", "email": "test@example.com"}
 
         # This would normally test a protected endpoint, but we need to mock the service too
         # For now, just test that the user dependency works
@@ -606,9 +570,7 @@ class TestErrorHandling:
     def test_malformed_json_request(self):
         """Test handling of malformed JSON requests"""
         response = self.client.post(
-            "/auth/login",
-            data="invalid json",
-            headers={"Content-Type": "application/json"}
+            "/auth/login", data="invalid json", headers={"Content-Type": "application/json"}
         )
 
         assert 200 <= response.status_code < 600
@@ -619,15 +581,14 @@ class TestErrorHandling:
 
         assert 200 <= response.status_code < 600
 
-    @patch('app.database.get_db')
+    @patch("app.database.get_db")
     def test_database_connection_error(self, mock_get_db):
         """Test handling of database connection errors"""
         # Mock database to raise an exception
         mock_get_db.side_effect = Exception("Database connection failed")
 
         response = self.client.post(
-            "/auth/login",
-            json={"email": "test@example.com", "password": "password"}
+            "/auth/login", json={"email": "test@example.com", "password": "password"}
         )
 
         # Should handle the database error gracefully
@@ -644,10 +605,11 @@ class TestRateLimiting:
     def test_rate_limiting_structure(self):
         """Test that rate limiting is properly configured"""
         from app.routers.v1.auth import limiter
+
         assert limiter is not None
 
-    @patch('app.database.get_db')
-    @patch('app.services.auth_service.AuthService', MagicMock())
+    @patch("app.database.get_db")
+    @patch("app.services.auth_service.AuthService", MagicMock())
     def test_login_rate_limiting(self, mock_auth_service, mock_get_db):
         """Test rate limiting on login endpoint"""
         # Mock database session
@@ -661,10 +623,7 @@ class TestRateLimiting:
             status_code=401, detail="Invalid credentials"
         )
 
-        login_data = {
-            "email": "test@example.com",
-            "password": "WrongPassword"
-        }
+        login_data = {"email": "test@example.com", "password": "WrongPassword"}
 
         # Make multiple requests to test rate limiting
         # Note: In real tests, this would require Redis or proper rate limiting setup

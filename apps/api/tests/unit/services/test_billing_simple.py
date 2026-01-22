@@ -1,4 +1,5 @@
 import pytest
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -19,10 +20,10 @@ class TestBillingServiceInitialization:
     def test_billing_service_init(self):
         """Test billing service initialization."""
         service = BillingService()
-        assert hasattr(service, 'conekta_api_key')
-        assert hasattr(service, 'conekta_api_url')
-        assert hasattr(service, 'fungies_api_key')
-        assert hasattr(service, 'fungies_api_url')
+        assert hasattr(service, "conekta_api_key")
+        assert hasattr(service, "conekta_api_url")
+        assert hasattr(service, "fungies_api_key")
+        assert hasattr(service, "fungies_api_url")
         assert service.conekta_api_url == "https://api.conekta.io"
         assert service.fungies_api_url == "https://api.fungies.io/v1"
 
@@ -68,19 +69,23 @@ class TestConektaIntegration:
             "id": "cus_test123",
             "email": "test@example.com",
             "name": "Test User",
-            "phone": "+52555123456"
+            "phone": "+52555123456",
         }
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.post = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.post.return_value.json.return_value = mock_response
-            mock_client.return_value.__aenter__.return_value.post.return_value.raise_for_status = Mock()
+            mock_client.return_value.__aenter__.return_value.post.return_value.json.return_value = (
+                mock_response
+            )
+            mock_client.return_value.__aenter__.return_value.post.return_value.raise_for_status = (
+                Mock()
+            )
 
             result = await self.service.create_conekta_customer(
                 email="test@example.com",
                 name="Test User",
                 phone="+52555123456",
-                metadata={"user_id": "123"}
+                metadata={"user_id": "123"},
             )
 
             assert result["id"] == "cus_test123"
@@ -90,14 +95,15 @@ class TestConektaIntegration:
     @pytest.mark.asyncio
     async def test_create_conekta_customer_http_error(self):
         """Test creating Conekta customer with HTTP error."""
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.post = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.post.return_value.raise_for_status.side_effect = httpx.HTTPError("API Error")
+            mock_client.return_value.__aenter__.return_value.post.return_value.raise_for_status.side_effect = httpx.HTTPError(
+                "API Error"
+            )
 
             with pytest.raises(httpx.HTTPError):
                 await self.service.create_conekta_customer(
-                    email="test@example.com",
-                    name="Test User"
+                    email="test@example.com", name="Test User"
                 )
 
     @pytest.mark.asyncio
@@ -107,18 +113,19 @@ class TestConektaIntegration:
             "id": "sub_test123",
             "customer_id": "cus_test123",
             "plan_id": "pro_monthly",
-            "status": "active"
+            "status": "active",
         }
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_response = AsyncMock()
             mock_response.json = AsyncMock(return_value=mock_subscription)
             mock_response.raise_for_status = Mock()
-            mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+                return_value=mock_response
+            )
 
             result = await self.service.create_conekta_subscription(
-                customer_id="cus_test123",
-                plan_id="pro_monthly"
+                customer_id="cus_test123", plan_id="pro_monthly"
             )
 
             assert result["id"] == "sub_test123"
@@ -128,32 +135,27 @@ class TestConektaIntegration:
     @pytest.mark.asyncio
     async def test_create_conekta_subscription_with_card_token(self):
         """Test creating Conekta subscription with card token."""
-        mock_payment_method = {
-            "id": "pm_test123",
-            "type": "card"
-        }
+        mock_payment_method = {"id": "pm_test123", "type": "card"}
 
         mock_subscription = {
             "id": "sub_test123",
             "customer_id": "cus_test123",
             "plan_id": "pro_monthly",
-            "status": "active"
+            "status": "active",
         }
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_post = AsyncMock()
             mock_client.return_value.__aenter__.return_value.post = mock_post
 
             # First call for payment method, second for subscription
             mock_post.side_effect = [
                 Mock(json=Mock(return_value=mock_payment_method), raise_for_status=Mock()),
-                Mock(json=Mock(return_value=mock_subscription), raise_for_status=Mock())
+                Mock(json=Mock(return_value=mock_subscription), raise_for_status=Mock()),
             ]
 
             result = await self.service.create_conekta_subscription(
-                customer_id="cus_test123",
-                plan_id="pro_monthly",
-                card_token="tok_test123"
+                customer_id="cus_test123", plan_id="pro_monthly", card_token="tok_test123"
             )
 
             assert result["id"] == "sub_test123"
@@ -162,9 +164,11 @@ class TestConektaIntegration:
     @pytest.mark.asyncio
     async def test_cancel_conekta_subscription_success(self):
         """Test canceling Conekta subscription successfully."""
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.delete = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.delete.return_value.raise_for_status = Mock()
+            mock_client.return_value.__aenter__.return_value.delete.return_value.raise_for_status = (
+                Mock()
+            )
 
             result = await self.service.cancel_conekta_subscription("sub_test123")
 
@@ -173,9 +177,11 @@ class TestConektaIntegration:
     @pytest.mark.asyncio
     async def test_cancel_conekta_subscription_error(self):
         """Test canceling Conekta subscription with error."""
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.delete = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.delete.return_value.raise_for_status.side_effect = httpx.HTTPError("Subscription not found")
+            mock_client.return_value.__aenter__.return_value.delete.return_value.raise_for_status.side_effect = httpx.HTTPError(
+                "Subscription not found"
+            )
 
             result = await self.service.cancel_conekta_subscription("sub_invalid")
 
@@ -192,21 +198,19 @@ class TestFungiesIntegration:
     @pytest.mark.asyncio
     async def test_create_fungies_customer_success(self):
         """Test creating Fungies customer successfully."""
-        mock_response = {
-            "id": "fung_cus_test123",
-            "email": "test@example.com",
-            "name": "Test User"
-        }
+        mock_response = {"id": "fung_cus_test123", "email": "test@example.com", "name": "Test User"}
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.post = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.post.return_value.json.return_value = mock_response
-            mock_client.return_value.__aenter__.return_value.post.return_value.raise_for_status = Mock()
+            mock_client.return_value.__aenter__.return_value.post.return_value.json.return_value = (
+                mock_response
+            )
+            mock_client.return_value.__aenter__.return_value.post.return_value.raise_for_status = (
+                Mock()
+            )
 
             result = await self.service.create_fungies_customer(
-                email="test@example.com",
-                name="Test User",
-                country="US"
+                email="test@example.com", name="Test User", country="US"
             )
 
             assert result["id"] == "fung_cus_test123"
@@ -219,19 +223,19 @@ class TestFungiesIntegration:
             "id": "fung_sub_test123",
             "customer_id": "fung_cus_test123",
             "plan": "pro",
-            "status": "active"
+            "status": "active",
         }
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_response = AsyncMock()
             mock_response.json = AsyncMock(return_value=mock_subscription)
             mock_response.raise_for_status = Mock()
-            mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+                return_value=mock_response
+            )
 
             result = await self.service.create_fungies_subscription(
-                customer_id="fung_cus_test123",
-                tier="pro",
-                payment_method_id="stripe_pm_123"
+                customer_id="fung_cus_test123", tier="pro", payment_method_id="stripe_pm_123"
             )
 
             assert result["id"] == "fung_sub_test123"
@@ -240,20 +244,19 @@ class TestFungiesIntegration:
     @pytest.mark.asyncio
     async def test_update_fungies_subscription_success(self):
         """Test updating Fungies subscription successfully."""
-        mock_response = {
-            "id": "fung_sub_test123",
-            "plan": "scale",
-            "status": "active"
-        }
+        mock_response = {"id": "fung_sub_test123", "plan": "scale", "status": "active"}
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.put = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.put.return_value.json.return_value = mock_response
-            mock_client.return_value.__aenter__.return_value.put.return_value.raise_for_status = Mock()
+            mock_client.return_value.__aenter__.return_value.put.return_value.json.return_value = (
+                mock_response
+            )
+            mock_client.return_value.__aenter__.return_value.put.return_value.raise_for_status = (
+                Mock()
+            )
 
             result = await self.service.update_fungies_subscription(
-                subscription_id="fung_sub_test123",
-                tier="scale"
+                subscription_id="fung_sub_test123", tier="scale"
             )
 
             assert result["plan"] == "scale"
@@ -261,9 +264,11 @@ class TestFungiesIntegration:
     @pytest.mark.asyncio
     async def test_cancel_fungies_subscription_success(self):
         """Test canceling Fungies subscription successfully."""
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.delete = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.delete.return_value.raise_for_status = Mock()
+            mock_client.return_value.__aenter__.return_value.delete.return_value.raise_for_status = (
+                Mock()
+            )
 
             result = await self.service.cancel_fungies_subscription("fung_sub_test123")
 
@@ -280,19 +285,19 @@ class TestUnifiedBillingInterface:
     @pytest.mark.asyncio
     async def test_create_subscription_mexico(self):
         """Test creating subscription for Mexico (Conekta)."""
-        with patch.object(self.service, 'determine_payment_provider') as mock_provider, \
-             patch.object(self.service, 'create_conekta_customer') as mock_customer, \
-             patch.object(self.service, 'create_conekta_subscription') as mock_subscription:
-
+        with patch.object(
+            self.service, "determine_payment_provider"
+        ) as mock_provider, patch.object(
+            self.service, "create_conekta_customer"
+        ) as mock_customer, patch.object(
+            self.service, "create_conekta_subscription"
+        ) as mock_subscription:
             mock_provider.return_value = "conekta"
             mock_customer.return_value = {"id": "cus_test123"}
             mock_subscription.return_value = {"id": "sub_test123", "status": "active"}
 
             result = await self.service.create_subscription(
-                email="test@example.com",
-                name="Test User",
-                country="MX",
-                tier="pro"
+                email="test@example.com", name="Test User", country="MX", tier="pro"
             )
 
             assert result["id"] == "sub_test123"
@@ -302,19 +307,19 @@ class TestUnifiedBillingInterface:
     @pytest.mark.asyncio
     async def test_create_subscription_international(self):
         """Test creating subscription for international (Fungies)."""
-        with patch.object(self.service, 'determine_payment_provider') as mock_provider, \
-             patch.object(self.service, 'create_fungies_customer') as mock_customer, \
-             patch.object(self.service, 'create_fungies_subscription') as mock_subscription:
-
+        with patch.object(
+            self.service, "determine_payment_provider"
+        ) as mock_provider, patch.object(
+            self.service, "create_fungies_customer"
+        ) as mock_customer, patch.object(
+            self.service, "create_fungies_subscription"
+        ) as mock_subscription:
             mock_provider.return_value = "fungies"
             mock_customer.return_value = {"id": "fung_cus_test123"}
             mock_subscription.return_value = {"id": "fung_sub_test123", "status": "active"}
 
             result = await self.service.create_subscription(
-                email="test@example.com",
-                name="Test User",
-                country="US",
-                tier="pro"
+                email="test@example.com", name="Test User", country="US", tier="pro"
             )
 
             assert result["id"] == "fung_sub_test123"
@@ -366,7 +371,13 @@ class TestUnifiedBillingInterface:
     def test_get_plan_features(self):
         """Test getting plan features."""
         features = self.service.get_plan_features("pro")
-        expected_features = ["everything_community", "advanced_rbac", "custom_domains", "webhooks", "sso"]
+        expected_features = [
+            "everything_community",
+            "advanced_rbac",
+            "custom_domains",
+            "webhooks",
+            "sso",
+        ]
 
         assert features == expected_features
 
@@ -438,38 +449,41 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_handle_network_timeout(self):
         """Test handling network timeout."""
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.post = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.post.side_effect = httpx.TimeoutException("Request timed out")
+            mock_client.return_value.__aenter__.return_value.post.side_effect = (
+                httpx.TimeoutException("Request timed out")
+            )
 
             with pytest.raises(httpx.TimeoutException):
                 await self.service.create_conekta_customer(
-                    email="test@example.com",
-                    name="Test User"
+                    email="test@example.com", name="Test User"
                 )
 
     @pytest.mark.asyncio
     async def test_handle_invalid_api_key(self):
         """Test handling invalid API key."""
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.post = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.post.return_value.raise_for_status.side_effect = httpx.HTTPError("Unauthorized")
+            mock_client.return_value.__aenter__.return_value.post.return_value.raise_for_status.side_effect = httpx.HTTPError(
+                "Unauthorized"
+            )
 
             with pytest.raises(httpx.HTTPError):
                 await self.service.create_conekta_customer(
-                    email="test@example.com",
-                    name="Test User"
+                    email="test@example.com", name="Test User"
                 )
 
     @pytest.mark.asyncio
     async def test_handle_missing_customer(self):
         """Test handling missing customer error."""
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__.return_value.post = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.post.return_value.raise_for_status.side_effect = httpx.HTTPError("Customer not found")
+            mock_client.return_value.__aenter__.return_value.post.return_value.raise_for_status.side_effect = httpx.HTTPError(
+                "Customer not found"
+            )
 
             with pytest.raises(httpx.HTTPError):
                 await self.service.create_conekta_subscription(
-                    customer_id="invalid_customer",
-                    plan_id="pro_monthly"
+                    customer_id="invalid_customer", plan_id="pro_monthly"
                 )

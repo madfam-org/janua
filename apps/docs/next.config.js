@@ -12,8 +12,14 @@ const nextConfig = {
   pageExtensions: ['ts', 'tsx', 'js', 'jsx', 'md', 'mdx'],
   reactStrictMode: true,
   transpilePackages: ['@janua/ui'],
+  // Enable Turbopack with empty config (Next.js 16 default)
+  turbopack: {},
   images: {
-    domains: ['janua.dev', 'github.com', 'raw.githubusercontent.com'],
+    remotePatterns: [
+      { protocol: 'https', hostname: 'janua.dev' },
+      { protocol: 'https', hostname: 'github.com' },
+      { protocol: 'https', hostname: 'raw.githubusercontent.com' },
+    ],
   },
   async headers() {
     return [

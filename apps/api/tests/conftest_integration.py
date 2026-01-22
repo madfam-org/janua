@@ -41,15 +41,15 @@ async def test_db_engine():
         "sqlite+aiosqlite:///:memory:",
         poolclass=StaticPool,
         connect_args={"check_same_thread": False},
-        echo=False
+        echo=False,
     )
-    
+
     # Create all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     yield engine
-    
+
     # Clean up
     await engine.dispose()
 
@@ -57,10 +57,8 @@ async def test_db_engine():
 @pytest_asyncio.fixture
 async def test_db_session(test_db_engine) -> AsyncGenerator[AsyncSession, None]:
     """Create a test database session."""
-    async_session = async_sessionmaker(
-        test_db_engine, class_=AsyncSession, expire_on_commit=False
-    )
-    
+    async_session = async_sessionmaker(test_db_engine, class_=AsyncSession, expire_on_commit=False)
+
     async with async_session() as session:
         yield session
 
@@ -81,21 +79,23 @@ def mock_redis():
 
 
 @pytest_asyncio.fixture
-async def test_client(test_db_session: AsyncSession, mock_redis) -> AsyncGenerator[AsyncClient, None]:
+async def test_client(
+    test_db_session: AsyncSession, mock_redis
+) -> AsyncGenerator[AsyncClient, None]:
     """Create a test client with overridden dependencies."""
-    
+
     async def override_get_db():
         yield test_db_session
-    
+
     async def override_get_redis():
         return mock_redis
-    
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_redis] = override_get_redis
-    
+
     async with AsyncClient(app=app, base_url="http://test") as client:
         yield client
-    
+
     # Clean up overrides
     app.dependency_overrides.clear()
 
@@ -103,35 +103,26 @@ async def test_client(test_db_session: AsyncSession, mock_redis) -> AsyncGenerat
 @pytest.fixture
 def sample_user_data():
     """Sample user data for testing."""
-    return {
-        "email": "test@example.com",
-        "password": "TestPassword123!",
-        "name": "Test User"
-    }
+    return {"email": "test@example.com", "password": "TestPassword123!", "name": "Test User"}
 
 
 @pytest.fixture
 def sample_signin_data():
     """Sample signin data for testing."""
-    return {
-        "email": "test@example.com",
-        "password": "admin123"  # Using mock password
-    }
+    return {"email": "test@example.com", "password": "admin123"}  # Using mock password
 
 
 @pytest.fixture
 def auth_headers():
     """Sample authorization headers for testing."""
-    return {
-        "Authorization": "Bearer mock_access_token_123"
-    }
+    return {"Authorization": "Bearer mock_access_token_123"}
 
 
 @pytest.fixture
 def mock_auth_service(monkeypatch):
     """Mock the AuthService for testing."""
     mock_service = AsyncMock()
-    
+
     # Mock user creation
     mock_user = MagicMock()
     mock_user.id = "user_123"
@@ -140,11 +131,11 @@ def mock_auth_service(monkeypatch):
     mock_user.email_verified = False
     mock_user.created_at = "2024-01-01T00:00:00Z"
     mock_user.updated_at = "2024-01-01T00:00:00Z"
-    
+
     mock_service.create_user.return_value = mock_user
     mock_service.authenticate_user.return_value = mock_user
     mock_service.create_session.return_value = ("access_token", "refresh_token", "session")
-    
+
     # Patch the import
     monkeypatch.setattr("app.auth.router.AuthService", mock_service)
     return mock_service
@@ -154,15 +145,15 @@ def mock_auth_service(monkeypatch):
 def settings_override():
     """Override settings for testing."""
     original_values = {}
-    
+
     def _override(**kwargs):
         for key, value in kwargs.items():
             if hasattr(settings, key):
                 original_values[key] = getattr(settings, key)
                 setattr(settings, key, value)
-    
+
     yield _override
-    
+
     # Restore original values
     for key, value in original_values.items():
         setattr(settings, key, value)

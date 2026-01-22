@@ -27,10 +27,7 @@ from app.models.user import User
 async def test_mfa_totp_setup_flow(client: AsyncClient, test_user: User):
     """Test complete TOTP setup workflow"""
     # Login first
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -40,8 +37,7 @@ async def test_mfa_totp_setup_flow(client: AsyncClient, test_user: User):
 
         # Request TOTP setup
         setup_response = await client.post(
-            "/api/v1/auth/mfa/totp/setup",
-            headers={"Authorization": f"Bearer {access_token}"}
+            "/api/v1/auth/mfa/totp/setup", headers={"Authorization": f"Bearer {access_token}"}
         )
 
         # Should succeed (or 404 if endpoint not implemented)
@@ -50,8 +46,11 @@ async def test_mfa_totp_setup_flow(client: AsyncClient, test_user: User):
         if setup_response.status_code in [200, 201]:
             setup_data = setup_response.json()
             # Should return secret and/or QR code
-            assert "secret" in setup_data or "qr_code" in setup_data or "provisioning_uri" in setup_data
-
+            assert (
+                "secret" in setup_data
+                or "qr_code" in setup_data
+                or "provisioning_uri" in setup_data
+            )
 
 
 @pytest.mark.asyncio
@@ -59,10 +58,7 @@ async def test_mfa_totp_setup_flow(client: AsyncClient, test_user: User):
 @pytest.mark.mfa
 async def test_mfa_totp_qr_code_generation(client: AsyncClient, test_user: User):
     """Test QR code is generated for TOTP setup"""
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -71,17 +67,17 @@ async def test_mfa_totp_qr_code_generation(client: AsyncClient, test_user: User)
         access_token = data.get("tokens", data).get("access_token")
 
         setup_response = await client.post(
-            "/api/v1/auth/mfa/totp/setup",
-            headers={"Authorization": f"Bearer {access_token}"}
+            "/api/v1/auth/mfa/totp/setup", headers={"Authorization": f"Bearer {access_token}"}
         )
 
         if setup_response.status_code in [200, 201]:
             setup_data = setup_response.json()
 
             # QR code should be provided (base64 or URI)
-            has_qr = any(key in setup_data for key in ["qr_code", "qr_code_url", "provisioning_uri"])
+            has_qr = any(
+                key in setup_data for key in ["qr_code", "qr_code_url", "provisioning_uri"]
+            )
             assert has_qr or "secret" in setup_data  # At minimum, secret should be provided
-
 
 
 @pytest.mark.asyncio
@@ -89,10 +85,7 @@ async def test_mfa_totp_qr_code_generation(client: AsyncClient, test_user: User)
 @pytest.mark.mfa
 async def test_mfa_totp_secret_generation(client: AsyncClient, test_user: User):
     """Test TOTP secret is unique and properly formatted"""
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -101,8 +94,7 @@ async def test_mfa_totp_secret_generation(client: AsyncClient, test_user: User):
         access_token = data.get("tokens", data).get("access_token")
 
         setup_response = await client.post(
-            "/api/v1/auth/mfa/totp/setup",
-            headers={"Authorization": f"Bearer {access_token}"}
+            "/api/v1/auth/mfa/totp/setup", headers={"Authorization": f"Bearer {access_token}"}
         )
 
         if setup_response.status_code in [200, 201]:
@@ -115,16 +107,12 @@ async def test_mfa_totp_secret_generation(client: AsyncClient, test_user: User):
                 assert all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567=" for c in secret)
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.mfa
 async def test_mfa_totp_already_enabled(client: AsyncClient, test_user_with_mfa: User):
     """Test TOTP setup when MFA already enabled"""
-    login_data = {
-        "email": test_user_with_mfa.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user_with_mfa.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -134,14 +122,11 @@ async def test_mfa_totp_already_enabled(client: AsyncClient, test_user_with_mfa:
 
         # Try to setup TOTP again
         setup_response = await client.post(
-            "/api/v1/auth/mfa/totp/setup",
-            headers={"Authorization": f"Bearer {access_token}"}
+            "/api/v1/auth/mfa/totp/setup", headers={"Authorization": f"Bearer {access_token}"}
         )
 
         # Should reject (MFA already enabled) or allow re-setup
         assert setup_response.status_code in [200, 400, 404, 409]
-
-
 
 
 @pytest.mark.asyncio
@@ -150,19 +135,14 @@ async def test_mfa_totp_already_enabled(client: AsyncClient, test_user_with_mfa:
 async def test_mfa_totp_verification_success(client: AsyncClient, test_user_with_mfa: User):
     """Test successful TOTP code verification"""
     # Generate valid TOTP code
-    if hasattr(test_user_with_mfa, 'mfa_secret') and test_user_with_mfa.mfa_secret:
+    if hasattr(test_user_with_mfa, "mfa_secret") and test_user_with_mfa.mfa_secret:
         totp = pyotp.TOTP(test_user_with_mfa.mfa_secret)
         valid_code = totp.now()
 
-        verify_data = {
-            "code": valid_code
-        }
+        verify_data = {"code": valid_code}
 
         # Login first to get into MFA challenge state
-        login_data = {
-            "email": test_user_with_mfa.email,
-            "password": "TestPassword123!"
-        }
+        login_data = {"email": test_user_with_mfa.email, "password": "TestPassword123!"}
 
         login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -177,11 +157,10 @@ async def test_mfa_totp_verification_success(client: AsyncClient, test_user_with
 
                 verify_response = await client.post(
                     "/api/v1/auth/mfa/verify",
-                    json={**verify_data, "challenge_token": challenge_token}
+                    json={**verify_data, "challenge_token": challenge_token},
                 )
 
                 assert verify_response.status_code in [200, 404]
-
 
 
 @pytest.mark.asyncio
@@ -195,10 +174,7 @@ async def test_mfa_totp_verification_invalid_code(client: AsyncClient, test_user
         "999999",  # Invalid code
     ]
 
-    login_data = {
-        "email": test_user_with_mfa.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user_with_mfa.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -211,14 +187,10 @@ async def test_mfa_totp_verification_invalid_code(client: AsyncClient, test_user
             if "challenge_token" in data:
                 verify_data["challenge_token"] = data["challenge_token"]
 
-            verify_response = await client.post(
-                "/api/v1/auth/mfa/verify",
-                json=verify_data
-            )
+            verify_response = await client.post("/api/v1/auth/mfa/verify", json=verify_data)
 
             # Should reject invalid code
             assert verify_response.status_code in [400, 401, 404]
-
 
 
 @pytest.mark.asyncio
@@ -231,7 +203,6 @@ async def test_mfa_totp_verification_expired_code(client: AsyncClient, test_user
     # This documents the expected behavior
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.mfa
@@ -242,17 +213,12 @@ async def test_mfa_totp_verification_rate_limiting(client: AsyncClient, test_use
     # This documents expected behavior for manual/E2E testing
 
 
-
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.mfa
 async def test_mfa_backup_codes_generation(client: AsyncClient, test_user: User):
     """Test backup codes are generated with TOTP setup"""
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -262,8 +228,7 @@ async def test_mfa_backup_codes_generation(client: AsyncClient, test_user: User)
 
         # Setup TOTP (should generate backup codes)
         setup_response = await client.post(
-            "/api/v1/auth/mfa/totp/setup",
-            headers={"Authorization": f"Bearer {access_token}"}
+            "/api/v1/auth/mfa/totp/setup", headers={"Authorization": f"Bearer {access_token}"}
         )
 
         if setup_response.status_code in [200, 201]:
@@ -271,7 +236,6 @@ async def test_mfa_backup_codes_generation(client: AsyncClient, test_user: User)
 
             # Backup codes should be provided
             assert "backup_codes" in setup_data or "recovery_codes" in setup_data or True
-
 
 
 @pytest.mark.asyncio
@@ -283,7 +247,6 @@ async def test_mfa_backup_codes_usage(client: AsyncClient, test_user_with_mfa: U
     # Implementation depends on backup code storage and validation
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.mfa
@@ -293,16 +256,12 @@ async def test_mfa_backup_codes_single_use(client: AsyncClient, test_user_with_m
     # Implementation test depends on backup code system
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.mfa
 async def test_mfa_backup_codes_regeneration(client: AsyncClient, test_user_with_mfa: User):
     """Test user can regenerate backup codes"""
-    login_data = {
-        "email": test_user_with_mfa.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user_with_mfa.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -313,13 +272,11 @@ async def test_mfa_backup_codes_regeneration(client: AsyncClient, test_user_with
         # Regenerate backup codes
         regen_response = await client.post(
             "/api/v1/auth/mfa/backup-codes/regenerate",
-            headers={"Authorization": f"Bearer {access_token}"}
+            headers={"Authorization": f"Bearer {access_token}"},
         )
 
         # Should succeed (or 404 if not implemented)
         assert regen_response.status_code in [200, 201, 404]
-
-
 
 
 @pytest.mark.asyncio
@@ -327,10 +284,7 @@ async def test_mfa_backup_codes_regeneration(client: AsyncClient, test_user_with
 @pytest.mark.mfa
 async def test_login_with_mfa_required(client: AsyncClient, test_user_with_mfa: User):
     """Test login with MFA-enabled account requires MFA challenge"""
-    login_data = {
-        "email": test_user_with_mfa.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user_with_mfa.email, "password": "TestPassword123!"}
 
     response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -343,10 +297,11 @@ async def test_login_with_mfa_required(client: AsyncClient, test_user_with_mfa: 
     if response.status_code == 200:
         data = response.json()
         # Check for MFA indicators
-        has_mfa_indicator = any(key in data for key in ["mfa_required", "challenge_token", "requires_mfa"])
+        has_mfa_indicator = any(
+            key in data for key in ["mfa_required", "challenge_token", "requires_mfa"]
+        )
         # Either has MFA indicator or is two-step flow
         assert has_mfa_indicator or "tokens" not in data
-
 
 
 @pytest.mark.asyncio
@@ -354,10 +309,7 @@ async def test_login_with_mfa_required(client: AsyncClient, test_user_with_mfa: 
 @pytest.mark.mfa
 async def test_mfa_disable_flow(client: AsyncClient, test_user_with_mfa: User):
     """Test user can disable MFA"""
-    login_data = {
-        "email": test_user_with_mfa.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user_with_mfa.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -370,12 +322,11 @@ async def test_mfa_disable_flow(client: AsyncClient, test_user_with_mfa: User):
             disable_response = await client.post(
                 "/api/v1/auth/mfa/disable",
                 headers={"Authorization": f"Bearer {access_token}"},
-                json={"password": "TestPassword123!"}  # May require password confirmation
+                json={"password": "TestPassword123!"},  # May require password confirmation
             )
 
             # Should succeed (or 404 if not implemented)
             assert disable_response.status_code in [200, 204, 404]
-
 
 
 @pytest.mark.asyncio
@@ -383,10 +334,7 @@ async def test_mfa_disable_flow(client: AsyncClient, test_user_with_mfa: User):
 @pytest.mark.mfa
 async def test_mfa_status_check(client: AsyncClient, test_user_with_mfa: User):
     """Test checking MFA status for user"""
-    login_data = {
-        "email": test_user_with_mfa.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user_with_mfa.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -397,8 +345,7 @@ async def test_mfa_status_check(client: AsyncClient, test_user_with_mfa: User):
         if access_token:
             # Check MFA status
             status_response = await client.get(
-                "/api/v1/auth/mfa/status",
-                headers={"Authorization": f"Bearer {access_token}"}
+                "/api/v1/auth/mfa/status", headers={"Authorization": f"Bearer {access_token}"}
             )
 
             # Should return MFA status
@@ -407,6 +354,3 @@ async def test_mfa_status_check(client: AsyncClient, test_user_with_mfa: User):
             if status_response.status_code == 200:
                 status_data = status_response.json()
                 assert "mfa_enabled" in status_data or "totp_enabled" in status_data
-
-
-

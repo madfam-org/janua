@@ -7,14 +7,10 @@ and bulk operation result management across all platform SDKs.
 
 from typing import Any, Dict, List, Optional, TypeVar, Generic, AsyncIterator
 
-from ..schemas.sdk_models import (
-    PaginationMetadata,
-    BulkOperationResult,
-    APIStatus
-)
+from ..schemas.sdk_models import PaginationMetadata, BulkOperationResult, APIStatus
 from .error_handling import create_error_from_response, APIError
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class ResponseHandler:
@@ -27,9 +23,7 @@ class ResponseHandler:
 
     @staticmethod
     def process_response(
-        response_data: Dict[str, Any],
-        status_code: int,
-        headers: Optional[Dict[str, str]] = None
+        response_data: Dict[str, Any], status_code: int, headers: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """
         Process an API response and handle errors.
@@ -54,7 +48,7 @@ class ResponseHandler:
             raise APIError(
                 message="Invalid response format",
                 status_code=status_code,
-                error_code="INVALID_RESPONSE_FORMAT"
+                error_code="INVALID_RESPONSE_FORMAT",
             )
 
         # Check response status
@@ -118,10 +112,7 @@ class PaginationHandler(Generic[T]):
     """
 
     def __init__(
-        self,
-        initial_response: Dict[str, Any],
-        request_func,
-        response_handler: ResponseHandler
+        self, initial_response: Dict[str, Any], request_func, response_handler: ResponseHandler
     ):
         """
         Initialize pagination handler.
@@ -305,7 +296,7 @@ class BulkOperationHandler:
                 "id": error.id,
                 "index": error.index,
                 "error_code": error.error_code,
-                "message": error.message
+                "message": error.message,
             }
             for error in self.result.failed_operations
         ]
@@ -313,8 +304,7 @@ class BulkOperationHandler:
     def get_errors_by_code(self, error_code: str) -> List[Dict[str, Any]]:
         """Get failed operations filtered by error code."""
         return [
-            error for error in self.get_failed_operations()
-            if error["error_code"] == error_code
+            error for error in self.get_failed_operations() if error["error_code"] == error_code
         ]
 
     def has_error_code(self, error_code: str) -> bool:
@@ -329,9 +319,7 @@ class BulkOperationHandler:
             "failed": self.result.failed_count,
             "success_rate": self.success_rate,
             "status": self._get_status_summary(),
-            "error_codes": list(set(
-                error["error_code"] for error in self.get_failed_operations()
-            ))
+            "error_codes": list(set(error["error_code"] for error in self.get_failed_operations())),
         }
 
     def _get_status_summary(self) -> str:
@@ -353,9 +341,7 @@ def create_response_handler() -> ResponseHandler:
 
 
 def create_pagination_handler(
-    response: Dict[str, Any],
-    request_func,
-    response_handler: Optional[ResponseHandler] = None
+    response: Dict[str, Any], request_func, response_handler: Optional[ResponseHandler] = None
 ) -> PaginationHandler:
     """
     Create a pagination handler for a paginated response.
@@ -375,8 +361,7 @@ def create_pagination_handler(
 
 
 def create_bulk_operation_handler(
-    response: Dict[str, Any],
-    response_handler: Optional[ResponseHandler] = None
+    response: Dict[str, Any], response_handler: Optional[ResponseHandler] = None
 ) -> BulkOperationHandler:
     """
     Create a bulk operation handler for a bulk operation response.

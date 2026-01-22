@@ -17,7 +17,7 @@ def convert_test_file(file_path: Path) -> Tuple[int, int]:
         (classes_removed, methods_converted)
     """
     content = file_path.read_text()
-    lines = content.split('\n')
+    lines = content.split("\n")
 
     new_lines = []
     classes_removed = 0
@@ -30,7 +30,7 @@ def convert_test_file(file_path: Path) -> Tuple[int, int]:
         line = lines[i]
 
         # Detect class definition
-        if re.match(r'^class Test\w+:', line):
+        if re.match(r"^class Test\w+:", line):
             in_class = True
             len(line) - len(line.lstrip())
             classes_removed += 1
@@ -40,7 +40,9 @@ def convert_test_file(file_path: Path) -> Tuple[int, int]:
             # Skip docstring if present
             if i < len(lines) and '"""' in lines[i]:
                 # Multi-line docstring
-                while i < len(lines) and not (i > 0 and '"""' in lines[i] and lines[i].strip() != '"""'):
+                while i < len(lines) and not (
+                    i > 0 and '"""' in lines[i] and lines[i].strip() != '"""'
+                ):
                     i += 1
                 i += 1  # Skip closing """
             elif i < len(lines) and lines[i].strip().startswith('"""'):
@@ -53,26 +55,26 @@ def convert_test_file(file_path: Path) -> Tuple[int, int]:
             continue
 
         # Convert test methods to functions
-        if in_class and '@staticmethod' in line:
+        if in_class and "@staticmethod" in line:
             # Remove @staticmethod decorator
             i += 1
             continue
 
         # Process test method definition
-        if in_class and re.match(r'\s+@pytest\.mark\.', line):
+        if in_class and re.match(r"\s+@pytest\.mark\.", line):
             # Collect all decorators
             decorators = []
             method_indent = len(line) - len(line.lstrip())
 
-            while i < len(lines) and (lines[i].strip().startswith('@') or not lines[i].strip()):
-                if lines[i].strip().startswith('@') and '@staticmethod' not in lines[i]:
+            while i < len(lines) and (lines[i].strip().startswith("@") or not lines[i].strip()):
+                if lines[i].strip().startswith("@") and "@staticmethod" not in lines[i]:
                     # Remove class-level indentation from decorator
                     decorator_text = lines[i].strip()
                     decorators.append(decorator_text)
                 i += 1
 
             # Now we should be at the 'async def test_' line
-            if i < len(lines) and 'async def test_' in lines[i]:
+            if i < len(lines) and "async def test_" in lines[i]:
                 # Extract method signature
                 method_line = lines[i]
 
@@ -101,10 +103,19 @@ def convert_test_file(file_path: Path) -> Tuple[int, int]:
                     body_line = lines[i]
 
                     # Check if we've reached the next test method or end of class
-                    if (body_line.strip().startswith('@pytest.mark.') or
-                        body_line.strip().startswith('@staticmethod') or
-                        (body_line.strip().startswith('class ') and body_line.strip().endswith(':')) or
-                        (body_line and len(body_line) - len(body_line.lstrip()) < method_indent and body_line.strip())):
+                    if (
+                        body_line.strip().startswith("@pytest.mark.")
+                        or body_line.strip().startswith("@staticmethod")
+                        or (
+                            body_line.strip().startswith("class ")
+                            and body_line.strip().endswith(":")
+                        )
+                        or (
+                            body_line
+                            and len(body_line) - len(body_line.lstrip()) < method_indent
+                            and body_line.strip()
+                        )
+                    ):
                         # Next method or class, stop copying body
                         break
 
@@ -115,7 +126,7 @@ def convert_test_file(file_path: Path) -> Tuple[int, int]:
                             # Remove class-level indentation
                             indent_reduction = method_indent
                             new_indent = current_line_indent - indent_reduction
-                            new_lines.append(' ' * new_indent + body_line.lstrip())
+                            new_lines.append(" " * new_indent + body_line.lstrip())
                         else:
                             # Empty or weirdly indented line, keep as-is
                             new_lines.append(body_line)
@@ -126,8 +137,8 @@ def convert_test_file(file_path: Path) -> Tuple[int, int]:
                     i += 1
 
                 # Add blank line between functions
-                new_lines.append('')
-                new_lines.append('')
+                new_lines.append("")
+                new_lines.append("")
 
                 continue
 
@@ -138,7 +149,7 @@ def convert_test_file(file_path: Path) -> Tuple[int, int]:
         i += 1
 
     # Write converted content
-    file_path.write_text('\n'.join(new_lines))
+    file_path.write_text("\n".join(new_lines))
 
     return classes_removed, methods_converted
 

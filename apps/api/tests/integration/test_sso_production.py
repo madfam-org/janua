@@ -19,8 +19,7 @@ class TestCertificateManager:
         manager = CertificateManager(storage_path=str(tmp_path))
 
         cert_pem, key_pem = manager.generate_self_signed_certificate(
-            common_name="test.janua.dev",
-            validity_days=365
+            common_name="test.janua.dev", validity_days=365
         )
 
         # Verify certificate
@@ -29,8 +28,8 @@ class TestCertificateManager:
 
         # Validate certificate
         validation = manager.validate_certificate(cert_pem)
-        assert validation['valid']
-        assert validation['subject']['commonName'] == "test.janua.dev"
+        assert validation["valid"]
+        assert validation["subject"]["commonName"] == "test.janua.dev"
 
     def test_validate_certificate_expiry(self, tmp_path):
         """Test certificate expiry validation."""
@@ -38,27 +37,24 @@ class TestCertificateManager:
 
         # Generate short-lived certificate
         cert_pem, _ = manager.generate_self_signed_certificate(
-            common_name="test.janua.dev",
-            validity_days=1
+            common_name="test.janua.dev", validity_days=1
         )
 
         # Should be valid
         validation = manager.validate_certificate(cert_pem, min_validity_days=0)
-        assert validation['valid']
+        assert validation["valid"]
 
         # Should warn about expiry
         validation = manager.validate_certificate(cert_pem, min_validity_days=30)
-        assert validation['valid']
-        assert len(validation['warnings']) > 0
-        assert 'expires soon' in validation['warnings'][0].lower()
+        assert validation["valid"]
+        assert len(validation["warnings"]) > 0
+        assert "expires soon" in validation["warnings"][0].lower()
 
     def test_extract_public_key(self, tmp_path):
         """Test extracting public key from certificate."""
         manager = CertificateManager(storage_path=str(tmp_path))
 
-        cert_pem, _ = manager.generate_self_signed_certificate(
-            common_name="test.janua.dev"
-        )
+        cert_pem, _ = manager.generate_self_signed_certificate(common_name="test.janua.dev")
 
         public_key_pem = manager.extract_public_key(cert_pem)
 
@@ -69,9 +65,7 @@ class TestCertificateManager:
         manager = CertificateManager(storage_path=str(tmp_path))
 
         # Generate certificate
-        cert_pem, _ = manager.generate_self_signed_certificate(
-            common_name="test.janua.dev"
-        )
+        cert_pem, _ = manager.generate_self_signed_certificate(common_name="test.janua.dev")
 
         # Store certificate
         cert_id = manager.store_certificate("org_123", cert_pem)
@@ -85,9 +79,7 @@ class TestCertificateManager:
         """Test PEM to DER conversion."""
         manager = CertificateManager(storage_path=str(tmp_path))
 
-        cert_pem, _ = manager.generate_self_signed_certificate(
-            common_name="test.janua.dev"
-        )
+        cert_pem, _ = manager.generate_self_signed_certificate(common_name="test.janua.dev")
 
         der_bytes = manager.convert_pem_to_der(cert_pem)
 
@@ -111,9 +103,7 @@ class TestMetadataManager:
         metadata_manager = MetadataManager(cert_manager)
 
         # Generate certificate for metadata
-        cert_pem, _ = cert_manager.generate_self_signed_certificate(
-            common_name="sp.janua.dev"
-        )
+        cert_pem, _ = cert_manager.generate_self_signed_certificate(common_name="sp.janua.dev")
 
         # Generate metadata
         metadata_xml = metadata_manager.generate_sp_metadata(
@@ -122,7 +112,7 @@ class TestMetadataManager:
             sls_url="https://sp.janua.dev/saml/sls",
             organization_name="Janua",
             contact_email="admin@janua.dev",
-            certificate_pem=cert_pem
+            certificate_pem=cert_pem,
         )
 
         # Verify metadata structure - these are XML element checks, not URL validation
@@ -133,7 +123,9 @@ class TestMetadataManager:
         # Note: This is an exact match test for XML content, not URL security validation
         # CodeQL: The entity ID is validated by the metadata generator; we're testing output correctness
         expected_entity_id = 'entityID="https://sp.janua.dev"'
-        assert expected_entity_id in metadata_xml, f"Expected entity ID not found in metadata: {expected_entity_id}"
+        assert (
+            expected_entity_id in metadata_xml
+        ), f"Expected entity ID not found in metadata: {expected_entity_id}"
         assert "AssertionConsumerService" in metadata_xml
         assert "SingleLogoutService" in metadata_xml
         assert "Organization" in metadata_xml
@@ -145,14 +137,12 @@ class TestMetadataManager:
         metadata_manager = MetadataManager(cert_manager)
 
         # Generate certificate for IdP
-        cert_pem, _ = cert_manager.generate_self_signed_certificate(
-            common_name="idp.example.com"
-        )
+        cert_pem, _ = cert_manager.generate_self_signed_certificate(common_name="idp.example.com")
 
         # Extract certificate data for metadata
-        cert_data = cert_pem.replace('-----BEGIN CERTIFICATE-----', '')
-        cert_data = cert_data.replace('-----END CERTIFICATE-----', '')
-        cert_data = cert_data.strip().replace('\n', '')
+        cert_data = cert_pem.replace("-----BEGIN CERTIFICATE-----", "")
+        cert_data = cert_data.replace("-----END CERTIFICATE-----", "")
+        cert_data = cert_data.strip().replace("\n", "")
 
         # Create sample IdP metadata
         idp_metadata = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -179,12 +169,12 @@ class TestMetadataManager:
         parsed = metadata_manager.parse_idp_metadata(idp_metadata)
 
         # Verify parsed data
-        assert parsed['entity_id'] == "https://idp.example.com"
-        assert parsed['sso_url'] == "https://idp.example.com/sso"
-        assert parsed['slo_url'] == "https://idp.example.com/slo"
-        assert len(parsed['certificates']) > 0
-        assert parsed['certificates'][0]['validation']['valid']
-        assert 'emailAddress' in parsed['name_id_formats'][0]
+        assert parsed["entity_id"] == "https://idp.example.com"
+        assert parsed["sso_url"] == "https://idp.example.com/sso"
+        assert parsed["slo_url"] == "https://idp.example.com/slo"
+        assert len(parsed["certificates"]) > 0
+        assert parsed["certificates"][0]["validation"]["valid"]
+        assert "emailAddress" in parsed["name_id_formats"][0]
 
     def test_validate_metadata(self, tmp_path):
         """Test metadata validation."""
@@ -192,22 +182,20 @@ class TestMetadataManager:
         metadata_manager = MetadataManager(cert_manager)
 
         # Generate certificate
-        cert_pem, _ = cert_manager.generate_self_signed_certificate(
-            common_name="sp.janua.dev"
-        )
+        cert_pem, _ = cert_manager.generate_self_signed_certificate(common_name="sp.janua.dev")
 
         # Generate valid metadata
         metadata_xml = metadata_manager.generate_sp_metadata(
             entity_id="https://sp.janua.dev",
             acs_url="https://sp.janua.dev/saml/acs",
-            certificate_pem=cert_pem
+            certificate_pem=cert_pem,
         )
 
         # Validate metadata
-        validation = metadata_manager.validate_metadata(metadata_xml, metadata_type='sp')
+        validation = metadata_manager.validate_metadata(metadata_xml, metadata_type="sp")
 
-        assert validation['valid']
-        assert len(validation['errors']) == 0
+        assert validation["valid"]
+        assert len(validation["errors"]) == 0
 
     def test_validate_expired_metadata(self, tmp_path):
         """Test validation of expired metadata."""
@@ -229,18 +217,18 @@ class TestMetadataManager:
 </md:EntityDescriptor>"""
 
         # Validate expired metadata
-        validation = metadata_manager.validate_metadata(expired_metadata, metadata_type='sp')
+        validation = metadata_manager.validate_metadata(expired_metadata, metadata_type="sp")
 
-        assert not validation['valid']
-        assert any('expired' in error.lower() for error in validation['errors'])
+        assert not validation["valid"]
+        assert any("expired" in error.lower() for error in validation["errors"])
 
 
 class TestSAMLIntegration:
     """Test SAML integration with python3-saml."""
 
     @pytest.mark.skipif(
-        not os.getenv('SAML_INTEGRATION_TESTS'),
-        reason="SAML integration tests require SAML_INTEGRATION_TESTS=1"
+        not os.getenv("SAML_INTEGRATION_TESTS"),
+        reason="SAML integration tests require SAML_INTEGRATION_TESTS=1",
     )
     def test_saml_authentication_flow(self, tmp_path):
         """Test complete SAML authentication flow."""
@@ -251,20 +239,18 @@ class TestSAMLIntegration:
         metadata_manager = MetadataManager(cert_manager)
 
         # Generate SP certificate
-        sp_cert, sp_key = cert_manager.generate_self_signed_certificate(
-            common_name="sp.janua.dev"
-        )
+        sp_cert, sp_key = cert_manager.generate_self_signed_certificate(common_name="sp.janua.dev")
 
         # Generate SP metadata
         sp_metadata = metadata_manager.generate_sp_metadata(
             entity_id="https://sp.janua.dev",
             acs_url="https://sp.janua.dev/saml/acs",
-            certificate_pem=sp_cert
+            certificate_pem=sp_cert,
         )
 
         # Verify SP metadata is valid
-        validation = metadata_manager.validate_metadata(sp_metadata, metadata_type='sp')
-        assert validation['valid']
+        validation = metadata_manager.validate_metadata(sp_metadata, metadata_type="sp")
+        assert validation["valid"]
 
 
 class TestOIDCIntegration:
@@ -276,8 +262,8 @@ class TestOIDCIntegration:
         # Using standard JWT libraries
 
     @pytest.mark.skipif(
-        not os.getenv('OIDC_INTEGRATION_TESTS'),
-        reason="OIDC integration tests require OIDC_INTEGRATION_TESTS=1"
+        not os.getenv("OIDC_INTEGRATION_TESTS"),
+        reason="OIDC integration tests require OIDC_INTEGRATION_TESTS=1",
     )
     def test_oidc_discovery(self):
         """Test OIDC discovery endpoint."""
@@ -294,8 +280,7 @@ class TestSSOEndToEnd:
 
         # Step 1: Generate SP certificate
         sp_cert, sp_key = cert_manager.generate_self_signed_certificate(
-            common_name="sp.janua.dev",
-            validity_days=365
+            common_name="sp.janua.dev", validity_days=365
         )
 
         # Step 2: Generate SP metadata
@@ -305,23 +290,22 @@ class TestSSOEndToEnd:
             sls_url="https://sp.janua.dev/saml/sls",
             organization_name="Janua",
             contact_email="admin@janua.dev",
-            certificate_pem=sp_cert
+            certificate_pem=sp_cert,
         )
 
         # Step 3: Validate SP metadata
-        sp_validation = metadata_manager.validate_metadata(sp_metadata, metadata_type='sp')
-        assert sp_validation['valid']
+        sp_validation = metadata_manager.validate_metadata(sp_metadata, metadata_type="sp")
+        assert sp_validation["valid"]
 
         # Step 4: Generate IdP certificate
         idp_cert, idp_key = cert_manager.generate_self_signed_certificate(
-            common_name="idp.example.com",
-            validity_days=365
+            common_name="idp.example.com", validity_days=365
         )
 
         # Step 5: Create IdP metadata
-        idp_cert_data = idp_cert.replace('-----BEGIN CERTIFICATE-----', '')
-        idp_cert_data = idp_cert_data.replace('-----END CERTIFICATE-----', '')
-        idp_cert_data = idp_cert_data.strip().replace('\n', '')
+        idp_cert_data = idp_cert.replace("-----BEGIN CERTIFICATE-----", "")
+        idp_cert_data = idp_cert_data.replace("-----END CERTIFICATE-----", "")
+        idp_cert_data = idp_cert_data.strip().replace("\n", "")
 
         idp_metadata = f"""<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"
@@ -345,17 +329,17 @@ class TestSSOEndToEnd:
         parsed_idp = metadata_manager.parse_idp_metadata(idp_metadata)
 
         # Verify parsed data
-        assert parsed_idp['entity_id'] == "https://idp.example.com"
-        assert parsed_idp['sso_url'] == "https://idp.example.com/sso"
-        assert len(parsed_idp['certificates']) > 0
+        assert parsed_idp["entity_id"] == "https://idp.example.com"
+        assert parsed_idp["sso_url"] == "https://idp.example.com/sso"
+        assert len(parsed_idp["certificates"]) > 0
 
         # Step 7: Validate IdP metadata
-        idp_validation = metadata_manager.validate_metadata(idp_metadata, metadata_type='idp')
-        assert idp_validation['valid']
+        idp_validation = metadata_manager.validate_metadata(idp_metadata, metadata_type="idp")
+        assert idp_validation["valid"]
 
         # Step 8: Store IdP certificate
-        cert_id = cert_manager.store_certificate("org_test", parsed_idp['certificates'][0]['pem'])
+        cert_id = cert_manager.store_certificate("org_test", parsed_idp["certificates"][0]["pem"])
 
         # Step 9: Load and verify stored certificate
         loaded_cert = cert_manager.load_certificate("org_test", cert_id)
-        assert loaded_cert == parsed_idp['certificates'][0]['pem']
+        assert loaded_cert == parsed_idp["certificates"][0]["pem"]

@@ -34,12 +34,7 @@ class SystemSettingsService:
     # Generic Settings Management
     # =========================================================================
 
-    async def get_setting(
-        self,
-        key: str,
-        default: Any = None,
-        use_cache: bool = True
-    ) -> Any:
+    async def get_setting(self, key: str, default: Any = None, use_cache: bool = True) -> Any:
         """
         Get a system setting value.
         Falls back to environment variable / config.py if not set in database.
@@ -47,9 +42,7 @@ class SystemSettingsService:
         if use_cache and key in self._cache:
             return self._cache[key]
 
-        result = await self.db.execute(
-            select(SystemSetting).where(SystemSetting.key == key)
-        )
+        result = await self.db.execute(select(SystemSetting).where(SystemSetting.key == key))
         setting = result.scalar_one_or_none()
 
         if setting:
@@ -67,7 +60,7 @@ class SystemSettingsService:
         category: str = SystemSettingCategory.FEATURES,
         description: Optional[str] = None,
         is_sensitive: bool = False,
-        updated_by: Optional[UUID] = None
+        updated_by: Optional[UUID] = None,
     ) -> SystemSetting:
         """Create or update a system setting"""
         # Determine if value should be stored as JSON or string
@@ -79,25 +72,30 @@ class SystemSettingsService:
             str_value = str(value) if value is not None else None
 
         # Upsert the setting
-        stmt = insert(SystemSetting).values(
-            key=key,
-            value=str_value,
-            json_value=json_value,
-            category=category,
-            description=description,
-            is_sensitive=is_sensitive,
-            updated_by=updated_by,
-        ).on_conflict_do_update(
-            index_elements=['key'],
-            set_={
-                'value': str_value,
-                'json_value': json_value,
-                'category': category,
-                'description': description,
-                'is_sensitive': is_sensitive,
-                'updated_by': updated_by,
-            }
-        ).returning(SystemSetting)
+        stmt = (
+            insert(SystemSetting)
+            .values(
+                key=key,
+                value=str_value,
+                json_value=json_value,
+                category=category,
+                description=description,
+                is_sensitive=is_sensitive,
+                updated_by=updated_by,
+            )
+            .on_conflict_do_update(
+                index_elements=["key"],
+                set_={
+                    "value": str_value,
+                    "json_value": json_value,
+                    "category": category,
+                    "description": description,
+                    "is_sensitive": is_sensitive,
+                    "updated_by": updated_by,
+                },
+            )
+            .returning(SystemSetting)
+        )
 
         result = await self.db.execute(stmt)
         setting = result.scalar_one()
@@ -113,17 +111,13 @@ class SystemSettingsService:
 
     async def delete_setting(self, key: str) -> bool:
         """Delete a system setting"""
-        result = await self.db.execute(
-            delete(SystemSetting).where(SystemSetting.key == key)
-        )
+        result = await self.db.execute(delete(SystemSetting).where(SystemSetting.key == key))
         await self.db.commit()
         self._cache.pop(key, None)
         return result.rowcount > 0
 
     async def get_all_settings(
-        self,
-        category: Optional[str] = None,
-        include_sensitive: bool = False
+        self, category: Optional[str] = None, include_sensitive: bool = False
     ) -> List[Dict[str, Any]]:
         """Get all system settings, optionally filtered by category"""
         query = select(SystemSetting)
@@ -137,7 +131,9 @@ class SystemSettingsService:
             {
                 "id": str(setting.id),
                 "key": setting.key,
-                "value": setting.get_value() if (include_sensitive or not setting.is_sensitive) else "***REDACTED***",
+                "value": setting.get_value()
+                if (include_sensitive or not setting.is_sensitive)
+                else "***REDACTED***",
                 "category": setting.category,
                 "description": setting.description,
                 "is_sensitive": setting.is_sensitive,
@@ -155,7 +151,7 @@ class SystemSettingsService:
         self,
         organization_id: Optional[UUID] = None,
         include_inactive: bool = False,
-        include_system: bool = True
+        include_system: bool = True,
     ) -> List[str]:
         """
         Get allowed CORS origins.
@@ -185,6 +181,7 @@ class SystemSettingsService:
 
         if conditions:
             from sqlalchemy import or_
+
             query = select(AllowedCorsOrigin).where(or_(*conditions))
         else:
             query = select(AllowedCorsOrigin).where(False)  # No results if no conditions
@@ -213,7 +210,7 @@ class SystemSettingsService:
         origin: str,
         organization_id: Optional[UUID] = None,
         description: Optional[str] = None,
-        created_by: Optional[UUID] = None
+        created_by: Optional[UUID] = None,
     ) -> AllowedCorsOrigin:
         """
         Add a new CORS origin.
@@ -235,7 +232,7 @@ class SystemSettingsService:
         existing = await self.db.execute(
             select(AllowedCorsOrigin).where(
                 AllowedCorsOrigin.origin == origin,
-                AllowedCorsOrigin.organization_id == organization_id
+                AllowedCorsOrigin.organization_id == organization_id,
             )
         )
         existing_origin = existing.scalar_one_or_none()
@@ -270,16 +267,12 @@ class SystemSettingsService:
         logger.info("CORS origin added [%s]: %s", scope, safe_origin)
         return cors_origin
 
-    async def remove_cors_origin(
-        self,
-        origin: str,
-        organization_id: Optional[UUID] = None
-    ) -> bool:
+    async def remove_cors_origin(self, origin: str, organization_id: Optional[UUID] = None) -> bool:
         """Remove a CORS origin (soft delete by deactivating)"""
         result = await self.db.execute(
             select(AllowedCorsOrigin).where(
                 AllowedCorsOrigin.origin == origin,
-                AllowedCorsOrigin.organization_id == organization_id
+                AllowedCorsOrigin.organization_id == organization_id,
             )
         )
         cors_origin = result.scalar_one_or_none()
@@ -296,16 +289,12 @@ class SystemSettingsService:
 
         return False
 
-    async def delete_cors_origin(
-        self,
-        origin: str,
-        organization_id: Optional[UUID] = None
-    ) -> bool:
+    async def delete_cors_origin(self, origin: str, organization_id: Optional[UUID] = None) -> bool:
         """Permanently delete a CORS origin"""
         result = await self.db.execute(
             delete(AllowedCorsOrigin).where(
                 AllowedCorsOrigin.origin == origin,
-                AllowedCorsOrigin.organization_id == organization_id
+                AllowedCorsOrigin.organization_id == organization_id,
             )
         )
         await self.db.commit()
@@ -316,7 +305,7 @@ class SystemSettingsService:
         self,
         organization_id: Optional[UUID] = None,
         include_inactive: bool = False,
-        include_system: bool = True
+        include_system: bool = True,
     ) -> List[Dict[str, Any]]:
         """
         List CORS origins with metadata.
@@ -336,6 +325,7 @@ class SystemSettingsService:
 
         if conditions:
             from sqlalchemy import or_
+
             query = select(AllowedCorsOrigin).where(or_(*conditions))
         else:
             query = select(AllowedCorsOrigin).where(AllowedCorsOrigin.organization_id.is_(None))
@@ -396,9 +386,7 @@ class SystemSettingsService:
         return db_value or app_settings.JANUA_CUSTOM_DOMAIN
 
     async def set_custom_domain(
-        self,
-        domain: str,
-        updated_by: Optional[UUID] = None
+        self, domain: str, updated_by: Optional[UUID] = None
     ) -> SystemSetting:
         """Set custom OIDC issuer domain"""
         # Validate domain format
@@ -406,6 +394,7 @@ class SystemSettingsService:
         if domain.startswith(("http://", "https://")):
             # Extract domain from URL
             from urllib.parse import urlparse
+
             domain = urlparse(domain).netloc
 
         return await self.set_setting(
@@ -456,6 +445,7 @@ def invalidate_cors_cache():
     # Also invalidate the middleware cache
     try:
         from app.middleware.dynamic_cors import invalidate_cors_cache as invalidate_middleware_cache
+
         invalidate_middleware_cache()
     except ImportError:
         pass  # Middleware not yet loaded

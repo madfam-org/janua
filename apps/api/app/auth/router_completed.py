@@ -81,16 +81,12 @@ class RefreshTokenRequest(BaseModel):
 
 @router.post("/signup", response_model=TokenResponse)
 async def signup(
-    request: SignupRequest,
-    db: AsyncSession = Depends(get_db),
-    redis=Depends(get_redis)
+    request: SignupRequest, db: AsyncSession = Depends(get_db), redis=Depends(get_redis)
 ):
     """Register a new user"""
     try:
         # Check if user already exists
-        existing_user = await db.scalar(
-            select(User).where(User.email == request.email)
-        )
+        existing_user = await db.scalar(select(User).where(User.email == request.email))
         if existing_user:
             raise ValidationError("Email already registered")
 
@@ -100,22 +96,15 @@ async def signup(
             email=request.email,
             password=request.password,
             name=request.name,
-            tenant_id=request.tenant_id
+            tenant_id=request.tenant_id,
         )
 
         # Create session and tokens
-        access_token, refresh_token, session = await AuthService.create_session(
-            db=db,
-            user=user
-        )
+        access_token, refresh_token, session = await AuthService.create_session(db=db, user=user)
 
         # Send verification email
         verification_token = str(uuid4())
-        await redis.setex(
-            f"email_verify:{verification_token}",
-            86400,  # 24 hours
-            str(user.id)
-        )
+        await redis.setex(f"email_verify:{verification_token}", 86400, str(user.id))  # 24 hours
 
         # In production, send actual email here
         # Note: Log email redacted, token not logged for security
@@ -126,69 +115,53 @@ async def signup(
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
-            expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         )
 
     except Exception as e:
         await db.rollback()
         logger.error("Signup failed", error_type=type(e).__name__)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/signin", response_model=TokenResponse)
 async def signin(
-    request: SigninRequest,
-    db: AsyncSession = Depends(get_db),
-    redis=Depends(get_redis)
+    request: SigninRequest, db: AsyncSession = Depends(get_db), redis=Depends(get_redis)
 ):
     """Sign in with email and password"""
     try:
         # Authenticate user
         user = await AuthService.authenticate_user(
-            db=db,
-            email=request.email,
-            password=request.password
+            db=db, email=request.email, password=request.password
         )
 
         if not user:
             raise AuthenticationError("Invalid credentials")
 
         # Create session and tokens
-        access_token, refresh_token, session = await AuthService.create_session(
-            db=db,
-            user=user
-        )
+        access_token, refresh_token, session = await AuthService.create_session(db=db, user=user)
 
         await db.commit()
 
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
-            expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         )
 
     except AuthenticationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
     except Exception as e:
         await db.rollback()
         logger.error("Signin failed", error_type=type(e).__name__)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/signout")
 async def signout(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
-    redis=Depends(get_redis)
+    redis=Depends(get_redis),
 ):
     """Sign out and invalidate session"""
     try:
@@ -203,9 +176,7 @@ async def signout(
             await redis.setex(f"blacklist:{jti}", ttl, "1")
 
             # Find and invalidate session
-            session = await db.scalar(
-                select(Session).where(Session.access_token_jti == jti)
-            )
+            session = await db.scalar(select(Session).where(Session.access_token_jti == jti))
 
             if session:
                 session.is_active = False
@@ -220,17 +191,12 @@ async def signout(
 
     except Exception as e:
         logger.error("Signout failed", error_type=type(e).__name__)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to sign out"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to sign out")
 
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
-    request: RefreshTokenRequest,
-    db: AsyncSession = Depends(get_db),
-    redis=Depends(get_redis)
+    request: RefreshTokenRequest, db: AsyncSession = Depends(get_db), redis=Depends(get_redis)
 ):
     """Refresh access token using refresh token"""
     try:
@@ -246,18 +212,13 @@ async def refresh_token(
 
         # Get user
         user_id = claims.get("sub")
-        user = await db.scalar(
-            select(User).where(User.id == user_id)
-        )
+        user = await db.scalar(select(User).where(User.id == user_id))
 
         if not user:
             raise AuthenticationError("User not found")
 
         # Create new tokens
-        access_token, refresh_token, session = await AuthService.create_session(
-            db=db,
-            user=user
-        )
+        access_token, refresh_token, session = await AuthService.create_session(db=db, user=user)
 
         # Optionally blacklist old refresh token (token rotation)
         if jti:
@@ -269,27 +230,23 @@ async def refresh_token(
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
-            expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         )
 
     except AuthenticationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
     except Exception as e:
         await db.rollback()
         logger.error("Token refresh failed", error_type=type(e).__name__)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to refresh token"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to refresh token"
         )
 
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get current user information"""
     try:
@@ -298,9 +255,7 @@ async def get_current_user(
 
         # Get user from database
         user_id = claims.get("sub")
-        user = await db.scalar(
-            select(User).where(User.id == user_id)
-        )
+        user = await db.scalar(select(User).where(User.id == user_id))
 
         if not user:
             raise AuthenticationError("User not found")
@@ -310,27 +265,21 @@ async def get_current_user(
             email=user.email,
             name=user.name or "",
             email_verified=user.email_verified,
-            created_at=user.created_at
+            created_at=user.created_at,
         )
 
     except AuthenticationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
     except Exception as e:
         logger.error("Failed to get user", error_type=type(e).__name__)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to retrieve user information"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to retrieve user information"
         )
 
 
 @router.post("/verify-email")
 async def verify_email(
-    request: EmailVerificationRequest,
-    db: AsyncSession = Depends(get_db),
-    redis=Depends(get_redis)
+    request: EmailVerificationRequest, db: AsyncSession = Depends(get_db), redis=Depends(get_redis)
 ):
     """Verify email address with token"""
     try:
@@ -341,9 +290,7 @@ async def verify_email(
             raise ValidationError("Invalid or expired verification token")
 
         # Update user's email verification status
-        user = await db.scalar(
-            select(User).where(User.id == user_id)
-        )
+        user = await db.scalar(select(User).where(User.id == user_id))
 
         if not user:
             raise ValidationError("User not found")
@@ -360,41 +307,29 @@ async def verify_email(
         return {"message": "Email verified successfully"}
 
     except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         await db.rollback()
         logger.error("Email verification failed", error_type=type(e).__name__)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to verify email"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to verify email"
         )
 
 
 @router.post("/request-password-reset")
 async def request_password_reset(
-    request: PasswordResetRequest,
-    db: AsyncSession = Depends(get_db),
-    redis=Depends(get_redis)
+    request: PasswordResetRequest, db: AsyncSession = Depends(get_db), redis=Depends(get_redis)
 ):
     """Request password reset link"""
     try:
         # Check if user exists
-        user = await db.scalar(
-            select(User).where(User.email == request.email)
-        )
+        user = await db.scalar(select(User).where(User.email == request.email))
 
         # Always return success even if user doesn't exist (security)
         if user:
             # Generate reset token
             reset_token = str(uuid4())
-            await redis.setex(
-                f"password_reset:{reset_token}",
-                3600,  # 1 hour
-                str(user.id)
-            )
+            await redis.setex(f"password_reset:{reset_token}", 3600, str(user.id))  # 1 hour
 
             # In production, send actual email here
             # Note: Log only redacted email, never log tokens
@@ -410,9 +345,7 @@ async def request_password_reset(
 
 @router.post("/reset-password")
 async def reset_password(
-    request: PasswordResetConfirm,
-    db: AsyncSession = Depends(get_db),
-    redis=Depends(get_redis)
+    request: PasswordResetConfirm, db: AsyncSession = Depends(get_db), redis=Depends(get_redis)
 ):
     """Reset password with token"""
     try:
@@ -423,9 +356,7 @@ async def reset_password(
             raise ValidationError("Invalid or expired reset token")
 
         # Update user's password
-        user = await db.scalar(
-            select(User).where(User.id == user_id)
-        )
+        user = await db.scalar(select(User).where(User.id == user_id))
 
         if not user:
             raise ValidationError("User not found")
@@ -449,16 +380,12 @@ async def reset_password(
         return {"message": "Password reset successfully"}
 
     except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         await db.rollback()
         logger.error("Password reset failed", error_type=type(e).__name__)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to reset password"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to reset password"
         )
 
 
@@ -466,29 +393,22 @@ async def reset_password(
 @router.post("/passkeys/register/options")
 async def passkey_register_options(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Generate WebAuthn registration options"""
     # This requires webauthn library implementation
     return {
         "message": "WebAuthn registration options would be generated here",
         "challenge": str(uuid4()),
-        "rp": {
-            "name": "Janua",
-            "id": "janua.dev"
-        },
-        "user": {
-            "id": str(uuid4()),
-            "name": "user@example.com",
-            "displayName": "User"
-        }
+        "rp": {"name": "Janua", "id": "janua.dev"},
+        "user": {"id": str(uuid4()), "name": "user@example.com", "displayName": "User"},
     }
 
 
 @router.post("/passkeys/register")
 async def passkey_register(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Register WebAuthn credential"""
     # This requires webauthn library implementation

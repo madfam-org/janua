@@ -1,4 +1,5 @@
 import pytest
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -17,7 +18,7 @@ from app.services.monitoring import (
     AlertManager,
     SystemMonitor,
     MetricType,
-    AlertSeverity
+    AlertSeverity,
 )
 
 
@@ -37,9 +38,9 @@ class TestMetricsCollector:
         """Test metrics collector initialization."""
         collector = MetricsCollector()
 
-        with patch('app.services.monitoring.get_redis') as mock_get_redis, \
-             patch('asyncio.create_task') as mock_create_task:
-
+        with patch("app.services.monitoring.get_redis") as mock_get_redis, patch(
+            "asyncio.create_task"
+        ) as mock_create_task:
             mock_redis = AsyncMock()
             mock_get_redis.return_value = mock_redis
             mock_task = AsyncMock()
@@ -56,14 +57,11 @@ class TestMetricsCollector:
         """Test increment counter metric."""
         collector = MetricsCollector()
 
-        with patch.object(collector, '_record_metric') as mock_record:
+        with patch.object(collector, "_record_metric") as mock_record:
             await collector.increment("api_calls", 1, {"endpoint": "/users"})
 
             mock_record.assert_called_once_with(
-                "api_calls",
-                MetricType.COUNTER,
-                1,
-                {"endpoint": "/users"}
+                "api_calls", MetricType.COUNTER, 1, {"endpoint": "/users"}
             )
 
     @pytest.mark.asyncio
@@ -71,14 +69,11 @@ class TestMetricsCollector:
         """Test gauge metric."""
         collector = MetricsCollector()
 
-        with patch.object(collector, '_record_metric') as mock_record:
+        with patch.object(collector, "_record_metric") as mock_record:
             await collector.gauge("cpu_usage", 75.5, {"host": "server1"})
 
             mock_record.assert_called_once_with(
-                "cpu_usage",
-                MetricType.GAUGE,
-                75.5,
-                {"host": "server1"}
+                "cpu_usage", MetricType.GAUGE, 75.5, {"host": "server1"}
             )
 
     @pytest.mark.asyncio
@@ -86,29 +81,21 @@ class TestMetricsCollector:
         """Test histogram metric."""
         collector = MetricsCollector()
 
-        with patch.object(collector, '_record_metric') as mock_record:
+        with patch.object(collector, "_record_metric") as mock_record:
             await collector.histogram("response_time", 150.0)
 
-            mock_record.assert_called_once_with(
-                "response_time",
-                MetricType.HISTOGRAM,
-                150.0,
-                None
-            )
+            mock_record.assert_called_once_with("response_time", MetricType.HISTOGRAM, 150.0, None)
 
     @pytest.mark.asyncio
     async def test_timing_metric(self):
         """Test timing metric."""
         collector = MetricsCollector()
 
-        with patch.object(collector, '_record_metric') as mock_record:
+        with patch.object(collector, "_record_metric") as mock_record:
             await collector.timing("api_request", 250.5)
 
             mock_record.assert_called_once_with(
-                "api_request.duration",
-                MetricType.HISTOGRAM,
-                250.5,
-                None
+                "api_request.duration", MetricType.HISTOGRAM, 250.5, None
             )
 
     @pytest.mark.asyncio
@@ -140,10 +127,10 @@ class TestMetricsCollector:
             "type": MetricType.COUNTER,
             "tags": {},
             "values": [1.0, 2.0],
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
 
-        with patch.object(collector, '_send_to_monitoring_service') as mock_send:
+        with patch.object(collector, "_send_to_monitoring_service") as mock_send:
             await collector._flush_metrics()
 
             # Verify Redis operations
@@ -173,7 +160,7 @@ class TestHealthChecker:
         metrics = Mock()
         checker = HealthChecker(metrics)
 
-        with patch('asyncio.create_task') as mock_create_task:
+        with patch("asyncio.create_task") as mock_create_task:
             mock_task = AsyncMock()
             mock_create_task.return_value = mock_task
 
@@ -263,9 +250,9 @@ class TestAlertManager:
         metrics = Mock()
         manager = AlertManager(metrics)
 
-        with patch('app.services.monitoring.get_redis') as mock_get_redis, \
-             patch('asyncio.create_task') as mock_create_task:
-
+        with patch("app.services.monitoring.get_redis") as mock_get_redis, patch(
+            "asyncio.create_task"
+        ) as mock_create_task:
             mock_redis = AsyncMock()
             mock_get_redis.return_value = mock_redis
             mock_task = AsyncMock()
@@ -311,10 +298,10 @@ class TestAlertManager:
         rule = {
             "name": "test_alert",
             "severity": AlertSeverity.WARNING,
-            "message": "Test alert: {value}"
+            "message": "Test alert: {value}",
         }
 
-        with patch.object(manager, '_send_notifications') as mock_send:
+        with patch.object(manager, "_send_notifications") as mock_send:
             await manager._trigger_alert(rule, 42.0)
 
             # Verify alert stored in Redis
@@ -346,7 +333,7 @@ class TestSystemMonitor:
         metrics = Mock()
         monitor = SystemMonitor(metrics)
 
-        with patch('asyncio.create_task') as mock_create_task:
+        with patch("asyncio.create_task") as mock_create_task:
             mock_task = AsyncMock()
             mock_create_task.return_value = mock_task
 
@@ -361,12 +348,13 @@ class TestSystemMonitor:
         metrics = AsyncMock()
         monitor = SystemMonitor(metrics)
 
-        with patch('psutil.cpu_percent') as mock_cpu, \
-             patch('psutil.virtual_memory') as mock_memory, \
-             patch('psutil.disk_usage') as mock_disk, \
-             patch('psutil.net_io_counters') as mock_net, \
-             patch('psutil.Process') as mock_process:
-
+        with patch("psutil.cpu_percent") as mock_cpu, patch(
+            "psutil.virtual_memory"
+        ) as mock_memory, patch("psutil.disk_usage") as mock_disk, patch(
+            "psutil.net_io_counters"
+        ) as mock_net, patch(
+            "psutil.Process"
+        ) as mock_process:
             # Mock system values
             mock_cpu.return_value = 75.0
             mock_memory.return_value.percent = 60.0
@@ -408,11 +396,11 @@ class TestMonitoringService:
         """Test service initialization."""
         service = MonitoringService()
 
-        with patch.object(service.metrics, 'initialize') as mock_metrics, \
-             patch.object(service.health_checker, 'initialize') as mock_health, \
-             patch.object(service.alerting, 'initialize') as mock_alerts, \
-             patch.object(service.system_monitor, 'initialize') as mock_system:
-
+        with patch.object(service.metrics, "initialize") as mock_metrics, patch.object(
+            service.health_checker, "initialize"
+        ) as mock_health, patch.object(service.alerting, "initialize") as mock_alerts, patch.object(
+            service.system_monitor, "initialize"
+        ) as mock_system:
             await service.initialize()
 
             mock_metrics.assert_called_once()
@@ -478,7 +466,9 @@ class TestMonitoringService:
         service = MonitoringService()
         service.alerting.send_alert = AsyncMock()
 
-        await service.trigger_alert("Test Alert", "Test message", AlertSeverity.ERROR, {"key": "value"})
+        await service.trigger_alert(
+            "Test Alert", "Test message", AlertSeverity.ERROR, {"key": "value"}
+        )
 
         service.alerting.send_alert.assert_called_once_with(
             "Test Alert", "Test message", AlertSeverity.ERROR, {"key": "value"}
@@ -501,7 +491,7 @@ class TestErrorHandling:
             "type": MetricType.COUNTER,
             "tags": {},
             "values": [1.0],
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
 
         # Should not raise exception
@@ -516,7 +506,7 @@ class TestErrorHandling:
         metrics = AsyncMock()
         monitor = SystemMonitor(metrics)
 
-        with patch('psutil.cpu_percent', side_effect=Exception("System error")):
+        with patch("psutil.cpu_percent", side_effect=Exception("System error")):
             # Should not raise exception
             await monitor.collect_system_metrics()
 

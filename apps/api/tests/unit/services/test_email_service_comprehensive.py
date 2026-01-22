@@ -1,4 +1,5 @@
 import pytest
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -66,7 +67,7 @@ class TestTokenGeneration:
         # Token should be a 64-character hex string
         assert isinstance(token, str)
         assert len(token) == 64
-        assert all(c in '0123456789abcdef' for c in token)
+        assert all(c in "0123456789abcdef" for c in token)
 
     def test_generate_verification_token_uniqueness(self):
         """Test that generated tokens are unique"""
@@ -103,7 +104,7 @@ class TestTemplateRendering:
         service = EmailService()
 
         # Mock successful template rendering
-        with patch.object(service.jinja_env, 'get_template') as mock_get_template:
+        with patch.object(service.jinja_env, "get_template") as mock_get_template:
             mock_template = AsyncMock()
             mock_template.render.return_value = "Rendered content"
             mock_get_template.return_value = mock_template
@@ -117,7 +118,7 @@ class TestTemplateRendering:
         service = EmailService()
 
         # Mock template rendering failure
-        with patch.object(service.jinja_env, 'get_template') as mock_get_template:
+        with patch.object(service.jinja_env, "get_template") as mock_get_template:
             mock_get_template.side_effect = Exception("Template not found")
 
             data = {"verification_url": "https://example.com/verify?token=123"}
@@ -130,7 +131,7 @@ class TestTemplateRendering:
         """Test password reset template fallback"""
         service = EmailService()
 
-        with patch.object(service.jinja_env, 'get_template') as mock_get_template:
+        with patch.object(service.jinja_env, "get_template") as mock_get_template:
             mock_get_template.side_effect = Exception("Template not found")
 
             data = {"reset_url": "https://example.com/reset?token=123"}
@@ -143,7 +144,7 @@ class TestTemplateRendering:
         """Test welcome template fallback"""
         service = EmailService()
 
-        with patch.object(service.jinja_env, 'get_template') as mock_get_template:
+        with patch.object(service.jinja_env, "get_template") as mock_get_template:
             mock_get_template.side_effect = Exception("Template not found")
 
             data = {"user_name": "John"}
@@ -156,7 +157,7 @@ class TestTemplateRendering:
         """Test generic template fallback"""
         service = EmailService()
 
-        with patch.object(service.jinja_env, 'get_template') as mock_get_template:
+        with patch.object(service.jinja_env, "get_template") as mock_get_template:
             mock_get_template.side_effect = Exception("Template not found")
 
             result = service._render_template("unknown.html", {})
@@ -173,16 +174,14 @@ class TestEmailVerification:
         service = EmailService(redis_client=mock_redis)
 
         # Mock successful email sending
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = True
             mock_render.return_value = "Rendered content"
 
             token = await service.send_verification_email(
-                email="test@example.com",
-                user_name="John Doe",
-                user_id="user123"
+                email="test@example.com", user_name="John Doe", user_id="user123"
             )
 
             # Verify token was generated
@@ -206,15 +205,13 @@ class TestEmailVerification:
         """Test verification email sending without Redis"""
         service = EmailService()  # No Redis client
 
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = True
             mock_render.return_value = "Rendered content"
 
-            token = await service.send_verification_email(
-                email="test@example.com"
-            )
+            token = await service.send_verification_email(email="test@example.com")
 
             # Should still generate token and send email
             assert isinstance(token, str)
@@ -226,9 +223,9 @@ class TestEmailVerification:
         """Test verification email sending failure"""
         service = EmailService()
 
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = False
             mock_render.return_value = "Rendered content"
 
@@ -246,7 +243,7 @@ class TestEmailVerification:
             "email": "test@example.com",
             "user_id": "user123",
             "created_at": datetime.utcnow().isoformat(),
-            "type": "email_verification"
+            "type": "email_verification",
         }
         mock_redis.get.return_value = str(token_data).encode()
 
@@ -306,15 +303,14 @@ class TestPasswordReset:
         mock_redis = AsyncMock()
         service = EmailService(redis_client=mock_redis)
 
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = True
             mock_render.return_value = "Rendered content"
 
             token = await service.send_password_reset_email(
-                email="test@example.com",
-                user_name="John Doe"
+                email="test@example.com", user_name="John Doe"
             )
 
             # Verify token was generated
@@ -338,9 +334,9 @@ class TestPasswordReset:
         """Test password reset email without user name"""
         service = EmailService()
 
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = True
             mock_render.return_value = "Rendered content"
 
@@ -357,9 +353,9 @@ class TestPasswordReset:
         """Test password reset email sending failure"""
         service = EmailService()
 
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = False
             mock_render.return_value = "Rendered content"
 
@@ -375,15 +371,14 @@ class TestWelcomeEmail:
         """Test successful welcome email sending"""
         service = EmailService()
 
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = True
             mock_render.return_value = "Rendered content"
 
             result = await service.send_welcome_email(
-                email="test@example.com",
-                user_name="John Doe"
+                email="test@example.com", user_name="John Doe"
             )
 
             assert result is True
@@ -397,9 +392,9 @@ class TestWelcomeEmail:
         """Test welcome email without user name"""
         service = EmailService()
 
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = True
             mock_render.return_value = "Rendered content"
 
@@ -415,9 +410,9 @@ class TestWelcomeEmail:
         """Test welcome email sending failure"""
         service = EmailService()
 
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = False
             mock_render.return_value = "Rendered content"
 
@@ -435,14 +430,14 @@ class TestEmailSending:
         service = EmailService()
 
         # Mock settings without SMTP configuration
-        with patch('app.services.email_service.settings') as mock_settings:
+        with patch("app.services.email_service.settings") as mock_settings:
             mock_settings.SMTP_HOST = None
 
             result = await service._send_email(
                 to_email="test@example.com",
                 subject="Test Subject",
                 html_content="<h1>Test</h1>",
-                text_content="Test"
+                text_content="Test",
             )
 
             assert result is True
@@ -453,9 +448,9 @@ class TestEmailSending:
         service = EmailService()
 
         # Mock SMTP settings
-        with patch('app.services.email_service.settings') as mock_settings, \
-             patch('app.services.email_service.smtplib.SMTP') as mock_smtp_class:
-
+        with patch("app.services.email_service.settings") as mock_settings, patch(
+            "app.services.email_service.smtplib.SMTP"
+        ) as mock_smtp_class:
             mock_settings.SMTP_HOST = "smtp.example.com"
             mock_settings.SMTP_PORT = 587
             mock_settings.SMTP_TLS = True
@@ -471,7 +466,7 @@ class TestEmailSending:
                 to_email="test@example.com",
                 subject="Test Subject",
                 html_content="<h1>Test</h1>",
-                text_content="Test"
+                text_content="Test",
             )
 
             assert result is True
@@ -484,9 +479,9 @@ class TestEmailSending:
         """Test SMTP email sending without authentication"""
         service = EmailService()
 
-        with patch('app.services.email_service.settings') as mock_settings, \
-             patch('app.services.email_service.smtplib.SMTP') as mock_smtp_class:
-
+        with patch("app.services.email_service.settings") as mock_settings, patch(
+            "app.services.email_service.smtplib.SMTP"
+        ) as mock_smtp_class:
             # Configure mock settings as attributes, not method returns
             mock_settings.configure_mock(
                 ALPHA_MODE=False,
@@ -496,7 +491,7 @@ class TestEmailSending:
                 SMTP_USERNAME=None,
                 SMTP_PASSWORD=None,
                 FROM_EMAIL="noreply@example.com",
-                FROM_NAME="Test Janua"
+                FROM_NAME="Test Janua",
             )
 
             mock_smtp = AsyncMock()
@@ -505,9 +500,7 @@ class TestEmailSending:
             mock_smtp.sendmail.return_value = None
 
             result = await service._send_email(
-                to_email="test@example.com",
-                subject="Test Subject",
-                html_content="<h1>Test</h1>"
+                to_email="test@example.com", subject="Test Subject", html_content="<h1>Test</h1>"
             )
 
             assert result is True
@@ -520,18 +513,16 @@ class TestEmailSending:
         """Test SMTP email sending failure"""
         service = EmailService()
 
-        with patch('app.services.email_service.settings') as mock_settings, \
-             patch('app.services.email_service.smtplib.SMTP') as mock_smtp_class:
-
+        with patch("app.services.email_service.settings") as mock_settings, patch(
+            "app.services.email_service.smtplib.SMTP"
+        ) as mock_smtp_class:
             mock_settings.SMTP_HOST = "smtp.example.com"
             mock_settings.FROM_EMAIL = "noreply@example.com"
 
             mock_smtp_class.side_effect = smtplib.SMTPException("Connection failed")
 
             result = await service._send_email(
-                to_email="test@example.com",
-                subject="Test Subject",
-                html_content="<h1>Test</h1>"
+                to_email="test@example.com", subject="Test Subject", html_content="<h1>Test</h1>"
             )
 
             assert result is False
@@ -541,7 +532,7 @@ class TestEmailSending:
         """Test email sending with only HTML content"""
         service = EmailService()
 
-        with patch('app.services.email_service.settings') as mock_settings:
+        with patch("app.services.email_service.settings") as mock_settings:
             mock_settings.SMTP_HOST = None  # Alpha mode
 
             result = await service._send_email(
@@ -558,14 +549,14 @@ class TestEmailSending:
         """Test email sending with only text content"""
         service = EmailService()
 
-        with patch('app.services.email_service.settings') as mock_settings:
+        with patch("app.services.email_service.settings") as mock_settings:
             mock_settings.SMTP_HOST = None  # Alpha mode
 
             result = await service._send_email(
                 to_email="test@example.com",
                 subject="Test Subject",
                 html_content="<h1>Test</h1>",
-                text_content="Test"
+                text_content="Test",
             )
 
             assert result is True
@@ -581,17 +572,15 @@ class TestEmailWorkflows:
         service = EmailService(redis_client=mock_redis)
 
         # Mock successful email sending
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = True
             mock_render.return_value = "Rendered content"
 
             # Step 1: Send verification email
             token = await service.send_verification_email(
-                email="test@example.com",
-                user_name="John Doe",
-                user_id="user123"
+                email="test@example.com", user_name="John Doe", user_id="user123"
             )
 
             assert isinstance(token, str)
@@ -602,7 +591,7 @@ class TestEmailWorkflows:
                 "email": "test@example.com",
                 "user_id": "user123",
                 "created_at": datetime.utcnow().isoformat(),
-                "type": "email_verification"
+                "type": "email_verification",
             }
             mock_redis.get.return_value = str(token_data).encode()
 
@@ -618,16 +607,15 @@ class TestEmailWorkflows:
         mock_redis = AsyncMock()
         service = EmailService(redis_client=mock_redis)
 
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = True
             mock_render.return_value = "Rendered content"
 
             # Send password reset email
             token = await service.send_password_reset_email(
-                email="test@example.com",
-                user_name="John Doe"
+                email="test@example.com", user_name="John Doe"
             )
 
             assert isinstance(token, str)
@@ -643,16 +631,15 @@ class TestEmailWorkflows:
         """Test user onboarding email workflow"""
         service = EmailService()
 
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = True
             mock_render.return_value = "Rendered content"
 
             # Send welcome email
             result = await service.send_welcome_email(
-                email="test@example.com",
-                user_name="John Doe"
+                email="test@example.com", user_name="John Doe"
             )
 
             assert result is True
@@ -673,9 +660,9 @@ class TestErrorHandling:
         service = EmailService()
 
         # Test with invalid email format (service should still attempt)
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = True
             mock_render.return_value = "Rendered content"
 
@@ -696,7 +683,7 @@ class TestErrorHandling:
         assert len(set(tokens)) == 10
         for token in tokens:
             assert len(token) == 64
-            assert all(c in '0123456789abcdef' for c in token)
+            assert all(c in "0123456789abcdef" for c in token)
 
     @pytest.mark.asyncio
     async def test_redis_failure_handling(self):
@@ -707,9 +694,9 @@ class TestErrorHandling:
         # Mock Redis failure
         mock_redis.setex.side_effect = Exception("Redis connection failed")
 
-        with patch.object(service, '_send_email') as mock_send, \
-             patch.object(service, '_render_template') as mock_render:
-
+        with patch.object(service, "_send_email") as mock_send, patch.object(
+            service, "_render_template"
+        ) as mock_render:
             mock_send.return_value = True
             mock_render.return_value = "Rendered content"
 

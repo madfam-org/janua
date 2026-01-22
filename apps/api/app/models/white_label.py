@@ -14,6 +14,7 @@ import enum
 
 class BrandingLevel(str, enum.Enum):
     """White label branding levels"""
+
     BASIC = "basic"
     ADVANCED = "advanced"
     ENTERPRISE = "enterprise"
@@ -21,6 +22,7 @@ class BrandingLevel(str, enum.Enum):
 
 class ThemeMode(str, enum.Enum):
     """Theme mode options"""
+
     LIGHT = "light"
     DARK = "dark"
     AUTO = "auto"
@@ -28,8 +30,9 @@ class ThemeMode(str, enum.Enum):
 
 class CustomDomain(Base):
     """Custom domain configuration"""
+
     __tablename__ = "custom_domains"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     domain = Column(String(255), nullable=False, unique=True)
@@ -41,8 +44,9 @@ class CustomDomain(Base):
 
 class EmailTemplate(Base):
     """Email template configuration"""
+
     __tablename__ = "email_templates"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     template_type = Column(String(255), nullable=False)  # "welcome", "password_reset", etc.
@@ -61,7 +65,9 @@ class WhiteLabelConfiguration(Base):
     __tablename__ = "white_label_configurations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, unique=True)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, unique=True
+    )
 
     # Branding
     brand_name = Column(String(255))
@@ -95,6 +101,7 @@ class WhiteLabelConfiguration(Base):
 
 class PageCustomization(Base):
     """Page customization for white-label branding"""
+
     __tablename__ = "page_customizations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -116,6 +123,7 @@ class PageCustomization(Base):
 
 class ThemePreset(Base):
     """Theme preset templates for white-label customization"""
+
     __tablename__ = "theme_presets"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

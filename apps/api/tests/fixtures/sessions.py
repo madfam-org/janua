@@ -27,8 +27,7 @@ def _create_test_token(user_id: str, token_type: str = "access") -> str:
 
 @pytest.fixture
 async def test_session(
-    async_session: AsyncSession,
-    test_user: User
+    async_session: AsyncSession, test_user: User
 ) -> AsyncGenerator[Session, None]:
     """
     Create valid active session for test_user
@@ -71,8 +70,7 @@ async def test_session(
 
 @pytest.fixture
 async def test_session_expired(
-    async_session: AsyncSession,
-    test_user: User
+    async_session: AsyncSession, test_user: User
 ) -> AsyncGenerator[Session, None]:
     """
     Create expired session for testing expiration handling
@@ -113,8 +111,7 @@ async def test_session_expired(
 
 @pytest.fixture
 async def test_session_revoked(
-    async_session: AsyncSession,
-    test_user: User
+    async_session: AsyncSession, test_user: User
 ) -> AsyncGenerator[Session, None]:
     """
     Create revoked session for testing revocation handling

@@ -2,17 +2,21 @@
 import enum
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import DeclarativeBase, relationship
 
 from app.models.types import GUID as UUID
 from app.models.types import JSON as JSONB
 from app.models.types import InetAddress
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    """SQLAlchemy 2.0 declarative base class for all models."""
+
+    pass
 
 
 class UserStatus(str, enum.Enum):
@@ -68,7 +72,9 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    oauth_accounts = relationship("OAuthAccount", back_populates="user", cascade="all, delete-orphan")
+    oauth_accounts = relationship(
+        "OAuthAccount", back_populates="user", cascade="all, delete-orphan"
+    )
     passkeys = relationship("Passkey", back_populates="user", cascade="all, delete-orphan")
 
     @property
@@ -203,6 +209,7 @@ class TrustedDevice(Base):
     - Can be managed by the user from their security settings
     - Trigger notifications when removed or when login from new device occurs
     """
+
     __tablename__ = "trusted_devices"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -231,6 +238,7 @@ class UserConsent(Base):
     When a user approves an OAuth authorization request, their consent
     is stored here to avoid asking for the same scopes again.
     """
+
     __tablename__ = "user_consents"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -287,6 +295,7 @@ class OAuthClient(Base):
     OAuth2/OIDC endpoints. Each client gets a client_id and client_secret for the
     OAuth2 authorization code flow.
     """
+
     __tablename__ = "oauth_clients"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -329,10 +338,10 @@ class OAuthClient(Base):
             True if the secret matches, False otherwise
         """
         import bcrypt
+
         try:
             return bcrypt.checkpw(
-                plain_secret.encode('utf-8'),
-                self.client_secret_hash.encode('utf-8')
+                plain_secret.encode("utf-8"), self.client_secret_hash.encode("utf-8")
             )
         except Exception:
             return False
@@ -345,10 +354,16 @@ class OAuthClientSecret(Base):
     During rotation, multiple secrets can be active simultaneously for a grace period,
     allowing applications to update their configuration without downtime.
     """
+
     __tablename__ = "oauth_client_secrets"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    client_id = Column(UUID(as_uuid=True), ForeignKey("oauth_clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("oauth_clients.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     # Secret data (hashed)
     secret_hash = Column(String(255), nullable=False)
@@ -376,11 +391,9 @@ class OAuthClientSecret(Base):
     def verify(self, plain_secret: str) -> bool:
         """Verify a plain-text secret against this hash."""
         import bcrypt
+
         try:
-            return bcrypt.checkpw(
-                plain_secret.encode('utf-8'),
-                self.secret_hash.encode('utf-8')
-            )
+            return bcrypt.checkpw(plain_secret.encode("utf-8"), self.secret_hash.encode("utf-8"))
         except Exception:
             return False
 
@@ -493,6 +506,7 @@ class Invitation(Base):
 
 class AuditLog(Base):
     """Audit log model matching the existing production database schema."""
+
     __tablename__ = "audit_logs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

@@ -14,8 +14,12 @@ from app.database import get_db
 from app.dependencies import get_current_user, require_admin
 from ...models import User, Organization
 from app.models.white_label import (
-    BrandingConfiguration, BrandingLevel, ThemeMode,
-    CustomDomain, EmailTemplate, ThemePreset
+    BrandingConfiguration,
+    BrandingLevel,
+    ThemeMode,
+    CustomDomain,
+    EmailTemplate,
+    ThemePreset,
 )
 
 logger = logging.getLogger(__name__)
@@ -26,9 +30,11 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+
 # Pydantic models
 class BrandingConfigurationCreate(BaseModel):
     """Create branding configuration request"""
+
     branding_level: BrandingLevel = BrandingLevel.BASIC
     company_name: Optional[str] = None
     company_logo_url: Optional[str] = None
@@ -49,6 +55,7 @@ class BrandingConfigurationCreate(BaseModel):
 
 class BrandingConfigurationUpdate(BaseModel):
     """Update branding configuration request"""
+
     is_enabled: Optional[bool] = None
     company_name: Optional[str] = None
     company_logo_url: Optional[str] = None
@@ -69,6 +76,7 @@ class BrandingConfigurationUpdate(BaseModel):
 
 class BrandingConfigurationResponse(BaseModel):
     """Branding configuration response"""
+
     id: str
     organization_id: str
     branding_level: BrandingLevel
@@ -93,12 +101,16 @@ class BrandingConfigurationResponse(BaseModel):
 
 class CustomDomainCreate(BaseModel):
     """Create custom domain request"""
-    domain: str = Field(..., pattern=r'^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$')
+
+    domain: str = Field(
+        ..., pattern=r"^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$"
+    )
     subdomain: Optional[str] = None
 
 
 class CustomDomainResponse(BaseModel):
     """Custom domain response"""
+
     id: str
     domain: str
     subdomain: Optional[str]
@@ -116,6 +128,7 @@ class CustomDomainResponse(BaseModel):
 
 class EmailTemplateCreate(BaseModel):
     """Create email template request"""
+
     template_type: str = Field(..., max_length=50)
     locale: str = "en"
     subject: str = Field(..., max_length=500)
@@ -130,6 +143,7 @@ class EmailTemplateCreate(BaseModel):
 
 class EmailTemplateResponse(BaseModel):
     """Email template response"""
+
     id: str
     template_type: str
     locale: str
@@ -145,6 +159,7 @@ class EmailTemplateResponse(BaseModel):
 
 class PageCustomizationCreate(BaseModel):
     """Create page customization request"""
+
     page_type: str = Field(..., max_length=50)
     title: Optional[str] = None
     description: Optional[str] = None
@@ -162,11 +177,11 @@ async def create_branding_configuration(
     organization_id: str,
     config: BrandingConfigurationCreate,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Create branding configuration for organization
-    
+
     Requires admin privileges.
     """
     try:
@@ -174,7 +189,7 @@ async def create_branding_configuration(
         org = await db.get(Organization, organization_id)
         if not org:
             raise HTTPException(status_code=404, detail="Organization not found")
-        
+
         # Check if branding config already exists
         existing = await db.execute(
             select(BrandingConfiguration).where(
@@ -184,9 +199,9 @@ async def create_branding_configuration(
         if existing.scalar_one_or_none():
             raise HTTPException(
                 status_code=400,
-                detail="Branding configuration already exists for this organization"
+                detail="Branding configuration already exists for this organization",
             )
-        
+
         # Create branding configuration
         branding_config = BrandingConfiguration(
             organization_id=organization_id,
@@ -205,12 +220,12 @@ async def create_branding_configuration(
             text_color=config.text_color,
             font_family=config.font_family,
             border_radius=config.border_radius,
-            custom_css=config.custom_css
+            custom_css=config.custom_css,
         )
-        
+
         db.add(branding_config)
         await db.commit()
-        
+
         return BrandingConfigurationResponse(
             id=str(branding_config.id),
             organization_id=str(branding_config.organization_id),
@@ -231,9 +246,9 @@ async def create_branding_configuration(
             font_family=branding_config.font_family,
             border_radius=branding_config.border_radius,
             created_at=branding_config.created_at.isoformat(),
-            updated_at=branding_config.updated_at.isoformat()
+            updated_at=branding_config.updated_at.isoformat(),
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to create branding configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -243,7 +258,7 @@ async def create_branding_configuration(
 async def get_branding_configuration(
     organization_id: str,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get branding configuration for organization
@@ -255,10 +270,10 @@ async def get_branding_configuration(
             )
         )
         config = result.scalar_one_or_none()
-        
+
         if not config:
             raise HTTPException(status_code=404, detail="Branding configuration not found")
-        
+
         return BrandingConfigurationResponse(
             id=str(config.id),
             organization_id=str(config.organization_id),
@@ -279,9 +294,9 @@ async def get_branding_configuration(
             font_family=config.font_family,
             border_radius=config.border_radius,
             created_at=config.created_at.isoformat(),
-            updated_at=config.updated_at.isoformat()
+            updated_at=config.updated_at.isoformat(),
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to get branding configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -292,11 +307,11 @@ async def update_branding_configuration(
     organization_id: str,
     update: BrandingConfigurationUpdate,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Update branding configuration
-    
+
     Requires admin privileges.
     """
     try:
@@ -306,17 +321,17 @@ async def update_branding_configuration(
             )
         )
         config = result.scalar_one_or_none()
-        
+
         if not config:
             raise HTTPException(status_code=404, detail="Branding configuration not found")
-        
+
         # Update fields
         update_data = update.dict(exclude_unset=True)
         for field, value in update_data.items():
             setattr(config, field, value)
-        
+
         await db.commit()
-        
+
         return BrandingConfigurationResponse(
             id=str(config.id),
             organization_id=str(config.organization_id),
@@ -337,9 +352,9 @@ async def update_branding_configuration(
             font_family=config.font_family,
             border_radius=config.border_radius,
             created_at=config.created_at.isoformat(),
-            updated_at=config.updated_at.isoformat()
+            updated_at=config.updated_at.isoformat(),
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to update branding configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -350,11 +365,11 @@ async def create_custom_domain(
     branding_config_id: str,
     domain_request: CustomDomainCreate,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Create custom domain configuration
-    
+
     Requires admin privileges.
     """
     try:
@@ -362,17 +377,17 @@ async def create_custom_domain(
         branding_config = await db.get(BrandingConfiguration, branding_config_id)
         if not branding_config:
             raise HTTPException(status_code=404, detail="Branding configuration not found")
-        
+
         # Check if domain already exists
         existing = await db.execute(
             select(CustomDomain).where(CustomDomain.domain == domain_request.domain)
         )
         if existing.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Domain already exists")
-        
+
         # Generate verification token
         verification_token = str(uuid.uuid4())
-        
+
         # Create custom domain
         custom_domain = CustomDomain(
             branding_configuration_id=branding_config_id,
@@ -381,12 +396,12 @@ async def create_custom_domain(
             verification_token=verification_token,
             cname_target=f"custom-{branding_config_id}.janua.dev",  # Example CNAME target
             a_record_ips=["203.0.113.1", "203.0.113.2"],  # Example IPs
-            txt_records=[f"janua-verification={verification_token}"]
+            txt_records=[f"janua-verification={verification_token}"],
         )
-        
+
         db.add(custom_domain)
         await db.commit()
-        
+
         return CustomDomainResponse(
             id=str(custom_domain.id),
             domain=custom_domain.domain,
@@ -400,9 +415,9 @@ async def create_custom_domain(
             a_record_ips=custom_domain.a_record_ips,
             txt_records=custom_domain.txt_records,
             created_at=custom_domain.created_at.isoformat(),
-            updated_at=custom_domain.updated_at.isoformat()
+            updated_at=custom_domain.updated_at.isoformat(),
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to create custom domain: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -410,30 +425,28 @@ async def create_custom_domain(
 
 @router.post("/domains/{domain_id}/verify")
 async def verify_custom_domain(
-    domain_id: str,
-    current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    domain_id: str, current_user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
 ):
     """
     Verify custom domain DNS configuration
-    
+
     Requires admin privileges.
     """
     try:
         custom_domain = await db.get(CustomDomain, domain_id)
         if not custom_domain:
             raise HTTPException(status_code=404, detail="Custom domain not found")
-        
+
         # In production, implement actual DNS verification
         # For now, simulate verification
         custom_domain.is_verified = True
         custom_domain.dns_configured = True
         custom_domain.verified_at = datetime.utcnow()
-        
+
         await db.commit()
-        
+
         return {"message": "Domain verified successfully"}
-        
+
     except Exception as e:
         logger.error(f"Failed to verify custom domain: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -444,11 +457,11 @@ async def create_email_template(
     branding_config_id: str,
     template: EmailTemplateCreate,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Create custom email template
-    
+
     Requires admin privileges.
     """
     try:
@@ -456,7 +469,7 @@ async def create_email_template(
         branding_config = await db.get(BrandingConfiguration, branding_config_id)
         if not branding_config:
             raise HTTPException(status_code=404, detail="Branding configuration not found")
-        
+
         # Create email template
         email_template = EmailTemplate(
             branding_configuration_id=branding_config_id,
@@ -469,12 +482,12 @@ async def create_email_template(
             from_email=template.from_email,
             header_image_url=template.header_image_url,
             footer_text=template.footer_text,
-            button_color=template.button_color
+            button_color=template.button_color,
         )
-        
+
         db.add(email_template)
         await db.commit()
-        
+
         return EmailTemplateResponse(
             id=str(email_template.id),
             template_type=email_template.template_type,
@@ -486,9 +499,9 @@ async def create_email_template(
             from_name=email_template.from_name,
             from_email=email_template.from_email,
             created_at=email_template.created_at.isoformat(),
-            updated_at=email_template.updated_at.isoformat()
+            updated_at=email_template.updated_at.isoformat(),
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to create email template: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -499,20 +512,20 @@ async def list_theme_presets(
     category: Optional[str] = None,
     is_public: bool = True,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     List available theme presets
     """
     try:
         query = select(ThemePreset).where(ThemePreset.is_public == is_public)
-        
+
         if category:
             query = query.where(ThemePreset.category == category)
-        
+
         result = await db.execute(query)
         presets = result.scalars().all()
-        
+
         return [
             {
                 "id": str(preset.id),
@@ -527,11 +540,11 @@ async def list_theme_presets(
                 "border_radius": preset.border_radius,
                 "preview_url": preset.preview_url,
                 "thumbnail_url": preset.thumbnail_url,
-                "times_used": preset.times_used
+                "times_used": preset.times_used,
             }
             for preset in presets
         ]
-        
+
     except Exception as e:
         logger.error(f"Failed to list theme presets: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -541,7 +554,7 @@ async def list_theme_presets(
 async def get_organization_css(
     organization_id: str,
     theme_mode: Optional[ThemeMode] = ThemeMode.LIGHT,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get compiled CSS for organization's branding
@@ -550,24 +563,24 @@ async def get_organization_css(
         result = await db.execute(
             select(BrandingConfiguration).where(
                 BrandingConfiguration.organization_id == organization_id,
-                BrandingConfiguration.is_enabled == True
+                BrandingConfiguration.is_enabled == True,
             )
         )
         config = result.scalar_one_or_none()
-        
+
         if not config:
             # Return default CSS
             css_content = _generate_default_css()
         else:
             # Generate CSS from branding configuration
             css_content = _generate_organization_css(config, theme_mode)
-        
+
         return Response(
             content=css_content,
             media_type="text/css",
-            headers={"Cache-Control": "public, max-age=3600"}
+            headers={"Cache-Control": "public, max-age=3600"},
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to get organization CSS: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -630,9 +643,9 @@ def _generate_organization_css(config: BrandingConfiguration, theme_mode: ThemeM
         border-radius: var(--border-radius);
     }}
     """
-    
+
     # Add custom CSS if provided
     if config.custom_css:
         css_vars += f"\n\n{config.custom_css}"
-    
+
     return css_vars

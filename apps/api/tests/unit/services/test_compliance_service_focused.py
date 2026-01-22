@@ -1,4 +1,5 @@
 import pytest
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -16,11 +17,19 @@ from datetime import datetime, timedelta
 from uuid import uuid4, UUID
 
 from app.services.compliance_service import (
-    ConsentService, DataSubjectRightsService, DataRetentionService, ComplianceService
+    ConsentService,
+    DataSubjectRightsService,
+    DataRetentionService,
+    ComplianceService,
 )
 from app.models.compliance import (
-    ConsentType, ConsentStatus, LegalBasis, DataSubjectRequestType,
-    RequestStatus, DataCategory, ComplianceFramework
+    ConsentType,
+    ConsentStatus,
+    LegalBasis,
+    DataSubjectRequestType,
+    RequestStatus,
+    DataCategory,
+    ComplianceFramework,
 )
 from app.services.audit_logger import AuditEventType
 
@@ -218,7 +227,7 @@ class TestConsentWorkflow:
             ConsentType.PERSONALIZATION,
             ConsentType.THIRD_PARTY,
             ConsentType.COOKIES,
-            ConsentType.PROFILING
+            ConsentType.PROFILING,
         ]
 
         for consent_type in required_types:
@@ -230,7 +239,7 @@ class TestConsentWorkflow:
             ConsentStatus.GIVEN,
             ConsentStatus.WITHDRAWN,
             ConsentStatus.EXPIRED,
-            ConsentStatus.PENDING
+            ConsentStatus.PENDING,
         ]
 
         for status in required_statuses:
@@ -244,7 +253,7 @@ class TestConsentWorkflow:
             LegalBasis.LEGAL_OBLIGATION,
             LegalBasis.VITAL_INTERESTS,
             LegalBasis.PUBLIC_TASK,
-            LegalBasis.LEGITIMATE_INTERESTS
+            LegalBasis.LEGITIMATE_INTERESTS,
         ]
 
         for basis in required_bases:
@@ -257,12 +266,12 @@ class TestDataSubjectRights:
     def test_data_subject_request_types_available(self):
         """Test that all GDPR article rights are available"""
         required_types = [
-            DataSubjectRequestType.ACCESS,        # Article 15
-            DataSubjectRequestType.RECTIFICATION, # Article 16
-            DataSubjectRequestType.ERASURE,       # Article 17
-            DataSubjectRequestType.PORTABILITY,   # Article 20
-            DataSubjectRequestType.RESTRICTION,   # Article 18
-            DataSubjectRequestType.OBJECTION      # Article 21
+            DataSubjectRequestType.ACCESS,  # Article 15
+            DataSubjectRequestType.RECTIFICATION,  # Article 16
+            DataSubjectRequestType.ERASURE,  # Article 17
+            DataSubjectRequestType.PORTABILITY,  # Article 20
+            DataSubjectRequestType.RESTRICTION,  # Article 18
+            DataSubjectRequestType.OBJECTION,  # Article 21
         ]
 
         for request_type in required_types:
@@ -276,7 +285,7 @@ class TestDataSubjectRights:
             RequestStatus.IN_PROGRESS,
             RequestStatus.COMPLETED,
             RequestStatus.REJECTED,
-            RequestStatus.EXPIRED
+            RequestStatus.EXPIRED,
         ]
 
         for status in required_statuses:
@@ -312,7 +321,7 @@ class TestDataRetention:
             DataCategory.LOCATION,
             DataCategory.SOCIAL,
             DataCategory.PROFESSIONAL,
-            DataCategory.EDUCATIONAL
+            DataCategory.EDUCATIONAL,
         ]
 
         for category in required_categories:
@@ -326,7 +335,7 @@ class TestDataRetention:
             ComplianceFramework.HIPAA,
             ComplianceFramework.CCPA,
             ComplianceFramework.PCI_DSS,
-            ComplianceFramework.ISO_27001
+            ComplianceFramework.ISO_27001,
         ]
 
         for framework in required_frameworks:
@@ -373,7 +382,7 @@ class TestComplianceIntegration:
             mock_consent_result,
             mock_dsr_result,
             mock_breach_result,
-            mock_overdue_result
+            mock_overdue_result,
         ]
 
         result = await service.get_compliance_dashboard()
@@ -397,7 +406,7 @@ class TestComplianceIntegration:
             AuditEventType.GDPR_DATA_PORTABILITY,
             AuditEventType.GDPR_PROCESSING_RESTRICTION,
             AuditEventType.GDPR_OBJECTION_PROCESSING,
-            AuditEventType.GDPR_BREACH_NOTIFICATION
+            AuditEventType.GDPR_BREACH_NOTIFICATION,
         ]
 
         for event in gdpr_events:
@@ -409,7 +418,7 @@ class TestComplianceIntegration:
             AuditEventType.SOC2_ACCESS_REVOKED,
             AuditEventType.SOC2_PRIVILEGE_ESCALATION,
             AuditEventType.SOC2_ADMIN_ACTION,
-            AuditEventType.SOC2_CONFIG_CHANGE
+            AuditEventType.SOC2_CONFIG_CHANGE,
         ]
 
         for event in soc2_events:
@@ -422,7 +431,7 @@ class TestComplianceIntegration:
             AuditEventType.HIPAA_PHI_DELETION,
             AuditEventType.HIPAA_BREACH_DETECTED,
             AuditEventType.HIPAA_AUDIT_ACCESS,
-            AuditEventType.HIPAA_EMERGENCY_ACCESS
+            AuditEventType.HIPAA_EMERGENCY_ACCESS,
         ]
 
         for event in hipaa_events:
@@ -483,7 +492,7 @@ class TestComplianceBusinessLogic:
             DataSubjectRequestType.ERASURE: "Article 17",
             DataSubjectRequestType.RESTRICTION: "Article 18",
             DataSubjectRequestType.PORTABILITY: "Article 20",
-            DataSubjectRequestType.OBJECTION: "Article 21"
+            DataSubjectRequestType.OBJECTION: "Article 21",
         }
 
         for right, article in rights_articles.items():
@@ -497,7 +506,7 @@ class TestComplianceBusinessLogic:
             AuditEventType.SOC2_ACCESS_REVOKED,
             AuditEventType.SOC2_PRIVILEGE_ESCALATION,
             AuditEventType.SOC2_ADMIN_ACTION,
-            AuditEventType.SOC2_CONFIG_CHANGE
+            AuditEventType.SOC2_CONFIG_CHANGE,
         ]
 
         for control in soc2_controls:
@@ -511,7 +520,7 @@ class TestComplianceBusinessLogic:
             AuditEventType.HIPAA_PHI_MODIFICATION,
             AuditEventType.HIPAA_PHI_DELETION,
             AuditEventType.HIPAA_BREACH_DETECTED,
-            AuditEventType.HIPAA_EMERGENCY_ACCESS
+            AuditEventType.HIPAA_EMERGENCY_ACCESS,
         ]
 
         for safeguard in hipaa_safeguards:
@@ -525,7 +534,7 @@ class TestComplianceBusinessLogic:
             DataCategory.FINANCIAL,
             DataCategory.HEALTH,
             DataCategory.BIOMETRIC,
-            DataCategory.LOCATION
+            DataCategory.LOCATION,
         ]
 
         for category in pii_categories:

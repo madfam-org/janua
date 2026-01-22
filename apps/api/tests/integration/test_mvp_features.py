@@ -67,15 +67,12 @@ class TestOrganizationMemberService:
             role="member",
             status="active",
             joined_at=datetime.utcnow(),
-            invited_by=invited_by
+            invited_by=invited_by,
         )
-        mock_db.refresh.side_effect = lambda x: setattr(x, '__dict__', mock_member.__dict__)
+        mock_db.refresh.side_effect = lambda x: setattr(x, "__dict__", mock_member.__dict__)
 
         await service.add_member(
-            organization_id=org_id,
-            user_id=user_id,
-            role="member",
-            invited_by=invited_by
+            organization_id=org_id, user_id=user_id, role="member", invited_by=invited_by
         )
 
         assert mock_db.add.called
@@ -92,10 +89,7 @@ class TestOrganizationMemberService:
 
         with pytest.raises(Exception) as exc_info:
             await service.add_member(
-                organization_id=uuid4(),
-                user_id=uuid4(),
-                role="member",
-                invited_by=uuid4()
+                organization_id=uuid4(), user_id=uuid4(), role="member", invited_by=uuid4()
             )
 
         assert "already a member" in str(exc_info.value)
@@ -120,15 +114,12 @@ class TestOrganizationMemberService:
             role="member",
             token="test_token_123",
             status="pending",
-            expires_at=datetime.utcnow() + timedelta(days=7)
+            expires_at=datetime.utcnow() + timedelta(days=7),
         )
-        mock_db.refresh.side_effect = lambda x: setattr(x, '__dict__', mock_invitation.__dict__)
+        mock_db.refresh.side_effect = lambda x: setattr(x, "__dict__", mock_invitation.__dict__)
 
         await service.create_invitation(
-            organization_id=org_id,
-            email=email,
-            role="member",
-            invited_by=invited_by
+            organization_id=org_id, email=email, role="member", invited_by=invited_by
         )
 
         assert mock_db.add.called
@@ -153,9 +144,7 @@ class TestRBACService:
 
         # Test admin has users:read permission
         has_permission = await service.check_permission(
-            user_id=mock_user.id,
-            organization_id=uuid4(),
-            permission="users:read"
+            user_id=mock_user.id, organization_id=uuid4(), permission="users:read"
         )
 
         assert has_permission is True
@@ -172,9 +161,7 @@ class TestRBACService:
 
         # Test super admin has any permission
         has_permission = await service.check_permission(
-            user_id=mock_user.id,
-            organization_id=uuid4(),
-            permission="anything:delete"
+            user_id=mock_user.id, organization_id=uuid4(), permission="anything:delete"
         )
 
         assert has_permission is True
@@ -207,16 +194,13 @@ class TestWebhookService:
 
         # Mock webhook endpoint
         mock_endpoint = Mock(
-            id=uuid4(),
-            url="https://example.com/webhook",
-            secret="webhook_secret",
-            is_active=True
+            id=uuid4(), url="https://example.com/webhook", secret="webhook_secret", is_active=True
         )
 
         mock_db.query().filter().first.return_value = mock_endpoint
 
         # Mock failed HTTP request
-        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
             mock_post.side_effect = Exception("Connection error")
 
             # Attempt delivery
@@ -226,7 +210,7 @@ class TestWebhookService:
                 endpoint_id=mock_endpoint.id,
                 event_type="user.created",
                 payload=event_data,
-                organization_id=uuid4()
+                organization_id=uuid4(),
             )
 
             # Should create retry entry
@@ -252,11 +236,8 @@ class TestAuditLogger:
             action=AuditAction.USER_LOGIN,
             user_id=user_id,
             organization_id=org_id,
-            details={
-                "ip_address": "192.168.1.1",
-                "user_agent": "Mozilla/5.0"
-            },
-            severity="info"
+            details={"ip_address": "192.168.1.1", "user_agent": "Mozilla/5.0"},
+            severity="info",
         )
 
         # Verify log was created
@@ -277,15 +258,12 @@ class TestAuditLogger:
             event_type="SUSPICIOUS_LOGIN",
             user_id=uuid4(),
             organization_id=uuid4(),
-            details={
-                "reason": "Multiple failed attempts",
-                "ip_address": "10.0.0.1"
-            }
+            details={"reason": "Multiple failed attempts", "ip_address": "10.0.0.1"},
         )
 
         # Should be logged with high severity
         call_args = mock_db.add.call_args[0][0]
-        assert hasattr(call_args, 'severity')
+        assert hasattr(call_args, "severity")
 
 
 class TestJWTManager:
@@ -298,10 +276,7 @@ class TestJWTManager:
         user_id = str(uuid4())
         email = "user@example.com"
 
-        token, jti, expires_at = manager.create_access_token(
-            user_id=user_id,
-            email=email
-        )
+        token, jti, expires_at = manager.create_access_token(user_id=user_id, email=email)
 
         assert token is not None
         assert jti is not None
@@ -314,16 +289,13 @@ class TestJWTManager:
         user_id = str(uuid4())
 
         # Create initial refresh token
-        token1, jti1, family, expires_at1 = manager.create_refresh_token(
-            user_id=user_id
-        )
+        token1, jti1, family, expires_at1 = manager.create_refresh_token(user_id=user_id)
 
         assert family is not None
 
         # Create rotated token with same family
         token2, jti2, family2, expires_at2 = manager.create_refresh_token(
-            user_id=user_id,
-            family=family
+            user_id=user_id, family=family
         )
 
         assert family2 == family  # Same family
@@ -368,7 +340,7 @@ class TestIntegrationScenarios:
             token="invite_token_123",
             status="pending",
             expires_at=datetime.utcnow() + timedelta(days=7),
-            invited_by=invited_by
+            invited_by=invited_by,
         )
 
         # Step 2: Accept invitation (becomes member)
@@ -381,9 +353,7 @@ class TestIntegrationScenarios:
         mock_db.query(OrganizationMember).filter().first.return_value = mock_member
 
         has_permission = await rbac_service.check_permission(
-            user_id=new_user_id,
-            organization_id=org_id,
-            permission="org:read"
+            user_id=new_user_id, organization_id=org_id, permission="org:read"
         )
 
         assert has_permission is True
@@ -404,15 +374,11 @@ class TestIntegrationScenarios:
             action=AuditAction.WEBHOOK_CREATED,
             user_id=uuid4(),
             organization_id=org_id,
-            details={"endpoint_id": str(endpoint_id)}
+            details={"endpoint_id": str(endpoint_id)},
         )
 
         # Attempt webhook delivery
-        mock_endpoint = Mock(
-            id=endpoint_id,
-            url="https://example.com/webhook",
-            is_active=True
-        )
+        mock_endpoint = Mock(id=endpoint_id, url="https://example.com/webhook", is_active=True)
         mock_db.query().filter().first.return_value = mock_endpoint
 
         # Verify both services interact correctly

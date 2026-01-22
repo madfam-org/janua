@@ -11,6 +11,7 @@ try:
     from app.config import settings
 except Exception as e:
     import logging
+
     logging.getLogger(__name__).error("Failed to import settings: %s", e)
     raise
 
@@ -22,7 +23,7 @@ convention = {
     "uq": "uq_%(table_name)s_%(column_0_name)s",
     "ck": "ck_%(table_name)s_%(constraint_name)s",
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-    "pk": "pk_%(table_name)s"
+    "pk": "pk_%(table_name)s",
 }
 
 metadata = MetaData(naming_convention=convention)
@@ -32,55 +33,55 @@ Base = declarative_base(metadata=metadata)
 def create_ssl_context() -> Optional[ssl.SSLContext]:
     """
     Create SSL context for PostgreSQL connection based on settings.
-    
+
     Returns:
         SSL context if SSL is enabled, None if disabled.
     """
-    ssl_mode = getattr(settings, 'DATABASE_SSL_MODE', 'prefer')
-    
+    ssl_mode = getattr(settings, "DATABASE_SSL_MODE", "prefer")
+
     # Disable SSL entirely
-    if ssl_mode == 'disable':
+    if ssl_mode == "disable":
         return None
-    
+
     # For 'allow' and 'prefer', we attempt SSL but don't require verification
-    if ssl_mode in ('allow', 'prefer'):
+    if ssl_mode in ("allow", "prefer"):
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         return ctx
-    
+
     # For 'require', we need SSL but don't verify certificate
-    if ssl_mode == 'require':
+    if ssl_mode == "require":
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         return ctx
-    
+
     # For 'verify-ca' and 'verify-full', we need proper certificates
-    if ssl_mode in ('verify-ca', 'verify-full'):
+    if ssl_mode in ("verify-ca", "verify-full"):
         ctx = ssl.create_default_context()
-        
+
         # Load CA certificate if provided
-        ca_file = getattr(settings, 'DATABASE_SSL_CA_FILE', None)
+        ca_file = getattr(settings, "DATABASE_SSL_CA_FILE", None)
         if ca_file and os.path.exists(ca_file):
             ctx.load_verify_locations(cafile=ca_file)
-        
+
         # Load client certificate if provided (for mutual TLS)
-        cert_file = getattr(settings, 'DATABASE_SSL_CERT_FILE', None)
-        key_file = getattr(settings, 'DATABASE_SSL_KEY_FILE', None)
+        cert_file = getattr(settings, "DATABASE_SSL_CERT_FILE", None)
+        key_file = getattr(settings, "DATABASE_SSL_KEY_FILE", None)
         if cert_file and key_file and os.path.exists(cert_file) and os.path.exists(key_file):
             ctx.load_cert_chain(certfile=cert_file, keyfile=key_file)
-        
+
         # Configure verification mode
-        if ssl_mode == 'verify-full':
+        if ssl_mode == "verify-full":
             ctx.check_hostname = True
             ctx.verify_mode = ssl.CERT_REQUIRED
         else:  # verify-ca
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_REQUIRED
-        
+
         return ctx
-    
+
     # Default: prefer (try SSL without verification)
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
@@ -92,38 +93,34 @@ def create_ssl_context() -> Optional[ssl.SSLContext]:
 try:
     if not settings.DATABASE_URL:
         raise ValueError("DATABASE_URL is not configured")
-    
+
     # Auto-fix Railway PostgreSQL URL format for SQLAlchemy async
-    if settings.DATABASE_URL.startswith('postgresql://'):
-        database_url = settings.DATABASE_URL.replace('postgresql://', 'postgresql+asyncpg://')
+    if settings.DATABASE_URL.startswith("postgresql://"):
+        database_url = settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
     else:
         database_url = settings.DATABASE_URL
-    
+
     # Configure engine based on database type
-    if database_url.startswith('sqlite'):
+    if database_url.startswith("sqlite"):
         # SQLite doesn't support connection pooling
-        engine = create_async_engine(
-            database_url,
-            echo=settings.DEBUG,
-            pool_pre_ping=True
-        )
+        engine = create_async_engine(database_url, echo=settings.DEBUG, pool_pre_ping=True)
     else:
         # PostgreSQL with connection pooling and optional SSL
         ssl_context = create_ssl_context()
-        ssl_mode = getattr(settings, 'DATABASE_SSL_MODE', 'prefer')
-        
+        ssl_mode = getattr(settings, "DATABASE_SSL_MODE", "prefer")
+
         # Build connect_args for asyncpg
         connect_args = {}
-        if ssl_context and ssl_mode != 'disable':
-            connect_args['ssl'] = ssl_context
+        if ssl_context and ssl_mode != "disable":
+            connect_args["ssl"] = ssl_context
             logger.info(
                 "Database SSL enabled",
                 ssl_mode=ssl_mode,
-                ca_file=getattr(settings, 'DATABASE_SSL_CA_FILE', None),
+                ca_file=getattr(settings, "DATABASE_SSL_CA_FILE", None),
             )
         else:
             logger.info("Database SSL disabled")
-        
+
         engine = create_async_engine(
             database_url,
             echo=settings.DEBUG,
@@ -133,20 +130,17 @@ try:
             pool_pre_ping=True,
             connect_args=connect_args,
         )
-    
+
     # Create async session maker
     AsyncSessionLocal = async_sessionmaker(
-        engine,
-        class_=AsyncSession,
-        expire_on_commit=False,
-        autocommit=False,
-        autoflush=False
+        engine, class_=AsyncSession, expire_on_commit=False, autocommit=False, autoflush=False
     )
 except Exception as e:
     import logging
+
     _db_logger = logging.getLogger(__name__)
     _db_logger.error("Failed to create database engine: %s", e)
-    _db_logger.error("DATABASE_URL: %s", getattr(settings, 'DATABASE_URL', 'NOT SET'))
+    _db_logger.error("DATABASE_URL: %s", getattr(settings, "DATABASE_URL", "NOT SET"))
     raise
 
 
@@ -250,9 +244,7 @@ async def bootstrap_admin_user():
 
         async with db_manager.get_session() as session:
             # Check if admin already exists
-            result = await session.execute(
-                select(User).where(User.email == admin_email)
-            )
+            result = await session.execute(select(User).where(User.email == admin_email))
             existing_admin = result.scalar_one_or_none()
 
             if existing_admin:

@@ -10,10 +10,11 @@ import pytest
 from httpx import AsyncClient
 from app.main import app
 
+
 @pytest.mark.asyncio
 class TestAuthFlow:
     """Test complete authentication flow"""
-    
+
     @pytest.mark.asyncio
     async def test_health_check(self):
         """Test health endpoint"""

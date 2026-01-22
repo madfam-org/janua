@@ -343,12 +343,14 @@ class AuthService:
 
             # Count active sessions for this user
             result = await db.execute(
-                select(Session).where(
+                select(Session)
+                .where(
                     and_(
                         Session.user_id == user.id,
                         Session.revoked == False,
                     )
-                ).order_by(Session.created_at.asc())
+                )
+                .order_by(Session.created_at.asc())
             )
             existing_sessions = result.scalars().all()
 
@@ -461,7 +463,11 @@ class AuthService:
 
             return payload
 
-        except (jwt.exceptions.DecodeError, jwt.exceptions.ExpiredSignatureError, InvalidTokenError) as e:
+        except (
+            jwt.exceptions.DecodeError,
+            jwt.exceptions.ExpiredSignatureError,
+            InvalidTokenError,
+        ) as e:
             logger.warning("Token verification failed", error=str(e))
             return None
 

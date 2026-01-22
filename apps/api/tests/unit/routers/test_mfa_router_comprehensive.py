@@ -19,6 +19,7 @@ class TestMFARouterConfiguration:
     def test_mfa_router_creation(self):
         """Test that MFA router is properly initialized"""
         from app.routers.v1.mfa import router
+
         assert router is not None
         assert router.prefix == "/mfa"
         assert "mfa" in router.tags
@@ -26,9 +27,13 @@ class TestMFARouterConfiguration:
     def test_mfa_models_import(self):
         """Test MFA request/response models are properly defined"""
         from app.routers.v1.mfa import (
-            MFAEnableRequest, MFAEnableResponse, MFAVerifyRequest,
-            MFADisableRequest, MFAStatusResponse
+            MFAEnableRequest,
+            MFAEnableResponse,
+            MFAVerifyRequest,
+            MFADisableRequest,
+            MFAStatusResponse,
         )
+
         assert MFAEnableRequest is not None
         assert MFAEnableResponse is not None
         assert MFAVerifyRequest is not None
@@ -48,8 +53,8 @@ class TestMFAStatusEndpoint:
         response = self.client.get("/api/v1/mfa/status")
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_mfa_status_not_enabled(self, mock_get_db, mock_get_current_user):
         """Test MFA status when not enabled"""
         # Mock current user
@@ -64,15 +69,14 @@ class TestMFAStatusEndpoint:
         mock_get_db.return_value = mock_db
 
         response = self.client.get(
-            "/api/v1/mfa/status",
-            headers={"Authorization": "Bearer valid_token"}
+            "/api/v1/mfa/status", headers={"Authorization": "Bearer valid_token"}
         )
 
         # Should work with proper mocking
         assert 200 <= response.status_code < 600  # 500 if dependencies fail
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_mfa_status_enabled(self, mock_get_db, mock_get_current_user):
         """Test MFA status when enabled"""
         # Mock current user with MFA enabled
@@ -87,8 +91,7 @@ class TestMFAStatusEndpoint:
         mock_get_db.return_value = mock_db
 
         response = self.client.get(
-            "/api/v1/mfa/status",
-            headers={"Authorization": "Bearer valid_token"}
+            "/api/v1/mfa/status", headers={"Authorization": "Bearer valid_token"}
         )
 
         # Should work with proper mocking
@@ -113,8 +116,8 @@ class TestMFAEnableEndpoint:
         response = self.client.post("/api/v1/mfa/enable", json={})
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_mfa_enable_already_enabled(self, mock_get_db, mock_get_current_user):
         """Test MFA enable when already enabled"""
         # Mock current user with MFA already enabled
@@ -130,7 +133,7 @@ class TestMFAEnableEndpoint:
         response = self.client.post(
             "/api/v1/mfa/enable",
             json={"password": "correct_password"},
-            headers={"Authorization": "Bearer valid_token"}
+            headers={"Authorization": "Bearer valid_token"},
         )
 
         # Should return error that MFA is already enabled
@@ -162,8 +165,8 @@ class TestMFAVerifyEndpoint:
         response = self.client.post("/api/v1/mfa/verify", json={"code": "1234567"})  # Too long
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_mfa_verify_not_enabled(self, mock_get_db, mock_get_current_user):
         """Test MFA verify when not enabled"""
         # Mock current user without MFA
@@ -179,7 +182,7 @@ class TestMFAVerifyEndpoint:
         response = self.client.post(
             "/api/v1/mfa/verify",
             json={"code": "123456"},
-            headers={"Authorization": "Bearer valid_token"}
+            headers={"Authorization": "Bearer valid_token"},
         )
 
         # Should return error that MFA is not enabled
@@ -204,8 +207,8 @@ class TestMFADisableEndpoint:
         response = self.client.post("/api/v1/mfa/disable", json={})
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_mfa_disable_not_enabled(self, mock_get_db, mock_get_current_user):
         """Test MFA disable when not enabled"""
         # Mock current user without MFA
@@ -221,7 +224,7 @@ class TestMFADisableEndpoint:
         response = self.client.post(
             "/api/v1/mfa/disable",
             json={"password": "correct_password"},
-            headers={"Authorization": "Bearer valid_token"}
+            headers={"Authorization": "Bearer valid_token"},
         )
 
         # Should return error that MFA is not enabled
@@ -240,8 +243,8 @@ class TestMFABackupCodesEndpoint:
         response = self.client.post("/api/v1/mfa/regenerate-backup-codes")
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_regenerate_backup_codes_mfa_disabled(self, mock_get_db, mock_get_current_user):
         """Test regenerate backup codes when MFA is disabled"""
         # Mock current user without MFA
@@ -255,8 +258,7 @@ class TestMFABackupCodesEndpoint:
         mock_get_db.return_value = mock_db
 
         response = self.client.post(
-            "/api/v1/mfa/regenerate-backup-codes",
-            headers={"Authorization": "Bearer valid_token"}
+            "/api/v1/mfa/regenerate-backup-codes", headers={"Authorization": "Bearer valid_token"}
         )
 
         # Should return error that MFA is not enabled
@@ -282,7 +284,9 @@ class TestMFAValidateCodeEndpoint:
         assert 200 <= response.status_code < 600
 
         # Test invalid code format
-        response = self.client.post("/api/v1/mfa/validate-code", json={"code": "12345"})  # Too short
+        response = self.client.post(
+            "/api/v1/mfa/validate-code", json={"code": "12345"}
+        )  # Too short
         assert 200 <= response.status_code < 600
 
 
@@ -303,8 +307,8 @@ class TestMFARecoveryEndpoints:
         response = self.client.post("/api/v1/mfa/initiate-recovery")
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_recovery_options_success(self, mock_get_db, mock_get_current_user):
         """Test recovery options retrieval"""
         # Mock current user with MFA enabled
@@ -318,8 +322,7 @@ class TestMFARecoveryEndpoints:
         mock_get_db.return_value = mock_db
 
         response = self.client.get(
-            "/api/v1/mfa/recovery-options",
-            headers={"Authorization": "Bearer valid_token"}
+            "/api/v1/mfa/recovery-options", headers={"Authorization": "Bearer valid_token"}
         )
 
         # Should work with proper mocking
@@ -340,8 +343,8 @@ class TestMFASupportedMethodsEndpoint:
         # This endpoint might be public or require auth - check both cases
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_supported_methods_with_auth(self, mock_get_db, mock_get_current_user):
         """Test supported methods endpoint with authentication"""
         # Mock current user
@@ -354,8 +357,7 @@ class TestMFASupportedMethodsEndpoint:
         mock_get_db.return_value = mock_db
 
         response = self.client.get(
-            "/api/v1/mfa/supported-methods",
-            headers={"Authorization": "Bearer valid_token"}
+            "/api/v1/mfa/supported-methods", headers={"Authorization": "Bearer valid_token"}
         )
 
         assert 200 <= response.status_code < 600
@@ -416,6 +418,7 @@ class TestTOTPLibraryIntegration:
     def test_pyotp_import(self):
         """Test that pyotp library is available"""
         import pyotp
+
         assert pyotp is not None
 
     def test_totp_secret_generation(self):
@@ -468,10 +471,7 @@ class TestTOTPLibraryIntegration:
 
         # Create provisioning URI
         totp = pyotp.TOTP(secret)
-        provisioning_uri = totp.provisioning_uri(
-            name=email,
-            issuer_name=issuer
-        )
+        provisioning_uri = totp.provisioning_uri(name=email, issuer_name=issuer)
 
         assert "otpauth://totp/" in provisioning_uri
         assert email in provisioning_uri
@@ -487,7 +487,7 @@ class TestTOTPLibraryIntegration:
 
         # Convert to base64
         buffer = io.BytesIO()
-        img.save(buffer, format='PNG')
+        img.save(buffer, format="PNG")
         buffer.seek(0)
 
         qr_code_base64 = base64.b64encode(buffer.getvalue()).decode()
@@ -508,8 +508,9 @@ class TestMFABackupCodeGeneration:
             codes = []
             for _ in range(count):
                 # Generate 8-character alphanumeric backup code
-                code = ''.join(secrets.choice(string.ascii_uppercase + string.digits)
-                              for _ in range(8))
+                code = "".join(
+                    secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8)
+                )
                 codes.append(code)
             return codes
 
@@ -532,16 +533,18 @@ class TestMFABackupCodeGeneration:
         # Test backup code with formatting
         def generate_formatted_backup_code():
             # Generate 8-character code with dash formatting: XXXX-XXXX
-            part1 = ''.join(secrets.choice(string.ascii_uppercase + string.digits)
-                           for _ in range(4))
-            part2 = ''.join(secrets.choice(string.ascii_uppercase + string.digits)
-                           for _ in range(4))
+            part1 = "".join(
+                secrets.choice(string.ascii_uppercase + string.digits) for _ in range(4)
+            )
+            part2 = "".join(
+                secrets.choice(string.ascii_uppercase + string.digits) for _ in range(4)
+            )
             return f"{part1}-{part2}"
 
         code = generate_formatted_backup_code()
         assert len(code) == 9  # 4 + 1 + 4
-        assert '-' in code
-        parts = code.split('-')
+        assert "-" in code
+        parts = code.split("-")
         assert len(parts) == 2
         assert len(parts[0]) == 4
         assert len(parts[1]) == 4
@@ -554,12 +557,14 @@ class TestMFASecurityFeatures:
         """Test that MFA endpoints can have rate limiting"""
         # This tests the structure, actual rate limiting would need Redis
         from app.routers.v1.mfa import router
+
         assert router is not None
         # Rate limiting would be applied via decorators in the actual implementation
 
     def test_activity_logging_integration(self):
         """Test MFA activity logging integration"""
         from app.routers.v1.mfa import router
+
         # Check that the router has access to activity logging models
         assert router is not None
 
@@ -567,6 +572,7 @@ class TestMFASecurityFeatures:
         """Test MFA integration with user sessions"""
         # Test that MFA endpoints integrate with user authentication
         from app.routers.v1.mfa import get_current_user
+
         assert get_current_user is not None
 
 
@@ -580,9 +586,7 @@ class TestMFAErrorHandling:
     def test_malformed_json_request(self):
         """Test handling of malformed JSON requests"""
         response = self.client.post(
-            "/api/v1/mfa/enable",
-            data="invalid json",
-            headers={"Content-Type": "application/json"}
+            "/api/v1/mfa/enable", data="invalid json", headers={"Content-Type": "application/json"}
         )
         assert 200 <= response.status_code < 600
 

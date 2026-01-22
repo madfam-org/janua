@@ -33,21 +33,25 @@ class OrganizationMemberService:
         user_id: UUID,
         role: str,
         invited_by: UUID,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
     ) -> OrganizationMember:
         """Add a new member to organization"""
         # Check if already member
-        existing = self.db.query(OrganizationMember).filter(
-            and_(
-                OrganizationMember.organization_id == organization_id,
-                OrganizationMember.user_id == user_id
+        existing = (
+            self.db.query(OrganizationMember)
+            .filter(
+                and_(
+                    OrganizationMember.organization_id == organization_id,
+                    OrganizationMember.user_id == user_id,
+                )
             )
-        ).first()
+            .first()
+        )
 
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="User is already a member of this organization"
+                detail="User is already a member of this organization",
             )
 
         # Create member
@@ -56,10 +60,10 @@ class OrganizationMemberService:
             organization_id=organization_id,
             user_id=user_id,
             role=role,
-            status='active',
+            status="active",
             joined_at=datetime.utcnow(),
             invited_by=invited_by,
-            metadata=metadata or {}
+            metadata=metadata or {},
         )
 
         self.db.add(member)
@@ -70,56 +74,56 @@ class OrganizationMemberService:
         await self.redis.delete(f"org_members:{organization_id}")
 
         # Emit event
-        await self.events.emit('member:added', member)
+        await self.events.emit("member:added", member)
 
         return member
 
-    async def remove_member(
-        self,
-        organization_id: UUID,
-        user_id: UUID,
-        removed_by: UUID
-    ) -> None:
+    async def remove_member(self, organization_id: UUID, user_id: UUID, removed_by: UUID) -> None:
         """Remove member from organization"""
-        member = self.db.query(OrganizationMember).filter(
-            and_(
-                OrganizationMember.organization_id == organization_id,
-                OrganizationMember.user_id == user_id
-            )
-        ).first()
-
-        if not member:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Member not found"
-            )
-
-        # Prevent removing last owner
-        if member.role == 'owner':
-            owner_count = self.db.query(OrganizationMember).filter(
+        member = (
+            self.db.query(OrganizationMember)
+            .filter(
                 and_(
                     OrganizationMember.organization_id == organization_id,
-                    OrganizationMember.role == 'owner',
-                    OrganizationMember.status == 'active'
+                    OrganizationMember.user_id == user_id,
                 )
-            ).count()
+            )
+            .first()
+        )
+
+        if not member:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+
+        # Prevent removing last owner
+        if member.role == "owner":
+            owner_count = (
+                self.db.query(OrganizationMember)
+                .filter(
+                    and_(
+                        OrganizationMember.organization_id == organization_id,
+                        OrganizationMember.role == "owner",
+                        OrganizationMember.status == "active",
+                    )
+                )
+                .count()
+            )
 
             if owner_count <= 1:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot remove the last owner of the organization"
+                    detail="Cannot remove the last owner of the organization",
                 )
 
         # Soft delete
-        member.status = 'removed'
+        member.status = "removed"
         member.removed_at = datetime.utcnow()
         member.removed_by = removed_by
 
         if not member.metadata:
             member.metadata = {}
-        member.metadata['removal'] = {
-            'removed_by': str(removed_by),
-            'removed_at': datetime.utcnow().isoformat()
+        member.metadata["removal"] = {
+            "removed_by": str(removed_by),
+            "removed_at": datetime.utcnow().isoformat(),
         }
 
         self.db.commit()
@@ -128,46 +132,48 @@ class OrganizationMemberService:
         await self.redis.delete(f"org_members:{organization_id}")
 
         # Emit event
-        await self.events.emit('member:removed', member)
+        await self.events.emit("member:removed", member)
 
     async def update_member_role(
-        self,
-        organization_id: UUID,
-        user_id: UUID,
-        new_role: str,
-        updated_by: UUID
+        self, organization_id: UUID, user_id: UUID, new_role: str, updated_by: UUID
     ) -> OrganizationMember:
         """Update member's role"""
-        member = self.db.query(OrganizationMember).filter(
-            and_(
-                OrganizationMember.organization_id == organization_id,
-                OrganizationMember.user_id == user_id,
-                OrganizationMember.status == 'active'
+        member = (
+            self.db.query(OrganizationMember)
+            .filter(
+                and_(
+                    OrganizationMember.organization_id == organization_id,
+                    OrganizationMember.user_id == user_id,
+                    OrganizationMember.status == "active",
+                )
             )
-        ).first()
+            .first()
+        )
 
         if not member:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Active member not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Active member not found"
             )
 
         old_role = member.role
 
         # Prevent demoting last owner
-        if old_role == 'owner' and new_role != 'owner':
-            owner_count = self.db.query(OrganizationMember).filter(
-                and_(
-                    OrganizationMember.organization_id == organization_id,
-                    OrganizationMember.role == 'owner',
-                    OrganizationMember.status == 'active'
+        if old_role == "owner" and new_role != "owner":
+            owner_count = (
+                self.db.query(OrganizationMember)
+                .filter(
+                    and_(
+                        OrganizationMember.organization_id == organization_id,
+                        OrganizationMember.role == "owner",
+                        OrganizationMember.status == "active",
+                    )
                 )
-            ).count()
+                .count()
+            )
 
             if owner_count <= 1:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot demote the last owner"
+                    status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot demote the last owner"
                 )
 
         # Update role
@@ -176,11 +182,11 @@ class OrganizationMemberService:
 
         if not member.metadata:
             member.metadata = {}
-        member.metadata['last_role_change'] = {
-            'from': old_role,
-            'to': new_role,
-            'updated_by': str(updated_by),
-            'updated_at': datetime.utcnow().isoformat()
+        member.metadata["last_role_change"] = {
+            "from": old_role,
+            "to": new_role,
+            "updated_by": str(updated_by),
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         self.db.commit()
@@ -191,11 +197,9 @@ class OrganizationMemberService:
         await self.redis.delete(f"member_perms:{user_id}:{organization_id}")
 
         # Emit event
-        await self.events.emit('member:role_updated', {
-            'member': member,
-            'old_role': old_role,
-            'new_role': new_role
-        })
+        await self.events.emit(
+            "member:role_updated", {"member": member, "old_role": old_role, "new_role": new_role}
+        )
 
         return member
 
@@ -205,22 +209,26 @@ class OrganizationMemberService:
         email: str,
         role: str,
         invited_by: UUID,
-        expires_in_days: int = 7
+        expires_in_days: int = 7,
     ) -> OrganizationInvitation:
         """Create invitation for new member"""
         # Check for existing pending invitation
-        existing = self.db.query(OrganizationInvitation).filter(
-            and_(
-                OrganizationInvitation.organization_id == organization_id,
-                OrganizationInvitation.email == email,
-                OrganizationInvitation.status == 'pending'
+        existing = (
+            self.db.query(OrganizationInvitation)
+            .filter(
+                and_(
+                    OrganizationInvitation.organization_id == organization_id,
+                    OrganizationInvitation.email == email,
+                    OrganizationInvitation.status == "pending",
+                )
             )
-        ).first()
+            .first()
+        )
 
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="An invitation already exists for this email"
+                detail="An invitation already exists for this email",
             )
 
         # Generate secure token
@@ -233,10 +241,10 @@ class OrganizationMemberService:
             email=email,
             role=role,
             token=token,
-            status='pending',
+            status="pending",
             expires_at=datetime.utcnow() + timedelta(days=expires_in_days),
             invited_by=invited_by,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
 
         self.db.add(invitation)
@@ -246,58 +254,55 @@ class OrganizationMemberService:
         # Cache invitation
         await self.redis.set(
             f"invitation:{token}",
-            json.dumps({
-                'id': str(invitation.id),
-                'organization_id': str(invitation.organization_id),
-                'email': invitation.email,
-                'role': invitation.role,
-                'expires_at': invitation.expires_at.isoformat()
-            }),
-            ex=expires_in_days * 86400
+            json.dumps(
+                {
+                    "id": str(invitation.id),
+                    "organization_id": str(invitation.organization_id),
+                    "email": invitation.email,
+                    "role": invitation.role,
+                    "expires_at": invitation.expires_at.isoformat(),
+                }
+            ),
+            ex=expires_in_days * 86400,
         )
 
         # Emit event
-        await self.events.emit('invitation:created', invitation)
+        await self.events.emit("invitation:created", invitation)
 
         return invitation
 
-    async def accept_invitation(
-        self,
-        token: str,
-        user_id: UUID
-    ) -> OrganizationMember:
+    async def accept_invitation(self, token: str, user_id: UUID) -> OrganizationMember:
         """Accept invitation and become member"""
         # Check cache first
         cached = await self.redis.get(f"invitation:{token}")
 
         if cached:
             invitation_data = json.loads(cached)
-            invitation = self.db.query(OrganizationInvitation).filter(
-                OrganizationInvitation.id == UUID(invitation_data['id'])
-            ).first()
+            invitation = (
+                self.db.query(OrganizationInvitation)
+                .filter(OrganizationInvitation.id == UUID(invitation_data["id"]))
+                .first()
+            )
         else:
-            invitation = self.db.query(OrganizationInvitation).filter(
-                OrganizationInvitation.token == token
-            ).first()
+            invitation = (
+                self.db.query(OrganizationInvitation)
+                .filter(OrganizationInvitation.token == token)
+                .first()
+            )
 
         if not invitation:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Invalid or expired invitation"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Invalid or expired invitation"
             )
 
         # Check expiration
         if invitation.expires_at < datetime.utcnow():
-            raise HTTPException(
-                status_code=status.HTTP_410_GONE,
-                detail="Invitation has expired"
-            )
+            raise HTTPException(status_code=status.HTTP_410_GONE, detail="Invitation has expired")
 
         # Check if already used
-        if invitation.status != 'pending':
+        if invitation.status != "pending":
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invitation has already been used"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invitation has already been used"
             )
 
         # Create member in transaction
@@ -308,16 +313,16 @@ class OrganizationMemberService:
                 organization_id=invitation.organization_id,
                 user_id=user_id,
                 role=invitation.role,
-                status='active',
+                status="active",
                 joined_at=datetime.utcnow(),
                 invited_by=invitation.invited_by,
-                metadata={'invitation_id': str(invitation.id)}
+                metadata={"invitation_id": str(invitation.id)},
             )
 
             self.db.add(member)
 
             # Update invitation
-            invitation.status = 'accepted'
+            invitation.status = "accepted"
             invitation.accepted_at = datetime.utcnow()
             invitation.accepted_by = user_id
 
@@ -329,8 +334,8 @@ class OrganizationMemberService:
             await self.redis.delete(f"org_members:{invitation.organization_id}")
 
             # Emit events
-            await self.events.emit('invitation:accepted', invitation)
-            await self.events.emit('member:added', member)
+            await self.events.emit("invitation:accepted", invitation)
+            await self.events.emit("member:added", member)
 
             return member
 
@@ -338,13 +343,11 @@ class OrganizationMemberService:
             self.db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to accept invitation: {str(e)}"
+                detail=f"Failed to accept invitation: {str(e)}",
             )
 
     async def get_members(
-        self,
-        organization_id: UUID,
-        include_removed: bool = False
+        self, organization_id: UUID, include_removed: bool = False
     ) -> List[OrganizationMember]:
         """Get organization members"""
         # Check cache
@@ -360,34 +363,23 @@ class OrganizationMemberService:
         )
 
         if not include_removed:
-            query = query.filter(OrganizationMember.status == 'active')
+            query = query.filter(OrganizationMember.status == "active")
 
         members = query.all()
 
         # Cache result
         await self.redis.set(
-            cache_key,
-            json.dumps([m.dict() for m in members]),
-            ex=300  # 5 minutes
+            cache_key, json.dumps([m.dict() for m in members]), ex=300  # 5 minutes
         )
 
         return members
 
     async def has_permission(
-        self,
-        user_id: UUID,
-        organization_id: UUID,
-        required_role: str
+        self, user_id: UUID, organization_id: UUID, required_role: str
     ) -> bool:
         """Check if user has required role or higher"""
         # Role hierarchy
-        role_hierarchy = {
-            'viewer': 0,
-            'member': 1,
-            'admin': 2,
-            'owner': 3,
-            'super_admin': 4
-        }
+        role_hierarchy = {"viewer": 0, "member": 1, "admin": 2, "owner": 3, "super_admin": 4}
 
         # Check cache
         cache_key = f"member_perms:{user_id}:{organization_id}"
@@ -396,13 +388,17 @@ class OrganizationMemberService:
         if cached:
             member_role = cached
         else:
-            member = self.db.query(OrganizationMember).filter(
-                and_(
-                    OrganizationMember.organization_id == organization_id,
-                    OrganizationMember.user_id == user_id,
-                    OrganizationMember.status == 'active'
+            member = (
+                self.db.query(OrganizationMember)
+                .filter(
+                    and_(
+                        OrganizationMember.organization_id == organization_id,
+                        OrganizationMember.user_id == user_id,
+                        OrganizationMember.status == "active",
+                    )
                 )
-            ).first()
+                .first()
+            )
 
             if not member:
                 return False

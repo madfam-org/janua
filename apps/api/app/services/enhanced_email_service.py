@@ -64,10 +64,7 @@ class EnhancedEmailService:
     def __init__(self, redis_client: Optional[redis.Redis] = None):
         self.redis_client = redis_client
         self.template_dir = Path(__file__).parent.parent / "templates" / "email"
-        self.jinja_env = Environment(
-            loader=FileSystemLoader(self.template_dir),
-            autoescape=True
-        )
+        self.jinja_env = Environment(loader=FileSystemLoader(self.template_dir), autoescape=True)
 
         # Email provider configuration with priority order
         self.providers = self._configure_providers()
@@ -82,7 +79,7 @@ class EnhancedEmailService:
             providers.append(EmailProvider.SENDGRID)
 
         # Secondary provider: AWS SES (if configured)
-        if hasattr(settings, 'AWS_SES_REGION') and settings.AWS_SES_REGION:
+        if hasattr(settings, "AWS_SES_REGION") and settings.AWS_SES_REGION:
             providers.append(EmailProvider.AWS_SES)
 
         # Fallback provider: SMTP (if configured)
@@ -102,7 +99,7 @@ class EnhancedEmailService:
         text_content: Optional[str] = None,
         priority: EmailPriority = EmailPriority.NORMAL,
         track_delivery: bool = True,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> EmailDeliveryStatus:
         """Send email with automatic failover between providers"""
 
@@ -113,7 +110,7 @@ class EnhancedEmailService:
                 status="disabled",
                 provider=EmailProvider.CONSOLE,
                 timestamp=datetime.utcnow(),
-                error_message="Email service disabled"
+                error_message="Email service disabled",
             )
 
         # Generate unique message ID for tracking
@@ -130,7 +127,7 @@ class EnhancedEmailService:
                     html_content=html_content,
                     text_content=text_content,
                     message_id=message_id,
-                    metadata=metadata
+                    metadata=metadata,
                 )
 
                 if success:
@@ -139,15 +136,18 @@ class EnhancedEmailService:
                         status="sent",
                         provider=provider,
                         timestamp=datetime.utcnow(),
-                        metadata=metadata
+                        metadata=metadata,
                     )
 
                     # Track delivery if enabled
                     if track_delivery:
                         await self._track_delivery(delivery_status)
 
-                    logger.info(f"Email sent successfully via {provider.value}",
-                              message_id=message_id, to_email=to_email)
+                    logger.info(
+                        f"Email sent successfully via {provider.value}",
+                        message_id=message_id,
+                        to_email=to_email,
+                    )
                     return delivery_status
 
             except Exception as e:
@@ -162,14 +162,18 @@ class EnhancedEmailService:
             provider=self.providers[-1] if self.providers else EmailProvider.CONSOLE,
             timestamp=datetime.utcnow(),
             error_message=f"All providers failed. Last error: {last_error}",
-            metadata=metadata
+            metadata=metadata,
         )
 
         if track_delivery:
             await self._track_delivery(delivery_status)
 
-        logger.error(f"Failed to send email after trying all providers",
-                    message_id=message_id, to_email=to_email, error=last_error)
+        logger.error(
+            f"Failed to send email after trying all providers",
+            message_id=message_id,
+            to_email=to_email,
+            error=last_error,
+        )
         return delivery_status
 
     async def _send_with_provider(
@@ -180,7 +184,7 @@ class EnhancedEmailService:
         html_content: str,
         text_content: Optional[str],
         message_id: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Send email using specific provider"""
 
@@ -210,22 +214,21 @@ class EnhancedEmailService:
         html_content: str,
         text_content: Optional[str],
         message_id: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Send email using SendGrid API"""
         try:
             sg = SendGridAPIClient(api_key=settings.SENDGRID_API_KEY)
 
-            from_email = Email(settings.FROM_EMAIL or settings.EMAIL_FROM_ADDRESS,
-                             settings.FROM_NAME or settings.EMAIL_FROM_NAME)
+            from_email = Email(
+                settings.FROM_EMAIL or settings.EMAIL_FROM_ADDRESS,
+                settings.FROM_NAME or settings.EMAIL_FROM_NAME,
+            )
             to = To(to_email)
 
             # Create mail object
             mail = Mail(
-                from_email=from_email,
-                to_emails=to,
-                subject=subject,
-                html_content=html_content
+                from_email=from_email, to_emails=to, subject=subject, html_content=html_content
             )
 
             if text_content:
@@ -250,7 +253,7 @@ class EnhancedEmailService:
         html_content: str,
         text_content: Optional[str],
         message_id: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Send email using AWS SES (placeholder implementation)"""
         # Note: This would require boto3 and AWS SES configuration
@@ -265,7 +268,7 @@ class EnhancedEmailService:
         html_content: str,
         text_content: Optional[str],
         message_id: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Send email using SMTP"""
         try:
@@ -273,10 +276,12 @@ class EnhancedEmailService:
 
             message = MIMEMultipart("alternative")
             message["Subject"] = subject
-            message["From"] = formataddr((
-                settings.FROM_NAME or settings.EMAIL_FROM_NAME or "Janua",
-                settings.FROM_EMAIL or settings.EMAIL_FROM_ADDRESS
-            ))
+            message["From"] = formataddr(
+                (
+                    settings.FROM_NAME or settings.EMAIL_FROM_NAME or "Janua",
+                    settings.FROM_EMAIL or settings.EMAIL_FROM_ADDRESS,
+                )
+            )
             message["To"] = to_email
             message["Message-ID"] = f"<{message_id}@janua.dev>"
 
@@ -294,7 +299,7 @@ class EnhancedEmailService:
                 message,
                 hostname=settings.SMTP_HOST,
                 port=settings.SMTP_PORT or 587,
-                start_tls=settings.SMTP_TLS if hasattr(settings, 'SMTP_TLS') else True,
+                start_tls=settings.SMTP_TLS if hasattr(settings, "SMTP_TLS") else True,
                 username=settings.SMTP_USERNAME,
                 password=settings.SMTP_PASSWORD,
             )
@@ -312,12 +317,12 @@ class EnhancedEmailService:
         html_content: str,
         text_content: Optional[str],
         message_id: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Console logging for development"""
         logger.info(
             f"[CONSOLE EMAIL] To: {to_email} | Subject: {subject} | ID: {message_id}",
-            html_content=html_content[:200] + "..." if len(html_content) > 200 else html_content
+            html_content=html_content[:200] + "..." if len(html_content) > 200 else html_content,
         )
         return True
 
@@ -334,7 +339,7 @@ class EnhancedEmailService:
                 "provider": delivery_status.provider.value,
                 "timestamp": delivery_status.timestamp.isoformat(),
                 "error_message": delivery_status.error_message,
-                "metadata": delivery_status.metadata
+                "metadata": delivery_status.metadata,
             }
 
             await self.redis_client.hset(key, mapping=data)
@@ -343,7 +348,9 @@ class EnhancedEmailService:
             # Update delivery statistics
             stats_key = f"email_stats:{datetime.utcnow().strftime('%Y-%m-%d')}"
             await self.redis_client.hincrby(stats_key, f"total_{delivery_status.status}", 1)
-            await self.redis_client.hincrby(stats_key, f"provider_{delivery_status.provider.value}", 1)
+            await self.redis_client.hincrby(
+                stats_key, f"provider_{delivery_status.provider.value}", 1
+            )
             await self.redis_client.expire(stats_key, 86400 * 30)  # Keep for 30 days
 
         except Exception as e:
@@ -363,11 +370,11 @@ class EnhancedEmailService:
 
             return EmailDeliveryStatus(
                 message_id=message_id,
-                status=data.get('status'),
-                provider=EmailProvider(data.get('provider')),
-                timestamp=datetime.fromisoformat(data.get('timestamp')),
-                error_message=data.get('error_message'),
-                metadata=eval(data.get('metadata')) if data.get('metadata') else None
+                status=data.get("status"),
+                provider=EmailProvider(data.get("provider")),
+                timestamp=datetime.fromisoformat(data.get("timestamp")),
+                error_message=data.get("error_message"),
+                metadata=eval(data.get("metadata")) if data.get("metadata") else None,
             )
 
         except Exception as e:
@@ -381,7 +388,7 @@ class EnhancedEmailService:
 
         try:
             if not date:
-                date = datetime.utcnow().strftime('%Y-%m-%d')
+                date = datetime.utcnow().strftime("%Y-%m-%d")
 
             stats_key = f"email_stats:{date}"
             stats = await self.redis_client.hgetall(stats_key)
@@ -399,22 +406,22 @@ class EnhancedEmailService:
         user_name: Optional[str],
         recovery_code: str,
         recovery_url: str,
-        request_info: Dict[str, Any]
+        request_info: Dict[str, Any],
     ) -> EmailDeliveryStatus:
         """Send MFA recovery email"""
 
         context = {
-            'user_name': user_name,
-            'recovery_code': recovery_code,
-            'recovery_url': recovery_url,
-            'request_time': request_info.get('timestamp', datetime.utcnow().isoformat()),
-            'ip_address': request_info.get('ip_address', 'Unknown'),
-            'user_agent': request_info.get('user_agent', 'Unknown'),
-            'support_email': settings.SUPPORT_EMAIL or 'support@janua.dev'
+            "user_name": user_name,
+            "recovery_code": recovery_code,
+            "recovery_url": recovery_url,
+            "request_time": request_info.get("timestamp", datetime.utcnow().isoformat()),
+            "ip_address": request_info.get("ip_address", "Unknown"),
+            "user_agent": request_info.get("user_agent", "Unknown"),
+            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
-        html_template = self.jinja_env.get_template('mfa_recovery.html')
-        text_template = self.jinja_env.get_template('mfa_recovery.txt')
+        html_template = self.jinja_env.get_template("mfa_recovery.html")
+        text_template = self.jinja_env.get_template("mfa_recovery.txt")
 
         html_content = html_template.render(**context)
         text_content = text_template.render(**context)
@@ -425,7 +432,7 @@ class EnhancedEmailService:
             html_content=html_content,
             text_content=text_content,
             priority=EmailPriority.HIGH,
-            metadata={'type': 'mfa_recovery', 'user_email': to_email}
+            metadata={"type": "mfa_recovery", "user_email": to_email},
         )
 
     async def send_security_alert_email(
@@ -435,28 +442,28 @@ class EnhancedEmailService:
         alert_type: str,
         alert_description: str,
         event_details: Dict[str, Any],
-        recommended_actions: Optional[List[str]] = None
+        recommended_actions: Optional[List[str]] = None,
     ) -> EmailDeliveryStatus:
         """Send security alert email"""
 
         context = {
-            'user_name': user_name,
-            'alert_type': alert_type,
-            'alert_description': alert_description,
-            'event_time': event_details.get('timestamp', datetime.utcnow().isoformat()),
-            'ip_address': event_details.get('ip_address', 'Unknown'),
-            'user_agent': event_details.get('user_agent', 'Unknown'),
-            'location': event_details.get('location'),
-            'login_success': event_details.get('login_success', False),
-            'recommended_actions': recommended_actions or [],
-            'was_you': alert_type in ['Suspicious Login Attempt', 'New Device Login'],
-            'confirm_url': f"{settings.FRONTEND_URL}/security/confirm/{event_details.get('event_id', '')}",
-            'secure_account_url': f"{settings.FRONTEND_URL}/security/alert",
-            'support_email': settings.SUPPORT_EMAIL or 'support@janua.dev'
+            "user_name": user_name,
+            "alert_type": alert_type,
+            "alert_description": alert_description,
+            "event_time": event_details.get("timestamp", datetime.utcnow().isoformat()),
+            "ip_address": event_details.get("ip_address", "Unknown"),
+            "user_agent": event_details.get("user_agent", "Unknown"),
+            "location": event_details.get("location"),
+            "login_success": event_details.get("login_success", False),
+            "recommended_actions": recommended_actions or [],
+            "was_you": alert_type in ["Suspicious Login Attempt", "New Device Login"],
+            "confirm_url": f"{settings.FRONTEND_URL}/security/confirm/{event_details.get('event_id', '')}",
+            "secure_account_url": f"{settings.FRONTEND_URL}/security/alert",
+            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
-        html_template = self.jinja_env.get_template('security_alert.html')
-        text_template = self.jinja_env.get_template('security_alert.txt')
+        html_template = self.jinja_env.get_template("security_alert.html")
+        text_template = self.jinja_env.get_template("security_alert.txt")
 
         html_content = html_template.render(**context)
         text_content = text_template.render(**context)
@@ -467,7 +474,7 @@ class EnhancedEmailService:
             html_content=html_content,
             text_content=text_content,
             priority=EmailPriority.CRITICAL,
-            metadata={'type': 'security_alert', 'alert_type': alert_type, 'user_email': to_email}
+            metadata={"type": "security_alert", "alert_type": alert_type, "user_email": to_email},
         )
 
 

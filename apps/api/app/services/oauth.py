@@ -163,13 +163,13 @@ class OAuthService:
     @classmethod
     def _parse_scopes_from_tokens(cls, tokens: Dict[str, Any], provider: OAuthProvider) -> list:
         """Parse granted scopes from token response.
-        
+
         GitHub returns scopes as comma-separated string in the token response.
         Other providers may return space-separated strings or lists.
         Falls back to configured scopes if provider doesn't return them.
         """
         granted_scopes = []
-        
+
         if tokens.get("scope"):
             scope_str = tokens.get("scope", "")
             # GitHub uses comma-separated scopes
@@ -178,13 +178,13 @@ class OAuthService:
             else:
                 # Most providers use space-separated
                 granted_scopes = scope_str.split()
-        
+
         # Fallback to configured scopes if provider doesn't return them
         if not granted_scopes:
             config = cls.get_provider_config(provider)
             if config:
                 granted_scopes = config.get("scopes", [])
-        
+
         return granted_scopes
 
     @classmethod
@@ -384,9 +384,9 @@ class OAuthService:
             normalized["name"] = raw_info.get("global_name") or raw_info.get("username")
             avatar_hash = raw_info.get("avatar")
             if avatar_hash:
-                normalized["profile_image_url"] = (
-                    f"https://cdn.discordapp.com/avatars/{raw_info.get('id')}/{avatar_hash}.png"
-                )
+                normalized[
+                    "profile_image_url"
+                ] = f"https://cdn.discordapp.com/avatars/{raw_info.get('id')}/{avatar_hash}.png"
             # Discord doesn't provide first/last name
             if normalized["name"]:
                 parts = normalized["name"].split(" ", 1)
@@ -495,7 +495,7 @@ class OAuthService:
 
         # Parse scopes from token response
         granted_scopes = cls._parse_scopes_from_tokens(tokens, provider)
-        
+
         # Create OAuth account link
         oauth_account = OAuthAccount(
             user_id=user.id,

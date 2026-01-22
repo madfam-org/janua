@@ -16,6 +16,7 @@ from . import Base
 
 class SystemSettingCategory:
     """Categories for system settings"""
+
     SECURITY = "security"
     CORS = "cors"
     AUTH = "auth"
@@ -38,6 +39,7 @@ class SystemSetting(Base):
         - Feature flags
         - Rate limiting configuration
     """
+
     __tablename__ = "system_settings"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -52,9 +54,7 @@ class SystemSetting(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = Column(UUID(as_uuid=True), nullable=True)  # User who last updated
 
-    __table_args__ = (
-        Index('ix_system_settings_category', 'category'),
-    )
+    __table_args__ = (Index("ix_system_settings_category", "category"),)
 
     def get_value(self):
         """Get the setting value (prefer json_value if set)"""
@@ -74,10 +74,13 @@ class AllowedCorsOrigin(Base):
     This provides a normalized table for CORS origins, making it easier to
     manage and audit which domains can make cross-origin requests.
     """
+
     __tablename__ = "allowed_cors_origins"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True
+    )
     origin = Column(String(500), nullable=False)
     description = Column(String(255), nullable=True)  # e.g., "Enclii Admin Dashboard"
     is_active = Column(Boolean, default=True)
@@ -86,16 +89,17 @@ class AllowedCorsOrigin(Base):
     created_by = Column(UUID(as_uuid=True), nullable=True)
 
     __table_args__ = (
-        Index('ix_allowed_cors_origins_active', 'is_active'),
-        Index('ix_allowed_cors_origins_org', 'organization_id'),
+        Index("ix_allowed_cors_origins_active", "is_active"),
+        Index("ix_allowed_cors_origins_org", "organization_id"),
         # Unique constraint: origin must be unique per organization (or globally for system)
-        Index('ix_allowed_cors_origins_unique', 'origin', 'organization_id', unique=True),
+        Index("ix_allowed_cors_origins_unique", "origin", "organization_id", unique=True),
     )
 
 
 # Pre-defined setting keys for type safety
 class SettingKeys:
     """Known setting keys for type safety and documentation"""
+
     # CORS
     CORS_ADDITIONAL_ORIGINS = "cors.additional_origins"  # JSON array of additional origins
     CORS_ALLOW_CREDENTIALS = "cors.allow_credentials"

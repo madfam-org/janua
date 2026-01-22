@@ -20,7 +20,7 @@ class TestDatabaseIntegration:
     async def test_database_connection_lifecycle(self):
         """Test complete database connection lifecycle."""
         # Test initialization
-        with patch('app.core.database.engine') as mock_engine:
+        with patch("app.core.database.engine") as mock_engine:
             mock_conn = AsyncMock()
             mock_engine.connect.return_value.__aenter__.return_value = mock_conn
             mock_conn.execute.return_value = None
@@ -64,16 +64,14 @@ class TestDatabaseIntegration:
 
     async def test_concurrent_database_access(self, test_db_session: AsyncSession):
         """Test concurrent database access."""
+
         async def db_operation(session: AsyncSession, value: int):
             result = await session.execute(text(f"SELECT {value} as test"))
             row = result.fetchone()
             return row.test
 
         # Create multiple concurrent database operations
-        tasks = [
-            db_operation(test_db_session, i)
-            for i in range(1, 6)
-        ]
+        tasks = [db_operation(test_db_session, i) for i in range(1, 6)]
 
         results = await asyncio.gather(*tasks)
 
@@ -86,7 +84,7 @@ class TestDatabaseErrorHandling:
 
     async def test_connection_error_handling(self):
         """Test database connection error handling."""
-        with patch('app.core.database.engine') as mock_engine:
+        with patch("app.core.database.engine") as mock_engine:
             mock_engine.connect.side_effect = Exception("Connection failed")
 
             with pytest.raises(Exception, match="Connection failed"):
@@ -175,8 +173,8 @@ class TestDatabaseConfiguration:
         assert engine is not None
 
         # Engine should have proper configuration
-        assert hasattr(engine, 'url')
-        assert hasattr(engine, 'pool')
+        assert hasattr(engine, "url")
+        assert hasattr(engine, "pool")
 
 
 class TestDatabaseMigrations:
@@ -185,55 +183,79 @@ class TestDatabaseMigrations:
     async def test_schema_creation(self, test_db_session: AsyncSession):
         """Test basic schema operations."""
         # Test creating a temporary table
-        await test_db_session.execute(text("""
+        await test_db_session.execute(
+            text(
+                """
             CREATE TEMPORARY TABLE test_table (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL
             )
-        """))
+        """
+            )
+        )
 
         # Test inserting data
-        await test_db_session.execute(text("""
+        await test_db_session.execute(
+            text(
+                """
             INSERT INTO test_table (id, name) VALUES (1, 'test')
-        """))
+        """
+            )
+        )
 
         # Test querying data
-        result = await test_db_session.execute(text("""
+        result = await test_db_session.execute(
+            text(
+                """
             SELECT id, name FROM test_table WHERE id = 1
-        """))
+        """
+            )
+        )
 
         row = result.fetchone()
         assert row.id == 1
-        assert row.name == 'test'
+        assert row.name == "test"
 
         await test_db_session.commit()
 
     async def test_data_types_support(self, test_db_session: AsyncSession):
         """Test support for various data types."""
         # Create temporary table with various data types
-        await test_db_session.execute(text("""
+        await test_db_session.execute(
+            text(
+                """
             CREATE TEMPORARY TABLE type_test (
                 id INTEGER,
                 text_field TEXT,
                 bool_field BOOLEAN,
                 timestamp_field TIMESTAMP
             )
-        """))
+        """
+            )
+        )
 
         # Insert data with various types
-        await test_db_session.execute(text("""
+        await test_db_session.execute(
+            text(
+                """
             INSERT INTO type_test (id, text_field, bool_field, timestamp_field)
             VALUES (1, 'test_text', true, datetime('now'))
-        """))
+        """
+            )
+        )
 
         # Query and validate data types
-        result = await test_db_session.execute(text("""
+        result = await test_db_session.execute(
+            text(
+                """
             SELECT * FROM type_test WHERE id = 1
-        """))
+        """
+            )
+        )
 
         row = result.fetchone()
         assert row.id == 1
-        assert row.text_field == 'test_text'
+        assert row.text_field == "test_text"
         assert row.bool_field is True
         assert row.timestamp_field is not None
 
@@ -246,24 +268,28 @@ class TestDatabaseSecurity:
     async def test_sql_injection_protection(self, test_db_session: AsyncSession):
         """Test protection against SQL injection."""
         # Create temporary table
-        await test_db_session.execute(text("""
+        await test_db_session.execute(
+            text(
+                """
             CREATE TEMPORARY TABLE security_test (
                 id INTEGER PRIMARY KEY,
                 data TEXT
             )
-        """))
+        """
+            )
+        )
 
         # Insert safe data
         await test_db_session.execute(
             text("INSERT INTO security_test (id, data) VALUES (:id, :data)"),
-            {"id": 1, "data": "safe_data"}
+            {"id": 1, "data": "safe_data"},
         )
 
         # Try to insert potentially malicious data (should be safe with parameterized queries)
         malicious_data = "'; DROP TABLE security_test; --"
         await test_db_session.execute(
             text("INSERT INTO security_test (id, data) VALUES (:id, :data)"),
-            {"id": 2, "data": malicious_data}
+            {"id": 2, "data": malicious_data},
         )
 
         # Table should still exist and contain both records
@@ -272,9 +298,7 @@ class TestDatabaseSecurity:
         assert row.count == 2
 
         # Malicious data should be stored as literal text, not executed
-        result = await test_db_session.execute(
-            text("SELECT data FROM security_test WHERE id = 2")
-        )
+        result = await test_db_session.execute(text("SELECT data FROM security_test WHERE id = 2"))
         row = result.fetchone()
         assert row.data == malicious_data
 
@@ -288,6 +312,6 @@ class TestDatabaseSecurity:
         url_str = str(engine.url)
 
         # If there's a password, it should be hidden
-        if '@' in url_str:  # Indicates user:password@host format
+        if "@" in url_str:  # Indicates user:password@host format
             # Password should be replaced with '***' in string representation
-            assert '***' in url_str or 'password' not in url_str.lower()
+            assert "***" in url_str or "password" not in url_str.lower()

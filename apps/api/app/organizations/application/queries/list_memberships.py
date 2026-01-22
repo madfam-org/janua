@@ -51,8 +51,7 @@ class ListMembershipsHandler(QueryHandler[ListMembershipsQuery, ListMembershipsR
         # Check if requester has access
         is_owner = organization.is_owner(query.requester_id)
         requester_membership = await self.repository.find_membership(
-            query.organization_id,
-            query.requester_id
+            query.organization_id, query.requester_id
         )
 
         if not is_owner and not requester_membership:

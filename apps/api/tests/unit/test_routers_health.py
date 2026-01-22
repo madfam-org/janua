@@ -1,6 +1,6 @@
 import pytest
-pytestmark = pytest.mark.asyncio
 
+pytestmark = pytest.mark.asyncio
 
 
 """
@@ -14,13 +14,16 @@ import os
 @pytest.fixture
 def mock_env():
     """Mock environment variables for testing"""
-    with patch.dict(os.environ, {
-        'ENVIRONMENT': 'test',
-        'DATABASE_URL': 'postgresql://test:test@localhost:5432/janua_test',
-        'JWT_SECRET_KEY': 'test-secret-key',
-        'REDIS_URL': 'redis://localhost:6379/1',
-        'SECRET_KEY': 'test-secret-key-for-testing'
-    }):
+    with patch.dict(
+        os.environ,
+        {
+            "ENVIRONMENT": "test",
+            "DATABASE_URL": "postgresql://test:test@localhost:5432/janua_test",
+            "JWT_SECRET_KEY": "test-secret-key",
+            "REDIS_URL": "redis://localhost:6379/1",
+            "SECRET_KEY": "test-secret-key-for-testing",
+        },
+    ):
         yield
 
 
@@ -28,8 +31,9 @@ def test_health_router_imports(mock_env):
     """Test that health router can be imported"""
     try:
         from app.routers.v1.health import router
+
         assert router is not None
-        assert hasattr(router, 'routes')
+        assert hasattr(router, "routes")
     except ImportError as e:
         pytest.skip(f"Health router imports failed: {e}")
 
@@ -52,9 +56,9 @@ async def test_health_check_function(mock_env):
     """Test health check function logic"""
     try:
         # Mock database and redis dependencies
-        with patch('app.routers.v1.health.get_db') as mock_get_db, \
-             patch('app.routers.v1.health.get_redis') as mock_get_redis:
-
+        with patch("app.routers.v1.health.get_db") as mock_get_db, patch(
+            "app.routers.v1.health.get_redis"
+        ) as mock_get_redis:
             # Setup mocks
             mock_db = AsyncMock()
             mock_redis = MagicMock()
@@ -71,8 +75,8 @@ async def test_health_check_function(mock_env):
 
             # Check response structure
             assert isinstance(result, dict)
-            assert 'status' in result
-            assert 'timestamp' in result
+            assert "status" in result
+            assert "timestamp" in result
 
     except ImportError as e:
         pytest.skip(f"Health check function imports failed: {e}")
@@ -85,9 +89,9 @@ async def test_health_check_function(mock_env):
 async def test_ready_check_function(mock_env):
     """Test ready check function logic"""
     try:
-        with patch('app.routers.v1.health.get_db') as mock_get_db, \
-             patch('app.routers.v1.health.get_redis') as mock_get_redis:
-
+        with patch("app.routers.v1.health.get_db") as mock_get_db, patch(
+            "app.routers.v1.health.get_redis"
+        ) as mock_get_redis:
             # Setup mocks
             mock_db = AsyncMock()
             mock_redis = MagicMock()
@@ -104,7 +108,7 @@ async def test_ready_check_function(mock_env):
 
             # Check response structure
             assert isinstance(result, dict)
-            assert 'status' in result
+            assert "status" in result
 
     except ImportError as e:
         pytest.skip(f"Ready check function imports failed: {e}")
@@ -122,7 +126,7 @@ def test_health_router_routes(mock_env):
         route_paths = [route.path for route in router.routes]
 
         # Check for expected health endpoints
-        health_routes = [path for path in route_paths if 'health' in path or 'ready' in path]
+        health_routes = [path for path in route_paths if "health" in path or "ready" in path]
         assert len(health_routes) > 0, "Health router should have health-related routes"
 
     except ImportError as e:
@@ -137,10 +141,10 @@ def test_health_router_methods(mock_env):
         # Check that routes use appropriate methods
         for route in router.routes:
             # Health checks should typically be GET requests
-            if hasattr(route, 'methods'):
+            if hasattr(route, "methods"):
                 methods = route.methods
                 # Should include GET method for health checks
-                assert 'GET' in methods or 'HEAD' in methods
+                assert "GET" in methods or "HEAD" in methods
 
     except ImportError as e:
         pytest.skip(f"Health router methods test failed: {e}")
@@ -150,9 +154,9 @@ def test_health_response_format(mock_env):
     """Test health response format"""
     try:
         # Test with mocked dependencies to check response format
-        with patch('app.core.database_manager.DatabaseManager') as mock_db_manager, \
-             patch('redis.Redis') as mock_redis_class:
-
+        with patch("app.core.database_manager.DatabaseManager") as mock_db_manager, patch(
+            "redis.Redis"
+        ) as mock_redis_class:
             mock_db_manager.return_value.health_check = AsyncMock(return_value=True)
             mock_redis_instance = MagicMock()
             mock_redis_instance.ping.return_value = True
@@ -160,6 +164,7 @@ def test_health_response_format(mock_env):
 
             # Import should work with mocked dependencies
             from app.routers.v1 import health
+
             assert health is not None
 
     except ImportError as e:
@@ -173,7 +178,7 @@ def test_health_dependencies(mock_env):
         from app.routers.v1.health import router
 
         # Verify router is a FastAPI router instance
-        assert hasattr(router, 'include_router') or hasattr(router, 'routes')
+        assert hasattr(router, "include_router") or hasattr(router, "routes")
 
     except ImportError as e:
         pytest.skip(f"Health dependencies test failed: {e}")

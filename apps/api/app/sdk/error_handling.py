@@ -29,7 +29,7 @@ class SDKError(Exception, ABC):
         error_code: Optional[str] = None,
         request_id: Optional[str] = None,
         timestamp: Optional[datetime] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(message)
         self.message = message
@@ -58,7 +58,7 @@ class SDKError(Exception, ABC):
             "error_code": self.error_code,
             "request_id": self.request_id,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
-            "details": self.details
+            "details": self.details,
         }
 
 
@@ -77,7 +77,7 @@ class APIError(SDKError):
         request_id: Optional[str] = None,
         timestamp: Optional[datetime] = None,
         details: Optional[Dict[str, Any]] = None,
-        response_body: Optional[str] = None
+        response_body: Optional[str] = None,
     ):
         super().__init__(message, error_code, request_id, timestamp, details)
         self.status_code = status_code
@@ -95,9 +95,11 @@ class APIError(SDKError):
             status_code=status_code,
             error_code=error_data.get("code"),
             request_id=error_data.get("request_id"),
-            timestamp=datetime.fromisoformat(error_data["timestamp"]) if error_data.get("timestamp") else None,
+            timestamp=datetime.fromisoformat(error_data["timestamp"])
+            if error_data.get("timestamp")
+            else None,
             details=error_data.get("details"),
-            response_body=str(response)
+            response_body=str(response),
         )
 
 
@@ -115,7 +117,7 @@ class ValidationError(APIError):
         status_code: int = 400,
         error_code: str = "VALIDATION_ERROR",
         request_id: Optional[str] = None,
-        timestamp: Optional[datetime] = None
+        timestamp: Optional[datetime] = None,
     ):
         super().__init__(
             message=message,
@@ -123,16 +125,13 @@ class ValidationError(APIError):
             error_code=error_code,
             request_id=request_id,
             timestamp=timestamp,
-            details={"validation_errors": validation_errors}
+            details={"validation_errors": validation_errors},
         )
         self.validation_errors = validation_errors
 
     def get_field_errors(self, field_name: str) -> List[Dict[str, Any]]:
         """Get validation errors for a specific field."""
-        return [
-            error for error in self.validation_errors
-            if error.get("field") == field_name
-        ]
+        return [error for error in self.validation_errors if error.get("field") == field_name]
 
     def has_field_error(self, field_name: str) -> bool:
         """Check if a specific field has validation errors."""
@@ -150,7 +149,9 @@ class ValidationError(APIError):
             status_code=status_code,
             error_code=error_data.get("code", "VALIDATION_ERROR"),
             request_id=error_data.get("request_id"),
-            timestamp=datetime.fromisoformat(error_data["timestamp"]) if error_data.get("timestamp") else None
+            timestamp=datetime.fromisoformat(error_data["timestamp"])
+            if error_data.get("timestamp")
+            else None,
         )
 
 
@@ -168,7 +169,7 @@ class AuthenticationError(APIError):
         error_code: str = "AUTHENTICATION_ERROR",
         request_id: Optional[str] = None,
         timestamp: Optional[datetime] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             message=message,
@@ -176,7 +177,7 @@ class AuthenticationError(APIError):
             error_code=error_code,
             request_id=request_id,
             timestamp=timestamp,
-            details=details
+            details=details,
         )
         self.auth_type = auth_type
 
@@ -190,7 +191,7 @@ class AuthenticationError(APIError):
             "INVALID_CREDENTIALS",
             "REFRESH_TOKEN_EXPIRED",
             "TOKEN_REVOKED",
-            "ACCOUNT_SUSPENDED"
+            "ACCOUNT_SUSPENDED",
         ]
 
 
@@ -209,7 +210,7 @@ class AuthorizationError(APIError):
         resource_id: Optional[str] = None,
         error_code: str = "AUTHORIZATION_ERROR",
         request_id: Optional[str] = None,
-        timestamp: Optional[datetime] = None
+        timestamp: Optional[datetime] = None,
     ):
         details = {}
         if required_permission:
@@ -225,7 +226,7 @@ class AuthorizationError(APIError):
             error_code=error_code,
             request_id=request_id,
             timestamp=timestamp,
-            details=details
+            details=details,
         )
         self.required_permission = required_permission
         self.resource_type = resource_type
@@ -248,7 +249,7 @@ class RateLimitError(APIError):
         reset_time: Optional[datetime] = None,
         error_code: str = "RATE_LIMIT_EXCEEDED",
         request_id: Optional[str] = None,
-        timestamp: Optional[datetime] = None
+        timestamp: Optional[datetime] = None,
     ):
         details = {}
         if limit is not None:
@@ -264,7 +265,7 @@ class RateLimitError(APIError):
             error_code=error_code,
             request_id=request_id,
             timestamp=timestamp,
-            details=details
+            details=details,
         )
         self.retry_after = retry_after
         self.limit = limit
@@ -295,7 +296,7 @@ class ServerError(APIError):
         request_id: Optional[str] = None,
         timestamp: Optional[datetime] = None,
         details: Optional[Dict[str, Any]] = None,
-        is_retryable: bool = True
+        is_retryable: bool = True,
     ):
         super().__init__(
             message=message,
@@ -303,7 +304,7 @@ class ServerError(APIError):
             error_code=error_code,
             request_id=request_id,
             timestamp=timestamp,
-            details=details
+            details=details,
         )
         self.is_retryable = is_retryable
 
@@ -325,7 +326,7 @@ class NetworkError(SDKError):
         error_code: str = "NETWORK_ERROR",
         original_error: Optional[Exception] = None,
         is_timeout: bool = False,
-        is_connection_error: bool = False
+        is_connection_error: bool = False,
     ):
         super().__init__(message=message, error_code=error_code)
         self.original_error = original_error
@@ -349,7 +350,7 @@ class ConfigurationError(SDKError):
         self,
         message: str,
         config_field: Optional[str] = None,
-        error_code: str = "CONFIGURATION_ERROR"
+        error_code: str = "CONFIGURATION_ERROR",
     ):
         super().__init__(message=message, error_code=error_code)
         self.config_field = config_field
@@ -357,9 +358,7 @@ class ConfigurationError(SDKError):
 
 # Error factory functions for creating errors from API responses
 def create_error_from_response(
-    response_data: Dict[str, Any],
-    status_code: int,
-    response_body: Optional[str] = None
+    response_data: Dict[str, Any], status_code: int, response_body: Optional[str] = None
 ) -> APIError:
     """
     Create the appropriate error type from an API error response.
@@ -380,8 +379,10 @@ def create_error_from_response(
             message=message,
             error_code=error_code,
             request_id=error_data.get("request_id"),
-            timestamp=datetime.fromisoformat(error_data["timestamp"]) if error_data.get("timestamp") else None,
-            details=error_data.get("details")
+            timestamp=datetime.fromisoformat(error_data["timestamp"])
+            if error_data.get("timestamp")
+            else None,
+            details=error_data.get("details"),
         )
 
     elif status_code == 403:
@@ -393,7 +394,9 @@ def create_error_from_response(
             resource_id=details.get("resource_id"),
             error_code=error_code,
             request_id=error_data.get("request_id"),
-            timestamp=datetime.fromisoformat(error_data["timestamp"]) if error_data.get("timestamp") else None
+            timestamp=datetime.fromisoformat(error_data["timestamp"])
+            if error_data.get("timestamp")
+            else None,
         )
 
     elif status_code == 429:
@@ -411,7 +414,9 @@ def create_error_from_response(
             reset_time=reset_time,
             error_code=error_code,
             request_id=error_data.get("request_id"),
-            timestamp=datetime.fromisoformat(error_data["timestamp"]) if error_data.get("timestamp") else None
+            timestamp=datetime.fromisoformat(error_data["timestamp"])
+            if error_data.get("timestamp")
+            else None,
         )
 
     elif status_code >= 500:
@@ -420,9 +425,11 @@ def create_error_from_response(
             status_code=status_code,
             error_code=error_code,
             request_id=error_data.get("request_id"),
-            timestamp=datetime.fromisoformat(error_data["timestamp"]) if error_data.get("timestamp") else None,
+            timestamp=datetime.fromisoformat(error_data["timestamp"])
+            if error_data.get("timestamp")
+            else None,
             details=error_data.get("details"),
-            is_retryable=status_code in [500, 502, 503, 504]
+            is_retryable=status_code in [500, 502, 503, 504],
         )
 
     else:
@@ -468,5 +475,5 @@ ERROR_TYPE_MAPPING = {
         "APIError": "APIException : Exception",
         "NetworkError": "NetworkException : Exception",
         "ValidationError": "ValidationException : Exception",
-    }
+    },
 }

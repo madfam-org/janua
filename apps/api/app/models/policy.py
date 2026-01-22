@@ -19,12 +19,14 @@ import uuid
 
 class PolicyEffect(str, enum.Enum):
     """Policy effect enumeration."""
+
     ALLOW = "allow"
     DENY = "deny"
 
 
 class PolicyTargetType(str, enum.Enum):
     """Policy target type enumeration."""
+
     USER = "user"
     ROLE = "role"
     ORGANIZATION = "organization"
@@ -33,6 +35,7 @@ class PolicyTargetType(str, enum.Enum):
 
 class UserRole(Base):
     """User-Role assignment table."""
+
     __tablename__ = "user_roles"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -49,6 +52,7 @@ class UserRole(Base):
 
 class RolePolicy(Base):
     """Role-Policy association table."""
+
     __tablename__ = "role_policies"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -59,6 +63,7 @@ class RolePolicy(Base):
 
 class PolicyEvaluation(Base):
     """Policy evaluation results cache."""
+
     __tablename__ = "policy_evaluations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -74,8 +79,10 @@ class PolicyEvaluation(Base):
 
 # Pydantic Schemas
 
+
 class PolicyCreate(BaseModel):
     """Schema for creating a policy."""
+
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     rules: Dict[str, Any] = Field(default_factory=dict)
@@ -92,6 +99,7 @@ class PolicyCreate(BaseModel):
 
 class PolicyUpdate(BaseModel):
     """Schema for updating a policy."""
+
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = None
     rules: Optional[Dict[str, Any]] = None
@@ -109,6 +117,7 @@ class PolicyUpdate(BaseModel):
 
 class PolicyResponse(BaseModel):
     """Schema for policy response."""
+
     id: str
     tenant_id: str
     name: str
@@ -143,8 +152,8 @@ class PolicyResponse(BaseModel):
             rules=obj.rules or {},
             effect=obj.effect,
             priority=obj.priority or 0,
-            enabled=obj.enabled if hasattr(obj, 'enabled') else True,
-            version=obj.version if hasattr(obj, 'version') else 1,
+            enabled=obj.enabled if hasattr(obj, "enabled") else True,
+            version=obj.version if hasattr(obj, "version") else 1,
             target_type=obj.target_type,
             target_id=obj.target_id,
             resource_type=obj.resource_type,
@@ -153,12 +162,13 @@ class PolicyResponse(BaseModel):
             conditions=obj.conditions or {},
             expires_at=obj.expires_at,
             created_at=obj.created_at,
-            updated_at=obj.updated_at
+            updated_at=obj.updated_at,
         )
 
 
 class PolicyEvaluateRequest(BaseModel):
     """Schema for policy evaluation request."""
+
     subject_id: Optional[str] = None  # user_id or role_id
     subject_type: str = Field(default="user", pattern="^(user|role)$")
     resource_type: str = Field(..., min_length=1)
@@ -169,6 +179,7 @@ class PolicyEvaluateRequest(BaseModel):
 
 class PolicyEvaluateResponse(BaseModel):
     """Schema for policy evaluation response."""
+
     allowed: bool
     matched_policies: List[str] = Field(default_factory=list)
     denied_by: Optional[str] = None
@@ -178,6 +189,7 @@ class PolicyEvaluateResponse(BaseModel):
 
 class RoleCreate(BaseModel):
     """Schema for creating a role."""
+
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
     permissions: List[str] = Field(default_factory=list)
@@ -186,6 +198,7 @@ class RoleCreate(BaseModel):
 
 class RoleResponse(BaseModel):
     """Schema for role response."""
+
     id: str
     tenant_id: str
     organization_id: Optional[str]
@@ -210,9 +223,9 @@ class RoleResponse(BaseModel):
             name=obj.name,
             description=obj.description,
             permissions=obj.permissions or [],
-            is_system=obj.is_system if hasattr(obj, 'is_system') else False,
+            is_system=obj.is_system if hasattr(obj, "is_system") else False,
             created_at=obj.created_at,
-            updated_at=obj.updated_at
+            updated_at=obj.updated_at,
         )
 
 

@@ -12,10 +12,10 @@ def custom_openapi(app: FastAPI) -> Dict[str, Any]:
     """
     Generate enhanced OpenAPI schema with comprehensive documentation
     """
-    
+
     if app.openapi_schema:
         return app.openapi_schema
-    
+
     openapi_schema = get_openapi(
         title="Janua API",
         version="1.0.0",
@@ -75,83 +75,53 @@ The API is versioned using URL path versioning. Current version: v1
                 "description": "User authentication and session management",
                 "externalDocs": {
                     "description": "Authentication Guide",
-                    "url": "https://docs.janua.dev/authentication"
-                }
+                    "url": "https://docs.janua.dev/authentication",
+                },
             },
             {
                 "name": "MFA",
                 "description": "Multi-factor authentication setup and verification",
                 "externalDocs": {
                     "description": "MFA Documentation",
-                    "url": "https://docs.janua.dev/mfa"
-                }
+                    "url": "https://docs.janua.dev/mfa",
+                },
             },
             {
                 "name": "Passkeys",
                 "description": "WebAuthn/Passkey management for passwordless authentication",
                 "externalDocs": {
                     "description": "Passkeys Guide",
-                    "url": "https://docs.janua.dev/passkeys"
-                }
+                    "url": "https://docs.janua.dev/passkeys",
+                },
             },
             {
                 "name": "OAuth",
                 "description": "OAuth 2.0 and OpenID Connect endpoints",
                 "externalDocs": {
                     "description": "OAuth Documentation",
-                    "url": "https://docs.janua.dev/oauth"
-                }
+                    "url": "https://docs.janua.dev/oauth",
+                },
             },
             {
                 "name": "SSO",
                 "description": "Single Sign-On with SAML 2.0",
                 "externalDocs": {
                     "description": "SSO Setup Guide",
-                    "url": "https://docs.janua.dev/sso"
-                }
+                    "url": "https://docs.janua.dev/sso",
+                },
             },
-            {
-                "name": "Users",
-                "description": "User profile and account management"
-            },
-            {
-                "name": "Organizations",
-                "description": "Multi-tenant organization management"
-            },
-            {
-                "name": "Sessions",
-                "description": "Active session management and monitoring"
-            },
-            {
-                "name": "Compliance",
-                "description": "GDPR, SOC2, HIPAA compliance endpoints"
-            },
-            {
-                "name": "Admin",
-                "description": "Administrative functions and system management"
-            },
-            {
-                "name": "Webhooks",
-                "description": "Webhook configuration and event subscriptions"
-            },
-            {
-                "name": "Audit Logs",
-                "description": "Security audit trail and activity logging"
-            }
+            {"name": "Users", "description": "User profile and account management"},
+            {"name": "Organizations", "description": "Multi-tenant organization management"},
+            {"name": "Sessions", "description": "Active session management and monitoring"},
+            {"name": "Compliance", "description": "GDPR, SOC2, HIPAA compliance endpoints"},
+            {"name": "Admin", "description": "Administrative functions and system management"},
+            {"name": "Webhooks", "description": "Webhook configuration and event subscriptions"},
+            {"name": "Audit Logs", "description": "Security audit trail and activity logging"},
         ],
         servers=[
-            {
-                "url": "https://api.janua.dev",
-                "description": "Production server"
-            },
-            {
-                "url": "https://staging-api.janua.dev",
-                "description": "Staging server"
-            },
-            {
-                "url": "http://localhost:8000",
-                "description": "Development server"
-            }
+            {"url": "https://api.janua.dev", "description": "Production server"},
+            {"url": "https://staging-api.janua.dev", "description": "Staging server"},
+            {"url": "http://localhost:8000", "description": "Development server"},
         ],
         components={
             "securitySchemes": {
@@ -159,13 +129,13 @@ The API is versioned using URL path versioning. Current version: v1
                     "type": "http",
                     "scheme": "bearer",
                     "bearerFormat": "JWT",
-                    "description": "JWT authentication with Bearer token"
+                    "description": "JWT authentication with Bearer token",
                 },
                 "ApiKeyAuth": {
                     "type": "apiKey",
                     "in": "header",
                     "name": "X-API-Key",
-                    "description": "API key authentication for service accounts"
+                    "description": "API key authentication for service accounts",
                 },
                 "OAuth2": {
                     "type": "oauth2",
@@ -179,17 +149,15 @@ The API is versioned using URL path versioning. Current version: v1
                                 "write:user": "Modify user information",
                                 "read:org": "Read organization data",
                                 "write:org": "Modify organization data",
-                                "admin": "Full administrative access"
-                            }
+                                "admin": "Full administrative access",
+                            },
                         },
                         "clientCredentials": {
                             "tokenUrl": "https://api.janua.dev/api/v1/oauth/token",
-                            "scopes": {
-                                "service": "Service-to-service authentication"
-                            }
-                        }
-                    }
-                }
+                            "scopes": {"service": "Service-to-service authentication"},
+                        },
+                    },
+                },
             },
             "responses": {
                 "UnauthorizedError": {
@@ -200,11 +168,11 @@ The API is versioned using URL path versioning. Current version: v1
                                 "type": "object",
                                 "properties": {
                                     "detail": {"type": "string"},
-                                    "error": {"type": "string", "example": "unauthorized"}
-                                }
+                                    "error": {"type": "string", "example": "unauthorized"},
+                                },
                             }
                         }
-                    }
+                    },
                 },
                 "ForbiddenError": {
                     "description": "Insufficient permissions",
@@ -214,11 +182,11 @@ The API is versioned using URL path versioning. Current version: v1
                                 "type": "object",
                                 "properties": {
                                     "detail": {"type": "string"},
-                                    "error": {"type": "string", "example": "forbidden"}
-                                }
+                                    "error": {"type": "string", "example": "forbidden"},
+                                },
                             }
                         }
-                    }
+                    },
                 },
                 "NotFoundError": {
                     "description": "Resource not found",
@@ -228,11 +196,11 @@ The API is versioned using URL path versioning. Current version: v1
                                 "type": "object",
                                 "properties": {
                                     "detail": {"type": "string"},
-                                    "error": {"type": "string", "example": "not_found"}
-                                }
+                                    "error": {"type": "string", "example": "not_found"},
+                                },
                             }
                         }
-                    }
+                    },
                 },
                 "ValidationError": {
                     "description": "Validation error",
@@ -246,16 +214,19 @@ The API is versioned using URL path versioning. Current version: v1
                                         "items": {
                                             "type": "object",
                                             "properties": {
-                                                "loc": {"type": "array", "items": {"type": "string"}},
+                                                "loc": {
+                                                    "type": "array",
+                                                    "items": {"type": "string"},
+                                                },
                                                 "msg": {"type": "string"},
-                                                "type": {"type": "string"}
-                                            }
-                                        }
+                                                "type": {"type": "string"},
+                                            },
+                                        },
                                     }
-                                }
+                                },
                             }
                         }
-                    }
+                    },
                 },
                 "RateLimitError": {
                     "description": "Rate limit exceeded",
@@ -266,47 +237,47 @@ The API is versioned using URL path versioning. Current version: v1
                                 "properties": {
                                     "detail": {"type": "string"},
                                     "error": {"type": "string", "example": "rate_limit_exceeded"},
-                                    "retry_after": {"type": "integer"}
-                                }
+                                    "retry_after": {"type": "integer"},
+                                },
                             }
                         }
                     },
                     "headers": {
                         "X-RateLimit-Limit": {
                             "description": "Request limit per time window",
-                            "schema": {"type": "integer"}
+                            "schema": {"type": "integer"},
                         },
                         "X-RateLimit-Remaining": {
                             "description": "Remaining requests in current window",
-                            "schema": {"type": "integer"}
+                            "schema": {"type": "integer"},
                         },
                         "X-RateLimit-Reset": {
                             "description": "Time when rate limit resets (Unix timestamp)",
-                            "schema": {"type": "integer"}
+                            "schema": {"type": "integer"},
                         },
                         "Retry-After": {
                             "description": "Seconds until rate limit resets",
-                            "schema": {"type": "integer"}
-                        }
-                    }
-                }
-            }
-        }
+                            "schema": {"type": "integer"},
+                        },
+                    },
+                },
+            },
+        },
     )
-    
+
     # Add custom x-code-samples for interactive documentation
     add_code_samples(openapi_schema)
-    
+
     # Add webhook schemas
     add_webhook_schemas(openapi_schema)
-    
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
 
 def add_code_samples(openapi_schema: Dict[str, Any]):
     """Add code samples for each endpoint"""
-    
+
     code_samples = {
         "/api/v1/auth/signup": {
             "post": [
@@ -322,7 +293,7 @@ user = client.auth.signup(
     first_name="John",
     last_name="Doe"
 )
-print(f"User created: {user.id}")"""
+print(f"User created: {user.id}")""",
                 },
                 {
                     "lang": "JavaScript",
@@ -336,7 +307,7 @@ const user = await client.auth.signup({
     firstName: 'John',
     lastName: 'Doe'
 });
-console.log(`User created: ${user.id}`);"""
+console.log(`User created: ${user.id}`);""",
                 },
                 {
                     "lang": "cURL",
@@ -347,8 +318,8 @@ console.log(`User created: ${user.id}`);"""
     "password": "SecurePassword123!",
     "first_name": "John",
     "last_name": "Doe"
-  }'"""
-                }
+  }'""",
+                },
             ]
         },
         "/api/v1/auth/signin": {
@@ -363,7 +334,7 @@ auth = client.auth.signin(
     email="user@example.com",
     password="SecurePassword123!"
 )
-print(f"Access token: {auth.access_token}")"""
+print(f"Access token: {auth.access_token}")""",
                 },
                 {
                     "lang": "JavaScript",
@@ -375,7 +346,7 @@ const auth = await client.auth.signin({
     email: 'user@example.com',
     password: 'SecurePassword123!'
 });
-console.log(`Access token: ${auth.accessToken}`);"""
+console.log(`Access token: ${auth.accessToken}`);""",
                 },
                 {
                     "lang": "cURL",
@@ -384,12 +355,12 @@ console.log(`Access token: ${auth.accessToken}`);"""
   -d '{
     "email": "user@example.com",
     "password": "SecurePassword123!"
-  }'"""
-                }
+  }'""",
+                },
             ]
-        }
+        },
     }
-    
+
     # Add code samples to paths
     for path, methods in openapi_schema.get("paths", {}).items():
         if path in code_samples:
@@ -400,7 +371,7 @@ console.log(`Access token: ${auth.accessToken}`);"""
 
 def add_webhook_schemas(openapi_schema: Dict[str, Any]):
     """Add webhook event schemas"""
-    
+
     webhook_schemas = {
         "webhooks": {
             "user.created": {
@@ -419,17 +390,18 @@ def add_webhook_schemas(openapi_schema: Dict[str, Any]):
                                             "properties": {
                                                 "user_id": {"type": "string", "format": "uuid"},
                                                 "email": {"type": "string", "format": "email"},
-                                                "created_at": {"type": "string", "format": "date-time"}
-                                            }
-                                        }
-                                    }
+                                                "created_at": {
+                                                    "type": "string",
+                                                    "format": "date-time",
+                                                },
+                                            },
+                                        },
+                                    },
                                 }
                             }
-                        }
+                        },
                     },
-                    "responses": {
-                        "200": {"description": "Event processed successfully"}
-                    }
+                    "responses": {"200": {"description": "Event processed successfully"}},
                 }
             },
             "user.login": {
@@ -449,17 +421,15 @@ def add_webhook_schemas(openapi_schema: Dict[str, Any]):
                                                 "user_id": {"type": "string", "format": "uuid"},
                                                 "ip_address": {"type": "string"},
                                                 "user_agent": {"type": "string"},
-                                                "session_id": {"type": "string", "format": "uuid"}
-                                            }
-                                        }
-                                    }
+                                                "session_id": {"type": "string", "format": "uuid"},
+                                            },
+                                        },
+                                    },
                                 }
                             }
-                        }
+                        },
                     },
-                    "responses": {
-                        "200": {"description": "Event processed successfully"}
-                    }
+                    "responses": {"200": {"description": "Event processed successfully"}},
                 }
             },
             "mfa.enabled": {
@@ -477,28 +447,29 @@ def add_webhook_schemas(openapi_schema: Dict[str, Any]):
                                             "type": "object",
                                             "properties": {
                                                 "user_id": {"type": "string", "format": "uuid"},
-                                                "method": {"type": "string", "enum": ["totp", "sms", "passkey"]}
-                                            }
-                                        }
-                                    }
+                                                "method": {
+                                                    "type": "string",
+                                                    "enum": ["totp", "sms", "passkey"],
+                                                },
+                                            },
+                                        },
+                                    },
                                 }
                             }
-                        }
+                        },
                     },
-                    "responses": {
-                        "200": {"description": "Event processed successfully"}
-                    }
+                    "responses": {"200": {"description": "Event processed successfully"}},
                 }
-            }
+            },
         }
     }
-    
+
     openapi_schema.update(webhook_schemas)
 
 
 def get_custom_swagger_ui_html() -> str:
     """Generate custom Swagger UI HTML with branding"""
-    
+
     return """
     <!DOCTYPE html>
     <html>
@@ -543,7 +514,7 @@ def get_custom_swagger_ui_html() -> str:
 
 def get_custom_redoc_html() -> str:
     """Generate custom ReDoc HTML with branding"""
-    
+
     return """
     <!DOCTYPE html>
     <html>

@@ -6,9 +6,7 @@ Main orchestrator for privacy compliance system integrating all privacy componen
 import logging
 from typing import Dict, List, Optional, Any
 
-from app.models.compliance import (
-    DataSubjectRequestType, ConsentType, DataCategory, LegalBasis
-)
+from app.models.compliance import DataSubjectRequestType, ConsentType, DataCategory, LegalBasis
 from ..audit import AuditLogger
 
 from .data_subject_handler import DataSubjectRequestHandler
@@ -41,7 +39,7 @@ class PrivacyManager:
         organization_id: Optional[str] = None,
         tenant_id: Optional[str] = None,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> str:
         """Create and handle data subject request"""
 
@@ -54,45 +52,36 @@ class PrivacyManager:
             organization_id=organization_id,
             tenant_id=tenant_id,
             ip_address=ip_address,
-            user_agent=user_agent
+            user_agent=user_agent,
         )
 
     async def process_access_request(
-        self,
-        request_id: str,
-        include_metadata: bool = True
+        self, request_id: str, include_metadata: bool = True
     ) -> DataSubjectRequestResponse:
         """Process GDPR Article 15 access request"""
 
         return await self.data_subject_handler.process_access_request(
-            request_id=request_id,
-            include_metadata=include_metadata
+            request_id=request_id, include_metadata=include_metadata
         )
 
     async def process_erasure_request(
-        self,
-        request_id: str,
-        verify_identity: bool = True,
-        backup_before_deletion: bool = True
+        self, request_id: str, verify_identity: bool = True, backup_before_deletion: bool = True
     ) -> DataSubjectRequestResponse:
         """Process GDPR Article 17 right to be forgotten request"""
 
         return await self.data_subject_handler.process_erasure_request(
             request_id=request_id,
             verify_identity=verify_identity,
-            backup_before_deletion=backup_before_deletion
+            backup_before_deletion=backup_before_deletion,
         )
 
     async def process_portability_request(
-        self,
-        request_id: str,
-        export_format: DataExportFormat = DataExportFormat.JSON
+        self, request_id: str, export_format: DataExportFormat = DataExportFormat.JSON
     ) -> DataSubjectRequestResponse:
         """Process GDPR Article 20 data portability request"""
 
         return await self.data_subject_handler.process_portability_request(
-            request_id=request_id,
-            export_format=export_format
+            request_id=request_id, export_format=export_format
         )
 
     # Consent Management
@@ -109,7 +98,7 @@ class PrivacyManager:
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
         organization_id: Optional[str] = None,
-        tenant_id: Optional[str] = None
+        tenant_id: Optional[str] = None,
     ) -> str:
         """Grant user consent with audit trail"""
 
@@ -124,7 +113,7 @@ class PrivacyManager:
             ip_address=ip_address,
             user_agent=user_agent,
             organization_id=organization_id,
-            tenant_id=tenant_id
+            tenant_id=tenant_id,
         )
 
     async def withdraw_user_consent(
@@ -135,7 +124,7 @@ class PrivacyManager:
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
         organization_id: Optional[str] = None,
-        tenant_id: Optional[str] = None
+        tenant_id: Optional[str] = None,
     ) -> str:
         """Withdraw user consent with audit trail"""
 
@@ -146,45 +135,36 @@ class PrivacyManager:
             ip_address=ip_address,
             user_agent=user_agent,
             organization_id=organization_id,
-            tenant_id=tenant_id
+            tenant_id=tenant_id,
         )
 
     async def get_user_consents(
-        self,
-        user_id: str,
-        active_only: bool = True
+        self, user_id: str, active_only: bool = True
     ) -> List[Dict[str, Any]]:
         """Get all consents for a user"""
 
         return await self.consent_manager.get_user_consents(
-            user_id=user_id,
-            active_only=active_only
+            user_id=user_id, active_only=active_only
         )
 
     async def check_consent_status(
-        self,
-        user_id: str,
-        consent_type: ConsentType
+        self, user_id: str, consent_type: ConsentType
     ) -> Optional[Dict[str, Any]]:
         """Check if user has active consent for specific type"""
 
         return await self.consent_manager.check_consent_status(
-            user_id=user_id,
-            consent_type=consent_type
+            user_id=user_id, consent_type=consent_type
         )
 
     # Data Retention Management
 
     async def execute_retention_policies(
-        self,
-        organization_id: Optional[str] = None,
-        dry_run: bool = False
+        self, organization_id: Optional[str] = None, dry_run: bool = False
     ) -> Dict[str, Any]:
         """Execute automated data retention policies"""
 
         return await self.retention_manager.execute_retention_policies(
-            organization_id=organization_id,
-            dry_run=dry_run
+            organization_id=organization_id, dry_run=dry_run
         )
 
     async def create_retention_policy(
@@ -197,7 +177,7 @@ class PrivacyManager:
         data_sources: List[str],
         legal_basis: str,
         organization_id: Optional[str] = None,
-        creator_id: Optional[str] = None
+        creator_id: Optional[str] = None,
     ) -> str:
         """Create a new data retention policy"""
 
@@ -210,18 +190,15 @@ class PrivacyManager:
             data_sources=data_sources,
             legal_basis=legal_basis,
             organization_id=organization_id,
-            creator_id=creator_id
+            creator_id=creator_id,
         )
 
     async def get_active_retention_policies(
-        self,
-        organization_id: Optional[str] = None
+        self, organization_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Get all active retention policies"""
 
-        return await self.retention_manager.get_active_policies(
-            organization_id=organization_id
-        )
+        return await self.retention_manager.get_active_policies(organization_id=organization_id)
 
     # Privacy Impact Assessment
 
@@ -238,7 +215,7 @@ class PrivacyManager:
         privacy_risks: List[Dict[str, Any]],
         mitigation_measures: List[str],
         creator_id: str,
-        organization_id: Optional[str] = None
+        organization_id: Optional[str] = None,
     ) -> str:
         """Create a Privacy Impact Assessment (PIA) for GDPR compliance"""
 
@@ -247,20 +224,21 @@ class PrivacyManager:
         pia_id = f"PIA-{project_name}-{creator_id[:8]}"
 
         # Log PIA creation
-        logger.info(f"Privacy Impact Assessment created: {pia_id}", extra={
-            "project_name": project_name,
-            "creator_id": creator_id,
-            "organization_id": organization_id
-        })
+        logger.info(
+            f"Privacy Impact Assessment created: {pia_id}",
+            extra={
+                "project_name": project_name,
+                "creator_id": creator_id,
+                "organization_id": organization_id,
+            },
+        )
 
         return pia_id
 
     # Comprehensive Privacy Health Check
 
     async def privacy_health_check(
-        self,
-        user_id: str,
-        organization_id: Optional[str] = None
+        self, user_id: str, organization_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Comprehensive privacy compliance health check for a user"""
 
@@ -272,7 +250,7 @@ class PrivacyManager:
             "data_subject_requests": [],
             "retention_status": "within_policy",
             "risk_level": "low",
-            "recommendations": []
+            "recommendations": [],
         }
 
         try:
@@ -281,7 +259,9 @@ class PrivacyManager:
             health_check["active_consents"] = consents
 
             if not consents:
-                health_check["recommendations"].append("No active consents found - consider obtaining necessary consents")
+                health_check["recommendations"].append(
+                    "No active consents found - consider obtaining necessary consents"
+                )
                 health_check["risk_level"] = "medium"
 
             # Check for pending data subject requests

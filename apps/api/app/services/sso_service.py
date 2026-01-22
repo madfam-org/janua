@@ -58,10 +58,7 @@ def _is_microsoft_oidc_endpoint(url: str) -> bool:
     try:
         parsed = urlparse(url)
         # Validate scheme is https and host is exactly login.microsoftonline.com
-        return (
-            parsed.scheme == "https" and
-            parsed.netloc == "login.microsoftonline.com"
-        )
+        return parsed.scheme == "https" and parsed.netloc == "login.microsoftonline.com"
     except Exception:
         return False
 
@@ -675,11 +672,11 @@ class SSOService:
 
     async def generate_saml_metadata(self, entity_id: str, acs_url: str) -> Dict[str, Any]:
         """Generate SAML metadata for SP"""
-        metadata_xml = f'''<EntityDescriptor entityID="{entity_id}">
+        metadata_xml = f"""<EntityDescriptor entityID="{entity_id}">
     <SPSSODescriptor>
         <AssertionConsumerService Location="{acs_url}" Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"/>
     </SPSSODescriptor>
-</EntityDescriptor>'''
+</EntityDescriptor>"""
 
         metadata = {
             "entity_id": entity_id,

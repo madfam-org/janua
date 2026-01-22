@@ -1,4 +1,3 @@
-
 import pytest
 
 pytestmark = pytest.mark.asyncio
@@ -29,10 +28,10 @@ class TestAuthenticationEndpoints:
             "password": "SecurePassword123!",
             "first_name": "John",
             "last_name": "Doe",
-            "username": "johndoe"
+            "username": "johndoe",
         }
 
-        with patch('app.services.email_service.EmailService.send_verification_email') as mock_email:
+        with patch("app.services.email_service.EmailService.send_verification_email") as mock_email:
             mock_email.return_value = True
 
             response = await test_client.post("/api/v1/auth/signup", json=signup_data)
@@ -53,13 +52,10 @@ class TestAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_signin_success(self, test_client: AsyncClient, test_db_session):
         """Test successful user signin"""
-        signin_data = {
-            "email": "test@example.com",
-            "password": "TestPassword123!"
-        }
+        signin_data = {"email": "test@example.com", "password": "TestPassword123!"}
 
         # Mock user in database
-        with patch('app.routers.v1.auth.AuthService') as mock_auth_service:
+        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = signin_data["email"]
@@ -70,7 +66,7 @@ class TestAuthenticationEndpoints:
             mock_auth_service.return_value.create_session.return_value = (
                 "access_token_123",
                 "refresh_token_123",
-                {"id": "session_123"}
+                {"id": "session_123"},
             )
 
             response = await test_client.post("/api/v1/auth/signin", json=signin_data)
@@ -85,12 +81,9 @@ class TestAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_signin_invalid_credentials(self, test_client: AsyncClient):
         """Test signin with invalid credentials"""
-        signin_data = {
-            "email": "test@example.com",
-            "password": "wrongpassword"
-        }
+        signin_data = {"email": "test@example.com", "password": "wrongpassword"}
 
-        with patch('app.routers.v1.auth.AuthService') as mock_auth_service:
+        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
             mock_auth_service.return_value.authenticate_user.return_value = None
 
             response = await test_client.post("/api/v1/auth/signin", json=signin_data)
@@ -102,12 +95,9 @@ class TestAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_signin_inactive_user(self, test_client: AsyncClient):
         """Test signin with inactive user"""
-        signin_data = {
-            "email": "inactive@example.com",
-            "password": "TestPassword123!"
-        }
+        signin_data = {"email": "inactive@example.com", "password": "TestPassword123!"}
 
-        with patch('app.routers.v1.auth.AuthService') as mock_auth_service:
+        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.status = UserStatus.INACTIVE
             mock_auth_service.return_value.authenticate_user.return_value = mock_user
@@ -121,14 +111,12 @@ class TestAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_refresh_token_flow(self, test_client: AsyncClient):
         """Test refresh token endpoint"""
-        refresh_data = {
-            "refresh_token": "valid_refresh_token_123"
-        }
+        refresh_data = {"refresh_token": "valid_refresh_token_123"}
 
-        with patch('app.routers.v1.auth.AuthService') as mock_auth_service:
+        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
             mock_auth_service.return_value.refresh_access_token.return_value = (
                 "new_access_token_123",
-                "new_refresh_token_123"
+                "new_refresh_token_123",
             )
 
             response = await test_client.post("/api/v1/auth/refresh", json=refresh_data)
@@ -144,12 +132,12 @@ class TestAuthenticationEndpoints:
         """Test user logout"""
         headers = {"Authorization": "Bearer valid_token_123"}
 
-        with patch('app.dependencies.get_current_user') as mock_get_user:
+        with patch("app.dependencies.get_current_user") as mock_get_user:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_get_user.return_value = mock_user
 
-            with patch('app.routers.v1.auth.AuthService') as mock_auth_service:
+            with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
                 mock_auth_service.return_value.logout_user.return_value = True
 
                 response = await test_client.post("/api/v1/auth/logout", headers=headers)
@@ -161,11 +149,9 @@ class TestAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_email_verification_flow(self, test_client: AsyncClient):
         """Test email verification process"""
-        verification_data = {
-            "token": "verification_token_123"
-        }
+        verification_data = {"token": "verification_token_123"}
 
-        with patch('app.routers.v1.auth.AuthService') as mock_auth_service:
+        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
             mock_auth_service.return_value.verify_email.return_value = True
 
             response = await test_client.post("/api/v1/auth/verify-email", json=verification_data)
@@ -177,11 +163,11 @@ class TestAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_password_reset_request(self, test_client: AsyncClient):
         """Test password reset request"""
-        reset_data = {
-            "email": "user@example.com"
-        }
+        reset_data = {"email": "user@example.com"}
 
-        with patch('app.services.email_service.EmailService.send_password_reset_email') as mock_email:
+        with patch(
+            "app.services.email_service.EmailService.send_password_reset_email"
+        ) as mock_email:
             mock_email.return_value = True
 
             response = await test_client.post("/api/v1/auth/reset-password", json=reset_data)
@@ -193,12 +179,9 @@ class TestAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_password_reset_confirm(self, test_client: AsyncClient):
         """Test password reset confirmation"""
-        reset_data = {
-            "token": "reset_token_123",
-            "new_password": "NewSecurePassword123!"
-        }
+        reset_data = {"token": "reset_token_123", "new_password": "NewSecurePassword123!"}
 
-        with patch('app.routers.v1.auth.AuthService') as mock_auth_service:
+        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
             mock_auth_service.return_value.reset_password.return_value = True
 
             response = await test_client.post("/api/v1/auth/confirm-reset", json=reset_data)
@@ -210,11 +193,9 @@ class TestAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_magic_link_request(self, test_client: AsyncClient):
         """Test magic link authentication request"""
-        magic_data = {
-            "email": "user@example.com"
-        }
+        magic_data = {"email": "user@example.com"}
 
-        with patch('app.services.email_service.EmailService.send_magic_link_email') as mock_email:
+        with patch("app.services.email_service.EmailService.send_magic_link_email") as mock_email:
             mock_email.return_value = True
 
             response = await test_client.post("/api/v1/auth/magic-link", json=magic_data)
@@ -226,11 +207,9 @@ class TestAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_magic_link_verify(self, test_client: AsyncClient):
         """Test magic link verification"""
-        magic_data = {
-            "token": "magic_token_123"
-        }
+        magic_data = {"token": "magic_token_123"}
 
-        with patch('app.routers.v1.auth.AuthService') as mock_auth_service:
+        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = "user@example.com"
@@ -239,7 +218,7 @@ class TestAuthenticationEndpoints:
             mock_auth_service.return_value.create_session.return_value = (
                 "access_token_123",
                 "refresh_token_123",
-                {"id": "session_123"}
+                {"id": "session_123"},
             )
 
             response = await test_client.post("/api/v1/auth/verify-magic-link", json=magic_data)
@@ -254,7 +233,7 @@ class TestAuthenticationEndpoints:
         """Test /me endpoint with valid authentication"""
         headers = {"Authorization": "Bearer valid_token_123"}
 
-        with patch('app.dependencies.get_current_user') as mock_get_user:
+        with patch("app.dependencies.get_current_user") as mock_get_user:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = "user@example.com"
@@ -322,7 +301,7 @@ class TestAuthenticationEndpoints:
         signup_data = {
             "email": "test@example.com",
             "password": "TestPassword123!",
-            "first_name": "Test"
+            "first_name": "Test",
         }
 
         # Make multiple requests to trigger rate limiting
@@ -340,12 +319,9 @@ class TestAuthenticationEndpoints:
         """Test concurrent authentication requests"""
         import asyncio
 
-        signin_data = {
-            "email": "test@example.com",
-            "password": "TestPassword123!"
-        }
+        signin_data = {"email": "test@example.com", "password": "TestPassword123!"}
 
-        with patch('app.routers.v1.auth.AuthService') as mock_auth_service:
+        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = signin_data["email"]
@@ -356,14 +332,11 @@ class TestAuthenticationEndpoints:
             mock_auth_service.return_value.create_session.return_value = (
                 "access_token_123",
                 "refresh_token_123",
-                {"id": "session_123"}
+                {"id": "session_123"},
             )
 
             # Make concurrent requests
-            tasks = [
-                test_client.post("/api/v1/auth/signin", json=signin_data)
-                for _ in range(5)
-            ]
+            tasks = [test_client.post("/api/v1/auth/signin", json=signin_data) for _ in range(5)]
 
             responses = await asyncio.gather(*tasks)
 
@@ -383,14 +356,11 @@ class TestAuthenticationSecurity:
             "'; DROP TABLE users; --",
             "admin@example.com'; DROP TABLE users; --",
             "' OR '1'='1",
-            "' UNION SELECT * FROM users --"
+            "' UNION SELECT * FROM users --",
         ]
 
         for payload in malicious_payloads:
-            signin_data = {
-                "email": payload,
-                "password": "password"
-            }
+            signin_data = {"email": payload, "password": "password"}
 
             response = await test_client.post("/api/v1/auth/signin", json=signin_data)
             # Should either return validation error or authentication failure, not 500
@@ -411,10 +381,10 @@ class TestAuthenticationSecurity:
                 "email": "test@example.com",
                 "password": "TestPassword123!",
                 "first_name": payload,
-                "last_name": payload
+                "last_name": payload,
             }
 
-            with patch('app.services.email_service.EmailService.send_verification_email'):
+            with patch("app.services.email_service.EmailService.send_verification_email"):
                 response = await test_client.post("/api/v1/auth/signup", json=signup_data)
 
                 if response.status_code == 201:
@@ -426,12 +396,9 @@ class TestAuthenticationSecurity:
     @pytest.mark.asyncio
     async def test_password_brute_force_protection(self, test_client: AsyncClient):
         """Test protection against password brute force attacks"""
-        signin_data = {
-            "email": "test@example.com",
-            "password": "wrongpassword"
-        }
+        signin_data = {"email": "test@example.com", "password": "wrongpassword"}
 
-        with patch('app.routers.v1.auth.AuthService') as mock_auth_service:
+        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
             mock_auth_service.return_value.authenticate_user.return_value = None
 
             # Attempt multiple failed logins
@@ -456,7 +423,7 @@ class TestAuthenticationSecurity:
             "Bearer invalid_token",
             "Bearer " + "a" * 1000,  # Very long token
             "",
-            None
+            None,
         ]
 
         for token in invalid_tokens:
@@ -475,13 +442,13 @@ class TestAuthenticationSecurity:
         """Test session security measures"""
         headers = {"Authorization": "Bearer valid_token_123"}
 
-        with patch('app.dependencies.get_current_user') as mock_get_user:
+        with patch("app.dependencies.get_current_user") as mock_get_user:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_get_user.return_value = mock_user
 
             # Test that logout invalidates the session
-            with patch('app.routers.v1.auth.AuthService') as mock_auth_service:
+            with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
                 mock_auth_service.return_value.logout_user.return_value = True
 
                 logout_response = await test_client.post("/api/v1/auth/logout", headers=headers)
@@ -502,11 +469,11 @@ class TestAuthenticationEdgeCases:
         signup_data = {
             "email": "duplicate@example.com",
             "password": "TestPassword123!",
-            "first_name": "Test"
+            "first_name": "Test",
         }
 
-        with patch('app.services.email_service.EmailService.send_verification_email'):
-            with patch('app.routers.v1.auth.AuthService') as mock_auth_service:
+        with patch("app.services.email_service.EmailService.send_verification_email"):
+            with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
                 # First signup succeeds
                 mock_user = MagicMock()
                 mock_auth_service.return_value.create_user.return_value = mock_user
@@ -514,7 +481,9 @@ class TestAuthenticationEdgeCases:
                 await test_client.post("/api/v1/auth/signup", json=signup_data)
 
                 # Second signup with same email should fail
-                mock_auth_service.return_value.create_user.side_effect = Exception("Email already exists")
+                mock_auth_service.return_value.create_user.side_effect = Exception(
+                    "Email already exists"
+                )
 
                 response2 = await test_client.post("/api/v1/auth/signup", json=signup_data)
                 assert response2.status_code in [400, 409, 422]
@@ -524,8 +493,9 @@ class TestAuthenticationEdgeCases:
         """Test handling of expired tokens"""
         headers = {"Authorization": "Bearer expired_token_123"}
 
-        with patch('app.dependencies.get_current_user') as mock_get_user:
+        with patch("app.dependencies.get_current_user") as mock_get_user:
             from fastapi import HTTPException
+
             mock_get_user.side_effect = HTTPException(status_code=401, detail="Token expired")
 
             response = await test_client.get("/api/v1/auth/me", headers=headers)
@@ -539,7 +509,7 @@ class TestAuthenticationEdgeCases:
             '{"email": "test@example.com", "password":}',  # Invalid JSON
             '{"email": "test@example.com"}',  # Missing required fields
             "",  # Empty body
-            None  # No body
+            None,  # No body
         ]
 
         for body in malformed_bodies:
@@ -549,7 +519,7 @@ class TestAuthenticationEdgeCases:
                 response = await test_client.post(
                     "/api/v1/auth/signin",
                     content=body,
-                    headers={"Content-Type": "application/json"}
+                    headers={"Content-Type": "application/json"},
                 )
             assert response.status_code in [400, 422]
 
@@ -560,10 +530,10 @@ class TestAuthenticationEdgeCases:
             "email": "测试@example.com",
             "password": "TestPassword123!",
             "first_name": "测试用户",
-            "last_name": "ñoño"
+            "last_name": "ñoño",
         }
 
-        with patch('app.services.email_service.EmailService.send_verification_email'):
+        with patch("app.services.email_service.EmailService.send_verification_email"):
             response = await test_client.post("/api/v1/auth/signup", json=unicode_data)
             # Should handle unicode gracefully
             assert response.status_code in [201, 400, 422]
@@ -577,7 +547,7 @@ class TestAuthenticationEdgeCases:
             "email": f"{long_string}@example.com",
             "password": long_string,
             "first_name": long_string,
-            "last_name": long_string
+            "last_name": long_string,
         }
 
         response = await test_client.post("/api/v1/auth/signup", json=long_data)

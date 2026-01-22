@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 class TransactionType(str, Enum):
     """Transaction type for provider routing."""
+
     SUBSCRIPTION = "subscription"
     PRODUCT_PURCHASE = "product_purchase"
     ONE_TIME_PAYMENT = "one_time_payment"
@@ -37,6 +38,7 @@ class TransactionType(str, Enum):
 
 class ProviderName(str, Enum):
     """Supported payment provider names."""
+
     CONEKTA = "conekta"
     STRIPE = "stripe"
     POLAR = "polar"
@@ -44,6 +46,7 @@ class ProviderName(str, Enum):
 
 class ProviderFallbackReason(str, Enum):
     """Reasons for provider fallback to Stripe."""
+
     PROVIDER_NOT_CONFIGURED = "provider_not_configured"
     PROVIDER_API_ERROR = "provider_api_error"
     PROVIDER_TIMEOUT = "provider_timeout"
@@ -66,7 +69,7 @@ class PaymentRouter:
         conekta_api_key: Optional[str] = None,
         stripe_api_key: Optional[str] = None,
         polar_api_key: Optional[str] = None,
-        test_mode: bool = False
+        test_mode: bool = False,
     ):
         """
         Initialize payment router with provider credentials.
@@ -88,24 +91,21 @@ class PaymentRouter:
         conekta_key = conekta_api_key or os.getenv("CONEKTA_API_KEY")
         if conekta_key:
             self.providers[ProviderName.CONEKTA] = ConektaProvider(
-                api_key=conekta_key,
-                test_mode=test_mode
+                api_key=conekta_key, test_mode=test_mode
             )
 
         # Stripe (International market)
         stripe_key = stripe_api_key or os.getenv("STRIPE_API_KEY")
         if stripe_key:
             self.providers[ProviderName.STRIPE] = StripeProvider(
-                api_key=stripe_key,
-                test_mode=test_mode
+                api_key=stripe_key, test_mode=test_mode
             )
 
         # Polar (Digital products)
         polar_key = polar_api_key or os.getenv("POLAR_API_KEY")
         if polar_key:
             self.providers[ProviderName.POLAR] = PolarProvider(
-                api_key=polar_key,
-                test_mode=test_mode
+                api_key=polar_key, test_mode=test_mode
             )
 
     async def get_provider(
@@ -115,7 +115,7 @@ class PaymentRouter:
         user_country: Optional[str] = None,
         ip_address: Optional[str] = None,
         force_provider: Optional[ProviderName] = None,
-        allow_fallback: bool = True
+        allow_fallback: bool = True,
     ) -> Tuple[PaymentProvider, Optional[Dict[str, Any]]]:
         """
         Select appropriate payment provider with Stripe as universal fallback.
@@ -167,7 +167,7 @@ class PaymentRouter:
                 # Fallback to Stripe for product purchases
                 fallback_info = self._create_fallback_info(
                     attempted_provider=ProviderName.POLAR,
-                    reason=ProviderFallbackReason.PROVIDER_NOT_CONFIGURED
+                    reason=ProviderFallbackReason.PROVIDER_NOT_CONFIGURED,
                 )
                 logger.warning(
                     f"Polar unavailable for product purchase, falling back to Stripe. "
@@ -181,13 +181,12 @@ class PaymentRouter:
         country = await self.geolocation.detect_country(
             ip_address=ip_address,
             user_country=user_country,
-            billing_country=billing_address.get("country") if billing_address else None
+            billing_country=billing_address.get("country") if billing_address else None,
         )
 
         # Priority 4: Mexican customers → Conekta (with Stripe fallback)
         is_mexican = self.geolocation.is_mexican_customer(
-            country_code=country,
-            billing_address=billing_address
+            country_code=country, billing_address=billing_address
         )
 
         if is_mexican:
@@ -197,7 +196,7 @@ class PaymentRouter:
                 # Fallback to Stripe for Mexican customers
                 fallback_info = self._create_fallback_info(
                     attempted_provider=ProviderName.CONEKTA,
-                    reason=ProviderFallbackReason.PROVIDER_NOT_CONFIGURED
+                    reason=ProviderFallbackReason.PROVIDER_NOT_CONFIGURED,
                 )
                 logger.warning(
                     f"Conekta unavailable for Mexican customer, falling back to Stripe. "
@@ -205,7 +204,9 @@ class PaymentRouter:
                 )
                 return self.providers[ProviderName.STRIPE], fallback_info
             else:
-                raise ValueError("Conekta and Stripe providers not configured for Mexican customers")
+                raise ValueError(
+                    "Conekta and Stripe providers not configured for Mexican customers"
+                )
 
         # Priority 5: Non-Mexican customers → Stripe (direct, no fallback needed)
         if ProviderName.STRIPE not in self.providers:
@@ -213,16 +214,14 @@ class PaymentRouter:
         return self.providers[ProviderName.STRIPE], None
 
     def _create_fallback_info(
-        self,
-        attempted_provider: ProviderName,
-        reason: ProviderFallbackReason
+        self, attempted_provider: ProviderName, reason: ProviderFallbackReason
     ) -> Dict[str, Any]:
         """Create fallback information for logging and monitoring."""
         return {
             "attempted_provider": attempted_provider,
             "fallback_provider": ProviderName.STRIPE,
             "reason": reason,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     async def get_provider_name(
@@ -231,7 +230,7 @@ class PaymentRouter:
         billing_address: Optional[Dict[str, str]] = None,
         user_country: Optional[str] = None,
         ip_address: Optional[str] = None,
-        force_provider: Optional[ProviderName] = None
+        force_provider: Optional[ProviderName] = None,
     ) -> Tuple[str, Optional[Dict[str, Any]]]:
         """
         Get provider name with fallback information.
@@ -246,7 +245,7 @@ class PaymentRouter:
             billing_address=billing_address,
             user_country=user_country,
             ip_address=ip_address,
-            force_provider=force_provider
+            force_provider=force_provider,
         )
         return provider.provider_name, fallback_info
 
@@ -275,7 +274,7 @@ class PaymentRouter:
         self,
         billing_address: Optional[Dict[str, str]] = None,
         user_country: Optional[str] = None,
-        ip_address: Optional[str] = None
+        ip_address: Optional[str] = None,
     ) -> str:
         """
         Determine appropriate currency for customer.
@@ -288,7 +287,7 @@ class PaymentRouter:
         country = await self.geolocation.detect_country(
             ip_address=ip_address,
             user_country=user_country,
-            billing_country=billing_address.get("country") if billing_address else None
+            billing_country=billing_address.get("country") if billing_address else None,
         )
 
         return self.geolocation.get_currency_for_country(country)
@@ -298,7 +297,7 @@ class PaymentRouter:
         transaction_type: TransactionType,
         billing_address: Optional[Dict[str, str]] = None,
         user_country: Optional[str] = None,
-        ip_address: Optional[str] = None
+        ip_address: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Validate routing logic and return detailed routing information.
@@ -319,7 +318,7 @@ class PaymentRouter:
         country = await self.geolocation.detect_country(
             ip_address=ip_address,
             user_country=user_country,
-            billing_country=billing_address.get("country") if billing_address else None
+            billing_country=billing_address.get("country") if billing_address else None,
         )
 
         # Get currency
@@ -327,8 +326,7 @@ class PaymentRouter:
 
         # Determine provider and reason
         is_mexican = self.geolocation.is_mexican_customer(
-            country_code=country,
-            billing_address=billing_address
+            country_code=country, billing_address=billing_address
         )
 
         if transaction_type == TransactionType.PRODUCT_PURCHASE:
@@ -359,7 +357,7 @@ class PaymentRouter:
         self,
         billing_address: Optional[Dict[str, str]] = None,
         user_country: Optional[str] = None,
-        ip_address: Optional[str] = None
+        ip_address: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get available payment methods for customer based on location.
@@ -368,15 +366,11 @@ class PaymentRouter:
             Dict with provider and available payment methods
         """
         provider, fallback_info = await self.get_provider(
-            billing_address=billing_address,
-            user_country=user_country,
-            ip_address=ip_address
+            billing_address=billing_address, user_country=user_country, ip_address=ip_address
         )
 
         currency = await self.get_currency_for_customer(
-            billing_address=billing_address,
-            user_country=user_country,
-            ip_address=ip_address
+            billing_address=billing_address, user_country=user_country, ip_address=ip_address
         )
 
         # Define available payment methods per provider
@@ -391,33 +385,32 @@ class PaymentRouter:
                         "type": "oxxo",
                         "name": "OXXO",
                         "description": "Pay cash at any OXXO store",
-                        "processing_time": "instant"
+                        "processing_time": "instant",
                     },
                     {
                         "type": "spei",
                         "name": "SPEI",
                         "description": "Instant bank transfer",
-                        "processing_time": "instant"
-                    }
-                ]
+                        "processing_time": "instant",
+                    },
+                ],
             },
             ProviderName.STRIPE: {
                 "provider": "stripe",
                 "currency": currency,
                 "methods": ["card", "ach", "sepa", "ideal", "bancontact", "giropay"],
                 "cards": ["visa", "mastercard", "amex", "discover", "diners", "jcb"],
-                "local_methods": []  # Varies by country
+                "local_methods": [],  # Varies by country
             },
             ProviderName.POLAR: {
                 "provider": "polar",
                 "currency": "USD",
                 "methods": ["card"],
                 "cards": ["visa", "mastercard", "amex"],
-                "local_methods": []
-            }
+                "local_methods": [],
+            },
         }
 
         return payment_methods.get(
-            provider.provider_name,
-            {"provider": provider.provider_name, "methods": ["card"]}
+            provider.provider_name, {"provider": provider.provider_name, "methods": ["card"]}
         )

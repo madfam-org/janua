@@ -16,7 +16,7 @@ from .dto.responses import (
     OrganizationResponse,
     MemberResponse,
     InviteResultResponse,
-    SuccessResponse
+    SuccessResponse,
 )
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/organizations", tags=["organizations"])
 async def create_organization(
     request: CreateOrganizationRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Create a new organization"""
     controller = OrganizationController(db)
@@ -35,8 +35,7 @@ async def create_organization(
 
 @router.get("/", response_model=List[OrganizationResponse])
 async def list_organizations(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """List user's organizations"""
     controller = OrganizationController(db)
@@ -45,9 +44,7 @@ async def list_organizations(
 
 @router.get("/{org_id}", response_model=OrganizationResponse)
 async def get_organization(
-    org_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    org_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """Get organization details"""
     controller = OrganizationController(db)
@@ -56,9 +53,7 @@ async def get_organization(
 
 @router.delete("/{org_id}", response_model=SuccessResponse)
 async def delete_organization(
-    org_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    org_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """Delete an organization (owner only)"""
     controller = OrganizationController(db)
@@ -67,9 +62,7 @@ async def delete_organization(
 
 @router.get("/{org_id}/members", response_model=List[MemberResponse])
 async def list_organization_members(
-    org_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    org_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """List organization members"""
     controller = OrganizationController(db)
@@ -81,7 +74,7 @@ async def invite_member(
     org_id: str,
     request: InviteMemberRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Invite a new member to organization"""
     controller = OrganizationController(db)

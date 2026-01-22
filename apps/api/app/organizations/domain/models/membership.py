@@ -69,7 +69,7 @@ class Membership:
             OrganizationRole.VIEWER: 0,
             OrganizationRole.MEMBER: 1,
             OrganizationRole.ADMIN: 2,
-            OrganizationRole.OWNER: 3
+            OrganizationRole.OWNER: 3,
         }
 
         user_level = role_hierarchy.get(self.role, 0)
@@ -115,7 +115,7 @@ class OrganizationInvitation:
     role: OrganizationRole
     permissions: List[str] = field(default_factory=list)
     token: str = ""
-    invited_by: UUID = field(default_factory=lambda: UUID('00000000-0000-0000-0000-000000000000'))
+    invited_by: UUID = field(default_factory=lambda: UUID("00000000-0000-0000-0000-000000000000"))
     status: str = "pending"
     created_at: datetime = field(default_factory=datetime.utcnow)
     expires_at: datetime = field(default_factory=datetime.utcnow)
@@ -142,7 +142,8 @@ class OrganizationInvitation:
     def _is_valid_email(self, email: str) -> bool:
         """Validate email format"""
         import re
-        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         return bool(re.match(email_pattern, email))
 
     def is_expired(self) -> bool:

@@ -27,11 +27,11 @@ class Settings(BaseSettings):
     BASE_URL: str = Field(default="https://janua.dev")
     API_BASE_URL: str = Field(
         default="https://api.janua.dev",
-        description="Base URL for the API (used for SSO callbacks, OIDC discovery, etc.)"
+        description="Base URL for the API (used for SSO callbacks, OIDC discovery, etc.)",
     )
     JANUA_CUSTOM_DOMAIN: Optional[str] = Field(
         default=None,
-        description="Custom domain for white-label deployments (e.g., auth.madfam.io). Used as OIDC issuer when set."
+        description="Custom domain for white-label deployments (e.g., auth.madfam.io). Used as OIDC issuer when set.",
     )
     INTERNAL_BASE_URL: Optional[str] = Field(
         default=None, description="Internal service URL for Railway private networking"
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     DATABASE_MAX_OVERFLOW: int = Field(default=10)
     DATABASE_POOL_TIMEOUT: int = Field(default=30)
     AUTO_MIGRATE: bool = Field(default=False)
-    
+
     # Database SSL Configuration
     DATABASE_SSL_MODE: str = Field(
         default="disable",
@@ -72,13 +72,21 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field(default="redis://localhost:6379/0", description="Redis connection URL")
     REDIS_POOL_SIZE: int = Field(default=10)
     REDIS_DECODE_RESPONSES: bool = Field(default=True)
-    REDIS_MAX_CONNECTIONS: int = Field(default=100, description="Maximum number of Redis connections in pool")
-    REDIS_CONNECTION_TIMEOUT: int = Field(default=5000, description="Redis connection timeout in milliseconds")
+    REDIS_MAX_CONNECTIONS: int = Field(
+        default=100, description="Maximum number of Redis connections in pool"
+    )
+    REDIS_CONNECTION_TIMEOUT: int = Field(
+        default=5000, description="Redis connection timeout in milliseconds"
+    )
 
     # JWT
     JWT_SECRET_KEY: Optional[str] = Field(default=None)
-    JWT_PRIVATE_KEY: Optional[str] = Field(default=None, description="RSA private key in PEM format for RS256")
-    JWT_PUBLIC_KEY: Optional[str] = Field(default=None, description="RSA public key in PEM format for RS256")
+    JWT_PRIVATE_KEY: Optional[str] = Field(
+        default=None, description="RSA private key in PEM format for RS256"
+    )
+    JWT_PUBLIC_KEY: Optional[str] = Field(
+        default=None, description="RSA public key in PEM format for RS256"
+    )
     JWT_KID: str = Field(default="janua-primary-key", description="Key ID for JWKS")
     JWT_ALGORITHM: str = Field(default="RS256")
     JWT_ISSUER: str = Field(default="https://api.janua.dev")
@@ -97,11 +105,10 @@ class Settings(BaseSettings):
     # Cookie Configuration (for cross-subdomain SSO)
     COOKIE_DOMAIN: Optional[str] = Field(
         default=None,
-        description="Domain for session cookies (e.g., '.janua.dev' for cross-subdomain SSO). None = current domain only."
+        description="Domain for session cookies (e.g., '.janua.dev' for cross-subdomain SSO). None = current domain only.",
     )
     SECURE_COOKIES: bool = Field(
-        default=True,
-        description="Use secure cookies (HTTPS only). Should be True in production."
+        default=True, description="Use secure cookies (HTTPS only). Should be True in production."
     )
     PASSWORD_MIN_LENGTH: int = Field(default=12)
     PASSWORD_REQUIRE_UPPERCASE: bool = Field(default=True)
@@ -126,49 +133,40 @@ class Settings(BaseSettings):
     # Set to Cloudflare IPs, your load balancer IPs, etc.
     TRUSTED_PROXIES: str = Field(
         default="127.0.0.1,::1",
-        description="Comma-separated list of trusted proxy IPs that can set X-Forwarded-For"
+        description="Comma-separated list of trusted proxy IPs that can set X-Forwarded-For",
     )
 
     # Account Lockout
     ACCOUNT_LOCKOUT_ENABLED: bool = Field(
-        default=True,
-        description="Enable account lockout after failed login attempts"
+        default=True, description="Enable account lockout after failed login attempts"
     )
     ACCOUNT_LOCKOUT_THRESHOLD: int = Field(
-        default=5,
-        description="Number of failed attempts before account is locked"
+        default=5, description="Number of failed attempts before account is locked"
     )
     ACCOUNT_LOCKOUT_DURATION_MINUTES: int = Field(
-        default=15,
-        description="Duration in minutes to lock account after threshold is reached"
+        default=15, description="Duration in minutes to lock account after threshold is reached"
     )
     ACCOUNT_LOCKOUT_RESET_ON_SUCCESS: bool = Field(
-        default=True,
-        description="Reset failed attempt counter on successful login"
+        default=True, description="Reset failed attempt counter on successful login"
     )
 
     # Email Verification Enforcement
     REQUIRE_EMAIL_VERIFICATION: bool = Field(
-        default=True,
-        description="Require email verification for sensitive operations"
+        default=True, description="Require email verification for sensitive operations"
     )
     EMAIL_VERIFICATION_GRACE_PERIOD_HOURS: int = Field(
-        default=24,
-        description="Hours to allow unverified users to access system before blocking"
+        default=24, description="Hours to allow unverified users to access system before blocking"
     )
 
     # OAuth Client Credential Rotation
     CLIENT_SECRET_ROTATION_ENABLED: bool = Field(
-        default=True,
-        description="Enable graceful client secret rotation with overlap period"
+        default=True, description="Enable graceful client secret rotation with overlap period"
     )
     CLIENT_SECRET_ROTATION_GRACE_HOURS: int = Field(
-        default=24,
-        description="Hours that old secret remains valid after rotation"
+        default=24, description="Hours that old secret remains valid after rotation"
     )
     CLIENT_SECRET_MAX_AGE_DAYS: int = Field(
-        default=90,
-        description="Maximum age in days for client secrets before requiring rotation"
+        default=90, description="Maximum age in days for client secrets before requiring rotation"
     )
 
     # Email
@@ -267,7 +265,7 @@ class Settings(BaseSettings):
     # These bypass standard auth flows and should only be enabled for development/testing
     ENABLE_BETA_ENDPOINTS: bool = Field(
         default=False,
-        description="Enable beta endpoints (/beta/signup, /beta/signin). SECURITY WARNING: These bypass standard auth."
+        description="Enable beta endpoints (/beta/signup, /beta/signin). SECURITY WARNING: These bypass standard auth.",
     )
 
     # OAuth Providers - Google

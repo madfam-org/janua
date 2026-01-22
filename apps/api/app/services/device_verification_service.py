@@ -17,42 +17,47 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Optional user_agents library for better device detection
 try:
     from user_agents import parse as parse_user_agent
+
     HAS_USER_AGENTS = True
 except ImportError:
     HAS_USER_AGENTS = False
 
     def parse_user_agent(ua_string: str):
         """Fallback user agent parser when user_agents library is not available."""
+
         class FallbackUA:
             def __init__(self, ua: str):
                 self.ua = ua
                 # Simple browser detection
-                self.browser = type('Browser', (), {'family': 'Unknown', 'version_string': ''})()
-                self.os = type('OS', (), {'family': 'Unknown', 'version_string': ''})()
-                self.device = type('Device', (), {'family': 'Unknown', 'brand': None, 'model': None})()
+                self.browser = type("Browser", (), {"family": "Unknown", "version_string": ""})()
+                self.os = type("OS", (), {"family": "Unknown", "version_string": ""})()
+                self.device = type(
+                    "Device", (), {"family": "Unknown", "brand": None, "model": None}
+                )()
 
                 # Basic parsing
-                if 'Chrome' in ua:
-                    self.browser.family = 'Chrome'
-                elif 'Firefox' in ua:
-                    self.browser.family = 'Firefox'
-                elif 'Safari' in ua:
-                    self.browser.family = 'Safari'
-                elif 'Edge' in ua:
-                    self.browser.family = 'Edge'
+                if "Chrome" in ua:
+                    self.browser.family = "Chrome"
+                elif "Firefox" in ua:
+                    self.browser.family = "Firefox"
+                elif "Safari" in ua:
+                    self.browser.family = "Safari"
+                elif "Edge" in ua:
+                    self.browser.family = "Edge"
 
-                if 'Windows' in ua:
-                    self.os.family = 'Windows'
-                elif 'Mac OS' in ua or 'Macintosh' in ua:
-                    self.os.family = 'Mac OS X'
-                elif 'Linux' in ua:
-                    self.os.family = 'Linux'
-                elif 'Android' in ua:
-                    self.os.family = 'Android'
-                elif 'iOS' in ua or 'iPhone' in ua or 'iPad' in ua:
-                    self.os.family = 'iOS'
+                if "Windows" in ua:
+                    self.os.family = "Windows"
+                elif "Mac OS" in ua or "Macintosh" in ua:
+                    self.os.family = "Mac OS X"
+                elif "Linux" in ua:
+                    self.os.family = "Linux"
+                elif "Android" in ua:
+                    self.os.family = "Android"
+                elif "iOS" in ua or "iPhone" in ua or "iPad" in ua:
+                    self.os.family = "iOS"
 
         return FallbackUA(ua_string)
+
 
 from app.models import Session, TrustedDevice
 
@@ -223,8 +228,12 @@ class DeviceVerificationService:
             return existing
 
         # Create new trusted device
-        friendly_name = device_name or DeviceVerificationService.get_friendly_device_name(user_agent)
-        trust_expires = datetime.utcnow() + timedelta(days=trust_duration_days) if trust_duration_days else None
+        friendly_name = device_name or DeviceVerificationService.get_friendly_device_name(
+            user_agent
+        )
+        trust_expires = (
+            datetime.utcnow() + timedelta(days=trust_duration_days) if trust_duration_days else None
+        )
 
         trusted_device = TrustedDevice(
             user_id=user_id,
@@ -434,12 +443,14 @@ class DeviceVerificationService:
 
         # Check previous sessions
         result = await db.execute(
-            select(Session).where(
+            select(Session)
+            .where(
                 and_(
                     Session.user_id == user_id,
                     Session.device_fingerprint == device_fingerprint,
                 )
-            ).limit(1)
+            )
+            .limit(1)
         )
         if result.scalar_one_or_none():
             return False

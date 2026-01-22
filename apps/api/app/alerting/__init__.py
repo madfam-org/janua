@@ -5,26 +5,26 @@ Modular alerting system with separated concerns for evaluation, notification, an
 
 from .core import (
     AlertSeverity,
-    AlertStatus, 
+    AlertStatus,
     AlertChannel,
     AlertRule,
     Alert,
     NotificationChannel,
     AlertEvaluator,
     NotificationSender,
-    AlertManager
+    AlertManager,
 )
 from .alert_system_refactored import (
     alert_manager,
     initialize_alerting,
     trigger_manual_alert,
-    get_alert_health
+    get_alert_health,
 )
 
 __all__ = [
     "AlertSeverity",
     "AlertStatus",
-    "AlertChannel", 
+    "AlertChannel",
     "AlertRule",
     "Alert",
     "NotificationChannel",
@@ -34,5 +34,5 @@ __all__ = [
     "alert_manager",
     "initialize_alerting",
     "trigger_manual_alert",
-    "get_alert_health"
+    "get_alert_health",
 ]

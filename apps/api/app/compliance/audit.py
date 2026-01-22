@@ -18,9 +18,7 @@ from sqlalchemy import select, and_, text
 
 from app.core.database import get_session
 from app.models.audit import AuditLog
-from app.models.compliance import (
-    ComplianceFramework
-)
+from app.models.compliance import ComplianceFramework
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -29,6 +27,7 @@ settings = get_settings()
 
 class AuditEventType(str, Enum):
     """Types of auditable events for compliance tracking"""
+
     USER_ACCESS = "user_access"
     DATA_ACCESS = "data_access"
     SYSTEM_CHANGE = "system_change"
@@ -43,6 +42,7 @@ class AuditEventType(str, Enum):
 
 class EvidenceType(str, Enum):
     """Types of compliance evidence for SOC2 requirements"""
+
     SYSTEM_LOG = "system_log"
     USER_ACTIVITY = "user_activity"
     ACCESS_REVIEW = "access_review"
@@ -57,16 +57,18 @@ class EvidenceType(str, Enum):
 
 class RetentionPeriod(str, Enum):
     """Data retention periods for compliance requirements"""
+
     SEVEN_YEARS = "seven_years"  # SOC2 requirement
     THREE_YEARS = "three_years"  # Standard business records
-    ONE_YEAR = "one_year"        # Operational logs
-    SIX_MONTHS = "six_months"    # Performance metrics
+    ONE_YEAR = "one_year"  # Operational logs
+    SIX_MONTHS = "six_months"  # Performance metrics
     NINETY_DAYS = "ninety_days"  # Debug logs
 
 
 @dataclass
 class ComplianceEvent:
     """Auditable compliance event with evidence collection"""
+
     event_id: str
     event_type: AuditEventType
     timestamp: datetime
@@ -104,6 +106,7 @@ class ComplianceEvent:
 @dataclass
 class AuditEvidence:
     """Compliance evidence with integrity verification"""
+
     evidence_id: str
     evidence_type: EvidenceType
     title: str
@@ -166,7 +169,7 @@ class AuditLogger:
         compliance_frameworks: List[ComplianceFramework] = None,
         retention_period: RetentionPeriod = RetentionPeriod.SEVEN_YEARS,
         raw_data: Dict[str, Any] = None,
-        tags: List[str] = None
+        tags: List[str] = None,
     ) -> str:
         """Log a compliance event with automatic evidence collection"""
 
@@ -195,7 +198,7 @@ class AuditLogger:
             compliance_framework=compliance_frameworks or [ComplianceFramework.SOC2],
             retention_period=retention_period,
             raw_data=raw_data or {},
-            tags=tags or []
+            tags=tags or [],
         )
 
         # Store in database
@@ -214,9 +217,11 @@ class AuditLogger:
                 metadata={
                     "compliance_event": asdict(compliance_event),
                     "retention_period": retention_period.value,
-                    "compliance_frameworks": [f.value for f in compliance_frameworks] if compliance_frameworks else ["soc2"]
+                    "compliance_frameworks": [f.value for f in compliance_frameworks]
+                    if compliance_frameworks
+                    else ["soc2"],
                 },
-                tenant_id=uuid.UUID(tenant_id) if tenant_id else None
+                tenant_id=uuid.UUID(tenant_id) if tenant_id else None,
             )
             session.add(audit_log)
             await session.commit()
@@ -225,17 +230,20 @@ class AuditLogger:
         if self.redis:
             await self.redis.lpush(
                 f"compliance:events:{organization_id}",
-                json.dumps(asdict(compliance_event), default=str)
+                json.dumps(asdict(compliance_event), default=str),
             )
             await self.redis.expire(f"compliance:events:{organization_id}", 86400)  # 24 hours
 
-        logger.info(f"Compliance event logged: {event_id}", extra={
-            "event_type": event_type.value,
-            "resource_type": resource_type,
-            "action": action,
-            "outcome": outcome,
-            "correlation_id": correlation_id
-        })
+        logger.info(
+            f"Compliance event logged: {event_id}",
+            extra={
+                "event_type": event_type.value,
+                "resource_type": resource_type,
+                "action": action,
+                "outcome": outcome,
+                "correlation_id": correlation_id,
+            },
+        )
 
         return event_id
 
@@ -251,7 +259,7 @@ class AuditLogger:
         compliance_frameworks: List[ComplianceFramework] = None,
         retention_period: RetentionPeriod = RetentionPeriod.SEVEN_YEARS,
         metadata: Dict[str, Any] = None,
-        tags: List[str] = None
+        tags: List[str] = None,
     ) -> str:
         """Collect and store compliance evidence with integrity verification"""
 
@@ -260,10 +268,10 @@ class AuditLogger:
 
         # Serialize content if needed
         if isinstance(content, dict):
-            content_bytes = json.dumps(content, indent=2, default=str).encode('utf-8')
+            content_bytes = json.dumps(content, indent=2, default=str).encode("utf-8")
             content_type = "application/json"
         elif isinstance(content, str):
-            content_bytes = content.encode('utf-8')
+            content_bytes = content.encode("utf-8")
             content_type = "text/plain"
         else:
             content_bytes = content
@@ -279,14 +287,14 @@ class AuditLogger:
             RetentionPeriod.THREE_YEARS: 1095,  # 3 years
             RetentionPeriod.ONE_YEAR: 365,
             RetentionPeriod.SIX_MONTHS: 180,
-            RetentionPeriod.NINETY_DAYS: 90
+            RetentionPeriod.NINETY_DAYS: 90,
         }
 
         retention_expires_at = collected_at + timedelta(days=retention_days[retention_period])
 
         # Store evidence file
         evidence_path = self.evidence_store / f"{evidence_id}.evidence"
-        async with aiofiles.open(evidence_path, 'wb') as f:
+        async with aiofiles.open(evidence_path, "wb") as f:
             await f.write(content_bytes)
 
         # Create evidence record
@@ -307,16 +315,18 @@ class AuditLogger:
             destruction_due_at=None,
             control_objectives=control_objectives or [],
             compliance_frameworks=compliance_frameworks or [ComplianceFramework.SOC2],
-            custody_chain=[{
-                "timestamp": collected_at.isoformat(),
-                "action": "collected",
-                "actor": collector_id,
-                "hash": content_hash
-            }],
+            custody_chain=[
+                {
+                    "timestamp": collected_at.isoformat(),
+                    "action": "collected",
+                    "actor": collector_id,
+                    "hash": content_hash,
+                }
+            ],
             integrity_verified=True,
             last_verification_at=collected_at,
             metadata=metadata or {},
-            tags=tags or []
+            tags=tags or [],
         )
 
         # Store evidence metadata in database
@@ -333,18 +343,23 @@ class AuditLogger:
                     "evidence": asdict(evidence),
                     "evidence_type": evidence_type.value,
                     "control_objectives": control_objectives or [],
-                    "compliance_frameworks": [f.value for f in compliance_frameworks] if compliance_frameworks else ["soc2"]
-                }
+                    "compliance_frameworks": [f.value for f in compliance_frameworks]
+                    if compliance_frameworks
+                    else ["soc2"],
+                },
             )
             session.add(audit_log)
             await session.commit()
 
-        logger.info(f"Evidence collected: {evidence_id}", extra={
-            "evidence_type": evidence_type.value,
-            "source_system": source_system,
-            "content_size": content_size,
-            "content_hash": content_hash
-        })
+        logger.info(
+            f"Evidence collected: {evidence_id}",
+            extra={
+                "evidence_type": evidence_type.value,
+                "source_system": source_system,
+                "content_size": content_size,
+                "content_hash": content_hash,
+            },
+        )
 
         return evidence_id
 
@@ -358,7 +373,7 @@ class AuditLogger:
                     and_(
                         AuditLog.resource_type == "compliance_evidence",
                         AuditLog.resource_id == evidence_id,
-                        AuditLog.action == "collect"
+                        AuditLog.action == "collect",
                     )
                 )
             )
@@ -378,7 +393,7 @@ class AuditLogger:
 
             try:
                 # Read file and calculate current hash
-                async with aiofiles.open(file_path, 'rb') as f:
+                async with aiofiles.open(file_path, "rb") as f:
                     content = await f.read()
                     current_hash = hashlib.sha256(content).hexdigest()
 
@@ -412,10 +427,7 @@ class AuditTrail:
         self.audit_logger = AuditLogger(redis_client)
 
     async def correlate_events(
-        self,
-        correlation_id: str,
-        organization_id: str,
-        time_window_hours: int = 24
+        self, correlation_id: str, organization_id: str, time_window_hours: int = 24
     ) -> List[Dict[str, Any]]:
         """Correlate related audit events for incident analysis"""
 
@@ -424,31 +436,35 @@ class AuditTrail:
 
         async with get_session() as session:
             result = await session.execute(
-                select(AuditLog).where(
+                select(AuditLog)
+                .where(
                     and_(
                         AuditLog.created_at >= start_time,
                         AuditLog.created_at <= end_time,
-                        AuditLog.metadata.contains({"correlation_id": correlation_id})
+                        AuditLog.metadata.contains({"correlation_id": correlation_id}),
                     )
-                ).order_by(AuditLog.created_at)
+                )
+                .order_by(AuditLog.created_at)
             )
 
             events = result.scalars().all()
 
             correlated_events = []
             for event in events:
-                correlated_events.append({
-                    "event_id": str(event.id),
-                    "timestamp": event.created_at.isoformat(),
-                    "event_type": event.event_type,
-                    "resource_type": event.resource_type,
-                    "resource_id": event.resource_id,
-                    "action": event.action,
-                    "outcome": event.outcome,
-                    "user_id": str(event.user_id) if event.user_id else None,
-                    "ip_address": event.ip_address,
-                    "metadata": event.metadata
-                })
+                correlated_events.append(
+                    {
+                        "event_id": str(event.id),
+                        "timestamp": event.created_at.isoformat(),
+                        "event_type": event.event_type,
+                        "resource_type": event.resource_type,
+                        "resource_id": event.resource_id,
+                        "action": event.action,
+                        "outcome": event.outcome,
+                        "user_id": str(event.user_id) if event.user_id else None,
+                        "ip_address": event.ip_address,
+                        "metadata": event.metadata,
+                    }
+                )
 
         logger.info(f"Correlated {len(correlated_events)} events for {correlation_id}")
         return correlated_events
@@ -459,23 +475,20 @@ class AuditTrail:
         start_date: datetime,
         end_date: datetime,
         compliance_framework: ComplianceFramework = ComplianceFramework.SOC2,
-        control_ids: Optional[List[str]] = None
+        control_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Generate comprehensive audit report for compliance requirements"""
 
         async with get_session() as session:
             # Base query for audit events in date range
             base_query = select(AuditLog).where(
-                and_(
-                    AuditLog.created_at >= start_date,
-                    AuditLog.created_at <= end_date
-                )
+                and_(AuditLog.created_at >= start_date, AuditLog.created_at <= end_date)
             )
 
             # Filter by control IDs if specified
             if control_ids:
                 base_query = base_query.where(
-                    AuditLog.metadata['compliance_event']['control_id'].astext.in_(control_ids)
+                    AuditLog.metadata["compliance_event"]["control_id"].astext.in_(control_ids)
                 )
 
             result = await session.execute(base_query.order_by(AuditLog.created_at))
@@ -488,7 +501,7 @@ class AuditTrail:
                 "events_by_outcome": {},
                 "events_by_risk_level": {},
                 "unique_users": set(),
-                "unique_resources": set()
+                "unique_resources": set(),
             }
 
             # Security and compliance metrics
@@ -497,7 +510,7 @@ class AuditTrail:
                 "privileged_access_events": 0,
                 "policy_violations": 0,
                 "security_incidents": 0,
-                "control_failures": 0
+                "control_failures": 0,
             }
 
             # Process events
@@ -506,8 +519,12 @@ class AuditTrail:
                 outcome = event.outcome
 
                 # Update statistics
-                event_stats["events_by_type"][event_type] = event_stats["events_by_type"].get(event_type, 0) + 1
-                event_stats["events_by_outcome"][outcome] = event_stats["events_by_outcome"].get(outcome, 0) + 1
+                event_stats["events_by_type"][event_type] = (
+                    event_stats["events_by_type"].get(event_type, 0) + 1
+                )
+                event_stats["events_by_outcome"][outcome] = (
+                    event_stats["events_by_outcome"].get(outcome, 0) + 1
+                )
 
                 if event.user_id:
                     event_stats["unique_users"].add(str(event.user_id))
@@ -529,7 +546,9 @@ class AuditTrail:
                 # Risk level tracking
                 compliance_event = event.metadata.get("compliance_event", {})
                 risk_level = compliance_event.get("risk_level", "unknown")
-                event_stats["events_by_risk_level"][risk_level] = event_stats["events_by_risk_level"].get(risk_level, 0) + 1
+                event_stats["events_by_risk_level"][risk_level] = (
+                    event_stats["events_by_risk_level"].get(risk_level, 0) + 1
+                )
 
             # Convert sets to counts
             event_stats["unique_users"] = len(event_stats["unique_users"])
@@ -540,7 +559,7 @@ class AuditTrail:
                 and_(
                     AuditLog.created_at >= start_date,
                     AuditLog.created_at <= end_date,
-                    AuditLog.resource_type == "compliance_evidence"
+                    AuditLog.resource_type == "compliance_evidence",
                 )
             )
 
@@ -550,7 +569,7 @@ class AuditTrail:
             evidence_summary = {
                 "total_evidence_collected": len(evidence_events),
                 "evidence_by_type": {},
-                "evidence_by_framework": {}
+                "evidence_by_framework": {},
             }
 
             for evidence in evidence_events:
@@ -558,10 +577,14 @@ class AuditTrail:
                 evidence_type = evidence_data.get("evidence_type", "unknown")
                 frameworks = evidence.metadata.get("compliance_frameworks", [])
 
-                evidence_summary["evidence_by_type"][evidence_type] = evidence_summary["evidence_by_type"].get(evidence_type, 0) + 1
+                evidence_summary["evidence_by_type"][evidence_type] = (
+                    evidence_summary["evidence_by_type"].get(evidence_type, 0) + 1
+                )
 
                 for framework in frameworks:
-                    evidence_summary["evidence_by_framework"][framework] = evidence_summary["evidence_by_framework"].get(framework, 0) + 1
+                    evidence_summary["evidence_by_framework"][framework] = (
+                        evidence_summary["evidence_by_framework"].get(framework, 0) + 1
+                    )
 
         # Compile report
         audit_report = {
@@ -571,7 +594,7 @@ class AuditTrail:
                 "period_end": end_date.isoformat(),
                 "compliance_framework": compliance_framework.value,
                 "organization_id": organization_id,
-                "control_ids": control_ids
+                "control_ids": control_ids,
             },
             "executive_summary": {
                 "total_events": event_stats["total_events"],
@@ -579,7 +602,7 @@ class AuditTrail:
                 "unique_resources": event_stats["unique_resources"],
                 "security_incidents": security_metrics["security_incidents"],
                 "control_failures": security_metrics["control_failures"],
-                "evidence_collected": evidence_summary["total_evidence_collected"]
+                "evidence_collected": evidence_summary["total_evidence_collected"],
             },
             "event_statistics": event_stats,
             "security_metrics": security_metrics,
@@ -587,17 +610,26 @@ class AuditTrail:
             "compliance_assessment": {
                 "framework": compliance_framework.value,
                 "assessment_date": datetime.utcnow().isoformat(),
-                "overall_status": "compliant" if security_metrics["control_failures"] == 0 else "non_compliant",
-                "risk_level": "high" if security_metrics["security_incidents"] > 0 else "medium" if security_metrics["policy_violations"] > 5 else "low"
-            }
+                "overall_status": "compliant"
+                if security_metrics["control_failures"] == 0
+                else "non_compliant",
+                "risk_level": "high"
+                if security_metrics["security_incidents"] > 0
+                else "medium"
+                if security_metrics["policy_violations"] > 5
+                else "low",
+            },
         }
 
-        logger.info(f"Audit report generated for {organization_id}", extra={
-            "period_start": start_date.isoformat(),
-            "period_end": end_date.isoformat(),
-            "total_events": event_stats["total_events"],
-            "compliance_framework": compliance_framework.value
-        })
+        logger.info(
+            f"Audit report generated for {organization_id}",
+            extra={
+                "period_start": start_date.isoformat(),
+                "period_end": end_date.isoformat(),
+                "total_events": event_stats["total_events"],
+                "compliance_framework": compliance_framework.value,
+            },
+        )
 
         return audit_report
 
@@ -612,19 +644,17 @@ class AuditTrail:
                 and_(
                     AuditLog.resource_type == "compliance_evidence",
                     AuditLog.action == "collect",
-                    AuditLog.metadata['evidence']['retention_expires_at'].astext.cast(text('timestamp')) < current_time
+                    AuditLog.metadata["evidence"]["retention_expires_at"].astext.cast(
+                        text("timestamp")
+                    )
+                    < current_time,
                 )
             )
 
             result = await session.execute(expired_query)
             expired_evidence = result.scalars().all()
 
-            cleanup_summary = {
-                "processed": 0,
-                "deleted": 0,
-                "errors": 0,
-                "total_size_freed": 0
-            }
+            cleanup_summary = {"processed": 0, "deleted": 0, "errors": 0, "total_size_freed": 0}
 
             for evidence_log in expired_evidence:
                 try:

@@ -32,8 +32,8 @@ class TestMiddlewareChains:
             headers={
                 "Origin": "http://localhost:3000",
                 "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Headers": "content-type,authorization"
-            }
+                "Access-Control-Request-Headers": "content-type,authorization",
+            },
         )
 
         # CORS middleware should process preflight
@@ -41,8 +41,7 @@ class TestMiddlewareChains:
 
         # Test actual cross-origin request
         cors_response = self.client.get(
-            "/api/v1/health",
-            headers={"Origin": "http://localhost:3000"}
+            "/api/v1/health", headers={"Origin": "http://localhost:3000"}
         )
 
         # CORS headers should be set
@@ -53,24 +52,18 @@ class TestMiddlewareChains:
         # This covers TrustedHostMiddleware configuration
 
         # Test with valid host
-        valid_response = self.client.get(
-            "/api/v1/health",
-            headers={"Host": "testserver"}
-        )
+        valid_response = self.client.get("/api/v1/health", headers={"Host": "testserver"})
         assert valid_response.status_code in [200, 400, 503, 404]
 
         # Test with potentially invalid host
-        invalid_response = self.client.get(
-            "/api/v1/health",
-            headers={"Host": "malicious.com"}
-        )
+        invalid_response = self.client.get("/api/v1/health", headers={"Host": "malicious.com"})
         assert invalid_response.status_code in [200, 400, 403, 404, 503]
 
     def test_rate_limiting_middleware_execution(self):
         """Test rate limiting middleware processes requests."""
         # This covers slowapi rate limiting middleware
 
-        with patch('app.core.redis.get_redis') as mock_redis:
+        with patch("app.core.redis.get_redis") as mock_redis:
             mock_redis_client = AsyncMock()
             mock_redis_client.pipeline = MagicMock()
             mock_redis_client.time = AsyncMock(return_value=[int(time.time()), 0])
@@ -78,8 +71,9 @@ class TestMiddlewareChains:
 
             # Make multiple requests to trigger rate limiting logic
             for i in range(5):
-                response = self.client.post("/api/v1/auth/login",
-                                          json={"email": "test@example.com", "password": "test"})
+                response = self.client.post(
+                    "/api/v1/auth/login", json={"email": "test@example.com", "password": "test"}
+                )
                 # Rate limiting middleware should execute
                 assert response.status_code in [200, 400, 401, 422, 429]
 
@@ -99,11 +93,13 @@ class TestMiddlewareChains:
         """Test error handling middleware processes exceptions."""
         # This covers ErrorHandlingMiddleware from app/core/error_handling.py
 
-        with patch('app.services.auth_service.AuthService.authenticate_user',
-                   side_effect=Exception("Service error")):
-
-            response = self.client.post("/api/v1/auth/login",
-                                      json={"email": "test@example.com", "password": "test"})
+        with patch(
+            "app.services.auth_service.AuthService.authenticate_user",
+            side_effect=Exception("Service error"),
+        ):
+            response = self.client.post(
+                "/api/v1/auth/login", json={"email": "test@example.com", "password": "test"}
+            )
 
             # Error handling middleware should catch and process exceptions
             assert response.status_code in [400, 401, 500]
@@ -114,8 +110,7 @@ class TestMiddlewareChains:
 
         # Test with tenant header
         with_tenant_response = self.client.get(
-            "/api/v1/health",
-            headers={"X-Tenant-ID": "tenant-123"}
+            "/api/v1/health", headers={"X-Tenant-ID": "tenant-123"}
         )
         assert with_tenant_response.status_code in [200, 400, 503, 404]
 
@@ -127,7 +122,7 @@ class TestMiddlewareChains:
         """Test performance monitoring middleware tracks request metrics."""
         # This covers app/core/performance.py PerformanceMonitoringMiddleware
 
-        with patch('app.services.monitoring.metrics_collector') as mock_metrics:
+        with patch("app.services.monitoring.metrics_collector") as mock_metrics:
             mock_metrics.timing = AsyncMock()
             mock_metrics.increment = AsyncMock()
 
@@ -140,12 +135,13 @@ class TestMiddlewareChains:
         """Test logging middleware captures request/response data."""
         # This covers logging middleware integration
 
-        with patch('structlog.get_logger') as mock_logger:
+        with patch("structlog.get_logger") as mock_logger:
             mock_log = MagicMock()
             mock_logger.return_value = mock_log
 
-            response = self.client.post("/api/v1/auth/login",
-                                      json={"email": "test@example.com", "password": "test"})
+            response = self.client.post(
+                "/api/v1/auth/login", json={"email": "test@example.com", "password": "test"}
+            )
 
             # Logging middleware should execute
             assert response.status_code in [200, 400, 401, 422]
@@ -160,11 +156,12 @@ class TestMiddlewareChains:
             def middleware_tracker(*args, **kwargs):
                 execution_order.append(name)
                 return MagicMock()
+
             return middleware_tracker
 
-        with patch('app.core.error_handling.ErrorHandlingMiddleware') as mock_error, \
-             patch('app.core.performance.PerformanceMonitoringMiddleware') as mock_perf:
-
+        with patch("app.core.error_handling.ErrorHandlingMiddleware") as mock_error, patch(
+            "app.core.performance.PerformanceMonitoringMiddleware"
+        ) as mock_perf:
             mock_error.side_effect = track_execution("error_handling")
             mock_perf.side_effect = track_execution("performance")
 
@@ -183,14 +180,14 @@ class TestMiddlewareChains:
                 tasks = [
                     ac.get("/api/v1/health"),
                     ac.get("/api/v1/health"),
-                    ac.get("/api/v1/health")
+                    ac.get("/api/v1/health"),
                 ]
 
                 responses = await asyncio.gather(*tasks, return_exceptions=True)
 
                 # All requests should be processed by middleware
                 for response in responses:
-                    if hasattr(response, 'status_code'):
+                    if hasattr(response, "status_code"):
                         assert response.status_code in [200, 400, 503, 404]
 
         asyncio.run(async_test())
@@ -199,10 +196,7 @@ class TestMiddlewareChains:
         """Test middleware handles large request payloads."""
         # This covers middleware resource handling
 
-        large_payload = {
-            "data": "x" * 1000,  # 1KB payload
-            "metadata": {"key": "value" * 100}
-        }
+        large_payload = {"data": "x" * 1000, "metadata": {"key": "value" * 100}}  # 1KB payload
 
         response = self.client.post("/api/v1/auth/register", json=large_payload)
 
@@ -213,7 +207,7 @@ class TestMiddlewareChains:
         """Test middleware error recovery and graceful degradation."""
         # This covers middleware error handling patterns
 
-        with patch('app.core.redis.get_redis', side_effect=Exception("Redis unavailable")):
+        with patch("app.core.redis.get_redis", side_effect=Exception("Redis unavailable")):
             response = self.client.get("/api/v1/health")
 
             # Middleware should handle service failures gracefully
@@ -223,12 +217,12 @@ class TestMiddlewareChains:
         """Test webhook dispatcher integration with middleware chain."""
         # This covers app/core/webhook_dispatcher integration
 
-        with patch('app.core.webhook_dispatcher.webhook_dispatcher') as mock_dispatcher:
+        with patch("app.core.webhook_dispatcher.webhook_dispatcher") as mock_dispatcher:
             mock_dispatcher.dispatch = AsyncMock()
 
             webhook_payload = {
                 "type": "user.created",
-                "data": {"user_id": "123", "email": "test@example.com"}
+                "data": {"user_id": "123", "email": "test@example.com"},
             }
 
             response = self.client.post("/api/v1/webhooks/stripe", json=webhook_payload)
@@ -240,7 +234,7 @@ class TestMiddlewareChains:
         """Test cache middleware integration and response caching."""
         # This covers app/core/performance.py cache_manager integration
 
-        with patch('app.core.performance.cache_manager') as mock_cache:
+        with patch("app.core.performance.cache_manager") as mock_cache:
             mock_cache.get = AsyncMock(return_value=None)
             mock_cache.set = AsyncMock()
 
@@ -256,7 +250,7 @@ class TestMiddlewareChains:
         """Test enterprise scalability features middleware."""
         # This covers app/core/scalability.py features
 
-        with patch('app.core.scalability.get_scalability_status') as mock_scalability:
+        with patch("app.core.scalability.get_scalability_status") as mock_scalability:
             mock_scalability.return_value = {"status": "active", "features": ["load_balancing"]}
 
             response = self.client.get("/api/v1/health")
@@ -276,9 +270,10 @@ class TestMiddlewareErrorScenarios:
         """Test middleware behavior when database is unavailable."""
         # This covers middleware database dependency handling
 
-        with patch('app.core.database_manager.get_database_health',
-                   side_effect=Exception("Database connection failed")):
-
+        with patch(
+            "app.core.database_manager.get_database_health",
+            side_effect=Exception("Database connection failed"),
+        ):
             response = self.client.get("/api/v1/health")
 
             # Middleware should handle database failures gracefully
@@ -288,9 +283,7 @@ class TestMiddlewareErrorScenarios:
         """Test middleware behavior when Redis is unavailable."""
         # This covers middleware Redis dependency handling
 
-        with patch('app.core.redis.get_redis',
-                   side_effect=Exception("Redis connection failed")):
-
+        with patch("app.core.redis.get_redis", side_effect=Exception("Redis connection failed")):
             response = self.client.get("/api/v1/health")
 
             # Middleware should handle Redis failures gracefully
@@ -300,7 +293,7 @@ class TestMiddlewareErrorScenarios:
         """Test middleware handles request timeouts properly."""
         # This covers middleware timeout scenarios
 
-        with patch('asyncio.wait_for', side_effect=asyncio.TimeoutError("Request timeout")):
+        with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError("Request timeout")):
             response = self.client.get("/api/v1/health")
 
             # Middleware should handle timeouts gracefully
@@ -360,9 +353,10 @@ class TestMiddlewareErrorScenarios:
         """Test middleware chain when some middleware fails."""
         # This covers middleware chain resilience
 
-        with patch('app.core.performance.PerformanceMonitoringMiddleware',
-                   side_effect=Exception("Performance middleware failed")):
-
+        with patch(
+            "app.core.performance.PerformanceMonitoringMiddleware",
+            side_effect=Exception("Performance middleware failed"),
+        ):
             response = self.client.get("/api/v1/health")
 
             # Middleware chain should continue despite partial failures
@@ -385,11 +379,11 @@ class TestMiddlewareConfigurationScenarios:
             {"DEBUG": True},
             {"DEBUG": False},
             {"CORS_ORIGINS": ["http://localhost:3000"]},
-            {"RATE_LIMIT_ENABLED": True}
+            {"RATE_LIMIT_ENABLED": True},
         ]
 
         for config in config_scenarios:
-            with patch.object(settings, 'DEBUG', config.get('DEBUG', False)):
+            with patch.object(settings, "DEBUG", config.get("DEBUG", False)):
                 response = self.client.get("/api/v1/health")
 
                 # Middleware should adapt to configuration
@@ -402,7 +396,7 @@ class TestMiddlewareConfigurationScenarios:
         feature_flags = [
             ("ENABLE_RATE_LIMITING", True),
             ("ENABLE_CORS", False),
-            ("ENABLE_PERFORMANCE_MONITORING", True)
+            ("ENABLE_PERFORMANCE_MONITORING", True),
         ]
 
         for flag_name, flag_value in feature_flags:
@@ -419,7 +413,7 @@ class TestMiddlewareConfigurationScenarios:
         environments = ["development", "staging", "production", "test"]
 
         for env in environments:
-            with patch.object(settings, 'ENVIRONMENT', env):
+            with patch.object(settings, "ENVIRONMENT", env):
                 response = self.client.get("/api/v1/health")
 
                 # Middleware should adapt to environment

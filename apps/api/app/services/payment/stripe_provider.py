@@ -24,7 +24,7 @@ from app.services.payment.base import (
 class StripeProvider(PaymentProvider):
     """
     Stripe payment provider implementation for international customers.
-    
+
     Stripe provides:
     - Global card processing
     - 135+ currencies support
@@ -35,7 +35,7 @@ class StripeProvider(PaymentProvider):
 
     def __init__(self, api_key: str, test_mode: bool = False):
         super().__init__(api_key, test_mode)
-        
+
         # Configure Stripe SDK
         stripe.api_key = api_key
         stripe.api_version = "2023-10-16"  # Pin API version for stability
@@ -87,11 +87,7 @@ class StripeProvider(PaymentProvider):
         except stripe.error.StripeError as e:
             raise Exception(f"Stripe customer retrieval failed: {str(e)}")
 
-    async def update_customer(
-        self,
-        customer_id: str,
-        updates: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def update_customer(self, customer_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
         """Update Stripe customer."""
         try:
             customer = stripe.Customer.modify(customer_id, **updates)
@@ -120,13 +116,11 @@ class StripeProvider(PaymentProvider):
     # ============================================================================
 
     async def create_payment_method(
-        self,
-        customer_id: str,
-        payment_method_data: PaymentMethodData
+        self, customer_id: str, payment_method_data: PaymentMethodData
     ) -> Dict[str, Any]:
         """
         Attach payment method to Stripe customer.
-        
+
         Args:
             customer_id: Stripe customer ID
             payment_method_data: Payment method with token from Stripe.js
@@ -146,29 +140,35 @@ class StripeProvider(PaymentProvider):
 
             if payment_method.type == "card":
                 card = payment_method.card
-                result.update({
-                    "last4": card.last4,
-                    "brand": card.brand,
-                    "exp_month": card.exp_month,
-                    "exp_year": card.exp_year,
-                    "country": card.country,
-                })
+                result.update(
+                    {
+                        "last4": card.last4,
+                        "brand": card.brand,
+                        "exp_month": card.exp_month,
+                        "exp_year": card.exp_year,
+                        "country": card.country,
+                    }
+                )
 
             elif payment_method.type == "us_bank_account":
                 bank = payment_method.us_bank_account
-                result.update({
-                    "last4": bank.last4,
-                    "bank_name": bank.bank_name,
-                    "account_type": bank.account_type,
-                })
+                result.update(
+                    {
+                        "last4": bank.last4,
+                        "bank_name": bank.bank_name,
+                        "account_type": bank.account_type,
+                    }
+                )
 
             elif payment_method.type == "sepa_debit":
                 sepa = payment_method.sepa_debit
-                result.update({
-                    "last4": sepa.last4,
-                    "bank_code": sepa.bank_code,
-                    "country": sepa.country,
-                })
+                result.update(
+                    {
+                        "last4": sepa.last4,
+                        "bank_code": sepa.bank_code,
+                        "country": sepa.country,
+                    }
+                )
 
             return result
 
@@ -187,12 +187,14 @@ class StripeProvider(PaymentProvider):
             }
 
             if pm.type == "card":
-                result.update({
-                    "last4": pm.card.last4,
-                    "brand": pm.card.brand,
-                    "exp_month": pm.card.exp_month,
-                    "exp_year": pm.card.exp_year,
-                })
+                result.update(
+                    {
+                        "last4": pm.card.last4,
+                        "brand": pm.card.brand,
+                        "exp_month": pm.card.exp_month,
+                        "exp_year": pm.card.exp_year,
+                    }
+                )
 
             return result
 
@@ -200,9 +202,7 @@ class StripeProvider(PaymentProvider):
             raise Exception(f"Stripe payment method retrieval failed: {str(e)}")
 
     async def list_payment_methods(
-        self,
-        customer_id: str,
-        type: Optional[str] = None
+        self, customer_id: str, type: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """List customer payment methods."""
         try:
@@ -220,12 +220,14 @@ class StripeProvider(PaymentProvider):
                 }
 
                 if pm.type == "card":
-                    pm_data.update({
-                        "last4": pm.card.last4,
-                        "brand": pm.card.brand,
-                        "exp_month": pm.card.exp_month,
-                        "exp_year": pm.card.exp_year,
-                    })
+                    pm_data.update(
+                        {
+                            "last4": pm.card.last4,
+                            "brand": pm.card.brand,
+                            "exp_month": pm.card.exp_month,
+                            "exp_year": pm.card.exp_year,
+                        }
+                    )
 
                 result.append(pm_data)
 
@@ -244,17 +246,12 @@ class StripeProvider(PaymentProvider):
             raise Exception(f"Stripe payment method deletion failed: {str(e)}")
 
     async def set_default_payment_method(
-        self,
-        customer_id: str,
-        payment_method_id: str
+        self, customer_id: str, payment_method_id: str
     ) -> Dict[str, Any]:
         """Set default payment method."""
         try:
             customer = stripe.Customer.modify(
-                customer_id,
-                invoice_settings={
-                    "default_payment_method": payment_method_id
-                }
+                customer_id, invoice_settings={"default_payment_method": payment_method_id}
             )
 
             return {
@@ -269,10 +266,7 @@ class StripeProvider(PaymentProvider):
     # Subscription Management
     # ============================================================================
 
-    async def create_subscription(
-        self,
-        subscription_data: SubscriptionData
-    ) -> Dict[str, Any]:
+    async def create_subscription(self, subscription_data: SubscriptionData) -> Dict[str, Any]:
         """Create Stripe subscription."""
         try:
             params = {
@@ -336,9 +330,7 @@ class StripeProvider(PaymentProvider):
             raise Exception(f"Stripe subscription retrieval failed: {str(e)}")
 
     async def update_subscription(
-        self,
-        subscription_id: str,
-        updates: Dict[str, Any]
+        self, subscription_id: str, updates: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Update subscription (change plan, quantity, etc)."""
         try:
@@ -355,17 +347,14 @@ class StripeProvider(PaymentProvider):
             raise Exception(f"Stripe subscription update failed: {str(e)}")
 
     async def cancel_subscription(
-        self,
-        subscription_id: str,
-        cancel_at_period_end: bool = True
+        self, subscription_id: str, cancel_at_period_end: bool = True
     ) -> Dict[str, Any]:
         """Cancel subscription."""
         try:
             if cancel_at_period_end:
                 # Cancel at end of billing period
                 subscription = stripe.Subscription.modify(
-                    subscription_id,
-                    cancel_at_period_end=True
+                    subscription_id, cancel_at_period_end=True
                 )
             else:
                 # Cancel immediately
@@ -384,10 +373,7 @@ class StripeProvider(PaymentProvider):
     async def resume_subscription(self, subscription_id: str) -> Dict[str, Any]:
         """Resume a canceled subscription."""
         try:
-            subscription = stripe.Subscription.modify(
-                subscription_id,
-                cancel_at_period_end=False
-            )
+            subscription = stripe.Subscription.modify(subscription_id, cancel_at_period_end=False)
 
             return {
                 "subscription_id": subscription.id,
@@ -424,30 +410,25 @@ class StripeProvider(PaymentProvider):
         except stripe.error.StripeError as e:
             raise Exception(f"Stripe invoice retrieval failed: {str(e)}")
 
-    async def list_invoices(
-        self,
-        customer_id: str,
-        limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    async def list_invoices(self, customer_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """List customer invoices."""
         try:
-            invoices = stripe.Invoice.list(
-                customer=customer_id,
-                limit=limit
-            )
+            invoices = stripe.Invoice.list(customer=customer_id, limit=limit)
 
             result = []
             for invoice in invoices.data:
-                result.append({
-                    "invoice_id": invoice.id,
-                    "amount": self.parse_amount(invoice.amount_due, invoice.currency.upper()),
-                    "currency": invoice.currency.upper(),
-                    "status": invoice.status,
-                    "invoice_pdf": invoice.invoice_pdf,
-                    "due_date": invoice.due_date,
-                    "paid": invoice.paid,
-                    "created": invoice.created,
-                })
+                result.append(
+                    {
+                        "invoice_id": invoice.id,
+                        "amount": self.parse_amount(invoice.amount_due, invoice.currency.upper()),
+                        "currency": invoice.currency.upper(),
+                        "status": invoice.status,
+                        "invoice_pdf": invoice.invoice_pdf,
+                        "due_date": invoice.due_date,
+                        "paid": invoice.paid,
+                        "created": invoice.created,
+                    }
+                )
 
             return result
 
@@ -473,19 +454,10 @@ class StripeProvider(PaymentProvider):
     # Webhook Handling
     # ============================================================================
 
-    def verify_webhook_signature(
-        self,
-        payload: bytes,
-        signature: str,
-        webhook_secret: str
-    ) -> bool:
+    def verify_webhook_signature(self, payload: bytes, signature: str, webhook_secret: str) -> bool:
         """Verify Stripe webhook signature."""
         try:
-            stripe.Webhook.construct_event(
-                payload,
-                signature,
-                webhook_secret
-            )
+            stripe.Webhook.construct_event(payload, signature, webhook_secret)
             return True
 
         except stripe.error.SignatureVerificationError:
@@ -511,14 +483,20 @@ class StripeProvider(PaymentProvider):
 
             result = []
             for price in prices.data:
-                result.append({
-                    "plan_id": price.id,
-                    "product_id": price.product,
-                    "amount": self.parse_amount(price.unit_amount, price.currency.upper()) if price.unit_amount else None,
-                    "currency": price.currency.upper(),
-                    "interval": price.recurring.interval if price.recurring else None,
-                    "interval_count": price.recurring.interval_count if price.recurring else None,
-                })
+                result.append(
+                    {
+                        "plan_id": price.id,
+                        "product_id": price.product,
+                        "amount": self.parse_amount(price.unit_amount, price.currency.upper())
+                        if price.unit_amount
+                        else None,
+                        "currency": price.currency.upper(),
+                        "interval": price.recurring.interval if price.recurring else None,
+                        "interval_count": price.recurring.interval_count
+                        if price.recurring
+                        else None,
+                    }
+                )
 
             return result
 
@@ -533,7 +511,9 @@ class StripeProvider(PaymentProvider):
             return {
                 "plan_id": price.id,
                 "product_id": price.product,
-                "amount": self.parse_amount(price.unit_amount, price.currency.upper()) if price.unit_amount else None,
+                "amount": self.parse_amount(price.unit_amount, price.currency.upper())
+                if price.unit_amount
+                else None,
                 "currency": price.currency.upper(),
                 "interval": price.recurring.interval if price.recurring else None,
                 "interval_count": price.recurring.interval_count if price.recurring else None,
@@ -568,15 +548,30 @@ class StripeProvider(PaymentProvider):
         """Stripe supports 135+ currencies."""
         # Return most common ones (full list available in Stripe docs)
         return [
-            "USD", "EUR", "GBP", "CAD", "AUD", "JPY",
-            "CNY", "INR", "BRL", "MXN", "CHF", "SEK",
-            "NOK", "DKK", "PLN", "CZK", "HUF", "RON",
+            "USD",
+            "EUR",
+            "GBP",
+            "CAD",
+            "AUD",
+            "JPY",
+            "CNY",
+            "INR",
+            "BRL",
+            "MXN",
+            "CHF",
+            "SEK",
+            "NOK",
+            "DKK",
+            "PLN",
+            "CZK",
+            "HUF",
+            "RON",
         ]
 
     async def create_setup_intent(self, customer_id: str) -> Dict[str, Any]:
         """
         Create SetupIntent for saving payment method without charge.
-        
+
         Used for adding payment methods via Stripe Elements.
         """
         try:
@@ -600,11 +595,11 @@ class StripeProvider(PaymentProvider):
         amount: float,
         currency: str,
         payment_method_id: Optional[str] = None,
-        description: Optional[str] = None
+        description: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Create PaymentIntent for one-time payment.
-        
+
         Used for non-subscription charges.
         """
         try:

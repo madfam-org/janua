@@ -51,7 +51,7 @@ class AlertEvaluator:
         self.evaluation_history[rule.rule_id] = self.evaluation_history[rule.rule_id][-max_history:]
 
         # Check if we have enough consecutive positive evaluations
-        recent_evaluations = self.evaluation_history[rule.rule_id][-rule.trigger_count:]
+        recent_evaluations = self.evaluation_history[rule.rule_id][-rule.trigger_count :]
 
         if len(recent_evaluations) >= rule.trigger_count:
             return all(recent_evaluations)
@@ -80,10 +80,10 @@ class AlertEvaluator:
             evaluation_time=datetime.now(),
             consecutive_triggers=consecutive_triggers,
             context={
-                'operator': rule.comparison_operator,
-                'trigger_count_required': rule.trigger_count,
-                'evaluation_history_length': len(self.evaluation_history.get(rule.rule_id, []))
-            }
+                "operator": rule.comparison_operator,
+                "trigger_count_required": rule.trigger_count,
+                "evaluation_history_length": len(self.evaluation_history.get(rule.rule_id, [])),
+            },
         )
 
     def reset_evaluation_history(self, rule_id: str = None):
@@ -104,5 +104,5 @@ class AlertEvaluator:
             "total_evaluations": len(history),
             "positive_evaluations": positive_count,
             "success_rate": positive_count / len(history),
-            "recent_trend": history[-5:] if len(history) >= 5 else history
+            "recent_trend": history[-5:] if len(history) >= 5 else history,
         }

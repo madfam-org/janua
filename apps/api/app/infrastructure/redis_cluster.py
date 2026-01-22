@@ -19,6 +19,7 @@ logger = structlog.get_logger()
 
 class RedisNodeRole(Enum):
     """Redis node roles"""
+
     MASTER = "master"
     SLAVE = "slave"
     SENTINEL = "sentinel"
@@ -26,6 +27,7 @@ class RedisNodeRole(Enum):
 
 class RedisConnectionType(Enum):
     """Redis connection types"""
+
     READ = "read"
     WRITE = "write"
     PUBSUB = "pubsub"
@@ -34,6 +36,7 @@ class RedisConnectionType(Enum):
 @dataclass
 class RedisNode:
     """Redis node configuration"""
+
     host: str
     port: int
     role: RedisNodeRole
@@ -49,6 +52,7 @@ class RedisNode:
 @dataclass
 class RedisClusterStatus:
     """Redis cluster status information"""
+
     master_node: Optional[str]
     slave_nodes: List[str]
     sentinel_nodes: List[str]
@@ -87,7 +91,7 @@ class RedisClusterManager:
                 socket_keepalive=True,
                 socket_keepalive_options={},
                 retry_on_timeout=True,
-                health_check_interval=30
+                health_check_interval=30,
             )
             logger.info("Redis Sentinel initialized", hosts=self.sentinel_hosts)
         except Exception as e:
@@ -122,7 +126,7 @@ class RedisClusterManager:
                     host=master_info[0],
                     port=master_info[1],
                     role=RedisNodeRole.MASTER,
-                    name=f"master_{master_info[0]}_{master_info[1]}"
+                    name=f"master_{master_info[0]}_{master_info[1]}",
                 )
                 self.nodes[master_node.name] = master_node
 
@@ -133,7 +137,7 @@ class RedisClusterManager:
                     host=slave_info[0],
                     port=slave_info[1],
                     role=RedisNodeRole.SLAVE,
-                    name=f"slave_{i}_{slave_info[0]}_{slave_info[1]}"
+                    name=f"slave_{i}_{slave_info[0]}_{slave_info[1]}",
                 )
                 self.nodes[slave_node.name] = slave_node
 
@@ -143,7 +147,7 @@ class RedisClusterManager:
                     host=host,
                     port=port,
                     role=RedisNodeRole.SENTINEL,
-                    name=f"sentinel_{i}_{host}_{port}"
+                    name=f"sentinel_{i}_{host}_{port}",
                 )
                 self.nodes[sentinel_node.name] = sentinel_node
 
@@ -168,7 +172,7 @@ class RedisClusterManager:
                     health_check_interval=30,
                     socket_keepalive=True,
                     socket_keepalive_options={},
-                    decode_responses=True
+                    decode_responses=True,
                 )
                 self.redis_pools[node_name] = pool
                 logger.debug("Created connection pool", node=node_name)
@@ -177,7 +181,9 @@ class RedisClusterManager:
                 logger.error("Failed to create connection pool", node=node_name, error=str(e))
                 node.is_healthy = False
 
-    async def get_connection(self, connection_type: RedisConnectionType = RedisConnectionType.READ) -> redis.Redis:
+    async def get_connection(
+        self, connection_type: RedisConnectionType = RedisConnectionType.READ
+    ) -> redis.Redis:
         """Get Redis connection based on type"""
         if connection_type == RedisConnectionType.WRITE:
             return await self._get_master_connection()
@@ -195,7 +201,7 @@ class RedisClusterManager:
                 self.master_name,
                 socket_timeout=0.5,
                 socket_connect_timeout=0.5,
-                decode_responses=True
+                decode_responses=True,
             )
             return master_redis
         except Exception as e:
@@ -210,7 +216,7 @@ class RedisClusterManager:
                 self.master_name,
                 socket_timeout=0.5,
                 socket_connect_timeout=0.5,
-                decode_responses=True
+                decode_responses=True,
             )
             return slave_redis
         except Exception:
@@ -223,7 +229,13 @@ class RedisClusterManager:
         # Use master for pub/sub to ensure message delivery
         return await self._get_master_connection()
 
-    async def execute_command(self, command: str, *args, connection_type: RedisConnectionType = RedisConnectionType.READ, **kwargs) -> Any:
+    async def execute_command(
+        self,
+        command: str,
+        *args,
+        connection_type: RedisConnectionType = RedisConnectionType.READ,
+        **kwargs,
+    ) -> Any:
         """Execute Redis command with automatic retry and failover"""
         retries = 0
         last_error = None
@@ -238,20 +250,24 @@ class RedisClusterManager:
                 last_error = e
                 retries += 1
                 if retries < self.max_retries:
-                    wait_time = 0.1 * (2 ** retries)  # Exponential backoff
+                    wait_time = 0.1 * (2**retries)  # Exponential backoff
                     logger.warning(
                         "Redis command failed, retrying",
                         command=command,
                         retry=retries,
                         wait_time=wait_time,
-                        error=str(e)
+                        error=str(e),
                     )
                     await asyncio.sleep(wait_time)
                 else:
-                    logger.error("Redis command failed after all retries", command=command, error=str(e))
+                    logger.error(
+                        "Redis command failed after all retries", command=command, error=str(e)
+                    )
 
             except Exception as e:
-                logger.error("Unexpected error executing Redis command", command=command, error=str(e))
+                logger.error(
+                    "Unexpected error executing Redis command", command=command, error=str(e)
+                )
                 raise
 
         if last_error is not None:
@@ -265,9 +281,13 @@ class RedisClusterManager:
                 value = json.dumps(value)
 
             if ttl:
-                return await self.execute_command("setex", key, ttl, value, connection_type=RedisConnectionType.WRITE)
+                return await self.execute_command(
+                    "setex", key, ttl, value, connection_type=RedisConnectionType.WRITE
+                )
             else:
-                return await self.execute_command("set", key, value, connection_type=RedisConnectionType.WRITE)
+                return await self.execute_command(
+                    "set", key, value, connection_type=RedisConnectionType.WRITE
+                )
         except Exception as e:
             logger.error("Failed to set key", key=key, error=str(e))
             return False
@@ -289,7 +309,9 @@ class RedisClusterManager:
     async def delete(self, *keys: str) -> int:
         """Delete one or more keys"""
         try:
-            return await self.execute_command("delete", *keys, connection_type=RedisConnectionType.WRITE)
+            return await self.execute_command(
+                "delete", *keys, connection_type=RedisConnectionType.WRITE
+            )
         except Exception as e:
             logger.error("Failed to delete keys", keys=keys, error=str(e))
             return 0
@@ -297,7 +319,9 @@ class RedisClusterManager:
     async def exists(self, *keys: str) -> int:
         """Check if keys exist"""
         try:
-            return await self.execute_command("exists", *keys, connection_type=RedisConnectionType.READ)
+            return await self.execute_command(
+                "exists", *keys, connection_type=RedisConnectionType.READ
+            )
         except Exception as e:
             logger.error("Failed to check key existence", keys=keys, error=str(e))
             return 0
@@ -305,7 +329,9 @@ class RedisClusterManager:
     async def expire(self, key: str, seconds: int) -> bool:
         """Set expiration time for a key"""
         try:
-            return await self.execute_command("expire", key, seconds, connection_type=RedisConnectionType.WRITE)
+            return await self.execute_command(
+                "expire", key, seconds, connection_type=RedisConnectionType.WRITE
+            )
         except Exception as e:
             logger.error("Failed to set expiration", key=key, error=str(e))
             return False
@@ -314,9 +340,13 @@ class RedisClusterManager:
         """Increment a key's value"""
         try:
             if amount == 1:
-                return await self.execute_command("incr", key, connection_type=RedisConnectionType.WRITE)
+                return await self.execute_command(
+                    "incr", key, connection_type=RedisConnectionType.WRITE
+                )
             else:
-                return await self.execute_command("incrby", key, amount, connection_type=RedisConnectionType.WRITE)
+                return await self.execute_command(
+                    "incrby", key, amount, connection_type=RedisConnectionType.WRITE
+                )
         except Exception as e:
             logger.error("Failed to increment key", key=key, error=str(e))
             return 0
@@ -332,7 +362,9 @@ class RedisClusterManager:
                 else:
                     serialized_mapping[field] = value
 
-            return await self.execute_command("hset", name, mapping=serialized_mapping, connection_type=RedisConnectionType.WRITE)
+            return await self.execute_command(
+                "hset", name, mapping=serialized_mapping, connection_type=RedisConnectionType.WRITE
+            )
         except Exception as e:
             logger.error("Failed to set hash", name=name, error=str(e))
             return 0
@@ -340,7 +372,9 @@ class RedisClusterManager:
     async def hget(self, name: str, key: str, decode_json: bool = False) -> Optional[Any]:
         """Get hash field value"""
         try:
-            value = await self.execute_command("hget", name, key, connection_type=RedisConnectionType.READ)
+            value = await self.execute_command(
+                "hget", name, key, connection_type=RedisConnectionType.READ
+            )
             if value and decode_json:
                 try:
                     return json.loads(value)
@@ -354,7 +388,9 @@ class RedisClusterManager:
     async def hgetall(self, name: str, decode_json: bool = False) -> Dict[str, Any]:
         """Get all hash fields"""
         try:
-            result = await self.execute_command("hgetall", name, connection_type=RedisConnectionType.READ)
+            result = await self.execute_command(
+                "hgetall", name, connection_type=RedisConnectionType.READ
+            )
             if not result:
                 return {}
 
@@ -378,7 +414,9 @@ class RedisClusterManager:
             if isinstance(message, (dict, list)):
                 message = json.dumps(message)
 
-            return await self.execute_command("publish", channel, message, connection_type=RedisConnectionType.PUBSUB)
+            return await self.execute_command(
+                "publish", channel, message, connection_type=RedisConnectionType.PUBSUB
+            )
         except Exception as e:
             logger.error("Failed to publish message", channel=channel, error=str(e))
             return 0
@@ -422,9 +460,9 @@ class RedisClusterManager:
 
             # Update node statistics
             node.response_time_ms = (time.time() - start_time) * 1000
-            node.memory_usage_mb = float(info.get('used_memory', 0)) / (1024 * 1024)
-            node.connections = int(info.get('connected_clients', 0))
-            node.ops_per_sec = float(info.get('instantaneous_ops_per_sec', 0))
+            node.memory_usage_mb = float(info.get("used_memory", 0)) / (1024 * 1024)
+            node.connections = int(info.get("connected_clients", 0))
+            node.ops_per_sec = float(info.get("instantaneous_ops_per_sec", 0))
             node.is_healthy = True
             node.last_health_check = datetime.now()
 
@@ -432,7 +470,7 @@ class RedisClusterManager:
                 "Health check passed",
                 node=node_name,
                 response_time_ms=node.response_time_ms,
-                memory_mb=node.memory_usage_mb
+                memory_mb=node.memory_usage_mb,
             )
 
         except Exception as e:
@@ -441,27 +479,34 @@ class RedisClusterManager:
 
     async def get_cluster_status(self) -> RedisClusterStatus:
         """Get current cluster status"""
-        master_nodes = [name for name, node in self.nodes.items()
-                       if node.role == RedisNodeRole.MASTER]
-        slave_nodes = [name for name, node in self.nodes.items()
-                      if node.role == RedisNodeRole.SLAVE]
-        sentinel_nodes = [name for name, node in self.nodes.items()
-                         if node.role == RedisNodeRole.SENTINEL]
+        master_nodes = [
+            name for name, node in self.nodes.items() if node.role == RedisNodeRole.MASTER
+        ]
+        slave_nodes = [
+            name for name, node in self.nodes.items() if node.role == RedisNodeRole.SLAVE
+        ]
+        sentinel_nodes = [
+            name for name, node in self.nodes.items() if node.role == RedisNodeRole.SENTINEL
+        ]
 
         healthy_nodes = sum(1 for node in self.nodes.values() if node.is_healthy)
         unhealthy_nodes = len(self.nodes) - healthy_nodes
 
-        total_memory_mb = sum(node.memory_usage_mb for node in self.nodes.values()
-                             if node.role != RedisNodeRole.SENTINEL)
-        total_ops_per_sec = sum(node.ops_per_sec for node in self.nodes.values()
-                               if node.role != RedisNodeRole.SENTINEL)
+        total_memory_mb = sum(
+            node.memory_usage_mb
+            for node in self.nodes.values()
+            if node.role != RedisNodeRole.SENTINEL
+        )
+        total_ops_per_sec = sum(
+            node.ops_per_sec for node in self.nodes.values() if node.role != RedisNodeRole.SENTINEL
+        )
 
         # Check if failover is in progress (simplified check)
         failover_in_progress = False
         try:
             sentinel_info = self.sentinel.sentinel_masters()
             master_info = sentinel_info.get(self.master_name, {})
-            failover_in_progress = master_info.get('flags', '').find('failover') != -1
+            failover_in_progress = master_info.get("flags", "").find("failover") != -1
         except Exception:
             pass  # Intentionally ignoring - sentinel info query failure is non-critical for status reporting
 
@@ -475,7 +520,7 @@ class RedisClusterManager:
             total_ops_per_sec=total_ops_per_sec,
             failover_in_progress=failover_in_progress,
             last_failover=None,  # Would need to track this
-            last_updated=datetime.now()
+            last_updated=datetime.now(),
         )
 
     async def get_detailed_status(self) -> Dict[str, Any]:
@@ -491,7 +536,7 @@ class RedisClusterManager:
                 "unhealthy_nodes": cluster_status.unhealthy_nodes,
                 "total_memory_mb": cluster_status.total_memory_mb,
                 "total_ops_per_sec": cluster_status.total_ops_per_sec,
-                "failover_in_progress": cluster_status.failover_in_progress
+                "failover_in_progress": cluster_status.failover_in_progress,
             },
             "nodes": {
                 name: {
@@ -503,10 +548,12 @@ class RedisClusterManager:
                     "memory_usage_mb": node.memory_usage_mb,
                     "connections": node.connections,
                     "ops_per_sec": node.ops_per_sec,
-                    "last_health_check": node.last_health_check.isoformat() if node.last_health_check else None
+                    "last_health_check": node.last_health_check.isoformat()
+                    if node.last_health_check
+                    else None,
                 }
                 for name, node in self.nodes.items()
-            }
+            },
         }
 
     async def close_all_connections(self):

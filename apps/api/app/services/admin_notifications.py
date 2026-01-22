@@ -54,14 +54,14 @@ class AdminNotificationService:
         admin_emails = []
 
         # From environment variables
-        if hasattr(settings, 'ADMIN_EMAILS') and settings.ADMIN_EMAILS:
-            admin_emails.extend(settings.ADMIN_EMAILS.split(','))
+        if hasattr(settings, "ADMIN_EMAILS") and settings.ADMIN_EMAILS:
+            admin_emails.extend(settings.ADMIN_EMAILS.split(","))
 
         # Fallback defaults
         fallback_emails = [
-            settings.SUPPORT_EMAIL or 'support@janua.dev',
-            'admin@janua.dev',
-            'alerts@janua.dev'
+            settings.SUPPORT_EMAIL or "support@janua.dev",
+            "admin@janua.dev",
+            "alerts@janua.dev",
         ]
 
         admin_emails.extend([email for email in fallback_emails if email not in admin_emails])
@@ -71,38 +71,34 @@ class AdminNotificationService:
     def _get_notification_settings(self) -> Dict[str, Dict[str, Any]]:
         """Get notification settings for different categories"""
         return {
-            'security': {
-                'channels': [NotificationChannel.EMAIL],
-                'min_level': NotificationLevel.WARNING,
-                'rate_limit_minutes': 5
+            "security": {
+                "channels": [NotificationChannel.EMAIL],
+                "min_level": NotificationLevel.WARNING,
+                "rate_limit_minutes": 5,
             },
-            'system': {
-                'channels': [NotificationChannel.EMAIL],
-                'min_level': NotificationLevel.ERROR,
-                'rate_limit_minutes': 15
+            "system": {
+                "channels": [NotificationChannel.EMAIL],
+                "min_level": NotificationLevel.ERROR,
+                "rate_limit_minutes": 15,
             },
-            'user_management': {
-                'channels': [NotificationChannel.EMAIL],
-                'min_level': NotificationLevel.INFO,
-                'rate_limit_minutes': 60
+            "user_management": {
+                "channels": [NotificationChannel.EMAIL],
+                "min_level": NotificationLevel.INFO,
+                "rate_limit_minutes": 60,
             },
-            'performance': {
-                'channels': [NotificationChannel.EMAIL],
-                'min_level': NotificationLevel.WARNING,
-                'rate_limit_minutes': 30
+            "performance": {
+                "channels": [NotificationChannel.EMAIL],
+                "min_level": NotificationLevel.WARNING,
+                "rate_limit_minutes": 30,
             },
-            'compliance': {
-                'channels': [NotificationChannel.EMAIL],
-                'min_level': NotificationLevel.INFO,
-                'rate_limit_minutes': 0  # No rate limiting for compliance
-            }
+            "compliance": {
+                "channels": [NotificationChannel.EMAIL],
+                "min_level": NotificationLevel.INFO,
+                "rate_limit_minutes": 0,  # No rate limiting for compliance
+            },
         }
 
-    async def notify(
-        self,
-        notification: AdminNotification,
-        force_send: bool = False
-    ):
+    async def notify(self, notification: AdminNotification, force_send: bool = False):
         """Send admin notification"""
 
         try:
@@ -110,21 +106,23 @@ class AdminNotificationService:
             category_settings = self.notification_settings.get(settings_key, {})
 
             # Check if notification level meets minimum threshold
-            min_level = category_settings.get('min_level', NotificationLevel.INFO)
-            if not force_send and self._get_level_priority(notification.level) < self._get_level_priority(min_level):
+            min_level = category_settings.get("min_level", NotificationLevel.INFO)
+            if not force_send and self._get_level_priority(
+                notification.level
+            ) < self._get_level_priority(min_level):
                 logger.debug(f"Notification level {notification.level} below threshold {min_level}")
                 return
 
             # Check rate limiting
             if not force_send:
-                rate_limit_minutes = category_settings.get('rate_limit_minutes', 0)
+                rate_limit_minutes = category_settings.get("rate_limit_minutes", 0)
                 if rate_limit_minutes > 0:
                     if not await self._check_rate_limit(notification.category, rate_limit_minutes):
                         logger.debug(f"Rate limit active for category {notification.category}")
                         return
 
             # Send via configured channels
-            channels = category_settings.get('channels', [NotificationChannel.EMAIL])
+            channels = category_settings.get("channels", [NotificationChannel.EMAIL])
             for channel in channels:
                 await self._send_via_channel(notification, channel)
 
@@ -139,7 +137,7 @@ class AdminNotificationService:
             NotificationLevel.INFO: 1,
             NotificationLevel.WARNING: 2,
             NotificationLevel.ERROR: 3,
-            NotificationLevel.CRITICAL: 4
+            NotificationLevel.CRITICAL: 4,
         }
         return priorities.get(level, 1)
 
@@ -151,7 +149,9 @@ class AdminNotificationService:
         # Simplified implementation - would use Redis in production
         return True
 
-    async def _send_via_channel(self, notification: AdminNotification, channel: NotificationChannel):
+    async def _send_via_channel(
+        self, notification: AdminNotification, channel: NotificationChannel
+    ):
         """Send notification via specific channel"""
 
         if channel == NotificationChannel.EMAIL:
@@ -189,10 +189,10 @@ class AdminNotificationService:
                 text_content=text_content,
                 priority=email_priority,
                 metadata={
-                    'type': 'admin_notification',
-                    'category': notification.category,
-                    'level': notification.level.value
-                }
+                    "type": "admin_notification",
+                    "category": notification.category,
+                    "level": notification.level.value,
+                },
             )
             tasks.append(task)
 
@@ -208,7 +208,7 @@ class AdminNotificationService:
             NotificationLevel.INFO: {"color": "#0ea5e9", "bg": "#f0f9ff", "border": "#0ea5e9"},
             NotificationLevel.WARNING: {"color": "#f59e0b", "bg": "#fefbeb", "border": "#f59e0b"},
             NotificationLevel.ERROR: {"color": "#ef4444", "bg": "#fef2f2", "border": "#ef4444"},
-            NotificationLevel.CRITICAL: {"color": "#dc2626", "bg": "#fef2f2", "border": "#dc2626"}
+            NotificationLevel.CRITICAL: {"color": "#dc2626", "bg": "#fef2f2", "border": "#dc2626"},
         }
 
         style = level_styles.get(notification.level, level_styles[NotificationLevel.INFO])
@@ -277,11 +277,11 @@ class AdminNotificationService:
         """Generate text email content for admin notification"""
 
         level_icon = {
-            NotificationLevel.INFO: 'ℹ️',
-            NotificationLevel.WARNING: '⚠️',
-            NotificationLevel.ERROR: '❌',
-            NotificationLevel.CRITICAL: '🚨'
-        }.get(notification.level, 'ℹ️')
+            NotificationLevel.INFO: "ℹ️",
+            NotificationLevel.WARNING: "⚠️",
+            NotificationLevel.ERROR: "❌",
+            NotificationLevel.CRITICAL: "🚨",
+        }.get(notification.level, "ℹ️")
 
         text = f"""JANUA ADMIN NOTIFICATION
 
@@ -322,21 +322,21 @@ This is an automated admin notification from Janua Identity Platform.
         description: str,
         user_id: Optional[str] = None,
         ip_address: Optional[str] = None,
-        severity: NotificationLevel = NotificationLevel.WARNING
+        severity: NotificationLevel = NotificationLevel.WARNING,
     ):
         """Send security incident notification"""
         data = {}
         if user_id:
-            data['user_id'] = user_id
+            data["user_id"] = user_id
         if ip_address:
-            data['ip_address'] = ip_address
+            data["ip_address"] = ip_address
 
         notification = AdminNotification(
             title=title,
             message=description,
             level=severity,
-            category='security',
-            data=data if data else None
+            category="security",
+            data=data if data else None,
         )
 
         await self.notify(notification)
@@ -346,21 +346,21 @@ This is an automated admin notification from Janua Identity Platform.
         title: str,
         error_message: str,
         stack_trace: Optional[str] = None,
-        service: Optional[str] = None
+        service: Optional[str] = None,
     ):
         """Send system error notification"""
         data = {}
         if stack_trace:
-            data['stack_trace'] = stack_trace
+            data["stack_trace"] = stack_trace
         if service:
-            data['service'] = service
+            data["service"] = service
 
         notification = AdminNotification(
             title=title,
             message=error_message,
             level=NotificationLevel.ERROR,
-            category='system',
-            data=data if data else None
+            category="system",
+            data=data if data else None,
         )
 
         await self.notify(notification)
@@ -370,21 +370,21 @@ This is an automated admin notification from Janua Identity Platform.
         title: str,
         description: str,
         user_count: Optional[int] = None,
-        activity_type: Optional[str] = None
+        activity_type: Optional[str] = None,
     ):
         """Send user activity notification"""
         data = {}
         if user_count is not None:
-            data['user_count'] = user_count
+            data["user_count"] = user_count
         if activity_type:
-            data['activity_type'] = activity_type
+            data["activity_type"] = activity_type
 
         notification = AdminNotification(
             title=title,
             message=description,
             level=NotificationLevel.INFO,
-            category='user_management',
-            data=data if data else None
+            category="user_management",
+            data=data if data else None,
         )
 
         await self.notify(notification)
@@ -394,15 +394,11 @@ This is an automated admin notification from Janua Identity Platform.
         title: str,
         description: str,
         metrics: Optional[Dict[str, Any]] = None,
-        severity: NotificationLevel = NotificationLevel.WARNING
+        severity: NotificationLevel = NotificationLevel.WARNING,
     ):
         """Send performance issue notification"""
         notification = AdminNotification(
-            title=title,
-            message=description,
-            level=severity,
-            category='performance',
-            data=metrics
+            title=title, message=description, level=severity, category="performance", data=metrics
         )
 
         await self.notify(notification)

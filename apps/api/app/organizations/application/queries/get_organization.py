@@ -48,10 +48,7 @@ class GetOrganizationHandler(QueryHandler[GetOrganizationQuery, GetOrganizationR
             raise NotFoundError("Organization not found")
 
         # Get user's membership
-        membership = await self.repository.find_membership(
-            query.organization_id,
-            query.user_id
-        )
+        membership = await self.repository.find_membership(query.organization_id, query.user_id)
 
         # Check access permissions
         is_owner = organization.is_owner(query.user_id)
@@ -73,5 +70,5 @@ class GetOrganizationHandler(QueryHandler[GetOrganizationQuery, GetOrganizationR
             membership=membership,
             member_count=member_count,
             is_owner=is_owner,
-            user_role=user_role
+            user_role=user_role,
         )

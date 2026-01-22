@@ -42,12 +42,10 @@ __all__ = [
     "AuthenticationMethod",
     "RetryConfig",
     "RequestOptions",
-
     # Authentication
     "TokenManager",
     "AuthenticationFlow",
     "TokenRefreshStrategy",
-
     # Error handling
     "SDKError",
     "APIError",
@@ -56,7 +54,6 @@ __all__ = [
     "RateLimitError",
     "ServerError",
     "NetworkError",
-
     # Response handling
     "ResponseHandler",
     "PaginationHandler",

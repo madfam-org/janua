@@ -9,12 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 class AsyncDatabaseSession:
     """Mock async database session with all required methods"""
-    
+
     def __init__(self):
         self.session = AsyncMock(spec=AsyncSession)
         self._setup_methods()
         self._setup_query_results()
-    
+
     def _setup_methods(self):
         """Setup all database session methods"""
         self.session.add = MagicMock()
@@ -29,7 +29,7 @@ class AsyncDatabaseSession:
         self.session.execute = AsyncMock()
         self.session.scalar = AsyncMock()
         self.session.scalars = AsyncMock()
-        
+
     def _setup_query_results(self):
         """Setup query result mocks"""
         mock_result = AsyncMock()
@@ -41,7 +41,7 @@ class AsyncDatabaseSession:
         mock_result.one_or_none = AsyncMock(return_value=None)
         mock_result.one = AsyncMock()
         self.session.execute.return_value = mock_result
-        
+
         # For scalar operations
         mock_scalar_result = AsyncMock()
         mock_scalar_result.all = AsyncMock(return_value=[])
@@ -52,11 +52,11 @@ class AsyncDatabaseSession:
 
 class AsyncRedisClient:
     """Mock async Redis client with all required methods"""
-    
+
     def __init__(self):
         self.client = AsyncMock()
         self._setup_methods()
-    
+
     def _setup_methods(self):
         """Setup all Redis methods"""
         # Basic operations
@@ -67,26 +67,26 @@ class AsyncRedisClient:
         self.client.exists = AsyncMock(return_value=0)
         self.client.expire = AsyncMock(return_value=True)
         self.client.ttl = AsyncMock(return_value=-2)
-        
+
         # Hash operations
         self.client.hget = AsyncMock(return_value=None)
         self.client.hset = AsyncMock(return_value=1)
         self.client.hdel = AsyncMock(return_value=1)
         self.client.hgetall = AsyncMock(return_value={})
-        
+
         # List operations
         self.client.lpush = AsyncMock(return_value=1)
         self.client.rpush = AsyncMock(return_value=1)
         self.client.lpop = AsyncMock(return_value=None)
         self.client.rpop = AsyncMock(return_value=None)
         self.client.llen = AsyncMock(return_value=0)
-        
+
         # Set operations
         self.client.sadd = AsyncMock(return_value=1)
         self.client.srem = AsyncMock(return_value=1)
         self.client.sismember = AsyncMock(return_value=0)
         self.client.smembers = AsyncMock(return_value=set())
-        
+
         # Utility
         self.client.ping = AsyncMock(return_value=True)
         self.client.close = AsyncMock()
@@ -116,17 +116,17 @@ async def async_http_client():
     client.delete = AsyncMock()
     client.head = AsyncMock()
     client.options = AsyncMock()
-    
+
     # Setup default responses
     response = AsyncMock()
     response.status_code = 200
     response.json = AsyncMock(return_value={})
     response.text = AsyncMock(return_value="")
     response.headers = {}
-    
+
     for method in [client.get, client.post, client.put, client.patch, client.delete]:
         method.return_value = response
-    
+
     return client
 
 
@@ -136,11 +136,13 @@ def mock_jwt_service():
     service = AsyncMock()
     service.create_access_token = MagicMock(return_value="mock_access_token")
     service.create_refresh_token = MagicMock(return_value="mock_refresh_token")
-    service.create_token_pair = MagicMock(return_value={
-        "access_token": "mock_access_token",
-        "refresh_token": "mock_refresh_token",
-        "token_type": "Bearer"
-    })
+    service.create_token_pair = MagicMock(
+        return_value={
+            "access_token": "mock_access_token",
+            "refresh_token": "mock_refresh_token",
+            "token_type": "Bearer",
+        }
+    )
     service.verify_token = MagicMock(return_value={"user_id": "test_user"})
     service.verify_access_token = MagicMock(return_value={"user_id": "test_user"})
     service.verify_refresh_token = MagicMock(return_value={"user_id": "test_user"})

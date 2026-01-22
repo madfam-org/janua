@@ -23,6 +23,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 class UserUpdateRequest(BaseModel):
     """User profile update request"""
+
     first_name: Optional[str] = Field(None, max_length=100)
     last_name: Optional[str] = Field(None, max_length=100)
     display_name: Optional[str] = Field(None, max_length=200)
@@ -35,6 +36,7 @@ class UserUpdateRequest(BaseModel):
 
 class UserResponse(BaseModel):
     """User response model"""
+
     id: str
     email: str
     email_verified: bool
@@ -57,6 +59,7 @@ class UserResponse(BaseModel):
 
 class UsersListResponse(BaseModel):
     """Users list response"""
+
     users: List[UserResponse]
     total: int
     page: int
@@ -64,9 +67,7 @@ class UsersListResponse(BaseModel):
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_profile(
-    current_user: User = Depends(get_current_user)
-):
+async def get_current_user_profile(current_user: User = Depends(get_current_user)):
     """Get current user's profile"""
     return UserResponse(
         id=str(current_user.id),
@@ -86,7 +87,7 @@ async def get_current_user_profile(
         created_at=current_user.created_at,
         updated_at=current_user.updated_at,
         last_sign_in_at=current_user.last_sign_in_at,
-        user_metadata=current_user.user_metadata or {}
+        user_metadata=current_user.user_metadata or {},
     )
 
 
@@ -94,7 +95,7 @@ async def get_current_user_profile(
 async def update_current_user_profile(
     request: UserUpdateRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Update current user's profile"""
     # Update fields if provided
@@ -114,10 +115,10 @@ async def update_current_user_profile(
         current_user.locale = request.locale
     if request.user_metadata is not None:
         current_user.user_metadata = request.user_metadata
-    
+
     await db.commit()
     await db.refresh(current_user)
-    
+
     return UserResponse(
         id=str(current_user.id),
         email=current_user.email,
@@ -136,7 +137,7 @@ async def update_current_user_profile(
         created_at=current_user.created_at,
         updated_at=current_user.updated_at,
         last_sign_in_at=current_user.last_sign_in_at,
-        user_metadata=current_user.user_metadata or {}
+        user_metadata=current_user.user_metadata or {},
     )
 
 
@@ -144,69 +145,65 @@ async def update_current_user_profile(
 async def upload_avatar(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Upload user avatar"""
     # Validate file type
     allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="Invalid file type")
-    
+
     # Validate file size (max 5MB)
     max_size = 5 * 1024 * 1024
     contents = await file.read()
     if len(contents) > max_size:
         raise HTTPException(status_code=400, detail="File too large (max 5MB)")
-    
+
     # Generate unique filename
     file_extension = file.filename.split(".")[-1]
     unique_filename = f"{current_user.id}_{hashlib.md5(contents).hexdigest()}.{file_extension}"
-    
+
     # Create upload directory if it doesn't exist
     upload_dir = os.path.join(settings.UPLOAD_DIR, "avatars")
     os.makedirs(upload_dir, exist_ok=True)
-    
+
     # Save file
     file_path = os.path.join(upload_dir, unique_filename)
     with open(file_path, "wb") as f:
         f.write(contents)
-    
+
     # Update user profile
     avatar_url = f"/uploads/avatars/{unique_filename}"
     current_user.profile_image_url = avatar_url
     await db.commit()
-    
+
     return {"profile_image_url": avatar_url}
 
 
 @router.delete("/me/avatar")
 async def delete_avatar(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """Delete user avatar"""
     if current_user.profile_image_url:
         # Delete file if it's a local upload
         if current_user.profile_image_url.startswith("/uploads/"):
             file_path = os.path.join(
-                settings.UPLOAD_DIR,
-                current_user.profile_image_url.replace("/uploads/", "")
+                settings.UPLOAD_DIR, current_user.profile_image_url.replace("/uploads/", "")
             )
             if os.path.exists(file_path):
                 os.remove(file_path)
-        
+
         # Clear avatar URL
         current_user.profile_image_url = None
         await db.commit()
-    
+
     return {"message": "Avatar deleted successfully"}
 
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user_by_id(
-    user_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    user_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """Get user by ID (admin only or same organization)"""
     # Parse UUID
@@ -214,34 +211,37 @@ async def get_user_by_id(
         user_uuid = uuid.UUID(user_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user ID")
-    
+
     # Get user
-    result = await db.execute(select(User).where(
-        User.id == user_uuid,
-        User.status == UserStatus.ACTIVE
-    ))
+    result = await db.execute(
+        select(User).where(User.id == user_uuid, User.status == UserStatus.ACTIVE)
+    )
 
     user = result.scalar_one_or_none()
-    
+
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     # Check permissions (admin or same organization)
     if not current_user.is_admin:
         # Check if users share an organization
-        user_orgs = select(OrganizationMember.organization_id).where(
-            OrganizationMember.user_id == user.id
-        ).subquery()
+        user_orgs = (
+            select(OrganizationMember.organization_id)
+            .where(OrganizationMember.user_id == user.id)
+            .subquery()
+        )
 
-        shared_result = await db.execute(select(OrganizationMember).where(
-            OrganizationMember.user_id == current_user.id,
-            OrganizationMember.organization_id.in_(user_orgs)
-        ))
+        shared_result = await db.execute(
+            select(OrganizationMember).where(
+                OrganizationMember.user_id == current_user.id,
+                OrganizationMember.organization_id.in_(user_orgs),
+            )
+        )
         shared_org = shared_result.scalar_one_or_none()
-        
+
         if not shared_org:
             raise HTTPException(status_code=403, detail="Access denied")
-    
+
     return UserResponse(
         id=str(user.id),
         email=user.email,
@@ -260,7 +260,7 @@ async def get_user_by_id(
         created_at=user.created_at,
         updated_at=user.updated_at,
         last_sign_in_at=user.last_sign_in_at,
-        user_metadata=user.user_metadata or {}
+        user_metadata=user.user_metadata or {},
     )
 
 
@@ -271,25 +271,29 @@ async def list_users(
     search: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """List users (admin only or same organization)"""
     stmt = select(User)
-    
+
     # Filter by organization if not admin
     if not current_user.is_admin:
         # Get current user's organizations
-        user_orgs = select(OrganizationMember.organization_id).where(
-            OrganizationMember.user_id == current_user.id
-        ).subquery()
+        user_orgs = (
+            select(OrganizationMember.organization_id)
+            .where(OrganizationMember.user_id == current_user.id)
+            .subquery()
+        )
 
         # Get users in same organizations
-        org_users = select(OrganizationMember.user_id).where(
-            OrganizationMember.organization_id.in_(user_orgs)
-        ).subquery()
+        org_users = (
+            select(OrganizationMember.user_id)
+            .where(OrganizationMember.organization_id.in_(user_orgs))
+            .subquery()
+        )
 
         stmt = stmt.where(User.id.in_(org_users))
-    
+
     # Apply filters
     if search:
         stmt = stmt.where(
@@ -297,10 +301,10 @@ async def list_users(
                 User.email.ilike(f"%{search}%"),
                 User.first_name.ilike(f"%{search}%"),
                 User.last_name.ilike(f"%{search}%"),
-                User.username.ilike(f"%{search}%")
+                User.username.ilike(f"%{search}%"),
             )
         )
-    
+
     if status:
         try:
             status_enum = UserStatus(status)
@@ -319,87 +323,82 @@ async def list_users(
 
     result_set = await db.execute(stmt)
     users = result_set.scalars().all()
-    
+
     # Convert to response
     users_response = []
     for user in users:
-        users_response.append(UserResponse(
-            id=str(user.id),
-            email=user.email,
-            email_verified=user.email_verified,
-            username=user.username,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            display_name=user.display_name,
-            profile_image_url=user.profile_image_url,
-            bio=user.bio,
-            phone_number=user.phone_number,
-            phone_verified=user.phone_verified,
-            timezone=user.timezone,
-            locale=user.locale,
-            status=user.status.value,
-            created_at=user.created_at,
-            updated_at=user.updated_at,
-            last_sign_in_at=user.last_sign_in_at,
-            user_metadata=user.user_metadata or {}
-        ))
-    
-    return UsersListResponse(
-        users=users_response,
-        total=total,
-        page=page,
-        per_page=per_page
-    )
+        users_response.append(
+            UserResponse(
+                id=str(user.id),
+                email=user.email,
+                email_verified=user.email_verified,
+                username=user.username,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                display_name=user.display_name,
+                profile_image_url=user.profile_image_url,
+                bio=user.bio,
+                phone_number=user.phone_number,
+                phone_verified=user.phone_verified,
+                timezone=user.timezone,
+                locale=user.locale,
+                status=user.status.value,
+                created_at=user.created_at,
+                updated_at=user.updated_at,
+                last_sign_in_at=user.last_sign_in_at,
+                user_metadata=user.user_metadata or {},
+            )
+        )
+
+    return UsersListResponse(users=users_response, total=total, page=page, per_page=per_page)
 
 
 @router.delete("/me")
 async def delete_current_user(
-    password: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    password: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """Delete current user account"""
     # Verify password
     if not AuthService.verify_password(password, current_user.password_hash):
         raise HTTPException(status_code=400, detail="Invalid password")
-    
+
     # Check if user is the only owner of any organizations
-    owned_result = await db.execute(select(Organization).where(
-        Organization.owner_id == current_user.id
-    ))
+    owned_result = await db.execute(
+        select(Organization).where(Organization.owner_id == current_user.id)
+    )
     owned_orgs = owned_result.scalars().all()
 
     for org in owned_orgs:
         # Check if there are other admins
         admins_result = await db.execute(
-            select(func.count()).select_from(OrganizationMember).where(
+            select(func.count())
+            .select_from(OrganizationMember)
+            .where(
                 OrganizationMember.organization_id == org.id,
                 OrganizationMember.role == "admin",
-                OrganizationMember.user_id != current_user.id
+                OrganizationMember.user_id != current_user.id,
             )
         )
         other_admins = admins_result.scalar()
-        
+
         if other_admins == 0:
             raise HTTPException(
                 status_code=400,
-                detail=f"Cannot delete account: you are the only admin of organization '{org.name}'"
+                detail=f"Cannot delete account: you are the only admin of organization '{org.name}'",
             )
-    
+
     # Soft delete user
     current_user.status = UserStatus.DELETED
     current_user.email = f"deleted_{current_user.id}_{current_user.email}"
     current_user.username = None if current_user.username else None
-    
+
     # Revoke all sessions
     await db.execute(
-        update(UserSession)
-        .where(UserSession.user_id == current_user.id)
-        .values(revoked=True)
+        update(UserSession).where(UserSession.user_id == current_user.id).values(revoked=True)
     )
-    
+
     await db.commit()
-    
+
     return {"message": "Account deleted successfully"}
 
 
@@ -408,76 +407,70 @@ async def suspend_user(
     user_id: str,
     reason: Optional[str] = None,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Suspend a user (admin only)"""
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     # Parse UUID
     try:
         user_uuid = uuid.UUID(user_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user ID")
-    
+
     # Get user
     result = await db.execute(select(User).where(User.id == user_uuid))
 
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     # Suspend user
     user.status = UserStatus.SUSPENDED
-    
+
     # Revoke all sessions
-    await db.execute(
-        update(UserSession)
-        .where(UserSession.user_id == user.id)
-        .values(revoked=True)
-    )
-    
+    await db.execute(update(UserSession).where(UserSession.user_id == user.id).values(revoked=True))
+
     # Log the action
     if reason:
         user.user_metadata = user.user_metadata or {}
         user.user_metadata["suspension_reason"] = reason
         user.user_metadata["suspended_at"] = datetime.utcnow().isoformat()
         user.user_metadata["suspended_by"] = str(current_user.id)
-    
+
     await db.commit()
-    
+
     return {"message": "User suspended successfully"}
 
 
 @router.post("/{user_id}/reactivate")
 async def reactivate_user(
-    user_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    user_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """Reactivate a suspended user (admin only)"""
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     # Parse UUID
     try:
         user_uuid = uuid.UUID(user_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user ID")
-    
+
     # Get user
     result = await db.execute(select(User).where(User.id == user_uuid))
 
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     if user.status != UserStatus.SUSPENDED:
         raise HTTPException(status_code=400, detail="User is not suspended")
-    
+
     # Reactivate user
     user.status = UserStatus.ACTIVE
-    
+
     # Clear suspension metadata
     if user.user_metadata:
         user.user_metadata.pop("suspension_reason", None)
@@ -485,7 +478,7 @@ async def reactivate_user(
         user.user_metadata.pop("suspended_by", None)
         user.user_metadata["reactivated_at"] = datetime.utcnow().isoformat()
         user.user_metadata["reactivated_by"] = str(current_user.id)
-    
+
     await db.commit()
-    
+
     return {"message": "User reactivated successfully"}

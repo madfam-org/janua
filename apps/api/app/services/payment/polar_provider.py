@@ -26,7 +26,7 @@ from app.services.payment.base import (
 class PolarProvider(PaymentProvider):
     """
     Polar payment provider for digital products and benefits.
-    
+
     Polar specializes in:
     - Digital product sales
     - Benefit/tier management
@@ -38,7 +38,7 @@ class PolarProvider(PaymentProvider):
 
     def __init__(self, api_key: str, test_mode: bool = False):
         super().__init__(api_key, test_mode)
-        
+
         self.headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
@@ -49,10 +49,7 @@ class PolarProvider(PaymentProvider):
         return "polar"
 
     async def _request(
-        self,
-        method: str,
-        endpoint: str,
-        data: Optional[Dict[str, Any]] = None
+        self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Make HTTP request to Polar API."""
         url = f"{self.BASE_URL}/{endpoint}"
@@ -79,16 +76,20 @@ class PolarProvider(PaymentProvider):
     async def create_customer(self, customer_data: CustomerData) -> Dict[str, Any]:
         """
         Create Polar customer.
-        
+
         Note: Polar creates customers automatically during checkout.
         This is mainly for record-keeping.
         """
         try:
-            result = await self._request("POST", "customers", {
-                "email": customer_data.email,
-                "name": customer_data.name,
-                "metadata": customer_data.metadata or {},
-            })
+            result = await self._request(
+                "POST",
+                "customers",
+                {
+                    "email": customer_data.email,
+                    "name": customer_data.name,
+                    "metadata": customer_data.metadata or {},
+                },
+            )
 
             return {
                 "customer_id": result.get("id"),
@@ -115,11 +116,7 @@ class PolarProvider(PaymentProvider):
         except Exception as e:
             raise Exception(f"Polar customer retrieval failed: {str(e)}")
 
-    async def update_customer(
-        self,
-        customer_id: str,
-        updates: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def update_customer(self, customer_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
         """Update Polar customer."""
         try:
             result = await self._request("PATCH", f"customers/{customer_id}", updates)
@@ -147,13 +144,11 @@ class PolarProvider(PaymentProvider):
     # ============================================================================
 
     async def create_payment_method(
-        self,
-        customer_id: str,
-        payment_method_data: PaymentMethodData
+        self, customer_id: str, payment_method_data: PaymentMethodData
     ) -> Dict[str, Any]:
         """
         Polar handles payment methods through checkout.
-        
+
         This method is not directly supported.
         """
         raise NotImplementedError(
@@ -166,9 +161,7 @@ class PolarProvider(PaymentProvider):
         raise NotImplementedError("Polar does not expose payment method details.")
 
     async def list_payment_methods(
-        self,
-        customer_id: str,
-        type: Optional[str] = None
+        self, customer_id: str, type: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Not supported by Polar."""
         return []
@@ -178,9 +171,7 @@ class PolarProvider(PaymentProvider):
         raise NotImplementedError("Polar does not support payment method deletion.")
 
     async def set_default_payment_method(
-        self,
-        customer_id: str,
-        payment_method_id: str
+        self, customer_id: str, payment_method_id: str
     ) -> Dict[str, Any]:
         """Not supported by Polar."""
         raise NotImplementedError("Polar does not support default payment methods.")
@@ -189,23 +180,28 @@ class PolarProvider(PaymentProvider):
     # Subscription Management (Product-based)
     # ============================================================================
 
-    async def create_subscription(
-        self,
-        subscription_data: SubscriptionData
-    ) -> Dict[str, Any]:
+    async def create_subscription(self, subscription_data: SubscriptionData) -> Dict[str, Any]:
         """
         Create Polar subscription (for benefit tiers).
-        
+
         Note: Polar subscriptions are created via checkout, not API.
         This returns checkout URL.
         """
         try:
             # Create checkout session for subscription
-            checkout = await self._request("POST", "checkouts", {
-                "product_id": subscription_data.plan_id,
-                "customer_email": subscription_data.metadata.get("email") if subscription_data.metadata else None,
-                "success_url": subscription_data.metadata.get("success_url") if subscription_data.metadata else None,
-            })
+            checkout = await self._request(
+                "POST",
+                "checkouts",
+                {
+                    "product_id": subscription_data.plan_id,
+                    "customer_email": subscription_data.metadata.get("email")
+                    if subscription_data.metadata
+                    else None,
+                    "success_url": subscription_data.metadata.get("success_url")
+                    if subscription_data.metadata
+                    else None,
+                },
+            )
 
             return {
                 "subscription_id": checkout.get("id"),
@@ -234,9 +230,7 @@ class PolarProvider(PaymentProvider):
             raise Exception(f"Polar subscription retrieval failed: {str(e)}")
 
     async def update_subscription(
-        self,
-        subscription_id: str,
-        updates: Dict[str, Any]
+        self, subscription_id: str, updates: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Update Polar subscription."""
         try:
@@ -251,15 +245,15 @@ class PolarProvider(PaymentProvider):
             raise Exception(f"Polar subscription update failed: {str(e)}")
 
     async def cancel_subscription(
-        self,
-        subscription_id: str,
-        cancel_at_period_end: bool = True
+        self, subscription_id: str, cancel_at_period_end: bool = True
     ) -> Dict[str, Any]:
         """Cancel Polar subscription."""
         try:
-            result = await self._request("POST", f"subscriptions/{subscription_id}/cancel", {
-                "cancel_at_period_end": cancel_at_period_end
-            })
+            result = await self._request(
+                "POST",
+                f"subscriptions/{subscription_id}/cancel",
+                {"cancel_at_period_end": cancel_at_period_end},
+            )
 
             return {
                 "subscription_id": result.get("id"),
@@ -281,7 +275,7 @@ class PolarProvider(PaymentProvider):
     async def get_invoice(self, invoice_id: str) -> Dict[str, Any]:
         """
         Retrieve Polar order (equivalent to invoice).
-        
+
         Polar uses "orders" instead of invoices.
         """
         try:
@@ -299,24 +293,22 @@ class PolarProvider(PaymentProvider):
         except Exception as e:
             raise Exception(f"Polar order retrieval failed: {str(e)}")
 
-    async def list_invoices(
-        self,
-        customer_id: str,
-        limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    async def list_invoices(self, customer_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """List Polar orders for customer."""
         try:
             result = await self._request("GET", f"orders?customer_id={customer_id}&limit={limit}")
 
             orders = []
             for order in result.get("data", []):
-                orders.append({
-                    "invoice_id": order.get("id"),
-                    "amount": order.get("amount", 0) / 100,
-                    "currency": order.get("currency", "USD").upper(),
-                    "status": order.get("status"),
-                    "created": order.get("created_at"),
-                })
+                orders.append(
+                    {
+                        "invoice_id": order.get("id"),
+                        "amount": order.get("amount", 0) / 100,
+                        "currency": order.get("currency", "USD").upper(),
+                        "status": order.get("status"),
+                        "created": order.get("created_at"),
+                    }
+                )
 
             return orders
 
@@ -331,22 +323,15 @@ class PolarProvider(PaymentProvider):
     # Webhook Handling
     # ============================================================================
 
-    def verify_webhook_signature(
-        self,
-        payload: bytes,
-        signature: str,
-        webhook_secret: str
-    ) -> bool:
+    def verify_webhook_signature(self, payload: bytes, signature: str, webhook_secret: str) -> bool:
         """
         Verify Polar webhook signature.
-        
+
         Polar uses HMAC SHA256 for webhook verification.
         """
         try:
             computed_signature = hmac.new(
-                webhook_secret.encode(),
-                payload,
-                hashlib.sha256
+                webhook_secret.encode(), payload, hashlib.sha256
             ).hexdigest()
 
             return hmac.compare_digest(computed_signature, signature)
@@ -376,14 +361,16 @@ class PolarProvider(PaymentProvider):
 
             products = []
             for product in result.get("data", []):
-                products.append({
-                    "plan_id": product.get("id"),
-                    "name": product.get("name"),
-                    "description": product.get("description"),
-                    "amount": product.get("price", 0) / 100 if product.get("price") else None,
-                    "currency": "USD",
-                    "type": product.get("type"),  # digital, subscription, etc
-                })
+                products.append(
+                    {
+                        "plan_id": product.get("id"),
+                        "name": product.get("name"),
+                        "description": product.get("description"),
+                        "amount": product.get("price", 0) / 100 if product.get("price") else None,
+                        "currency": "USD",
+                        "type": product.get("type"),  # digital, subscription, etc
+                    }
+                )
 
             return products
 
@@ -425,11 +412,11 @@ class PolarProvider(PaymentProvider):
         product_id: str,
         customer_email: Optional[str] = None,
         success_url: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Create Polar checkout session for product purchase.
-        
+
         This is the primary way to sell products with Polar.
         """
         try:
@@ -478,11 +465,11 @@ class PolarProvider(PaymentProvider):
         product_id: str,
         benefit_type: str,
         description: str,
-        properties: Optional[Dict[str, Any]] = None
+        properties: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Create benefit for product/subscription.
-        
+
         Polar benefits can be:
         - Discord role
         - GitHub repository access
@@ -517,12 +504,14 @@ class PolarProvider(PaymentProvider):
 
             benefits = []
             for benefit in result.get("data", []):
-                benefits.append({
-                    "benefit_id": benefit.get("id"),
-                    "type": benefit.get("type"),
-                    "description": benefit.get("description"),
-                    "granted_at": benefit.get("granted_at"),
-                })
+                benefits.append(
+                    {
+                        "benefit_id": benefit.get("id"),
+                        "type": benefit.get("type"),
+                        "description": benefit.get("description"),
+                        "granted_at": benefit.get("granted_at"),
+                    }
+                )
 
             return benefits
 

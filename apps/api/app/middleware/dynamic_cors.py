@@ -55,7 +55,9 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
 
         # Initialize with config origins
         self._static_origins = set(settings.cors_origins_list)
-        logger.info(f"DynamicCORSMiddleware initialized with {len(self._static_origins)} config origins")
+        logger.info(
+            f"DynamicCORSMiddleware initialized with {len(self._static_origins)} config origins"
+        )
 
     async def dispatch(self, request: Request, call_next) -> Response:
         """Handle CORS preflight and actual requests"""

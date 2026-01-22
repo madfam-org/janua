@@ -6,6 +6,6 @@ from .list_memberships import ListMembershipsQuery, ListMembershipsHandler
 __all__ = [
     "GetOrganizationQuery",
     "GetOrganizationHandler",
-    "ListMembershipsQuery", 
-    "ListMembershipsHandler"
+    "ListMembershipsQuery",
+    "ListMembershipsHandler",
 ]

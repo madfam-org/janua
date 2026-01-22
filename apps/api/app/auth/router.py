@@ -376,16 +376,14 @@ async def check_session(
 
     if not access_token:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No session cookie found"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="No session cookie found"
         )
 
     # Validate access token
     payload = await AuthService.verify_token(access_token, token_type="access")
     if not payload:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session"
         )
 
     # Fetch user from database
@@ -394,8 +392,7 @@ async def check_session(
     user = await db.get(User, UUID(payload.get("sub")))
     if not user or not user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive"
         )
 
     return {
@@ -405,11 +402,11 @@ async def check_session(
             "email": user.email,
             "name": user.name,
             "email_verified": user.email_verified,
-            "is_admin": getattr(user, 'is_admin', False),
+            "is_admin": getattr(user, "is_admin", False),
         },
         "session": {
             "expires_at": payload.get("exp"),
-        }
+        },
     }
 
 
@@ -442,7 +439,7 @@ async def verify_email(request: VerifyEmailRequest, db=Depends(get_db), redis=De
             logger.error("Failed to send welcome email", error_type=type(e).__name__)
             # Continue even if welcome email fails
 
-        logger.info("Email verification successful", email=_redact_email(token_info['email']))
+        logger.info("Email verification successful", email=_redact_email(token_info["email"]))
 
         return {
             "message": "Email verified successfully",
@@ -521,6 +518,7 @@ async def reset_password(request: ResetPasswordRequest, db=Depends(get_db)):
         # SECURITY: Invalidate ALL sessions when password changes
         # This prevents any compromised sessions from remaining valid
         from app.services.auth_service import AuthService
+
         revoked_count = await AuthService.invalidate_user_sessions(db, user.id)
         logger.info(
             "Invalidated sessions on password reset",
@@ -679,5 +677,7 @@ async def passkey_register(
         }
 
     except Exception as e:
-        logger.error("Passkey registration failed", error_type=type(e).__name__, user_id=str(current_user.id))
+        logger.error(
+            "Passkey registration failed", error_type=type(e).__name__, user_id=str(current_user.id)
+        )
         raise HTTPException(status_code=400, detail=f"Registration verification failed: {str(e)}")

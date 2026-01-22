@@ -12,12 +12,7 @@ from uuid import UUID
 import structlog
 
 from ...models import User
-from app.models.enterprise import (
-    Organization,
-    SCIMResource,
-    OrganizationMember,
-    OrganizationRole
-)
+from app.models.enterprise import Organization, SCIMResource, OrganizationMember, OrganizationRole
 from app.core.database_manager import get_db
 from app.core.tenant_context import TenantContext
 
@@ -36,7 +31,7 @@ class SCIMError:
             "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
             "status": str(status_code),
             "detail": detail,
-            "scimType": scim_type
+            "scimType": scim_type,
         }
 
 
@@ -44,13 +39,15 @@ class SCIMListResponse:
     """SCIM list response format"""
 
     @staticmethod
-    def format(resources: List[Dict], total_results: int, start_index: int = 1, items_per_page: int = 100):
+    def format(
+        resources: List[Dict], total_results: int, start_index: int = 1, items_per_page: int = 100
+    ):
         return {
             "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
             "totalResults": total_results,
             "Resources": resources,
             "startIndex": start_index,
-            "itemsPerPage": items_per_page
+            "itemsPerPage": items_per_page,
         }
 
 
@@ -61,7 +58,7 @@ async def verify_scim_token(authorization: str = Header(None), db: AsyncSession 
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid authorization header"
+            detail="Missing or invalid authorization header",
         )
 
     authorization.replace("Bearer ", "")
@@ -73,16 +70,12 @@ async def verify_scim_token(authorization: str = Header(None), db: AsyncSession 
     org_id = TenantContext.get_organization_id()
     if not org_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token or organization context"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token or organization context"
         )
 
     result = await db.execute(
         select(Organization).where(
-            and_(
-                Organization.id == org_id,
-                Organization.scim_enabled == True
-            )
+            and_(Organization.id == org_id, Organization.scim_enabled == True)
         )
     )
     organization = result.scalar_one_or_none()
@@ -90,7 +83,7 @@ async def verify_scim_token(authorization: str = Header(None), db: AsyncSession 
     if not organization:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="SCIM not enabled for this organization"
+            detail="SCIM not enabled for this organization",
         )
 
     return organization
@@ -103,27 +96,12 @@ async def get_service_provider_config():
 
     return {
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"],
-        "patch": {
-            "supported": True
-        },
-        "bulk": {
-            "supported": True,
-            "maxOperations": 1000,
-            "maxPayloadSize": 1048576
-        },
-        "filter": {
-            "supported": True,
-            "maxResults": 200
-        },
-        "changePassword": {
-            "supported": True
-        },
-        "sort": {
-            "supported": True
-        },
-        "etag": {
-            "supported": True
-        },
+        "patch": {"supported": True},
+        "bulk": {"supported": True, "maxOperations": 1000, "maxPayloadSize": 1048576},
+        "filter": {"supported": True, "maxResults": 200},
+        "changePassword": {"supported": True},
+        "sort": {"supported": True},
+        "etag": {"supported": True},
         "authenticationSchemes": [
             {
                 "type": "oauthbearertoken",
@@ -131,7 +109,7 @@ async def get_service_provider_config():
                 "description": "Authentication using OAuth 2.0 bearer token",
                 "specUri": "https://tools.ietf.org/html/rfc6750",
                 "documentationUri": "https://janua.dev/docs/scim",
-                "primary": True
+                "primary": True,
             }
         ],
         "meta": {
@@ -139,8 +117,8 @@ async def get_service_provider_config():
             "resourceType": "ServiceProviderConfig",
             "created": "2024-01-01T00:00:00Z",
             "lastModified": "2024-01-01T00:00:00Z",
-            "version": "1.0"
-        }
+            "version": "1.0",
+        },
     }
 
 
@@ -166,7 +144,7 @@ async def get_schemas():
                         "caseExact": False,
                         "mutability": "readWrite",
                         "returned": "always",
-                        "uniqueness": "server"
+                        "uniqueness": "server",
                     },
                     {
                         "name": "emails",
@@ -174,7 +152,7 @@ async def get_schemas():
                         "multiValued": True,
                         "required": True,
                         "mutability": "readWrite",
-                        "returned": "always"
+                        "returned": "always",
                     },
                     {
                         "name": "active",
@@ -182,9 +160,9 @@ async def get_schemas():
                         "multiValued": False,
                         "required": False,
                         "mutability": "readWrite",
-                        "returned": "always"
-                    }
-                ]
+                        "returned": "always",
+                    },
+                ],
             },
             {
                 "id": "urn:ietf:params:scim:schemas:core:2.0:Group",
@@ -197,16 +175,16 @@ async def get_schemas():
                         "multiValued": False,
                         "required": True,
                         "mutability": "readWrite",
-                        "returned": "always"
+                        "returned": "always",
                     },
                     {
                         "name": "members",
                         "type": "complex",
                         "multiValued": True,
                         "mutability": "readWrite",
-                        "returned": "always"
-                    }
-                ]
+                        "returned": "always",
+                    },
+                ],
             },
             {
                 "id": "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User",
@@ -219,7 +197,7 @@ async def get_schemas():
                         "multiValued": False,
                         "required": False,
                         "mutability": "readWrite",
-                        "returned": "always"
+                        "returned": "always",
                     },
                     {
                         "name": "department",
@@ -227,11 +205,11 @@ async def get_schemas():
                         "multiValued": False,
                         "required": False,
                         "mutability": "readWrite",
-                        "returned": "always"
-                    }
-                ]
-            }
-        ]
+                        "returned": "always",
+                    },
+                ],
+            },
+        ],
     }
 
 
@@ -242,25 +220,29 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
     startIndex: int = Query(1, ge=1),
     count: int = Query(100, ge=1, le=1000),
-    filter: Optional[str] = Query(None)
+    filter: Optional[str] = Query(None),
 ):
     """List users with optional filtering"""
 
     try:
         # Build base query
-        query = select(User, SCIMResource, OrganizationMember).join(
-            SCIMResource,
-            and_(
-                SCIMResource.internal_id == User.id,
-                SCIMResource.resource_type == "User",
-                SCIMResource.organization_id == organization.id
-            ),
-            isouter=True
-        ).join(
-            OrganizationMember,
-            and_(
-                OrganizationMember.user_id == User.id,
-                OrganizationMember.organization_id == organization.id
+        query = (
+            select(User, SCIMResource, OrganizationMember)
+            .join(
+                SCIMResource,
+                and_(
+                    SCIMResource.internal_id == User.id,
+                    SCIMResource.resource_type == "User",
+                    SCIMResource.organization_id == organization.id,
+                ),
+                isouter=True,
+            )
+            .join(
+                OrganizationMember,
+                and_(
+                    OrganizationMember.user_id == User.id,
+                    OrganizationMember.organization_id == organization.id,
+                ),
             )
         )
 
@@ -296,14 +278,14 @@ async def list_users(
             resources=resources,
             total_results=total_count,
             start_index=startIndex,
-            items_per_page=count
+            items_per_page=count,
         )
 
     except Exception as e:
         logger.error("SCIM user list failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=SCIMError.format(500, "Internal server error")
+            detail=SCIMError.format(500, "Internal server error"),
         )
 
 
@@ -311,26 +293,27 @@ async def list_users(
 async def get_user(
     user_id: str,
     organization: Organization = Depends(verify_scim_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get a specific user by SCIM ID"""
 
     # Look up SCIM resource
     result = await db.execute(
-        select(SCIMResource, User, OrganizationMember).join(
-            User, User.id == SCIMResource.internal_id
-        ).join(
+        select(SCIMResource, User, OrganizationMember)
+        .join(User, User.id == SCIMResource.internal_id)
+        .join(
             OrganizationMember,
             and_(
                 OrganizationMember.user_id == User.id,
-                OrganizationMember.organization_id == organization.id
+                OrganizationMember.organization_id == organization.id,
             ),
-            isouter=True
-        ).where(
+            isouter=True,
+        )
+        .where(
             and_(
                 SCIMResource.scim_id == user_id,
                 SCIMResource.organization_id == organization.id,
-                SCIMResource.resource_type == "User"
+                SCIMResource.resource_type == "User",
             )
         )
     )
@@ -338,8 +321,7 @@ async def get_user(
     row = result.one_or_none()
     if not row:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=SCIMError.format(404, "User not found")
+            status_code=status.HTTP_404_NOT_FOUND, detail=SCIMError.format(404, "User not found")
         )
 
     scim_resource, user, membership = row
@@ -350,7 +332,7 @@ async def get_user(
 async def create_user(
     user_data: Dict[str, Any],
     organization: Organization = Depends(verify_scim_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Create a new user via SCIM"""
 
@@ -365,26 +347,22 @@ async def create_user(
         if not username or not primary_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=SCIMError.format(400, "userName and email are required")
+                detail=SCIMError.format(400, "userName and email are required"),
             )
 
         # Check if user already exists
         existing_user = await db.execute(
-            select(User).where(
-                or_(
-                    User.email == primary_email,
-                    User.username == username
-                )
-            )
+            select(User).where(or_(User.email == primary_email, User.username == username))
         )
         if existing_user.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=SCIMError.format(409, "User already exists")
+                detail=SCIMError.format(409, "User already exists"),
             )
 
         # Create user
         import uuid
+
         user = User(
             id=uuid.uuid4(),
             email=primary_email,
@@ -393,7 +371,7 @@ async def create_user(
             last_name=name.get("familyName"),
             display_name=user_data.get("displayName"),
             status="active" if active else "inactive",
-            email_verified=True  # SCIM users are pre-verified
+            email_verified=True,  # SCIM users are pre-verified
         )
         db.add(user)
 
@@ -404,7 +382,7 @@ async def create_user(
             resource_type="User",
             internal_id=user.id,
             raw_attributes=user_data,
-            sync_status="synced"
+            sync_status="synced",
         )
         db.add(scim_resource)
 
@@ -413,7 +391,7 @@ async def create_user(
             select(OrganizationRole).where(
                 and_(
                     OrganizationRole.organization_id == organization.id,
-                    OrganizationRole.is_default == True
+                    OrganizationRole.is_default == True,
                 )
             )
         )
@@ -425,7 +403,7 @@ async def create_user(
                 user_id=user.id,
                 role_id=role.id,
                 status="active",
-                joined_at=datetime.utcnow()
+                joined_at=datetime.utcnow(),
             )
             db.add(member)
 
@@ -433,9 +411,7 @@ async def create_user(
         await db.refresh(user)
         await db.refresh(scim_resource)
 
-        logger.info("SCIM user created",
-                   scim_id=scim_resource.scim_id,
-                   user_id=str(user.id))
+        logger.info("SCIM user created", scim_id=scim_resource.scim_id, user_id=str(user.id))
 
         return format_user_resource(user, scim_resource, member if role else None)
 
@@ -446,7 +422,7 @@ async def create_user(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=SCIMError.format(500, "Internal server error")
+            detail=SCIMError.format(500, "Internal server error"),
         )
 
 
@@ -455,20 +431,20 @@ async def update_user(
     user_id: str,
     user_data: Dict[str, Any],
     organization: Organization = Depends(verify_scim_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Update a user via SCIM"""
 
     try:
         # Look up SCIM resource and user
         result = await db.execute(
-            select(SCIMResource, User).join(
-                User, User.id == SCIMResource.internal_id
-            ).where(
+            select(SCIMResource, User)
+            .join(User, User.id == SCIMResource.internal_id)
+            .where(
                 and_(
                     SCIMResource.scim_id == user_id,
                     SCIMResource.organization_id == organization.id,
-                    SCIMResource.resource_type == "User"
+                    SCIMResource.resource_type == "User",
                 )
             )
         )
@@ -477,7 +453,7 @@ async def update_user(
         if not row:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=SCIMError.format(404, "User not found")
+                detail=SCIMError.format(404, "User not found"),
             )
 
         scim_resource, user = row
@@ -510,16 +486,14 @@ async def update_user(
         await db.commit()
         await db.refresh(user)
 
-        logger.info("SCIM user updated",
-                   scim_id=scim_resource.scim_id,
-                   user_id=str(user.id))
+        logger.info("SCIM user updated", scim_id=scim_resource.scim_id, user_id=str(user.id))
 
         # Get membership for response
         membership_result = await db.execute(
             select(OrganizationMember).where(
                 and_(
                     OrganizationMember.user_id == user.id,
-                    OrganizationMember.organization_id == organization.id
+                    OrganizationMember.organization_id == organization.id,
                 )
             )
         )
@@ -534,7 +508,7 @@ async def update_user(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=SCIMError.format(500, "Internal server error")
+            detail=SCIMError.format(500, "Internal server error"),
         )
 
 
@@ -543,20 +517,20 @@ async def patch_user(
     user_id: str,
     patch_data: Dict[str, Any],
     organization: Organization = Depends(verify_scim_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Partially update a user via SCIM PATCH operations"""
 
     try:
         # Look up SCIM resource and user
         result = await db.execute(
-            select(SCIMResource, User).join(
-                User, User.id == SCIMResource.internal_id
-            ).where(
+            select(SCIMResource, User)
+            .join(User, User.id == SCIMResource.internal_id)
+            .where(
                 and_(
                     SCIMResource.scim_id == user_id,
                     SCIMResource.organization_id == organization.id,
-                    SCIMResource.resource_type == "User"
+                    SCIMResource.resource_type == "User",
                 )
             )
         )
@@ -565,7 +539,7 @@ async def patch_user(
         if not row:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=SCIMError.format(404, "User not found")
+                detail=SCIMError.format(404, "User not found"),
             )
 
         scim_resource, user = row
@@ -586,7 +560,7 @@ async def patch_user(
             else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=SCIMError.format(400, f"Unsupported operation: {op_type}")
+                    detail=SCIMError.format(400, f"Unsupported operation: {op_type}"),
                 )
 
         # Update SCIM resource tracking
@@ -596,17 +570,19 @@ async def patch_user(
         await db.commit()
         await db.refresh(user)
 
-        logger.info("SCIM user patched",
-                   scim_id=scim_resource.scim_id,
-                   user_id=str(user.id),
-                   operations=len(operations))
+        logger.info(
+            "SCIM user patched",
+            scim_id=scim_resource.scim_id,
+            user_id=str(user.id),
+            operations=len(operations),
+        )
 
         # Get membership for response
         membership_result = await db.execute(
             select(OrganizationMember).where(
                 and_(
                     OrganizationMember.user_id == user.id,
-                    OrganizationMember.organization_id == organization.id
+                    OrganizationMember.organization_id == organization.id,
                 )
             )
         )
@@ -621,7 +597,7 @@ async def patch_user(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=SCIMError.format(500, "Internal server error")
+            detail=SCIMError.format(500, "Internal server error"),
         )
 
 
@@ -640,9 +616,11 @@ def apply_patch_replace(user: User, path: str, value: Any):
         user.first_name = value
     elif path == "name.familyName":
         user.last_name = value
-    elif path == "emails" or path == "emails[type eq \"work\"].value":
+    elif path == "emails" or path == 'emails[type eq "work"].value':
         if isinstance(value, list) and len(value) > 0:
-            primary_email = next((e["value"] for e in value if e.get("primary")), value[0].get("value"))
+            primary_email = next(
+                (e["value"] for e in value if e.get("primary")), value[0].get("value")
+            )
             if primary_email:
                 user.email = primary_email
         elif isinstance(value, str):
@@ -671,20 +649,20 @@ def apply_patch_remove(user: User, path: str):
 async def delete_user(
     user_id: str,
     organization: Organization = Depends(verify_scim_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Delete (deactivate) a user via SCIM"""
 
     try:
         # Look up SCIM resource and user
         result = await db.execute(
-            select(SCIMResource, User).join(
-                User, User.id == SCIMResource.internal_id
-            ).where(
+            select(SCIMResource, User)
+            .join(User, User.id == SCIMResource.internal_id)
+            .where(
                 and_(
                     SCIMResource.scim_id == user_id,
                     SCIMResource.organization_id == organization.id,
-                    SCIMResource.resource_type == "User"
+                    SCIMResource.resource_type == "User",
                 )
             )
         )
@@ -693,7 +671,7 @@ async def delete_user(
         if not row:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=SCIMError.format(404, "User not found")
+                detail=SCIMError.format(404, "User not found"),
             )
 
         scim_resource, user = row
@@ -703,12 +681,14 @@ async def delete_user(
 
         # Remove organization membership
         await db.execute(
-            select(OrganizationMember).where(
+            select(OrganizationMember)
+            .where(
                 and_(
                     OrganizationMember.user_id == user.id,
-                    OrganizationMember.organization_id == organization.id
+                    OrganizationMember.organization_id == organization.id,
                 )
-            ).delete()
+            )
+            .delete()
         )
 
         # Delete SCIM resource mapping
@@ -716,9 +696,7 @@ async def delete_user(
 
         await db.commit()
 
-        logger.info("SCIM user deleted",
-                   scim_id=user_id,
-                   user_id=str(user.id))
+        logger.info("SCIM user deleted", scim_id=user_id, user_id=str(user.id))
 
         return "", status.HTTP_204_NO_CONTENT
 
@@ -729,12 +707,14 @@ async def delete_user(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=SCIMError.format(500, "Internal server error")
+            detail=SCIMError.format(500, "Internal server error"),
         )
 
 
 # Helper functions
-def format_user_resource(user: User, scim_resource: Optional[SCIMResource], membership: Optional[OrganizationMember]) -> Dict:
+def format_user_resource(
+    user: User, scim_resource: Optional[SCIMResource], membership: Optional[OrganizationMember]
+) -> Dict:
     """Format a user as a SCIM resource"""
 
     resource = {
@@ -745,23 +725,17 @@ def format_user_resource(user: User, scim_resource: Optional[SCIMResource], memb
         "name": {
             "formatted": f"{user.first_name or ''} {user.last_name or ''}".strip(),
             "familyName": user.last_name,
-            "givenName": user.first_name
+            "givenName": user.first_name,
         },
         "displayName": user.display_name or user.email,
-        "emails": [
-            {
-                "value": user.email,
-                "type": "work",
-                "primary": True
-            }
-        ],
+        "emails": [{"value": user.email, "type": "work", "primary": True}],
         "active": user.status == "active",
         "meta": {
             "resourceType": "User",
             "created": user.created_at.isoformat() if user.created_at else None,
             "lastModified": user.updated_at.isoformat() if user.updated_at else None,
-            "location": f"/scim/v2/Users/{scim_resource.scim_id if scim_resource else str(user.id)}"
-        }
+            "location": f"/scim/v2/Users/{scim_resource.scim_id if scim_resource else str(user.id)}",
+        },
     }
 
     # Add enterprise extension if member of organization
@@ -777,39 +751,36 @@ def format_user_resource(user: User, scim_resource: Optional[SCIMResource], memb
 # Group endpoints would follow similar pattern
 # Implementing basic structure for completeness
 
+
 @router.get("/Groups")
 async def list_groups(
-    organization: Organization = Depends(verify_scim_token),
-    db: AsyncSession = Depends(get_db)
+    organization: Organization = Depends(verify_scim_token), db: AsyncSession = Depends(get_db)
 ):
     """List groups (roles) in the organization"""
 
     result = await db.execute(
-        select(OrganizationRole).where(
-            OrganizationRole.organization_id == organization.id
-        )
+        select(OrganizationRole).where(OrganizationRole.organization_id == organization.id)
     )
     roles = result.scalars().all()
 
     resources = []
     for role in roles:
-        resources.append({
-            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
-            "id": str(role.id),
-            "displayName": role.name,
-            "meta": {
-                "resourceType": "Group",
-                "created": role.created_at.isoformat() if role.created_at else None,
-                "lastModified": role.updated_at.isoformat() if role.updated_at else None,
-                "location": f"/scim/v2/Groups/{role.id}"
+        resources.append(
+            {
+                "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+                "id": str(role.id),
+                "displayName": role.name,
+                "meta": {
+                    "resourceType": "Group",
+                    "created": role.created_at.isoformat() if role.created_at else None,
+                    "lastModified": role.updated_at.isoformat() if role.updated_at else None,
+                    "location": f"/scim/v2/Groups/{role.id}",
+                },
             }
-        })
+        )
 
     return SCIMListResponse.format(
-        resources=resources,
-        total_results=len(resources),
-        start_index=1,
-        items_per_page=100
+        resources=resources, total_results=len(resources), start_index=1, items_per_page=100
     )
 
 
@@ -817,7 +788,7 @@ async def list_groups(
 async def get_group(
     group_id: str,
     organization: Organization = Depends(verify_scim_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Get a specific group by ID"""
 
@@ -825,15 +796,14 @@ async def get_group(
         group_uuid = UUID(group_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=SCIMError.format(404, "Group not found")
+            status_code=status.HTTP_404_NOT_FOUND, detail=SCIMError.format(404, "Group not found")
         )
 
     result = await db.execute(
         select(OrganizationRole).where(
             and_(
                 OrganizationRole.id == group_uuid,
-                OrganizationRole.organization_id == organization.id
+                OrganizationRole.organization_id == organization.id,
             )
         )
     )
@@ -841,36 +811,38 @@ async def get_group(
 
     if not role:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=SCIMError.format(404, "Group not found")
+            status_code=status.HTTP_404_NOT_FOUND, detail=SCIMError.format(404, "Group not found")
         )
 
     # Get group members
     members_result = await db.execute(
-        select(OrganizationMember, User, SCIMResource).join(
-            User, User.id == OrganizationMember.user_id
-        ).outerjoin(
+        select(OrganizationMember, User, SCIMResource)
+        .join(User, User.id == OrganizationMember.user_id)
+        .outerjoin(
             SCIMResource,
             and_(
                 SCIMResource.internal_id == User.id,
                 SCIMResource.resource_type == "User",
-                SCIMResource.organization_id == organization.id
-            )
-        ).where(
+                SCIMResource.organization_id == organization.id,
+            ),
+        )
+        .where(
             and_(
                 OrganizationMember.organization_id == organization.id,
-                OrganizationMember.role_id == role.id
+                OrganizationMember.role_id == role.id,
             )
         )
     )
 
     members = []
     for member, user, scim_resource in members_result.all():
-        members.append({
-            "value": scim_resource.scim_id if scim_resource else str(user.id),
-            "$ref": f"/scim/v2/Users/{scim_resource.scim_id if scim_resource else str(user.id)}",
-            "display": user.display_name or user.email
-        })
+        members.append(
+            {
+                "value": scim_resource.scim_id if scim_resource else str(user.id),
+                "$ref": f"/scim/v2/Users/{scim_resource.scim_id if scim_resource else str(user.id)}",
+                "display": user.display_name or user.email,
+            }
+        )
 
     return format_group_resource(role, members)
 
@@ -879,7 +851,7 @@ async def get_group(
 async def create_group(
     group_data: Dict[str, Any],
     organization: Organization = Depends(verify_scim_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Create a new group (role) via SCIM"""
 
@@ -888,7 +860,7 @@ async def create_group(
         if not display_name:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=SCIMError.format(400, "displayName is required")
+                detail=SCIMError.format(400, "displayName is required"),
             )
 
         # Check if role already exists
@@ -896,17 +868,18 @@ async def create_group(
             select(OrganizationRole).where(
                 and_(
                     OrganizationRole.organization_id == organization.id,
-                    OrganizationRole.name == display_name
+                    OrganizationRole.name == display_name,
                 )
             )
         )
         if existing.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=SCIMError.format(409, "Group already exists")
+                detail=SCIMError.format(409, "Group already exists"),
             )
 
         import uuid
+
         role = OrganizationRole(
             id=uuid.uuid4(),
             organization_id=organization.id,
@@ -915,7 +888,7 @@ async def create_group(
             permissions=[],  # Default empty permissions
             is_default=False,
             created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            updated_at=datetime.utcnow(),
         )
         db.add(role)
 
@@ -926,16 +899,14 @@ async def create_group(
             resource_type="Group",
             internal_id=role.id,
             raw_attributes=group_data,
-            sync_status="synced"
+            sync_status="synced",
         )
         db.add(scim_resource)
 
         await db.commit()
         await db.refresh(role)
 
-        logger.info("SCIM group created",
-                   group_id=str(role.id),
-                   name=display_name)
+        logger.info("SCIM group created", group_id=str(role.id), name=display_name)
 
         # Process initial members if provided
         members = group_data.get("members", [])
@@ -950,7 +921,7 @@ async def create_group(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=SCIMError.format(500, "Internal server error")
+            detail=SCIMError.format(500, "Internal server error"),
         )
 
 
@@ -959,7 +930,7 @@ async def update_group(
     group_id: str,
     group_data: Dict[str, Any],
     organization: Organization = Depends(verify_scim_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Update a group via SCIM (full replacement)"""
 
@@ -967,8 +938,7 @@ async def update_group(
         group_uuid = UUID(group_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=SCIMError.format(404, "Group not found")
+            status_code=status.HTTP_404_NOT_FOUND, detail=SCIMError.format(404, "Group not found")
         )
 
     try:
@@ -976,7 +946,7 @@ async def update_group(
             select(OrganizationRole).where(
                 and_(
                     OrganizationRole.id == group_uuid,
-                    OrganizationRole.organization_id == organization.id
+                    OrganizationRole.organization_id == organization.id,
                 )
             )
         )
@@ -985,7 +955,7 @@ async def update_group(
         if not role:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=SCIMError.format(404, "Group not found")
+                detail=SCIMError.format(404, "Group not found"),
             )
 
         # Update role
@@ -1000,8 +970,7 @@ async def update_group(
         await db.commit()
         await db.refresh(role)
 
-        logger.info("SCIM group updated",
-                   group_id=str(role.id))
+        logger.info("SCIM group updated", group_id=str(role.id))
 
         return format_group_resource(role, members)
 
@@ -1012,7 +981,7 @@ async def update_group(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=SCIMError.format(500, "Internal server error")
+            detail=SCIMError.format(500, "Internal server error"),
         )
 
 
@@ -1021,7 +990,7 @@ async def patch_group(
     group_id: str,
     patch_data: Dict[str, Any],
     organization: Organization = Depends(verify_scim_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Partially update a group via SCIM PATCH operations"""
 
@@ -1029,8 +998,7 @@ async def patch_group(
         group_uuid = UUID(group_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=SCIMError.format(404, "Group not found")
+            status_code=status.HTTP_404_NOT_FOUND, detail=SCIMError.format(404, "Group not found")
         )
 
     try:
@@ -1038,7 +1006,7 @@ async def patch_group(
             select(OrganizationRole).where(
                 and_(
                     OrganizationRole.id == group_uuid,
-                    OrganizationRole.organization_id == organization.id
+                    OrganizationRole.organization_id == organization.id,
                 )
             )
         )
@@ -1047,7 +1015,7 @@ async def patch_group(
         if not role:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=SCIMError.format(404, "Group not found")
+                detail=SCIMError.format(404, "Group not found"),
             )
 
         # Process SCIM PATCH operations
@@ -1058,9 +1026,13 @@ async def patch_group(
             value = op.get("value")
 
             if op_type == "replace":
-                if path == "displayName" or (not path and isinstance(value, dict) and "displayName" in value):
+                if path == "displayName" or (
+                    not path and isinstance(value, dict) and "displayName" in value
+                ):
                     role.name = value if isinstance(value, str) else value.get("displayName")
-                elif path == "members" or (not path and isinstance(value, dict) and "members" in value):
+                elif path == "members" or (
+                    not path and isinstance(value, dict) and "members" in value
+                ):
                     members = value if isinstance(value, list) else value.get("members", [])
                     await update_group_members(db, organization.id, role.id, members, replace=True)
 
@@ -1073,6 +1045,7 @@ async def patch_group(
                 if path and "members" in path:
                     # Parse member to remove from path like "members[value eq \"user-id\"]"
                     import re
+
                     match = re.search(r'members\[value eq "([^"]+)"\]', path)
                     if match:
                         member_id = match.group(1)
@@ -1082,9 +1055,7 @@ async def patch_group(
         await db.commit()
         await db.refresh(role)
 
-        logger.info("SCIM group patched",
-                   group_id=str(role.id),
-                   operations=len(operations))
+        logger.info("SCIM group patched", group_id=str(role.id), operations=len(operations))
 
         # Get current members for response
         members = await get_group_members(db, organization.id, role.id)
@@ -1097,7 +1068,7 @@ async def patch_group(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=SCIMError.format(500, "Internal server error")
+            detail=SCIMError.format(500, "Internal server error"),
         )
 
 
@@ -1105,7 +1076,7 @@ async def patch_group(
 async def delete_group(
     group_id: str,
     organization: Organization = Depends(verify_scim_token),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Delete a group via SCIM"""
 
@@ -1113,8 +1084,7 @@ async def delete_group(
         group_uuid = UUID(group_id)
     except ValueError:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=SCIMError.format(404, "Group not found")
+            status_code=status.HTTP_404_NOT_FOUND, detail=SCIMError.format(404, "Group not found")
         )
 
     try:
@@ -1122,7 +1092,7 @@ async def delete_group(
             select(OrganizationRole).where(
                 and_(
                     OrganizationRole.id == group_uuid,
-                    OrganizationRole.organization_id == organization.id
+                    OrganizationRole.organization_id == organization.id,
                 )
             )
         )
@@ -1131,25 +1101,27 @@ async def delete_group(
         if not role:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=SCIMError.format(404, "Group not found")
+                detail=SCIMError.format(404, "Group not found"),
             )
 
         # Cannot delete system/default roles
         if role.is_default:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=SCIMError.format(400, "Cannot delete default role")
+                detail=SCIMError.format(400, "Cannot delete default role"),
             )
 
         # Delete SCIM resource mapping
         await db.execute(
-            select(SCIMResource).where(
+            select(SCIMResource)
+            .where(
                 and_(
                     SCIMResource.internal_id == role.id,
                     SCIMResource.resource_type == "Group",
-                    SCIMResource.organization_id == organization.id
+                    SCIMResource.organization_id == organization.id,
                 )
-            ).delete()
+            )
+            .delete()
         )
 
         # Delete the role
@@ -1165,11 +1137,12 @@ async def delete_group(
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=SCIMError.format(500, "Internal server error")
+            detail=SCIMError.format(500, "Internal server error"),
         )
 
 
 # Group helper functions
+
 
 def format_group_resource(role: OrganizationRole, members: List[Dict] = None) -> Dict:
     """Format a role as a SCIM Group resource"""
@@ -1182,42 +1155,46 @@ def format_group_resource(role: OrganizationRole, members: List[Dict] = None) ->
             "resourceType": "Group",
             "created": role.created_at.isoformat() if role.created_at else None,
             "lastModified": role.updated_at.isoformat() if role.updated_at else None,
-            "location": f"/scim/v2/Groups/{role.id}"
-        }
+            "location": f"/scim/v2/Groups/{role.id}",
+        },
     }
 
 
 async def get_group_members(db: AsyncSession, org_id: UUID, role_id: UUID) -> List[Dict]:
     """Get members of a group"""
     result = await db.execute(
-        select(OrganizationMember, User, SCIMResource).join(
-            User, User.id == OrganizationMember.user_id
-        ).outerjoin(
+        select(OrganizationMember, User, SCIMResource)
+        .join(User, User.id == OrganizationMember.user_id)
+        .outerjoin(
             SCIMResource,
             and_(
                 SCIMResource.internal_id == User.id,
                 SCIMResource.resource_type == "User",
-                SCIMResource.organization_id == org_id
-            )
-        ).where(
+                SCIMResource.organization_id == org_id,
+            ),
+        )
+        .where(
             and_(
-                OrganizationMember.organization_id == org_id,
-                OrganizationMember.role_id == role_id
+                OrganizationMember.organization_id == org_id, OrganizationMember.role_id == role_id
             )
         )
     )
 
     members = []
     for member, user, scim_resource in result.all():
-        members.append({
-            "value": scim_resource.scim_id if scim_resource else str(user.id),
-            "$ref": f"/scim/v2/Users/{scim_resource.scim_id if scim_resource else str(user.id)}",
-            "display": user.display_name or user.email
-        })
+        members.append(
+            {
+                "value": scim_resource.scim_id if scim_resource else str(user.id),
+                "$ref": f"/scim/v2/Users/{scim_resource.scim_id if scim_resource else str(user.id)}",
+                "display": user.display_name or user.email,
+            }
+        )
     return members
 
 
-async def update_group_members(db: AsyncSession, org_id: UUID, role_id: UUID, members: List[Dict], replace: bool = False):
+async def update_group_members(
+    db: AsyncSession, org_id: UUID, role_id: UUID, members: List[Dict], replace: bool = False
+):
     """Update group members"""
 
     if replace:
@@ -1226,7 +1203,7 @@ async def update_group_members(db: AsyncSession, org_id: UUID, role_id: UUID, me
             select(OrganizationMember).where(
                 and_(
                     OrganizationMember.organization_id == org_id,
-                    OrganizationMember.role_id == role_id
+                    OrganizationMember.role_id == role_id,
                 )
             )
         )
@@ -1235,7 +1212,7 @@ async def update_group_members(db: AsyncSession, org_id: UUID, role_id: UUID, me
             select(OrganizationMember).where(
                 and_(
                     OrganizationMember.organization_id == org_id,
-                    OrganizationMember.role_id == role_id
+                    OrganizationMember.role_id == role_id,
                 )
             )
         )
@@ -1250,20 +1227,17 @@ async def update_group_members(db: AsyncSession, org_id: UUID, role_id: UUID, me
 
         # Find user by SCIM ID or internal ID
         user_result = await db.execute(
-            select(User).join(
+            select(User)
+            .join(
                 SCIMResource,
                 and_(
                     SCIMResource.internal_id == User.id,
                     SCIMResource.scim_id == member_value,
-                    SCIMResource.organization_id == org_id
+                    SCIMResource.organization_id == org_id,
                 ),
-                isouter=True
-            ).where(
-                or_(
-                    SCIMResource.scim_id == member_value,
-                    User.id == member_value
-                )
+                isouter=True,
             )
+            .where(or_(SCIMResource.scim_id == member_value, User.id == member_value))
         )
         user = user_result.scalar_one_or_none()
 
@@ -1273,7 +1247,7 @@ async def update_group_members(db: AsyncSession, org_id: UUID, role_id: UUID, me
                 select(OrganizationMember).where(
                     and_(
                         OrganizationMember.organization_id == org_id,
-                        OrganizationMember.user_id == user.id
+                        OrganizationMember.user_id == user.id,
                     )
                 )
             )
@@ -1286,20 +1260,17 @@ async def remove_group_member(db: AsyncSession, org_id: UUID, role_id: UUID, mem
     """Remove a specific member from a group"""
     # Find user by SCIM ID
     user_result = await db.execute(
-        select(User).join(
+        select(User)
+        .join(
             SCIMResource,
             and_(
                 SCIMResource.internal_id == User.id,
                 SCIMResource.scim_id == member_id,
-                SCIMResource.organization_id == org_id
+                SCIMResource.organization_id == org_id,
             ),
-            isouter=True
-        ).where(
-            or_(
-                SCIMResource.scim_id == member_id,
-                User.id == member_id
-            )
+            isouter=True,
         )
+        .where(or_(SCIMResource.scim_id == member_id, User.id == member_id))
     )
     user = user_result.scalar_one_or_none()
 
@@ -1309,7 +1280,7 @@ async def remove_group_member(db: AsyncSession, org_id: UUID, role_id: UUID, mem
                 and_(
                     OrganizationMember.organization_id == org_id,
                     OrganizationMember.user_id == user.id,
-                    OrganizationMember.role_id == role_id
+                    OrganizationMember.role_id == role_id,
                 )
             )
         )

@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class ThreatLevel(Enum):
     """Threat severity levels"""
+
     NONE = "none"
     LOW = "low"
     MEDIUM = "medium"
@@ -32,6 +33,7 @@ class ThreatLevel(Enum):
 
 class ThreatType(Enum):
     """Types of security threats"""
+
     BRUTE_FORCE = "brute_force"
     CREDENTIAL_STUFFING = "credential_stuffing"
     SQL_INJECTION = "sql_injection"
@@ -49,6 +51,7 @@ class ThreatType(Enum):
 @dataclass
 class ThreatIndicator:
     """Individual threat indicator"""
+
     indicator_type: str
     value: Any
     confidence: float
@@ -59,6 +62,7 @@ class ThreatIndicator:
 @dataclass
 class ThreatEvent:
     """Detected threat event"""
+
     event_id: str
     threat_type: ThreatType
     threat_level: ThreatLevel
@@ -86,17 +90,46 @@ class HTMLTagDetector(HTMLParser):
 
         # Tags that can execute code or load external resources
         self.dangerous_tags = {
-            'script', 'iframe', 'object', 'embed', 'applet',
-            'form', 'input', 'button', 'link', 'base', 'meta'
+            "script",
+            "iframe",
+            "object",
+            "embed",
+            "applet",
+            "form",
+            "input",
+            "button",
+            "link",
+            "base",
+            "meta",
         }
 
         # Attributes that can execute JavaScript
         self.dangerous_attrs = {
-            'onload', 'onerror', 'onclick', 'onmouseover', 'onfocus',
-            'onblur', 'onsubmit', 'onreset', 'onchange', 'oninput',
-            'onkeydown', 'onkeyup', 'onkeypress', 'onmousedown', 'onmouseup',
-            'onmouseenter', 'onmouseleave', 'ondrag', 'ondrop', 'formaction',
-            'href', 'src', 'action', 'data', 'xlink:href'
+            "onload",
+            "onerror",
+            "onclick",
+            "onmouseover",
+            "onfocus",
+            "onblur",
+            "onsubmit",
+            "onreset",
+            "onchange",
+            "oninput",
+            "onkeydown",
+            "onkeyup",
+            "onkeypress",
+            "onmousedown",
+            "onmouseup",
+            "onmouseenter",
+            "onmouseleave",
+            "ondrag",
+            "ondrop",
+            "formaction",
+            "href",
+            "src",
+            "action",
+            "data",
+            "xlink:href",
         }
 
     def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]):
@@ -112,25 +145,22 @@ class HTMLTagDetector(HTMLParser):
 
             # Check dangerous event handlers
             if attr_name_lower in self.dangerous_attrs:
-                self.malicious_attrs.append((attr_name, attr_value or ''))
+                self.malicious_attrs.append((attr_name, attr_value or ""))
 
             # Check for javascript: protocol
-            if attr_value and 'javascript:' in attr_value.lower():
+            if attr_value and "javascript:" in attr_value.lower():
                 self.malicious_attrs.append((attr_name, attr_value))
 
             # Check for data: protocol in src/href
-            if attr_name_lower in ('src', 'href') and attr_value:
-                if attr_value.lower().startswith('data:'):
+            if attr_name_lower in ("src", "href") and attr_value:
+                if attr_value.lower().startswith("data:"):
                     self.malicious_attrs.append((attr_name, attr_value))
 
     def has_threats(self) -> bool:
         return bool(self.malicious_tags or self.malicious_attrs)
 
     def get_threats(self) -> Dict[str, List]:
-        return {
-            'malicious_tags': self.malicious_tags,
-            'malicious_attrs': self.malicious_attrs
-        }
+        return {"malicious_tags": self.malicious_tags, "malicious_attrs": self.malicious_attrs}
 
 
 def detect_xss_patterns(content: str) -> List[Dict[str, Any]]:
@@ -148,27 +178,28 @@ def detect_xss_patterns(content: str) -> List[Dict[str, Any]]:
         if detector.has_threats():
             threat_details = detector.get_threats()
 
-            if threat_details['malicious_tags']:
-                threats.append({
-                    'type': 'xss_tag',
-                    'tags': threat_details['malicious_tags'][:5],  # Limit for safety
-                    'confidence': 0.9
-                })
+            if threat_details["malicious_tags"]:
+                threats.append(
+                    {
+                        "type": "xss_tag",
+                        "tags": threat_details["malicious_tags"][:5],  # Limit for safety
+                        "confidence": 0.9,
+                    }
+                )
 
-            if threat_details['malicious_attrs']:
-                threats.append({
-                    'type': 'xss_attribute',
-                    'attrs': [a[0] for a in threat_details['malicious_attrs'][:5]],
-                    'confidence': 0.85
-                })
+            if threat_details["malicious_attrs"]:
+                threats.append(
+                    {
+                        "type": "xss_attribute",
+                        "attrs": [a[0] for a in threat_details["malicious_attrs"][:5]],
+                        "confidence": 0.85,
+                    }
+                )
 
     except Exception as e:
         # HTML parsing failed - might indicate malformed injection attempt
         logger.warning(f"HTML parsing failed, potential injection: {type(e).__name__}")
-        threats.append({
-            'type': 'malformed_html',
-            'confidence': 0.6
-        })
+        threats.append({"type": "malformed_html", "confidence": 0.6})
 
     return threats
 
@@ -198,11 +229,7 @@ def detect_sql_injection_patterns(content: str) -> List[Dict[str, Any]]:
 
     for pattern, pattern_type in sql_patterns:
         if re.search(pattern, content_lower, re.IGNORECASE):
-            threats.append({
-                'type': 'sql_injection',
-                'pattern': pattern_type,
-                'confidence': 0.8
-            })
+            threats.append({"type": "sql_injection", "pattern": pattern_type, "confidence": 0.8})
 
     return threats
 
@@ -225,10 +252,7 @@ def detect_path_traversal_patterns(content: str) -> List[Dict[str, Any]]:
 
     for pattern in traversal_patterns:
         if re.search(pattern, content, re.IGNORECASE):
-            threats.append({
-                'type': 'path_traversal',
-                'confidence': 0.8
-            })
+            threats.append({"type": "path_traversal", "confidence": 0.8})
             break  # One detection is enough
 
     return threats
@@ -275,13 +299,10 @@ class AdvancedThreatDetectionSystem:
         """Initialize machine learning models for anomaly detection"""
         try:
             # Try to load pre-trained model
-            self.anomaly_detector = joblib.load('models/anomaly_detector.pkl')
+            self.anomaly_detector = joblib.load("models/anomaly_detector.pkl")
         except Exception:
             # Create new model if not available
-            self.anomaly_detector = IsolationForest(
-                contamination=0.1,
-                random_state=42
-            )
+            self.anomaly_detector = IsolationForest(contamination=0.1, random_state=42)
             # Would need training data in production
 
     def _load_threat_intelligence(self):
@@ -290,8 +311,7 @@ class AdvancedThreatDetectionSystem:
         self._load_ip_reputation()
 
     async def analyze_request(
-        self,
-        request_data: Dict[str, Any]
+        self, request_data: Dict[str, Any]
     ) -> Tuple[ThreatLevel, List[ThreatIndicator]]:
         """
         Analyze incoming request for threats
@@ -304,30 +324,30 @@ class AdvancedThreatDetectionSystem:
         threat_scores = []
 
         # Extract request attributes
-        ip = request_data.get('ip_address', '')
-        user_id = request_data.get('user_id')
-        path = request_data.get('path', '')
-        request_data.get('method', '')
-        headers = request_data.get('headers', {})
-        body = request_data.get('body', '')
-        query_params = request_data.get('query_params', {})
+        ip = request_data.get("ip_address", "")
+        user_id = request_data.get("user_id")
+        path = request_data.get("path", "")
+        request_data.get("method", "")
+        headers = request_data.get("headers", {})
+        body = request_data.get("body", "")
+        query_params = request_data.get("query_params", {})
 
         # 1. IP Reputation Check
         ip_threat = await self._check_ip_reputation(ip)
         if ip_threat > 0:
-            indicators.append(ThreatIndicator(
-                indicator_type="ip_reputation",
-                value=ip,
-                confidence=ip_threat,
-                timestamp=datetime.utcnow(),
-                metadata={"reputation_score": ip_threat}
-            ))
+            indicators.append(
+                ThreatIndicator(
+                    indicator_type="ip_reputation",
+                    value=ip,
+                    confidence=ip_threat,
+                    timestamp=datetime.utcnow(),
+                    metadata={"reputation_score": ip_threat},
+                )
+            )
             threat_scores.append(ip_threat)
 
         # 2. Pattern Matching for Attacks
-        pattern_threats = self._detect_attack_patterns(
-            f"{path} {body} {json.dumps(query_params)}"
-        )
+        pattern_threats = self._detect_attack_patterns(f"{path} {body} {json.dumps(query_params)}")
         for threat in pattern_threats:
             indicators.append(threat)
             threat_scores.append(threat.confidence)
@@ -335,51 +355,55 @@ class AdvancedThreatDetectionSystem:
         # 3. Rate Limiting Analysis
         rate_threat = await self._analyze_rate_patterns(ip, user_id)
         if rate_threat > 0:
-            indicators.append(ThreatIndicator(
-                indicator_type="rate_anomaly",
-                value=f"{ip}:{user_id}",
-                confidence=rate_threat,
-                timestamp=datetime.utcnow()
-            ))
+            indicators.append(
+                ThreatIndicator(
+                    indicator_type="rate_anomaly",
+                    value=f"{ip}:{user_id}",
+                    confidence=rate_threat,
+                    timestamp=datetime.utcnow(),
+                )
+            )
             threat_scores.append(rate_threat)
 
         # 4. Behavioral Analysis
         if user_id:
-            behavior_threat = await self._analyze_user_behavior(
-                user_id, request_data
-            )
+            behavior_threat = await self._analyze_user_behavior(user_id, request_data)
             if behavior_threat > 0:
-                indicators.append(ThreatIndicator(
-                    indicator_type="behavioral_anomaly",
-                    value=user_id,
-                    confidence=behavior_threat,
-                    timestamp=datetime.utcnow()
-                ))
+                indicators.append(
+                    ThreatIndicator(
+                        indicator_type="behavioral_anomaly",
+                        value=user_id,
+                        confidence=behavior_threat,
+                        timestamp=datetime.utcnow(),
+                    )
+                )
                 threat_scores.append(behavior_threat)
 
         # 5. Authentication Attack Detection
-        if path in ['/api/v1/auth/signin', '/api/v1/auth/signup']:
-            auth_threat = await self._detect_authentication_attacks(
-                ip, user_id, request_data
-            )
+        if path in ["/api/v1/auth/signin", "/api/v1/auth/signup"]:
+            auth_threat = await self._detect_authentication_attacks(ip, user_id, request_data)
             if auth_threat > 0:
-                indicators.append(ThreatIndicator(
-                    indicator_type="auth_attack",
-                    value=ip,
-                    confidence=auth_threat,
-                    timestamp=datetime.utcnow()
-                ))
+                indicators.append(
+                    ThreatIndicator(
+                        indicator_type="auth_attack",
+                        value=ip,
+                        confidence=auth_threat,
+                        timestamp=datetime.utcnow(),
+                    )
+                )
                 threat_scores.append(auth_threat)
 
         # 6. Bot Detection
         bot_score = self._detect_bot_activity(headers, request_data)
         if bot_score > 0.5:
-            indicators.append(ThreatIndicator(
-                indicator_type="bot_detection",
-                value=headers.get('user-agent', 'unknown'),
-                confidence=bot_score,
-                timestamp=datetime.utcnow()
-            ))
+            indicators.append(
+                ThreatIndicator(
+                    indicator_type="bot_detection",
+                    value=headers.get("user-agent", "unknown"),
+                    confidence=bot_score,
+                    timestamp=datetime.utcnow(),
+                )
+            )
             threat_scores.append(bot_score)
 
         # Calculate overall threat level
@@ -402,9 +426,7 @@ class AdvancedThreatDetectionSystem:
 
         # Create threat event if significant
         if threat_level in [ThreatLevel.HIGH, ThreatLevel.CRITICAL]:
-            await self._create_threat_event(
-                threat_level, indicators, request_data
-            )
+            await self._create_threat_event(threat_level, indicators, request_data)
 
         return threat_level, indicators
 
@@ -455,7 +477,7 @@ class AdvancedThreatDetectionSystem:
                 "Invalid IP address format in threat detection",
                 ip=ip,
                 error=str(e),
-                error_type=type(e).__name__
+                error_type=type(e).__name__,
             )
 
         return False
@@ -471,43 +493,45 @@ class AdvancedThreatDetectionSystem:
         # Detect XSS using proper HTML parsing
         xss_threats = detect_xss_patterns(content)
         for threat in xss_threats:
-            indicators.append(ThreatIndicator(
-                indicator_type="xss_attempt",
-                value=threat.get('type', 'xss')[:100],
-                confidence=threat.get('confidence', 0.8),
-                timestamp=datetime.utcnow(),
-                metadata=threat
-            ))
+            indicators.append(
+                ThreatIndicator(
+                    indicator_type="xss_attempt",
+                    value=threat.get("type", "xss")[:100],
+                    confidence=threat.get("confidence", 0.8),
+                    timestamp=datetime.utcnow(),
+                    metadata=threat,
+                )
+            )
 
         # Detect SQL injection
         sql_threats = detect_sql_injection_patterns(content)
         for threat in sql_threats:
-            indicators.append(ThreatIndicator(
-                indicator_type="sql_injection",
-                value=threat.get('pattern', 'sql_injection')[:100],
-                confidence=threat.get('confidence', 0.8),
-                timestamp=datetime.utcnow(),
-                metadata=threat
-            ))
+            indicators.append(
+                ThreatIndicator(
+                    indicator_type="sql_injection",
+                    value=threat.get("pattern", "sql_injection")[:100],
+                    confidence=threat.get("confidence", 0.8),
+                    timestamp=datetime.utcnow(),
+                    metadata=threat,
+                )
+            )
 
         # Detect path traversal
         traversal_threats = detect_path_traversal_patterns(content)
         for threat in traversal_threats:
-            indicators.append(ThreatIndicator(
-                indicator_type="path_traversal",
-                value="path_traversal",
-                confidence=threat.get('confidence', 0.8),
-                timestamp=datetime.utcnow(),
-                metadata=threat
-            ))
+            indicators.append(
+                ThreatIndicator(
+                    indicator_type="path_traversal",
+                    value="path_traversal",
+                    confidence=threat.get("confidence", 0.8),
+                    timestamp=datetime.utcnow(),
+                    metadata=threat,
+                )
+            )
 
         return indicators
 
-    async def _analyze_rate_patterns(
-        self,
-        ip: str,
-        user_id: Optional[str]
-    ) -> float:
+    async def _analyze_rate_patterns(self, ip: str, user_id: Optional[str]) -> float:
         """Analyze request rate patterns for anomalies"""
 
         if not self.redis_client:
@@ -530,35 +554,33 @@ class AdvancedThreatDetectionSystem:
 
         return 0.0
 
-    async def _analyze_user_behavior(
-        self,
-        user_id: str,
-        request_data: Dict[str, Any]
-    ) -> float:
+    async def _analyze_user_behavior(self, user_id: str, request_data: Dict[str, Any]) -> float:
         """Analyze user behavior for anomalies"""
 
         # Get user's historical behavior
         behavior = self.user_behavior[user_id]
 
         # Add current request
-        behavior.append({
-            'timestamp': datetime.utcnow(),
-            'path': request_data.get('path'),
-            'ip': request_data.get('ip_address'),
-            'user_agent': request_data.get('headers', {}).get('user-agent')
-        })
+        behavior.append(
+            {
+                "timestamp": datetime.utcnow(),
+                "path": request_data.get("path"),
+                "ip": request_data.get("ip_address"),
+                "user_agent": request_data.get("headers", {}).get("user-agent"),
+            }
+        )
 
         # Check for anomalies
         anomaly_score = 0.0
 
         # 1. Rapid IP changes
-        recent_ips = set(b['ip'] for b in list(behavior)[-10:])
+        recent_ips = set(b["ip"] for b in list(behavior)[-10:])
         if len(recent_ips) > 3:
             anomaly_score += 0.3
 
         # 2. Unusual access patterns
         if len(behavior) >= 10:
-            recent_paths = [b['path'] for b in list(behavior)[-10:]]
+            recent_paths = [b["path"] for b in list(behavior)[-10:]]
             if self._is_unusual_pattern(recent_paths):
                 anomaly_score += 0.4
 
@@ -577,7 +599,7 @@ class AdvancedThreatDetectionSystem:
             return True
 
         # Check for repeated sensitive endpoints
-        sensitive_endpoints = ['/admin', '/api/v1/users', '/api/v1/audit']
+        sensitive_endpoints = ["/admin", "/api/v1/users", "/api/v1/audit"]
         sensitive_count = sum(1 for p in paths if any(s in p for s in sensitive_endpoints))
         if sensitive_count > 5:
             return True
@@ -597,10 +619,7 @@ class AdvancedThreatDetectionSystem:
         return False
 
     async def _detect_authentication_attacks(
-        self,
-        ip: str,
-        user_id: Optional[str],
-        request_data: Dict[str, Any]
+        self, ip: str, user_id: Optional[str], request_data: Dict[str, Any]
     ) -> float:
         """Detect authentication-specific attacks"""
 
@@ -608,7 +627,7 @@ class AdvancedThreatDetectionSystem:
             return 0.0
 
         # Track failed login attempts
-        if request_data.get('status_code') in [401, 403]:
+        if request_data.get("status_code") in [401, 403]:
             key = f"failed_auth:{ip}"
             count = await self.redis_client.incr(key)
 
@@ -644,21 +663,26 @@ class AdvancedThreatDetectionSystem:
 
         return False
 
-    def _detect_bot_activity(
-        self,
-        headers: Dict[str, str],
-        request_data: Dict[str, Any]
-    ) -> float:
+    def _detect_bot_activity(self, headers: Dict[str, str], request_data: Dict[str, Any]) -> float:
         """Detect bot and automated activity"""
 
         score = 0.0
 
-        user_agent = headers.get('user-agent', '').lower()
+        user_agent = headers.get("user-agent", "").lower()
 
         # Check for known bot user agents
         bot_indicators = [
-            'bot', 'crawler', 'spider', 'scraper', 'curl', 'wget',
-            'python', 'java', 'ruby', 'perl', 'php'
+            "bot",
+            "crawler",
+            "spider",
+            "scraper",
+            "curl",
+            "wget",
+            "python",
+            "java",
+            "ruby",
+            "perl",
+            "php",
         ]
 
         for indicator in bot_indicators:
@@ -667,12 +691,12 @@ class AdvancedThreatDetectionSystem:
                 break
 
         # Check for missing standard headers
-        expected_headers = ['user-agent', 'accept', 'accept-language']
+        expected_headers = ["user-agent", "accept", "accept-language"]
         missing = sum(1 for h in expected_headers if h not in headers)
         score += missing * 0.2
 
         # Check for suspicious header combinations
-        if 'x-forwarded-for' in headers and 'x-real-ip' in headers:
+        if "x-forwarded-for" in headers and "x-real-ip" in headers:
             score += 0.2
 
         # Check request timing patterns (would use ML in production)
@@ -684,7 +708,7 @@ class AdvancedThreatDetectionSystem:
         self,
         threat_level: ThreatLevel,
         indicators: List[ThreatIndicator],
-        request_data: Dict[str, Any]
+        request_data: Dict[str, Any],
     ):
         """Create and store threat event"""
 
@@ -693,13 +717,13 @@ class AdvancedThreatDetectionSystem:
         # Determine threat type from indicators
         threat_types = [i.indicator_type for i in indicators]
 
-        if 'auth_attack' in threat_types:
+        if "auth_attack" in threat_types:
             threat_type = ThreatType.BRUTE_FORCE
-        elif 'sql_injection' in threat_types:
+        elif "sql_injection" in threat_types:
             threat_type = ThreatType.SQL_INJECTION
-        elif 'xss_attempt' in threat_types:
+        elif "xss_attempt" in threat_types:
             threat_type = ThreatType.XSS_ATTEMPT
-        elif 'rate_anomaly' in threat_types:
+        elif "rate_anomaly" in threat_types:
             threat_type = ThreatType.DDOS_ATTACK
         else:
             threat_type = ThreatType.SUSPICIOUS_BEHAVIOR
@@ -708,13 +732,13 @@ class AdvancedThreatDetectionSystem:
             event_id=str(uuid.uuid4()),
             threat_type=threat_type,
             threat_level=threat_level,
-            source_ip=request_data.get('ip_address', 'unknown'),
-            user_id=request_data.get('user_id'),
-            target_resource=request_data.get('path', 'unknown'),
+            source_ip=request_data.get("ip_address", "unknown"),
+            user_id=request_data.get("user_id"),
+            target_resource=request_data.get("path", "unknown"),
             indicators=indicators,
             confidence_score=max(i.confidence for i in indicators),
             timestamp=datetime.utcnow(),
-            metadata=request_data
+            metadata=request_data,
         )
 
         # Store event
@@ -728,12 +752,14 @@ class AdvancedThreatDetectionSystem:
             await self.redis_client.setex(
                 f"threat:{event.event_id}",
                 3600,  # Keep for 1 hour
-                json.dumps({
-                    'threat_type': threat_type.value,
-                    'threat_level': threat_level.value,
-                    'source_ip': event.source_ip,
-                    'timestamp': event.timestamp.isoformat()
-                })
+                json.dumps(
+                    {
+                        "threat_type": threat_type.value,
+                        "threat_level": threat_level.value,
+                        "source_ip": event.source_ip,
+                        "timestamp": event.timestamp.isoformat(),
+                    }
+                ),
             )
 
     async def _respond_to_threat(self, event: ThreatEvent):
@@ -777,11 +803,7 @@ class AdvancedThreatDetectionSystem:
         self.blocked_ips.add(ip)
 
         if self.redis_client:
-            await self.redis_client.setex(
-                f"blocked_ip:{ip}",
-                duration,
-                "1"
-            )
+            await self.redis_client.setex(f"blocked_ip:{ip}", duration, "1")
 
         logger.warning(f"Blocked IP {ip} for {duration} seconds")
 
@@ -789,11 +811,7 @@ class AdvancedThreatDetectionSystem:
         """Lock a user account"""
 
         if self.redis_client:
-            await self.redis_client.setex(
-                f"locked_account:{user_id}",
-                3600,  # 1 hour
-                "1"
-            )
+            await self.redis_client.setex(f"locked_account:{user_id}", 3600, "1")  # 1 hour
 
         logger.warning(f"Locked user account {user_id}")
 
@@ -894,7 +912,7 @@ class AdvancedThreatDetectionSystem:
             "threat_levels": defaultdict(int),
             "threat_types": defaultdict(int),
             "top_source_ips": [],
-            "trend": "stable"
+            "trend": "stable",
         }
 
         for event in self.active_threats.values():
@@ -906,10 +924,6 @@ class AdvancedThreatDetectionSystem:
         for event in self.active_threats.values():
             ip_counts[event.source_ip] += 1
 
-        stats["top_source_ips"] = sorted(
-            ip_counts.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )[:10]
+        stats["top_source_ips"] = sorted(ip_counts.items(), key=lambda x: x[1], reverse=True)[:10]
 
         return stats

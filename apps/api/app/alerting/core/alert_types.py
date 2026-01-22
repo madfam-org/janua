@@ -8,6 +8,7 @@ from enum import Enum
 
 class AlertSeverity(Enum):
     """Alert severity levels"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -16,6 +17,7 @@ class AlertSeverity(Enum):
 
 class AlertStatus(Enum):
     """Alert status states"""
+
     TRIGGERED = "triggered"
     ACKNOWLEDGED = "acknowledged"
     RESOLVED = "resolved"
@@ -24,6 +26,7 @@ class AlertStatus(Enum):
 
 class AlertChannel(Enum):
     """Alert delivery channels"""
+
     EMAIL = "email"
     SLACK = "slack"
     WEBHOOK = "webhook"

@@ -44,17 +44,14 @@ class JWTManager:
             # Handle escaped newlines in environment variables
             private_key_pem = settings.JWT_PRIVATE_KEY.replace("\\n", "\n")
             self.private_key = serialization.load_pem_private_key(
-                private_key_pem.encode("utf-8"),
-                password=None,
-                backend=default_backend()
+                private_key_pem.encode("utf-8"), password=None, backend=default_backend()
             )
 
             # Load or derive public key
             if settings.JWT_PUBLIC_KEY and settings.JWT_PUBLIC_KEY.startswith("-----BEGIN"):
                 public_key_pem = settings.JWT_PUBLIC_KEY.replace("\\n", "\n")
                 self.public_key = serialization.load_pem_public_key(
-                    public_key_pem.encode("utf-8"),
-                    backend=default_backend()
+                    public_key_pem.encode("utf-8"), backend=default_backend()
                 )
             else:
                 # Derive public key from private key
@@ -64,7 +61,7 @@ class JWTManager:
             self._private_key_pem = private_key_pem
             self._public_key_pem = self.public_key.public_bytes(
                 encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
             ).decode("utf-8")
 
             logger.info("JWT Manager initialized with RS256 (asymmetric keys)", kid=self.kid)
@@ -87,7 +84,9 @@ class JWTManager:
             self._private_key_pem = None
             self._public_key_pem = None
 
-            logger.info("JWT Manager initialized with HS256 (symmetric key) - development mode only")
+            logger.info(
+                "JWT Manager initialized with HS256 (symmetric key) - development mode only"
+            )
 
     def get_jwks(self) -> Dict[str, Any]:
         """
@@ -102,12 +101,8 @@ class JWTManager:
         public_numbers = self.public_key.public_numbers()
 
         # Encode n and e as base64url
-        n_bytes = public_numbers.n.to_bytes(
-            (public_numbers.n.bit_length() + 7) // 8, "big"
-        )
-        e_bytes = public_numbers.e.to_bytes(
-            (public_numbers.e.bit_length() + 7) // 8, "big"
-        )
+        n_bytes = public_numbers.n.to_bytes((public_numbers.n.bit_length() + 7) // 8, "big")
+        e_bytes = public_numbers.e.to_bytes((public_numbers.e.bit_length() + 7) // 8, "big")
 
         n_b64 = base64.urlsafe_b64encode(n_bytes).decode("ascii").rstrip("=")
         e_b64 = base64.urlsafe_b64encode(e_bytes).decode("ascii").rstrip("=")
@@ -169,7 +164,7 @@ class JWTManager:
             payload,
             self._get_signing_key(),
             algorithm=self.algorithm,
-            headers=self._get_token_headers()
+            headers=self._get_token_headers(),
         )
 
         logger.info("Access token created", user_id=user_id, jti=jti, algorithm=self.algorithm)
@@ -199,10 +194,16 @@ class JWTManager:
             payload,
             self._get_signing_key(),
             algorithm=self.algorithm,
-            headers=self._get_token_headers()
+            headers=self._get_token_headers(),
         )
 
-        logger.info("Refresh token created", user_id=user_id, jti=jti, family=family, algorithm=self.algorithm)
+        logger.info(
+            "Refresh token created",
+            user_id=user_id,
+            jti=jti,
+            family=family,
+            algorithm=self.algorithm,
+        )
         return token, jti, family, expires_at
 
     def encode_token(self, claims: Dict[str, Any]) -> str:
@@ -211,7 +212,7 @@ class JWTManager:
             claims,
             self._get_signing_key(),
             algorithm=self.algorithm,
-            headers=self._get_token_headers()
+            headers=self._get_token_headers(),
         )
 
     def verify_token(self, token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
@@ -298,7 +299,7 @@ class JWTManager:
                 "Token reuse detected - potential token theft",
                 jti=refresh_jti,
                 user_id=user_id,
-                family=family
+                family=family,
             )
             # CRITICAL: Revoke entire token family to invalidate any stolen tokens
             if family:

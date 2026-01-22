@@ -129,9 +129,7 @@ def generate_scim_token() -> str:
     return f"scim_{secrets.token_urlsafe(48)}"
 
 
-async def get_org_scim_config(
-    org_id: UUID, db: AsyncSession
-) -> Optional[SCIMConfiguration]:
+async def get_org_scim_config(org_id: UUID, db: AsyncSession) -> Optional[SCIMConfiguration]:
     """Get SCIM configuration for an organization"""
     result = await db.execute(
         select(SCIMConfiguration).where(SCIMConfiguration.organization_id == org_id)
@@ -139,18 +137,14 @@ async def get_org_scim_config(
     return result.scalar_one_or_none()
 
 
-async def verify_org_access(
-    org_id: UUID, user: User, db: AsyncSession
-) -> Organization:
+async def verify_org_access(org_id: UUID, user: User, db: AsyncSession) -> Organization:
     """Verify user has admin access to organization for SCIM configuration"""
     from app.models import organization_members
 
     result = await db.execute(select(Organization).where(Organization.id == org_id))
     org = result.scalar_one_or_none()
     if not org:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
 
     # Super admin always has access
     if user.is_admin:
@@ -165,7 +159,7 @@ async def verify_org_access(
         select(organization_members).where(
             and_(
                 organization_members.c.user_id == user.id,
-                organization_members.c.organization_id == org_id
+                organization_members.c.organization_id == org_id,
             )
         )
     )
@@ -173,15 +167,14 @@ async def verify_org_access(
 
     if not member:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this organization"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this organization"
         )
 
     # SCIM configuration requires admin role
     if member.role not in ("admin", "owner"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required to manage SCIM configuration"
+            detail="Admin privileges required to manage SCIM configuration",
         )
 
     return org
@@ -220,6 +213,7 @@ async def create_scim_config(
 
     # Auto-generate base_url if not provided
     from app.config import settings
+
     base_url = config.base_url or f"{settings.BASE_URL}/scim/v2"
 
     scim_config = SCIMConfiguration(
@@ -241,7 +235,9 @@ async def create_scim_config(
     return SCIMConfigResponse(
         id=str(scim_config.id),
         organization_id=str(scim_config.organization_id),
-        provider=SCIMProvider(scim_config.provider) if scim_config.provider else SCIMProvider.CUSTOM,
+        provider=SCIMProvider(scim_config.provider)
+        if scim_config.provider
+        else SCIMProvider.CUSTOM,
         enabled=scim_config.enabled,
         base_url=scim_config.base_url,
         bearer_token_prefix=bearer_token[:12] + "...",
@@ -278,7 +274,9 @@ async def get_scim_config(
     return SCIMConfigResponse(
         id=str(scim_config.id),
         organization_id=str(scim_config.organization_id),
-        provider=SCIMProvider(scim_config.provider) if scim_config.provider else SCIMProvider.CUSTOM,
+        provider=SCIMProvider(scim_config.provider)
+        if scim_config.provider
+        else SCIMProvider.CUSTOM,
         enabled=scim_config.enabled,
         base_url=scim_config.base_url or "",
         bearer_token_prefix=token_prefix,
@@ -332,7 +330,9 @@ async def update_scim_config(
     return SCIMConfigResponse(
         id=str(scim_config.id),
         organization_id=str(scim_config.organization_id),
-        provider=SCIMProvider(scim_config.provider) if scim_config.provider else SCIMProvider.CUSTOM,
+        provider=SCIMProvider(scim_config.provider)
+        if scim_config.provider
+        else SCIMProvider.CUSTOM,
         enabled=scim_config.enabled,
         base_url=scim_config.base_url or "",
         bearer_token_prefix=token_prefix,

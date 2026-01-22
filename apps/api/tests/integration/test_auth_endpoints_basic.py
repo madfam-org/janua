@@ -1,4 +1,3 @@
-
 import pytest
 
 pytestmark = pytest.mark.asyncio
@@ -28,10 +27,10 @@ class TestBasicAuthenticationEndpoints:
             "email": "newuser@example.com",
             "password": "SecurePassword123!",
             "first_name": "John",
-            "last_name": "Doe"
+            "last_name": "Doe",
         }
 
-        with patch('app.services.email_service.EmailService.send_verification_email') as mock_email:
+        with patch("app.services.email_service.EmailService.send_verification_email") as mock_email:
             mock_email.return_value = True
 
             response = await test_client.post("/api/v1/auth/signup", json=signup_data)
@@ -54,10 +53,7 @@ class TestBasicAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_signin_basic_flow(self, test_client: AsyncClient):
         """Test basic user signin flow"""
-        signin_data = {
-            "email": "test@example.com",
-            "password": "TestPassword123!"
-        }
+        signin_data = {"email": "test@example.com", "password": "TestPassword123!"}
 
         response = await test_client.post("/api/v1/auth/signin", json=signin_data)
 
@@ -90,7 +86,7 @@ class TestBasicAuthenticationEndpoints:
         """Test /me endpoint with mock authentication"""
         headers = {"Authorization": "Bearer valid_token_123"}
 
-        with patch('app.dependencies.get_current_user') as mock_get_user:
+        with patch("app.dependencies.get_current_user") as mock_get_user:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = "user@example.com"
@@ -113,9 +109,7 @@ class TestBasicAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_refresh_token_endpoint(self, test_client: AsyncClient):
         """Test refresh token endpoint"""
-        refresh_data = {
-            "refresh_token": "valid_refresh_token_123"
-        }
+        refresh_data = {"refresh_token": "valid_refresh_token_123"}
 
         response = await test_client.post("/api/v1/auth/refresh", json=refresh_data)
 
@@ -127,7 +121,7 @@ class TestBasicAuthenticationEndpoints:
         """Test logout endpoint"""
         headers = {"Authorization": "Bearer valid_token_123"}
 
-        with patch('app.dependencies.get_current_user') as mock_get_user:
+        with patch("app.dependencies.get_current_user") as mock_get_user:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_get_user.return_value = mock_user
@@ -140,9 +134,7 @@ class TestBasicAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_password_reset_request(self, test_client: AsyncClient):
         """Test password reset request"""
-        reset_data = {
-            "email": "user@example.com"
-        }
+        reset_data = {"email": "user@example.com"}
 
         response = await test_client.post("/api/v1/auth/reset-password", json=reset_data)
 
@@ -155,7 +147,7 @@ class TestBasicAuthenticationEndpoints:
         invalid_data = {
             "email": "invalid-email",
             "password": "TestPassword123!",
-            "first_name": "Test"
+            "first_name": "Test",
         }
 
         response = await test_client.post("/api/v1/auth/signup", json=invalid_data)
@@ -166,11 +158,7 @@ class TestBasicAuthenticationEndpoints:
     @pytest.mark.asyncio
     async def test_weak_password_validation(self, test_client: AsyncClient):
         """Test password validation"""
-        weak_password_data = {
-            "email": "test@example.com",
-            "password": "weak",
-            "first_name": "Test"
-        }
+        weak_password_data = {"email": "test@example.com", "password": "weak", "first_name": "Test"}
 
         response = await test_client.post("/api/v1/auth/signup", json=weak_password_data)
 
@@ -211,10 +199,7 @@ class TestAuthenticationSecurity:
     @pytest.mark.asyncio
     async def test_sql_injection_protection(self, test_client: AsyncClient):
         """Test basic SQL injection protection"""
-        malicious_data = {
-            "email": "'; DROP TABLE users; --",
-            "password": "TestPassword123!"
-        }
+        malicious_data = {"email": "'; DROP TABLE users; --", "password": "TestPassword123!"}
 
         response = await test_client.post("/api/v1/auth/signin", json=malicious_data)
 
@@ -227,7 +212,7 @@ class TestAuthenticationSecurity:
         xss_data = {
             "email": "test@example.com",
             "password": "TestPassword123!",
-            "first_name": "<script>alert('xss')</script>"
+            "first_name": "<script>alert('xss')</script>",
         }
 
         response = await test_client.post("/api/v1/auth/signup", json=xss_data)
@@ -244,7 +229,7 @@ class TestAuthenticationSecurity:
         long_data = {
             "email": "a" * 1000 + "@example.com",
             "password": "TestPassword123!",
-            "first_name": "a" * 1000
+            "first_name": "a" * 1000,
         }
 
         response = await test_client.post("/api/v1/auth/signup", json=long_data)
@@ -255,10 +240,7 @@ class TestAuthenticationSecurity:
     @pytest.mark.asyncio
     async def test_null_input_handling(self, test_client: AsyncClient):
         """Test handling of null inputs"""
-        null_data = {
-            "email": None,
-            "password": "TestPassword123!"
-        }
+        null_data = {"email": None, "password": "TestPassword123!"}
 
         response = await test_client.post("/api/v1/auth/signup", json=null_data)
 
@@ -284,7 +266,7 @@ class TestAuthenticationEdgeCases:
         response = await test_client.post(
             "/api/v1/auth/signup",
             content="invalid json",
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
 
         # Should reject malformed JSON
@@ -296,7 +278,7 @@ class TestAuthenticationEdgeCases:
         unicode_data = {
             "email": "测试@example.com",
             "password": "TestPassword123!",
-            "first_name": "测试用户"
+            "first_name": "测试用户",
         }
 
         response = await test_client.post("/api/v1/auth/signup", json=unicode_data)
@@ -310,7 +292,7 @@ class TestAuthenticationEdgeCases:
         whitespace_data = {
             "email": "  test@example.com  ",
             "password": "TestPassword123!",
-            "first_name": "  John  "
+            "first_name": "  John  ",
         }
 
         response = await test_client.post("/api/v1/auth/signup", json=whitespace_data)
@@ -323,16 +305,10 @@ class TestAuthenticationEdgeCases:
         """Test concurrent authentication requests"""
         import asyncio
 
-        signin_data = {
-            "email": "test@example.com",
-            "password": "TestPassword123!"
-        }
+        signin_data = {"email": "test@example.com", "password": "TestPassword123!"}
 
         # Make concurrent requests
-        tasks = [
-            test_client.post("/api/v1/auth/signin", json=signin_data)
-            for _ in range(3)
-        ]
+        tasks = [test_client.post("/api/v1/auth/signin", json=signin_data) for _ in range(3)]
 
         responses = await asyncio.gather(*tasks)
 

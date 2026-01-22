@@ -16,19 +16,21 @@ from datetime import datetime, timedelta
 import uuid
 
 # Set test environment variables before any imports
-os.environ.update({
-    "ENVIRONMENT": "test",
-    "DATABASE_URL": "sqlite+aiosqlite:///:memory:",
-    "REDIS_URL": "redis://localhost:6379/1",
-    "SECRET_KEY": "test-secret-key-for-integration-tests",
-    "JWT_SECRET_KEY": "test-jwt-secret-key-for-integration-tests",
-    "JWT_ALGORITHM": "HS256",
-    "JWT_ACCESS_TOKEN_EXPIRE_MINUTES": "60",
-    "JWT_REFRESH_TOKEN_EXPIRE_DAYS": "7",
-    "EMAIL_ENABLED": "false",
-    "REDIS_ENABLED": "false",
-    "RATE_LIMITING_ENABLED": "false"
-})
+os.environ.update(
+    {
+        "ENVIRONMENT": "test",
+        "DATABASE_URL": "sqlite+aiosqlite:///:memory:",
+        "REDIS_URL": "redis://localhost:6379/1",
+        "SECRET_KEY": "test-secret-key-for-integration-tests",
+        "JWT_SECRET_KEY": "test-jwt-secret-key-for-integration-tests",
+        "JWT_ALGORITHM": "HS256",
+        "JWT_ACCESS_TOKEN_EXPIRE_MINUTES": "60",
+        "JWT_REFRESH_TOKEN_EXPIRE_DAYS": "7",
+        "EMAIL_ENABLED": "false",
+        "REDIS_ENABLED": "false",
+        "RATE_LIMITING_ENABLED": "false",
+    }
+)
 
 from app.main import app
 from app.core.database import Base, get_db
@@ -52,7 +54,7 @@ async def test_db_engine():
         "sqlite+aiosqlite:///:memory:",
         poolclass=StaticPool,
         connect_args={"check_same_thread": False},
-        echo=False
+        echo=False,
     )
 
     # Create all tables
@@ -68,9 +70,7 @@ async def test_db_engine():
 @pytest_asyncio.fixture
 async def test_db_session(test_db_engine) -> AsyncGenerator[AsyncSession, None]:
     """Create a test database session with transaction rollback."""
-    async_session = async_sessionmaker(
-        test_db_engine, class_=AsyncSession, expire_on_commit=False
-    )
+    async_session = async_sessionmaker(test_db_engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session() as session:
         yield session
@@ -117,7 +117,9 @@ def mock_redis():
 
 
 @pytest_asyncio.fixture
-async def test_client(test_db_session: AsyncSession, mock_redis) -> AsyncGenerator[AsyncClient, None]:
+async def test_client(
+    test_db_session: AsyncSession, mock_redis
+) -> AsyncGenerator[AsyncClient, None]:
     """Create a test client with overridden dependencies."""
 
     async def override_get_db():
@@ -148,7 +150,7 @@ def sample_user_data() -> Dict[str, Any]:
         "last_name": "Doe",
         "username": "johndoe",
         "status": UserStatus.ACTIVE.value,
-        "email_verified": True
+        "email_verified": True,
     }
 
 
@@ -161,26 +163,20 @@ def sample_organization_data() -> Dict[str, Any]:
         "description": "A test organization for integration testing",
         "website": "https://testcompany.com",
         "industry": "Technology",
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.utcnow().isoformat(),
     }
 
 
 @pytest.fixture
 def sample_signin_data() -> Dict[str, str]:
     """Generate sample signin data for testing."""
-    return {
-        "email": "test@example.com",
-        "password": "TestPassword123!"
-    }
+    return {"email": "test@example.com", "password": "TestPassword123!"}
 
 
 @pytest.fixture
 def auth_headers() -> Dict[str, str]:
     """Generate sample authorization headers for testing."""
-    return {
-        "Authorization": "Bearer test_access_token_123",
-        "Content-Type": "application/json"
-    }
+    return {"Authorization": "Bearer test_access_token_123", "Content-Type": "application/json"}
 
 
 @pytest.fixture
@@ -197,7 +193,7 @@ def mock_jwt_service():
         "user_id": str(uuid.uuid4()),
         "email": "test@example.com",
         "token_type": "access",
-        "exp": (datetime.utcnow() + timedelta(hours=1)).timestamp()
+        "exp": (datetime.utcnow() + timedelta(hours=1)).timestamp(),
     }
 
     # Token refresh
@@ -224,7 +220,7 @@ def mock_email_service():
     mock_service.verify_email_token.return_value = {
         "user_id": str(uuid.uuid4()),
         "valid": True,
-        "expired": False
+        "expired": False,
     }
 
     return mock_service
@@ -256,7 +252,7 @@ def mock_auth_service():
     mock_service.create_session.return_value = (
         "mock_access_token_123",
         "mock_refresh_token_123",
-        {"id": str(uuid.uuid4()), "expires_at": datetime.utcnow() + timedelta(hours=1)}
+        {"id": str(uuid.uuid4()), "expires_at": datetime.utcnow() + timedelta(hours=1)},
     )
 
     # Password operations
@@ -308,7 +304,7 @@ def mock_organization_service():
             "name": mock_org.name,
             "role": OrganizationRole.ADMIN.value,
             "member_count": 1,
-            "created_at": mock_org.created_at.isoformat()
+            "created_at": mock_org.created_at.isoformat(),
         }
     ]
 
@@ -321,7 +317,7 @@ def mock_organization_service():
             "last_name": "Smith",
             "role": OrganizationRole.MEMBER.value,
             "joined_at": datetime.utcnow().isoformat(),
-            "last_active": datetime.utcnow().isoformat()
+            "last_active": datetime.utcnow().isoformat(),
         }
     ]
 
@@ -338,36 +334,36 @@ def sample_test_data():
                 "email": "user1@example.com",
                 "first_name": "John",
                 "last_name": "Doe",
-                "status": UserStatus.ACTIVE.value
+                "status": UserStatus.ACTIVE.value,
             },
             {
                 "id": str(uuid.uuid4()),
                 "email": "user2@example.com",
                 "first_name": "Jane",
                 "last_name": "Smith",
-                "status": UserStatus.ACTIVE.value
+                "status": UserStatus.ACTIVE.value,
             },
             {
                 "id": str(uuid.uuid4()),
                 "email": "inactive@example.com",
                 "first_name": "Inactive",
                 "last_name": "User",
-                "status": UserStatus.INACTIVE.value
-            }
+                "status": UserStatus.INACTIVE.value,
+            },
         ],
         "organizations": [
             {
                 "id": str(uuid.uuid4()),
                 "name": "Tech Company",
                 "description": "A technology company",
-                "industry": "Technology"
+                "industry": "Technology",
             },
             {
                 "id": str(uuid.uuid4()),
                 "name": "Marketing Agency",
                 "description": "A marketing and advertising agency",
-                "industry": "Marketing"
-            }
+                "industry": "Marketing",
+            },
         ],
         "invitations": [
             {
@@ -375,16 +371,16 @@ def sample_test_data():
                 "email": "invite1@example.com",
                 "role": OrganizationRole.MEMBER.value,
                 "token": "invitation_token_1",
-                "expires_at": (datetime.utcnow() + timedelta(days=7)).isoformat()
+                "expires_at": (datetime.utcnow() + timedelta(days=7)).isoformat(),
             },
             {
                 "id": str(uuid.uuid4()),
                 "email": "invite2@example.com",
                 "role": OrganizationRole.ADMIN.value,
                 "token": "invitation_token_2",
-                "expires_at": (datetime.utcnow() + timedelta(days=7)).isoformat()
-            }
-        ]
+                "expires_at": (datetime.utcnow() + timedelta(days=7)).isoformat(),
+            },
+        ],
     }
 
 
@@ -396,25 +392,20 @@ def security_test_payloads():
             "'; DROP TABLE users; --",
             "' OR '1'='1",
             "' UNION SELECT * FROM users --",
-            "admin'; DROP TABLE sessions; --"
+            "admin'; DROP TABLE sessions; --",
         ],
         "xss": [
             "<script>alert('xss')</script>",
             "javascript:alert('xss')",
             "<img src='x' onerror='alert(1)'>",
-            "';alert(String.fromCharCode(88,83,83))//'"
+            "';alert(String.fromCharCode(88,83,83))//'",
         ],
         "path_traversal": [
             "../../../etc/passwd",
             "..\\..\\..\\windows\\system32\\config\\sam",
-            "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd"
+            "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd",
         ],
-        "command_injection": [
-            "; ls -la",
-            "| cat /etc/passwd",
-            "& dir",
-            "`whoami`"
-        ]
+        "command_injection": ["; ls -la", "| cat /etc/passwd", "& dir", "`whoami`"],
     }
 
 
@@ -431,7 +422,7 @@ def generate_user_data(override: Dict[str, Any] = None) -> Dict[str, Any]:
         "status": UserStatus.ACTIVE.value,
         "email_verified": True,
         "created_at": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat()
+        "updated_at": datetime.utcnow().isoformat(),
     }
 
     if override:
@@ -440,7 +431,9 @@ def generate_user_data(override: Dict[str, Any] = None) -> Dict[str, Any]:
     return base_data
 
 
-def generate_organization_data(owner_id: str = None, override: Dict[str, Any] = None) -> Dict[str, Any]:
+def generate_organization_data(
+    owner_id: str = None, override: Dict[str, Any] = None
+) -> Dict[str, Any]:
     """Generate realistic organization data with optional overrides."""
     base_data = {
         "id": str(uuid.uuid4()),
@@ -450,7 +443,7 @@ def generate_organization_data(owner_id: str = None, override: Dict[str, Any] = 
         "industry": "Technology",
         "owner_id": owner_id or str(uuid.uuid4()),
         "created_at": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat()
+        "updated_at": datetime.utcnow().isoformat(),
     }
 
     if override:
@@ -473,8 +466,12 @@ async def create_test_user(session: AsyncSession, user_data: Dict[str, Any] = No
         username=user_data.get("username"),
         status=UserStatus(user_data["status"]),
         email_verified=user_data.get("email_verified", True),
-        created_at=datetime.fromisoformat(user_data["created_at"].replace("Z", "+00:00")) if isinstance(user_data["created_at"], str) else user_data["created_at"],
-        updated_at=datetime.fromisoformat(user_data["updated_at"].replace("Z", "+00:00")) if isinstance(user_data["updated_at"], str) else user_data["updated_at"]
+        created_at=datetime.fromisoformat(user_data["created_at"].replace("Z", "+00:00"))
+        if isinstance(user_data["created_at"], str)
+        else user_data["created_at"],
+        updated_at=datetime.fromisoformat(user_data["updated_at"].replace("Z", "+00:00"))
+        if isinstance(user_data["updated_at"], str)
+        else user_data["updated_at"],
     )
 
     session.add(user)
@@ -484,7 +481,9 @@ async def create_test_user(session: AsyncSession, user_data: Dict[str, Any] = No
     return user
 
 
-async def create_test_organization(session: AsyncSession, org_data: Dict[str, Any] = None) -> Organization:
+async def create_test_organization(
+    session: AsyncSession, org_data: Dict[str, Any] = None
+) -> Organization:
     """Create a test organization in the database."""
     if org_data is None:
         org_data = generate_organization_data()
@@ -496,8 +495,12 @@ async def create_test_organization(session: AsyncSession, org_data: Dict[str, An
         website=org_data.get("website"),
         industry=org_data.get("industry"),
         owner_id=org_data["owner_id"],
-        created_at=datetime.fromisoformat(org_data["created_at"].replace("Z", "+00:00")) if isinstance(org_data["created_at"], str) else org_data["created_at"],
-        updated_at=datetime.fromisoformat(org_data["updated_at"].replace("Z", "+00:00")) if isinstance(org_data["updated_at"], str) else org_data["updated_at"]
+        created_at=datetime.fromisoformat(org_data["created_at"].replace("Z", "+00:00"))
+        if isinstance(org_data["created_at"], str)
+        else org_data["created_at"],
+        updated_at=datetime.fromisoformat(org_data["updated_at"].replace("Z", "+00:00"))
+        if isinstance(org_data["updated_at"], str)
+        else org_data["updated_at"],
     )
 
     session.add(org)

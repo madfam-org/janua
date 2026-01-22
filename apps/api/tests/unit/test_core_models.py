@@ -9,12 +9,15 @@ import os
 @pytest.fixture
 def mock_env():
     """Mock environment variables for testing"""
-    with patch.dict(os.environ, {
-        'DATABASE_URL': 'postgresql://test:test@localhost:5432/janua_test',
-        'JWT_SECRET': 'test-secret-key',
-        'REDIS_URL': 'redis://localhost:6379/0',
-        'JANUA_ENV': 'test'
-    }):
+    with patch.dict(
+        os.environ,
+        {
+            "DATABASE_URL": "postgresql://test:test@localhost:5432/janua_test",
+            "JWT_SECRET": "test-secret-key",
+            "REDIS_URL": "redis://localhost:6379/0",
+            "JANUA_ENV": "test",
+        },
+    ):
         yield
 
 
@@ -24,11 +27,11 @@ def test_user_model_structure(mock_env):
         from app.models import User
 
         # Check that User model has expected attributes
-        assert hasattr(User, '__tablename__')
-        assert hasattr(User, 'id')
-        assert hasattr(User, 'email')
-        assert hasattr(User, 'created_at')
-        assert hasattr(User, 'updated_at')
+        assert hasattr(User, "__tablename__")
+        assert hasattr(User, "id")
+        assert hasattr(User, "email")
+        assert hasattr(User, "created_at")
+        assert hasattr(User, "updated_at")
 
     except ImportError as e:
         pytest.skip(f"Model imports failed: {e}")
@@ -40,10 +43,10 @@ def test_organization_model_structure(mock_env):
         from app.models import Organization
 
         # Check Organization model attributes
-        assert hasattr(Organization, '__tablename__')
-        assert hasattr(Organization, 'id')
-        assert hasattr(Organization, 'name')
-        assert hasattr(Organization, 'created_at')
+        assert hasattr(Organization, "__tablename__")
+        assert hasattr(Organization, "id")
+        assert hasattr(Organization, "name")
+        assert hasattr(Organization, "created_at")
 
     except ImportError as e:
         pytest.skip(f"Model imports failed: {e}")
@@ -55,10 +58,10 @@ def test_session_model_structure(mock_env):
         from app.models import Session
 
         # Check Session model attributes
-        assert hasattr(Session, '__tablename__')
-        assert hasattr(Session, 'id')
-        assert hasattr(Session, 'user_id')
-        assert hasattr(Session, 'created_at')
+        assert hasattr(Session, "__tablename__")
+        assert hasattr(Session, "id")
+        assert hasattr(Session, "user_id")
+        assert hasattr(Session, "created_at")
 
     except ImportError as e:
         pytest.skip(f"Model imports failed: {e}")
@@ -70,10 +73,10 @@ def test_audit_log_model_structure(mock_env):
         from app.models import AuditLog
 
         # Check AuditLog model attributes
-        assert hasattr(AuditLog, '__tablename__')
-        assert hasattr(AuditLog, 'id')
-        assert hasattr(AuditLog, 'event_type')  # Updated from 'action' to 'event_type'
-        assert hasattr(AuditLog, 'timestamp')
+        assert hasattr(AuditLog, "__tablename__")
+        assert hasattr(AuditLog, "id")
+        assert hasattr(AuditLog, "event_type")  # Updated from 'action' to 'event_type'
+        assert hasattr(AuditLog, "timestamp")
 
     except ImportError as e:
         pytest.skip(f"Model imports failed: {e}")
@@ -85,12 +88,12 @@ def test_organization_member_model_structure(mock_env):
         from app.models import OrganizationMember
 
         # Check OrganizationMember model attributes
-        assert hasattr(OrganizationMember, '__tablename__')
+        assert hasattr(OrganizationMember, "__tablename__")
         # OrganizationMember uses composite primary keys, not a single 'id'
-        assert hasattr(OrganizationMember, 'organization_id')
-        assert hasattr(OrganizationMember, 'user_id')
-        assert hasattr(OrganizationMember, 'role')
-        assert hasattr(OrganizationMember, 'joined_at')
+        assert hasattr(OrganizationMember, "organization_id")
+        assert hasattr(OrganizationMember, "user_id")
+        assert hasattr(OrganizationMember, "role")
+        assert hasattr(OrganizationMember, "joined_at")
 
     except ImportError as e:
         pytest.skip(f"Model imports failed: {e}")
@@ -102,10 +105,10 @@ def test_policy_model_structure(mock_env):
         from app.models import Policy
 
         # Check Policy model attributes
-        assert hasattr(Policy, '__tablename__')
-        assert hasattr(Policy, 'id')
-        assert hasattr(Policy, 'name')
-        assert hasattr(Policy, 'organization_id')
+        assert hasattr(Policy, "__tablename__")
+        assert hasattr(Policy, "id")
+        assert hasattr(Policy, "name")
+        assert hasattr(Policy, "organization_id")
 
     except ImportError as e:
         pytest.skip(f"Model imports failed: {e}")
@@ -117,10 +120,10 @@ def test_webhook_model_structure(mock_env):
         from app.models import Webhook
 
         # Check Webhook model attributes
-        assert hasattr(Webhook, '__tablename__')
-        assert hasattr(Webhook, 'id')
-        assert hasattr(Webhook, 'url')
-        assert hasattr(Webhook, 'organization_id')
+        assert hasattr(Webhook, "__tablename__")
+        assert hasattr(Webhook, "id")
+        assert hasattr(Webhook, "url")
+        assert hasattr(Webhook, "organization_id")
 
     except ImportError as e:
         pytest.skip(f"Model imports failed: {e}")
@@ -132,11 +135,11 @@ def test_invitation_model_structure(mock_env):
         from app.models import Invitation
 
         # Check Invitation model attributes
-        assert hasattr(Invitation, '__tablename__')
-        assert hasattr(Invitation, 'id')
-        assert hasattr(Invitation, 'email')
-        assert hasattr(Invitation, 'organization_id')
-        assert hasattr(Invitation, 'status')
+        assert hasattr(Invitation, "__tablename__")
+        assert hasattr(Invitation, "id")
+        assert hasattr(Invitation, "email")
+        assert hasattr(Invitation, "organization_id")
+        assert hasattr(Invitation, "status")
 
     except ImportError as e:
         pytest.skip(f"Model imports failed: {e}")
@@ -146,17 +149,31 @@ def test_model_imports_complete(mock_env):
     """Test that all models can be imported together"""
     try:
         from app.models import (
-            User, Organization, Session, AuditLog,
-            OrganizationMember, Policy, Webhook, Invitation
+            User,
+            Organization,
+            Session,
+            AuditLog,
+            OrganizationMember,
+            Policy,
+            Webhook,
+            Invitation,
         )
 
         # Verify all models are classes
-        models = [User, Organization, Session, AuditLog,
-                 OrganizationMember, Policy, Webhook, Invitation]
+        models = [
+            User,
+            Organization,
+            Session,
+            AuditLog,
+            OrganizationMember,
+            Policy,
+            Webhook,
+            Invitation,
+        ]
 
         for model in models:
-            assert hasattr(model, '__tablename__')
-            assert hasattr(model, 'id')
+            assert hasattr(model, "__tablename__")
+            assert hasattr(model, "id")
 
     except ImportError as e:
         pytest.skip(f"Model imports failed: {e}")
@@ -165,7 +182,7 @@ def test_model_imports_complete(mock_env):
 def test_database_connection_mock(mock_env):
     """Test database connection with mocked database"""
     try:
-        with patch('app.core.database_manager.create_async_engine') as mock_engine:
+        with patch("app.core.database_manager.create_async_engine") as mock_engine:
             mock_engine.return_value = MagicMock()
 
             from app.core.database_manager import DatabaseManager
@@ -184,17 +201,17 @@ def test_model_relationships(mock_env):
         from app.models import User, Organization, OrganizationMember
 
         # Check that relationship attributes exist
-        if hasattr(User, 'organization_memberships'):
-            assert hasattr(User, 'organization_memberships')
+        if hasattr(User, "organization_memberships"):
+            assert hasattr(User, "organization_memberships")
 
-        if hasattr(Organization, 'members'):
-            assert hasattr(Organization, 'members')
+        if hasattr(Organization, "members"):
+            assert hasattr(Organization, "members")
 
-        if hasattr(OrganizationMember, 'user'):
-            assert hasattr(OrganizationMember, 'user')
+        if hasattr(OrganizationMember, "user"):
+            assert hasattr(OrganizationMember, "user")
 
-        if hasattr(OrganizationMember, 'organization'):
-            assert hasattr(OrganizationMember, 'organization')
+        if hasattr(OrganizationMember, "organization"):
+            assert hasattr(OrganizationMember, "organization")
 
     except ImportError as e:
         pytest.skip(f"Model imports failed: {e}")

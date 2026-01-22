@@ -168,7 +168,9 @@ class OAuthClientService:
             OAuthClient if found, None otherwise
         """
         result = await self.db.execute(
-            select(OAuthClient).where(OAuthClient.client_id == client_id, OAuthClient.is_active == True)
+            select(OAuthClient).where(
+                OAuthClient.client_id == client_id, OAuthClient.is_active == True
+            )
         )
         return result.scalar_one_or_none()
 
@@ -385,6 +387,7 @@ class OAuthClientService:
         # If rotation is enabled, use the rotation service
         if settings.CLIENT_SECRET_ROTATION_ENABLED:
             from app.services.credential_rotation_service import CredentialRotationService
+
             rotation_service = CredentialRotationService(self.db)
             matched_secret = await rotation_service.validate_secret(client, client_secret)
 

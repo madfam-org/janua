@@ -50,7 +50,7 @@ class AlertEvaluator:
         self.evaluation_history[rule.rule_id] = self.evaluation_history[rule.rule_id][-max_history:]
 
         # Check if we have enough consecutive positive evaluations
-        recent_evaluations = self.evaluation_history[rule.rule_id][-rule.trigger_count:]
+        recent_evaluations = self.evaluation_history[rule.rule_id][-rule.trigger_count :]
 
         if len(recent_evaluations) >= rule.trigger_count:
             return all(recent_evaluations)

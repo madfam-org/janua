@@ -33,11 +33,11 @@ from pathlib import Path
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler(f'phase3_validation_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
+        logging.StreamHandler(sys.stdout),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PerformanceTest:
     """Single performance test result"""
+
     name: str
     endpoint: str
     method: str
@@ -59,6 +60,7 @@ class PerformanceTest:
 @dataclass
 class ValidationResult:
     """Overall validation results"""
+
     test_name: str
     started_at: datetime
     completed_at: Optional[datetime]
@@ -110,8 +112,8 @@ class Phase3PerformanceValidator:
                 json={
                     "email": self.test_user_email,
                     "password": self.test_user_password,
-                    "name": "Phase 3 Validator"
-                }
+                    "name": "Phase 3 Validator",
+                },
             ) as response:
                 if response.status in [200, 201]:
                     logger.info(f"✅ Created test user: {self.test_user_email}")
@@ -121,10 +123,7 @@ class Phase3PerformanceValidator:
             # Sign in to get token
             async with self.session.post(
                 f"{self.base_url}/beta/signin",
-                json={
-                    "email": self.test_user_email,
-                    "password": self.test_user_password
-                }
+                json={"email": self.test_user_email, "password": self.test_user_password},
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -147,8 +146,8 @@ class Phase3PerformanceValidator:
                 headers=headers,
                 json={
                     "name": f"Phase 3 Test Org {int(time.time())}",
-                    "slug": f"phase3-test-{int(time.time())}"
-                }
+                    "slug": f"phase3-test-{int(time.time())}",
+                },
             ) as response:
                 if response.status in [200, 201]:
                     data = await response.json()
@@ -183,7 +182,7 @@ class Phase3PerformanceValidator:
                             f"{self.base_url}{endpoint}",
                             headers=headers,
                             json=json_payload,
-                            timeout=aiohttp.ClientTimeout(total=5)
+                            timeout=aiohttp.ClientTimeout(total=5),
                         ) as response:
                             pass  # Just trigger audit logs
                     except Exception:
@@ -204,7 +203,7 @@ class Phase3PerformanceValidator:
         endpoint: str,
         expected_improvement: str,
         iterations: int = 10,
-        json_data: Optional[Dict] = None
+        json_data: Optional[Dict] = None,
     ) -> PerformanceTest:
         """Measure endpoint performance over multiple iterations"""
 
@@ -225,7 +224,7 @@ class Phase3PerformanceValidator:
                     f"{self.base_url}{endpoint}",
                     headers=headers,
                     json=json_data,
-                    timeout=aiohttp.ClientTimeout(total=30)
+                    timeout=aiohttp.ClientTimeout(total=30),
                 ) as response:
                     end_time = time.perf_counter()
                     response_time_ms = (end_time - start_time) * 1000
@@ -233,12 +232,12 @@ class Phase3PerformanceValidator:
                     response_times.append(response_time_ms)
 
                     # Check cache hit header
-                    cache_status = response.headers.get('X-Cache-Status')
+                    cache_status = response.headers.get("X-Cache-Status")
                     if cache_status:
-                        cache_hits.append(cache_status == 'HIT')
+                        cache_hits.append(cache_status == "HIT")
 
                     # Check for query count header (if available)
-                    response.headers.get('X-Query-Count')
+                    response.headers.get("X-Query-Count")
 
                     if response.status >= 400:
                         errors.append(f"HTTP {response.status}")
@@ -254,11 +253,17 @@ class Phase3PerformanceValidator:
             avg_response_time = statistics.mean(response_times)
             min_response_time = min(response_times)
             max_response_time = max(response_times)
-            p95_response_time = statistics.quantiles(response_times, n=20)[18] if len(response_times) > 20 else max(response_times)
+            p95_response_time = (
+                statistics.quantiles(response_times, n=20)[18]
+                if len(response_times) > 20
+                else max(response_times)
+            )
 
             cache_hit_rate = (sum(cache_hits) / len(cache_hits) * 100) if cache_hits else None
 
-            logger.info(f"   ✓ Avg: {avg_response_time:.2f}ms, Min: {min_response_time:.2f}ms, Max: {max_response_time:.2f}ms, P95: {p95_response_time:.2f}ms")
+            logger.info(
+                f"   ✓ Avg: {avg_response_time:.2f}ms, Min: {min_response_time:.2f}ms, Max: {max_response_time:.2f}ms, P95: {p95_response_time:.2f}ms"
+            )
             if cache_hit_rate is not None:
                 logger.info(f"   ✓ Cache hit rate: {cache_hit_rate:.1f}%")
 
@@ -272,7 +277,7 @@ class Phase3PerformanceValidator:
                 actual_response_time_ms=avg_response_time,
                 cache_hit=(cache_hit_rate > 70) if cache_hit_rate is not None else None,
                 success=success,
-                error=errors[0] if errors else None
+                error=errors[0] if errors else None,
             )
         else:
             return PerformanceTest(
@@ -282,7 +287,7 @@ class Phase3PerformanceValidator:
                 expected_improvement=expected_improvement,
                 actual_response_time_ms=0,
                 success=False,
-                error="No successful requests"
+                error="No successful requests",
             )
 
     async def test_audit_logs_list(self) -> PerformanceTest:
@@ -290,9 +295,11 @@ class Phase3PerformanceValidator:
         return await self._measure_endpoint_performance(
             name="Audit Logs List (N+1 Fix)",
             method="GET",
-            endpoint=f"/api/v1/organizations/{self.test_org_id}/audit?limit=100" if self.test_org_id else "/api/v1/audit",
+            endpoint=f"/api/v1/organizations/{self.test_org_id}/audit?limit=100"
+            if self.test_org_id
+            else "/api/v1/audit",
             expected_improvement="101 queries → 2 queries (98% reduction)",
-            iterations=10
+            iterations=10,
         )
 
     async def test_audit_logs_stats(self) -> PerformanceTest:
@@ -300,9 +307,11 @@ class Phase3PerformanceValidator:
         return await self._measure_endpoint_performance(
             name="Audit Logs Stats (N+1 Fix)",
             method="GET",
-            endpoint=f"/api/v1/organizations/{self.test_org_id}/audit/stats" if self.test_org_id else "/api/v1/audit/stats",
+            endpoint=f"/api/v1/organizations/{self.test_org_id}/audit/stats"
+            if self.test_org_id
+            else "/api/v1/audit/stats",
             expected_improvement="11 queries → 2 queries (82% reduction)",
-            iterations=10
+            iterations=10,
         )
 
     async def test_audit_logs_export(self) -> PerformanceTest:
@@ -310,9 +319,11 @@ class Phase3PerformanceValidator:
         return await self._measure_endpoint_performance(
             name="Audit Logs Export (N+1 Fix)",
             method="GET",
-            endpoint=f"/api/v1/organizations/{self.test_org_id}/audit/export?format=json&limit=100" if self.test_org_id else "/api/v1/audit/export?format=json&limit=100",
+            endpoint=f"/api/v1/organizations/{self.test_org_id}/audit/export?format=json&limit=100"
+            if self.test_org_id
+            else "/api/v1/audit/export?format=json&limit=100",
             expected_improvement="1001 queries → 2 queries (99.8% reduction, 1200ms → 25ms)",
-            iterations=5  # Fewer iterations for export
+            iterations=5,  # Fewer iterations for export
         )
 
     async def test_sso_configuration_caching(self) -> PerformanceTest:
@@ -325,7 +336,7 @@ class Phase3PerformanceValidator:
                 expected_improvement="15-20ms → 0.5-1ms (20x faster)",
                 actual_response_time_ms=0,
                 success=False,
-                error="No organization available for testing"
+                error="No organization available for testing",
             )
 
         # First request (cache miss)
@@ -334,7 +345,7 @@ class Phase3PerformanceValidator:
             method="GET",
             endpoint=f"/api/v1/sso/config/{self.test_org_id}",
             expected_improvement="15-20ms → 0.5-1ms (20x faster), 95%+ cache hit rate",
-            iterations=20  # More iterations to test cache
+            iterations=20,  # More iterations to test cache
         )
 
         return result
@@ -349,7 +360,7 @@ class Phase3PerformanceValidator:
                 expected_improvement="20-30ms → 2-5ms (6x faster)",
                 actual_response_time_ms=0,
                 success=False,
-                error="No organization available for testing"
+                error="No organization available for testing",
             )
 
         result = await self._measure_endpoint_performance(
@@ -357,7 +368,7 @@ class Phase3PerformanceValidator:
             method="GET",
             endpoint=f"/api/v1/organizations/{self.test_org_id}",
             expected_improvement="20-30ms → 2-5ms (6x faster), 80-90% cache hit rate",
-            iterations=20
+            iterations=20,
         )
 
         return result
@@ -369,7 +380,7 @@ class Phase3PerformanceValidator:
             method="GET",
             endpoint="/api/v1/organizations",
             expected_improvement="100x fewer queries",
-            iterations=10
+            iterations=10,
         )
 
         return result
@@ -381,7 +392,7 @@ class Phase3PerformanceValidator:
             method="GET",
             endpoint="/api/v1/users/me",  # Triggers permission check
             expected_improvement="90% query reduction, 3-5ms → 0.5-1ms",
-            iterations=20
+            iterations=20,
         )
 
         return result
@@ -393,7 +404,7 @@ class Phase3PerformanceValidator:
             method="GET",
             endpoint="/api/v1/users/me",
             expected_improvement="3-5ms → 0.5-1ms (5x faster), 70-80% cache hit rate",
-            iterations=20
+            iterations=20,
         )
 
         return result
@@ -440,17 +451,33 @@ class Phase3PerformanceValidator:
                 "failed_tests": total_tests - successful_tests,
                 "success_rate": (successful_tests / total_tests * 100),
                 "key_metrics": {
-                    "audit_logs_list_response_time": audit_list.actual_response_time_ms if audit_list else None,
-                    "audit_logs_export_response_time": audit_export.actual_response_time_ms if audit_export else None,
-                    "sso_config_response_time": sso_cache.actual_response_time_ms if sso_cache else None,
-                    "org_settings_response_time": org_cache.actual_response_time_ms if org_cache else None,
+                    "audit_logs_list_response_time": audit_list.actual_response_time_ms
+                    if audit_list
+                    else None,
+                    "audit_logs_export_response_time": audit_export.actual_response_time_ms
+                    if audit_export
+                    else None,
+                    "sso_config_response_time": sso_cache.actual_response_time_ms
+                    if sso_cache
+                    else None,
+                    "org_settings_response_time": org_cache.actual_response_time_ms
+                    if org_cache
+                    else None,
                 },
                 "targets_met": {
-                    "audit_logs_list": audit_list.actual_response_time_ms < 50 if audit_list else False,
-                    "audit_logs_export": audit_export.actual_response_time_ms < 100 if audit_export else False,
-                    "sso_config_cached": sso_cache.actual_response_time_ms < 5 if sso_cache else False,
-                    "org_settings_cached": org_cache.actual_response_time_ms < 10 if org_cache else False,
-                }
+                    "audit_logs_list": audit_list.actual_response_time_ms < 50
+                    if audit_list
+                    else False,
+                    "audit_logs_export": audit_export.actual_response_time_ms < 100
+                    if audit_export
+                    else False,
+                    "sso_config_cached": sso_cache.actual_response_time_ms < 5
+                    if sso_cache
+                    else False,
+                    "org_settings_cached": org_cache.actual_response_time_ms < 10
+                    if org_cache
+                    else False,
+                },
             }
 
             completed_at = datetime.now()
@@ -461,7 +488,7 @@ class Phase3PerformanceValidator:
                 completed_at=completed_at,
                 tests=tests,
                 overall_success=overall_success,
-                summary=summary
+                summary=summary,
             )
 
             return result
@@ -502,8 +529,12 @@ class Phase3PerformanceValidator:
 """
 
         for test in result.tests:
-            status_icon = '✅' if test.success else '❌'
-            cache_info = f", Cache Hit: {'✅' if test.cache_hit else '❌'}" if test.cache_hit is not None else ""
+            status_icon = "✅" if test.success else "❌"
+            cache_info = (
+                f", Cache Hit: {'✅' if test.cache_hit else '❌'}"
+                if test.cache_hit is not None
+                else ""
+            )
 
             report += f"""
 ### {status_icon} {test.name}
@@ -563,7 +594,9 @@ async def main():
 
     parser = argparse.ArgumentParser(description="Phase 3 Performance Validation Suite")
     parser.add_argument("--url", default="http://localhost:8000", help="Base URL for API")
-    parser.add_argument("--output", default="phase3_validation_report.md", help="Output report file")
+    parser.add_argument(
+        "--output", default="phase3_validation_report.md", help="Output report file"
+    )
 
     args = parser.parse_args()
 
@@ -580,14 +613,19 @@ async def main():
         output_path.write_text(report)
 
         # Save raw data
-        json_path = output_path.with_suffix('.json')
-        json_path.write_text(json.dumps({
-            "started_at": result.started_at.isoformat(),
-            "completed_at": result.completed_at.isoformat(),
-            "overall_success": result.overall_success,
-            "summary": result.summary,
-            "tests": [asdict(t) for t in result.tests]
-        }, indent=2))
+        json_path = output_path.with_suffix(".json")
+        json_path.write_text(
+            json.dumps(
+                {
+                    "started_at": result.started_at.isoformat(),
+                    "completed_at": result.completed_at.isoformat(),
+                    "overall_success": result.overall_success,
+                    "summary": result.summary,
+                    "tests": [asdict(t) for t in result.tests],
+                },
+                indent=2,
+            )
+        )
 
         logger.info(f"\n📋 Validation report saved: {output_path}")
         logger.info(f"📊 Raw data saved: {json_path}")
@@ -604,6 +642,7 @@ async def main():
     except Exception as e:
         logger.error(f"Validation failed: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

@@ -38,6 +38,7 @@ JWT_ALGORITHM = "HS256"
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
+
 class BetaSignUpRequest(BaseModel):
     email: EmailStr
     password: str
@@ -200,5 +201,5 @@ def beta_list_users():
             }
             for user in BETA_USERS.values()
         ],
-        "total": len(BETA_USERS)
+        "total": len(BETA_USERS),
     }

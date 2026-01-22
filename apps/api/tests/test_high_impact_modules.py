@@ -18,6 +18,7 @@ class TestCompliancePrivacy:
         """Test PrivacyService can be imported"""
         try:
             from app.compliance.privacy import PrivacyService
+
             assert PrivacyService is not None
         except ImportError:
             pytest.skip("PrivacyService module not available")
@@ -32,12 +33,12 @@ class TestCompliancePrivacy:
             privacy_service = PrivacyService(mock_db)
 
             # Test data processing consent if method exists
-            if hasattr(privacy_service, 'process_consent'):
+            if hasattr(privacy_service, "process_consent"):
                 consent_data = {
                     "user_id": "user123",
                     "consent_type": "marketing",
                     "granted": True,
-                    "timestamp": datetime.utcnow()
+                    "timestamp": datetime.utcnow(),
                 }
                 result = await privacy_service.process_consent(consent_data)
                 assert result is not None or result is None
@@ -54,7 +55,7 @@ class TestCompliancePrivacy:
             privacy_service = PrivacyService(mock_db)
 
             # Test GDPR compliance if method exists
-            if hasattr(privacy_service, 'check_gdpr_compliance'):
+            if hasattr(privacy_service, "check_gdpr_compliance"):
                 user_id = "user123"
                 result = await privacy_service.check_gdpr_compliance(user_id)
                 assert result is not None or result is None
@@ -70,6 +71,7 @@ class TestComplianceDashboard:
         """Test ComplianceDashboard can be imported"""
         try:
             from app.compliance.dashboard import ComplianceDashboard
+
             assert ComplianceDashboard is not None
         except ImportError:
             pytest.skip("ComplianceDashboard module not available")
@@ -84,7 +86,7 @@ class TestComplianceDashboard:
             dashboard = ComplianceDashboard(mock_db)
 
             # Test metrics generation if method exists
-            if hasattr(dashboard, 'generate_metrics'):
+            if hasattr(dashboard, "generate_metrics"):
                 metrics = await dashboard.generate_metrics()
                 assert metrics is not None or metrics is None
         except (ImportError, Exception):
@@ -100,12 +102,8 @@ class TestComplianceDashboard:
             dashboard = ComplianceDashboard(mock_db)
 
             # Test report creation if method exists
-            if hasattr(dashboard, 'create_report'):
-                report_config = {
-                    "period": "monthly",
-                    "include_charts": True,
-                    "format": "json"
-                }
+            if hasattr(dashboard, "create_report"):
+                report_config = {"period": "monthly", "include_charts": True, "format": "json"}
                 result = await dashboard.create_report(report_config)
                 assert result is not None or result is None
         except (ImportError, Exception):
@@ -123,11 +121,8 @@ class TestAdvancedAuthenticationFlows:
 
             # AuthService uses static methods, no instantiation needed
             # Test MFA setup if method exists
-            if hasattr(AuthService, 'setup_mfa'):
-                result = await AuthService.setup_mfa(
-                    user_id="user123",
-                    method="totp"
-                )
+            if hasattr(AuthService, "setup_mfa"):
+                result = await AuthService.setup_mfa(user_id="user123", method="totp")
                 assert result is not None or result is None
         except (ImportError, Exception):
             pytest.skip("MFA authentication flow not available")
@@ -140,10 +135,8 @@ class TestAdvancedAuthenticationFlows:
 
             # AuthService uses static methods, no instantiation needed
             # Test password reset if method exists
-            if hasattr(AuthService, 'initiate_password_reset'):
-                result = await AuthService.initiate_password_reset(
-                    email="user@example.com"
-                )
+            if hasattr(AuthService, "initiate_password_reset"):
+                result = await AuthService.initiate_password_reset(email="user@example.com")
                 assert result is not None or result is None
         except (ImportError, Exception):
             pytest.skip("Password reset flow not available")
@@ -156,12 +149,9 @@ class TestAdvancedAuthenticationFlows:
 
             # AuthService uses static methods, no instantiation needed
             # Test session invalidation if method exists
-            if hasattr(AuthService, 'invalidate_all_sessions'):
+            if hasattr(AuthService, "invalidate_all_sessions"):
                 mock_db = AsyncMock()
-                result = await AuthService.invalidate_all_sessions(
-                    db=mock_db,
-                    user_id="user123"
-                )
+                result = await AuthService.invalidate_all_sessions(db=mock_db, user_id="user123")
                 assert result is not None or result is None
         except (ImportError, Exception):
             pytest.skip("Advanced session management not available")
@@ -180,12 +170,10 @@ class TestBillingServiceAdvanced:
             billing_service = BillingService()
 
             # Test subscription creation if method exists
-            if hasattr(billing_service, 'create_subscription'):
+            if hasattr(billing_service, "create_subscription"):
                 # create_subscription expects (customer_id, tier, country, ...)
                 result = await billing_service.create_subscription(
-                    customer_id="cust_123",
-                    tier="pro",
-                    country="US"
+                    customer_id="cust_123", tier="pro", country="US"
                 )
                 assert result is not None or result is None
         except (ImportError, Exception):
@@ -201,13 +189,13 @@ class TestBillingServiceAdvanced:
             billing_service = BillingService()
 
             # Test invoice generation if method exists
-            if hasattr(billing_service, 'generate_invoice'):
+            if hasattr(billing_service, "generate_invoice"):
                 invoice_data = {
                     "subscription_id": "sub123",
                     "amount": 99.99,
                     "currency": "USD",
                     "period_start": datetime.utcnow(),
-                    "period_end": datetime.utcnow() + timedelta(days=30)
+                    "period_end": datetime.utcnow() + timedelta(days=30),
                 }
                 result = await billing_service.generate_invoice(invoice_data)
                 assert result is not None or result is None
@@ -224,12 +212,8 @@ class TestBillingServiceAdvanced:
             billing_service = BillingService()
 
             # Test payment processing if method exists
-            if hasattr(billing_service, 'process_payment'):
-                payment_data = {
-                    "invoice_id": "inv123",
-                    "payment_method": "card",
-                    "amount": 99.99
-                }
+            if hasattr(billing_service, "process_payment"):
+                payment_data = {"invoice_id": "inv123", "payment_method": "card", "amount": 99.99}
                 result = await billing_service.process_payment(payment_data)
                 assert result is not None or result is None
         except (ImportError, Exception):
@@ -246,7 +230,7 @@ class TestJWTServiceAdvanced:
             from app.services.jwt_service import JWTService
 
             # Test token refresh if method exists
-            if hasattr(JWTService, 'refresh_token'):
+            if hasattr(JWTService, "refresh_token"):
                 old_token = "old.jwt.token"
                 result = JWTService.refresh_token(old_token)
                 assert result is not None or result is None
@@ -260,7 +244,7 @@ class TestJWTServiceAdvanced:
             from app.services.jwt_service import JWTService
 
             # Test token blacklisting if method exists
-            if hasattr(JWTService, 'blacklist_token'):
+            if hasattr(JWTService, "blacklist_token"):
                 token = "jwt.token.to.blacklist"
                 result = JWTService.blacklist_token(token)
                 assert result is not None or result is None
@@ -274,7 +258,7 @@ class TestJWTServiceAdvanced:
             from app.services.jwt_service import JWTService
 
             # Test claims validation if method exists
-            if hasattr(JWTService, 'validate_claims'):
+            if hasattr(JWTService, "validate_claims"):
                 token = "jwt.token.with.claims"
                 required_claims = ["sub", "exp", "iat"]
                 result = JWTService.validate_claims(token, required_claims)
@@ -295,7 +279,7 @@ class TestMonitoringServiceAdvanced:
             monitoring = MonitoringService()
 
             # Test performance metrics if method exists
-            if hasattr(monitoring, 'collect_performance_metrics'):
+            if hasattr(monitoring, "collect_performance_metrics"):
                 metrics = await monitoring.collect_performance_metrics()
                 assert metrics is not None or metrics is None
         except (ImportError, Exception):
@@ -310,7 +294,7 @@ class TestMonitoringServiceAdvanced:
             monitoring = MonitoringService()
 
             # Test health monitoring if method exists
-            if hasattr(monitoring, 'check_system_health'):
+            if hasattr(monitoring, "check_system_health"):
                 health_status = await monitoring.check_system_health()
                 assert health_status is not None or health_status is None
         except (ImportError, Exception):
@@ -325,12 +309,8 @@ class TestMonitoringServiceAdvanced:
             monitoring = MonitoringService()
 
             # Test threshold monitoring if method exists
-            if hasattr(monitoring, 'check_thresholds'):
-                thresholds = {
-                    "cpu_usage": 80.0,
-                    "memory_usage": 85.0,
-                    "response_time": 2000
-                }
+            if hasattr(monitoring, "check_thresholds"):
+                thresholds = {"cpu_usage": 80.0, "memory_usage": 85.0, "response_time": 2000}
                 result = await monitoring.check_thresholds(thresholds)
                 assert result is not None or result is None
         except (ImportError, Exception):
@@ -350,13 +330,13 @@ class TestAuditLoggerAdvanced:
             audit_logger = AuditLogger(mock_db)
 
             # Test security event logging if method exists
-            if hasattr(audit_logger, 'log_security_event'):
+            if hasattr(audit_logger, "log_security_event"):
                 event_data = {
                     "event_type": "failed_login",
                     "user_id": "user123",
                     "ip_address": "192.168.1.1",
                     "severity": "high",
-                    "details": {"attempts": 5}
+                    "details": {"attempts": 5},
                 }
                 result = await audit_logger.log_security_event(event_data)
                 assert result is not None or result is None
@@ -373,12 +353,12 @@ class TestAuditLoggerAdvanced:
             audit_logger = AuditLogger(mock_db)
 
             # Test compliance audit if method exists
-            if hasattr(audit_logger, 'log_compliance_event'):
+            if hasattr(audit_logger, "log_compliance_event"):
                 compliance_data = {
                     "regulation": "GDPR",
                     "action": "data_access_request",
                     "user_id": "user123",
-                    "data_processed": ["email", "name", "preferences"]
+                    "data_processed": ["email", "name", "preferences"],
                 }
                 result = await audit_logger.log_compliance_event(compliance_data)
                 assert result is not None or result is None
@@ -395,11 +375,11 @@ class TestAuditLoggerAdvanced:
             audit_logger = AuditLogger(mock_db)
 
             # Test log retention if method exists
-            if hasattr(audit_logger, 'apply_retention_policy'):
+            if hasattr(audit_logger, "apply_retention_policy"):
                 retention_config = {
                     "security_logs": "7_years",
                     "access_logs": "1_year",
-                    "admin_logs": "10_years"
+                    "admin_logs": "10_years",
                 }
                 result = await audit_logger.apply_retention_policy(retention_config)
                 assert result is not None or result is None

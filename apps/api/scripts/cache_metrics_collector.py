@@ -28,16 +28,14 @@ import sys
 import json
 from pathlib import Path
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class CacheMetric:
     """Single cache operation metric"""
+
     timestamp: datetime
     cache_key: str
     operation: str  # 'get', 'set', 'hit', 'miss'
@@ -49,6 +47,7 @@ class CacheMetric:
 @dataclass
 class CacheStats:
     """Aggregated cache statistics"""
+
     cache_name: str
     total_requests: int = 0
     hits: int = 0
@@ -96,27 +95,26 @@ class CacheMetricsCollector:
         """Collect general Redis cache information"""
         logger.info("📊 Collecting cache information...")
 
-        info = await self.redis.info('stats')
-        memory = await self.redis.info('memory')
-        keyspace = await self.redis.info('keyspace')
+        info = await self.redis.info("stats")
+        memory = await self.redis.info("memory")
+        keyspace = await self.redis.info("keyspace")
 
         cache_info = {
-            "total_connections": info.get('total_connections_received', 0),
-            "total_commands": info.get('total_commands_processed', 0),
-            "keyspace_hits": info.get('keyspace_hits', 0),
-            "keyspace_misses": info.get('keyspace_misses', 0),
-            "evicted_keys": info.get('evicted_keys', 0),
-            "expired_keys": info.get('expired_keys', 0),
-            "used_memory_bytes": memory.get('used_memory', 0),
-            "used_memory_human": memory.get('used_memory_human', '0'),
-            "total_keys": sum(db_info.get('keys', 0) for db_info in keyspace.values()),
+            "total_connections": info.get("total_connections_received", 0),
+            "total_commands": info.get("total_commands_processed", 0),
+            "keyspace_hits": info.get("keyspace_hits", 0),
+            "keyspace_misses": info.get("keyspace_misses", 0),
+            "evicted_keys": info.get("evicted_keys", 0),
+            "expired_keys": info.get("expired_keys", 0),
+            "used_memory_bytes": memory.get("used_memory", 0),
+            "used_memory_human": memory.get("used_memory_human", "0"),
+            "total_keys": sum(db_info.get("keys", 0) for db_info in keyspace.values()),
         }
 
         # Calculate hit rate
-        total_requests = cache_info['keyspace_hits'] + cache_info['keyspace_misses']
-        cache_info['hit_rate'] = (
-            (cache_info['keyspace_hits'] / total_requests * 100)
-            if total_requests > 0 else 0.0
+        total_requests = cache_info["keyspace_hits"] + cache_info["keyspace_misses"]
+        cache_info["hit_rate"] = (
+            (cache_info["keyspace_hits"] / total_requests * 100) if total_requests > 0 else 0.0
         )
 
         logger.info(f"   Total keys: {cache_info['total_keys']}")
@@ -142,15 +140,15 @@ class CacheMetricsCollector:
 
         for pattern_name, pattern in patterns.items():
             keys = await self.redis.keys(pattern)
-            keys_by_pattern[pattern_name] = [key.decode() if isinstance(key, bytes) else key for key in keys]
+            keys_by_pattern[pattern_name] = [
+                key.decode() if isinstance(key, bytes) else key for key in keys
+            ]
             logger.info(f"   {pattern_name}: {len(keys_by_pattern[pattern_name])} keys")
 
         return keys_by_pattern
 
     async def measure_cache_performance(
-        self,
-        cache_pattern: str,
-        operation_count: int = 100
+        self, cache_pattern: str, operation_count: int = 100
     ) -> CacheStats:
         """Measure cache performance for a specific pattern"""
         logger.info(f"📊 Measuring cache performance for pattern: {cache_pattern}")
@@ -185,13 +183,15 @@ class CacheMetricsCollector:
                     stats.hits += 1
                     hit_times.append(response_time_ms)
 
-                    self.metrics.append(CacheMetric(
-                        timestamp=datetime.now(),
-                        cache_key=key.decode() if isinstance(key, bytes) else key,
-                        operation='hit',
-                        response_time_ms=response_time_ms,
-                        value_size_bytes=len(value) if value else 0
-                    ))
+                    self.metrics.append(
+                        CacheMetric(
+                            timestamp=datetime.now(),
+                            cache_key=key.decode() if isinstance(key, bytes) else key,
+                            operation="hit",
+                            response_time_ms=response_time_ms,
+                            value_size_bytes=len(value) if value else 0,
+                        )
+                    )
 
             # Test with non-existent key (miss)
             fake_key = f"{cache_pattern.rstrip('*')}fake_{i}"
@@ -206,19 +206,25 @@ class CacheMetricsCollector:
                 stats.misses += 1
                 miss_times.append(response_time_ms)
 
-                self.metrics.append(CacheMetric(
-                    timestamp=datetime.now(),
-                    cache_key=fake_key,
-                    operation='miss',
-                    response_time_ms=response_time_ms
-                ))
+                self.metrics.append(
+                    CacheMetric(
+                        timestamp=datetime.now(),
+                        cache_key=fake_key,
+                        operation="miss",
+                        response_time_ms=response_time_ms,
+                    )
+                )
 
         stats.total_requests = stats.hits + stats.misses
-        stats.hit_rate = (stats.hits / stats.total_requests * 100) if stats.total_requests > 0 else 0.0
+        stats.hit_rate = (
+            (stats.hits / stats.total_requests * 100) if stats.total_requests > 0 else 0.0
+        )
         stats.avg_hit_time_ms = statistics.mean(hit_times) if hit_times else 0.0
         stats.avg_miss_time_ms = statistics.mean(miss_times) if miss_times else 0.0
 
-        logger.info(f"   Requests: {stats.total_requests}, Hits: {stats.hits}, Misses: {stats.misses}")
+        logger.info(
+            f"   Requests: {stats.total_requests}, Hits: {stats.hits}, Misses: {stats.misses}"
+        )
         logger.info(f"   Hit rate: {stats.hit_rate:.1f}%")
         logger.info(f"   Avg hit time: {stats.avg_hit_time_ms:.2f}ms")
         logger.info(f"   Avg miss time: {stats.avg_miss_time_ms:.2f}ms")
@@ -238,7 +244,7 @@ class CacheMetricsCollector:
             "300-600s": 0,  # 5-10 minutes
             "600-900s": 0,  # 10-15 minutes
             "900s+": 0,  # 15+ minutes
-            "no_expiry": 0
+            "no_expiry": 0,
         }
 
         for key in keys:
@@ -286,45 +292,45 @@ class CacheMetricsCollector:
             # SSO Configuration Caching (15-min TTL)
             sso_stats = await self.measure_cache_performance("sso:config:*", operation_count=50)
             sso_ttl_dist = await self.analyze_ttl_distribution("sso:config:*")
-            cache_performance['sso_config'] = {
+            cache_performance["sso_config"] = {
                 "stats": sso_stats,
                 "ttl_distribution": sso_ttl_dist,
                 "target_ttl": 900,  # 15 minutes
                 "target_hit_rate": 95.0,
-                "performance_target": "15-20ms → 0.5-1ms"
+                "performance_target": "15-20ms → 0.5-1ms",
             }
 
             # Organization Settings Caching (10-min TTL)
             org_stats = await self.measure_cache_performance("org:data:*", operation_count=50)
             org_ttl_dist = await self.analyze_ttl_distribution("org:data:*")
-            cache_performance['org_settings'] = {
+            cache_performance["org_settings"] = {
                 "stats": org_stats,
                 "ttl_distribution": org_ttl_dist,
                 "target_ttl": 600,  # 10 minutes
                 "target_hit_rate": 85.0,
-                "performance_target": "20-30ms → 2-5ms"
+                "performance_target": "20-30ms → 2-5ms",
             }
 
             # RBAC Permissions Caching (5-min TTL)
             rbac_stats = await self.measure_cache_performance("rbac:perms:*", operation_count=50)
             rbac_ttl_dist = await self.analyze_ttl_distribution("rbac:perms:*")
-            cache_performance['rbac_permissions'] = {
+            cache_performance["rbac_permissions"] = {
                 "stats": rbac_stats,
                 "ttl_distribution": rbac_ttl_dist,
                 "target_ttl": 300,  # 5 minutes
                 "target_hit_rate": 90.0,
-                "performance_target": "90% query reduction"
+                "performance_target": "90% query reduction",
             }
 
             # User Lookup Caching (5-min TTL)
             user_stats = await self.measure_cache_performance("user:*", operation_count=50)
             user_ttl_dist = await self.analyze_ttl_distribution("user:*")
-            cache_performance['user_lookup'] = {
+            cache_performance["user_lookup"] = {
                 "stats": user_stats,
                 "ttl_distribution": user_ttl_dist,
                 "target_ttl": 300,  # 5 minutes
                 "target_hit_rate": 75.0,
-                "performance_target": "3-5ms → 0.5-1ms"
+                "performance_target": "3-5ms → 0.5-1ms",
             }
 
             # Validate against targets
@@ -335,7 +341,7 @@ class CacheMetricsCollector:
                 "cache_info": cache_info,
                 "keys_by_pattern": {k: len(v) for k, v in keys_by_pattern.items()},
                 "cache_performance": cache_performance,
-                "validation_results": validation_results
+                "validation_results": validation_results,
             }
 
             return results
@@ -350,8 +356,8 @@ class CacheMetricsCollector:
         validation = {}
 
         for cache_name, perf_data in cache_performance.items():
-            stats = perf_data['stats']
-            target_hit_rate = perf_data['target_hit_rate']
+            stats = perf_data["stats"]
+            target_hit_rate = perf_data["target_hit_rate"]
 
             # Check if actual keys exist
             if stats.total_keys == 0:
@@ -359,7 +365,7 @@ class CacheMetricsCollector:
                     "status": "NOT_IN_USE",
                     "reason": "No cached keys found - cache may not be in use yet",
                     "hit_rate_met": False,
-                    "performance_met": None
+                    "performance_met": None,
                 }
                 logger.warning(f"   ⚠️ {cache_name}: No cached keys found")
                 continue
@@ -388,7 +394,7 @@ class CacheMetricsCollector:
                 "actual_hit_rate": stats.hit_rate,
                 "actual_hit_time_ms": stats.avg_hit_time_ms,
                 "target_hit_rate": target_hit_rate,
-                "target_performance": perf_data['performance_target']
+                "target_performance": perf_data["performance_target"],
             }
 
             logger.info(f"   {icon} {cache_name}: {status}")
@@ -401,8 +407,8 @@ class CacheMetricsCollector:
         """Generate cache metrics report"""
         logger.info("📋 Generating cache metrics report...")
 
-        cache_info = results['cache_info']
-        validation = results['validation_results']
+        cache_info = results["cache_info"]
+        validation = results["validation_results"]
 
         report = f"""
 # Cache Metrics Collection Report - Phase 3 Validation
@@ -430,8 +436,8 @@ class CacheMetricsCollector:
                 "PASS": "✅",
                 "HIT_RATE_LOW": "⚠️",
                 "PERFORMANCE_SLOW": "⚠️",
-                "NOT_IN_USE": "⏸️"
-            }.get(validation_data['status'], "❓")
+                "NOT_IN_USE": "⏸️",
+            }.get(validation_data["status"], "❓")
 
             report += f"""
 ### {status_icon} {cache_name.replace('_', ' ').title()}
@@ -439,7 +445,7 @@ class CacheMetricsCollector:
 - **Status**: {validation_data['status']}
 """
 
-            if validation_data['status'] != "NOT_IN_USE":
+            if validation_data["status"] != "NOT_IN_USE":
                 report += f"""- **Hit Rate**: {validation_data['actual_hit_rate']:.1f}% (target: {validation_data['target_hit_rate']}%) {'✅' if validation_data['hit_rate_met'] else '❌'}
 - **Hit Time**: {validation_data['actual_hit_time_ms']:.2f}ms (target: <2ms) {'✅' if validation_data['performance_met'] else '❌'}
 - **Performance Target**: {validation_data['target_performance']}
@@ -450,10 +456,10 @@ class CacheMetricsCollector:
         # TTL distribution
         report += "\n## ⏰ TTL Distribution\n\n"
 
-        for cache_name, perf_data in results['cache_performance'].items():
-            if perf_data['stats'].total_keys > 0:
+        for cache_name, perf_data in results["cache_performance"].items():
+            if perf_data["stats"].total_keys > 0:
                 report += f"### {cache_name.replace('_', ' ').title()}\n\n"
-                for bucket, count in perf_data['ttl_distribution'].items():
+                for bucket, count in perf_data["ttl_distribution"].items():
                     if count > 0:
                         report += f"- {bucket}: {count} keys\n"
                 report += "\n"
@@ -461,14 +467,11 @@ class CacheMetricsCollector:
         # Keys by pattern
         report += "## 🔑 Cached Keys by Pattern\n\n"
 
-        for pattern, count in results['keys_by_pattern'].items():
+        for pattern, count in results["keys_by_pattern"].items():
             report += f"- **{pattern}**: {count} keys\n"
 
         # Summary
-        all_passed = all(
-            v['status'] in ['PASS', 'NOT_IN_USE']
-            for v in validation.values()
-        )
+        all_passed = all(v["status"] in ["PASS", "NOT_IN_USE"] for v in validation.values())
 
         report += f"""
 ## 📋 Summary
@@ -505,7 +508,9 @@ async def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Phase 3 Cache Metrics Collection")
-    parser.add_argument("--redis-url", default="redis://localhost:6379", help="Redis connection URL")
+    parser.add_argument(
+        "--redis-url", default="redis://localhost:6379", help="Redis connection URL"
+    )
     parser.add_argument("--output", default="cache_metrics_report.md", help="Output report file")
 
     args = parser.parse_args()
@@ -523,7 +528,7 @@ async def main():
         output_path.write_text(report)
 
         # Save raw data
-        json_path = output_path.with_suffix('.json')
+        json_path = output_path.with_suffix(".json")
         json_path.write_text(json.dumps(results, indent=2, default=str))
 
         logger.info(f"\n📋 Cache metrics report saved: {output_path}")
@@ -534,8 +539,7 @@ async def main():
 
         # Exit code based on validation
         all_passed = all(
-            v['status'] in ['PASS', 'NOT_IN_USE']
-            for v in results['validation_results'].values()
+            v["status"] in ["PASS", "NOT_IN_USE"] for v in results["validation_results"].values()
         )
 
         return 0 if all_passed else 1
@@ -543,6 +547,7 @@ async def main():
     except Exception as e:
         logger.error(f"Cache metrics collection failed: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

@@ -368,7 +368,9 @@ async def list_all_users(
                 is_admin=user.is_admin,
                 organizations_count=orgs_count,
                 sessions_count=sessions_count,
-                oauth_providers=[p.value if hasattr(p, 'value') else str(p) for p in oauth_providers],
+                oauth_providers=[
+                    p.value if hasattr(p, "value") else str(p) for p in oauth_providers
+                ],
                 passkeys_count=passkeys_count,
                 created_at=user.created_at,
                 updated_at=user.updated_at,
@@ -670,7 +672,9 @@ async def get_activity_logs(
                 user_id=str(log.user_id),
                 user_email=user.email if user else "unknown",
                 action=log.action,
-                details=getattr(log, 'details', None) or getattr(log, 'activity_metadata', None) or {},
+                details=getattr(log, "details", None)
+                or getattr(log, "activity_metadata", None)
+                or {},
                 ip_address=log.ip_address,
                 user_agent=log.user_agent,
                 created_at=log.created_at,
@@ -792,15 +796,20 @@ async def get_system_config(current_user: User = Depends(get_current_user)):
 # System Settings Management
 # =============================================================================
 
+
 class CorsOriginCreate(BaseModel):
     """Request to create a new CORS origin"""
+
     origin: str = Field(..., description="The origin URL (e.g., https://app.example.com)")
     description: Optional[str] = Field(None, description="Human-readable description")
-    organization_id: Optional[str] = Field(None, description="Organization ID for tenant-specific origins (null for system-level)")
+    organization_id: Optional[str] = Field(
+        None, description="Organization ID for tenant-specific origins (null for system-level)"
+    )
 
 
 class CorsOriginResponse(BaseModel):
     """CORS origin response"""
+
     id: str
     origin: str
     organization_id: Optional[str]
@@ -812,6 +821,7 @@ class CorsOriginResponse(BaseModel):
 
 class SystemSettingCreate(BaseModel):
     """Request to create/update a system setting"""
+
     key: str = Field(..., description="Setting key (e.g., 'oidc.custom_domain')")
     value: Any = Field(..., description="Setting value (string or JSON)")
     category: Optional[str] = Field("features", description="Setting category")
@@ -821,6 +831,7 @@ class SystemSettingCreate(BaseModel):
 
 class SystemSettingResponse(BaseModel):
     """System setting response"""
+
     id: str
     key: str
     value: Any
@@ -850,9 +861,7 @@ async def list_cors_origins(
     org_uuid = uuid.UUID(organization_id) if organization_id else None
 
     origins = await service.list_cors_origins(
-        organization_id=org_uuid,
-        include_inactive=include_inactive,
-        include_system=True
+        organization_id=org_uuid, include_inactive=include_inactive, include_system=True
     )
 
     return [CorsOriginResponse(**o) for o in origins]
@@ -880,7 +889,7 @@ async def add_cors_origin(
             origin=request.origin,
             organization_id=org_uuid,
             description=request.description,
-            created_by=current_user.id
+            created_by=current_user.id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -917,9 +926,7 @@ async def remove_cors_origin(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid origin ID")
 
-    result = await db.execute(
-        select(AllowedCorsOrigin).where(AllowedCorsOrigin.id == origin_uuid)
-    )
+    result = await db.execute(select(AllowedCorsOrigin).where(AllowedCorsOrigin.id == origin_uuid))
     cors_origin = result.scalar_one_or_none()
 
     if not cors_origin:
@@ -929,13 +936,11 @@ async def remove_cors_origin(
 
     if permanent:
         success = await service.delete_cors_origin(
-            cors_origin.origin,
-            organization_id=cors_origin.organization_id
+            cors_origin.origin, organization_id=cors_origin.organization_id
         )
     else:
         success = await service.remove_cors_origin(
-            cors_origin.origin,
-            organization_id=cors_origin.organization_id
+            cors_origin.origin, organization_id=cors_origin.organization_id
         )
 
     if not success:
@@ -944,7 +949,10 @@ async def remove_cors_origin(
     # Invalidate global CORS cache
     invalidate_cors_cache()
 
-    return {"message": f"CORS origin {'deleted' if permanent else 'deactivated'}", "origin": cors_origin.origin}
+    return {
+        "message": f"CORS origin {'deleted' if permanent else 'deactivated'}",
+        "origin": cors_origin.origin,
+    }
 
 
 @router.get("/settings/cors/cache-status")
@@ -959,6 +967,7 @@ async def get_cors_cache_status(
 
     try:
         from app.middleware.dynamic_cors import get_cors_cache_status as get_cache_status
+
         return get_cache_status()
     except ImportError:
         return {"error": "Dynamic CORS middleware not available", "cached": False}
@@ -989,8 +998,7 @@ async def list_system_settings(
 
     service = SystemSettingsService(db)
     settings_list = await service.get_all_settings(
-        category=category,
-        include_sensitive=False  # Never expose sensitive values
+        category=category, include_sensitive=False  # Never expose sensitive values
     )
 
     return [SystemSettingResponse(**s) for s in settings_list]
@@ -1019,7 +1027,7 @@ async def update_system_setting(
         category=request.category or "features",
         description=request.description,
         is_sensitive=request.is_sensitive,
-        updated_by=current_user.id
+        updated_by=current_user.id,
     )
 
     # Invalidate CORS cache if CORS-related setting
@@ -1029,7 +1037,7 @@ async def update_system_setting(
     return {
         "message": "Setting updated",
         "key": setting.key,
-        "value": setting.get_value() if not setting.is_sensitive else "***REDACTED***"
+        "value": setting.get_value() if not setting.is_sensitive else "***REDACTED***",
     }
 
 
@@ -1069,7 +1077,7 @@ async def get_custom_domain(
     return {
         "custom_domain": domain,
         "issuer": f"https://{domain}" if domain else settings.JWT_ISSUER,
-        "source": "database" if domain else "config"
+        "source": "database" if domain else "config",
     }
 
 
@@ -1097,5 +1105,5 @@ async def set_custom_domain(
     return {
         "message": "Custom domain updated",
         "custom_domain": setting.value,
-        "issuer": f"https://{setting.value}"
+        "issuer": f"https://{setting.value}",
     }

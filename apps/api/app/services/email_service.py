@@ -37,16 +37,10 @@ class EmailService:
     def __init__(self, redis_client: Optional[redis.Redis] = None):
         self.redis_client = redis_client
         self.template_dir = Path(__file__).parent.parent / "templates" / "email"
-        self.jinja_env = Environment(
-            loader=FileSystemLoader(self.template_dir),
-            autoescape=True
-        )
+        self.jinja_env = Environment(loader=FileSystemLoader(self.template_dir), autoescape=True)
 
     async def send_verification_email(
-        self,
-        email: str,
-        user_name: str = None,
-        user_id: str = None
+        self, email: str, user_name: str = None, user_id: str = None
     ) -> str:
         """Send email verification email and return verification token"""
 
@@ -60,13 +54,9 @@ class EmailService:
                 "email": email,
                 "user_id": user_id,
                 "created_at": datetime.utcnow().isoformat(),
-                "type": "email_verification"
+                "type": "email_verification",
             }
-            await self.redis_client.setex(
-                token_key,
-                24 * 60 * 60,  # 24 hours
-                str(token_data)
-            )
+            await self.redis_client.setex(token_key, 24 * 60 * 60, str(token_data))  # 24 hours
 
         # Generate verification URL
         verification_url = f"{settings.BASE_URL}/auth/verify-email?token={verification_token}"
@@ -77,7 +67,7 @@ class EmailService:
             "verification_url": verification_url,
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev"
+            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
         # Render email template
@@ -87,10 +77,7 @@ class EmailService:
 
         # Send email
         success = await self._send_email(
-            to_email=email,
-            subject=subject,
-            html_content=html_content,
-            text_content=text_content
+            to_email=email, subject=subject, html_content=html_content, text_content=text_content
         )
 
         if success:
@@ -115,23 +102,20 @@ class EmailService:
 
             # Parse token data (simplified for alpha)
             import ast
+
             token_info = ast.literal_eval(token_data.decode())
 
             # Delete token after successful verification
             await self.redis_client.delete(token_key)
 
-            logger.info("Email verified successfully", email=_redact_email(token_info['email']))
+            logger.info("Email verified successfully", email=_redact_email(token_info["email"]))
             return token_info
 
         except Exception as e:
             logger.error("Token verification failed", error_type=type(e).__name__)
             raise Exception("Invalid or expired verification token")
 
-    async def send_password_reset_email(
-        self,
-        email: str,
-        user_name: str = None
-    ) -> str:
+    async def send_password_reset_email(self, email: str, user_name: str = None) -> str:
         """Send password reset email and return reset token"""
 
         # Generate reset token
@@ -143,13 +127,9 @@ class EmailService:
             token_data = {
                 "email": email,
                 "created_at": datetime.utcnow().isoformat(),
-                "type": "password_reset"
+                "type": "password_reset",
             }
-            await self.redis_client.setex(
-                token_key,
-                60 * 60,  # 1 hour
-                str(token_data)
-            )
+            await self.redis_client.setex(token_key, 60 * 60, str(token_data))  # 1 hour
 
         # Generate reset URL
         reset_url = f"{settings.BASE_URL}/auth/reset-password?token={reset_token}"
@@ -160,7 +140,7 @@ class EmailService:
             "reset_url": reset_url,
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev"
+            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
         # Render email template
@@ -170,10 +150,7 @@ class EmailService:
 
         # Send email
         success = await self._send_email(
-            to_email=email,
-            subject=subject,
-            html_content=html_content,
-            text_content=text_content
+            to_email=email, subject=subject, html_content=html_content, text_content=text_content
         )
 
         if success:
@@ -183,11 +160,7 @@ class EmailService:
             logger.error("Failed to send password reset email", email=_redact_email(email))
             raise Exception("Failed to send password reset email")
 
-    async def send_welcome_email(
-        self,
-        email: str,
-        user_name: str = None
-    ) -> bool:
+    async def send_welcome_email(self, email: str, user_name: str = None) -> bool:
         """Send welcome email to new user"""
 
         template_data = {
@@ -195,7 +168,7 @@ class EmailService:
             "dashboard_url": f"{settings.BASE_URL}/dashboard",
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev"
+            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
         # Render email template
@@ -205,10 +178,7 @@ class EmailService:
 
         # Send email
         success = await self._send_email(
-            to_email=email,
-            subject=subject,
-            html_content=html_content,
-            text_content=text_content
+            to_email=email, subject=subject, html_content=html_content, text_content=text_content
         )
 
         if success:
@@ -232,7 +202,9 @@ class EmailService:
             template = self.jinja_env.get_template(template_name)
             return template.render(**data)
         except Exception as e:
-            logger.error("Template rendering failed", template=template_name, error_type=type(e).__name__)
+            logger.error(
+                "Template rendering failed", template=template_name, error_type=type(e).__name__
+            )
             # Fallback to simple text
             if "verification" in template_name:
                 return f"Please verify your email by clicking: {data.get('verification_url', '')}"
@@ -243,11 +215,7 @@ class EmailService:
             return "Email content unavailable"
 
     async def _send_email(
-        self,
-        to_email: str,
-        subject: str,
-        html_content: str,
-        text_content: str = None
+        self, to_email: str, subject: str, html_content: str, text_content: str = None
     ) -> bool:
         """Send email via SMTP or email service"""
 
@@ -256,29 +224,32 @@ class EmailService:
 
         try:
             # Check if email configuration is available
-            if not hasattr(settings, 'SMTP_HOST') or not settings.SMTP_HOST:
+            if not hasattr(settings, "SMTP_HOST") or not settings.SMTP_HOST:
                 # For alpha: Log email metadata instead of full details
                 logger.info(
                     "EMAIL [Alpha Mode]: email sent",
                     to=_redact_email(to_email),
-                    subject_length=len(subject)
+                    subject_length=len(subject),
                 )
-                logger.debug("Email content preview available (length=%d chars)", len(text_content or html_content))
+                logger.debug(
+                    "Email content preview available (length=%d chars)",
+                    len(text_content or html_content),
+                )
                 return True
 
             # Create message
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From'] = formataddr((settings.FROM_NAME or "Janua", settings.FROM_EMAIL))
-            msg['To'] = to_email
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = formataddr((settings.FROM_NAME or "Janua", settings.FROM_EMAIL))
+            msg["To"] = to_email
 
             # Add text and HTML parts
             if text_content:
-                text_part = MIMEText(text_content, 'plain', 'utf-8')
+                text_part = MIMEText(text_content, "plain", "utf-8")
                 msg.attach(text_part)
 
             if html_content:
-                html_part = MIMEText(html_content, 'html', 'utf-8')
+                html_part = MIMEText(html_content, "html", "utf-8")
                 msg.attach(html_part)
 
             # Send via SMTP
@@ -294,7 +265,9 @@ class EmailService:
             return True
 
         except Exception as e:
-            logger.error("Failed to send email", to=_redact_email(to_email), error_type=type(e).__name__)
+            logger.error(
+                "Failed to send email", to=_redact_email(to_email), error_type=type(e).__name__
+            )
             return False
 
 

@@ -29,7 +29,7 @@ from app.models.billing import (
     Invoice,
     WebhookEvent,
     SubscriptionStatus,
-    PaymentStatus
+    PaymentStatus,
 )
 from app.services.payment.conekta_provider import ConektaProvider
 from app.services.payment.polar_provider import PolarProvider
@@ -42,16 +42,12 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 # Helper Functions
 # ============================================================================
 
-async def check_webhook_processed(
-    db: AsyncSession,
-    provider: str,
-    event_id: str
-) -> bool:
+
+async def check_webhook_processed(db: AsyncSession, provider: str, event_id: str) -> bool:
     """Check if webhook event was already processed (idempotency)."""
     result = await db.execute(
         select(WebhookEvent).where(
-            WebhookEvent.provider == provider,
-            WebhookEvent.provider_event_id == event_id
+            WebhookEvent.provider == provider, WebhookEvent.provider_event_id == event_id
         )
     )
     return result.scalar_one_or_none() is not None
@@ -63,7 +59,7 @@ async def record_webhook_event(
     event_id: str,
     event_type: str,
     payload: Dict[str, Any],
-    processed: bool = True
+    processed: bool = True,
 ):
     """Record webhook event for idempotency and audit."""
     webhook_event = WebhookEvent(
@@ -71,7 +67,7 @@ async def record_webhook_event(
         provider_event_id=event_id,
         event_type=event_type,
         payload=payload,
-        processed=processed
+        processed=processed,
     )
     db.add(webhook_event)
     await db.commit()
@@ -81,11 +77,12 @@ async def record_webhook_event(
 # Conekta Webhooks
 # ============================================================================
 
+
 @router.post("/conekta")
 async def conekta_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    x_conekta_signature: str = Header(None, alias="X-Conekta-Signature")
+    x_conekta_signature: str = Header(None, alias="X-Conekta-Signature"),
 ):
     """
     Conekta webhook handler.
@@ -105,19 +102,14 @@ async def conekta_webhook(
     if not webhook_secret:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Webhook secret not configured"
+            detail="Webhook secret not configured",
         )
 
     provider = ConektaProvider(api_key=os.getenv("CONEKTA_API_KEY", ""))
 
-    if not provider.verify_webhook_signature(
-        body,
-        x_conekta_signature or "",
-        webhook_secret
-    ):
+    if not provider.verify_webhook_signature(body, x_conekta_signature or "", webhook_secret):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid webhook signature"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature"
         )
 
     # Extract event data
@@ -127,8 +119,7 @@ async def conekta_webhook(
 
     if not event_id or not event_type:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid webhook payload"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook payload"
         )
 
     # Check if already processed (idempotency)
@@ -154,14 +145,12 @@ async def conekta_webhook(
         await record_webhook_event(db, "conekta", event_id, event_type, payload, False)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process webhook: {str(e)}"
+            detail=f"Failed to process webhook: {str(e)}",
         )
 
 
 async def process_conekta_subscription_event(
-    db: AsyncSession,
-    event_type: str,
-    subscription_data: Dict[str, Any]
+    db: AsyncSession, event_type: str, subscription_data: Dict[str, Any]
 ):
     """Process Conekta subscription events."""
     subscription_id = subscription_data.get("id")
@@ -170,7 +159,7 @@ async def process_conekta_subscription_event(
     result = await db.execute(
         select(Subscription).where(
             Subscription.provider == "conekta",
-            Subscription.provider_subscription_id == subscription_id
+            Subscription.provider_subscription_id == subscription_id,
         )
     )
     subscription = result.scalar_one_or_none()
@@ -193,9 +182,7 @@ async def process_conekta_subscription_event(
 
 
 async def process_conekta_charge_event(
-    db: AsyncSession,
-    event_type: str,
-    charge_data: Dict[str, Any]
+    db: AsyncSession, event_type: str, charge_data: Dict[str, Any]
 ):
     """Process Conekta charge events (for invoices)."""
     charge_id = charge_data.get("id")
@@ -203,8 +190,7 @@ async def process_conekta_charge_event(
     # Find invoice by charge ID
     result = await db.execute(
         select(Invoice).where(
-            Invoice.provider == "conekta",
-            Invoice.provider_invoice_id == charge_id
+            Invoice.provider == "conekta", Invoice.provider_invoice_id == charge_id
         )
     )
     invoice = result.scalar_one_or_none()
@@ -223,9 +209,7 @@ async def process_conekta_charge_event(
 
 
 async def process_conekta_order_event(
-    db: AsyncSession,
-    event_type: str,
-    order_data: Dict[str, Any]
+    db: AsyncSession, event_type: str, order_data: Dict[str, Any]
 ):
     """Process Conekta order events."""
     # Handle one-time orders if needed
@@ -235,11 +219,12 @@ async def process_conekta_order_event(
 # Stripe Webhooks
 # ============================================================================
 
+
 @router.post("/stripe")
 async def stripe_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    stripe_signature: str = Header(None, alias="Stripe-Signature")
+    stripe_signature: str = Header(None, alias="Stripe-Signature"),
 ):
     """
     Stripe webhook handler.
@@ -260,25 +245,17 @@ async def stripe_webhook(
     if not webhook_secret:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Webhook secret not configured"
+            detail="Webhook secret not configured",
         )
 
     try:
-        event = stripe.Webhook.construct_event(
-            body,
-            stripe_signature or "",
-            webhook_secret
-        )
+        event = stripe.Webhook.construct_event(body, stripe_signature or "", webhook_secret)
     except stripe.error.SignatureVerificationError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid webhook signature"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature"
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     event_id = event["id"]
     event_type = event["type"]
@@ -306,14 +283,12 @@ async def stripe_webhook(
         await record_webhook_event(db, "stripe", event_id, event_type, event, False)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process webhook: {str(e)}"
+            detail=f"Failed to process webhook: {str(e)}",
         )
 
 
 async def process_stripe_subscription_event(
-    db: AsyncSession,
-    event_type: str,
-    subscription_data: Dict[str, Any]
+    db: AsyncSession, event_type: str, subscription_data: Dict[str, Any]
 ):
     """Process Stripe subscription events."""
     subscription_id = subscription_data.get("id")
@@ -321,7 +296,7 @@ async def process_stripe_subscription_event(
     result = await db.execute(
         select(Subscription).where(
             Subscription.provider == "stripe",
-            Subscription.provider_subscription_id == subscription_id
+            Subscription.provider_subscription_id == subscription_id,
         )
     )
     subscription = result.scalar_one_or_none()
@@ -334,24 +309,25 @@ async def process_stripe_subscription_event(
         subscription.canceled_at = datetime.utcnow()
     elif event_type in ["customer.subscription.created", "customer.subscription.updated"]:
         subscription.status = SubscriptionStatus(subscription_data.get("status", "active"))
-        subscription.current_period_start = datetime.fromtimestamp(subscription_data["current_period_start"])
-        subscription.current_period_end = datetime.fromtimestamp(subscription_data["current_period_end"])
+        subscription.current_period_start = datetime.fromtimestamp(
+            subscription_data["current_period_start"]
+        )
+        subscription.current_period_end = datetime.fromtimestamp(
+            subscription_data["current_period_end"]
+        )
 
     await db.commit()
 
 
 async def process_stripe_invoice_event(
-    db: AsyncSession,
-    event_type: str,
-    invoice_data: Dict[str, Any]
+    db: AsyncSession, event_type: str, invoice_data: Dict[str, Any]
 ):
     """Process Stripe invoice events."""
     invoice_id = invoice_data.get("id")
 
     result = await db.execute(
         select(Invoice).where(
-            Invoice.provider == "stripe",
-            Invoice.provider_invoice_id == invoice_id
+            Invoice.provider == "stripe", Invoice.provider_invoice_id == invoice_id
         )
     )
     invoice = result.scalar_one_or_none()
@@ -363,7 +339,7 @@ async def process_stripe_invoice_event(
             result = await db.execute(
                 select(Subscription).where(
                     Subscription.provider == "stripe",
-                    Subscription.provider_subscription_id == subscription_id
+                    Subscription.provider_subscription_id == subscription_id,
                 )
             )
             subscription = result.scalar_one_or_none()
@@ -377,9 +353,11 @@ async def process_stripe_invoice_event(
                     currency=invoice_data["currency"].upper(),
                     status=PaymentStatus.PENDING,
                     invoice_date=datetime.fromtimestamp(invoice_data["created"]),
-                    due_date=datetime.fromtimestamp(invoice_data["due_date"]) if invoice_data.get("due_date") else None,
+                    due_date=datetime.fromtimestamp(invoice_data["due_date"])
+                    if invoice_data.get("due_date")
+                    else None,
                     hosted_invoice_url=invoice_data.get("hosted_invoice_url"),
-                    invoice_pdf=invoice_data.get("invoice_pdf")
+                    invoice_pdf=invoice_data.get("invoice_pdf"),
                 )
                 db.add(invoice)
 
@@ -394,9 +372,7 @@ async def process_stripe_invoice_event(
 
 
 async def process_stripe_payment_method_event(
-    db: AsyncSession,
-    event_type: str,
-    payment_method_data: Dict[str, Any]
+    db: AsyncSession, event_type: str, payment_method_data: Dict[str, Any]
 ):
     """Process Stripe payment method events."""
     # Handle payment method attached/detached if needed
@@ -406,11 +382,12 @@ async def process_stripe_payment_method_event(
 # Polar Webhooks
 # ============================================================================
 
+
 @router.post("/polar")
 async def polar_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    x_polar_signature: str = Header(None, alias="X-Polar-Signature")
+    x_polar_signature: str = Header(None, alias="X-Polar-Signature"),
 ):
     """
     Polar webhook handler.
@@ -429,19 +406,14 @@ async def polar_webhook(
     if not webhook_secret:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Webhook secret not configured"
+            detail="Webhook secret not configured",
         )
 
     provider = PolarProvider(api_key=os.getenv("POLAR_API_KEY", ""))
 
-    if not provider.verify_webhook_signature(
-        body,
-        x_polar_signature or "",
-        webhook_secret
-    ):
+    if not provider.verify_webhook_signature(body, x_polar_signature or "", webhook_secret):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid webhook signature"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook signature"
         )
 
     event_id = payload.get("id")
@@ -450,8 +422,7 @@ async def polar_webhook(
 
     if not event_id or not event_type:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid webhook payload"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid webhook payload"
         )
 
     # Check if already processed
@@ -474,24 +445,17 @@ async def polar_webhook(
         await record_webhook_event(db, "polar", event_id, event_type, payload, False)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process webhook: {str(e)}"
+            detail=f"Failed to process webhook: {str(e)}",
         )
 
 
-async def process_polar_order_event(
-    db: AsyncSession,
-    event_type: str,
-    order_data: Dict[str, Any]
-):
+async def process_polar_order_event(db: AsyncSession, event_type: str, order_data: Dict[str, Any]):
     """Process Polar order events (one-time purchases)."""
     order_id = order_data.get("id")
 
     # Find invoice by order ID
     result = await db.execute(
-        select(Invoice).where(
-            Invoice.provider == "polar",
-            Invoice.provider_invoice_id == order_id
-        )
+        select(Invoice).where(Invoice.provider == "polar", Invoice.provider_invoice_id == order_id)
     )
     invoice = result.scalar_one_or_none()
 
@@ -502,9 +466,7 @@ async def process_polar_order_event(
 
 
 async def process_polar_subscription_event(
-    db: AsyncSession,
-    event_type: str,
-    subscription_data: Dict[str, Any]
+    db: AsyncSession, event_type: str, subscription_data: Dict[str, Any]
 ):
     """Process Polar subscription events."""
     subscription_id = subscription_data.get("id")
@@ -512,7 +474,7 @@ async def process_polar_subscription_event(
     result = await db.execute(
         select(Subscription).where(
             Subscription.provider == "polar",
-            Subscription.provider_subscription_id == subscription_id
+            Subscription.provider_subscription_id == subscription_id,
         )
     )
     subscription = result.scalar_one_or_none()

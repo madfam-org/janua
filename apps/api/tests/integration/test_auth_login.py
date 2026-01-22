@@ -40,24 +40,18 @@ async def test_login_success(integration_client: AsyncClient, test_user: User):
     - Session creation
     - User data in response
     """
-    login_data = {
-        "email": test_user.email,
-        "password": TEST_PASSWORD
-    }
+    login_data = {"email": test_user.email, "password": TEST_PASSWORD}
 
-    response = await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data
-    )
+    response = await integration_client.post("/api/v1/auth/signin", json=login_data)
 
     assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
 
     data = response.json()
-    
+
     # API returns: {"user": {...}, "tokens": {"access_token": "...", "refresh_token": "...", "expires_in": 3600}}
     assert "user" in data, "Response should contain user data"
     assert "tokens" in data, "Response should contain tokens"
-    
+
     # Verify user data
     assert data["user"]["email"] == test_user.email
 
@@ -72,7 +66,6 @@ async def test_login_success(integration_client: AsyncClient, test_user: User):
     assert len(tokens["refresh_token"].split(".")) == 3
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
@@ -85,25 +78,23 @@ async def test_login_invalid_password(integration_client: AsyncClient, test_user
     - Security: No information leakage
     - Appropriate error response
     """
-    login_data = {
-        "email": test_user.email,
-        "password": "WrongPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "WrongPassword123!"}
 
-    response = await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data
-    )
+    response = await integration_client.post("/api/v1/auth/signin", json=login_data)
 
-    assert response.status_code == 401, f"Should reject invalid credentials with 401, got {response.status_code}"
+    assert (
+        response.status_code == 401
+    ), f"Should reject invalid credentials with 401, got {response.status_code}"
 
     data = response.json()
     assert "error" in data or "detail" in data
     error_message = (data.get("error", {}).get("message", "") or data.get("detail", "")).lower()
 
     # Should not reveal whether email exists or if password was wrong
-    assert any(keyword in error_message for keyword in ["invalid", "credentials", "incorrect", "unauthorized"])
-
+    assert any(
+        keyword in error_message
+        for keyword in ["invalid", "credentials", "incorrect", "unauthorized"]
+    )
 
 
 @pytest.mark.asyncio
@@ -119,18 +110,15 @@ async def test_login_suspended_account(integration_client: AsyncClient, test_use
     - Verify session not created
     - Security: Don't leak account status
     """
-    login_data = {
-        "email": test_user_suspended.email,
-        "password": TEST_PASSWORD
-    }
+    login_data = {"email": test_user_suspended.email, "password": TEST_PASSWORD}
 
-    response = await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data
-    )
+    response = await integration_client.post("/api/v1/auth/signin", json=login_data)
 
     # Should reject suspended account with 401 or 403
-    assert response.status_code in [401, 403], f"Should reject suspended account, got {response.status_code}"
+    assert response.status_code in [
+        401,
+        403,
+    ], f"Should reject suspended account, got {response.status_code}"
 
     data = response.json()
     # Security best practice: Use generic "Invalid credentials" message
@@ -141,10 +129,10 @@ async def test_login_suspended_account(integration_client: AsyncClient, test_use
         error_message = data["detail"].lower()
     else:
         error_message = str(data).lower()
-    
-    assert "invalid" in error_message or "unauthorized" in error_message, \
-        f"Expected generic error message, got: {data}"
 
+    assert (
+        "invalid" in error_message or "unauthorized" in error_message
+    ), f"Expected generic error message, got: {data}"
 
 
 @pytest.mark.asyncio
@@ -159,15 +147,9 @@ async def test_login_unverified_email(integration_client: AsyncClient, test_user
     - Verify response based on policy (may allow or reject)
     - If allowed, check for verification reminder
     """
-    login_data = {
-        "email": test_user_unverified.email,
-        "password": TEST_PASSWORD
-    }
+    login_data = {"email": test_user_unverified.email, "password": TEST_PASSWORD}
 
-    response = await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data
-    )
+    response = await integration_client.post("/api/v1/auth/signin", json=login_data)
 
     # Policy decision: some systems allow login with unverified email, some don't
     # Accept either 200 (allowed) or 403 (verification required)
@@ -177,13 +159,15 @@ async def test_login_unverified_email(integration_client: AsyncClient, test_user
         # If verification required, check error message
         data = response.json()
         error_message = str(data).lower()
-        assert any(keyword in error_message for keyword in ["verify", "verification", "email", "unverified"])
+        assert any(
+            keyword in error_message
+            for keyword in ["verify", "verification", "email", "unverified"]
+        )
     else:
         # If allowed, tokens should still be present
         data = response.json()
         assert "tokens" in data
         assert "access_token" in data["tokens"]
-
 
 
 @pytest.mark.asyncio
@@ -198,15 +182,9 @@ async def test_login_nonexistent_email(integration_client: AsyncClient):
     - No information leakage about email existence
     - Response time similar to valid email (timing attack prevention)
     """
-    login_data = {
-        "email": "nonexistent@example.com",
-        "password": "SomePassword123!"
-    }
+    login_data = {"email": "nonexistent@example.com", "password": "SomePassword123!"}
 
-    response = await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data
-    )
+    response = await integration_client.post("/api/v1/auth/signin", json=login_data)
 
     assert response.status_code == 401, "Should reject non-existent email"
 
@@ -219,50 +197,40 @@ async def test_login_nonexistent_email(integration_client: AsyncClient):
     assert "doesn't exist" not in error_message
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_login_case_insensitive_email(integration_client: AsyncClient, test_user: User):
     """
     Test that email login is case-insensitive
-    
+
     Validates:
     - Email matching ignores case (Test@Example.com == test@example.com)
     - Both uppercase and lowercase emails succeed
     """
     # Try login with uppercase email
-    login_data_upper = {
-        "email": test_user.email.upper(),
-        "password": TEST_PASSWORD
-    }
+    login_data_upper = {"email": test_user.email.upper(), "password": TEST_PASSWORD}
 
-    response_upper = await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data_upper
-    )
+    response_upper = await integration_client.post("/api/v1/auth/signin", json=login_data_upper)
 
     # Test with mixed case
-    login_data_mixed = {
-        "email": test_user.email.title(),  # CamelCase
-        "password": TEST_PASSWORD
-    }
+    login_data_mixed = {"email": test_user.email.title(), "password": TEST_PASSWORD}  # CamelCase
 
-    response_mixed = await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data_mixed
-    )
+    response_mixed = await integration_client.post("/api/v1/auth/signin", json=login_data_mixed)
 
     # Try login with lowercase email (tests email normalization)
-    await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data_upper
-    )
+    await integration_client.post("/api/v1/auth/signin", json=login_data_upper)
 
     # At least one should succeed (depends on email normalization policy)
     # Most systems normalize to lowercase
-    assert response_upper.status_code in [200, 401], f"Unexpected status: {response_upper.status_code}"
-    assert response_mixed.status_code in [200, 401], f"Unexpected status: {response_mixed.status_code}"
+    assert response_upper.status_code in [
+        200,
+        401,
+    ], f"Unexpected status: {response_upper.status_code}"
+    assert response_mixed.status_code in [
+        200,
+        401,
+    ], f"Unexpected status: {response_mixed.status_code}"
 
     # If email is normalized, both should succeed
     if response_upper.status_code == 200 and response_mixed.status_code == 200:
@@ -273,14 +241,13 @@ async def test_login_case_insensitive_email(integration_client: AsyncClient, tes
         assert data_upper["user"]["email"].lower() == data_mixed["user"]["email"].lower()
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_login_whitespace_handling(integration_client: AsyncClient, test_user: User):
     """
     Test that whitespace is properly handled in credentials
-    
+
     Validates:
     - Leading/trailing spaces are trimmed
     - Tab characters are handled
@@ -288,25 +255,24 @@ async def test_login_whitespace_handling(integration_client: AsyncClient, test_u
     """
     # Try login with spaces around email
     response_spaces = await integration_client.post(
-        "/api/v1/auth/signin",
-        json={
-            "email": f"  {test_user.email}  ",
-            "password": TEST_PASSWORD
-        }
+        "/api/v1/auth/signin", json={"email": f"  {test_user.email}  ", "password": TEST_PASSWORD}
     )
 
     # Should either succeed (email trimmed) or fail with validation error
-    assert response_spaces.status_code in [200, 400, 422], f"Unexpected status: {response_spaces.status_code}"
+    assert response_spaces.status_code in [
+        200,
+        400,
+        422,
+    ], f"Unexpected status: {response_spaces.status_code}"
 
     # Test that password spaces are NOT trimmed (different password should fail)
     login_data_password = {
         "email": test_user.email,
-        "password": f"  {TEST_PASSWORD}  "  # Different password with spaces
+        "password": f"  {TEST_PASSWORD}  ",  # Different password with spaces
     }
 
     response_password = await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data_password
+        "/api/v1/auth/signin", json=login_data_password
     )
 
     # Should fail because password is different
@@ -314,16 +280,15 @@ async def test_login_whitespace_handling(integration_client: AsyncClient, test_u
 
     # Try login with tabs
     response_tabs = await integration_client.post(
-        "/api/v1/auth/signin",
-        json={
-            "email": f"\t{test_user.email}\t",
-            "password": TEST_PASSWORD
-        }
+        "/api/v1/auth/signin", json={"email": f"\t{test_user.email}\t", "password": TEST_PASSWORD}
     )
 
     # Should either succeed (email trimmed) or fail with validation error
-    assert response_tabs.status_code in [200, 400, 422], f"Unexpected status: {response_tabs.status_code}"
-
+    assert response_tabs.status_code in [
+        200,
+        400,
+        422,
+    ], f"Unexpected status: {response_tabs.status_code}"
 
 
 @pytest.mark.asyncio
@@ -332,7 +297,7 @@ async def test_login_whitespace_handling(integration_client: AsyncClient, test_u
 async def test_login_missing_fields(integration_client: AsyncClient):
     """
     Test validation of required login fields
-    
+
     Validates:
     - Missing email returns 422
     - Missing password returns 422
@@ -340,32 +305,25 @@ async def test_login_missing_fields(integration_client: AsyncClient):
     """
     # Try login without email
     response_no_email = await integration_client.post(
-        "/api/v1/auth/signin",
-        json={"password": "SomePassword123!"}
+        "/api/v1/auth/signin", json={"password": "SomePassword123!"}
     )
     assert response_no_email.status_code in [400, 422], "Should reject missing email"
 
     # Try login without password
     response_no_password = await integration_client.post(
-        "/api/v1/auth/signin",
-        json={"email": "test@example.com"}
+        "/api/v1/auth/signin", json={"email": "test@example.com"}
     )
     assert response_no_password.status_code in [400, 422], "Should reject missing password"
 
     # Try login with empty payload
-    response_empty = await integration_client.post(
-        "/api/v1/auth/signin",
-        json={}
-    )
+    response_empty = await integration_client.post("/api/v1/auth/signin", json={})
     assert response_empty.status_code in [400, 422], "Should reject empty request"
 
     # Empty strings
     response_empty_strings = await integration_client.post(
-        "/api/v1/auth/signin",
-        json={"email": "", "password": ""}
+        "/api/v1/auth/signin", json={"email": "", "password": ""}
     )
     assert response_empty_strings.status_code in [400, 422], "Should reject empty strings"
-
 
 
 @pytest.mark.asyncio
@@ -387,10 +345,7 @@ async def test_login_sql_injection_prevention(integration_client: AsyncClient):
     ]
 
     for payload in sql_injection_payloads:
-        response = await integration_client.post(
-            "/api/v1/auth/signin",
-            json=payload
-        )
+        response = await integration_client.post("/api/v1/auth/signin", json=payload)
 
         # Should safely reject without executing SQL
         assert response.status_code in [401, 400, 422], f"SQL injection not prevented: {payload}"
@@ -400,7 +355,6 @@ async def test_login_sql_injection_prevention(integration_client: AsyncClient):
         assert "sql" not in response_text
         assert "database" not in response_text
         assert "query" not in response_text
-
 
 
 @pytest.mark.asyncio
@@ -416,15 +370,9 @@ async def test_login_response_contains_user_data(integration_client: AsyncClient
     - No sensitive data (password, password_hash)
     - Proper data types
     """
-    login_data = {
-        "email": test_user.email,
-        "password": TEST_PASSWORD
-    }
+    login_data = {"email": test_user.email, "password": TEST_PASSWORD}
 
-    response = await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data
-    )
+    response = await integration_client.post("/api/v1/auth/signin", json=login_data)
 
     assert response.status_code == 200
 
@@ -444,7 +392,6 @@ async def test_login_response_contains_user_data(integration_client: AsyncClient
     assert user_data["email"] == test_user.email
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
@@ -457,22 +404,13 @@ async def test_concurrent_logins_allowed(integration_client: AsyncClient, test_u
     - Each session has unique token
     - All tokens valid simultaneously
     """
-    login_data = {
-        "email": test_user.email,
-        "password": TEST_PASSWORD
-    }
+    login_data = {"email": test_user.email, "password": TEST_PASSWORD}
 
     # First login
-    response1 = await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data
-    )
+    response1 = await integration_client.post("/api/v1/auth/signin", json=login_data)
 
     # Second login (simulating different device)
-    response2 = await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data
-    )
+    response2 = await integration_client.post("/api/v1/auth/signin", json=login_data)
 
     assert response1.status_code == 200
     assert response2.status_code == 200
@@ -488,7 +426,6 @@ async def test_concurrent_logins_allowed(integration_client: AsyncClient, test_u
     assert token1 != token2, "Each login should create unique token"
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
@@ -501,15 +438,9 @@ async def test_login_updates_last_login_timestamp(integration_client: AsyncClien
     - User agent tracked (if implemented)
     - IP address logged (if implemented)
     """
-    login_data = {
-        "email": test_user.email,
-        "password": TEST_PASSWORD
-    }
+    login_data = {"email": test_user.email, "password": TEST_PASSWORD}
 
-    response = await integration_client.post(
-        "/api/v1/auth/signin",
-        json=login_data
-    )
+    response = await integration_client.post("/api/v1/auth/signin", json=login_data)
 
     assert response.status_code == 200
 
@@ -519,7 +450,6 @@ async def test_login_updates_last_login_timestamp(integration_client: AsyncClien
     # Check for timestamp fields (implementation dependent)
     # At minimum, response should succeed without errors
     assert "email" in user_data
-
 
 
 @pytest.mark.asyncio
@@ -542,14 +472,10 @@ async def test_login_malformed_json(integration_client: AsyncClient):
     ]
 
     for payload in invalid_payloads:
-        response = await integration_client.post(
-            "/api/v1/auth/signin",
-            json=payload
-        )
+        response = await integration_client.post("/api/v1/auth/signin", json=payload)
 
         # Should reject with validation error
         assert response.status_code in [400, 422], f"Should reject invalid payload: {payload}"
-
 
 
 @pytest.mark.asyncio
@@ -572,17 +498,11 @@ async def test_login_rate_limiting(integration_client: AsyncClient, test_user: U
     # This test is skipped because rate limiting is mocked in conftest.py
     # Manual testing: Run without MockLimiter to verify rate limiting works
 
-    login_data = {
-        "email": test_user.email,
-        "password": "WrongPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "WrongPassword123!"}
 
     # Attempt multiple rapid logins
     for i in range(15):
-        response = await integration_client.post(
-            "/api/v1/auth/signin",
-            json=login_data
-        )
+        response = await integration_client.post("/api/v1/auth/signin", json=login_data)
 
         # After configured limit, should return 429
         if response.status_code == 429:

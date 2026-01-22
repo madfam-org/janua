@@ -9,11 +9,13 @@ import uuid
 import enum
 
 from . import Base
+
 # Import models from main models module for convenience
 
 
 class SSOProvider(str, enum.Enum):
     """SSO provider types"""
+
     SAML = "saml"
     OIDC = "oidc"
     OAUTH2 = "oauth2"
@@ -23,6 +25,7 @@ class SSOProvider(str, enum.Enum):
 
 class SSOStatus(str, enum.Enum):
     """SSO configuration status"""
+
     ACTIVE = "active"
     INACTIVE = "inactive"
     PENDING = "pending"
@@ -144,15 +147,22 @@ class SSOConfiguration(Base):
 
 class SCIMConfiguration(Base):
     """SCIM provisioning configuration for an organization"""
+
     __tablename__ = "scim_configurations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, unique=True)
-    provider = Column(String(50), default="custom")  # okta, azure_ad, onelogin, google_workspace, jumpcloud, ping_identity, custom
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, unique=True
+    )
+    provider = Column(
+        String(50), default="custom"
+    )  # okta, azure_ad, onelogin, google_workspace, jumpcloud, ping_identity, custom
     enabled = Column(Boolean, default=False)
     base_url = Column(String(500))
     bearer_token = Column(String(500))
-    configuration = Column(JSONB, default={})  # Provider-specific settings (attribute mappings, etc.)
+    configuration = Column(
+        JSONB, default={}
+    )  # Provider-specific settings (attribute mappings, etc.)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -194,6 +204,7 @@ class SCIMResource(Base):
 
 class SCIMSyncLog(Base):
     """Track SCIM sync operations for audit and debugging"""
+
     __tablename__ = "scim_sync_logs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -214,6 +225,7 @@ class SCIMSyncLog(Base):
 
 class SCIMProvider(str, enum.Enum):
     """Supported SCIM identity providers"""
+
     OKTA = "okta"
     AZURE_AD = "azure_ad"
     ONELOGIN = "onelogin"

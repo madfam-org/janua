@@ -4,6 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class MigrationService:
     """Placeholder migration service for enterprise features"""
 
@@ -22,7 +23,7 @@ class MigrationService:
         batch_size: int = 100,
         organization_id: str = None,
         provider: str = None,
-        config: Dict[str, Any] = None
+        config: Dict[str, Any] = None,
     ):
         """
         Start a migration job.
@@ -41,13 +42,13 @@ class MigrationService:
                 "type": "start",
                 "job_id": job_id,
                 "status": "started",
-                "message": "Migration feature not yet implemented"
+                "message": "Migration feature not yet implemented",
             }
             yield {
                 "type": "complete",
                 "job_id": job_id,
                 "status": "completed",
-                "message": "Migration feature placeholder completed"
+                "message": "Migration feature placeholder completed",
             }
         else:
             # Use parameterized logging to prevent log injection
@@ -55,7 +56,7 @@ class MigrationService:
             yield {
                 "id": "migration_job_id",
                 "status": "pending",
-                "message": "Migration feature not yet implemented"
+                "message": "Migration feature not yet implemented",
             }
 
     async def get_migration_status(self, job_id: str) -> Dict[str, Any]:
@@ -63,7 +64,7 @@ class MigrationService:
         return {
             "id": job_id,
             "status": "pending",
-            "message": "Migration feature not yet implemented"
+            "message": "Migration feature not yet implemented",
         }
 
     async def cancel_migration(self, job_id: str) -> bool:
@@ -84,35 +85,17 @@ class MigrationService:
     async def _migrate_cognito(self, config: Dict[str, Any]) -> None:
         """AWS Cognito migration handler"""
 
-    async def export_users(
-        self,
-        organization_id: str,
-        format: str = "json"
-    ) -> bytes:
+    async def export_users(self, organization_id: str, format: str = "json") -> bytes:
         """Export users for migration"""
         # Placeholder
         return b'{"users": []}'
 
     async def import_users(
-        self,
-        organization_id: str,
-        data: bytes,
-        format: str = "json"
+        self, organization_id: str, data: bytes, format: str = "json"
     ) -> Dict[str, Any]:
         """Import users from migration data"""
-        return {
-            "imported": 0,
-            "failed": 0,
-            "message": "Migration feature not yet implemented"
-        }
+        return {"imported": 0, "failed": 0, "message": "Migration feature not yet implemented"}
 
-    async def validate_migration_data(
-        self,
-        data: bytes,
-        format: str = "json"
-    ) -> Dict[str, Any]:
+    async def validate_migration_data(self, data: bytes, format: str = "json") -> Dict[str, Any]:
         """Validate migration data before import"""
-        return {
-            "valid": False,
-            "errors": ["Migration feature not yet implemented"]
-        }
+        return {"valid": False, "errors": ["Migration feature not yet implemented"]}

@@ -8,7 +8,6 @@ from typing import Dict, Optional
 from uuid import UUID, uuid4
 
 
-
 @dataclass
 class Organization:
     """Organization aggregate root containing business logic and invariants"""
@@ -45,7 +44,9 @@ class Organization:
             raise ValueError("Organization slug cannot exceed 100 characters")
 
         if not self._is_valid_slug(self.slug):
-            raise ValueError("Organization slug must contain only lowercase letters, numbers, and hyphens")
+            raise ValueError(
+                "Organization slug must contain only lowercase letters, numbers, and hyphens"
+            )
 
         if self.description and len(self.description) > 1000:
             raise ValueError("Organization description cannot exceed 1000 characters")
@@ -56,7 +57,8 @@ class Organization:
     def _is_valid_slug(self, slug: str) -> bool:
         """Validate slug format"""
         import re
-        return bool(re.match(r'^[a-z0-9-]+$', slug))
+
+        return bool(re.match(r"^[a-z0-9-]+$", slug))
 
     def update_name(self, name: str) -> None:
         """Update organization name with validation"""
@@ -90,7 +92,8 @@ class Organization:
         if billing_email:
             # Basic email validation
             import re
-            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+
+            email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
             if not re.match(email_pattern, billing_email):
                 raise ValueError("Invalid email format")
 

@@ -203,12 +203,10 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
 
         if not is_allowed:
             # Rate limit exceeded - log with redacted client ID (CWE-117 prevention)
-            redacted_id = _redact_client_id(client_id)  # nosec B608 - data is redacted before logging
-            logger.warning(
-                "Rate limit exceeded: client=%s, path=%s",
-                redacted_id,
-                path
-            )
+            redacted_id = _redact_client_id(
+                client_id
+            )  # nosec B608 - data is redacted before logging
+            logger.warning("Rate limit exceeded: client=%s, path=%s", redacted_id, path)
 
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -256,7 +254,9 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
         api_key = request.headers.get("X-API-Key")
         if api_key:
             # Hash the API key for storage - SHA256 is secure (not weak)
-            hashed_key = hashlib.sha256(api_key.encode()).hexdigest()[:16]  # nosec B324 - SHA256 is cryptographically secure
+            hashed_key = hashlib.sha256(api_key.encode()).hexdigest()[
+                :16
+            ]  # nosec B324 - SHA256 is cryptographically secure
             return f"api:{hashed_key}"
 
         # Fall back to IP address
@@ -336,11 +336,13 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
 
         except Exception as e:
             # Log with redacted client ID (CWE-117 prevention)
-            redacted_id = _redact_client_id(client_id)  # nosec B608 - data is redacted before logging
+            redacted_id = _redact_client_id(
+                client_id
+            )  # nosec B608 - data is redacted before logging
             logger.warning(
                 "Failed to apply tier multiplier: client=%s, error_type=%s",
                 redacted_id,
-                type(e).__name__
+                type(e).__name__,
             )
             return base_limit
 
@@ -389,11 +391,11 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             # Log with redacted user ID (CWE-117 prevention)
             # Only show first 8 chars of UUID for debugging
-            redacted_user = user_id[:8] + "***" if len(user_id) > 8 else user_id[:2] + "***"  # nosec B608
+            redacted_user = (
+                user_id[:8] + "***" if len(user_id) > 8 else user_id[:2] + "***"
+            )  # nosec B608
             logger.warning(
-                "Failed to fetch user tier: user=%s, error_type=%s",
-                redacted_user,
-                type(e).__name__
+                "Failed to fetch user tier: user=%s, error_type=%s", redacted_user, type(e).__name__
             )
             return "free"
 
@@ -417,10 +419,7 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
                 )
             except Exception as e:
                 # Log error without exposing internal details (CWE-117 prevention)
-                logger.error(
-                    "Redis rate limit check failed: error_type=%s",
-                    type(e).__name__
-                )
+                logger.error("Redis rate limit check failed: error_type=%s", type(e).__name__)
                 # Fall back to local cache
 
         # Use local in-memory cache as fallback
@@ -512,10 +511,7 @@ class GlobalRateLimitMiddleware(BaseHTTPMiddleware):
         self.last_cleanup = current_time
 
         if expired_keys:
-            logger.debug(
-                "Cleaned up expired rate limit entries: count=%d",
-                len(expired_keys)
-            )
+            logger.debug("Cleaned up expired rate limit entries: count=%d", len(expired_keys))
 
 
 class AdvancedRateLimitFeatures:
@@ -579,11 +575,11 @@ class AdvancedRateLimitFeatures:
         except Exception as e:
             # Log with redacted user ID (CWE-117 prevention)
             user_id_str = str(user_id)
-            redacted_user = user_id_str[:8] + "***" if len(user_id_str) > 8 else user_id_str[:2] + "***"  # nosec B608
+            redacted_user = (
+                user_id_str[:8] + "***" if len(user_id_str) > 8 else user_id_str[:2] + "***"
+            )  # nosec B608
             logger.warning(
-                "Failed to fetch user tier: user=%s, error_type=%s",
-                redacted_user,
-                type(e).__name__
+                "Failed to fetch user tier: user=%s, error_type=%s", redacted_user, type(e).__name__
             )
             return "free"  # Default to free on error
 
@@ -686,7 +682,7 @@ class AdvancedRateLimitFeatures:
                 logger.warning(
                     "Circuit breaker opened for endpoint: path=%s, failures=%d",
                     path,
-                    state["failures"]
+                    state["failures"],
                 )
 
     @classmethod
@@ -712,7 +708,7 @@ def create_rate_limit_middleware(app, redis_url: Optional[str] = None):
             # Log without exposing connection details (CWE-117 prevention)
             logger.warning(
                 "Redis connection failed, using local rate limiting: error_type=%s",
-                type(e).__name__
+                type(e).__name__,
             )
 
     return GlobalRateLimitMiddleware(app, redis_client)

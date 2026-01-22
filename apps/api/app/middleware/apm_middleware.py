@@ -28,7 +28,7 @@ class APMMiddleware(BaseHTTPMiddleware):
         exclude_paths: Optional[list] = None,
         trace_level: str = "standard",
         enable_profiling: bool = True,
-        enable_tracing: bool = True
+        enable_tracing: bool = True,
     ):
         super().__init__(app)
         self.exclude_paths = exclude_paths or ["/health", "/metrics", "/favicon.ico"]
@@ -77,7 +77,7 @@ class APMMiddleware(BaseHTTPMiddleware):
         request.state.apm_context = {
             "request_id": request_id,
             "trace_id": trace_id,
-            "start_time": start_time
+            "start_time": start_time,
         }
 
         response = None
@@ -104,11 +104,13 @@ class APMMiddleware(BaseHTTPMiddleware):
             error_occurred = True
             status_code = 500
 
-            logger.error("Unhandled exception in request",
-                        request_id=request_id,
-                        error=str(e),
-                        path=path,
-                        method=method)
+            logger.error(
+                "Unhandled exception in request",
+                request_id=request_id,
+                error=str(e),
+                path=path,
+                method=method,
+            )
 
             if self.enable_profiling:
                 apm_collector.increment_profile_counter(request_id, "error")
@@ -124,7 +126,7 @@ class APMMiddleware(BaseHTTPMiddleware):
             # Return error response
             response = JSONResponse(
                 status_code=500,
-                content={"detail": "Internal server error", "request_id": request_id}
+                content={"detail": "Internal server error", "request_id": request_id},
             )
 
         finally:
@@ -165,7 +167,7 @@ class APMMiddleware(BaseHTTPMiddleware):
                 status_code=status_code,
                 duration_ms=duration * 1000,
                 client_ip=client_ip,
-                user_agent=user_agent
+                user_agent=user_agent,
             )
 
         return response
@@ -198,7 +200,7 @@ class DatabaseAPMMiddleware:
         start_time = time.time()
 
         # Get current request context if available
-        request_id = getattr(RequestContext.get(), 'request_id', None)
+        request_id = getattr(RequestContext.get(), "request_id", None)
 
         try:
             # Increment database call counter in active profile
@@ -224,7 +226,7 @@ class RedisAPMMiddleware:
         start_time = time.time()
 
         # Get current request context if available
-        request_id = getattr(RequestContext.get(), 'request_id', None)
+        request_id = getattr(RequestContext.get(), "request_id", None)
 
         try:
             # Increment Redis call counter in active profile
@@ -243,13 +245,15 @@ class RedisAPMMiddleware:
 # Decorator for automatic database operation monitoring
 def monitor_db_operation(operation: str, table: str):
     """Decorator to monitor database operations"""
+
     def decorator(func):
         if asyncio.iscoroutinefunction(func):
+
             async def async_wrapper(*args, **kwargs):
                 start_time = time.time()
                 try:
                     # Get current request context
-                    request_id = getattr(RequestContext.get(), 'request_id', None)
+                    request_id = getattr(RequestContext.get(), "request_id", None)
                     if request_id:
                         apm_collector.increment_profile_counter(request_id, "database")
 
@@ -258,13 +262,15 @@ def monitor_db_operation(operation: str, table: str):
                 finally:
                     duration = time.time() - start_time
                     apm_collector.record_database_operation(operation, table, duration)
+
             return async_wrapper
         else:
+
             def sync_wrapper(*args, **kwargs):
                 start_time = time.time()
                 try:
                     # Get current request context
-                    request_id = getattr(RequestContext.get(), 'request_id', None)
+                    request_id = getattr(RequestContext.get(), "request_id", None)
                     if request_id:
                         apm_collector.increment_profile_counter(request_id, "database")
 
@@ -273,20 +279,24 @@ def monitor_db_operation(operation: str, table: str):
                 finally:
                     duration = time.time() - start_time
                     apm_collector.record_database_operation(operation, table, duration)
+
             return sync_wrapper
+
     return decorator
 
 
 # Decorator for automatic Redis operation monitoring
 def monitor_redis_operation(operation: str, key_pattern: str = "unknown"):
     """Decorator to monitor Redis operations"""
+
     def decorator(func):
         if asyncio.iscoroutinefunction(func):
+
             async def async_wrapper(*args, **kwargs):
                 start_time = time.time()
                 try:
                     # Get current request context
-                    request_id = getattr(RequestContext.get(), 'request_id', None)
+                    request_id = getattr(RequestContext.get(), "request_id", None)
                     if request_id:
                         apm_collector.increment_profile_counter(request_id, "redis")
 
@@ -295,13 +305,15 @@ def monitor_redis_operation(operation: str, key_pattern: str = "unknown"):
                 finally:
                     duration = time.time() - start_time
                     apm_collector.record_redis_operation(operation, key_pattern, duration)
+
             return async_wrapper
         else:
+
             def sync_wrapper(*args, **kwargs):
                 start_time = time.time()
                 try:
                     # Get current request context
-                    request_id = getattr(RequestContext.get(), 'request_id', None)
+                    request_id = getattr(RequestContext.get(), "request_id", None)
                     if request_id:
                         apm_collector.increment_profile_counter(request_id, "redis")
 
@@ -310,20 +322,24 @@ def monitor_redis_operation(operation: str, key_pattern: str = "unknown"):
                 finally:
                     duration = time.time() - start_time
                     apm_collector.record_redis_operation(operation, key_pattern, duration)
+
             return sync_wrapper
+
     return decorator
 
 
 # Decorator for external API call monitoring
 def monitor_external_api(service_name: str):
     """Decorator to monitor external API calls"""
+
     def decorator(func):
         if asyncio.iscoroutinefunction(func):
+
             async def async_wrapper(*args, **kwargs):
                 start_time = time.time()
                 try:
                     # Get current request context
-                    request_id = getattr(RequestContext.get(), 'request_id', None)
+                    request_id = getattr(RequestContext.get(), "request_id", None)
                     if request_id:
                         apm_collector.increment_profile_counter(request_id, "external_api")
 
@@ -336,16 +352,18 @@ def monitor_external_api(service_name: str):
                 finally:
                     duration = time.time() - start_time
                     # You could add specific external API metrics here
-                    logger.info("External API call",
-                              service=service_name,
-                              duration_ms=duration * 1000)
+                    logger.info(
+                        "External API call", service=service_name, duration_ms=duration * 1000
+                    )
+
             return async_wrapper
         else:
+
             def sync_wrapper(*args, **kwargs):
                 start_time = time.time()
                 try:
                     # Get current request context
-                    request_id = getattr(RequestContext.get(), 'request_id', None)
+                    request_id = getattr(RequestContext.get(), "request_id", None)
                     if request_id:
                         apm_collector.increment_profile_counter(request_id, "external_api")
 
@@ -357,8 +375,10 @@ def monitor_external_api(service_name: str):
                     raise
                 finally:
                     duration = time.time() - start_time
-                    logger.info("External API call",
-                              service=service_name,
-                              duration_ms=duration * 1000)
+                    logger.info(
+                        "External API call", service=service_name, duration_ms=duration * 1000
+                    )
+
             return sync_wrapper
+
     return decorator

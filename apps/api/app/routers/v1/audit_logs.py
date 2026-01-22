@@ -21,6 +21,7 @@ router = APIRouter(prefix="/v1/audit-logs", tags=["audit-logs"])
 
 class AuditLogResponse(BaseModel):
     """Response model for audit log entries."""
+
     id: str
     action: str
     user_id: Optional[str]
@@ -38,6 +39,7 @@ class AuditLogResponse(BaseModel):
 
 class AuditLogListResponse(BaseModel):
     """Response model for paginated audit log list."""
+
     logs: List[AuditLogResponse]
     total: int
     cursor: Optional[str]
@@ -46,6 +48,7 @@ class AuditLogListResponse(BaseModel):
 
 class AuditLogStatsResponse(BaseModel):
     """Response model for audit log statistics."""
+
     total_events: int
     events_by_action: Dict[str, int]
     events_by_user: List[Dict[str, Any]]
@@ -58,6 +61,7 @@ class AuditLogStatsResponse(BaseModel):
 
 class AuditLogExportRequest(BaseModel):
     """Request model for audit log export."""
+
     format: str = Field("json", pattern="^(json|csv)$")
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
@@ -78,7 +82,7 @@ async def list_audit_logs(
     limit: int = Query(100, ge=1, le=1000),
     cursor: Optional[str] = Query(None, description="Pagination cursor"),
     current_user=Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Query audit logs with filtering and pagination.
@@ -146,6 +150,7 @@ async def list_audit_logs(
 
     if user_ids:
         from app.models.user import User
+
         users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
         users = users_result.scalars().all()
         user_email_map = {str(user.id): user.email for user in users}
@@ -154,24 +159,23 @@ async def list_audit_logs(
     log_responses = []
     for log in logs:
         user_id_str = str(log.user_id) if log.user_id else None
-        log_responses.append(AuditLogResponse(
-            id=str(log.id),
-            action=log.action,
-            user_id=user_id_str,
-            user_email=user_email_map.get(user_id_str) if user_id_str else None,
-            resource_type=log.resource_type,
-            resource_id=str(log.resource_id) if log.resource_id else None,
-            details=log.details,
-            ip_address=str(log.ip_address) if log.ip_address else None,
-            user_agent=log.user_agent,
-            timestamp=log.created_at  # Map created_at to timestamp for frontend
-        ))
+        log_responses.append(
+            AuditLogResponse(
+                id=str(log.id),
+                action=log.action,
+                user_id=user_id_str,
+                user_email=user_email_map.get(user_id_str) if user_id_str else None,
+                resource_type=log.resource_type,
+                resource_id=str(log.resource_id) if log.resource_id else None,
+                details=log.details,
+                ip_address=str(log.ip_address) if log.ip_address else None,
+                user_agent=log.user_agent,
+                timestamp=log.created_at,  # Map created_at to timestamp for frontend
+            )
+        )
 
     return AuditLogListResponse(
-        logs=log_responses,
-        total=total,
-        cursor=next_cursor,
-        has_more=has_more
+        logs=log_responses, total=total, cursor=next_cursor, has_more=has_more
     )
 
 
@@ -180,7 +184,7 @@ async def get_audit_stats(
     start_date: Optional[datetime] = Query(None, description="Start of time range"),
     end_date: Optional[datetime] = Query(None, description="End of time range"),
     current_user=Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get audit log statistics (admin only).
@@ -193,10 +197,7 @@ async def get_audit_stats(
 
     # Build base query - use created_at for time filtering
     stmt = select(AuditLog).where(
-        and_(
-            AuditLog.created_at >= start_date,
-            AuditLog.created_at <= end_date
-        )
+        and_(AuditLog.created_at >= start_date, AuditLog.created_at <= end_date)
     )
 
     result = await db.execute(stmt)
@@ -224,23 +225,24 @@ async def get_audit_stats(
     user_email_map = {}
     if top_user_ids:
         from app.models.user import User
+
         users_result = await db.execute(select(User).where(User.id.in_(top_user_ids)))
         users = users_result.scalars().all()
         user_email_map = {str(user.id): user.email for user in users}
 
     events_by_user = []
     for user_id, count in top_10_users:
-        events_by_user.append({
-            "user_id": user_id,
-            "email": user_email_map.get(user_id, "Unknown"),
-            "count": count
-        })
+        events_by_user.append(
+            {"user_id": user_id, "email": user_email_map.get(user_id, "Unknown"), "count": count}
+        )
 
     # Events by resource type
     events_by_resource_type = {}
     for log in logs:
         if log.resource_type:
-            events_by_resource_type[log.resource_type] = events_by_resource_type.get(log.resource_type, 0) + 1
+            events_by_resource_type[log.resource_type] = (
+                events_by_resource_type.get(log.resource_type, 0) + 1
+            )
 
     # Events by hour (last 24 hours) - use created_at
     events_by_hour = []
@@ -251,10 +253,7 @@ async def get_audit_stats(
             hour_counts[hour] = hour_counts.get(hour, 0) + 1
 
     for hour in sorted(hour_counts.keys()):
-        events_by_hour.append({
-            "hour": hour.isoformat(),
-            "count": hour_counts[hour]
-        })
+        events_by_hour.append({"hour": hour.isoformat(), "count": hour_counts[hour]})
 
     # Unique users and IPs
     unique_users = len(set(str(log.user_id) for log in logs if log.user_id))
@@ -268,18 +267,13 @@ async def get_audit_stats(
         events_by_hour=events_by_hour,
         unique_users=unique_users,
         unique_ips=unique_ips,
-        time_range={
-            "start": start_date,
-            "end": end_date
-        }
+        time_range={"start": start_date, "end": end_date},
     )
 
 
 @router.get("/{log_id}", response_model=AuditLogResponse)
 async def get_audit_log(
-    log_id: str,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db)
+    log_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """
     Get a specific audit log entry by ID.
@@ -289,21 +283,18 @@ async def get_audit_log(
 
     if not log:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Audit log entry not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Audit log entry not found"
         )
 
     # Non-admins can only see their own logs
     if not current_user.is_admin and log.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     # Get user email if available
     user_email = None
     if log.user_id:
         from app.models.user import User
+
         user_result = await db.execute(select(User).where(User.id == log.user_id))
         user = user_result.scalar_one_or_none()
         if user:
@@ -319,7 +310,7 @@ async def get_audit_log(
         details=log.details,
         ip_address=str(log.ip_address) if log.ip_address else None,
         user_agent=log.user_agent,
-        timestamp=log.created_at
+        timestamp=log.created_at,
     )
 
 
@@ -328,7 +319,7 @@ async def export_audit_logs(
     export_request: AuditLogExportRequest,
     background_tasks: BackgroundTasks,
     current_user=Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Export audit logs in JSON or CSV format (admin only).
@@ -364,6 +355,7 @@ async def export_audit_logs(
 
     if user_ids:
         from app.models.user import User
+
         users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
         users = users_result.scalars().all()
         user_email_map = {str(user.id): user.email for user in users}
@@ -377,27 +369,38 @@ async def export_audit_logs(
         writer = csv.writer(output)
 
         # Write header
-        writer.writerow([
-            "ID", "Timestamp", "Action", "User ID", "User Email",
-            "Resource Type", "Resource ID", "IP Address", "User Agent",
-            "Details"
-        ])
+        writer.writerow(
+            [
+                "ID",
+                "Timestamp",
+                "Action",
+                "User ID",
+                "User Email",
+                "Resource Type",
+                "Resource ID",
+                "IP Address",
+                "User Agent",
+                "Details",
+            ]
+        )
 
         # Write data
         for log in logs:
             user_id_str = str(log.user_id) if log.user_id else ""
-            writer.writerow([
-                str(log.id),
-                log.created_at.isoformat(),
-                log.action,
-                user_id_str,
-                user_email_map.get(user_id_str, ""),
-                log.resource_type or "",
-                str(log.resource_id) if log.resource_id else "",
-                str(log.ip_address) if log.ip_address else "",
-                log.user_agent or "",
-                json.dumps(log.details) if log.details else ""
-            ])
+            writer.writerow(
+                [
+                    str(log.id),
+                    log.created_at.isoformat(),
+                    log.action,
+                    user_id_str,
+                    user_email_map.get(user_id_str, ""),
+                    log.resource_type or "",
+                    str(log.resource_id) if log.resource_id else "",
+                    str(log.ip_address) if log.ip_address else "",
+                    log.user_agent or "",
+                    json.dumps(log.details) if log.details else "",
+                ]
+            )
 
         content = output.getvalue()
         content_type = "text/csv"
@@ -407,18 +410,20 @@ async def export_audit_logs(
         export_data = []
         for log in logs:
             user_id_str = str(log.user_id) if log.user_id else None
-            export_data.append({
-                "id": str(log.id),
-                "timestamp": log.created_at.isoformat(),
-                "action": log.action,
-                "user_id": user_id_str,
-                "user_email": user_email_map.get(user_id_str) if user_id_str else None,
-                "resource_type": log.resource_type,
-                "resource_id": str(log.resource_id) if log.resource_id else None,
-                "ip_address": str(log.ip_address) if log.ip_address else None,
-                "user_agent": log.user_agent,
-                "details": log.details
-            })
+            export_data.append(
+                {
+                    "id": str(log.id),
+                    "timestamp": log.created_at.isoformat(),
+                    "action": log.action,
+                    "user_id": user_id_str,
+                    "user_email": user_email_map.get(user_id_str) if user_id_str else None,
+                    "resource_type": log.resource_type,
+                    "resource_id": str(log.resource_id) if log.resource_id else None,
+                    "ip_address": str(log.ip_address) if log.ip_address else None,
+                    "user_agent": log.user_agent,
+                    "details": log.details,
+                }
+            )
 
         content = json.dumps(export_data, indent=2)
         content_type = "application/json"
@@ -428,24 +433,23 @@ async def export_audit_logs(
     audit_logger = AuditLogger(db)
     await audit_logger.log(
         event_type=AuditAction.AUDIT_EXPORT,
-        tenant_id=str(current_user.tenant_id) if hasattr(current_user, 'tenant_id') else "",
+        tenant_id=str(current_user.tenant_id) if hasattr(current_user, "tenant_id") else "",
         identity_id=str(current_user.id),
         resource_type="audit_logs",
         details={
             "format": export_request.format,
             "count": len(logs),
-            "filters": export_request.dict(exclude_unset=True)
-        }
+            "filters": export_request.dict(exclude_unset=True),
+        },
     )
 
     # Return export data
     from fastapi.responses import Response
+
     return Response(
         content=content,
         media_type=content_type,
-        headers={
-            "Content-Disposition": f"attachment; filename={filename}"
-        }
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
@@ -453,7 +457,7 @@ async def export_audit_logs(
 async def cleanup_old_audit_logs(
     days: int = Query(90, ge=30, le=365, description="Delete logs older than this many days"),
     current_user=Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Delete old audit logs for compliance (admin only).
@@ -462,16 +466,12 @@ async def cleanup_old_audit_logs(
 
     # Count logs to be deleted - use created_at
     count_result = await db.execute(
-        select(func.count()).select_from(AuditLog).where(
-            AuditLog.created_at < cutoff_date
-        )
+        select(func.count()).select_from(AuditLog).where(AuditLog.created_at < cutoff_date)
     )
     count = count_result.scalar()
 
     # Delete logs
-    await db.execute(
-        delete(AuditLog).where(AuditLog.created_at < cutoff_date)
-    )
+    await db.execute(delete(AuditLog).where(AuditLog.created_at < cutoff_date))
 
     await db.commit()
 
@@ -479,27 +479,26 @@ async def cleanup_old_audit_logs(
     audit_logger = AuditLogger(db)
     await audit_logger.log(
         event_type=AuditAction.AUDIT_CLEANUP,
-        tenant_id=str(current_user.tenant_id) if hasattr(current_user, 'tenant_id') else "",
+        tenant_id=str(current_user.tenant_id) if hasattr(current_user, "tenant_id") else "",
         identity_id=str(current_user.id),
         resource_type="audit_logs",
         details={
             "deleted_count": count,
             "cutoff_date": cutoff_date.isoformat(),
-            "retention_days": days
-        }
+            "retention_days": days,
+        },
     )
 
     return {
         "message": f"Deleted {count} audit log entries older than {days} days",
         "deleted_count": count,
-        "cutoff_date": cutoff_date.isoformat()
+        "cutoff_date": cutoff_date.isoformat(),
     }
 
 
 @router.get("/actions/list")
 async def list_available_actions(
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user=Depends(get_current_user), db: Session = Depends(get_db)
 ):
     """
     Get list of all available audit actions.
@@ -511,14 +510,9 @@ async def list_available_actions(
     action_counts = {}
     for action in actions:
         count_result = await db.execute(
-            select(func.count()).select_from(AuditLog).where(
-                AuditLog.action == action
-            )
+            select(func.count()).select_from(AuditLog).where(AuditLog.action == action)
         )
         count = count_result.scalar()
         action_counts[action] = count
 
-    return {
-        "actions": actions,
-        "counts": action_counts
-    }
+    return {"actions": actions, "counts": action_counts}

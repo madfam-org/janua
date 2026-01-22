@@ -11,11 +11,12 @@ from pydantic import BaseModel, Field
 from enum import Enum
 
 # Type variables for generic responses
-DataT = TypeVar('DataT')
+DataT = TypeVar("DataT")
 
 
 class APIStatus(str, Enum):
     """Standard API response status codes"""
+
     SUCCESS = "success"
     ERROR = "error"
     PARTIAL = "partial"
@@ -33,10 +34,13 @@ class SDKBaseResponse(BaseModel):
     - Swift (iOS)
     - Kotlin (Android)
     """
+
     status: APIStatus = APIStatus.SUCCESS
     message: str = "Operation completed successfully"
     request_id: Optional[str] = Field(None, description="Unique request identifier for debugging")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp in UTC")
+    timestamp: datetime = Field(
+        default_factory=datetime.utcnow, description="Response timestamp in UTC"
+    )
 
 
 class SDKDataResponse(SDKBaseResponse, Generic[DataT]):
@@ -47,6 +51,7 @@ class SDKDataResponse(SDKBaseResponse, Generic[DataT]):
     - user: SDKDataResponse[UserResponse]
     - organization: SDKDataResponse[OrganizationResponse]
     """
+
     data: DataT = Field(..., description="Response data payload")
 
 
@@ -56,6 +61,7 @@ class SDKListResponse(SDKBaseResponse, Generic[DataT]):
 
     Works across all platforms with predictable field names and types.
     """
+
     data: List[DataT] = Field(..., description="List of items")
     pagination: "PaginationMetadata" = Field(..., description="Pagination information")
 
@@ -66,6 +72,7 @@ class PaginationMetadata(BaseModel):
 
     SDK-friendly with clear field names and types.
     """
+
     total: int = Field(..., description="Total number of items across all pages", ge=0)
     page: int = Field(..., description="Current page number (1-based)", ge=1)
     per_page: int = Field(..., description="Items per page", ge=1, le=100)
@@ -82,6 +89,7 @@ class SDKSuccessResponse(SDKBaseResponse):
 
     Used for DELETE operations, bulk operations, etc.
     """
+
     operation: str = Field(..., description="Operation that was performed")
     affected_count: Optional[int] = Field(None, description="Number of items affected")
 
@@ -90,6 +98,7 @@ class SDKErrorResponse(SDKBaseResponse):
     """
     Standardized error response structure for consistent SDK error handling.
     """
+
     status: APIStatus = APIStatus.ERROR
     error_code: str = Field(..., description="Machine-readable error code")
     error_type: str = Field(..., description="Error category for SDK error handling")
@@ -100,6 +109,7 @@ class SDKErrorResponse(SDKBaseResponse):
 
 class ValidationErrorDetail(BaseModel):
     """Individual validation error for field-level error reporting."""
+
     field: str = Field(..., description="Field name that failed validation")
     message: str = Field(..., description="Validation error message")
     code: str = Field(..., description="Validation error code")
@@ -110,9 +120,12 @@ class SDKValidationErrorResponse(SDKErrorResponse):
     """
     Specialized validation error response with field-level details.
     """
+
     error_code: str = "VALIDATION_ERROR"
     error_type: str = "validation"
-    validation_errors: List[ValidationErrorDetail] = Field(..., description="Field-specific validation errors")
+    validation_errors: List[ValidationErrorDetail] = Field(
+        ..., description="Field-specific validation errors"
+    )
 
 
 class BulkOperationResult(BaseModel):
@@ -121,15 +134,21 @@ class BulkOperationResult(BaseModel):
 
     Provides clear success/failure tracking for batch operations.
     """
+
     total_requested: int = Field(..., description="Total number of operations requested")
     successful_count: int = Field(..., description="Number of successful operations")
     failed_count: int = Field(..., description="Number of failed operations")
-    successful_ids: List[str] = Field(default_factory=list, description="IDs of successful operations")
-    failed_operations: List["BulkOperationError"] = Field(default_factory=list, description="Failed operations with errors")
+    successful_ids: List[str] = Field(
+        default_factory=list, description="IDs of successful operations"
+    )
+    failed_operations: List["BulkOperationError"] = Field(
+        default_factory=list, description="Failed operations with errors"
+    )
 
 
 class BulkOperationError(BaseModel):
     """Individual bulk operation error."""
+
     id: Optional[str] = Field(None, description="Item ID that failed")
     index: int = Field(..., description="Index in the request array")
     error_code: str = Field(..., description="Error code for this operation")
@@ -138,6 +157,7 @@ class BulkOperationError(BaseModel):
 
 class SDKBulkResponse(SDKBaseResponse):
     """Response for bulk operations with detailed success/failure tracking."""
+
     operation: str = Field(..., description="Bulk operation performed")
     result: BulkOperationResult = Field(..., description="Bulk operation results")
 
@@ -148,6 +168,7 @@ class RateLimitInfo(BaseModel):
 
     Allows SDKs to implement intelligent retry logic.
     """
+
     limit: int = Field(..., description="Request limit per window")
     remaining: int = Field(..., description="Remaining requests in current window")
     reset_time: datetime = Field(..., description="When the rate limit window resets")
@@ -158,6 +179,7 @@ class SDKHealthResponse(BaseModel):
     """
     API health check response for SDK monitoring.
     """
+
     status: str = Field(..., description="Overall API health status")
     version: str = Field(..., description="API version")
     environment: str = Field(..., description="Environment (production, staging, etc.)")
@@ -172,18 +194,22 @@ class FileUploadResponse(SDKBaseResponse):
 
     Replaces inconsistent file upload responses across the API.
     """
+
     file: "UploadedFileInfo" = Field(..., description="Uploaded file information")
 
 
 class UploadedFileInfo(BaseModel):
     """Information about an uploaded file."""
+
     id: str = Field(..., description="Unique file identifier")
     filename: str = Field(..., description="Original filename")
     size: int = Field(..., description="File size in bytes")
     content_type: str = Field(..., description="MIME content type")
     url: str = Field(..., description="Public URL to access the file")
     secure_url: Optional[str] = Field(None, description="Secure/authenticated URL if different")
-    upload_timestamp: datetime = Field(default_factory=datetime.utcnow, description="When the file was uploaded")
+    upload_timestamp: datetime = Field(
+        default_factory=datetime.utcnow, description="When the file was uploaded"
+    )
 
 
 class WebhookEventResponse(SDKBaseResponse):
@@ -192,6 +218,7 @@ class WebhookEventResponse(SDKBaseResponse):
 
     Provides consistent webhook handling for SDK consumers.
     """
+
     event_type: str = Field(..., description="Type of webhook event")
     event_id: str = Field(..., description="Unique event identifier")
     webhook_id: str = Field(..., description="Webhook configuration ID")
@@ -230,7 +257,6 @@ __all__ = [
     "SDKValidationErrorResponse",
     "SDKBulkResponse",
     "SDKHealthResponse",
-
     # Utility classes
     "PaginationMetadata",
     "BulkOperationResult",
@@ -240,10 +266,8 @@ __all__ = [
     "FileUploadResponse",
     "UploadedFileInfo",
     "WebhookEventResponse",
-
     # Enums
     "APIStatus",
-
     # Type aliases
     "UserSDKResponse",
     "OrganizationSDKResponse",

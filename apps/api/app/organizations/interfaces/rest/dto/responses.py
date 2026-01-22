@@ -43,7 +43,7 @@ class OrganizationResponse(BaseModel):
                 "updated_at": "2023-01-01T00:00:00Z",
                 "member_count": 5,
                 "is_owner": True,
-                "user_role": "owner"
+                "user_role": "owner",
             }
         }
 
@@ -74,7 +74,7 @@ class MemberResponse(BaseModel):
                 "role": "member",
                 "permissions": ["read", "write"],
                 "joined_at": "2023-01-01T00:00:00Z",
-                "invited_by": "456e7890-e89b-12d3-a456-426614174001"
+                "invited_by": "456e7890-e89b-12d3-a456-426614174001",
             }
         }
 
@@ -107,7 +107,7 @@ class InvitationResponse(BaseModel):
                 "inviter_name": "Jane Doe",
                 "status": "pending",
                 "created_at": "2023-01-01T00:00:00Z",
-                "expires_at": "2023-01-08T00:00:00Z"
+                "expires_at": "2023-01-08T00:00:00Z",
             }
         }
 
@@ -132,7 +132,7 @@ class RoleResponse(BaseModel):
                 "permissions": ["read", "write", "manage_content"],
                 "is_system": False,
                 "created_at": "2023-01-01T00:00:00Z",
-                "updated_at": "2023-01-01T00:00:00Z"
+                "updated_at": "2023-01-01T00:00:00Z",
             }
         }
 
@@ -149,7 +149,7 @@ class InviteResultResponse(BaseModel):
             "example": {
                 "message": "Invitation sent successfully",
                 "invitation_id": "123e4567-e89b-12d3-a456-426614174000",
-                "expires_at": "2023-01-08T00:00:00Z"
+                "expires_at": "2023-01-08T00:00:00Z",
             }
         }
 
@@ -167,8 +167,8 @@ class AcceptInvitationResponse(BaseModel):
                 "organization": {
                     "id": "123e4567-e89b-12d3-a456-426614174000",
                     "name": "My Organization",
-                    "slug": "my-org"
-                }
+                    "slug": "my-org",
+                },
             }
         }
 
@@ -179,8 +179,4 @@ class SuccessResponse(BaseModel):
     message: str = Field(..., description="Success message")
 
     class Config:
-        schema_extra = {
-            "example": {
-                "message": "Operation completed successfully"
-            }
-        }
+        schema_extra = {"example": {"message": "Operation completed successfully"}}

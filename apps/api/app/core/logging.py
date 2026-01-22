@@ -16,8 +16,8 @@ def configure_logging():
     # Configure standard library logging
     logging.basicConfig(
         level=logging.DEBUG if settings.DEBUG else logging.INFO,
-        format='%(message)s',
-        handlers=[logging.StreamHandler(sys.stdout)]
+        format="%(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
 
     # Configure structlog
@@ -68,7 +68,7 @@ class AuditLogger:
         resource_type: Optional[str] = None,
         resource_id: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ):
         """Log an audit event"""
         self.logger.info(
@@ -79,7 +79,7 @@ class AuditLogger:
             resource_type=resource_type,
             resource_id=resource_id,
             details=details or {},
-            **kwargs
+            **kwargs,
         )
 
 
@@ -97,7 +97,7 @@ class SecurityLogger:
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ):
         """Log a security event"""
         self.logger.warning(
@@ -108,7 +108,7 @@ class SecurityLogger:
             ip_address=ip_address,
             user_agent=user_agent,
             details=details or {},
-            **kwargs
+            **kwargs,
         )
 
 
@@ -124,7 +124,7 @@ class PerformanceLogger:
         value: float,
         unit: str = "ms",
         context: Optional[Dict[str, Any]] = None,
-        **kwargs
+        **kwargs,
     ):
         """Log a performance metric"""
         self.logger.info(
@@ -133,7 +133,7 @@ class PerformanceLogger:
             value=value,
             unit=unit,
             context=context or {},
-            **kwargs
+            **kwargs,
         )
 
 

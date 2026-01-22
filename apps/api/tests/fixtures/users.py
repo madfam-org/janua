@@ -193,7 +193,9 @@ async def test_user_with_mfa(integration_db_session: AsyncSession) -> AsyncGener
 
 
 @pytest_asyncio.fixture
-async def test_users_batch(integration_db_session: AsyncSession) -> AsyncGenerator[list[User], None]:
+async def test_users_batch(
+    integration_db_session: AsyncSession,
+) -> AsyncGenerator[list[User], None]:
     """
     Create batch of 10 test users for list/pagination testing
 

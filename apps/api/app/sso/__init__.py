@@ -11,9 +11,9 @@ from .interfaces.rest.sso_controller import sso_router
 __all__ = [
     "SSOOrchestrator",
     "SSOProtocol",
-    "SSOConfiguration", 
+    "SSOConfiguration",
     "SSOSession",
     "SAMLProtocol",
     "OIDCProtocol",
-    "sso_router"
+    "sso_router",
 ]

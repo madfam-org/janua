@@ -12,8 +12,12 @@ from sqlalchemy import select, and_, desc
 
 from app.core.database import get_session
 from app.models.compliance import (
-    ConsentRecord, ConsentType, ConsentStatus,
-    LegalBasis, DataCategory, ComplianceFramework
+    ConsentRecord,
+    ConsentType,
+    ConsentStatus,
+    LegalBasis,
+    DataCategory,
+    ComplianceFramework,
 )
 from ..audit import AuditLogger, AuditEventType
 
@@ -39,7 +43,7 @@ class ConsentManager:
         user_agent: Optional[str] = None,
         consent_method: str = "api",
         organization_id: Optional[str] = None,
-        tenant_id: Optional[str] = None
+        tenant_id: Optional[str] = None,
     ) -> str:
         """Grant user consent with comprehensive audit trail"""
 
@@ -65,8 +69,8 @@ class ConsentManager:
                     "method": consent_method,
                     "ip_address": ip_address,
                     "user_agent": user_agent,
-                    "purpose": purpose
-                }
+                    "purpose": purpose,
+                },
             )
 
             session.add(consent)
@@ -93,15 +97,18 @@ class ConsentManager:
                 "consent_type": consent_type.value,
                 "purpose": purpose,
                 "legal_basis": legal_basis.value,
-                "consent_method": consent_method
-            }
+                "consent_method": consent_method,
+            },
         )
 
-        logger.info(f"Consent granted", extra={
-            "user_id": user_id,
-            "consent_type": consent_type.value,
-            "consent_id": consent_id
-        })
+        logger.info(
+            f"Consent granted",
+            extra={
+                "user_id": user_id,
+                "consent_type": consent_type.value,
+                "consent_id": consent_id,
+            },
+        )
 
         return consent_id
 
@@ -114,20 +121,22 @@ class ConsentManager:
         user_agent: Optional[str] = None,
         consent_method: str = "api",
         organization_id: Optional[str] = None,
-        tenant_id: Optional[str] = None
+        tenant_id: Optional[str] = None,
     ) -> str:
         """Withdraw user consent with audit trail"""
 
         async with get_session() as session:
             # Find and update existing consent
             result = await session.execute(
-                select(ConsentRecord).where(
+                select(ConsentRecord)
+                .where(
                     and_(
                         ConsentRecord.user_id == uuid.UUID(user_id),
                         ConsentRecord.consent_type == consent_type,
-                        ConsentRecord.status == ConsentStatus.GIVEN
+                        ConsentRecord.status == ConsentStatus.GIVEN,
                     )
-                ).order_by(desc(ConsentRecord.given_at))
+                )
+                .order_by(desc(ConsentRecord.given_at))
             )
             consent = result.scalar_one_or_none()
 
@@ -158,22 +167,23 @@ class ConsentManager:
             raw_data={
                 "consent_type": consent_type.value,
                 "withdrawal_reason": withdrawal_reason,
-                "consent_method": consent_method
-            }
+                "consent_method": consent_method,
+            },
         )
 
-        logger.info(f"Consent withdrawn", extra={
-            "user_id": user_id,
-            "consent_type": consent_type.value,
-            "consent_id": consent_id
-        })
+        logger.info(
+            f"Consent withdrawn",
+            extra={
+                "user_id": user_id,
+                "consent_type": consent_type.value,
+                "consent_id": consent_id,
+            },
+        )
 
         return consent_id
 
     async def get_user_consents(
-        self,
-        user_id: str,
-        active_only: bool = True
+        self, user_id: str, active_only: bool = True
     ) -> List[Dict[str, Any]]:
         """Get all consents for a user"""
 
@@ -194,31 +204,33 @@ class ConsentManager:
                     "status": consent.status.value,
                     "legal_basis": consent.legal_basis.value,
                     "given_at": consent.given_at.isoformat() if consent.given_at else None,
-                    "withdrawn_at": consent.withdrawn_at.isoformat() if consent.withdrawn_at else None,
+                    "withdrawn_at": consent.withdrawn_at.isoformat()
+                    if consent.withdrawn_at
+                    else None,
                     "withdrawal_reason": consent.withdrawal_reason,
                     "data_categories": [cat.value for cat in consent.data_categories],
                     "third_parties": consent.third_parties,
-                    "retention_period": consent.retention_period
+                    "retention_period": consent.retention_period,
                 }
                 for consent in consents
             ]
 
     async def check_consent_status(
-        self,
-        user_id: str,
-        consent_type: ConsentType
+        self, user_id: str, consent_type: ConsentType
     ) -> Optional[Dict[str, Any]]:
         """Check if user has active consent for specific type"""
 
         async with get_session() as session:
             result = await session.execute(
-                select(ConsentRecord).where(
+                select(ConsentRecord)
+                .where(
                     and_(
                         ConsentRecord.user_id == uuid.UUID(user_id),
                         ConsentRecord.consent_type == consent_type,
-                        ConsentRecord.status == ConsentStatus.GIVEN
+                        ConsentRecord.status == ConsentStatus.GIVEN,
                     )
-                ).order_by(desc(ConsentRecord.given_at))
+                )
+                .order_by(desc(ConsentRecord.given_at))
             )
             consent = result.scalar_one_or_none()
 
@@ -232,13 +244,11 @@ class ConsentManager:
                 "status": consent.status.value,
                 "given_at": consent.given_at.isoformat(),
                 "data_categories": [cat.value for cat in consent.data_categories],
-                "legal_basis": consent.legal_basis.value
+                "legal_basis": consent.legal_basis.value,
             }
 
     async def bulk_consent_check(
-        self,
-        user_id: str,
-        consent_types: List[ConsentType]
+        self, user_id: str, consent_types: List[ConsentType]
     ) -> Dict[str, bool]:
         """Check multiple consent types at once"""
 
@@ -248,7 +258,7 @@ class ConsentManager:
                     and_(
                         ConsentRecord.user_id == uuid.UUID(user_id),
                         ConsentRecord.consent_type.in_(consent_types),
-                        ConsentRecord.status == ConsentStatus.GIVEN
+                        ConsentRecord.status == ConsentStatus.GIVEN,
                     )
                 )
             )
@@ -256,6 +266,5 @@ class ConsentManager:
             active_types = {consent.consent_type for consent in active_consents}
 
             return {
-                consent_type.value: consent_type in active_types
-                for consent_type in consent_types
+                consent_type.value: consent_type in active_types for consent_type in consent_types
             }

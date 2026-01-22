@@ -24,16 +24,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class QueryLog:
     """Single query execution log"""
+
     timestamp: datetime
     query: str
     parameters: Any
@@ -45,6 +43,7 @@ class QueryLog:
 @dataclass
 class EndpointQueryStats:
     """Query statistics for an endpoint"""
+
     endpoint: str
     total_queries: int = 0
     unique_queries: int = 0
@@ -72,14 +71,16 @@ class DatabaseQueryMonitor:
 
         # Hook into SQLAlchemy query execution
         @event.listens_for(Engine, "before_cursor_execute")
-        def receive_before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        def receive_before_cursor_execute(
+            conn, cursor, statement, parameters, context, executemany
+        ):
             if self.monitoring_enabled:
-                conn.info.setdefault('query_start_time', []).append(datetime.now())
+                conn.info.setdefault("query_start_time", []).append(datetime.now())
 
         @event.listens_for(Engine, "after_cursor_execute")
         def receive_after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
             if self.monitoring_enabled:
-                query_start_times = conn.info.get('query_start_time', [])
+                query_start_times = conn.info.get("query_start_time", [])
                 if query_start_times:
                     start_time = query_start_times.pop()
                     duration_ms = (datetime.now() - start_time).total_seconds() * 1000
@@ -89,7 +90,7 @@ class DatabaseQueryMonitor:
                         query=statement,
                         parameters=parameters,
                         duration_ms=duration_ms,
-                        endpoint=self.current_endpoint
+                        endpoint=self.current_endpoint,
                     )
 
                     self.query_logs.append(query_log)
@@ -154,14 +155,14 @@ class DatabaseQueryMonitor:
         import re
 
         # Remove specific values from IN clauses
-        query = re.sub(r'IN \([^)]+\)', 'IN (...)', query)
+        query = re.sub(r"IN \([^)]+\)", "IN (...)", query)
 
         # Remove specific WHERE values
-        query = re.sub(r'= \'[^\']+\'', '= ?', query)
-        query = re.sub(r'= \d+', '= ?', query)
+        query = re.sub(r"= \'[^\']+\'", "= ?", query)
+        query = re.sub(r"= \d+", "= ?", query)
 
         # Remove extra whitespace
-        query = ' '.join(query.split())
+        query = " ".join(query.split())
 
         return query
 
@@ -187,14 +188,14 @@ class DatabaseQueryMonitor:
 
         # Sort endpoints by query count
         sorted_endpoints = sorted(
-            self.endpoint_stats.items(),
-            key=lambda x: x[1].total_queries,
-            reverse=True
+            self.endpoint_stats.items(), key=lambda x: x[1].total_queries, reverse=True
         )
 
         for endpoint, stats in sorted_endpoints:
-            n_plus_one_icon = '❌ N+1 DETECTED' if stats.n_plus_one_detected else '✅ Optimized'
-            avg_endpoint_duration = stats.total_duration_ms / stats.total_queries if stats.total_queries > 0 else 0
+            n_plus_one_icon = "❌ N+1 DETECTED" if stats.n_plus_one_detected else "✅ Optimized"
+            avg_endpoint_duration = (
+                stats.total_duration_ms / stats.total_queries if stats.total_queries > 0 else 0
+            )
 
             report += f"""
 ### {endpoint}
@@ -221,34 +222,37 @@ class DatabaseQueryMonitor:
 """
 
         # Audit logs list
-        audit_list_stats = self.endpoint_stats.get("GET /api/v1/organizations/.*/audit", None) or \
-                          self.endpoint_stats.get("GET /api/v1/audit", None)
+        audit_list_stats = self.endpoint_stats.get(
+            "GET /api/v1/organizations/.*/audit", None
+        ) or self.endpoint_stats.get("GET /api/v1/audit", None)
 
         if audit_list_stats:
-            status = '✅ PASS' if audit_list_stats.total_queries <= 5 else '❌ FAIL'
+            status = "✅ PASS" if audit_list_stats.total_queries <= 5 else "❌ FAIL"
             report += f"| Audit Logs List | 101 queries | {audit_list_stats.total_queries} queries | {status} |\n"
 
         # Audit logs stats
-        audit_stats_stats = self.endpoint_stats.get("GET /api/v1/organizations/.*/audit/stats", None) or \
-                           self.endpoint_stats.get("GET /api/v1/audit/stats", None)
+        audit_stats_stats = self.endpoint_stats.get(
+            "GET /api/v1/organizations/.*/audit/stats", None
+        ) or self.endpoint_stats.get("GET /api/v1/audit/stats", None)
 
         if audit_stats_stats:
-            status = '✅ PASS' if audit_stats_stats.total_queries <= 5 else '❌ FAIL'
+            status = "✅ PASS" if audit_stats_stats.total_queries <= 5 else "❌ FAIL"
             report += f"| Audit Logs Stats | 11 queries | {audit_stats_stats.total_queries} queries | {status} |\n"
 
         # Audit logs export
-        audit_export_stats = self.endpoint_stats.get("GET /api/v1/organizations/.*/audit/export", None) or \
-                            self.endpoint_stats.get("GET /api/v1/audit/export", None)
+        audit_export_stats = self.endpoint_stats.get(
+            "GET /api/v1/organizations/.*/audit/export", None
+        ) or self.endpoint_stats.get("GET /api/v1/audit/export", None)
 
         if audit_export_stats:
-            status = '✅ PASS' if audit_export_stats.total_queries <= 5 else '❌ FAIL'
+            status = "✅ PASS" if audit_export_stats.total_queries <= 5 else "❌ FAIL"
             report += f"| Audit Logs Export | 1001 queries | {audit_export_stats.total_queries} queries | {status} |\n"
 
         # Organization list
         org_list_stats = self.endpoint_stats.get("GET /api/v1/organizations", None)
 
         if org_list_stats:
-            status = '✅ PASS' if org_list_stats.total_queries <= 3 else '❌ FAIL'
+            status = "✅ PASS" if org_list_stats.total_queries <= 3 else "❌ FAIL"
             report += f"| Organization List | N+1 pattern | {org_list_stats.total_queries} queries | {status} |\n"
 
         report += """
@@ -256,7 +260,9 @@ class DatabaseQueryMonitor:
 
 """
 
-        n_plus_one_endpoints = [ep for ep, stats in self.endpoint_stats.items() if stats.n_plus_one_detected]
+        n_plus_one_endpoints = [
+            ep for ep, stats in self.endpoint_stats.items() if stats.n_plus_one_detected
+        ]
 
         if n_plus_one_endpoints:
             report += "### ⚠️ N+1 Patterns Detected\n\n"
@@ -305,17 +311,15 @@ async def validate_phase3_n_plus_one_fixes():
         test_password = "QueryMonitor123!@#"
 
         # Signup
-        client.post("/beta/signup", json={
-            "email": test_email,
-            "password": test_password,
-            "name": "Query Monitor"
-        })
+        client.post(
+            "/beta/signup",
+            json={"email": test_email, "password": test_password, "name": "Query Monitor"},
+        )
 
         # Signin
-        signin_response = client.post("/beta/signin", json={
-            "email": test_email,
-            "password": test_password
-        })
+        signin_response = client.post(
+            "/beta/signin", json={"email": test_email, "password": test_password}
+        )
 
         token = signin_response.json().get("access_token")
         headers = {"Authorization": f"Bearer {token}"}

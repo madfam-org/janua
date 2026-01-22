@@ -34,7 +34,7 @@ class TestJWTServiceInitialization:
     def mock_redis(self):
         redis = AsyncMock()
         redis.exists = AsyncMock(return_value=0)
-        
+
         # Mock Redis get to return proper values for JTI checks
         async def redis_get_side_effect(key):
             if key.startswith("jti:"):
@@ -42,7 +42,7 @@ class TestJWTServiceInitialization:
             if key.startswith("revoked:"):
                 return None  # Token not revoked
             return None
-        
+
         redis.get = AsyncMock(side_effect=redis_get_side_effect)
         redis.setex = AsyncMock()
         redis.delete = AsyncMock()
@@ -68,7 +68,7 @@ class TestJWTServiceInitialization:
         service = JWTService(mock_db, mock_redis)
         service._private_key = settings.JWT_SECRET_KEY
         service._public_key = settings.JWT_SECRET_KEY
-        
+
         assert service._private_key is not None
         assert service._public_key is not None
 
@@ -88,14 +88,14 @@ class TestTokenCreation:
     def mock_redis(self):
         redis = AsyncMock()
         redis.exists = AsyncMock(return_value=0)
-        
+
         async def redis_get_side_effect(key):
             if key.startswith("jti:"):
                 return "1"
             if key.startswith("revoked:"):
                 return None
             return None
-        
+
         redis.get = AsyncMock(side_effect=redis_get_side_effect)
         redis.setex = AsyncMock()
         return redis
@@ -111,12 +111,13 @@ class TestTokenCreation:
     async def test_create_access_token_basic(self, jwt_service):
         """Test creating basic access token"""
         token = await jwt_service.create_access_token(identity_id="user-123")
-        
+
         assert isinstance(token, str)
         decoded = jwt.decode(
-            token, settings.JWT_SECRET_KEY,
+            token,
+            settings.JWT_SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM],
-            options={"verify_aud": False}
+            options={"verify_aud": False},
         )
         assert decoded["sub"] == "user-123"
         assert decoded["type"] == "access"
@@ -124,15 +125,13 @@ class TestTokenCreation:
     async def test_create_access_token_with_custom_claims(self, jwt_service):
         """Test access token with custom claims"""
         custom = {"role": "admin", "permissions": ["read", "write"]}
-        token = await jwt_service.create_access_token(
-            identity_id="user-123",
-            custom_claims=custom
-        )
-        
+        token = await jwt_service.create_access_token(identity_id="user-123", custom_claims=custom)
+
         decoded = jwt.decode(
-            token, settings.JWT_SECRET_KEY,
+            token,
+            settings.JWT_SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM],
-            options={"verify_aud": False}
+            options={"verify_aud": False},
         )
         assert decoded["role"] == "admin"
         assert decoded["permissions"] == ["read", "write"]
@@ -140,17 +139,18 @@ class TestTokenCreation:
     async def test_create_refresh_token_basic(self, jwt_service):
         """Test creating basic refresh token"""
         token = await jwt_service.create_refresh_token(identity_id="user-123")
-        
+
         assert isinstance(token, str)
         decoded = jwt.decode(
-            token, settings.JWT_SECRET_KEY,
+            token,
+            settings.JWT_SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM],
-            options={"verify_aud": False}
+            options={"verify_aud": False},
         )
         assert decoded["sub"] == "user-123"
         assert decoded["type"] == "refresh"
 
-    @patch('app.services.jwt_service.TokenPair')
+    @patch("app.services.jwt_service.TokenPair")
     async def test_create_tokens_complete(self, mock_token_pair, jwt_service, mock_redis):
         """Test creating complete token pair"""
         # Mock TokenPair to return a dict-like object
@@ -160,20 +160,18 @@ class TestTokenCreation:
         mock_result.expires_in = 3600
         mock_result.token_type = "Bearer"
         mock_token_pair.return_value = mock_result
-        
+
         await jwt_service.create_tokens(
-            identity_id="user-123",
-            tenant_id="tenant-456",
-            organization_id="org-789"
+            identity_id="user-123", tenant_id="tenant-456", organization_id="org-789"
         )
 
         # Verify Redis calls for JTI storage
         assert mock_redis.setex.call_count == 2
-        
+
         # Verify TokenPair was called
         mock_token_pair.assert_called_once()
 
-    @patch('app.services.jwt_service.TokenPair')
+    @patch("app.services.jwt_service.TokenPair")
     async def test_create_tokens_with_custom_claims(self, mock_token_pair, jwt_service):
         """Test token pair with custom claims"""
         mock_result = MagicMock()
@@ -182,9 +180,7 @@ class TestTokenCreation:
 
         custom = {"department": "engineering"}
         await jwt_service.create_tokens(
-            identity_id="user-123",
-            tenant_id="tenant-456",
-            custom_claims=custom
+            identity_id="user-123", tenant_id="tenant-456", custom_claims=custom
         )
 
         mock_token_pair.assert_called_once()
@@ -201,7 +197,7 @@ class TestTokenVerification:
     @pytest.fixture
     def mock_redis(self):
         redis = AsyncMock()
-        
+
         # Mock Redis to return valid JTI and no revocation
         async def redis_get_side_effect(key):
             if key.startswith("jti:"):
@@ -209,7 +205,7 @@ class TestTokenVerification:
             if key.startswith("revoked:"):
                 return None  # Not revoked
             return None
-        
+
         redis.get = AsyncMock(side_effect=redis_get_side_effect)
         return redis
 
@@ -225,19 +221,19 @@ class TestTokenVerification:
         """Test verifying valid access token"""
         # Create token with JTI
         token = await jwt_service.create_access_token(identity_id="user-123")
-        
+
         # Verify it
         claims = await jwt_service.verify_token(token, token_type="access")
-        
+
         assert claims["sub"] == "user-123"
         assert claims["type"] == "access"
 
     async def test_verify_valid_refresh_token(self, jwt_service):
         """Test verifying valid refresh token"""
         token = await jwt_service.create_refresh_token(identity_id="user-123")
-        
+
         claims = await jwt_service.verify_token(token, token_type="refresh")
-        
+
         assert claims["sub"] == "user-123"
         assert claims["type"] == "refresh"
 
@@ -246,20 +242,11 @@ class TestTokenVerification:
         # Create token that's already expired
         now = datetime.now(timezone.utc)
         exp = now - timedelta(minutes=1)
-        
-        claims = {
-            "sub": "user-123",
-            "exp": exp,
-            "jti": str(uuid4()),
-            "type": "access"
-        }
-        
-        token = jwt.encode(
-            claims,
-            settings.JWT_SECRET_KEY,
-            algorithm=settings.JWT_ALGORITHM
-        )
-        
+
+        claims = {"sub": "user-123", "exp": exp, "jti": str(uuid4()), "type": "access"}
+
+        token = jwt.encode(claims, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
         with pytest.raises(TokenError, match="expired"):
             await jwt_service.verify_token(token)
 
@@ -268,20 +255,11 @@ class TestTokenVerification:
         # Create expired token
         now = datetime.now(timezone.utc)
         exp = now - timedelta(minutes=1)
-        
-        claims = {
-            "sub": "user-123",
-            "exp": exp,
-            "jti": str(uuid4()),
-            "type": "access"
-        }
-        
-        token = jwt.encode(
-            claims,
-            settings.JWT_SECRET_KEY,
-            algorithm=settings.JWT_ALGORITHM
-        )
-        
+
+        claims = {"sub": "user-123", "exp": exp, "jti": str(uuid4()), "type": "access"}
+
+        token = jwt.encode(claims, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
         # Should not raise when skipping expiration
         result = await jwt_service.verify_token(token, verify_exp=False)
         assert result["sub"] == "user-123"
@@ -290,19 +268,20 @@ class TestTokenVerification:
         """Test verifying token with invalid signature"""
         claims = {"sub": "user-123", "type": "access"}
         token = jwt.encode(claims, "wrong-secret", algorithm=settings.JWT_ALGORITHM)
-        
+
         with pytest.raises(TokenError):
             await jwt_service.verify_token(token)
 
     async def test_verify_wrong_token_type(self, jwt_service):
         """Test verifying token with wrong type"""
         token = await jwt_service.create_access_token(identity_id="user-123")
-        
+
         with pytest.raises(TokenError, match="Invalid token type"):
             await jwt_service.verify_token(token, token_type="refresh")
 
     async def test_verify_revoked_token(self, jwt_service, mock_redis):
         """Test verifying revoked token"""
+
         # Mock Redis to show token is revoked
         async def redis_get_revoked(key):
             if key.startswith("revoked:"):
@@ -310,32 +289,33 @@ class TestTokenVerification:
             if key.startswith("jti:"):
                 return "1"
             return None
-        
+
         mock_redis.get = AsyncMock(side_effect=redis_get_revoked)
-        
+
         token = await jwt_service.create_access_token(identity_id="user-123")
-        
+
         with pytest.raises(TokenError, match="revoked"):
             await jwt_service.verify_token(token)
 
     async def test_verify_refresh_token_method(self, jwt_service):
         """Test dedicated refresh token verification"""
         token = await jwt_service.create_refresh_token(identity_id="user-123")
-        
+
         claims = await jwt_service.verify_refresh_token(token)
-        
+
         assert claims["sub"] == "user-123"
         assert claims["type"] == "refresh"
 
     async def test_verify_refresh_token_wrong_type(self, jwt_service):
         """Test refresh verification rejects access token"""
         token = await jwt_service.create_access_token(identity_id="user-123")
-        
+
         with pytest.raises((TokenError, JWTError)):
             await jwt_service.verify_refresh_token(token)
 
     async def test_verify_refresh_token_blacklisted(self, jwt_service, mock_redis):
         """Test refresh token verification with blacklist check"""
+
         # Mock Redis to show token is in blacklist
         async def redis_get_blacklisted(key):
             if "blacklist" in key:
@@ -345,11 +325,11 @@ class TestTokenVerification:
             if key.startswith("revoked:"):
                 return None
             return None
-        
+
         mock_redis.get = AsyncMock(side_effect=redis_get_blacklisted)
-        
+
         token = await jwt_service.create_refresh_token(identity_id="user-123")
-        
+
         # Should handle blacklist check
         try:
             await jwt_service.verify_refresh_token(token)
@@ -361,15 +341,11 @@ class TestTokenVerification:
         claims = {
             "sub": "user-123",
             "type": "access",
-            "exp": datetime.now(timezone.utc) + timedelta(hours=1)
+            "exp": datetime.now(timezone.utc) + timedelta(hours=1),
         }
-        
-        token = jwt.encode(
-            claims,
-            settings.JWT_SECRET_KEY,
-            algorithm=settings.JWT_ALGORITHM
-        )
-        
+
+        token = jwt.encode(claims, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
         # Should handle missing JTI gracefully
         result = await jwt_service.verify_token(token, verify_exp=False)
         assert result["sub"] == "user-123"
@@ -385,7 +361,7 @@ class TestTokenRefresh:
     @pytest.fixture
     def mock_redis(self):
         redis = AsyncMock()
-        
+
         async def redis_get_side_effect(key):
             if key.startswith("jti:"):
                 return "1"
@@ -394,7 +370,7 @@ class TestTokenRefresh:
             if key.startswith("used:"):
                 return None  # Not used yet
             return None
-        
+
         redis.get = AsyncMock(side_effect=redis_get_side_effect)
         redis.setex = AsyncMock()
         redis.delete = AsyncMock()
@@ -408,24 +384,25 @@ class TestTokenRefresh:
         service._kid = "test-kid-123"
         return service
 
-    @patch('app.services.jwt_service.TokenPair')
+    @patch("app.services.jwt_service.TokenPair")
     async def test_refresh_tokens_success(self, mock_token_pair, jwt_service, mock_redis):
         """Test successful token refresh"""
         mock_result = MagicMock()
         mock_result.access_token = "new_access"
         mock_result.refresh_token = "new_refresh"
         mock_token_pair.return_value = mock_result
-        
+
         refresh_token = await jwt_service.create_refresh_token(identity_id="user-123")
-        
+
         await jwt_service.refresh_tokens(refresh_token)
-        
+
         # Verify new tokens created
         mock_token_pair.assert_called_once()
 
-    @patch('app.services.jwt_service.TokenPair')
+    @patch("app.services.jwt_service.TokenPair")
     async def test_refresh_tokens_reuse_detection(self, mock_token_pair, jwt_service, mock_redis):
         """Test refresh token reuse detection"""
+
         # Mock Redis to show token was already used
         async def redis_get_used(key):
             if key.startswith("used:"):
@@ -433,11 +410,11 @@ class TestTokenRefresh:
             if key.startswith("jti:"):
                 return "1"
             return None
-        
+
         mock_redis.get = AsyncMock(side_effect=redis_get_used)
-        
+
         refresh_token = await jwt_service.create_refresh_token(identity_id="user-123")
-        
+
         with pytest.raises(TokenError, match="reuse|used"):
             await jwt_service.refresh_tokens(refresh_token)
 
@@ -468,31 +445,28 @@ class TestTokenRevocation:
     async def test_revoke_single_token(self, jwt_service, mock_redis):
         """Test revoking a single token"""
         token = await jwt_service.create_access_token(identity_id="user-123")
-        
+
         await jwt_service.revoke_token(token)
-        
+
         # Verify Redis setex was called for revocation
         assert mock_redis.setex.called
 
     async def test_revoke_all_user_tokens(self, jwt_service, mock_redis):
         """Test revoking all tokens for a user"""
         # Mock Redis keys to return some JTIs
-        mock_redis.keys = AsyncMock(return_value=[
-            b"jti:access:jti-1",
-            b"jti:refresh:jti-2"
-        ])
-        
+        mock_redis.keys = AsyncMock(return_value=[b"jti:access:jti-1", b"jti:refresh:jti-2"])
+
         await jwt_service.revoke_all_tokens(user_id="user-123")
-        
+
         # Verify keys were searched
         mock_redis.keys.assert_called()
 
     async def test_revoke_token_sets_ttl(self, jwt_service, mock_redis):
         """Test revocation sets appropriate TTL"""
         token = await jwt_service.create_access_token(identity_id="user-123")
-        
+
         await jwt_service.revoke_token(token)
-        
+
         # Verify setex was called with TTL
         calls = mock_redis.setex.call_args_list
         assert any(call for call in calls if "revoked:" in str(call))
@@ -502,20 +476,11 @@ class TestTokenRevocation:
         # Create expired token
         now = datetime.now(timezone.utc)
         exp = now - timedelta(minutes=1)
-        
-        claims = {
-            "sub": "user-123",
-            "exp": exp,
-            "jti": str(uuid4()),
-            "type": "access"
-        }
-        
-        token = jwt.encode(
-            claims,
-            settings.JWT_SECRET_KEY,
-            algorithm=settings.JWT_ALGORITHM
-        )
-        
+
+        claims = {"sub": "user-123", "exp": exp, "jti": str(uuid4()), "type": "access"}
+
+        token = jwt.encode(claims, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
         # Should handle expired token revocation
         try:
             await jwt_service.revoke_token(token)
@@ -529,11 +494,13 @@ class TestHelperMethods:
     @pytest.fixture
     def mock_db(self):
         db = AsyncMock()
-        db.fetchrow = AsyncMock(return_value={
-            "private_key": "test_private_key",
-            "public_key": "test_public_key",
-            "kid": "test-kid-456"
-        })
+        db.fetchrow = AsyncMock(
+            return_value={
+                "private_key": "test_private_key",
+                "public_key": "test_public_key",
+                "kid": "test-kid-456",
+            }
+        )
         return db
 
     @pytest.fixture
@@ -551,7 +518,7 @@ class TestHelperMethods:
     async def test_get_public_jwks(self, jwt_service):
         """Test getting public JWKS"""
         jwks = await jwt_service.get_public_jwks()
-        
+
         assert "keys" in jwks
         assert isinstance(jwks["keys"], list)
 
@@ -559,21 +526,21 @@ class TestHelperMethods:
         """Test JTI generation"""
         jti1 = str(uuid4())
         jti2 = str(uuid4())
-        
+
         # JTIs should be unique
         assert jti1 != jti2
 
     async def test_decode_token_helper(self, jwt_service):
         """Test token decoding helper"""
         token = await jwt_service.create_access_token(identity_id="user-123")
-        
+
         decoded = jwt.decode(
             token,
             settings.JWT_SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM],
-            options={"verify_aud": False}
+            options={"verify_aud": False},
         )
-        
+
         assert decoded["sub"] == "user-123"
 
 
@@ -602,7 +569,7 @@ class TestJWKSAndKeyRotation:
     async def test_jwks_contains_kid(self, jwt_service):
         """Test JWKS contains key ID"""
         jwks = await jwt_service.get_public_jwks()
-        
+
         assert "keys" in jwks
         if len(jwks["keys"]) > 0:
             assert "kid" in jwks["keys"][0]
@@ -610,10 +577,10 @@ class TestJWKSAndKeyRotation:
     async def test_key_rotation_generates_new_kid(self, jwt_service, mock_db):
         """Test key rotation generates new KID"""
         old_kid = jwt_service._kid
-        
+
         # Mock the rotation
         mock_db.execute = AsyncMock()
-        
+
         # In real implementation, would call rotate_keys()
         # For now, verify KID exists
         assert old_kid is not None

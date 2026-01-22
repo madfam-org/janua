@@ -41,10 +41,10 @@ class OIDCDiscoveryService:
     DISCOVERY_CACHE_TTL = 3600
 
     # SECURITY: Blocked hostname patterns for SSRF protection
-    _BLOCKED_HOSTNAMES = frozenset(['localhost', '127.0.0.1', '::1', '0.0.0.0'])
+    _BLOCKED_HOSTNAMES = frozenset(["localhost", "127.0.0.1", "::1", "0.0.0.0"])
 
     # SECURITY: Cloud metadata endpoint IPs to block
-    _CLOUD_METADATA_IPS = frozenset(['169.254.169.254', '169.254.170.2'])
+    _CLOUD_METADATA_IPS = frozenset(["169.254.169.254", "169.254.170.2"])
 
     def __init__(self, cache_service=None):
         """
@@ -57,9 +57,7 @@ class OIDCDiscoveryService:
         self._memory_cache: Dict[str, Dict[str, Any]] = {}
 
     async def discover_configuration(
-        self,
-        issuer: str,
-        force_refresh: bool = False
+        self, issuer: str, force_refresh: bool = False
     ) -> Dict[str, Any]:
         """
         Discover OIDC provider configuration from issuer.
@@ -109,9 +107,7 @@ class OIDCDiscoveryService:
         return config
 
     async def discover_from_url(
-        self,
-        discovery_url: str,
-        force_refresh: bool = False
+        self, discovery_url: str, force_refresh: bool = False
     ) -> Dict[str, Any]:
         """
         Discover OIDC configuration from explicit discovery URL.
@@ -158,7 +154,7 @@ class OIDCDiscoveryService:
         client_id: str,
         client_secret: str,
         redirect_uri: str,
-        scopes: Optional[list] = None
+        scopes: Optional[list] = None,
     ) -> Dict[str, Any]:
         """
         Extract provider configuration suitable for OIDC protocol.
@@ -181,16 +177,13 @@ class OIDCDiscoveryService:
             "authorization_endpoint": discovery_config["authorization_endpoint"],
             "token_endpoint": discovery_config["token_endpoint"],
             "redirect_uri": redirect_uri,
-
             # Optional fields
             "userinfo_endpoint": discovery_config.get("userinfo_endpoint"),
             "jwks_uri": discovery_config.get("jwks_uri"),
             "revocation_endpoint": discovery_config.get("revocation_endpoint"),
             "end_session_endpoint": discovery_config.get("end_session_endpoint"),
-
             # Scopes
             "scopes": scopes or ["openid", "profile", "email"],
-
             # Supported features
             "response_types_supported": discovery_config.get("response_types_supported", []),
             "subject_types_supported": discovery_config.get("subject_types_supported", []),
@@ -224,9 +217,9 @@ class OIDCDiscoveryService:
         # Production should use HTTPS
         if issuer.startswith("http://"):
             import warnings
+
             warnings.warn(
-                "Using HTTP for OIDC discovery in production is insecure. Use HTTPS.",
-                UserWarning
+                "Using HTTP for OIDC discovery in production is insecure. Use HTTPS.", UserWarning
             )
 
     def _validate_discovery_url(self, url: str) -> None:
@@ -252,9 +245,9 @@ class OIDCDiscoveryService:
         # Production should use HTTPS
         if url.startswith("http://"):
             import warnings
+
             warnings.warn(
-                "Using HTTP for OIDC discovery in production is insecure. Use HTTPS.",
-                UserWarning
+                "Using HTTP for OIDC discovery in production is insecure. Use HTTPS.", UserWarning
             )
 
     def _validate_hostname_ssrf(self, hostname: Optional[str]) -> None:
@@ -286,7 +279,12 @@ class OIDCDiscoveryService:
                 ip_obj = ipaddress.ip_address(ip_str)
 
                 # Block private, loopback, link-local, and reserved ranges
-                if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved:
+                if (
+                    ip_obj.is_private
+                    or ip_obj.is_loopback
+                    or ip_obj.is_link_local
+                    or ip_obj.is_reserved
+                ):
                     raise ValueError(
                         "SSRF protection: URLs resolving to internal networks are not allowed"
                     )
@@ -344,7 +342,7 @@ class OIDCDiscoveryService:
                 response = await client.get(  # noqa: S113 - SSRF protection applied above
                     url,
                     headers={"Accept": "application/json"},
-                    follow_redirects=False  # SECURITY: Don't follow redirects to prevent SSRF bypass
+                    follow_redirects=False,  # SECURITY: Don't follow redirects to prevent SSRF bypass
                 )
 
                 if response.status_code != 200:
@@ -387,7 +385,7 @@ class OIDCDiscoveryService:
             "jwks_uri",
             "response_types_supported",
             "subject_types_supported",
-            "id_token_signing_alg_values_supported"
+            "id_token_signing_alg_values_supported",
         ]
 
         missing_fields = [field for field in required_fields if field not in config]
@@ -431,20 +429,13 @@ class OIDCDiscoveryService:
 
         return None
 
-    async def _cache_configuration(
-        self,
-        issuer: str,
-        config: Dict[str, Any]
-    ) -> None:
+    async def _cache_configuration(self, issuer: str, config: Dict[str, Any]) -> None:
         """Cache discovery configuration."""
         cache_key = f"oidc_discovery:{issuer}"
         expires_at = datetime.utcnow() + timedelta(seconds=self.DISCOVERY_CACHE_TTL)
 
         # Add expiration to config
-        cached_config = {
-            **config,
-            "_expires_at": expires_at.isoformat()
-        }
+        cached_config = {**config, "_expires_at": expires_at.isoformat()}
 
         # Store in cache service
         if self.cache_service:
@@ -452,7 +443,7 @@ class OIDCDiscoveryService:
                 await self.cache_service.set(
                     cache_key,
                     config,  # Don't cache expiration metadata in external cache
-                    ttl=self.DISCOVERY_CACHE_TTL
+                    ttl=self.DISCOVERY_CACHE_TTL,
                 )
             except Exception:
                 pass  # Cache service failure falls back to memory cache

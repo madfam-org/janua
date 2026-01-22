@@ -18,8 +18,12 @@ from app.core.database_manager import get_db
 from app.dependencies import require_admin
 from app.models import User
 from app.models.migration import (
-    MigrationJob, MigrationProvider, MigrationStatus,
-    MigratedUser, MigrationLog, MigrationTemplate
+    MigrationJob,
+    MigrationProvider,
+    MigrationStatus,
+    MigratedUser,
+    MigrationLog,
+    MigrationTemplate,
 )
 from app.services.migration_service import MigrationService
 
@@ -31,9 +35,11 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+
 # Pydantic models
 class MigrationJobCreate(BaseModel):
     """Create migration job request"""
+
     name: str = Field(..., max_length=200)
     provider: MigrationProvider
     source_config: Dict[str, Any]
@@ -43,6 +49,7 @@ class MigrationJobCreate(BaseModel):
 
 class MigrationJobResponse(BaseModel):
     """Migration job response"""
+
     id: str
     name: str
     provider: MigrationProvider
@@ -61,6 +68,7 @@ class MigrationJobResponse(BaseModel):
 
 class MigrationProgressResponse(BaseModel):
     """Migration progress update"""
+
     type: str  # progress, completed, error
     total: Optional[int] = None
     migrated: Optional[int] = None
@@ -72,6 +80,7 @@ class MigrationProgressResponse(BaseModel):
 
 class DataExportRequest(BaseModel):
     """Data export request"""
+
     export_type: str  # user_data, organization_data, audit_logs
     format: str = "json"  # json, csv, xml
     include_options: Optional[Dict[str, Any]] = None
@@ -87,7 +96,7 @@ async def create_migration_job(
     job_request: MigrationJobCreate,
     organization_id: Optional[str] = None,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Create a new migration job
@@ -102,15 +111,14 @@ async def create_migration_job(
             name=job_request.name,
             source_config=job_request.source_config,
             mapping_config=job_request.mapping_config,
-            options=job_request.options
+            options=job_request.options,
         )
         return result
 
     except Exception as e:
         logger.exception("Failed to create migration job")
         raise HTTPException(
-            status_code=500,
-            detail="Failed to create migration job. Please contact support."
+            status_code=500, detail="Failed to create migration job. Please contact support."
         )
 
 
@@ -119,7 +127,7 @@ async def list_migration_jobs(
     organization_id: Optional[str] = None,
     status: Optional[MigrationStatus] = None,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     List migration jobs
@@ -150,10 +158,12 @@ async def list_migration_jobs(
                 skipped_users=job.skipped_users,
                 started_at=job.started_at.isoformat() if job.started_at else None,
                 completed_at=job.completed_at.isoformat() if job.completed_at else None,
-                estimated_completion=job.estimated_completion.isoformat() if job.estimated_completion else None,
+                estimated_completion=job.estimated_completion.isoformat()
+                if job.estimated_completion
+                else None,
                 last_error=job.last_error,
                 created_at=job.created_at.isoformat(),
-                updated_at=job.updated_at.isoformat()
+                updated_at=job.updated_at.isoformat(),
             )
             for job in jobs
         ]
@@ -161,16 +171,13 @@ async def list_migration_jobs(
     except Exception as e:
         logger.exception("Failed to list migration jobs")
         raise HTTPException(
-            status_code=500,
-            detail="Failed to list migration jobs. Please contact support."
+            status_code=500, detail="Failed to list migration jobs. Please contact support."
         )
 
 
 @router.get("/jobs/{job_id}", response_model=MigrationJobResponse)
 async def get_migration_job(
-    job_id: str,
-    current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    job_id: str, current_user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
 ):
     """
     Get migration job details
@@ -193,10 +200,12 @@ async def get_migration_job(
             skipped_users=job.skipped_users,
             started_at=job.started_at.isoformat() if job.started_at else None,
             completed_at=job.completed_at.isoformat() if job.completed_at else None,
-            estimated_completion=job.estimated_completion.isoformat() if job.estimated_completion else None,
+            estimated_completion=job.estimated_completion.isoformat()
+            if job.estimated_completion
+            else None,
             last_error=job.last_error,
             created_at=job.created_at.isoformat(),
-            updated_at=job.updated_at.isoformat()
+            updated_at=job.updated_at.isoformat(),
         )
 
     except HTTPException:
@@ -204,8 +213,7 @@ async def get_migration_job(
     except Exception as e:
         logger.exception("Failed to get migration job")
         raise HTTPException(
-            status_code=500,
-            detail="Failed to get migration job. Please contact support."
+            status_code=500, detail="Failed to get migration job. Please contact support."
         )
 
 
@@ -214,19 +222,18 @@ async def start_migration_job(
     job_id: str,
     batch_size: int = 100,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Start migration job with real-time progress streaming
 
     Returns Server-Sent Events (SSE) stream with progress updates.
     """
+
     async def generate_progress():
         try:
             async for progress in migration_service.start_migration(
-                db=db,
-                job_id=job_id,
-                batch_size=batch_size
+                db=db, job_id=job_id, batch_size=batch_size
             ):
                 yield f"data: {json.dumps(progress)}\n\n"
 
@@ -241,16 +248,14 @@ async def start_migration_job(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "Content-Type": "text/event-stream"
-        }
+            "Content-Type": "text/event-stream",
+        },
     )
 
 
 @router.delete("/jobs/{job_id}")
 async def delete_migration_job(
-    job_id: str,
-    current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    job_id: str, current_user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
 ):
     """
     Delete migration job
@@ -264,8 +269,7 @@ async def delete_migration_job(
 
         if job.status == MigrationStatus.IN_PROGRESS:
             raise HTTPException(
-                status_code=400,
-                detail="Cannot delete job while migration is in progress"
+                status_code=400, detail="Cannot delete job while migration is in progress"
             )
 
         await db.delete(job)
@@ -278,8 +282,7 @@ async def delete_migration_job(
     except Exception as e:
         logger.exception("Failed to delete migration job")
         raise HTTPException(
-            status_code=500,
-            detail="Failed to delete migration job. Please contact support."
+            status_code=500, detail="Failed to delete migration job. Please contact support."
         )
 
 
@@ -289,7 +292,7 @@ async def get_migration_logs(
     level: Optional[str] = None,
     limit: int = 100,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get migration job logs
@@ -297,9 +300,11 @@ async def get_migration_logs(
     Requires admin privileges.
     """
     try:
-        stmt = select(MigrationLog).where(
-            MigrationLog.migration_job_id == job_id
-        ).order_by(MigrationLog.created_at.desc())
+        stmt = (
+            select(MigrationLog)
+            .where(MigrationLog.migration_job_id == job_id)
+            .order_by(MigrationLog.created_at.desc())
+        )
 
         if level:
             stmt = stmt.where(MigrationLog.level == level)
@@ -314,7 +319,7 @@ async def get_migration_logs(
                 "message": log.message,
                 "details": log.details,
                 "user_id": log.user_id,
-                "created_at": log.created_at.isoformat()
+                "created_at": log.created_at.isoformat(),
             }
             for log in logs
         ]
@@ -322,8 +327,7 @@ async def get_migration_logs(
     except Exception as e:
         logger.exception("Failed to get migration logs")
         raise HTTPException(
-            status_code=500,
-            detail="Failed to get migration logs. Please contact support."
+            status_code=500, detail="Failed to get migration logs. Please contact support."
         )
 
 
@@ -334,7 +338,7 @@ async def get_migrated_users(
     limit: int = 100,
     offset: int = 0,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get migrated users for a job
@@ -342,9 +346,11 @@ async def get_migrated_users(
     Requires admin privileges.
     """
     try:
-        stmt = select(MigratedUser).where(
-            MigratedUser.migration_job_id == job_id
-        ).order_by(MigratedUser.created_at.desc())
+        stmt = (
+            select(MigratedUser)
+            .where(MigratedUser.migration_job_id == job_id)
+            .order_by(MigratedUser.created_at.desc())
+        )
 
         if is_migrated is not None:
             stmt = stmt.where(MigratedUser.is_migrated == is_migrated)
@@ -364,7 +370,7 @@ async def get_migrated_users(
                 "password_migrated": user.password_migrated,
                 "requires_password_reset": user.requires_password_reset,
                 "migrated_at": user.migrated_at.isoformat() if user.migrated_at else None,
-                "created_at": user.created_at.isoformat()
+                "created_at": user.created_at.isoformat(),
             }
             for user in users
         ]
@@ -372,8 +378,7 @@ async def get_migrated_users(
     except Exception as e:
         logger.exception("Failed to get migrated users")
         raise HTTPException(
-            status_code=500,
-            detail="Failed to get migrated users. Please contact support."
+            status_code=500, detail="Failed to get migrated users. Please contact support."
         )
 
 
@@ -381,7 +386,7 @@ async def get_migrated_users(
 async def list_migration_templates(
     provider: Optional[MigrationProvider] = None,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     List migration templates
@@ -407,7 +412,7 @@ async def list_migration_templates(
                 "transformations": template.transformations,
                 "is_default": template.is_default,
                 "times_used": template.times_used,
-                "created_at": template.created_at.isoformat()
+                "created_at": template.created_at.isoformat(),
             }
             for template in templates
         ]
@@ -415,8 +420,7 @@ async def list_migration_templates(
     except Exception as e:
         logger.exception("Failed to list migration templates")
         raise HTTPException(
-            status_code=500,
-            detail="Failed to list migration templates. Please contact support."
+            status_code=500, detail="Failed to list migration templates. Please contact support."
         )
 
 
@@ -426,7 +430,7 @@ async def export_data(
     background_tasks: BackgroundTasks,
     organization_id: Optional[str] = None,
     current_user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Export organization or user data for portability
@@ -439,20 +443,23 @@ async def export_data(
 
         background_tasks.add_task(
             _process_data_export,
-            db, export_id, export_request, organization_id, str(current_user.id)
+            db,
+            export_id,
+            export_request,
+            organization_id,
+            str(current_user.id),
         )
 
         return {
             "export_id": export_id,
             "status": "processing",
-            "message": "Data export started. You will be notified when complete."
+            "message": "Data export started. You will be notified when complete.",
         }
 
     except Exception as e:
         logger.exception("Failed to start data export")
         raise HTTPException(
-            status_code=500,
-            detail="Failed to start data export. Please contact support."
+            status_code=500, detail="Failed to start data export. Please contact support."
         )
 
 
@@ -461,7 +468,7 @@ async def _process_data_export(
     export_id: str,
     export_request: DataExportRequest,
     organization_id: Optional[str],
-    user_id: str
+    user_id: str,
 ):
     """Background task to process data export"""
     try:
@@ -491,7 +498,7 @@ async def list_supported_providers():
             {
                 "id": provider.value,
                 "name": provider.name,
-                "description": f"Migration from {provider.value.upper()} identity provider"
+                "description": f"Migration from {provider.value.upper()} identity provider",
             }
             for provider in MigrationProvider
         ]

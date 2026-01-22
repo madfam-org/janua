@@ -23,15 +23,17 @@ settings = get_settings()
 
 class IncidentSeverity(str, Enum):
     """Security incident severity levels aligned with SOC2 requirements"""
-    CRITICAL = "critical"      # System compromise, data breach, service down
-    HIGH = "high"             # Security violation, privileged access misuse
-    MEDIUM = "medium"         # Policy violation, suspicious activity
-    LOW = "low"              # Minor security issue, informational
-    INFO = "info"            # Security awareness, routine monitoring
+
+    CRITICAL = "critical"  # System compromise, data breach, service down
+    HIGH = "high"  # Security violation, privileged access misuse
+    MEDIUM = "medium"  # Policy violation, suspicious activity
+    LOW = "low"  # Minor security issue, informational
+    INFO = "info"  # Security awareness, routine monitoring
 
 
 class IncidentStatus(str, Enum):
     """Incident lifecycle status"""
+
     OPEN = "open"
     INVESTIGATING = "investigating"
     CONTAINMENT = "containment"
@@ -42,6 +44,7 @@ class IncidentStatus(str, Enum):
 
 class IncidentCategory(str, Enum):
     """Security incident categories for classification"""
+
     UNAUTHORIZED_ACCESS = "unauthorized_access"
     DATA_BREACH = "data_breach"
     MALWARE = "malware"
@@ -56,6 +59,7 @@ class IncidentCategory(str, Enum):
 
 class AlertType(str, Enum):
     """Types of security alerts that can trigger incidents"""
+
     AUTHENTICATION_FAILURE = "authentication_failure"
     PRIVILEGED_ACCESS = "privileged_access"
     UNUSUAL_ACTIVITY = "unusual_activity"
@@ -67,6 +71,7 @@ class AlertType(str, Enum):
 @dataclass
 class SecurityAlert:
     """Security alert that may trigger incident response"""
+
     alert_id: str
     alert_type: AlertType
     severity: IncidentSeverity
@@ -85,6 +90,7 @@ class SecurityAlert:
 @dataclass
 class SecurityIncident:
     """Security incident requiring response and documentation"""
+
     incident_id: str
     title: str
     description: str
@@ -161,17 +167,21 @@ class IncidentResponse:
         self.incident_storage.mkdir(parents=True, exist_ok=True)
 
         # Response team configuration
-        self.security_team_email = settings.SECURITY_TEAM_EMAIL if hasattr(settings, 'SECURITY_TEAM_EMAIL') else None
-        self.ciso_email = settings.CISO_EMAIL if hasattr(settings, 'CISO_EMAIL') else None
-        self.legal_team_email = settings.LEGAL_TEAM_EMAIL if hasattr(settings, 'LEGAL_TEAM_EMAIL') else None
+        self.security_team_email = (
+            settings.SECURITY_TEAM_EMAIL if hasattr(settings, "SECURITY_TEAM_EMAIL") else None
+        )
+        self.ciso_email = settings.CISO_EMAIL if hasattr(settings, "CISO_EMAIL") else None
+        self.legal_team_email = (
+            settings.LEGAL_TEAM_EMAIL if hasattr(settings, "LEGAL_TEAM_EMAIL") else None
+        )
 
         # SLA timelines (minutes)
         self.response_slas = {
             IncidentSeverity.CRITICAL: 15,  # 15 minutes
-            IncidentSeverity.HIGH: 60,      # 1 hour
-            IncidentSeverity.MEDIUM: 240,   # 4 hours
-            IncidentSeverity.LOW: 1440,     # 24 hours
-            IncidentSeverity.INFO: 2880     # 48 hours
+            IncidentSeverity.HIGH: 60,  # 1 hour
+            IncidentSeverity.MEDIUM: 240,  # 4 hours
+            IncidentSeverity.LOW: 1440,  # 24 hours
+            IncidentSeverity.INFO: 2880,  # 48 hours
         }
 
     async def process_alert(self, alert: SecurityAlert) -> Optional[SecurityIncident]:
@@ -196,8 +206,14 @@ class IncidentResponse:
             # Create incident for processing failure
             return await self._create_alert_processing_incident(alert, str(e))
 
-    async def create_incident(self, title: str, description: str, severity: IncidentSeverity,
-                            category: IncidentCategory, **kwargs) -> SecurityIncident:
+    async def create_incident(
+        self,
+        title: str,
+        description: str,
+        severity: IncidentSeverity,
+        category: IncidentCategory,
+        **kwargs,
+    ) -> SecurityIncident:
         """Manually create security incident"""
         incident_id = f"INC-{datetime.utcnow().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
@@ -210,7 +226,7 @@ class IncidentResponse:
             status=IncidentStatus.OPEN,
             created_at=datetime.utcnow(),
             detected_at=datetime.utcnow(),
-            **kwargs
+            **kwargs,
         )
 
         await self._save_incident(incident)
@@ -233,8 +249,8 @@ class IncidentResponse:
                 setattr(incident, field, value)
 
         # Auto-update timestamps based on status changes
-        if 'status' in updates:
-            await self._update_incident_timestamps(incident, updates['status'])
+        if "status" in updates:
+            await self._update_incident_timestamps(incident, updates["status"])
 
         await self._save_incident(incident)
 
@@ -255,7 +271,11 @@ class IncidentResponse:
         # Escalate severity if not already critical
         if incident.severity != IncidentSeverity.CRITICAL:
             old_severity = incident.severity
-            incident.severity = IncidentSeverity.HIGH if incident.severity == IncidentSeverity.MEDIUM else IncidentSeverity.CRITICAL
+            incident.severity = (
+                IncidentSeverity.HIGH
+                if incident.severity == IncidentSeverity.MEDIUM
+                else IncidentSeverity.CRITICAL
+            )
 
             # Add escalation to incident timeline
             incident.remediation_actions.append(
@@ -279,11 +299,18 @@ class IncidentResponse:
             return None
 
         try:
-            with open(incident_file, 'r') as f:
+            with open(incident_file, "r") as f:
                 incident_data = json.load(f)
 
             # Convert datetime strings back to datetime objects
-            for field in ['created_at', 'detected_at', 'acknowledged_at', 'contained_at', 'resolved_at', 'closed_at']:
+            for field in [
+                "created_at",
+                "detected_at",
+                "acknowledged_at",
+                "contained_at",
+                "resolved_at",
+                "closed_at",
+            ]:
                 if incident_data.get(field):
                     incident_data[field] = datetime.fromisoformat(incident_data[field])
 
@@ -338,7 +365,7 @@ class IncidentResponse:
             "average_resolution_time_hours": 0,
             "sla_compliance_rate": 0,
             "escalation_rate": 0,
-            "repeat_incidents": 0
+            "repeat_incidents": 0,
         }
 
         if not incidents:
@@ -346,13 +373,19 @@ class IncidentResponse:
 
         # Calculate metrics
         for severity in list(IncidentSeverity):
-            metrics["incidents_by_severity"][severity] = len([i for i in incidents if i.severity == severity])
+            metrics["incidents_by_severity"][severity] = len(
+                [i for i in incidents if i.severity == severity]
+            )
 
         for category in list(IncidentCategory):
-            metrics["incidents_by_category"][category] = len([i for i in incidents if i.category == category])
+            metrics["incidents_by_category"][category] = len(
+                [i for i in incidents if i.category == category]
+            )
 
         for status in list(IncidentStatus):
-            metrics["incidents_by_status"][status] = len([i for i in incidents if i.status == status])
+            metrics["incidents_by_status"][status] = len(
+                [i for i in incidents if i.status == status]
+            )
 
         # Response time metrics
         response_times = []
@@ -361,7 +394,9 @@ class IncidentResponse:
 
         for incident in incidents:
             if incident.acknowledged_at:
-                response_time = (incident.acknowledged_at - incident.detected_at).total_seconds() / 60
+                response_time = (
+                    incident.acknowledged_at - incident.detected_at
+                ).total_seconds() / 60
                 response_times.append(response_time)
 
                 # Check SLA compliance
@@ -370,7 +405,9 @@ class IncidentResponse:
                     sla_met += 1
 
             if incident.resolved_at:
-                resolution_time = (incident.resolved_at - incident.detected_at).total_seconds() / 3600
+                resolution_time = (
+                    incident.resolved_at - incident.detected_at
+                ).total_seconds() / 3600
                 resolution_times.append(resolution_time)
 
         if response_times:
@@ -397,17 +434,23 @@ class IncidentResponse:
         # Calculate timeline metrics
         timeline = {}
         if incident.acknowledged_at:
-            timeline["response_time_minutes"] = (incident.acknowledged_at - incident.detected_at).total_seconds() / 60
+            timeline["response_time_minutes"] = (
+                incident.acknowledged_at - incident.detected_at
+            ).total_seconds() / 60
 
         if incident.contained_at:
-            timeline["containment_time_hours"] = (incident.contained_at - incident.detected_at).total_seconds() / 3600
+            timeline["containment_time_hours"] = (
+                incident.contained_at - incident.detected_at
+            ).total_seconds() / 3600
 
         if incident.resolved_at:
-            timeline["resolution_time_hours"] = (incident.resolved_at - incident.detected_at).total_seconds() / 3600
+            timeline["resolution_time_hours"] = (
+                incident.resolved_at - incident.detected_at
+            ).total_seconds() / 3600
 
         # SLA compliance
         sla_minutes = self.response_slas.get(incident.severity, 1440)
-        sla_met = timeline.get("response_time_minutes", float('inf')) <= sla_minutes
+        sla_met = timeline.get("response_time_minutes", float("inf")) <= sla_minutes
 
         report = {
             "incident_summary": {
@@ -417,29 +460,29 @@ class IncidentResponse:
                 "category": incident.category,
                 "status": incident.status,
                 "created_at": incident.created_at.isoformat(),
-                "detected_at": incident.detected_at.isoformat()
+                "detected_at": incident.detected_at.isoformat(),
             },
             "impact_assessment": {
                 "affected_users": len(incident.affected_users),
                 "affected_systems": incident.affected_systems,
                 "data_compromised": incident.data_compromised,
-                "service_impact": incident.service_impact
+                "service_impact": incident.service_impact,
             },
             "response_metrics": {
                 "timeline": timeline,
                 "sla_compliance": sla_met,
                 "escalated": bool(incident.escalated_to),
                 "containment_actions": len(incident.containment_actions),
-                "remediation_actions": len(incident.remediation_actions)
+                "remediation_actions": len(incident.remediation_actions),
             },
             "compliance_requirements": {
                 "regulatory_reporting_required": incident.regulatory_reporting_required,
                 "customer_notification_required": incident.customer_notification_required,
-                "breach_notification_sent": incident.breach_notification_sent
+                "breach_notification_sent": incident.breach_notification_sent,
             },
             "evidence_collected": incident.evidence_collected,
             "lessons_learned": self._extract_lessons_learned(incident),
-            "report_generated_at": datetime.utcnow().isoformat()
+            "report_generated_at": datetime.utcnow().isoformat(),
         }
 
         return report
@@ -454,7 +497,9 @@ class IncidentResponse:
 
         # Create incidents for authentication failures with high frequency
         if alert.alert_type == AlertType.AUTHENTICATION_FAILURE:
-            recent_failures = await self._count_recent_auth_failures(alert.user_id, alert.ip_address)
+            recent_failures = await self._count_recent_auth_failures(
+                alert.user_id, alert.ip_address
+            )
             if recent_failures >= 5:  # 5 failures in short time
                 return True
 
@@ -484,7 +529,7 @@ class IncidentResponse:
             AlertType.UNUSUAL_ACTIVITY: IncidentCategory.POLICY_VIOLATION,
             AlertType.SYSTEM_ANOMALY: IncidentCategory.SYSTEM_COMPROMISE,
             AlertType.COMPLIANCE_BREACH: IncidentCategory.COMPLIANCE_VIOLATION,
-            AlertType.SECURITY_CONTROL_FAILURE: IncidentCategory.CONFIGURATION_ERROR
+            AlertType.SECURITY_CONTROL_FAILURE: IncidentCategory.CONFIGURATION_ERROR,
         }
 
         category = category_mapping.get(alert.alert_type, IncidentCategory.POLICY_VIOLATION)
@@ -501,16 +546,15 @@ class IncidentResponse:
             affected_users=[alert.user_id] if alert.user_id else [],
             affected_systems=alert.affected_assets,
             related_alerts=[alert.alert_id],
-            metadata={
-                "source_alert": asdict(alert),
-                "auto_created": True
-            }
+            metadata={"source_alert": asdict(alert), "auto_created": True},
         )
 
         await self._save_incident(incident)
         return incident
 
-    async def _create_alert_processing_incident(self, alert: SecurityAlert, error: str) -> SecurityIncident:
+    async def _create_alert_processing_incident(
+        self, alert: SecurityAlert, error: str
+    ) -> SecurityIncident:
         """Create incident for alert processing failure"""
         incident_id = f"INC-{datetime.utcnow().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
@@ -526,8 +570,8 @@ class IncidentResponse:
             metadata={
                 "failed_alert": asdict(alert),
                 "processing_error": error,
-                "auto_created": True
-            }
+                "auto_created": True,
+            },
         )
 
         await self._save_incident(incident)
@@ -575,7 +619,9 @@ class IncidentResponse:
     async def _high_incident_response(self, incident: SecurityIncident):
         """Response for high severity incidents"""
         # Document response initiation
-        incident.containment_actions.append(f"High severity incident response initiated at {datetime.utcnow()}")
+        incident.containment_actions.append(
+            f"High severity incident response initiated at {datetime.utcnow()}"
+        )
 
         # Consider escalation based on category
         if incident.category in [IncidentCategory.DATA_BREACH, IncidentCategory.SYSTEM_COMPROMISE]:
@@ -593,7 +639,7 @@ class IncidentResponse:
             "title": incident.title,
             "severity": incident.severity,
             "category": incident.category,
-            "created_at": incident.created_at.isoformat()
+            "created_at": incident.created_at.isoformat(),
         }
 
         # Log notification for audit trail
@@ -617,7 +663,9 @@ class IncidentResponse:
         # and auto-escalate if response times are exceeded
         logger.info(f"Setting up monitoring for incident {incident.incident_id}")
 
-    async def _update_incident_timestamps(self, incident: SecurityIncident, new_status: IncidentStatus):
+    async def _update_incident_timestamps(
+        self, incident: SecurityIncident, new_status: IncidentStatus
+    ):
         """Update incident timestamps based on status changes"""
         now = datetime.utcnow()
 
@@ -641,20 +689,24 @@ class IncidentResponse:
             sla_minutes = self.response_slas.get(incident.severity, 1440)
 
             if response_time > sla_minutes:
-                await self.escalate_incident(incident.incident_id, "SLA breach - response time exceeded")
+                await self.escalate_incident(
+                    incident.incident_id, "SLA breach - response time exceeded"
+                )
 
         # Check for long-running incidents
         age_hours = (datetime.utcnow() - incident.created_at).total_seconds() / 3600
 
         escalation_thresholds = {
-            IncidentSeverity.CRITICAL: 4,    # 4 hours
-            IncidentSeverity.HIGH: 24,       # 24 hours
-            IncidentSeverity.MEDIUM: 72,     # 72 hours
+            IncidentSeverity.CRITICAL: 4,  # 4 hours
+            IncidentSeverity.HIGH: 24,  # 24 hours
+            IncidentSeverity.MEDIUM: 72,  # 72 hours
         }
 
         threshold = escalation_thresholds.get(incident.severity)
         if threshold and age_hours > threshold and not incident.escalated_to:
-            await self.escalate_incident(incident.incident_id, f"Long-running incident - {age_hours:.1f} hours")
+            await self.escalate_incident(
+                incident.incident_id, f"Long-running incident - {age_hours:.1f} hours"
+            )
 
     async def _send_escalation_notification(self, incident: SecurityIncident, reason: str):
         """Send escalation notification to management"""
@@ -667,11 +719,18 @@ class IncidentResponse:
         incident_data = asdict(incident)
 
         # Convert datetime objects to ISO strings for JSON serialization
-        for field in ['created_at', 'detected_at', 'acknowledged_at', 'contained_at', 'resolved_at', 'closed_at']:
+        for field in [
+            "created_at",
+            "detected_at",
+            "acknowledged_at",
+            "contained_at",
+            "resolved_at",
+            "closed_at",
+        ]:
             if incident_data.get(field):
                 incident_data[field] = incident_data[field].isoformat()
 
-        with open(incident_file, 'w') as f:
+        with open(incident_file, "w") as f:
             json.dump(incident_data, f, indent=2, default=str)
 
     async def _log_security_alert(self, alert: SecurityAlert):
@@ -682,7 +741,9 @@ class IncidentResponse:
         """Log incident notification for audit trail"""
         logger.info(f"Incident notification sent: {notification_data}")
 
-    async def _count_recent_auth_failures(self, user_id: Optional[str], ip_address: Optional[str]) -> int:
+    async def _count_recent_auth_failures(
+        self, user_id: Optional[str], ip_address: Optional[str]
+    ) -> int:
         """Count recent authentication failures for user or IP"""
         if not user_id and not ip_address:
             return 0
@@ -692,7 +753,7 @@ class IncidentResponse:
                 query = select(func.count(AuditLog.id)).where(
                     and_(
                         AuditLog.action == "failed_login",
-                        AuditLog.created_at >= datetime.utcnow() - timedelta(minutes=15)
+                        AuditLog.created_at >= datetime.utcnow() - timedelta(minutes=15),
                     )
                 )
 
@@ -700,7 +761,7 @@ class IncidentResponse:
                     query = query.where(AuditLog.user_id == user_id)
 
                 if ip_address:
-                    query = query.where(AuditLog.metadata.op('->>')('ip_address') == ip_address)
+                    query = query.where(AuditLog.metadata.op("->>")("ip_address") == ip_address)
 
                 result = await session.execute(query)
                 return result.scalar() or 0
@@ -737,7 +798,10 @@ class IncidentResponse:
 
 # Utility functions for alert generation
 
-async def create_authentication_failure_alert(user_id: str, ip_address: str, failure_count: int) -> SecurityAlert:
+
+async def create_authentication_failure_alert(
+    user_id: str, ip_address: str, failure_count: int
+) -> SecurityAlert:
     """Create alert for authentication failures"""
     severity = IncidentSeverity.MEDIUM if failure_count < 5 else IncidentSeverity.HIGH
 
@@ -752,10 +816,7 @@ async def create_authentication_failure_alert(user_id: str, ip_address: str, fai
         detection_time=datetime.utcnow(),
         user_id=user_id,
         ip_address=ip_address,
-        raw_data={
-            "failure_count": failure_count,
-            "detection_window_minutes": 15
-        }
+        raw_data={"failure_count": failure_count, "detection_window_minutes": 15},
     )
 
 
@@ -771,15 +832,13 @@ async def create_privileged_access_alert(user_id: str, action: str, resource: st
         affected_assets=[resource],
         detection_time=datetime.utcnow(),
         user_id=user_id,
-        raw_data={
-            "action": action,
-            "resource": resource,
-            "requires_review": True
-        }
+        raw_data={"action": action, "resource": resource, "requires_review": True},
     )
 
 
-async def create_system_anomaly_alert(system: str, metric: str, value: float, threshold: float) -> SecurityAlert:
+async def create_system_anomaly_alert(
+    system: str, metric: str, value: float, threshold: float
+) -> SecurityAlert:
     """Create alert for system anomalies"""
     severity = IncidentSeverity.HIGH if value > threshold * 2 else IncidentSeverity.MEDIUM
 
@@ -796,6 +855,6 @@ async def create_system_anomaly_alert(system: str, metric: str, value: float, th
             "metric": metric,
             "current_value": value,
             "threshold": threshold,
-            "deviation_percentage": ((value - threshold) / threshold) * 100
-        }
+            "deviation_percentage": ((value - threshold) / threshold) * 100,
+        },
     )

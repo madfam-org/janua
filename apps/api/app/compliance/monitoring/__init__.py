@@ -16,5 +16,5 @@ __all__ = [
     "ComplianceEvidence",
     "ComplianceMonitor",
     "ControlMonitor",
-    "EvidenceCollector"
+    "EvidenceCollector",
 ]

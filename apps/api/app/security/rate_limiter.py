@@ -18,6 +18,7 @@ logger = structlog.get_logger()
 
 class LimitType(Enum):
     """Rate limit types"""
+
     FIXED_WINDOW = "fixed_window"
     SLIDING_WINDOW = "sliding_window"
     TOKEN_BUCKET = "token_bucket"
@@ -27,6 +28,7 @@ class LimitType(Enum):
 @dataclass
 class RateLimit:
     """Rate limit configuration"""
+
     name: str
     limit: int
     window: int  # seconds
@@ -39,6 +41,7 @@ class RateLimit:
 @dataclass
 class RateLimitResult:
     """Rate limit check result"""
+
     allowed: bool
     limit: int
     remaining: int
@@ -63,7 +66,7 @@ class AdvancedRateLimiter:
                 limit=5,
                 window=300,  # 5 minutes
                 limit_type=LimitType.FIXED_WINDOW,
-                description="Authentication attempts per IP"
+                description="Authentication attempts per IP",
             ),
             RateLimit(
                 name="api_calls",
@@ -71,21 +74,21 @@ class AdvancedRateLimiter:
                 window=3600,  # 1 hour
                 limit_type=LimitType.SLIDING_WINDOW,
                 burst_size=50,
-                description="General API calls per user"
+                description="General API calls per user",
             ),
             RateLimit(
                 name="password_reset",
                 limit=3,
                 window=3600,  # 1 hour
                 limit_type=LimitType.FIXED_WINDOW,
-                description="Password reset attempts per email"
+                description="Password reset attempts per email",
             ),
             RateLimit(
                 name="registration",
                 limit=10,
                 window=86400,  # 24 hours
                 limit_type=LimitType.FIXED_WINDOW,
-                description="User registrations per IP"
+                description="User registrations per IP",
             ),
             RateLimit(
                 name="webhook_delivery",
@@ -93,14 +96,14 @@ class AdvancedRateLimiter:
                 window=60,  # 1 minute
                 limit_type=LimitType.TOKEN_BUCKET,
                 burst_size=20,
-                description="Webhook deliveries per organization"
+                description="Webhook deliveries per organization",
             ),
             RateLimit(
                 name="file_upload",
                 limit=20,
                 window=3600,  # 1 hour
                 limit_type=LimitType.LEAKY_BUCKET,
-                description="File uploads per user"
+                description="File uploads per user",
             ),
         ]
 
@@ -123,11 +126,7 @@ class AdvancedRateLimiter:
         if limit_name not in self.limits:
             logger.warning("Unknown rate limit", name=limit_name)
             return RateLimitResult(
-                allowed=True,
-                limit=0,
-                remaining=0,
-                reset_time=0,
-                limit_name=limit_name
+                allowed=True, limit=0, remaining=0, reset_time=0, limit_name=limit_name
             )
 
         rate_limit = self.limits[limit_name]
@@ -138,7 +137,7 @@ class AdvancedRateLimiter:
                 limit=rate_limit.limit,
                 remaining=rate_limit.limit,
                 reset_time=0,
-                limit_name=limit_name
+                limit_name=limit_name,
             )
 
         # Route to appropriate algorithm
@@ -156,7 +155,7 @@ class AdvancedRateLimiter:
             limit=rate_limit.limit,
             remaining=0,
             reset_time=int(time.time() + rate_limit.window),
-            limit_name=limit_name
+            limit_name=limit_name,
         )
 
     async def _check_fixed_window(self, rate_limit: RateLimit, identifier: str) -> RateLimitResult:
@@ -175,7 +174,7 @@ class AdvancedRateLimiter:
                 remaining=0,
                 reset_time=window_start + rate_limit.window,
                 retry_after=window_start + rate_limit.window - current_time,
-                limit_name=rate_limit.name
+                limit_name=rate_limit.name,
             )
 
         # Increment counter
@@ -189,10 +188,12 @@ class AdvancedRateLimiter:
             limit=rate_limit.limit,
             remaining=rate_limit.limit - current_count - 1,
             reset_time=window_start + rate_limit.window,
-            limit_name=rate_limit.name
+            limit_name=rate_limit.name,
         )
 
-    async def _check_sliding_window(self, rate_limit: RateLimit, identifier: str) -> RateLimitResult:
+    async def _check_sliding_window(
+        self, rate_limit: RateLimit, identifier: str
+    ) -> RateLimitResult:
         """Sliding window rate limiting"""
         current_time = time.time()
         window_start = current_time - rate_limit.window
@@ -210,7 +211,11 @@ class AdvancedRateLimiter:
         if current_count >= rate_limit.limit:
             # Get the oldest entry to calculate reset time
             oldest_entries = await self.redis.zrange(key, 0, 0, withscores=True)
-            reset_time = int(oldest_entries[0][1] + rate_limit.window) if oldest_entries else int(current_time + rate_limit.window)
+            reset_time = (
+                int(oldest_entries[0][1] + rate_limit.window)
+                if oldest_entries
+                else int(current_time + rate_limit.window)
+            )
 
             return RateLimitResult(
                 allowed=False,
@@ -218,7 +223,7 @@ class AdvancedRateLimiter:
                 remaining=0,
                 reset_time=reset_time,
                 retry_after=reset_time - int(current_time),
-                limit_name=rate_limit.name
+                limit_name=rate_limit.name,
             )
 
         # Add current request
@@ -229,7 +234,7 @@ class AdvancedRateLimiter:
             limit=rate_limit.limit,
             remaining=rate_limit.limit - current_count - 1,
             reset_time=int(current_time + rate_limit.window),
-            limit_name=rate_limit.name
+            limit_name=rate_limit.name,
         )
 
     async def _check_token_bucket(self, rate_limit: RateLimit, identifier: str) -> RateLimitResult:
@@ -244,8 +249,8 @@ class AdvancedRateLimiter:
 
         if bucket_data:
             bucket_state = json.loads(bucket_data)
-            last_refill = bucket_state['last_refill']
-            tokens = bucket_state['tokens']
+            last_refill = bucket_state["last_refill"]
+            tokens = bucket_state["tokens"]
         else:
             last_refill = current_time
             tokens = bucket_size
@@ -264,17 +269,14 @@ class AdvancedRateLimiter:
                 remaining=0,
                 reset_time=int(current_time + next_token_time),
                 retry_after=int(next_token_time),
-                limit_name=rate_limit.name
+                limit_name=rate_limit.name,
             )
 
         # Consume one token
         tokens -= 1
 
         # Update bucket state
-        new_state = {
-            'tokens': tokens,
-            'last_refill': current_time
-        }
+        new_state = {"tokens": tokens, "last_refill": current_time}
         await self.redis.setex(key, rate_limit.window * 2, json.dumps(new_state))
 
         return RateLimitResult(
@@ -282,7 +284,7 @@ class AdvancedRateLimiter:
             limit=rate_limit.limit,
             remaining=int(tokens),
             reset_time=int(current_time + (bucket_size - tokens) / refill_rate),
-            limit_name=rate_limit.name
+            limit_name=rate_limit.name,
         )
 
     async def _check_leaky_bucket(self, rate_limit: RateLimit, identifier: str) -> RateLimitResult:
@@ -297,8 +299,8 @@ class AdvancedRateLimiter:
 
         if bucket_data:
             bucket_state = json.loads(bucket_data)
-            last_leak = bucket_state['last_leak']
-            level = bucket_state['level']
+            last_leak = bucket_state["last_leak"]
+            level = bucket_state["level"]
         else:
             last_leak = current_time
             level = 0
@@ -317,17 +319,14 @@ class AdvancedRateLimiter:
                 remaining=0,
                 reset_time=int(current_time + leak_time),
                 retry_after=int(leak_time),
-                limit_name=rate_limit.name
+                limit_name=rate_limit.name,
             )
 
         # Add request to bucket
         level += 1
 
         # Update bucket state
-        new_state = {
-            'level': level,
-            'last_leak': current_time
-        }
+        new_state = {"level": level, "last_leak": current_time}
         await self.redis.setex(key, rate_limit.window * 2, json.dumps(new_state))
 
         return RateLimitResult(
@@ -335,7 +334,7 @@ class AdvancedRateLimiter:
             limit=rate_limit.limit,
             remaining=int(bucket_size - level),
             reset_time=int(current_time + level / leak_rate),
-            limit_name=rate_limit.name
+            limit_name=rate_limit.name,
         )
 
     async def reset_limit(self, limit_name: str, identifier: str):
@@ -360,7 +359,7 @@ class AdvancedRateLimiter:
             "limit": result.limit,
             "remaining": result.remaining,
             "reset_time": result.reset_time,
-            "enabled": rate_limit.enabled
+            "enabled": rate_limit.enabled,
         }
 
 
@@ -386,7 +385,7 @@ class RateLimitMiddleware:
                     limit_name=limit_name,
                     identifier=identifier,
                     limit=result.limit,
-                    reset_time=result.reset_time
+                    reset_time=result.reset_time,
                 )
 
                 return JSONResponse(
@@ -395,14 +394,14 @@ class RateLimitMiddleware:
                         "error": "Rate limit exceeded",
                         "limit_name": limit_name,
                         "limit": result.limit,
-                        "retry_after": result.retry_after
+                        "retry_after": result.retry_after,
                     },
                     headers={
                         "X-RateLimit-Limit": str(result.limit),
                         "X-RateLimit-Remaining": str(result.remaining),
                         "X-RateLimit-Reset": str(result.reset_time),
-                        "Retry-After": str(result.retry_after) if result.retry_after else "60"
-                    }
+                        "Retry-After": str(result.retry_after) if result.retry_after else "60",
+                    },
                 )
 
         # Continue with request
@@ -425,7 +424,7 @@ class RateLimitMiddleware:
         # Priority: User ID > API Key > IP Address
 
         # Check for authenticated user
-        if hasattr(request.state, 'user_id'):
+        if hasattr(request.state, "user_id"):
             return f"user:{request.state.user_id}"
 
         # Check for API key
@@ -495,7 +494,7 @@ class RateLimitStats:
             "total_requests": 0,
             "blocked_requests": 0,
             "block_rate": 0.0,
-            "time_range_hours": hours
+            "time_range_hours": hours,
         }
 
         # Aggregate stats for the specified time range

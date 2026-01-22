@@ -13,17 +13,17 @@ pytestmark = pytest.mark.asyncio
 def mock_external_dependencies():
     """Mock external dependencies for compliance testing"""
     mocked_modules = {
-        'aioredis': Mock(),
-        'redis': Mock(),
-        'celery': Mock(),
-        'boto3': Mock(),
-        'stripe': Mock(),
-        'twilio': Mock(),
-        'sendgrid': Mock(),
-        'requests': Mock(),
-        'httpx': Mock()
+        "aioredis": Mock(),
+        "redis": Mock(),
+        "celery": Mock(),
+        "boto3": Mock(),
+        "stripe": Mock(),
+        "twilio": Mock(),
+        "sendgrid": Mock(),
+        "requests": Mock(),
+        "httpx": Mock(),
     }
-    with patch.dict('sys.modules', mocked_modules):
+    with patch.dict("sys.modules", mocked_modules):
         yield
 
 
@@ -36,11 +36,16 @@ class TestComplianceAuditManager:
             from app.compliance.audit import AuditManager
 
             mock_db = AsyncMock()
-            audit_manager = AuditManager(mock_db) if hasattr(AuditManager, '__init__') else AuditManager()
+            audit_manager = (
+                AuditManager(mock_db) if hasattr(AuditManager, "__init__") else AuditManager()
+            )
 
             # Verify manager has core audit methods
-            public_methods = [method for method in dir(audit_manager)
-                            if not method.startswith('_') and callable(getattr(audit_manager, method))]
+            public_methods = [
+                method
+                for method in dir(audit_manager)
+                if not method.startswith("_") and callable(getattr(audit_manager, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(audit_manager, method_name)
@@ -56,10 +61,14 @@ class TestComplianceAuditManager:
         try:
             from app.compliance.audit import AuditTracker
 
-            tracker = AuditTracker() if not hasattr(AuditTracker, '__init__') else AuditTracker(AsyncMock())
-            
+            tracker = (
+                AuditTracker()
+                if not hasattr(AuditTracker, "__init__")
+                else AuditTracker(AsyncMock())
+            )
+
             # Test tracker has tracking methods
-            expected_methods = ['track_event', 'log_compliance_action', 'generate_audit_trail']
+            expected_methods = ["track_event", "log_compliance_action", "generate_audit_trail"]
             for method_name in expected_methods:
                 if hasattr(tracker, method_name):
                     assert callable(getattr(tracker, method_name))
@@ -77,11 +86,18 @@ class TestComplianceDashboard:
             from app.compliance.dashboard import ComplianceDashboard
 
             mock_db = AsyncMock()
-            dashboard = ComplianceDashboard(mock_db) if hasattr(ComplianceDashboard, '__init__') else ComplianceDashboard()
+            dashboard = (
+                ComplianceDashboard(mock_db)
+                if hasattr(ComplianceDashboard, "__init__")
+                else ComplianceDashboard()
+            )
 
             # Verify dashboard has metrics methods
-            public_methods = [method for method in dir(dashboard)
-                            if not method.startswith('_') and callable(getattr(dashboard, method))]
+            public_methods = [
+                method
+                for method in dir(dashboard)
+                if not method.startswith("_") and callable(getattr(dashboard, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(dashboard, method_name)
@@ -97,10 +113,18 @@ class TestComplianceDashboard:
         try:
             from app.compliance.dashboard import MetricsAggregator
 
-            aggregator = MetricsAggregator() if not hasattr(MetricsAggregator, '__init__') else MetricsAggregator(AsyncMock())
-            
+            aggregator = (
+                MetricsAggregator()
+                if not hasattr(MetricsAggregator, "__init__")
+                else MetricsAggregator(AsyncMock())
+            )
+
             # Test aggregator has aggregation methods
-            expected_methods = ['aggregate_metrics', 'calculate_compliance_score', 'generate_reports']
+            expected_methods = [
+                "aggregate_metrics",
+                "calculate_compliance_score",
+                "generate_reports",
+            ]
             for method_name in expected_methods:
                 if hasattr(aggregator, method_name):
                     assert callable(getattr(aggregator, method_name))
@@ -118,11 +142,18 @@ class TestIncidentResponseManager:
             from app.compliance.incident_response import IncidentResponseManager
 
             mock_db = AsyncMock()
-            incident_manager = IncidentResponseManager(mock_db) if hasattr(IncidentResponseManager, '__init__') else IncidentResponseManager()
+            incident_manager = (
+                IncidentResponseManager(mock_db)
+                if hasattr(IncidentResponseManager, "__init__")
+                else IncidentResponseManager()
+            )
 
             # Verify incident manager has response methods
-            public_methods = [method for method in dir(incident_manager)
-                            if not method.startswith('_') and callable(getattr(incident_manager, method))]
+            public_methods = [
+                method
+                for method in dir(incident_manager)
+                if not method.startswith("_") and callable(getattr(incident_manager, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(incident_manager, method_name)
@@ -139,9 +170,10 @@ class TestIncidentResponseManager:
             from app.compliance.incident_response import ComplianceIncident
 
             # Test incident creation and management
-            incident = ComplianceIncident() if not hasattr(ComplianceIncident, '__init__') else ComplianceIncident(
-                incident_type="data_breach",
-                severity="high"
+            incident = (
+                ComplianceIncident()
+                if not hasattr(ComplianceIncident, "__init__")
+                else ComplianceIncident(incident_type="data_breach", severity="high")
             )
 
             assert incident is not None
@@ -159,11 +191,16 @@ class TestPolicyEngine:
             from app.compliance.policies import PolicyManager
 
             mock_db = AsyncMock()
-            policy_manager = PolicyManager(mock_db) if hasattr(PolicyManager, '__init__') else PolicyManager()
+            policy_manager = (
+                PolicyManager(mock_db) if hasattr(PolicyManager, "__init__") else PolicyManager()
+            )
 
             # Verify policy manager has policy methods
-            public_methods = [method for method in dir(policy_manager)
-                            if not method.startswith('_') and callable(getattr(policy_manager, method))]
+            public_methods = [
+                method
+                for method in dir(policy_manager)
+                if not method.startswith("_") and callable(getattr(policy_manager, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(policy_manager, method_name)
@@ -179,10 +216,14 @@ class TestPolicyEngine:
         try:
             from app.compliance.policies import PolicyEngine
 
-            engine = PolicyEngine() if not hasattr(PolicyEngine, '__init__') else PolicyEngine(AsyncMock())
-            
+            engine = (
+                PolicyEngine()
+                if not hasattr(PolicyEngine, "__init__")
+                else PolicyEngine(AsyncMock())
+            )
+
             # Test engine has enforcement methods
-            expected_methods = ['enforce_policy', 'validate_compliance', 'check_violations']
+            expected_methods = ["enforce_policy", "validate_compliance", "check_violations"]
             for method_name in expected_methods:
                 if hasattr(engine, method_name):
                     assert callable(getattr(engine, method_name))
@@ -200,11 +241,16 @@ class TestPrivacyManager:
             from app.compliance.privacy import PrivacyManager
 
             mock_db = AsyncMock()
-            privacy_manager = PrivacyManager(mock_db) if hasattr(PrivacyManager, '__init__') else PrivacyManager()
+            privacy_manager = (
+                PrivacyManager(mock_db) if hasattr(PrivacyManager, "__init__") else PrivacyManager()
+            )
 
             # Verify privacy manager has protection methods
-            public_methods = [method for method in dir(privacy_manager)
-                            if not method.startswith('_') and callable(getattr(privacy_manager, method))]
+            public_methods = [
+                method
+                for method in dir(privacy_manager)
+                if not method.startswith("_") and callable(getattr(privacy_manager, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(privacy_manager, method_name)
@@ -220,10 +266,14 @@ class TestPrivacyManager:
         try:
             from app.compliance.privacy import ConsentManager
 
-            consent_manager = ConsentManager() if not hasattr(ConsentManager, '__init__') else ConsentManager(AsyncMock())
-            
+            consent_manager = (
+                ConsentManager()
+                if not hasattr(ConsentManager, "__init__")
+                else ConsentManager(AsyncMock())
+            )
+
             # Test consent manager has consent methods
-            expected_methods = ['track_consent', 'revoke_consent', 'audit_consent']
+            expected_methods = ["track_consent", "revoke_consent", "audit_consent"]
             for method_name in expected_methods:
                 if hasattr(consent_manager, method_name):
                     assert callable(getattr(consent_manager, method_name))
@@ -241,11 +291,18 @@ class TestComplianceSupport:
             from app.compliance.support import ComplianceSupport
 
             mock_db = AsyncMock()
-            support_manager = ComplianceSupport(mock_db) if hasattr(ComplianceSupport, '__init__') else ComplianceSupport()
+            support_manager = (
+                ComplianceSupport(mock_db)
+                if hasattr(ComplianceSupport, "__init__")
+                else ComplianceSupport()
+            )
 
             # Verify support manager has support methods
-            public_methods = [method for method in dir(support_manager)
-                            if not method.startswith('_') and callable(getattr(support_manager, method))]
+            public_methods = [
+                method
+                for method in dir(support_manager)
+                if not method.startswith("_") and callable(getattr(support_manager, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(support_manager, method_name)
@@ -261,10 +318,18 @@ class TestComplianceSupport:
         try:
             from app.compliance.support import KnowledgeBase
 
-            kb = KnowledgeBase() if not hasattr(KnowledgeBase, '__init__') else KnowledgeBase(AsyncMock())
-            
+            kb = (
+                KnowledgeBase()
+                if not hasattr(KnowledgeBase, "__init__")
+                else KnowledgeBase(AsyncMock())
+            )
+
             # Test knowledge base has content methods
-            expected_methods = ['search_articles', 'get_compliance_guidance', 'update_documentation']
+            expected_methods = [
+                "search_articles",
+                "get_compliance_guidance",
+                "update_documentation",
+            ]
             for method_name in expected_methods:
                 if hasattr(kb, method_name):
                     assert callable(getattr(kb, method_name))

@@ -16,8 +16,11 @@ from sqlalchemy import select, and_, func, desc
 
 from app.core.database import get_session
 from app.models.compliance import (
-    ComplianceControl, DataBreachIncident, ComplianceFramework,
-    DataSubjectRequest, RequestStatus
+    ComplianceControl,
+    DataBreachIncident,
+    ComplianceFramework,
+    DataSubjectRequest,
+    RequestStatus,
 )
 from app.models.audit import AuditLog
 from app.core.config import get_settings
@@ -31,26 +34,29 @@ settings = get_settings()
 
 class DashboardTimeframe(str, Enum):
     """Time frames for dashboard metrics"""
-    REALTIME = "realtime"      # Last 15 minutes
-    HOURLY = "hourly"          # Last 24 hours
-    DAILY = "daily"            # Last 30 days
-    WEEKLY = "weekly"          # Last 12 weeks
-    MONTHLY = "monthly"        # Last 12 months
-    QUARTERLY = "quarterly"    # Last 4 quarters
-    YEARLY = "yearly"          # Last 5 years
+
+    REALTIME = "realtime"  # Last 15 minutes
+    HOURLY = "hourly"  # Last 24 hours
+    DAILY = "daily"  # Last 30 days
+    WEEKLY = "weekly"  # Last 12 weeks
+    MONTHLY = "monthly"  # Last 12 months
+    QUARTERLY = "quarterly"  # Last 4 quarters
+    YEARLY = "yearly"  # Last 5 years
 
 
 class MetricStatus(str, Enum):
     """Status indicators for metrics"""
-    EXCELLENT = "excellent"    # 95-100%
-    GOOD = "good"             # 85-94%
-    WARNING = "warning"       # 70-84%
-    CRITICAL = "critical"     # Below 70%
-    UNKNOWN = "unknown"       # No data
+
+    EXCELLENT = "excellent"  # 95-100%
+    GOOD = "good"  # 85-94%
+    WARNING = "warning"  # 70-84%
+    CRITICAL = "critical"  # Below 70%
+    UNKNOWN = "unknown"  # No data
 
 
 class AlertLevel(str, Enum):
     """Alert severity levels"""
+
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
@@ -60,6 +66,7 @@ class AlertLevel(str, Enum):
 @dataclass
 class ComplianceMetric:
     """Individual compliance metric with trend data"""
+
     metric_id: str
     name: str
     description: str
@@ -76,6 +83,7 @@ class ComplianceMetric:
 @dataclass
 class SOC2ControlSummary:
     """SOC2 control effectiveness summary"""
+
     control_id: str
     control_name: str
     control_family: str
@@ -90,6 +98,7 @@ class SOC2ControlSummary:
 @dataclass
 class ComplianceDashboardData:
     """Complete dashboard data structure"""
+
     organization_id: str
     generated_at: datetime
     timeframe: DashboardTimeframe
@@ -137,7 +146,7 @@ class ComplianceDashboard:
         organization_id: str,
         timeframe: DashboardTimeframe = DashboardTimeframe.DAILY,
         include_trends: bool = True,
-        cache_timeout: int = 300  # 5 minutes
+        cache_timeout: int = 300,  # 5 minutes
     ) -> ComplianceDashboardData:
         """Generate comprehensive dashboard data"""
 
@@ -155,7 +164,7 @@ class ComplianceDashboard:
                         "Failed to deserialize cached dashboard data, regenerating",
                         organization_id=str(organization_id),
                         error=str(e),
-                        error_type=type(e).__name__
+                        error_type=type(e).__name__,
                     )
 
         # Generate fresh dashboard data
@@ -166,17 +175,12 @@ class ComplianceDashboard:
         # Cache the result
         if self.redis:
             await self.redis.setex(
-                cache_key,
-                cache_timeout,
-                json.dumps(asdict(dashboard_data), default=str)
+                cache_key, cache_timeout, json.dumps(asdict(dashboard_data), default=str)
             )
 
         return dashboard_data
 
-    async def get_real_time_metrics(
-        self,
-        organization_id: str
-    ) -> Dict[str, Any]:
+    async def get_real_time_metrics(self, organization_id: str) -> Dict[str, Any]:
         """Get real-time compliance metrics"""
 
         current_time = datetime.utcnow()
@@ -185,15 +189,19 @@ class ComplianceDashboard:
         async with get_session() as session:
             # Recent audit events
             recent_events = await session.execute(
-                select(AuditLog).where(
+                select(AuditLog)
+                .where(
                     and_(
                         AuditLog.created_at >= start_time,
                         func.coalesce(
-                            AuditLog.metadata['compliance_event']['organization_id'].astext,
-                            'default'
-                        ) == organization_id
+                            AuditLog.metadata["compliance_event"]["organization_id"].astext,
+                            "default",
+                        )
+                        == organization_id,
                     )
-                ).order_by(desc(AuditLog.created_at)).limit(50)
+                )
+                .order_by(desc(AuditLog.created_at))
+                .limit(50)
             )
             events = recent_events.scalars().all()
 
@@ -201,9 +209,13 @@ class ComplianceDashboard:
             event_stats = {
                 "total_events": len(events),
                 "security_events": len([e for e in events if e.event_type == "security_event"]),
-                "failed_logins": len([e for e in events if e.event_type == "user_access" and e.outcome == "failure"]),
-                "privileged_access": len([e for e in events if e.event_type == "privileged_access"]),
-                "system_changes": len([e for e in events if e.event_type == "system_change"])
+                "failed_logins": len(
+                    [e for e in events if e.event_type == "user_access" and e.outcome == "failure"]
+                ),
+                "privileged_access": len(
+                    [e for e in events if e.event_type == "privileged_access"]
+                ),
+                "system_changes": len([e for e in events if e.event_type == "system_change"]),
             }
 
             # Active incidents
@@ -211,7 +223,7 @@ class ComplianceDashboard:
                 select(func.count(DataBreachIncident.id)).where(
                     and_(
                         DataBreachIncident.status.in_(["open", "investigating", "containment"]),
-                        DataBreachIncident.organization_id == uuid.UUID(organization_id)
+                        DataBreachIncident.organization_id == uuid.UUID(organization_id),
                     )
                 )
             )
@@ -221,8 +233,10 @@ class ComplianceDashboard:
             pending_requests = await session.execute(
                 select(func.count(DataSubjectRequest.id)).where(
                     and_(
-                        DataSubjectRequest.status.in_([RequestStatus.RECEIVED, RequestStatus.IN_PROGRESS]),
-                        DataSubjectRequest.organization_id == uuid.UUID(organization_id)
+                        DataSubjectRequest.status.in_(
+                            [RequestStatus.RECEIVED, RequestStatus.IN_PROGRESS]
+                        ),
+                        DataSubjectRequest.organization_id == uuid.UUID(organization_id),
                     )
                 )
             )
@@ -234,35 +248,41 @@ class ComplianceDashboard:
             "error_rate": len([e for e in events if e.outcome == "failure"]) / max(len(events), 1),
             "security_alert_rate": event_stats["security_events"] / 15,
             "active_incidents": incident_count,
-            "pending_dsr": pending_count
+            "pending_dsr": pending_count,
         }
 
         # Alert generation
         alerts = []
 
         if health_metrics["error_rate"] > 0.1:  # >10% error rate
-            alerts.append({
-                "level": AlertLevel.WARNING.value,
-                "message": f"High error rate detected: {health_metrics['error_rate']:.1%}",
-                "timestamp": current_time.isoformat(),
-                "metric": "error_rate"
-            })
+            alerts.append(
+                {
+                    "level": AlertLevel.WARNING.value,
+                    "message": f"High error rate detected: {health_metrics['error_rate']:.1%}",
+                    "timestamp": current_time.isoformat(),
+                    "metric": "error_rate",
+                }
+            )
 
         if incident_count > 0:
-            alerts.append({
-                "level": AlertLevel.CRITICAL.value,
-                "message": f"{incident_count} active security incidents",
-                "timestamp": current_time.isoformat(),
-                "metric": "active_incidents"
-            })
+            alerts.append(
+                {
+                    "level": AlertLevel.CRITICAL.value,
+                    "message": f"{incident_count} active security incidents",
+                    "timestamp": current_time.isoformat(),
+                    "metric": "active_incidents",
+                }
+            )
 
         if pending_count > 10:
-            alerts.append({
-                "level": AlertLevel.WARNING.value,
-                "message": f"{pending_count} pending data subject requests",
-                "timestamp": current_time.isoformat(),
-                "metric": "pending_dsr"
-            })
+            alerts.append(
+                {
+                    "level": AlertLevel.WARNING.value,
+                    "message": f"{pending_count} pending data subject requests",
+                    "timestamp": current_time.isoformat(),
+                    "metric": "pending_dsr",
+                }
+            )
 
         return {
             "timestamp": current_time.isoformat(),
@@ -275,16 +295,14 @@ class ComplianceDashboard:
                     "type": event.event_type,
                     "action": event.action,
                     "outcome": event.outcome,
-                    "resource": f"{event.resource_type}:{event.resource_id}"
+                    "resource": f"{event.resource_type}:{event.resource_id}",
                 }
                 for event in events[:10]
-            ]
+            ],
         }
 
     async def get_soc2_control_dashboard(
-        self,
-        organization_id: str,
-        timeframe: DashboardTimeframe = DashboardTimeframe.MONTHLY
+        self, organization_id: str, timeframe: DashboardTimeframe = DashboardTimeframe.MONTHLY
     ) -> Dict[str, Any]:
         """Generate SOC2 control effectiveness dashboard"""
 
@@ -298,7 +316,7 @@ class ComplianceDashboard:
                     and_(
                         ComplianceControl.compliance_framework == ComplianceFramework.SOC2,
                         ComplianceControl.organization_id == uuid.UUID(organization_id),
-                        ComplianceControl.is_active == True
+                        ComplianceControl.is_active == True,
                     )
                 )
             )
@@ -316,7 +334,7 @@ class ComplianceDashboard:
                         "total_controls": 0,
                         "effective_controls": 0,
                         "controls_with_deficiencies": 0,
-                        "average_score": 0
+                        "average_score": 0,
                     }
 
                 family_summary[family]["total_controls"] += 1
@@ -338,23 +356,29 @@ class ComplianceDashboard:
                 if deficiency_count > 0:
                     family_summary[family]["controls_with_deficiencies"] += 1
 
-                control_details.append({
-                    "control_id": control.control_id,
-                    "control_name": control.control_name,
-                    "family": family,
-                    "effectiveness_score": effectiveness_score,
-                    "status": control.effectiveness_rating or "not_tested",
-                    "last_tested": control.last_tested_date.isoformat() if control.last_tested_date else None,
-                    "deficiencies": deficiency_count,
-                    "implementation_status": control.implementation_status,
-                    "test_frequency": control.test_frequency
-                })
+                control_details.append(
+                    {
+                        "control_id": control.control_id,
+                        "control_name": control.control_name,
+                        "family": family,
+                        "effectiveness_score": effectiveness_score,
+                        "status": control.effectiveness_rating or "not_tested",
+                        "last_tested": control.last_tested_date.isoformat()
+                        if control.last_tested_date
+                        else None,
+                        "deficiencies": deficiency_count,
+                        "implementation_status": control.implementation_status,
+                        "test_frequency": control.test_frequency,
+                    }
+                )
 
             # Calculate family averages
             for family, data in family_summary.items():
                 family_controls = [c for c in control_details if c["family"] == family]
                 if family_controls:
-                    data["average_score"] = sum(c["effectiveness_score"] for c in family_controls) / len(family_controls)
+                    data["average_score"] = sum(
+                        c["effectiveness_score"] for c in family_controls
+                    ) / len(family_controls)
                     data["effectiveness_rate"] = data["effective_controls"] / data["total_controls"]
 
             # Overall SOC2 metrics
@@ -363,7 +387,9 @@ class ComplianceDashboard:
             overall_effectiveness = effective_controls / total_controls if total_controls > 0 else 0
 
             # Control testing metrics
-            recently_tested = len([c for c in controls if c.last_tested_date and c.last_tested_date >= start_time])
+            recently_tested = len(
+                [c for c in controls if c.last_tested_date and c.last_tested_date >= start_time]
+            )
             testing_coverage = recently_tested / total_controls if total_controls > 0 else 0
 
         return {
@@ -375,45 +401,43 @@ class ComplianceDashboard:
                 "effective_controls": effective_controls,
                 "overall_effectiveness": overall_effectiveness,
                 "testing_coverage": testing_coverage,
-                "controls_with_deficiencies": len([c for c in control_details if c["deficiencies"] > 0])
+                "controls_with_deficiencies": len(
+                    [c for c in control_details if c["deficiencies"] > 0]
+                ),
             },
             "family_summary": family_summary,
             "control_details": control_details,
             "compliance_status": {
-                "status": "compliant" if overall_effectiveness >= 0.95 else "partially_compliant" if overall_effectiveness >= 0.8 else "non_compliant",
+                "status": "compliant"
+                if overall_effectiveness >= 0.95
+                else "partially_compliant"
+                if overall_effectiveness >= 0.8
+                else "non_compliant",
                 "score": int(overall_effectiveness * 100),
-                "last_assessment": datetime.utcnow().isoformat()
-            }
+                "last_assessment": datetime.utcnow().isoformat(),
+            },
         }
 
     async def get_sla_performance_dashboard(
-        self,
-        organization_id: str,
-        timeframe: DashboardTimeframe = DashboardTimeframe.DAILY
+        self, organization_id: str, timeframe: DashboardTimeframe = DashboardTimeframe.DAILY
     ) -> Dict[str, Any]:
         """Generate SLA performance dashboard"""
 
         # Get SLA performance data from SLA monitor
         sla_data = await self.sla_monitor.get_sla_performance_summary(
-            organization_id=organization_id,
-            days=self._get_days_from_timeframe(timeframe)
+            organization_id=organization_id, days=self._get_days_from_timeframe(timeframe)
         )
 
         # Get uptime metrics
         uptime_data = await self.sla_monitor.calculate_uptime_percentage(
-            organization_id=organization_id,
-            days=self._get_days_from_timeframe(timeframe)
+            organization_id=organization_id, days=self._get_days_from_timeframe(timeframe)
         )
 
         # Response time analysis
-        response_time_data = await self._get_response_time_metrics(
-            organization_id, timeframe
-        )
+        response_time_data = await self._get_response_time_metrics(organization_id, timeframe)
 
         # SLA breach analysis
-        breach_analysis = await self._get_sla_breach_analysis(
-            organization_id, timeframe
-        )
+        breach_analysis = await self._get_sla_breach_analysis(organization_id, timeframe)
 
         return {
             "generated_at": datetime.utcnow().isoformat(),
@@ -428,14 +452,12 @@ class ComplianceDashboard:
                 "sla_compliance_rate": sla_data.get("compliance_rate", 0),
                 "average_response_time": response_time_data.get("average_response_time", 0),
                 "total_breaches": breach_analysis.get("total_breaches", 0),
-                "critical_breaches": breach_analysis.get("critical_breaches", 0)
-            }
+                "critical_breaches": breach_analysis.get("critical_breaches", 0),
+            },
         }
 
     async def get_executive_summary(
-        self,
-        organization_id: str,
-        timeframe: DashboardTimeframe = DashboardTimeframe.MONTHLY
+        self, organization_id: str, timeframe: DashboardTimeframe = DashboardTimeframe.MONTHLY
     ) -> Dict[str, Any]:
         """Generate executive-level compliance summary"""
 
@@ -444,7 +466,7 @@ class ComplianceDashboard:
             self.get_soc2_control_dashboard(organization_id, timeframe),
             self.get_sla_performance_dashboard(organization_id, timeframe),
             self._get_security_metrics(organization_id, timeframe),
-            self._get_privacy_metrics(organization_id, timeframe)
+            self._get_privacy_metrics(organization_id, timeframe),
         )
 
         # Calculate overall compliance score
@@ -466,20 +488,24 @@ class ComplianceDashboard:
         if privacy_data.get("overdue_dsr", 0) > 0:
             risk_indicators.append("Overdue data subject requests")
 
-        risk_level = "high" if len(risk_indicators) >= 3 else "medium" if len(risk_indicators) >= 1 else "low"
+        risk_level = (
+            "high"
+            if len(risk_indicators) >= 3
+            else "medium"
+            if len(risk_indicators) >= 1
+            else "low"
+        )
 
         return {
             "organization_id": organization_id,
             "report_period": timeframe.value,
             "generated_at": datetime.utcnow().isoformat(),
-
             "executive_summary": {
                 "overall_compliance_score": round(overall_score, 1),
                 "risk_level": risk_level,
                 "total_risk_indicators": len(risk_indicators),
-                "compliance_status": "compliant" if overall_score >= 85 else "requires_attention"
+                "compliance_status": "compliant" if overall_score >= 85 else "requires_attention",
             },
-
             "key_metrics": {
                 "soc2_effectiveness": round(soc2_score, 1),
                 "sla_performance": round(sla_score, 1),
@@ -487,34 +513,29 @@ class ComplianceDashboard:
                 "privacy_compliance": round(privacy_score, 1),
                 "uptime_percentage": sla_data["executive_summary"]["overall_uptime"],
                 "active_incidents": security_data.get("active_incidents", 0),
-                "control_deficiencies": soc2_data["overall_metrics"]["controls_with_deficiencies"]
+                "control_deficiencies": soc2_data["overall_metrics"]["controls_with_deficiencies"],
             },
-
             "risk_indicators": risk_indicators,
-
             "trending": {
                 "compliance_trend": "stable",  # Would calculate from historical data
-                "incident_trend": "decreasing" if security_data.get("security_incidents", 0) == 0 else "stable",
-                "sla_trend": "stable"
+                "incident_trend": "decreasing"
+                if security_data.get("security_incidents", 0) == 0
+                else "stable",
+                "sla_trend": "stable",
             },
-
             "recommendations": [
                 "Continue quarterly SOC2 control testing",
                 "Monitor SLA performance for early breach detection",
                 "Review and update security policies quarterly",
-                "Ensure timely response to data subject requests"
+                "Ensure timely response to data subject requests",
             ],
-
-            "next_review_date": (datetime.utcnow() + timedelta(days=30)).isoformat()
+            "next_review_date": (datetime.utcnow() + timedelta(days=30)).isoformat(),
         }
 
     # Helper methods
 
     async def _generate_dashboard_data(
-        self,
-        organization_id: str,
-        timeframe: DashboardTimeframe,
-        include_trends: bool
+        self, organization_id: str, timeframe: DashboardTimeframe, include_trends: bool
     ) -> ComplianceDashboardData:
         """Generate complete dashboard data"""
 
@@ -522,23 +543,33 @@ class ComplianceDashboard:
         soc2_data, sla_data, real_time_data = await asyncio.gather(
             self.get_soc2_control_dashboard(organization_id, timeframe),
             self.get_sla_performance_dashboard(organization_id, timeframe),
-            self.get_real_time_metrics(organization_id)
+            self.get_real_time_metrics(organization_id),
         )
 
         # Generate control summaries
         control_summary = []
         for control in soc2_data["control_details"]:
-            control_summary.append(SOC2ControlSummary(
-                control_id=control["control_id"],
-                control_name=control["control_name"],
-                control_family=control["family"],
-                status=ControlStatus.EFFECTIVE if control["effectiveness_score"] >= 85 else ControlStatus.NEEDS_IMPROVEMENT,
-                effectiveness_score=control["effectiveness_score"],
-                last_tested=datetime.fromisoformat(control["last_tested"]) if control["last_tested"] else None,
-                deficiencies=control["deficiencies"],
-                evidence_count=0,  # Would be calculated from evidence collection
-                risk_level="low" if control["effectiveness_score"] >= 85 else "medium" if control["effectiveness_score"] >= 70 else "high"
-            ))
+            control_summary.append(
+                SOC2ControlSummary(
+                    control_id=control["control_id"],
+                    control_name=control["control_name"],
+                    control_family=control["family"],
+                    status=ControlStatus.EFFECTIVE
+                    if control["effectiveness_score"] >= 85
+                    else ControlStatus.NEEDS_IMPROVEMENT,
+                    effectiveness_score=control["effectiveness_score"],
+                    last_tested=datetime.fromisoformat(control["last_tested"])
+                    if control["last_tested"]
+                    else None,
+                    deficiencies=control["deficiencies"],
+                    evidence_count=0,  # Would be calculated from evidence collection
+                    risk_level="low"
+                    if control["effectiveness_score"] >= 85
+                    else "medium"
+                    if control["effectiveness_score"] >= 70
+                    else "high",
+                )
+            )
 
         return ComplianceDashboardData(
             organization_id=organization_id,
@@ -559,13 +590,11 @@ class ComplianceDashboard:
             incident_summary={"active": real_time_data["health_metrics"]["active_incidents"]},
             risk_assessment={"level": "low"},  # Would be calculated based on multiple factors
             active_alerts=real_time_data["alerts"],
-            recent_events=real_time_data["recent_events"]
+            recent_events=real_time_data["recent_events"],
         )
 
     async def _get_response_time_metrics(
-        self,
-        organization_id: str,
-        timeframe: DashboardTimeframe
+        self, organization_id: str, timeframe: DashboardTimeframe
     ) -> Dict[str, Any]:
         """Get response time metrics for various services"""
 
@@ -576,19 +605,13 @@ class ComplianceDashboard:
             "average_response_time": 150,  # milliseconds
             "p95_response_time": 300,
             "p99_response_time": 500,
-            "api_response_times": {
-                "authentication": 50,
-                "data_access": 200,
-                "reporting": 400
-            },
+            "api_response_times": {"authentication": 50, "data_access": 200, "reporting": 400},
             "trend": "stable",
-            "target_met": True
+            "target_met": True,
         }
 
     async def _get_sla_breach_analysis(
-        self,
-        organization_id: str,
-        timeframe: DashboardTimeframe
+        self, organization_id: str, timeframe: DashboardTimeframe
     ) -> Dict[str, Any]:
         """Analyze SLA breaches for the given timeframe"""
 
@@ -603,9 +626,10 @@ class ComplianceDashboard:
                         AuditLog.created_at >= start_time,
                         AuditLog.event_type == "sla_breach",
                         func.coalesce(
-                            AuditLog.metadata['compliance_event']['organization_id'].astext,
-                            'default'
-                        ) == organization_id
+                            AuditLog.metadata["compliance_event"]["organization_id"].astext,
+                            "default",
+                        )
+                        == organization_id,
                     )
                 )
             )
@@ -630,13 +654,11 @@ class ComplianceDashboard:
             "breach_by_type": breach_by_type,
             "average_resolution_time": 120,  # minutes
             "repeat_breaches": 0,  # Would calculate from historical data
-            "trend": "decreasing" if len(breaches) < 5 else "stable"
+            "trend": "decreasing" if len(breaches) < 5 else "stable",
         }
 
     async def _get_security_metrics(
-        self,
-        organization_id: str,
-        timeframe: DashboardTimeframe
+        self, organization_id: str, timeframe: DashboardTimeframe
     ) -> Dict[str, Any]:
         """Get security-related metrics"""
 
@@ -649,7 +671,7 @@ class ComplianceDashboard:
                 select(func.count(DataBreachIncident.id)).where(
                     and_(
                         DataBreachIncident.discovered_at >= start_time,
-                        DataBreachIncident.organization_id == uuid.UUID(organization_id)
+                        DataBreachIncident.organization_id == uuid.UUID(organization_id),
                     )
                 )
             )
@@ -663,9 +685,10 @@ class ComplianceDashboard:
                         AuditLog.event_type == "user_access",
                         AuditLog.outcome == "failure",
                         func.coalesce(
-                            AuditLog.metadata['compliance_event']['organization_id'].astext,
-                            'default'
-                        ) == organization_id
+                            AuditLog.metadata["compliance_event"]["organization_id"].astext,
+                            "default",
+                        )
+                        == organization_id,
                     )
                 )
             )
@@ -684,13 +707,11 @@ class ComplianceDashboard:
             "security_posture_score": max(security_score, 0),
             "active_incidents": incident_count,  # Simplified - would check active status
             "vulnerability_score": 85,  # Would come from vulnerability scanning
-            "patch_compliance": 95    # Would come from patch management system
+            "patch_compliance": 95,  # Would come from patch management system
         }
 
     async def _get_privacy_metrics(
-        self,
-        organization_id: str,
-        timeframe: DashboardTimeframe
+        self, organization_id: str, timeframe: DashboardTimeframe
     ) -> Dict[str, Any]:
         """Get privacy and GDPR-related metrics"""
 
@@ -703,7 +724,7 @@ class ComplianceDashboard:
                 select(func.count(DataSubjectRequest.id)).where(
                     and_(
                         DataSubjectRequest.received_at >= start_time,
-                        DataSubjectRequest.organization_id == uuid.UUID(organization_id)
+                        DataSubjectRequest.organization_id == uuid.UUID(organization_id),
                     )
                 )
             )
@@ -714,8 +735,10 @@ class ComplianceDashboard:
                 select(func.count(DataSubjectRequest.id)).where(
                     and_(
                         DataSubjectRequest.response_due_date < datetime.utcnow(),
-                        DataSubjectRequest.status.in_([RequestStatus.RECEIVED, RequestStatus.IN_PROGRESS]),
-                        DataSubjectRequest.organization_id == uuid.UUID(organization_id)
+                        DataSubjectRequest.status.in_(
+                            [RequestStatus.RECEIVED, RequestStatus.IN_PROGRESS]
+                        ),
+                        DataSubjectRequest.organization_id == uuid.UUID(organization_id),
                     )
                 )
             )
@@ -731,7 +754,7 @@ class ComplianceDashboard:
             "overdue_dsr": overdue_count,
             "gdpr_compliance_score": max(gdpr_score, 0),
             "consent_management_score": 90,  # Would calculate from consent records
-            "data_retention_compliance": 95   # Would calculate from retention policies
+            "data_retention_compliance": 95,  # Would calculate from retention policies
         }
 
     def _get_time_window(self, timeframe: DashboardTimeframe) -> timedelta:
@@ -743,7 +766,7 @@ class ComplianceDashboard:
             DashboardTimeframe.WEEKLY: timedelta(weeks=12),
             DashboardTimeframe.MONTHLY: timedelta(days=365),
             DashboardTimeframe.QUARTERLY: timedelta(days=1460),  # 4 years
-            DashboardTimeframe.YEARLY: timedelta(days=1825)     # 5 years
+            DashboardTimeframe.YEARLY: timedelta(days=1825),  # 5 years
         }
         return windows.get(timeframe, timedelta(days=30))
 
@@ -756,7 +779,7 @@ class ComplianceDashboard:
             DashboardTimeframe.WEEKLY: 84,
             DashboardTimeframe.MONTHLY: 365,
             DashboardTimeframe.QUARTERLY: 1460,
-            DashboardTimeframe.YEARLY: 1825
+            DashboardTimeframe.YEARLY: 1825,
         }
         return days.get(timeframe, 30)
 
@@ -768,10 +791,7 @@ class ComplianceMetrics:
         self.dashboard = dashboard
 
     async def calculate_compliance_trends(
-        self,
-        organization_id: str,
-        metric_name: str,
-        days: int = 30
+        self, organization_id: str, metric_name: str, days: int = 30
     ) -> List[Dict[str, Any]]:
         """Calculate trend data for specific compliance metrics"""
 
@@ -795,20 +815,19 @@ class ComplianceMetrics:
             else:
                 value = 80
 
-            trend_data.append({
-                "date": current_date.isoformat(),
-                "value": value,
-                "target": 85 if metric_name != "sla_performance" else 99
-            })
+            trend_data.append(
+                {
+                    "date": current_date.isoformat(),
+                    "value": value,
+                    "target": 85 if metric_name != "sla_performance" else 99,
+                }
+            )
 
             current_date += timedelta(days=1)
 
         return trend_data
 
-    async def generate_compliance_scorecard(
-        self,
-        organization_id: str
-    ) -> Dict[str, Any]:
+    async def generate_compliance_scorecard(self, organization_id: str) -> Dict[str, Any]:
         """Generate comprehensive compliance scorecard"""
 
         dashboard_data = await self.dashboard.get_dashboard_data(organization_id)
@@ -818,28 +837,41 @@ class ComplianceMetrics:
             "generated_at": datetime.utcnow().isoformat(),
             "overall_score": dashboard_data.overall_compliance_score,
             "grade": self._calculate_grade(dashboard_data.overall_compliance_score),
-
             "framework_scores": {
                 "soc2": dashboard_data.soc2_metrics.get("compliance_status", {}).get("score", 0),
                 "gdpr": 85,  # Would be calculated from GDPR metrics
                 "security": 88,  # Would be calculated from security metrics
-                "operational": dashboard_data.sla_performance
+                "operational": dashboard_data.sla_performance,
             },
-
             "key_performance_indicators": {
                 "uptime_percentage": dashboard_data.uptime_metrics.get("overall_percentage", 0),
                 "incident_response_time": 30,  # minutes
-                "control_effectiveness": len([c for c in dashboard_data.control_summary if c.status == ControlStatus.EFFECTIVE]) / len(dashboard_data.control_summary) * 100 if dashboard_data.control_summary else 0,
+                "control_effectiveness": len(
+                    [
+                        c
+                        for c in dashboard_data.control_summary
+                        if c.status == ControlStatus.EFFECTIVE
+                    ]
+                )
+                / len(dashboard_data.control_summary)
+                * 100
+                if dashboard_data.control_summary
+                else 0,
                 "sla_compliance_rate": dashboard_data.sla_performance,
-                "data_subject_response_rate": 95  # Would be calculated from DSR data
+                "data_subject_response_rate": 95,  # Would be calculated from DSR data
             },
-
             "risk_assessment": {
                 "overall_risk_level": "low",
-                "critical_findings": len([alert for alert in dashboard_data.active_alerts if alert.get("level") == "critical"]),
+                "critical_findings": len(
+                    [
+                        alert
+                        for alert in dashboard_data.active_alerts
+                        if alert.get("level") == "critical"
+                    ]
+                ),
                 "open_deficiencies": dashboard_data.open_deficiencies,
-                "remediation_timeline": "30 days"
-            }
+                "remediation_timeline": "30 days",
+            },
         }
 
         return scorecard

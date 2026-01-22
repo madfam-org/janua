@@ -43,7 +43,9 @@ def _redact_emails(emails: list | str) -> str:
     """
     if isinstance(emails, str):
         return _redact_email(emails)
-    return ", ".join(_redact_email(e) for e in emails[:3]) + (f" (+{len(emails)-3} more)" if len(emails) > 3 else "")
+    return ", ".join(_redact_email(e) for e in emails[:3]) + (
+        f" (+{len(emails)-3} more)" if len(emails) > 3 else ""
+    )
 
 
 class ResendService:
@@ -59,7 +61,7 @@ class ResendService:
         api_key: Optional[str] = None,
         from_email: Optional[str] = None,
         from_name: Optional[str] = None,
-        template_dir: Optional[str] = None
+        template_dir: Optional[str] = None,
     ):
         """
         Initialize Resend service.
@@ -84,10 +86,7 @@ class ResendService:
         template_path = template_dir or os.path.join(
             os.path.dirname(__file__), "../../templates/emails"
         )
-        self.template_env = Environment(
-            loader=FileSystemLoader(template_path),
-            autoescape=True
-        )
+        self.template_env = Environment(loader=FileSystemLoader(template_path), autoescape=True)
 
         # Log initialization without exposing full email - extract domain only
         from_domain = self.from_email.split("@")[-1] if "@" in self.from_email else "unknown"
@@ -171,7 +170,7 @@ class ResendService:
                 "Email sent successfully: id=%s, to=%s, subject_length=%d",
                 response.get("id"),
                 redacted,
-                len(subject)
+                len(subject),
             )
 
             return response
@@ -179,11 +178,7 @@ class ResendService:
         except Exception as e:
             # Log error with redacted recipient - sanitized before logging
             redacted = _redact_emails(to)  # nosec B608 - data is redacted before logging
-            logger.error(
-                "Failed to send email: to=%s, error_type=%s",
-                redacted,
-                type(e).__name__
-            )
+            logger.error("Failed to send email: to=%s, error_type=%s", redacted, type(e).__name__)
             raise
 
     def _render_template(self, template_name: str, variables: Dict[str, Any]) -> tuple[str, str]:
@@ -274,14 +269,11 @@ class ResendService:
                 "Failed to send template email: template=%s, to=%s, error_type=%s",
                 template,
                 redacted,
-                type(e).__name__
+                type(e).__name__,
             )
             raise
 
-    async def send_batch(
-        self,
-        emails: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    async def send_batch(self, emails: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Send multiple emails in batch.
 

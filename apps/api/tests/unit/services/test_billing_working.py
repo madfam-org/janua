@@ -1,4 +1,5 @@
 import pytest
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -17,7 +18,7 @@ from app.services.billing_service import BillingService, PRICING_TIERS
 @pytest.fixture(autouse=True)
 def mock_settings():
     """Mock settings for billing service tests."""
-    with patch('app.services.billing_service.settings') as mock_settings:
+    with patch("app.services.billing_service.settings") as mock_settings:
         mock_settings.CONEKTA_API_KEY = "test_conekta_key"
         mock_settings.FUNGIES_API_KEY = "test_fungies_key"
         yield mock_settings
@@ -30,10 +31,10 @@ class TestBillingService:
         """Test billing service initializes correctly."""
         billing = BillingService()
 
-        assert hasattr(billing, 'conekta_api_key')
-        assert hasattr(billing, 'conekta_api_url')
-        assert hasattr(billing, 'fungies_api_key')
-        assert hasattr(billing, 'fungies_api_url')
+        assert hasattr(billing, "conekta_api_key")
+        assert hasattr(billing, "conekta_api_url")
+        assert hasattr(billing, "fungies_api_key")
+        assert hasattr(billing, "fungies_api_url")
         assert billing.conekta_api_url == "https://api.conekta.io"
         assert billing.fungies_api_url == "https://api.fungies.io/v1"
 
@@ -87,13 +88,9 @@ class TestConektaIntegration:
         """Test successful Conekta customer creation."""
         billing = BillingService()
 
-        mock_response = {
-            "id": "cus_test_123",
-            "email": "test@example.com",
-            "name": "Test User"
-        }
+        mock_response = {"id": "cus_test_123", "email": "test@example.com", "name": "Test User"}
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client_instance = mock_client.return_value.__aenter__.return_value
             mock_response_obj = AsyncMock()
             mock_response_obj.json = AsyncMock(return_value=mock_response)
@@ -104,7 +101,7 @@ class TestConektaIntegration:
                 email="test@example.com",
                 name="Test User",
                 phone="+525551234567",
-                metadata={"org_id": "123"}
+                metadata={"org_id": "123"},
             )
 
             assert result["id"] == "cus_test_123"
@@ -116,15 +113,12 @@ class TestConektaIntegration:
         """Test Conekta customer creation failure."""
         billing = BillingService()
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client_instance = mock_client.return_value.__aenter__.return_value
             mock_client_instance.post.side_effect = httpx.HTTPError("API Error")
 
             with pytest.raises(Exception):
-                await billing.create_conekta_customer(
-                    email="test@example.com",
-                    name="Test User"
-                )
+                await billing.create_conekta_customer(email="test@example.com", name="Test User")
 
     @pytest.mark.asyncio
     async def test_create_conekta_subscription_success(self):
@@ -134,10 +128,10 @@ class TestConektaIntegration:
         mock_subscription = {
             "id": "sub_test_123",
             "customer_id": "cus_test_123",
-            "status": "active"
+            "status": "active",
         }
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client_instance = mock_client.return_value.__aenter__.return_value
             mock_response_obj = AsyncMock()
             mock_response_obj.json.return_value = mock_subscription
@@ -145,8 +139,7 @@ class TestConektaIntegration:
             mock_client_instance.post.return_value = mock_response_obj
 
             result = await billing.create_conekta_subscription(
-                customer_id="cus_test_123",
-                plan_id="plan_pro"
+                customer_id="cus_test_123", plan_id="plan_pro"
             )
 
             assert result["id"] == "sub_test_123"
@@ -161,10 +154,10 @@ class TestConektaIntegration:
         mock_subscription = {
             "id": "sub_test_123",
             "customer_id": "cus_test_123",
-            "status": "active"
+            "status": "active",
         }
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client_instance = mock_client.return_value.__aenter__.return_value
 
             # Mock payment method response
@@ -179,13 +172,11 @@ class TestConektaIntegration:
 
             mock_client_instance.post.side_effect = [
                 mock_payment_response,  # First call for payment method
-                mock_subscription_response  # Second call for subscription
+                mock_subscription_response,  # Second call for subscription
             ]
 
             result = await billing.create_conekta_subscription(
-                customer_id="cus_test_123",
-                plan_id="plan_pro",
-                card_token="tok_test_card"
+                customer_id="cus_test_123", plan_id="plan_pro", card_token="tok_test_card"
             )
 
             assert result["id"] == "sub_test_123"
@@ -196,7 +187,7 @@ class TestConektaIntegration:
         """Test successful Conekta subscription cancellation."""
         billing = BillingService()
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client_instance = mock_client.return_value.__aenter__.return_value
             mock_response_obj = AsyncMock()
             mock_response_obj.raise_for_status = AsyncMock(return_value=None)
@@ -212,7 +203,7 @@ class TestConektaIntegration:
         """Test Conekta subscription cancellation failure."""
         billing = BillingService()
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client_instance = mock_client.return_value.__aenter__.return_value
             mock_client_instance.post.side_effect = httpx.HTTPError("API Error")
 
@@ -227,10 +218,10 @@ class TestConektaIntegration:
 
         mock_session = {
             "id": "checkout_test_123",
-            "url": "https://checkout.conekta.com/session_123"
+            "url": "https://checkout.conekta.com/session_123",
         }
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client_instance = mock_client.return_value.__aenter__.return_value
             mock_response_obj = AsyncMock()
             mock_response_obj.json.return_value = mock_session
@@ -241,7 +232,7 @@ class TestConektaIntegration:
                 customer_email="test@example.com",
                 tier="pro",
                 success_url="https://app.com/success",
-                cancel_url="https://app.com/cancel"
+                cancel_url="https://app.com/cancel",
             )
 
             assert result["id"] == "checkout_test_123"
@@ -257,7 +248,7 @@ class TestConektaIntegration:
                 customer_email="test@example.com",
                 tier="community",  # Free tier
                 success_url="https://app.com/success",
-                cancel_url="https://app.com/cancel"
+                cancel_url="https://app.com/cancel",
             )
 
 
@@ -273,10 +264,10 @@ class TestFungiesIntegration:
             "id": "cus_fungies_123",
             "email": "test@example.com",
             "name": "Test User",
-            "country": "US"
+            "country": "US",
         }
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client_instance = mock_client.return_value.__aenter__.return_value
             mock_response_obj = AsyncMock()
             mock_response_obj.json = AsyncMock(return_value=mock_response)
@@ -284,10 +275,7 @@ class TestFungiesIntegration:
             mock_client_instance.post.return_value = mock_response_obj
 
             result = await billing.create_fungies_customer(
-                email="test@example.com",
-                name="Test User",
-                country="US",
-                metadata={"org_id": "123"}
+                email="test@example.com", name="Test User", country="US", metadata={"org_id": "123"}
             )
 
             assert result["id"] == "cus_fungies_123"
@@ -302,13 +290,10 @@ class TestFungiesIntegration:
             "id": "sub_fungies_123",
             "customer_id": "cus_fungies_123",
             "status": "active",
-            "plan": {
-                "amount": 6900,  # $69 in cents
-                "currency": "USD"
-            }
+            "plan": {"amount": 6900, "currency": "USD"},  # $69 in cents
         }
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client_instance = mock_client.return_value.__aenter__.return_value
             mock_response_obj = AsyncMock()
             mock_response_obj.json.return_value = mock_subscription
@@ -316,9 +301,7 @@ class TestFungiesIntegration:
             mock_client_instance.post.return_value = mock_response_obj
 
             result = await billing.create_fungies_subscription(
-                customer_id="cus_fungies_123",
-                tier="pro",
-                payment_method_id="pm_test_123"
+                customer_id="cus_fungies_123", tier="pro", payment_method_id="pm_test_123"
             )
 
             assert result["id"] == "sub_fungies_123"
@@ -331,8 +314,7 @@ class TestFungiesIntegration:
 
         with pytest.raises(ValueError, match="Invalid tier for payment"):
             await billing.create_fungies_subscription(
-                customer_id="cus_fungies_123",
-                tier="community"  # Free tier
+                customer_id="cus_fungies_123", tier="community"  # Free tier
             )
 
     @pytest.mark.asyncio
@@ -340,12 +322,9 @@ class TestFungiesIntegration:
         """Test successful Fungies checkout session creation."""
         billing = BillingService()
 
-        mock_session = {
-            "id": "cs_fungies_123",
-            "url": "https://checkout.fungies.io/session_123"
-        }
+        mock_session = {"id": "cs_fungies_123", "url": "https://checkout.fungies.io/session_123"}
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client_instance = mock_client.return_value.__aenter__.return_value
             mock_response_obj = AsyncMock()
             mock_response_obj.json.return_value = mock_session
@@ -357,7 +336,7 @@ class TestFungiesIntegration:
                 tier="scale",
                 country="US",
                 success_url="https://app.com/success",
-                cancel_url="https://app.com/cancel"
+                cancel_url="https://app.com/cancel",
             )
 
             assert result["id"] == "cs_fungies_123"
@@ -374,12 +353,12 @@ class TestUnifiedBillingInterface:
 
         mock_session = {
             "id": "checkout_test_123",
-            "url": "https://checkout.conekta.com/session_123"
+            "url": "https://checkout.conekta.com/session_123",
         }
 
-        with patch.object(billing, 'create_conekta_checkout_session') as mock_conekta, \
-             patch('app.models.CheckoutSession') as mock_checkout_model:
-
+        with patch.object(billing, "create_conekta_checkout_session") as mock_conekta, patch(
+            "app.models.CheckoutSession"
+        ) as mock_checkout_model:
             mock_conekta.return_value = mock_session
 
             # Mock database session
@@ -392,7 +371,7 @@ class TestUnifiedBillingInterface:
                 tier="pro",
                 country="MX",
                 success_url="https://app.com/success",
-                cancel_url="https://app.com/cancel"
+                cancel_url="https://app.com/cancel",
             )
 
             assert result["provider"] == "conekta"
@@ -404,14 +383,11 @@ class TestUnifiedBillingInterface:
         """Test creating checkout session for international (Fungies)."""
         billing = BillingService()
 
-        mock_session = {
-            "id": "cs_fungies_123",
-            "url": "https://checkout.fungies.io/session_123"
-        }
+        mock_session = {"id": "cs_fungies_123", "url": "https://checkout.fungies.io/session_123"}
 
-        with patch.object(billing, 'create_fungies_checkout_session') as mock_fungies, \
-             patch('app.models.CheckoutSession') as mock_checkout_model:
-
+        with patch.object(billing, "create_fungies_checkout_session") as mock_fungies, patch(
+            "app.models.CheckoutSession"
+        ) as mock_checkout_model:
             mock_fungies.return_value = mock_session
 
             # Mock database session
@@ -424,7 +400,7 @@ class TestUnifiedBillingInterface:
                 tier="pro",
                 country="US",
                 success_url="https://app.com/success",
-                cancel_url="https://app.com/cancel"
+                cancel_url="https://app.com/cancel",
             )
 
             assert result["provider"] == "fungies"
@@ -438,14 +414,14 @@ class TestUnifiedBillingInterface:
 
         mock_db = AsyncMock()
 
-        with patch.object(billing, '_handle_conekta_webhook') as mock_handler:
+        with patch.object(billing, "_handle_conekta_webhook") as mock_handler:
             mock_handler.return_value = True
 
             result = await billing.handle_webhook(
                 db=mock_db,
                 provider="conekta",
                 event_type="order.paid",
-                event_data={"customer_id": "cus_test_123"}
+                event_data={"customer_id": "cus_test_123"},
             )
 
             assert result is True
@@ -460,14 +436,14 @@ class TestUnifiedBillingInterface:
 
         mock_db = AsyncMock()
 
-        with patch.object(billing, '_handle_fungies_webhook') as mock_handler:
+        with patch.object(billing, "_handle_fungies_webhook") as mock_handler:
             mock_handler.return_value = True
 
             result = await billing.handle_webhook(
                 db=mock_db,
                 provider="fungies",
                 event_type="checkout.session.completed",
-                event_data={"id": "cs_test_123"}
+                event_data={"id": "cs_test_123"},
             )
 
             assert result is True
@@ -483,10 +459,7 @@ class TestUnifiedBillingInterface:
         mock_db = AsyncMock()
 
         result = await billing.handle_webhook(
-            db=mock_db,
-            provider="unknown",
-            event_type="test.event",
-            event_data={}
+            db=mock_db, provider="unknown", event_type="test.event", event_data={}
         )
 
         assert result is False
@@ -507,10 +480,7 @@ class TestUnifiedBillingInterface:
         mock_result.scalar_one_or_none.return_value = mock_tenant
         mock_db.execute.return_value = mock_result
 
-        is_within_limits, message = await billing.check_usage_limits(
-            db=mock_db,
-            tenant_id=uuid4()
-        )
+        is_within_limits, message = await billing.check_usage_limits(db=mock_db, tenant_id=uuid4())
 
         assert is_within_limits is True
         assert message is None
@@ -531,10 +501,7 @@ class TestUnifiedBillingInterface:
         mock_result.scalar_one_or_none.return_value = mock_tenant
         mock_db.execute.return_value = mock_result
 
-        is_within_limits, message = await billing.check_usage_limits(
-            db=mock_db,
-            tenant_id=uuid4()
-        )
+        is_within_limits, message = await billing.check_usage_limits(db=mock_db, tenant_id=uuid4())
 
         assert is_within_limits is False
         assert "MAU limit reached" in message
@@ -551,10 +518,7 @@ class TestUnifiedBillingInterface:
         mock_result.scalar_one_or_none.return_value = None
         mock_db.execute.return_value = mock_result
 
-        is_within_limits, message = await billing.check_usage_limits(
-            db=mock_db,
-            tenant_id=uuid4()
-        )
+        is_within_limits, message = await billing.check_usage_limits(db=mock_db, tenant_id=uuid4())
 
         assert is_within_limits is False
         assert message == "Tenant not found"
@@ -580,9 +544,7 @@ class TestWebhookHandlers:
         event_data = {"customer_id": "cus_test_123"}
 
         result = await billing._handle_conekta_webhook(
-            db=mock_db,
-            event_type="order.paid",
-            event_data=event_data
+            db=mock_db, event_type="order.paid", event_data=event_data
         )
 
         assert result is True
@@ -611,15 +573,10 @@ class TestWebhookHandlers:
         # db.query() itself should be sync, returning different mock objects
         mock_db.query = Mock(side_effect=[mock_user_query, mock_org_query])
 
-        event_data = {
-            "id": "cs_test_123",
-            "customer_email": "test@example.com"
-        }
+        event_data = {"id": "cs_test_123", "customer_email": "test@example.com"}
 
         result = await billing._handle_fungies_webhook(
-            db=mock_db,
-            event_type="checkout.session.completed",
-            event_data=event_data
+            db=mock_db, event_type="checkout.session.completed", event_data=event_data
         )
 
         assert result is True
@@ -634,30 +591,25 @@ class TestErrorHandling:
         """Test handling Conekta API errors gracefully."""
         billing = BillingService()
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client_instance = mock_client.return_value.__aenter__.return_value
             mock_client_instance.post.side_effect = Exception("Network error")
 
             with pytest.raises(Exception):
-                await billing.create_conekta_customer(
-                    email="test@example.com",
-                    name="Test User"
-                )
+                await billing.create_conekta_customer(email="test@example.com", name="Test User")
 
     @pytest.mark.asyncio
     async def test_fungies_api_error_handling(self):
         """Test handling Fungies API errors gracefully."""
         billing = BillingService()
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_client_instance = mock_client.return_value.__aenter__.return_value
             mock_client_instance.post.side_effect = Exception("API error")
 
             with pytest.raises(Exception):
                 await billing.create_fungies_customer(
-                    email="test@example.com",
-                    name="Test User",
-                    country="US"
+                    email="test@example.com", name="Test User", country="US"
                 )
 
     @pytest.mark.asyncio
@@ -667,12 +619,12 @@ class TestErrorHandling:
 
         mock_session = {
             "id": "checkout_test_123",
-            "url": "https://checkout.conekta.com/session_123"
+            "url": "https://checkout.conekta.com/session_123",
         }
 
-        with patch.object(billing, 'create_conekta_checkout_session') as mock_conekta, \
-             patch('app.models.CheckoutSession', side_effect=Exception("DB error")):
-
+        with patch.object(billing, "create_conekta_checkout_session") as mock_conekta, patch(
+            "app.models.CheckoutSession", side_effect=Exception("DB error")
+        ):
             mock_conekta.return_value = mock_session
             mock_db = AsyncMock()
 
@@ -684,7 +636,7 @@ class TestErrorHandling:
                 tier="pro",
                 country="MX",
                 success_url="https://app.com/success",
-                cancel_url="https://app.com/cancel"
+                cancel_url="https://app.com/cancel",
             )
 
             # Session creation should still succeed

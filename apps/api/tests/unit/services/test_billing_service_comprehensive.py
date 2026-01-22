@@ -772,13 +772,15 @@ class TestConektaCancellation:
 
     @pytest.fixture
     def mock_httpx_client(self):
-        with patch('httpx.AsyncClient') as mock:
+        with patch("httpx.AsyncClient") as mock:
             client_instance = AsyncMock()
             mock.return_value.__aenter__.return_value = client_instance
             yield client_instance
 
     @pytest.mark.asyncio
-    async def test_cancel_conekta_subscription_http_request(self, billing_service, mock_httpx_client):
+    async def test_cancel_conekta_subscription_http_request(
+        self, billing_service, mock_httpx_client
+    ):
         """Test Conekta subscription cancellation makes correct HTTP request"""
         mock_response = AsyncMock()
         mock_response.status_code = 200
@@ -799,9 +801,9 @@ class TestConektaCancellation:
         """Test Conekta cancellation HTTP error returns False"""
         mock_response = AsyncMock()
         mock_response.status_code = 400
-        mock_response.raise_for_status = AsyncMock(side_effect=httpx.HTTPStatusError(
-            "Bad Request", request=Mock(), response=mock_response
-        ))
+        mock_response.raise_for_status = AsyncMock(
+            side_effect=httpx.HTTPStatusError("Bad Request", request=Mock(), response=mock_response)
+        )
         mock_httpx_client.post.return_value = mock_response
 
         result = await billing_service.cancel_conekta_subscription("invalid_sub")
@@ -821,8 +823,7 @@ class TestFungiesInvalidTierValidation:
         """Test Fungies subscription creation validates tier"""
         with pytest.raises(ValueError) as exc_info:
             await billing_service.create_fungies_subscription(
-                customer_id="fung_cust_123",
-                tier="community"  # Free tier
+                customer_id="fung_cust_123", tier="community"  # Free tier
             )
         assert "Invalid tier" in str(exc_info.value)
 
@@ -831,8 +832,7 @@ class TestFungiesInvalidTierValidation:
         """Test Fungies subscription creation with unknown tier"""
         with pytest.raises(ValueError):
             await billing_service.create_fungies_subscription(
-                customer_id="fung_cust_123",
-                tier="unknown_tier"
+                customer_id="fung_cust_123", tier="unknown_tier"
             )
 
 
@@ -852,13 +852,15 @@ class TestCheckoutSessionDatabaseIntegration:
 
     @pytest.fixture
     def mock_httpx_client(self):
-        with patch('httpx.AsyncClient') as mock:
+        with patch("httpx.AsyncClient") as mock:
             client_instance = AsyncMock()
             mock.return_value.__aenter__.return_value = client_instance
             yield client_instance
 
     @pytest.mark.asyncio
-    async def test_create_checkout_session_database_storage_error(self, billing_service, mock_db_session, mock_httpx_client):
+    async def test_create_checkout_session_database_storage_error(
+        self, billing_service, mock_db_session, mock_httpx_client
+    ):
         """Test checkout session continues when database storage fails"""
         # Mock successful HTTP response
         mock_response = AsyncMock()
@@ -866,7 +868,7 @@ class TestCheckoutSessionDatabaseIntegration:
         mock_response.json.return_value = {
             "id": "checkout_123",
             "url": "https://checkout.example.com/123",
-            "metadata": {"tier": "pro"}
+            "metadata": {"tier": "pro"},
         }
         mock_response.raise_for_status = AsyncMock()
         mock_httpx_client.post.return_value = mock_response
@@ -875,7 +877,7 @@ class TestCheckoutSessionDatabaseIntegration:
         mock_db_session.add.side_effect = Exception("Database connection error")
 
         # Patch uuid import for CheckoutSession
-        with patch('uuid.uuid4', return_value="test-uuid"):
+        with patch("uuid.uuid4", return_value="test-uuid"):
             # Should not raise exception - database storage is optional
             result = await billing_service.create_checkout_session(
                 db=mock_db_session,
@@ -884,7 +886,7 @@ class TestCheckoutSessionDatabaseIntegration:
                 tier="pro",
                 country="MX",
                 success_url="https://example.com/success",
-                cancel_url="https://example.com/cancel"
+                cancel_url="https://example.com/cancel",
             )
 
         # Checkout session should still be created
@@ -910,10 +912,7 @@ class TestWebhookHandling:
     async def test_handle_webhook_unknown_provider(self, billing_service, mock_db_session):
         """Test webhook handling for unknown provider"""
         result = await billing_service.handle_webhook(
-            db=mock_db_session,
-            provider="unknown_provider",
-            event_type="test.event",
-            event_data={}
+            db=mock_db_session, provider="unknown_provider", event_type="test.event", event_data={}
         )
 
         assert result is False
@@ -930,16 +929,10 @@ class TestWebhookHandling:
         query_mock.filter.return_value.first = AsyncMock(return_value=mock_org)
         mock_db_session.query.return_value = query_mock
 
-        event_data = {
-            "customer_id": "cust_conekta_123",
-            "order_id": "order_123"
-        }
+        event_data = {"customer_id": "cust_conekta_123", "order_id": "order_123"}
 
         result = await billing_service.handle_webhook(
-            db=mock_db_session,
-            provider="conekta",
-            event_type="order.paid",
-            event_data=event_data
+            db=mock_db_session, provider="conekta", event_type="order.paid", event_data=event_data
         )
 
         assert result is True
@@ -947,7 +940,9 @@ class TestWebhookHandling:
         mock_db_session.commit.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_handle_webhook_conekta_subscription_created(self, billing_service, mock_db_session):
+    async def test_handle_webhook_conekta_subscription_created(
+        self, billing_service, mock_db_session
+    ):
         """Test Conekta subscription.created webhook event"""
         mock_org = Mock()
         mock_org.id = uuid4()
@@ -958,16 +953,13 @@ class TestWebhookHandling:
         query_mock.filter.return_value.first = AsyncMock(return_value=mock_org)
         mock_db_session.query.return_value = query_mock
 
-        event_data = {
-            "id": "sub_conekta_123",
-            "customer_id": "cust_conekta_123"
-        }
+        event_data = {"id": "sub_conekta_123", "customer_id": "cust_conekta_123"}
 
         result = await billing_service.handle_webhook(
             db=mock_db_session,
             provider="conekta",
             event_type="subscription.created",
-            event_data=event_data
+            event_data=event_data,
         )
 
         assert result is True
@@ -975,7 +967,9 @@ class TestWebhookHandling:
         assert mock_org.subscription_status == "active"
 
     @pytest.mark.asyncio
-    async def test_handle_webhook_conekta_subscription_canceled(self, billing_service, mock_db_session):
+    async def test_handle_webhook_conekta_subscription_canceled(
+        self, billing_service, mock_db_session
+    ):
         """Test Conekta subscription.canceled webhook event"""
         mock_org = Mock()
         mock_org.id = uuid4()
@@ -985,22 +979,22 @@ class TestWebhookHandling:
         query_mock.filter.return_value.first = AsyncMock(return_value=mock_org)
         mock_db_session.query.return_value = query_mock
 
-        event_data = {
-            "id": "sub_conekta_123"
-        }
+        event_data = {"id": "sub_conekta_123"}
 
         result = await billing_service.handle_webhook(
             db=mock_db_session,
             provider="conekta",
             event_type="subscription.canceled",
-            event_data=event_data
+            event_data=event_data,
         )
 
         assert result is True
         assert mock_org.subscription_status == "canceled"
 
     @pytest.mark.asyncio
-    async def test_handle_webhook_fungies_checkout_completed(self, billing_service, mock_db_session):
+    async def test_handle_webhook_fungies_checkout_completed(
+        self, billing_service, mock_db_session
+    ):
         """Test Fungies checkout.session.completed webhook event"""
         mock_user = Mock()
         mock_user.organization_id = uuid4()
@@ -1026,16 +1020,13 @@ class TestWebhookHandling:
 
         mock_db_session.query.side_effect = query_side_effect
 
-        event_data = {
-            "id": "checkout_fung_123",
-            "customer_email": "test@example.com"
-        }
+        event_data = {"id": "checkout_fung_123", "customer_email": "test@example.com"}
 
         result = await billing_service.handle_webhook(
             db=mock_db_session,
             provider="fungies",
             event_type="checkout.session.completed",
-            event_data=event_data
+            event_data=event_data,
         )
 
         assert result is True
@@ -1053,15 +1044,13 @@ class TestWebhookHandling:
         query_mock.filter.return_value.first = AsyncMock(return_value=mock_org)
         mock_db_session.query.return_value = query_mock
 
-        event_data = {
-            "subscription": "fung_sub_123"
-        }
+        event_data = {"subscription": "fung_sub_123"}
 
         result = await billing_service.handle_webhook(
             db=mock_db_session,
             provider="fungies",
             event_type="invoice.payment_succeeded",
-            event_data=event_data
+            event_data=event_data,
         )
 
         assert result is True
@@ -1069,7 +1058,9 @@ class TestWebhookHandling:
         assert mock_org.last_payment_date is not None
 
     @pytest.mark.asyncio
-    async def test_handle_webhook_fungies_subscription_deleted(self, billing_service, mock_db_session):
+    async def test_handle_webhook_fungies_subscription_deleted(
+        self, billing_service, mock_db_session
+    ):
         """Test Fungies customer.subscription.deleted webhook event"""
         mock_org = Mock()
         mock_org.id = uuid4()
@@ -1079,15 +1070,13 @@ class TestWebhookHandling:
         query_mock.filter.return_value.first = AsyncMock(return_value=mock_org)
         mock_db_session.query.return_value = query_mock
 
-        event_data = {
-            "id": "fung_sub_123"
-        }
+        event_data = {"id": "fung_sub_123"}
 
         result = await billing_service.handle_webhook(
             db=mock_db_session,
             provider="fungies",
             event_type="customer.subscription.deleted",
-            event_data=event_data
+            event_data=event_data,
         )
 
         assert result is True
@@ -1115,8 +1104,7 @@ class TestUsageLimitChecking:
         mock_db_session.execute.return_value = mock_result
 
         within_limits, message = await billing_service.check_usage_limits(
-            db=mock_db_session,
-            tenant_id=uuid4()
+            db=mock_db_session, tenant_id=uuid4()
         )
 
         assert within_limits is False
@@ -1135,8 +1123,7 @@ class TestUsageLimitChecking:
         mock_db_session.execute.return_value = mock_result
 
         within_limits, message = await billing_service.check_usage_limits(
-            db=mock_db_session,
-            tenant_id=uuid4()
+            db=mock_db_session, tenant_id=uuid4()
         )
 
         assert within_limits is True
@@ -1155,8 +1142,7 @@ class TestUsageLimitChecking:
         mock_db_session.execute.return_value = mock_result
 
         within_limits, message = await billing_service.check_usage_limits(
-            db=mock_db_session,
-            tenant_id=uuid4()
+            db=mock_db_session, tenant_id=uuid4()
         )
 
         assert within_limits is False

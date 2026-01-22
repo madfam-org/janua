@@ -30,6 +30,7 @@ logger = structlog.get_logger()
 
 class SeverityLevel(Enum):
     """Vulnerability severity levels"""
+
     INFO = "info"
     LOW = "low"
     MEDIUM = "medium"
@@ -39,6 +40,7 @@ class SeverityLevel(Enum):
 
 class TestCategory(Enum):
     """Penetration test categories"""
+
     AUTHENTICATION = "authentication"
     AUTHORIZATION = "authorization"
     INPUT_VALIDATION = "input_validation"
@@ -52,6 +54,7 @@ class TestCategory(Enum):
 @dataclass
 class Vulnerability:
     """Vulnerability finding"""
+
     id: str
     title: str
     description: str
@@ -75,6 +78,7 @@ class Vulnerability:
 @dataclass
 class TestResult:
     """Test execution result"""
+
     test_name: str
     passed: bool
     vulnerabilities: List[Vulnerability]
@@ -116,8 +120,9 @@ class SQLInjectionTester:
             r"sqlite3\.OperationalError",
         ]
 
-    async def test_parameter(self, session: aiohttp.ClientSession, url: str,
-                           param_name: str, param_value: str) -> List[Vulnerability]:
+    async def test_parameter(
+        self, session: aiohttp.ClientSession, url: str, param_name: str, param_value: str
+    ) -> List[Vulnerability]:
         """Test a parameter for SQL injection"""
         vulnerabilities = []
 
@@ -143,10 +148,10 @@ class SQLInjectionTester:
                                     "parameter": param_name,
                                     "payload": payload,
                                     "error_pattern": pattern,
-                                    "response_snippet": response_text[:500]
+                                    "response_snippet": response_text[:500],
                                 },
                                 recommendation="Use parameterized queries and input validation",
-                                cwe_id="CWE-89"
+                                cwe_id="CWE-89",
                             )
                             vulnerabilities.append(vulnerability)
                             break
@@ -169,9 +174,9 @@ class SQLInjectionTester:
                                 evidence={
                                     "parameter": param_name,
                                     "payload": payload,
-                                    "execution_time": execution_time
+                                    "execution_time": execution_time,
                                 },
-                                recommendation="Use parameterized queries and input validation"
+                                recommendation="Use parameterized queries and input validation",
                             )
                             vulnerabilities.append(vulnerability)
 
@@ -198,8 +203,9 @@ class XSSTester:
             "<script>document.location='http://evil.com'</script>",
         ]
 
-    async def test_parameter(self, session: aiohttp.ClientSession, url: str,
-                           param_name: str, param_value: str) -> List[Vulnerability]:
+    async def test_parameter(
+        self, session: aiohttp.ClientSession, url: str, param_name: str, param_value: str
+    ) -> List[Vulnerability]:
         """Test a parameter for XSS"""
         vulnerabilities = []
 
@@ -213,7 +219,7 @@ class XSSTester:
                     if payload in response_text:
                         # Check if it's in a dangerous context
                         dangerous_contexts = [
-                            r'<script[^>]*>' + re.escape(payload),
+                            r"<script[^>]*>" + re.escape(payload),
                             r'<[^>]*\s+on\w+\s*=\s*["\']?' + re.escape(payload),
                             r'<[^>]*\s+href\s*=\s*["\']?' + re.escape(payload),
                             r'<[^>]*\s+src\s*=\s*["\']?' + re.escape(payload),
@@ -231,10 +237,10 @@ class XSSTester:
                                     evidence={
                                         "parameter": param_name,
                                         "payload": payload,
-                                        "context": context_pattern
+                                        "context": context_pattern,
                                     },
                                     recommendation="Implement proper input validation and output encoding",
-                                    cwe_id="CWE-79"
+                                    cwe_id="CWE-79",
                                 )
                                 vulnerabilities.append(vulnerability)
                                 break
@@ -248,21 +254,26 @@ class XSSTester:
 class AuthenticationTester:
     """Authentication vulnerability testing"""
 
-    async def test_weak_passwords(self, session: aiohttp.ClientSession,
-                                 login_url: str) -> List[Vulnerability]:
+    async def test_weak_passwords(
+        self, session: aiohttp.ClientSession, login_url: str
+    ) -> List[Vulnerability]:
         """Test for weak password policies"""
         vulnerabilities = []
         weak_passwords = [
-            "password", "123456", "admin", "test", "guest",
-            "password123", "admin123", "qwerty", "letmein"
+            "password",
+            "123456",
+            "admin",
+            "test",
+            "guest",
+            "password123",
+            "admin123",
+            "qwerty",
+            "letmein",
         ]
 
         for password in weak_passwords:
             try:
-                login_data = {
-                    "username": "admin",
-                    "password": password
-                }
+                login_data = {"username": "admin", "password": password}
 
                 async with session.post(login_url, data=login_data) as response:
                     if response.status == 200:
@@ -270,11 +281,18 @@ class AuthenticationTester:
 
                         # Check for successful login indicators
                         success_indicators = [
-                            "dashboard", "welcome", "logout", "profile",
-                            "authenticated", "session", "token"
+                            "dashboard",
+                            "welcome",
+                            "logout",
+                            "profile",
+                            "authenticated",
+                            "session",
+                            "token",
                         ]
 
-                        if any(indicator in response_text.lower() for indicator in success_indicators):
+                        if any(
+                            indicator in response_text.lower() for indicator in success_indicators
+                        ):
                             vulnerability = Vulnerability(
                                 id=f"weak_password_{password}",
                                 title="Weak Password Policy",
@@ -286,10 +304,10 @@ class AuthenticationTester:
                                 evidence={
                                     "username": "admin",
                                     "password": password,
-                                    "response_status": response.status
+                                    "response_status": response.status,
                                 },
                                 recommendation="Implement strong password policies",
-                                cwe_id="CWE-521"
+                                cwe_id="CWE-521",
                             )
                             vulnerabilities.append(vulnerability)
 
@@ -298,18 +316,16 @@ class AuthenticationTester:
 
         return vulnerabilities
 
-    async def test_brute_force_protection(self, session: aiohttp.ClientSession,
-                                        login_url: str) -> List[Vulnerability]:
+    async def test_brute_force_protection(
+        self, session: aiohttp.ClientSession, login_url: str
+    ) -> List[Vulnerability]:
         """Test for brute force protection"""
         vulnerabilities = []
 
         try:
             # Attempt multiple failed logins
             for i in range(10):
-                login_data = {
-                    "username": "admin",
-                    "password": f"wrongpassword{i}"
-                }
+                login_data = {"username": "admin", "password": f"wrongpassword{i}"}
 
                 async with session.post(login_url, data=login_data) as response:
                     if response.status == 429:  # Rate limited
@@ -326,12 +342,9 @@ class AuthenticationTester:
                 category=TestCategory.AUTHENTICATION,
                 affected_url=login_url,
                 method="POST",
-                evidence={
-                    "attempts": 10,
-                    "rate_limiting": "not_detected"
-                },
+                evidence={"attempts": 10, "rate_limiting": "not_detected"},
                 recommendation="Implement account lockout and rate limiting",
-                cwe_id="CWE-307"
+                cwe_id="CWE-307",
             )
             vulnerabilities.append(vulnerability)
 
@@ -344,8 +357,9 @@ class AuthenticationTester:
 class InformationDisclosureTester:
     """Information disclosure vulnerability testing"""
 
-    async def test_error_handling(self, session: aiohttp.ClientSession,
-                                base_url: str) -> List[Vulnerability]:
+    async def test_error_handling(
+        self, session: aiohttp.ClientSession, base_url: str
+    ) -> List[Vulnerability]:
         """Test for information disclosure in error messages"""
         vulnerabilities = []
 
@@ -393,10 +407,10 @@ class InformationDisclosureTester:
                                 evidence={
                                     "path": path,
                                     "pattern": pattern,
-                                    "matches": matches[:3]  # First 3 matches
+                                    "matches": matches[:3],  # First 3 matches
                                 },
                                 recommendation="Remove sensitive information from error messages",
-                                cwe_id="CWE-200"
+                                cwe_id="CWE-200",
                             )
                             vulnerabilities.append(vulnerability)
 
@@ -429,9 +443,7 @@ class PenetrationTestSuite:
         # codeql[py/insecure-protocol] - Intentional for testing
         connector = aiohttp.TCPConnector(ssl=False)  # nosec B501 - intentional for pen testing
         self.session = aiohttp.ClientSession(
-            headers=self.headers,
-            connector=connector,
-            timeout=aiohttp.ClientTimeout(total=30)
+            headers=self.headers, connector=connector, timeout=aiohttp.ClientTimeout(total=30)
         )
         return self
 
@@ -473,7 +485,7 @@ class PenetrationTestSuite:
                     passed=False,
                     vulnerabilities=[],
                     execution_time=0.0,
-                    details={"error": str(e)}
+                    details={"error": str(e)},
                 )
 
         execution_time = (datetime.now() - start_time).total_seconds()
@@ -484,10 +496,10 @@ class PenetrationTestSuite:
                 "start_time": start_time.isoformat(),
                 "execution_time": execution_time,
                 "total_vulnerabilities": len(self.vulnerabilities),
-                "severity_breakdown": self._get_severity_breakdown()
+                "severity_breakdown": self._get_severity_breakdown(),
             },
             "test_results": results,
-            "vulnerabilities": [asdict(v) for v in self.vulnerabilities]
+            "vulnerabilities": [asdict(v) for v in self.vulnerabilities],
         }
 
     async def _test_sql_injection(self) -> TestResult:
@@ -516,7 +528,7 @@ class PenetrationTestSuite:
             test_name="SQL Injection",
             passed=len(vulnerabilities) == 0,
             vulnerabilities=vulnerabilities,
-            execution_time=execution_time
+            execution_time=execution_time,
         )
 
     async def _test_xss(self) -> TestResult:
@@ -545,7 +557,7 @@ class PenetrationTestSuite:
             test_name="XSS",
             passed=len(vulnerabilities) == 0,
             vulnerabilities=vulnerabilities,
-            execution_time=execution_time
+            execution_time=execution_time,
         )
 
     async def _test_authentication(self) -> TestResult:
@@ -556,9 +568,7 @@ class PenetrationTestSuite:
         login_url = urljoin(self.base_url, "/auth/login")
 
         # Test weak passwords
-        weak_pass_vulns = await self.auth_tester.test_weak_passwords(
-            self.session, login_url
-        )
+        weak_pass_vulns = await self.auth_tester.test_weak_passwords(self.session, login_url)
         vulnerabilities.extend(weak_pass_vulns)
 
         # Test brute force protection
@@ -573,16 +583,14 @@ class PenetrationTestSuite:
             test_name="Authentication",
             passed=len(vulnerabilities) == 0,
             vulnerabilities=vulnerabilities,
-            execution_time=execution_time
+            execution_time=execution_time,
         )
 
     async def _test_information_disclosure(self) -> TestResult:
         """Test for information disclosure"""
         start_time = datetime.now()
 
-        vulnerabilities = await self.info_tester.test_error_handling(
-            self.session, self.base_url
-        )
+        vulnerabilities = await self.info_tester.test_error_handling(self.session, self.base_url)
 
         execution_time = (datetime.now() - start_time).total_seconds()
 
@@ -590,7 +598,7 @@ class PenetrationTestSuite:
             test_name="Information Disclosure",
             passed=len(vulnerabilities) == 0,
             vulnerabilities=vulnerabilities,
-            execution_time=execution_time
+            execution_time=execution_time,
         )
 
     async def _test_ssl_tls(self) -> TestResult:
@@ -604,9 +612,9 @@ class PenetrationTestSuite:
             # SECURITY NOTE: This tests both HTTP (port 80) and HTTPS (port 443) by design
             # to verify that the target properly enforces HTTPS.
             # codeql[py/insecure-protocol] - Intentional for security testing
-            port = parsed_url.port or (443 if parsed_url.scheme == 'https' else 80)  # nosec
+            port = parsed_url.port or (443 if parsed_url.scheme == "https" else 80)  # nosec
 
-            if parsed_url.scheme == 'https':
+            if parsed_url.scheme == "https":
                 # Test SSL configuration
                 context = ssl.create_default_context()
 
@@ -625,7 +633,7 @@ class PenetrationTestSuite:
                                 category=TestCategory.CRYPTO,
                                 affected_url=self.base_url,
                                 evidence={"cipher": cipher},
-                                recommendation="Use strong SSL ciphers (256-bit)"
+                                recommendation="Use strong SSL ciphers (256-bit)",
                             )
                             vulnerabilities.append(vulnerability)
 
@@ -638,7 +646,7 @@ class PenetrationTestSuite:
             test_name="SSL/TLS",
             passed=len(vulnerabilities) == 0,
             vulnerabilities=vulnerabilities,
-            execution_time=execution_time
+            execution_time=execution_time,
         )
 
     def _get_severity_breakdown(self) -> Dict[str, int]:
@@ -719,7 +727,7 @@ class PenetrationTestSuite:
             scan_date=scan_results["scan_summary"]["start_time"],
             total_vulns=scan_results["scan_summary"]["total_vulnerabilities"],
             severity_breakdown=severity_html,
-            vulnerabilities=vulns_html
+            vulnerabilities=vulns_html,
         )
 
 
@@ -731,7 +739,7 @@ async def run_pen_test(target_url: str, output_file: Optional[str] = None) -> Di
 
         if output_file:
             report_html = pen_test.generate_report(results)
-            with open(output_file, 'w') as f:
+            with open(output_file, "w") as f:
                 f.write(report_html)
             logger.info("Report saved", file=output_file)
 

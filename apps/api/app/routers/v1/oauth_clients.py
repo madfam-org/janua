@@ -307,7 +307,9 @@ async def rotate_oauth_client_secret(
         grace_hours=grace_hours,
     )
 
-    grace_hours_used = grace_hours if grace_hours is not None else settings.CLIENT_SECRET_ROTATION_GRACE_HOURS
+    grace_hours_used = (
+        grace_hours if grace_hours is not None else settings.CLIENT_SECRET_ROTATION_GRACE_HOURS
+    )
     expires_at = datetime.utcnow() + timedelta(hours=grace_hours_used)
 
     return OAuthClientSecretRotateResponse(
@@ -355,7 +357,9 @@ async def get_oauth_client_secret_status(
         active_count=status["active_count"],
         total_count=status["total_count"],
         has_primary=status["has_primary"],
-        primary_created_at=datetime.fromisoformat(status["primary_created_at"]) if status["primary_created_at"] else None,
+        primary_created_at=datetime.fromisoformat(status["primary_created_at"])
+        if status["primary_created_at"]
+        else None,
         primary_age_days=status["primary_age_days"],
         rotation_recommended=status["rotation_recommended"],
         max_age_days=status["max_age_days"],
@@ -367,7 +371,9 @@ async def get_oauth_client_secret_status(
                 created_at=datetime.fromisoformat(s["created_at"]),
                 expires_at=datetime.fromisoformat(s["expires_at"]) if s["expires_at"] else None,
                 revoked_at=datetime.fromisoformat(s["revoked_at"]) if s["revoked_at"] else None,
-                last_used_at=datetime.fromisoformat(s["last_used_at"]) if s["last_used_at"] else None,
+                last_used_at=datetime.fromisoformat(s["last_used_at"])
+                if s["last_used_at"]
+                else None,
                 is_valid=s["is_valid"],
             )
             for s in status["secrets"]

@@ -1,4 +1,5 @@
 import pytest
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -25,28 +26,28 @@ class TestSSOServiceInitialization:
         """Test SSO service initializes correctly."""
         service = SSOService()
 
-        assert hasattr(service, 'saml_settings')
-        assert hasattr(service, 'oidc_clients')
-        assert hasattr(service, 'identity_providers')
-        assert hasattr(service, 'redis_client')
+        assert hasattr(service, "saml_settings")
+        assert hasattr(service, "oidc_clients")
+        assert hasattr(service, "identity_providers")
+        assert hasattr(service, "redis_client")
 
     def test_supported_protocols_configuration(self):
         """Test supported SSO protocols configuration."""
         service = SSOService()
 
-        assert 'saml2' in service.supported_protocols
-        assert 'oidc' in service.supported_protocols
-        assert 'oauth2' in service.supported_protocols
+        assert "saml2" in service.supported_protocols
+        assert "oidc" in service.supported_protocols
+        assert "oauth2" in service.supported_protocols
 
     def test_identity_provider_defaults(self):
         """Test default identity provider configurations."""
         service = SSOService()
 
         # Common enterprise providers should be pre-configured
-        assert 'okta' in service.identity_providers
-        assert 'azure_ad' in service.identity_providers
-        assert 'google_workspace' in service.identity_providers
-        assert 'auth0' in service.identity_providers
+        assert "okta" in service.identity_providers
+        assert "azure_ad" in service.identity_providers
+        assert "google_workspace" in service.identity_providers
+        assert "auth0" in service.identity_providers
 
 
 class TestSAMLIntegration:
@@ -71,14 +72,14 @@ class TestSAMLIntegration:
             "protocol": "saml2",
             "sso_url": "https://dev-123.okta.com/app/janua/sso/saml",
             "entity_id": "http://www.okta.com/123",
-            "x509_cert": "-----BEGIN CERTIFICATE-----\nMIIC...CERTIFICATE...\n-----END CERTIFICATE-----"
+            "x509_cert": "-----BEGIN CERTIFICATE-----\nMIIC...CERTIFICATE...\n-----END CERTIFICATE-----",
         }
 
-        with patch('app.services.sso_service.Saml2Client', create=True) as mock_saml_client:
+        with patch("app.services.sso_service.Saml2Client", create=True) as mock_saml_client:
             mock_client = MagicMock()
             mock_client.prepare_for_authenticate.return_value = (
                 "req_123",
-                {"RelayState": "state_abc", "SAMLRequest": "base64_encoded_request"}
+                {"RelayState": "state_abc", "SAMLRequest": "base64_encoded_request"},
             )
             mock_saml_client.return_value = mock_client
 
@@ -110,15 +111,11 @@ class TestSAMLIntegration:
         </saml2p:Response>
         """
 
-        with patch('app.services.sso_service.Saml2Client', create=True) as mock_saml_client:
+        with patch("app.services.sso_service.Saml2Client", create=True) as mock_saml_client:
             mock_client = MagicMock()
             mock_client.parse_authn_request_response.return_value = MagicMock(
-                ava={
-                    "email": ["user@company.com"],
-                    "firstName": ["John"],
-                    "lastName": ["Doe"]
-                },
-                session_id="session_123"
+                ava={"email": ["user@company.com"], "firstName": ["John"], "lastName": ["Doe"]},
+                session_id="session_123",
             )
             mock_saml_client.return_value = mock_client
 
@@ -135,7 +132,7 @@ class TestSAMLIntegration:
         """Test SAML response processing with invalid signature."""
         invalid_saml_response = "<invalid>response</invalid>"
 
-        with patch('app.services.sso_service.Saml2Client', create=True) as mock_saml_client:
+        with patch("app.services.sso_service.Saml2Client", create=True) as mock_saml_client:
             mock_client = MagicMock()
             mock_client.parse_authn_request_response.side_effect = Exception("Invalid signature")
             mock_saml_client.return_value = mock_client
@@ -187,14 +184,14 @@ class TestOIDCIntegration:
             "client_id": "client_123",
             "client_secret": "secret_456",
             "discovery_url": "https://login.microsoftonline.com/tenant/.well-known/openid_configuration",
-            "scopes": ["openid", "profile", "email"]
+            "scopes": ["openid", "profile", "email"],
         }
 
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.return_value.json.return_value = {
                 "authorization_endpoint": "https://login.microsoftonline.com/oauth2/v2.0/authorize",
                 "token_endpoint": "https://login.microsoftonline.com/oauth2/v2.0/token",
-                "userinfo_endpoint": "https://graph.microsoft.com/oidc/userinfo"
+                "userinfo_endpoint": "https://graph.microsoft.com/oidc/userinfo",
             }
             mock_get.return_value.status_code = 200
 
@@ -211,27 +208,24 @@ class TestOIDCIntegration:
     @pytest.mark.asyncio
     async def test_process_oidc_callback_success(self):
         """Test successful OIDC callback processing."""
-        callback_data = {
-            "code": "auth_code_123",
-            "state": "state_456"
-        }
+        callback_data = {"code": "auth_code_123", "state": "state_456"}
 
         provider_config = {
             "client_id": "client_123",
             "client_secret": "secret_456",
             "token_endpoint": "https://provider.com/oauth2/token",
-            "userinfo_endpoint": "https://provider.com/userinfo"
+            "userinfo_endpoint": "https://provider.com/userinfo",
         }
 
-        with patch('httpx.AsyncClient.post') as mock_post, \
-             patch('httpx.AsyncClient.get') as mock_get:
-
+        with patch("httpx.AsyncClient.post") as mock_post, patch(
+            "httpx.AsyncClient.get"
+        ) as mock_get:
             # Mock token exchange
             mock_post.return_value.json.return_value = {
                 "access_token": "access_token_789",
                 "id_token": "id_token_abc",
                 "token_type": "Bearer",
-                "expires_in": 3600
+                "expires_in": 3600,
             }
             mock_post.return_value.status_code = 200
 
@@ -241,11 +235,13 @@ class TestOIDCIntegration:
                 "email": "user@company.com",
                 "name": "John Doe",
                 "given_name": "John",
-                "family_name": "Doe"
+                "family_name": "Doe",
             }
             mock_get.return_value.status_code = 200
 
-            result = await self.service.process_oidc_callback(callback_data, provider_config, "state_456")
+            result = await self.service.process_oidc_callback(
+                callback_data, provider_config, "state_456"
+            )
 
             assert result["success"] is True
             assert result["user_info"]["email"] == "user@company.com"
@@ -255,14 +251,13 @@ class TestOIDCIntegration:
     @pytest.mark.asyncio
     async def test_process_oidc_callback_invalid_state(self):
         """Test OIDC callback processing with invalid state."""
-        callback_data = {
-            "code": "auth_code_123",
-            "state": "invalid_state"
-        }
+        callback_data = {"code": "auth_code_123", "state": "invalid_state"}
 
         provider_config = {"client_id": "client_123"}
 
-        result = await self.service.process_oidc_callback(callback_data, provider_config, "expected_state")
+        result = await self.service.process_oidc_callback(
+            callback_data, provider_config, "expected_state"
+        )
 
         assert result["success"] is False
         assert "Invalid state" in result["error"]
@@ -273,17 +268,19 @@ class TestOIDCIntegration:
         # Mock JWT with valid structure
         mock_id_token = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyXzEyMyIsImVtYWlsIjoidXNlckBjb21wYW55LmNvbSJ9.signature"
 
-        with patch('jwt.decode') as mock_jwt_decode:
+        with patch("jwt.decode") as mock_jwt_decode:
             mock_jwt_decode.return_value = {
                 "sub": "user_123",
                 "email": "user@company.com",
                 "iat": int(datetime.now().timestamp()),
                 "exp": int((datetime.now() + timedelta(hours=1)).timestamp()),
                 "aud": "client_123",
-                "iss": "https://provider.com"
+                "iss": "https://provider.com",
             }
 
-            result = await self.service.validate_id_token(mock_id_token, "client_123", "https://provider.com")
+            result = await self.service.validate_id_token(
+                mock_id_token, "client_123", "https://provider.com"
+            )
 
             assert result["valid"] is True
             assert result["claims"]["email"] == "user@company.com"
@@ -294,11 +291,14 @@ class TestOIDCIntegration:
         """Test ID token validation with expired token."""
         mock_id_token = "expired.token.signature"
 
-        with patch('jwt.decode') as mock_jwt_decode:
+        with patch("jwt.decode") as mock_jwt_decode:
             from jwt.exceptions import ExpiredSignatureError
+
             mock_jwt_decode.side_effect = ExpiredSignatureError("Token has expired")
 
-            result = await self.service.validate_id_token(mock_id_token, "client_123", "https://provider.com")
+            result = await self.service.validate_id_token(
+                mock_id_token, "client_123", "https://provider.com"
+            )
 
             assert result["valid"] is False
             assert "expired" in result["error"].lower()
@@ -330,8 +330,8 @@ class TestIdentityProviderManagement:
             "attribute_mapping": {
                 "email": "emailAddress",
                 "first_name": "givenName",
-                "last_name": "surname"
-            }
+                "last_name": "surname",
+            },
         }
 
         result = await self.service.add_identity_provider("custom_saml", provider_config)
@@ -349,15 +349,15 @@ class TestIdentityProviderManagement:
             "client_id": "custom_client_123",
             "client_secret": "custom_secret_456",
             "discovery_url": "https://custom.com/.well-known/openid_configuration",
-            "scopes": ["openid", "profile", "email", "groups"]
+            "scopes": ["openid", "profile", "email", "groups"],
         }
 
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.return_value.json.return_value = {
                 "authorization_endpoint": "https://custom.com/auth",
                 "token_endpoint": "https://custom.com/token",
                 "userinfo_endpoint": "https://custom.com/userinfo",
-                "jwks_uri": "https://custom.com/jwks"
+                "jwks_uri": "https://custom.com/jwks",
             }
             mock_get.return_value.status_code = 200
 
@@ -371,10 +371,9 @@ class TestIdentityProviderManagement:
     async def test_remove_identity_provider(self):
         """Test removing identity provider."""
         # First add a provider
-        await self.service.add_identity_provider("temp_provider", {
-            "name": "temp_provider",
-            "protocol": "saml2"
-        })
+        await self.service.add_identity_provider(
+            "temp_provider", {"name": "temp_provider", "protocol": "saml2"}
+        )
 
         result = await self.service.remove_identity_provider("temp_provider")
 
@@ -399,10 +398,10 @@ class TestIdentityProviderManagement:
         """Test identity provider connection testing."""
         provider_config = {
             "protocol": "oidc",
-            "discovery_url": "https://provider.com/.well-known/openid_configuration"
+            "discovery_url": "https://provider.com/.well-known/openid_configuration",
         }
 
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.return_value.json.return_value = {
                 "authorization_endpoint": "https://provider.com/auth"
             }
@@ -418,10 +417,10 @@ class TestIdentityProviderManagement:
         """Test identity provider connection testing with failure."""
         provider_config = {
             "protocol": "oidc",
-            "discovery_url": "https://invalid.provider.com/.well-known/openid_configuration"
+            "discovery_url": "https://invalid.provider.com/.well-known/openid_configuration",
         }
 
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.side_effect = Exception("Connection failed")
 
             result = await self.service.test_provider_connection("test_provider", provider_config)
@@ -454,7 +453,7 @@ class TestUserProvisioning:
             "lastName": ["Doe"],
             "department": ["Engineering"],
             "title": ["Senior Developer"],
-            "groups": ["developers", "admin"]
+            "groups": ["developers", "admin"],
         }
 
         attribute_mapping = {
@@ -463,10 +462,12 @@ class TestUserProvisioning:
             "last_name": "lastName",
             "department": "department",
             "job_title": "title",
-            "groups": "groups"
+            "groups": "groups",
         }
 
-        result = await self.service.provision_user_from_attributes(saml_attributes, attribute_mapping)
+        result = await self.service.provision_user_from_attributes(
+            saml_attributes, attribute_mapping
+        )
 
         assert result["success"] is True
         assert result["user_data"]["email"] == "john.doe@company.com"
@@ -483,7 +484,7 @@ class TestUserProvisioning:
             "given_name": "Jane",
             "family_name": "Smith",
             "groups": ["marketing", "managers"],
-            "department": "Marketing"
+            "department": "Marketing",
         }
 
         result = await self.service.provision_user_from_oidc(oidc_userinfo)
@@ -502,17 +503,17 @@ class TestUserProvisioning:
             "department": "Engineering",
             "title": "Lead Developer",
             "groups": ["developers", "tech_leads"],
-            "manager": "john.manager@company.com"
+            "manager": "john.manager@company.com",
         }
 
-        with patch.object(self.service, '_get_user_by_id') as mock_get_user, \
-             patch.object(self.service, '_update_user_attributes') as mock_update:
-
+        with patch.object(self.service, "_get_user_by_id") as mock_get_user, patch.object(
+            self.service, "_update_user_attributes"
+        ) as mock_update:
             mock_get_user.return_value = {
                 "id": existing_user_id,
                 "email": "user@company.com",
                 "first_name": "Test",
-                "last_name": "User"
+                "last_name": "User",
             }
 
             result = await self.service.update_user_from_sso(existing_user_id, sso_attributes)
@@ -543,17 +544,17 @@ class TestJustInTimeProvisioning:
             "first_name": "New",
             "last_name": "User",
             "groups": ["employees"],
-            "provider": "okta"
+            "provider": "okta",
         }
 
-        with patch.object(self.service, '_user_exists') as mock_exists, \
-             patch.object(self.service, '_create_new_user') as mock_create:
-
+        with patch.object(self.service, "_user_exists") as mock_exists, patch.object(
+            self.service, "_create_new_user"
+        ) as mock_create:
             mock_exists.return_value = False
             mock_create.return_value = {
                 "id": str(uuid4()),
                 "email": "newuser@company.com",
-                "provisioned_via": "jit_sso"
+                "provisioned_via": "jit_sso",
             }
 
             result = await self.service.handle_jit_provisioning(sso_response)
@@ -570,17 +571,17 @@ class TestJustInTimeProvisioning:
             "first_name": "Existing",
             "last_name": "User",
             "groups": ["employees", "managers"],
-            "provider": "azure_ad"
+            "provider": "azure_ad",
         }
 
-        with patch.object(self.service, '_user_exists') as mock_exists, \
-             patch.object(self.service, '_update_user_from_sso') as mock_update:
-
+        with patch.object(self.service, "_user_exists") as mock_exists, patch.object(
+            self.service, "_update_user_from_sso"
+        ) as mock_update:
             mock_exists.return_value = True
             mock_update.return_value = {
                 "id": str(uuid4()),
                 "email": "existinguser@company.com",
-                "updated_attributes": ["groups"]
+                "updated_attributes": ["groups"],
             }
 
             result = await self.service.handle_jit_provisioning(sso_response)
@@ -607,15 +608,11 @@ class TestSessionManagement:
     @pytest.mark.asyncio
     async def test_create_sso_session(self):
         """Test SSO session creation."""
-        user_data = {
-            "id": str(uuid4()),
-            "email": "user@company.com",
-            "provider": "okta"
-        }
+        user_data = {"id": str(uuid4()), "email": "user@company.com", "provider": "okta"}
 
         session_data = {
             "saml_session_id": "saml_session_123",
-            "provider_session_id": "provider_session_456"
+            "provider_session_id": "provider_session_456",
         }
 
         result = await self.service.create_sso_session(user_data, session_data)
@@ -629,13 +626,13 @@ class TestSessionManagement:
         """Test SSO session validation."""
         session_id = "sso_session_789"
 
-        with patch.object(self.service, '_get_session_from_redis') as mock_get_session:
+        with patch.object(self.service, "_get_session_from_redis") as mock_get_session:
             mock_get_session.return_value = {
                 "user_id": str(uuid4()),
                 "provider": "azure_ad",
                 "created_at": datetime.now().isoformat(),
                 "expires_at": (datetime.now() + timedelta(hours=8)).isoformat(),
-                "valid": True
+                "valid": True,
             }
 
             result = await self.service.validate_sso_session(session_id)
@@ -649,7 +646,7 @@ class TestSessionManagement:
         """Test SSO session invalidation."""
         session_id = "sso_session_to_invalidate"
 
-        with patch.object(self.service, '_remove_session_from_redis') as mock_remove:
+        with patch.object(self.service, "_remove_session_from_redis") as mock_remove:
             result = await self.service.invalidate_sso_session(session_id)
 
             assert result["success"] is True
@@ -659,15 +656,12 @@ class TestSessionManagement:
     async def test_single_logout_initiation(self):
         """Test Single Logout (SLO) initiation."""
         session_id = "sso_session_logout"
-        provider_config = {
-            "protocol": "saml2",
-            "slo_url": "https://provider.com/saml/slo"
-        }
+        provider_config = {"protocol": "saml2", "slo_url": "https://provider.com/saml/slo"}
 
-        with patch.object(self.service, '_build_saml_logout_request') as mock_logout:
+        with patch.object(self.service, "_build_saml_logout_request") as mock_logout:
             mock_logout.return_value = {
                 "logout_url": "https://provider.com/saml/slo?SAMLRequest=...",
-                "logout_id": "logout_123"
+                "logout_id": "logout_123",
             }
 
             result = await self.service.initiate_single_logout(session_id, provider_config)
@@ -707,7 +701,7 @@ class TestErrorHandling:
             "discovery_url": "https://invalid.provider.com/.well-known/openid_configuration"
         }
 
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.side_effect = Exception("Discovery endpoint unreachable")
 
             result = await self.service.initiate_oidc_login("invalid_provider", provider_config)
@@ -722,7 +716,7 @@ class TestErrorHandling:
             "x509_cert": "-----BEGIN CERTIFICATE-----\nINVALID_CERT\n-----END CERTIFICATE-----"
         }
 
-        with patch('cryptography.x509.load_pem_x509_certificate') as mock_cert:
+        with patch("cryptography.x509.load_pem_x509_certificate") as mock_cert:
             mock_cert.side_effect = Exception("Invalid certificate format")
 
             result = await self.service.validate_provider_certificate(provider_config)
@@ -733,7 +727,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_handle_redis_connection_failure(self):
         """Test handling of Redis connection failures for session storage."""
-        with patch.object(self.service, 'redis_client') as mock_redis:
+        with patch.object(self.service, "redis_client") as mock_redis:
             mock_redis.set.side_effect = Exception("Redis connection failed")
 
             user_data = {"id": str(uuid4()), "email": "test@company.com"}
@@ -742,4 +736,6 @@ class TestErrorHandling:
             result = await self.service.create_sso_session(user_data, session_data)
 
             assert result["success"] is False
-            assert "redis" in result["error"].lower() or "session storage" in result["error"].lower()
+            assert (
+                "redis" in result["error"].lower() or "session storage" in result["error"].lower()
+            )

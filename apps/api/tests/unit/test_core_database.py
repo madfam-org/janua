@@ -1,6 +1,6 @@
 import pytest
-pytestmark = pytest.mark.asyncio
 
+pytestmark = pytest.mark.asyncio
 
 
 """
@@ -14,13 +14,16 @@ import os
 @pytest.fixture
 def mock_env():
     """Mock environment variables for testing"""
-    with patch.dict(os.environ, {
-        'ENVIRONMENT': 'test',
-        'DATABASE_URL': 'postgresql://test:test@localhost:5432/janua_test',
-        'JWT_SECRET_KEY': 'test-secret-key',
-        'REDIS_URL': 'redis://localhost:6379/1',
-        'SECRET_KEY': 'test-secret-key-for-testing'
-    }):
+    with patch.dict(
+        os.environ,
+        {
+            "ENVIRONMENT": "test",
+            "DATABASE_URL": "postgresql://test:test@localhost:5432/janua_test",
+            "JWT_SECRET_KEY": "test-secret-key",
+            "REDIS_URL": "redis://localhost:6379/1",
+            "SECRET_KEY": "test-secret-key-for-testing",
+        },
+    ):
         yield
 
 
@@ -28,6 +31,7 @@ def test_database_manager_imports(mock_env):
     """Test that database manager can be imported"""
     try:
         from app.core.database_manager import DatabaseManager
+
         assert DatabaseManager is not None
     except ImportError as e:
         pytest.skip(f"Database manager imports failed: {e}")
@@ -41,9 +45,9 @@ def test_database_manager_initialization(mock_env):
         db_manager = DatabaseManager()
         assert db_manager is not None
         # DatabaseManager doesn't initialize the engine until initialize() is called
-        assert hasattr(db_manager, '_engine')
+        assert hasattr(db_manager, "_engine")
         assert db_manager._engine is None  # Not initialized yet
-        assert hasattr(db_manager, '_initialized')
+        assert hasattr(db_manager, "_initialized")
         assert db_manager._initialized is False
 
     except ImportError as e:
@@ -53,16 +57,16 @@ def test_database_manager_initialization(mock_env):
 def test_database_manager_session_creation(mock_env):
     """Test database manager session creation"""
     try:
-        with patch('app.core.database_manager.create_async_engine') as mock_engine, \
-             patch('app.core.database_manager.async_sessionmaker') as mock_session_maker:
-
+        with patch("app.core.database_manager.create_async_engine") as mock_engine, patch(
+            "app.core.database_manager.async_sessionmaker"
+        ) as mock_session_maker:
             mock_engine.return_value = MagicMock()
             mock_session_maker.return_value = MagicMock()
 
             from app.core.database_manager import DatabaseManager
 
             db_manager = DatabaseManager()
-            assert hasattr(db_manager, 'get_session')
+            assert hasattr(db_manager, "get_session")
 
     except ImportError as e:
         pytest.skip(f"Database manager session creation failed: {e}")
@@ -72,7 +76,7 @@ def test_database_manager_session_creation(mock_env):
 async def test_database_manager_health_check(mock_env):
     """Test database manager health check"""
     try:
-        with patch('app.core.database_manager.create_async_engine') as mock_engine:
+        with patch("app.core.database_manager.create_async_engine") as mock_engine:
             # Mock engine and connection
             mock_connection = AsyncMock()
             mock_connection.execute = AsyncMock()
@@ -86,7 +90,7 @@ async def test_database_manager_health_check(mock_env):
             db_manager = DatabaseManager()
 
             # Test health check
-            if hasattr(db_manager, 'health_check'):
+            if hasattr(db_manager, "health_check"):
                 result = await db_manager.health_check()
                 assert isinstance(result, bool)
 
@@ -99,7 +103,7 @@ async def test_database_manager_health_check(mock_env):
 def test_database_manager_stats(mock_env):
     """Test database manager statistics"""
     try:
-        with patch('app.core.database_manager.create_async_engine') as mock_engine:
+        with patch("app.core.database_manager.create_async_engine") as mock_engine:
             # Mock engine with pool
             mock_pool = MagicMock()
             mock_pool.size.return_value = 10
@@ -116,7 +120,7 @@ def test_database_manager_stats(mock_env):
             db_manager = DatabaseManager()
 
             # Test stats collection
-            if hasattr(db_manager, 'get_stats'):
+            if hasattr(db_manager, "get_stats"):
                 stats = db_manager.get_stats()
                 assert isinstance(stats, dict)
 
@@ -130,7 +134,7 @@ def test_database_manager_stats(mock_env):
 async def test_database_manager_close(mock_env):
     """Test database manager close functionality"""
     try:
-        with patch('app.core.database_manager.create_async_engine') as mock_engine:
+        with patch("app.core.database_manager.create_async_engine") as mock_engine:
             mock_engine_instance = AsyncMock()
             mock_engine_instance.dispose = AsyncMock()
             mock_engine.return_value = mock_engine_instance
@@ -155,6 +159,7 @@ def test_database_dependency_imports(mock_env):
     try:
         # Test database dependency function
         from app.core.database_manager import get_db
+
         assert callable(get_db)
 
     except ImportError as e:
@@ -164,7 +169,7 @@ def test_database_dependency_imports(mock_env):
 def test_database_url_processing(mock_env):
     """Test database URL processing"""
     try:
-        with patch('app.core.database_manager.create_async_engine') as mock_engine:
+        with patch("app.core.database_manager.create_async_engine") as mock_engine:
             mock_engine.return_value = MagicMock()
 
             from app.core.database_manager import DatabaseManager
@@ -174,7 +179,7 @@ def test_database_url_processing(mock_env):
             DatabaseManager()
 
             # Check that DATABASE_URL is processed correctly
-            assert settings.DATABASE_URL.startswith('postgresql')
+            assert settings.DATABASE_URL.startswith("postgresql")
 
     except ImportError as e:
         pytest.skip(f"Database URL processing failed: {e}")
@@ -202,7 +207,7 @@ def test_database_connection_pool_config(mock_env):
 def test_database_async_configuration(mock_env):
     """Test async database configuration"""
     try:
-        with patch('app.core.database_manager.create_async_engine') as mock_engine:
+        with patch("app.core.database_manager.create_async_engine") as mock_engine:
             mock_engine.return_value = MagicMock()
 
             from app.core.database_manager import DatabaseManager
@@ -215,7 +220,7 @@ def test_database_async_configuration(mock_env):
             call_args = mock_engine.call_args[0]
             if call_args:
                 url = call_args[0]
-                assert 'postgresql+asyncpg' in str(url) or 'asyncpg' in str(url)
+                assert "postgresql+asyncpg" in str(url) or "asyncpg" in str(url)
 
     except ImportError as e:
         pytest.skip(f"Database async configuration failed: {e}")

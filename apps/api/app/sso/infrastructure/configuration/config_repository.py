@@ -125,15 +125,19 @@ class SSOConfigurationRepository:
         domain_obj = self._to_domain_object(db_config)
 
         # Cache the result (SSO configs change infrequently)
-        await self._cache_set(cache_key, {
-            "organization_id": domain_obj.organization_id,
-            "protocol": domain_obj.protocol,
-            "provider_name": domain_obj.provider_name,
-            "config": domain_obj.config,
-            "attribute_mapping": domain_obj.attribute_mapping,
-            "jit_provisioning": domain_obj.jit_provisioning,
-            "default_role": domain_obj.default_role,
-        }, ttl=900)  # 15 minutes
+        await self._cache_set(
+            cache_key,
+            {
+                "organization_id": domain_obj.organization_id,
+                "protocol": domain_obj.protocol,
+                "provider_name": domain_obj.provider_name,
+                "config": domain_obj.config,
+                "attribute_mapping": domain_obj.attribute_mapping,
+                "jit_provisioning": domain_obj.jit_provisioning,
+                "default_role": domain_obj.default_role,
+            },
+            ttl=900,
+        )  # 15 minutes
 
         return domain_obj
 

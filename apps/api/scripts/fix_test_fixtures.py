@@ -30,7 +30,7 @@ class FixtureRewriter(ast.NodeTransformer):
         if not node.args.args:
             return node
 
-        if node.args.args[0].arg != 'self':
+        if node.args.args[0].arg != "self":
             return node
 
         len(node.args.args)
@@ -39,18 +39,18 @@ class FixtureRewriter(ast.NodeTransformer):
 
         for arg in node.args.args:
             # Keep 'self' parameter
-            if arg.arg == 'self':
+            if arg.arg == "self":
                 new_args.append(arg)
                 continue
 
             # Replace 'async_client' with 'client'
-            if arg.arg == 'async_client':
-                arg.arg = 'client'
+            if arg.arg == "async_client":
+                arg.arg = "client"
                 modified = True
                 self.changes_made += 1
 
             # Skip 'async_db_session' and 'async_session' (not used in test bodies)
-            if arg.arg in ('async_db_session', 'async_session'):
+            if arg.arg in ("async_db_session", "async_session"):
                 modified = True
                 self.changes_made += 1
                 continue
@@ -109,8 +109,12 @@ def main():
 
     # Define test files to fix
     test_files = [
-        Path("/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_auth_registration.py"),
-        Path("/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_auth_login_complete.py"),
+        Path(
+            "/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_auth_registration.py"
+        ),
+        Path(
+            "/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_auth_login_complete.py"
+        ),
         Path("/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_tokens.py"),
         Path("/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_mfa.py"),
     ]
@@ -142,7 +146,7 @@ def main():
             continue
 
         try:
-            compile(test_file.read_text(), str(test_file), 'exec')
+            compile(test_file.read_text(), str(test_file), "exec")
             print(f"  ✅ {test_file.name} - syntax valid")
         except SyntaxError as e:
             print(f"  ❌ {test_file.name} - syntax error at line {e.lineno}: {e.msg}")

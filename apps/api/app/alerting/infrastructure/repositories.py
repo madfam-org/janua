@@ -15,6 +15,7 @@ from ..application.services.alert_orchestrator import AlertRepository, RuleRepos
 from ..application.services.notification_dispatcher import ChannelRepository, TemplateRepository
 
 import structlog
+
 logger = structlog.get_logger()
 
 
@@ -36,11 +37,7 @@ class RedisAlertRepository(AlertRepository):
             alert_data = self._serialize_alert(alert)
 
             # Store alert data with TTL
-            await self._redis.setex(
-                alert_key,
-                self._alert_ttl_seconds,
-                json.dumps(alert_data)
-            )
+            await self._redis.setex(alert_key, self._alert_ttl_seconds, json.dumps(alert_data))
 
             # Add to active alerts set if active
             if alert.is_active():
@@ -80,7 +77,9 @@ class RedisAlertRepository(AlertRepository):
             alerts = []
 
             for alert_id in alert_ids:
-                alert = await self.get_alert(alert_id.decode() if isinstance(alert_id, bytes) else alert_id)
+                alert = await self.get_alert(
+                    alert_id.decode() if isinstance(alert_id, bytes) else alert_id
+                )
                 if alert and alert.is_active():
                     alerts.append(alert)
 
@@ -98,7 +97,9 @@ class RedisAlertRepository(AlertRepository):
             alerts = []
 
             for alert_id in alert_ids:
-                alert = await self.get_alert(alert_id.decode() if isinstance(alert_id, bytes) else alert_id)
+                alert = await self.get_alert(
+                    alert_id.decode() if isinstance(alert_id, bytes) else alert_id
+                )
                 if alert:
                     alerts.append(alert)
 
@@ -108,7 +109,9 @@ class RedisAlertRepository(AlertRepository):
             logger.error(f"Failed to get alerts by rule: {e}")
             return []
 
-    async def update_alert_status(self, alert_id: str, status: AlertStatus, metadata: Dict[str, Any] = None) -> bool:
+    async def update_alert_status(
+        self, alert_id: str, status: AlertStatus, metadata: Dict[str, Any] = None
+    ) -> bool:
         """Update alert status"""
         try:
             alert = await self.get_alert(alert_id)
@@ -117,13 +120,19 @@ class RedisAlertRepository(AlertRepository):
 
             # Update status based on status type
             if status == AlertStatus.ACKNOWLEDGED:
-                alert.acknowledge(metadata.get("acknowledged_by", "system") if metadata else "system")
+                alert.acknowledge(
+                    metadata.get("acknowledged_by", "system") if metadata else "system"
+                )
             elif status == AlertStatus.RESOLVED:
                 alert.resolve(metadata.get("resolved_by") if metadata else None)
             elif status == AlertStatus.ESCALATED:
-                alert.escalate(metadata.get("reason", "status update") if metadata else "status update")
+                alert.escalate(
+                    metadata.get("reason", "status update") if metadata else "status update"
+                )
             elif status == AlertStatus.SUPPRESSED:
-                alert.suppress(metadata.get("reason", "status update") if metadata else "status update")
+                alert.suppress(
+                    metadata.get("reason", "status update") if metadata else "status update"
+                )
 
             # Save updated alert
             await self.save_alert(alert)
@@ -147,8 +156,10 @@ class RedisAlertRepository(AlertRepository):
                 "current_value": alert.metrics.current_value,
                 "threshold_value": alert.metrics.threshold_value,
                 "comparison_operator": alert.metrics.comparison_operator,
-                "evaluation_window_seconds": alert.metrics.evaluation_window_seconds
-            } if alert.metrics else None,
+                "evaluation_window_seconds": alert.metrics.evaluation_window_seconds,
+            }
+            if alert.metrics
+            else None,
             "triggered_at": alert.triggered_at.isoformat(),
             "acknowledged_at": alert.acknowledged_at.isoformat() if alert.acknowledged_at else None,
             "resolved_at": alert.resolved_at.isoformat() if alert.resolved_at else None,
@@ -156,7 +167,7 @@ class RedisAlertRepository(AlertRepository):
             "acknowledged_by": alert.acknowledged_by,
             "resolved_by": alert.resolved_by,
             "context": alert.context,
-            "notifications_sent": alert.notifications_sent
+            "notifications_sent": alert.notifications_sent,
         }
 
     def _deserialize_alert(self, data: Dict[str, Any]) -> Alert:
@@ -169,7 +180,7 @@ class RedisAlertRepository(AlertRepository):
                 current_value=m["current_value"],
                 threshold_value=m["threshold_value"],
                 comparison_operator=m["comparison_operator"],
-                evaluation_window_seconds=m["evaluation_window_seconds"]
+                evaluation_window_seconds=m["evaluation_window_seconds"],
             )
 
         alert = Alert(
@@ -181,13 +192,19 @@ class RedisAlertRepository(AlertRepository):
             description=data.get("description", ""),
             metrics=metrics,
             triggered_at=datetime.fromisoformat(data["triggered_at"]),
-            acknowledged_at=datetime.fromisoformat(data["acknowledged_at"]) if data.get("acknowledged_at") else None,
-            resolved_at=datetime.fromisoformat(data["resolved_at"]) if data.get("resolved_at") else None,
-            escalated_at=datetime.fromisoformat(data["escalated_at"]) if data.get("escalated_at") else None,
+            acknowledged_at=datetime.fromisoformat(data["acknowledged_at"])
+            if data.get("acknowledged_at")
+            else None,
+            resolved_at=datetime.fromisoformat(data["resolved_at"])
+            if data.get("resolved_at")
+            else None,
+            escalated_at=datetime.fromisoformat(data["escalated_at"])
+            if data.get("escalated_at")
+            else None,
             acknowledged_by=data.get("acknowledged_by"),
             resolved_by=data.get("resolved_by"),
             context=data.get("context", {}),
-            notifications_sent=data.get("notifications_sent", [])
+            notifications_sent=data.get("notifications_sent", []),
         )
         return alert
 
@@ -208,7 +225,9 @@ class RedisRuleRepository(RuleRepository):
             rules = []
 
             for rule_id in rule_ids:
-                rule = await self.get_rule(rule_id.decode() if isinstance(rule_id, bytes) else rule_id)
+                rule = await self.get_rule(
+                    rule_id.decode() if isinstance(rule_id, bytes) else rule_id
+                )
                 if rule and rule.enabled:
                     rules.append(rule)
 
@@ -265,10 +284,20 @@ class InMemoryChannelRepository(ChannelRepository):
     def _load_default_channels(self) -> None:
         """Load default notification channels from settings"""
         # Email channel (always available) - requires full config per domain model
-        smtp_host = getattr(self._settings, "SMTP_HOST", "localhost") if self._settings else "localhost"
-        smtp_user = getattr(self._settings, "SMTP_USER", "alerts@localhost") if self._settings else "alerts@localhost"
+        smtp_host = (
+            getattr(self._settings, "SMTP_HOST", "localhost") if self._settings else "localhost"
+        )
+        smtp_user = (
+            getattr(self._settings, "SMTP_USER", "alerts@localhost")
+            if self._settings
+            else "alerts@localhost"
+        )
         smtp_pass = getattr(self._settings, "SMTP_PASSWORD", "") if self._settings else ""
-        alert_emails = getattr(self._settings, "ALERT_EMAIL_RECIPIENTS", ["admin@localhost"]) if self._settings else ["admin@localhost"]
+        alert_emails = (
+            getattr(self._settings, "ALERT_EMAIL_RECIPIENTS", ["admin@localhost"])
+            if self._settings
+            else ["admin@localhost"]
+        )
 
         self._channels["email_default"] = NotificationChannel(
             channel_id="email_default",
@@ -279,8 +308,8 @@ class InMemoryChannelRepository(ChannelRepository):
                 "smtp_server": smtp_host,
                 "username": smtp_user,
                 "password": smtp_pass,
-                "to_addresses": alert_emails
-            }
+                "to_addresses": alert_emails,
+            },
         )
 
         # Slack channel if configured
@@ -290,10 +319,12 @@ class InMemoryChannelRepository(ChannelRepository):
                 channel_type="slack",
                 name="Default Slack",
                 enabled=True,
-                config={"webhook_url": self._settings.SLACK_WEBHOOK_URL}
+                config={"webhook_url": self._settings.SLACK_WEBHOOK_URL},
             )
 
-    async def get_enabled_channels(self, channel_types: List[str] = None) -> List[NotificationChannel]:
+    async def get_enabled_channels(
+        self, channel_types: List[str] = None
+    ) -> List[NotificationChannel]:
         """Get enabled notification channels"""
         channels = [ch for ch in self._channels.values() if ch.enabled]
 
@@ -335,7 +366,7 @@ Status: {status}
 
 Triggered: {triggered_at}
 """,
-                variables=["severity", "title", "status", "description", "triggered_at"]
+                variables=["severity", "title", "status", "description", "triggered_at"],
             )
 
         # Slack templates
@@ -345,7 +376,7 @@ Triggered: {triggered_at}
                 "low": ":information_source:",
                 "medium": ":warning:",
                 "high": ":rotating_light:",
-                "critical": ":fire:"
+                "critical": ":fire:",
             }
             emoji = severity_emoji.get(severity, ":bell:")
             self._templates[template_id] = NotificationTemplate(
@@ -358,10 +389,12 @@ Status: {{status}}
 
 {{description}}
 """,
-                variables=["title", "severity", "status", "description"]
+                variables=["title", "severity", "status", "description"],
             )
 
-    async def get_template(self, channel_type: str, template_name: str = "default") -> Optional[NotificationTemplate]:
+    async def get_template(
+        self, channel_type: str, template_name: str = "default"
+    ) -> Optional[NotificationTemplate]:
         """Get notification template"""
         # Try exact match by template_id containing the template_name
         for template in self._templates.values():
@@ -380,7 +413,9 @@ Status: {{status}}
 
         return None
 
-    async def get_alert_template(self, channel_type: str, severity: str) -> Optional[NotificationTemplate]:
+    async def get_alert_template(
+        self, channel_type: str, severity: str
+    ) -> Optional[NotificationTemplate]:
         """Get template for alert notifications"""
         template_id = f"{channel_type}_alert_{severity}"
         template = self._templates.get(template_id)
@@ -398,5 +433,5 @@ def create_alert_repositories(redis_client: redis.Redis, settings: Any = None):
         "alert_repository": RedisAlertRepository(redis_client),
         "rule_repository": RedisRuleRepository(redis_client),
         "channel_repository": InMemoryChannelRepository(settings),
-        "template_repository": InMemoryTemplateRepository()
+        "template_repository": InMemoryTemplateRepository(),
     }

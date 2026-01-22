@@ -43,8 +43,8 @@ class EvidenceCollector:
                 metadata={
                     "log_level": "INFO",
                     "time_range": "last_24_hours",
-                    "source": "application_logger"
-                }
+                    "source": "application_logger",
+                },
             )
             evidence_list.append(app_log_evidence)
 
@@ -56,10 +56,7 @@ class EvidenceCollector:
                 description="System configuration settings for technology controls",
                 collection_date=datetime.utcnow(),
                 collector="system",
-                metadata={
-                    "config_type": "security_settings",
-                    "validation_status": "verified"
-                }
+                metadata={"config_type": "security_settings", "validation_status": "verified"},
             )
             evidence_list.append(config_evidence)
 
@@ -74,8 +71,8 @@ class EvidenceCollector:
                 metadata={
                     "backup_type": "incremental",
                     "last_backup": datetime.utcnow().isoformat(),
-                    "retention_period": "30_days"
-                }
+                    "retention_period": "30_days",
+                },
             )
             evidence_list.append(backup_evidence)
 
@@ -93,12 +90,14 @@ class EvidenceCollector:
             async with get_session() as session:
                 # Collect authentication logs
                 auth_logs = await session.execute(
-                    select(AuditLog).where(
+                    select(AuditLog)
+                    .where(
                         and_(
                             AuditLog.action.like("%auth%"),
-                            AuditLog.created_at >= datetime.utcnow() - timedelta(days=1)
+                            AuditLog.created_at >= datetime.utcnow() - timedelta(days=1),
                         )
-                    ).limit(100)
+                    )
+                    .limit(100)
                 )
                 auth_log_records = auth_logs.scalars().all()
 
@@ -113,19 +112,21 @@ class EvidenceCollector:
                         metadata={
                             "record_count": len(auth_log_records),
                             "time_range": "last_24_hours",
-                            "log_types": ["login", "logout", "failed_auth"]
-                        }
+                            "log_types": ["login", "logout", "failed_auth"],
+                        },
                     )
                     evidence_list.append(auth_evidence)
 
                 # Collect access control logs
                 access_logs = await session.execute(
-                    select(AuditLog).where(
+                    select(AuditLog)
+                    .where(
                         and_(
                             AuditLog.action.like("%access%"),
-                            AuditLog.created_at >= datetime.utcnow() - timedelta(days=1)
+                            AuditLog.created_at >= datetime.utcnow() - timedelta(days=1),
                         )
-                    ).limit(100)
+                    )
+                    .limit(100)
                 )
                 access_log_records = access_logs.scalars().all()
 
@@ -140,19 +141,21 @@ class EvidenceCollector:
                         metadata={
                             "record_count": len(access_log_records),
                             "time_range": "last_24_hours",
-                            "access_types": ["granted", "denied", "escalated"]
-                        }
+                            "access_types": ["granted", "denied", "escalated"],
+                        },
                     )
                     evidence_list.append(access_evidence)
 
                 # Collect privilege elevation logs
                 privilege_logs = await session.execute(
-                    select(AuditLog).where(
+                    select(AuditLog)
+                    .where(
                         and_(
                             AuditLog.action.like("%admin%"),
-                            AuditLog.created_at >= datetime.utcnow() - timedelta(days=1)
+                            AuditLog.created_at >= datetime.utcnow() - timedelta(days=1),
                         )
-                    ).limit(50)
+                    )
+                    .limit(50)
                 )
                 privilege_log_records = privilege_logs.scalars().all()
 
@@ -167,8 +170,8 @@ class EvidenceCollector:
                         metadata={
                             "record_count": len(privilege_log_records),
                             "time_range": "last_24_hours",
-                            "privilege_types": ["admin_access", "system_changes"]
-                        }
+                            "privilege_types": ["admin_access", "system_changes"],
+                        },
                     )
                     evidence_list.append(privilege_evidence)
 
@@ -186,9 +189,9 @@ class EvidenceCollector:
             async with get_session() as session:
                 # Collect user provisioning evidence
                 recent_users = await session.execute(
-                    select(User).where(
-                        User.created_at >= datetime.utcnow() - timedelta(days=7)
-                    ).limit(20)
+                    select(User)
+                    .where(User.created_at >= datetime.utcnow() - timedelta(days=7))
+                    .limit(20)
                 )
                 user_records = recent_users.scalars().all()
 
@@ -203,8 +206,8 @@ class EvidenceCollector:
                         metadata={
                             "user_count": len(user_records),
                             "time_range": "last_7_days",
-                            "provisioning_types": ["new_user", "role_assignment"]
-                        }
+                            "provisioning_types": ["new_user", "role_assignment"],
+                        },
                     )
                     evidence_list.append(provisioning_evidence)
 
@@ -229,8 +232,8 @@ class EvidenceCollector:
                             "total_users": user_count,
                             "active_users": active_count,
                             "inactive_users": user_count - active_count,
-                            "review_date": datetime.utcnow().isoformat()
-                        }
+                            "review_date": datetime.utcnow().isoformat(),
+                        },
                     )
                     evidence_list.append(access_review_evidence)
 
@@ -258,11 +261,13 @@ class EvidenceCollector:
                 "content": evidence.content,
                 "metadata": evidence.metadata,
                 "validation_status": evidence.validation_status,
-                "retention_date": evidence.retention_date.isoformat() if evidence.retention_date else None
+                "retention_date": evidence.retention_date.isoformat()
+                if evidence.retention_date
+                else None,
             }
 
             # Write evidence to file
-            with open(evidence_file, 'w') as f:
+            with open(evidence_file, "w") as f:
                 json.dump(evidence_data, f, indent=2, default=str)
 
             logger.info(f"Stored evidence: {evidence.evidence_id}")
@@ -281,7 +286,7 @@ class EvidenceCollector:
                 logger.warning(f"Evidence file not found: {evidence_id}")
                 return None
 
-            with open(evidence_file, 'r') as f:
+            with open(evidence_file, "r") as f:
                 evidence_data = json.load(f)
 
             # Reconstruct ComplianceEvidence object
@@ -296,7 +301,9 @@ class EvidenceCollector:
                 content=evidence_data.get("content"),
                 metadata=evidence_data.get("metadata"),
                 validation_status=evidence_data.get("validation_status", "pending"),
-                retention_date=datetime.fromisoformat(evidence_data["retention_date"]) if evidence_data.get("retention_date") else None
+                retention_date=datetime.fromisoformat(evidence_data["retention_date"])
+                if evidence_data.get("retention_date")
+                else None,
             )
 
             return evidence
@@ -305,7 +312,9 @@ class EvidenceCollector:
             logger.error(f"Failed to retrieve evidence {evidence_id}: {str(e)}")
             return None
 
-    async def validate_evidence(self, evidence_id: str, validation_criteria: Dict[str, Any]) -> bool:
+    async def validate_evidence(
+        self, evidence_id: str, validation_criteria: Dict[str, Any]
+    ) -> bool:
         """Validate compliance evidence quality and completeness"""
         try:
             evidence = await self.retrieve_evidence(evidence_id)
@@ -360,7 +369,7 @@ class EvidenceCollector:
             # List all evidence files
             for evidence_file in self.evidence_storage.glob("*.json"):
                 try:
-                    with open(evidence_file, 'r') as f:
+                    with open(evidence_file, "r") as f:
                         evidence_data = json.load(f)
 
                     # Apply search filters
@@ -391,12 +400,14 @@ class EvidenceCollector:
                             control_id=evidence_data["control_id"],
                             evidence_type=EvidenceType(evidence_data["evidence_type"]),
                             description=evidence_data["description"],
-                            collection_date=datetime.fromisoformat(evidence_data["collection_date"]),
+                            collection_date=datetime.fromisoformat(
+                                evidence_data["collection_date"]
+                            ),
                             collector=evidence_data["collector"],
                             file_path=evidence_data.get("file_path"),
                             content=evidence_data.get("content"),
                             metadata=evidence_data.get("metadata"),
-                            validation_status=evidence_data.get("validation_status", "pending")
+                            validation_status=evidence_data.get("validation_status", "pending"),
                         )
                         evidence_list.append(evidence)
 
@@ -418,7 +429,7 @@ class EvidenceCollector:
 
             for evidence_file in self.evidence_storage.glob("*.json"):
                 try:
-                    with open(evidence_file, 'r') as f:
+                    with open(evidence_file, "r") as f:
                         evidence_data = json.load(f)
 
                     collection_date = datetime.fromisoformat(evidence_data["collection_date"])

@@ -56,9 +56,7 @@ async def _generate_csrf_token(user_id: str, redis: ResilientRedisClient) -> str
     return csrf_token
 
 
-async def _validate_csrf_token(
-    csrf_token: str, user_id: str, redis: ResilientRedisClient
-) -> bool:
+async def _validate_csrf_token(csrf_token: str, user_id: str, redis: ResilientRedisClient) -> bool:
     """Validate a CSRF token and consume it (single use)."""
     if not csrf_token:
         return False
@@ -106,14 +104,13 @@ async def _get_user_entitlements(
         "tier": "community",
         "roles": [],
         "sub_status": "inactive",
-        "is_admin": user.is_admin if hasattr(user, 'is_admin') else False,
+        "is_admin": user.is_admin if hasattr(user, "is_admin") else False,
     }
 
     try:
         # Get user's organization memberships
         result = await db.execute(
-            select(OrganizationMember)
-            .where(OrganizationMember.user_id == user.id)
+            select(OrganizationMember).where(OrganizationMember.user_id == user.id)
         )
         memberships = result.scalars().all()
 
@@ -124,7 +121,7 @@ async def _get_user_entitlements(
 
             # Get primary organization (first membership or tenant)
             primary_org_id = memberships[0].organization_id
-            if hasattr(user, 'tenant_id') and user.tenant_id:
+            if hasattr(user, "tenant_id") and user.tenant_id:
                 primary_org_id = user.tenant_id
 
             # Fetch organization for subscription tier
@@ -136,7 +133,11 @@ async def _get_user_entitlements(
             if org:
                 entitlements["tier"] = org.subscription_tier or "community"
                 # Check if org has active subscription (simplified check)
-                entitlements["sub_status"] = "active" if org.subscription_tier and org.subscription_tier != "community" else "active"
+                entitlements["sub_status"] = (
+                    "active"
+                    if org.subscription_tier and org.subscription_tier != "community"
+                    else "active"
+                )
 
         # Add admin role if user is system admin
         if entitlements["is_admin"] and "admin" not in entitlements["roles"]:
@@ -174,11 +175,9 @@ async def get_user_from_cookie_or_header(
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         try:
-            payload = jwt_manager.verify_token(token, token_type='access')
-            if payload and payload.get('sub'):
-                result = await db.execute(
-                    select(User).where(User.id == payload.get('sub'))
-                )
+            payload = jwt_manager.verify_token(token, token_type="access")
+            if payload and payload.get("sub"):
+                result = await db.execute(select(User).where(User.id == payload.get("sub")))
                 user = result.scalar_one_or_none()
                 if user:
                     return user
@@ -189,11 +188,9 @@ async def get_user_from_cookie_or_header(
     access_token = request.cookies.get("janua_access_token")
     if access_token:
         try:
-            payload = jwt_manager.verify_token(access_token, token_type='access')
-            if payload and payload.get('sub'):
-                result = await db.execute(
-                    select(User).where(User.id == payload.get('sub'))
-                )
+            payload = jwt_manager.verify_token(access_token, token_type="access")
+            if payload and payload.get("sub"):
+                result = await db.execute(select(User).where(User.id == payload.get("sub")))
                 user = result.scalar_one_or_none()
                 if user:
                     return user
@@ -476,7 +473,7 @@ async def authorize_get(
         )
 
     # SECURITY: PKCE is required for public (non-confidential) clients
-    if not getattr(client, 'is_confidential', False) and not code_challenge:
+    if not getattr(client, "is_confidential", False) and not code_challenge:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="invalid_request: PKCE (code_challenge) is required for public clients",
@@ -502,9 +499,10 @@ async def authorize_get(
         return RedirectResponse(url=login_url, status_code=302)
 
     # SECURITY: Require email verification for OAuth authorization
-    if settings.REQUIRE_EMAIL_VERIFICATION and not getattr(current_user, 'email_verified', False):
+    if settings.REQUIRE_EMAIL_VERIFICATION and not getattr(current_user, "email_verified", False):
         # Check grace period for new accounts
         from datetime import timedelta
+
         if current_user.created_at:
             grace_period = timedelta(hours=settings.EMAIL_VERIFICATION_GRACE_PERIOD_HOURS)
             grace_deadline = current_user.created_at + grace_period
@@ -516,9 +514,7 @@ async def authorize_get(
 
     # Check if user has already consented to all requested scopes
     requested_scopes = ConsentService.parse_scopes(scope)
-    has_consent = await ConsentService.has_consent(
-        db, current_user.id, client_id, requested_scopes
-    )
+    has_consent = await ConsentService.has_consent(db, current_user.id, client_id, requested_scopes)
 
     if not has_consent:
         # Show consent screen
@@ -540,7 +536,7 @@ async def authorize_get(
         for s in scope_display:
             escaped_name = html.escape(s["name"])
             escaped_desc = html.escape(s["description"])
-            scope_items_html += f'''
+            scope_items_html += f"""
             <div class="scope-item">
                 <svg class="scope-icon" fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
@@ -550,10 +546,12 @@ async def authorize_get(
                     <p>{escaped_desc}</p>
                 </div>
             </div>
-            '''
+            """
 
         # Pre-generate redirect URI display (escaped for XSS protection)
-        redirect_display = redirect_uri.split("//")[1].split("/")[0] if "//" in redirect_uri else redirect_uri
+        redirect_display = (
+            redirect_uri.split("//")[1].split("/")[0] if "//" in redirect_uri else redirect_uri
+        )
         escaped_redirect_display = html.escape(redirect_display)
 
         # SECURITY: Escape all user-controlled content for the consent HTML
@@ -575,10 +573,10 @@ async def authorize_get(
         await redis.setex(
             f"oauth:auth_request:{auth_request_id}",
             600,  # 10 minutes
-            json.dumps(auth_request_data)
+            json.dumps(auth_request_data),
         )
 
-        consent_html = f'''
+        consent_html = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -686,7 +684,7 @@ async def authorize_get(
     </div>
 </body>
 </html>
-'''
+"""
         return HTMLResponse(content=consent_html)
 
     # User has consented - generate authorization code
@@ -851,9 +849,7 @@ async def authorize_post(
     Requires CSRF token for protection against cross-site request forgery.
     """
     # SECURITY: Validate CSRF token
-    if not csrf_token or not await _validate_csrf_token(
-        csrf_token, str(current_user.id), redis
-    ):
+    if not csrf_token or not await _validate_csrf_token(csrf_token, str(current_user.id), redis):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid or missing CSRF token",
@@ -882,16 +878,17 @@ async def authorize_post(
         )
 
     # SECURITY: PKCE is required for public (non-confidential) clients
-    if not getattr(client, 'is_confidential', False) and not code_challenge:
+    if not getattr(client, "is_confidential", False) and not code_challenge:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="invalid_request: PKCE (code_challenge) is required for public clients",
         )
 
     # SECURITY: Require email verification for OAuth authorization
-    if settings.REQUIRE_EMAIL_VERIFICATION and not getattr(current_user, 'email_verified', False):
+    if settings.REQUIRE_EMAIL_VERIFICATION and not getattr(current_user, "email_verified", False):
         # Check grace period for new accounts
         from datetime import timedelta
+
         if current_user.created_at:
             grace_period = timedelta(hours=settings.EMAIL_VERIFICATION_GRACE_PERIOD_HOURS)
             grace_deadline = current_user.created_at + grace_period
@@ -1071,13 +1068,15 @@ async def _handle_authorization_code_grant(
                 detail="invalid_request: code_verifier required",
             )
         if not _verify_pkce(
-            code_verifier, code_data["code_challenge"], code_data.get("code_challenge_method", "S256")
+            code_verifier,
+            code_data["code_challenge"],
+            code_data.get("code_challenge_method", "S256"),
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="invalid_grant: PKCE verification failed",
             )
-    elif not getattr(client, 'is_confidential', False):
+    elif not getattr(client, "is_confidential", False):
         # Public client without PKCE - this should have been caught at authorization
         # but provide defense-in-depth
         raise HTTPException(

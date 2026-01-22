@@ -65,7 +65,7 @@ class MetricsCollector:
         context = {
             "metric_name": rule.metric_name,
             "evaluation_window": rule.evaluation_window,
-            "comparison": f"{current_value} {rule.comparison_operator} {rule.threshold_value}"
+            "comparison": f"{current_value} {rule.comparison_operator} {rule.threshold_value}",
         }
 
         try:
@@ -74,7 +74,9 @@ class MetricsCollector:
                 # Add slowest endpoints
                 if self.apm_collector:
                     perf_summary = await self.apm_collector.get_performance_summary("all", hours=1)
-                    context["slowest_endpoints"] = perf_summary.get("performance", {}).get("slowest_endpoints", [])[:5]
+                    context["slowest_endpoints"] = perf_summary.get("performance", {}).get(
+                        "slowest_endpoints", []
+                    )[:5]
 
             elif rule.metric_name == "error_rate":
                 # Add error distribution
@@ -86,10 +88,12 @@ class MetricsCollector:
                 # Add security event details
                 if self.log_analyzer:
                     log_stats = await self.log_analyzer.get_log_statistics(hours=1)
-                    context["recent_security_events"] = log_stats.get("security", {}).get("recent_events", [])[:5]
+                    context["recent_security_events"] = log_stats.get("security", {}).get(
+                        "recent_events", []
+                    )[:5]
 
             # Add rule metadata if available
-            if hasattr(rule, 'metadata') and rule.metadata:
+            if hasattr(rule, "metadata") and rule.metadata:
                 context.update(rule.metadata)
 
         except Exception as e:

@@ -9,7 +9,7 @@ import os
 from app.config import settings
 
 # Create async engine for production
-if hasattr(settings, 'DATABASE_URL') and settings.DATABASE_URL:
+if hasattr(settings, "DATABASE_URL") and settings.DATABASE_URL:
     # Convert postgres:// to postgresql:// for SQLAlchemy compatibility
     database_url = settings.DATABASE_URL.replace("postgres://", "postgresql://")
 
@@ -21,18 +21,20 @@ if hasattr(settings, 'DATABASE_URL') and settings.DATABASE_URL:
 
     # Configure engine parameters based on database type
     engine_kwargs = {
-        "echo": settings.DEBUG if hasattr(settings, 'DEBUG') else False,
+        "echo": settings.DEBUG if hasattr(settings, "DEBUG") else False,
         "pool_pre_ping": True,
     }
 
     # Add pooling parameters only for non-SQLite databases
     if "sqlite" not in async_database_url:
-        engine_kwargs.update({
-            "pool_size": 50,  # Increased from 5 to handle concurrent requests
-            "max_overflow": 100,  # Increased from 10 for burst capacity
-            "pool_recycle": 3600,  # Recycle connections after 1 hour
-            "pool_timeout": 30,  # Wait up to 30 seconds for a connection
-        })
+        engine_kwargs.update(
+            {
+                "pool_size": 50,  # Increased from 5 to handle concurrent requests
+                "max_overflow": 100,  # Increased from 10 for burst capacity
+                "pool_recycle": 3600,  # Recycle connections after 1 hour
+                "pool_timeout": 30,  # Wait up to 30 seconds for a connection
+            }
+        )
         # Disable SSL for asyncpg if connecting to PostgreSQL without SSL
         if "asyncpg" in async_database_url:
             engine_kwargs["connect_args"] = {"ssl": False}
@@ -41,7 +43,7 @@ if hasattr(settings, 'DATABASE_URL') and settings.DATABASE_URL:
         engine_kwargs["poolclass"] = NullPool
 
     # Override poolclass for test environment and remove PostgreSQL-specific params
-    if hasattr(settings, 'ENVIRONMENT') and settings.ENVIRONMENT == "test":
+    if hasattr(settings, "ENVIRONMENT") and settings.ENVIRONMENT == "test":
         engine_kwargs["poolclass"] = NullPool
         # Remove PostgreSQL-specific pool parameters for SQLite
         engine_kwargs.pop("pool_size", None)
@@ -52,7 +54,7 @@ if hasattr(settings, 'DATABASE_URL') and settings.DATABASE_URL:
     # Create sync engine for migrations and some operations
     sync_engine = create_engine(
         database_url,
-        echo=settings.DEBUG if hasattr(settings, 'DEBUG') else False,
+        echo=settings.DEBUG if hasattr(settings, "DEBUG") else False,
         pool_pre_ping=True,
     )
 else:
@@ -90,17 +92,10 @@ else:
     )
 
 # Create session factories
-AsyncSessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
+AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=sync_engine
-)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
+
 
 # Dependency for FastAPI routes
 async def get_db() -> AsyncSession:
@@ -113,6 +108,7 @@ async def get_db() -> AsyncSession:
         finally:
             await session.close()
 
+
 # Alternative sync version for compatibility
 def get_sync_db() -> Session:
     """
@@ -123,6 +119,7 @@ def get_sync_db() -> Session:
         yield db
     finally:
         db.close()
+
 
 # Context manager for async operations outside of FastAPI
 @asynccontextmanager
@@ -143,6 +140,7 @@ async def get_async_db():
         finally:
             await session.close()
 
+
 # Initialize database (create tables)
 async def init_db():
     """
@@ -153,12 +151,14 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+
 # Close database connections
 async def close_db():
     """
     Close database engine and dispose of connection pool.
     """
     await engine.dispose()
+
 
 # Export commonly used items
 __all__ = [

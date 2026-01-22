@@ -58,14 +58,14 @@ def _write_fallback_log(event_data: Dict[str, Any]) -> bool:
         logger.warning(
             "Audit event written to fallback file",
             fallback_file=str(fallback_file),
-            event_name=event_data.get("event_name")
+            event_name=event_data.get("event_name"),
         )
         return True
     except Exception as e:
         logger.critical(
             "COMPLIANCE ALERT: Failed to write audit event to fallback",
             error=str(e),
-            event_data=event_data
+            event_data=event_data,
         )
         return False
 
@@ -89,7 +89,7 @@ class AuditLogger:
         service_account_id: Optional[str] = None,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
-        compliance_tags: Optional[List[str]] = None
+        compliance_tags: Optional[List[str]] = None,
     ) -> AuditLog:
         """
         Create a tamper-proof audit log entry
@@ -125,7 +125,7 @@ class AuditLogger:
             "ip_address": ip_address,
             "user_agent": user_agent,
             "compliance_tags": compliance_tags,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         try:
@@ -156,7 +156,7 @@ class AuditLogger:
                 changes=changes,
                 compliance_tags=compliance_tags or [],
                 previous_hash=previous_hash,
-                retention_until=self._calculate_retention(compliance_tags)
+                retention_until=self._calculate_retention(compliance_tags),
             )
 
             # Calculate the hash for this entry
@@ -175,7 +175,7 @@ class AuditLogger:
                 event_name=event_name,
                 resource_type=resource_type,
                 resource_id=resource_id,
-                organization_id=org_id
+                organization_id=org_id,
             )
 
             return audit_log
@@ -183,7 +183,7 @@ class AuditLogger:
         except Exception as e:
             logger.error("Failed to create audit log - using fallback", error=str(e))
             # Use fallback to ensure compliance - never lose audit events
-            fallback_event_data["organization_id"] = org_id if 'org_id' in dir() else None
+            fallback_event_data["organization_id"] = org_id if "org_id" in dir() else None
             fallback_event_data["_reason"] = "database_error"
             fallback_event_data["_error"] = str(e)
             _write_fallback_log(fallback_event_data)
@@ -195,7 +195,7 @@ class AuditLogger:
         session: AsyncSession,
         organization_id: str,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Verify the integrity of the audit log hash chain
@@ -212,9 +212,11 @@ class AuditLogger:
 
         try:
             # Build query
-            query = select(AuditLog).where(
-                AuditLog.organization_id == organization_id
-            ).order_by(AuditLog.created_at)
+            query = (
+                select(AuditLog)
+                .where(AuditLog.organization_id == organization_id)
+                .order_by(AuditLog.created_at)
+            )
 
             if start_date:
                 query = query.where(AuditLog.created_at >= start_date)
@@ -226,11 +228,7 @@ class AuditLogger:
             logs = result.scalars().all()
 
             if not logs:
-                return {
-                    "verified": True,
-                    "total_entries": 0,
-                    "message": "No audit logs to verify"
-                }
+                return {"verified": True, "total_entries": 0, "message": "No audit logs to verify"}
 
             # Verify the chain
             broken_links = []
@@ -239,25 +237,29 @@ class AuditLogger:
             for i, log in enumerate(logs):
                 # Check if previous hash matches
                 if i > 0 and log.previous_hash != previous_hash:
-                    broken_links.append({
-                        "position": i,
-                        "log_id": str(log.id),
-                        "expected_previous": previous_hash,
-                        "actual_previous": log.previous_hash,
-                        "timestamp": log.created_at.isoformat()
-                    })
+                    broken_links.append(
+                        {
+                            "position": i,
+                            "log_id": str(log.id),
+                            "expected_previous": previous_hash,
+                            "actual_previous": log.previous_hash,
+                            "timestamp": log.created_at.isoformat(),
+                        }
+                    )
 
                 # Recalculate hash and verify
                 calculated_hash = self._calculate_hash(log)
                 if calculated_hash != log.current_hash:
-                    broken_links.append({
-                        "position": i,
-                        "log_id": str(log.id),
-                        "type": "hash_mismatch",
-                        "expected_hash": calculated_hash,
-                        "actual_hash": log.current_hash,
-                        "timestamp": log.created_at.isoformat()
-                    })
+                    broken_links.append(
+                        {
+                            "position": i,
+                            "log_id": str(log.id),
+                            "type": "hash_mismatch",
+                            "expected_hash": calculated_hash,
+                            "actual_hash": log.current_hash,
+                            "timestamp": log.created_at.isoformat(),
+                        }
+                    )
 
                 previous_hash = log.current_hash
 
@@ -267,7 +269,9 @@ class AuditLogger:
                 "broken_links": broken_links,
                 "first_entry": logs[0].created_at.isoformat(),
                 "last_entry": logs[-1].created_at.isoformat(),
-                "message": "Audit log integrity verified" if not broken_links else f"Found {len(broken_links)} integrity violations"
+                "message": "Audit log integrity verified"
+                if not broken_links
+                else f"Found {len(broken_links)} integrity violations",
             }
 
         except Exception as e:
@@ -275,7 +279,7 @@ class AuditLogger:
             return {
                 "verified": False,
                 "error": str(e),
-                "message": "Verification failed due to error"
+                "message": "Verification failed due to error",
             }
 
     async def query_logs(
@@ -291,7 +295,7 @@ class AuditLogger:
         end_date: Optional[datetime] = None,
         compliance_tag: Optional[str] = None,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[AuditLog]:
         """
         Query audit logs with filtering
@@ -360,7 +364,7 @@ class AuditLogger:
         format: str = "json",
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        compliance_filter: Optional[str] = None
+        compliance_filter: Optional[str] = None,
     ) -> str:
         """
         Export audit logs for compliance reporting
@@ -384,7 +388,7 @@ class AuditLogger:
             start_date=start_date,
             end_date=end_date,
             compliance_tag=compliance_filter,
-            limit=10000  # Reasonable limit for export
+            limit=10000,  # Reasonable limit for export
         )
 
         if format == "json":
@@ -398,7 +402,9 @@ class AuditLogger:
 
     # Private helper methods
 
-    async def _get_previous_hash(self, session: AsyncSession, organization_id: str) -> Optional[str]:
+    async def _get_previous_hash(
+        self, session: AsyncSession, organization_id: str
+    ) -> Optional[str]:
         """Get the hash of the most recent audit log for the organization"""
 
         # Check cache first
@@ -424,19 +430,24 @@ class AuditLogger:
         """Calculate SHA-256 hash for an audit log entry"""
 
         # Create a deterministic string representation
-        hash_input = json.dumps({
-            "organization_id": str(audit_log.organization_id),
-            "user_id": str(audit_log.user_id) if audit_log.user_id else None,
-            "event_type": audit_log.event_type.value,
-            "event_name": audit_log.event_name,
-            "resource_type": audit_log.resource_type,
-            "resource_id": audit_log.resource_id,
-            "event_data": audit_log.event_data,
-            "changes": audit_log.changes,
-            "ip_address": audit_log.ip_address,
-            "previous_hash": audit_log.previous_hash,
-            "timestamp": audit_log.created_at.isoformat() if audit_log.created_at else datetime.utcnow().isoformat()
-        }, sort_keys=True)
+        hash_input = json.dumps(
+            {
+                "organization_id": str(audit_log.organization_id),
+                "user_id": str(audit_log.user_id) if audit_log.user_id else None,
+                "event_type": audit_log.event_type.value,
+                "event_name": audit_log.event_name,
+                "resource_type": audit_log.resource_type,
+                "resource_id": audit_log.resource_id,
+                "event_data": audit_log.event_data,
+                "changes": audit_log.changes,
+                "ip_address": audit_log.ip_address,
+                "previous_hash": audit_log.previous_hash,
+                "timestamp": audit_log.created_at.isoformat()
+                if audit_log.created_at
+                else datetime.utcnow().isoformat(),
+            },
+            sort_keys=True,
+        )
 
         return hashlib.sha256(hash_input.encode()).hexdigest()
 
@@ -464,22 +475,24 @@ class AuditLogger:
 
         export_data = []
         for log in logs:
-            export_data.append({
-                "id": str(log.id),
-                "timestamp": log.created_at.isoformat(),
-                "organization_id": str(log.organization_id),
-                "user_id": str(log.user_id) if log.user_id else None,
-                "event_type": log.event_type.value,
-                "event_name": log.event_name,
-                "resource_type": log.resource_type,
-                "resource_id": log.resource_id,
-                "event_data": log.event_data,
-                "changes": log.changes,
-                "ip_address": log.ip_address,
-                "user_agent": log.user_agent,
-                "compliance_tags": log.compliance_tags,
-                "hash": log.current_hash
-            })
+            export_data.append(
+                {
+                    "id": str(log.id),
+                    "timestamp": log.created_at.isoformat(),
+                    "organization_id": str(log.organization_id),
+                    "user_id": str(log.user_id) if log.user_id else None,
+                    "event_type": log.event_type.value,
+                    "event_name": log.event_name,
+                    "resource_type": log.resource_type,
+                    "resource_id": log.resource_id,
+                    "event_data": log.event_data,
+                    "changes": log.changes,
+                    "ip_address": log.ip_address,
+                    "user_agent": log.user_agent,
+                    "compliance_tags": log.compliance_tags,
+                    "hash": log.current_hash,
+                }
+            )
 
         return json.dumps(export_data, indent=2)
 
@@ -493,26 +506,37 @@ class AuditLogger:
         writer = csv.writer(output)
 
         # Header
-        writer.writerow([
-            "Timestamp", "Organization ID", "User ID", "Event Type",
-            "Event Name", "Resource Type", "Resource ID", "IP Address",
-            "Compliance Tags", "Hash"
-        ])
+        writer.writerow(
+            [
+                "Timestamp",
+                "Organization ID",
+                "User ID",
+                "Event Type",
+                "Event Name",
+                "Resource Type",
+                "Resource ID",
+                "IP Address",
+                "Compliance Tags",
+                "Hash",
+            ]
+        )
 
         # Data rows
         for log in logs:
-            writer.writerow([
-                log.created_at.isoformat(),
-                str(log.organization_id),
-                str(log.user_id) if log.user_id else "",
-                log.event_type.value,
-                log.event_name,
-                log.resource_type or "",
-                log.resource_id or "",
-                log.ip_address or "",
-                ",".join(log.compliance_tags) if log.compliance_tags else "",
-                log.current_hash
-            ])
+            writer.writerow(
+                [
+                    log.created_at.isoformat(),
+                    str(log.organization_id),
+                    str(log.user_id) if log.user_id else "",
+                    log.event_type.value,
+                    log.event_name,
+                    log.resource_type or "",
+                    log.resource_id or "",
+                    log.ip_address or "",
+                    ",".join(log.compliance_tags) if log.compliance_tags else "",
+                    log.current_hash,
+                ]
+            )
 
         return output.getvalue()
 
@@ -540,22 +564,19 @@ class AuditLogger:
 
 # Audit event decorators for automatic logging
 
-def audit_event(
-    event_type: AuditEventType,
-    event_name: str,
-    resource_type: Optional[str] = None
-):
+
+def audit_event(event_type: AuditEventType, event_name: str, resource_type: Optional[str] = None):
     """Decorator to automatically log audit events for endpoints"""
 
     def decorator(func):
         async def wrapper(*args, **kwargs):
             # Extract necessary information from kwargs
-            db = kwargs.get('db')
-            current_user_id = kwargs.get('current_user_id')
-            request = kwargs.get('request')
+            db = kwargs.get("db")
+            current_user_id = kwargs.get("current_user_id")
+            request = kwargs.get("request")
 
             # Get resource ID from path parameters if available
-            resource_id = kwargs.get('id') or kwargs.get('resource_id')
+            resource_id = kwargs.get("id") or kwargs.get("resource_id")
 
             # Execute the function
             result = await func(*args, **kwargs)
@@ -572,12 +593,13 @@ def audit_event(
                     user_id=current_user_id,
                     ip_address=request.client.host if request and request.client else None,
                     user_agent=request.headers.get("user-agent") if request else None,
-                    event_data={"result": "success"}
+                    event_data={"result": "success"},
                 )
 
             return result
 
         return wrapper
+
     return decorator
 
 
@@ -635,18 +657,16 @@ async def replay_fallback_logs(session: AsyncSession) -> Dict[str, Any]:
                             service_account_id=event_data.get("service_account_id"),
                             ip_address=event_data.get("ip_address"),
                             user_agent=event_data.get("user_agent"),
-                            compliance_tags=event_data.get("compliance_tags")
+                            compliance_tags=event_data.get("compliance_tags"),
                         )
 
                         results["replayed"] += 1
 
                     except Exception as e:
                         results["failed"] += 1
-                        results["errors"].append({
-                            "file": str(fallback_file),
-                            "line": line_num,
-                            "error": str(e)
-                        })
+                        results["errors"].append(
+                            {"file": str(fallback_file), "line": line_num, "error": str(e)}
+                        )
 
             # Archive processed file
             archive_name = fallback_file.with_suffix(".jsonl.replayed")
@@ -657,7 +677,7 @@ async def replay_fallback_logs(session: AsyncSession) -> Dict[str, Any]:
                 "Processed fallback audit log file",
                 file=str(fallback_file),
                 replayed=results["replayed"],
-                failed=results["failed"]
+                failed=results["failed"],
             )
 
         except Exception as e:

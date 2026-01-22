@@ -1,4 +1,5 @@
 import pytest
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -45,7 +46,7 @@ class TestCacheService:
     @pytest.mark.asyncio
     async def test_get_client_creates_redis_connection(self, cache_service):
         """Test get_client creates Redis connection"""
-        with patch('redis.asyncio.from_url') as mock_from_url:
+        with patch("redis.asyncio.from_url") as mock_from_url:
             mock_redis = AsyncMock()
             mock_from_url.return_value = mock_redis
 
@@ -104,7 +105,7 @@ class TestCacheService:
 
         mock_redis_client.set.assert_called_once()
         call_args = mock_redis_client.set.call_args
-        assert call_args[1]['ex'] == 300
+        assert call_args[1]["ex"] == 300
 
     @pytest.mark.asyncio
     async def test_set_with_timedelta_expiration(self, cache_service, mock_redis_client):
@@ -116,7 +117,7 @@ class TestCacheService:
 
         mock_redis_client.set.assert_called_once()
         call_args = mock_redis_client.set.call_args
-        assert call_args[1]['ex'] == expiration
+        assert call_args[1]["ex"] == expiration
 
     @pytest.mark.asyncio
     async def test_set_dict_value_json_serialization(self, cache_service, mock_redis_client):
@@ -435,7 +436,7 @@ class TestCacheService:
     @pytest.mark.asyncio
     async def test_redis_connection_error_handling(self, cache_service):
         """Test Redis connection error handling"""
-        with patch.object(cache_service, 'get_client') as mock_get_client:
+        with patch.object(cache_service, "get_client") as mock_get_client:
             mock_client = AsyncMock()
             mock_client.get.side_effect = Exception("Connection error")
             mock_get_client.return_value = mock_client
@@ -499,7 +500,7 @@ class TestCacheService:
         mock_redis_client.info.return_value = {
             "used_memory": "1024",
             "keyspace_hits": "100",
-            "keyspace_misses": "10"
+            "keyspace_misses": "10",
         }
 
         stats = await cache_service.get_stats()

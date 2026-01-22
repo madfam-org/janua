@@ -24,6 +24,7 @@ INTERNAL_API_KEY = settings.INTERNAL_API_KEY
 # Request/Response Models
 # ==========================================
 
+
 class EmailAttachment(BaseModel):
     filename: str
     content: str  # Base64 encoded

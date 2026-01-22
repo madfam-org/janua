@@ -12,8 +12,11 @@ from sqlalchemy import select
 
 from app.core.database import get_session
 from app.models.compliance import (
-    DataSubjectRequest, DataSubjectRequestType, RequestStatus, 
-    DataCategory, ComplianceFramework
+    DataSubjectRequest,
+    DataSubjectRequestType,
+    RequestStatus,
+    DataCategory,
+    ComplianceFramework,
 )
 from ..audit import AuditLogger, AuditEventType, EvidenceType
 
@@ -41,7 +44,7 @@ class DataSubjectRequestHandler:
         organization_id: Optional[str] = None,
         tenant_id: Optional[str] = None,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> str:
         """Create a new data subject request with automated processing"""
 
@@ -66,7 +69,7 @@ class DataSubjectRequestHandler:
                 tenant_id=uuid.UUID(tenant_id) if tenant_id else None,
                 ip_address=ip_address,
                 user_agent=user_agent,
-                request_source="api"
+                request_source="api",
             )
 
             session.add(request)
@@ -90,25 +93,26 @@ class DataSubjectRequestHandler:
             raw_data={
                 "request_type": request_type.value,
                 "data_categories": data_categories,
-                "specific_fields": specific_fields
-            }
+                "specific_fields": specific_fields,
+            },
         )
 
         # Schedule automated processing
         await self._schedule_request_processing(request_id, request_type)
 
-        logger.info(f"Data subject request created: {request_id}", extra={
-            "user_id": user_id,
-            "request_type": request_type.value,
-            "response_due_date": response_due_date.isoformat()
-        })
+        logger.info(
+            f"Data subject request created: {request_id}",
+            extra={
+                "user_id": user_id,
+                "request_type": request_type.value,
+                "response_due_date": response_due_date.isoformat(),
+            },
+        )
 
         return request_id
 
     async def process_access_request(
-        self,
-        request_id: str,
-        include_metadata: bool = True
+        self, request_id: str, include_metadata: bool = True
     ) -> DataSubjectRequestResponse:
         """Process GDPR Article 15 access request"""
 
@@ -129,14 +133,12 @@ class DataSubjectRequestHandler:
                 request.specific_fields,
                 request.date_range_start,
                 request.date_range_end,
-                include_metadata
+                include_metadata,
             )
 
             # Generate export file
             export_url = await self._generate_data_export(
-                request_id,
-                user_data,
-                DataExportFormat.JSON
+                request_id, user_data, DataExportFormat.JSON
             )
 
             # Update request status
@@ -156,7 +158,7 @@ class DataSubjectRequestHandler:
             outcome="success",
             user_id=str(request.user_id),
             control_id="GDPR-15",
-            compliance_frameworks=[ComplianceFramework.GDPR]
+            compliance_frameworks=[ComplianceFramework.GDPR],
         )
 
         # Collect evidence
@@ -168,7 +170,7 @@ class DataSubjectRequestHandler:
             source_system="privacy_manager",
             collector_id="system",
             control_objectives=["GDPR-15"],
-            compliance_frameworks=[ComplianceFramework.GDPR]
+            compliance_frameworks=[ComplianceFramework.GDPR],
         )
 
         return DataSubjectRequestResponse(
@@ -177,14 +179,11 @@ class DataSubjectRequestHandler:
             data=user_data,
             export_url=export_url,
             completion_time=datetime.utcnow(),
-            notes="Data access request completed successfully"
+            notes="Data access request completed successfully",
         )
 
     async def process_erasure_request(
-        self,
-        request_id: str,
-        verify_identity: bool = True,
-        backup_before_deletion: bool = True
+        self, request_id: str, verify_identity: bool = True, backup_before_deletion: bool = True
     ) -> DataSubjectRequestResponse:
         """Process GDPR Article 17 right to be forgotten request"""
 
@@ -211,9 +210,7 @@ class DataSubjectRequestHandler:
 
             # Perform erasure according to data categories
             erasure_summary = await self._perform_data_erasure(
-                user_id,
-                request.data_categories,
-                request.specific_fields
+                user_id, request.data_categories, request.specific_fields
             )
 
             # Update request status
@@ -233,7 +230,7 @@ class DataSubjectRequestHandler:
             user_id=user_id,
             control_id="GDPR-17",
             compliance_frameworks=[ComplianceFramework.GDPR],
-            raw_data=erasure_summary
+            raw_data=erasure_summary,
         )
 
         return DataSubjectRequestResponse(
@@ -242,13 +239,11 @@ class DataSubjectRequestHandler:
             data=erasure_summary,
             export_url=None,
             completion_time=datetime.utcnow(),
-            notes=f"Data erasure completed. Items processed: {erasure_summary.get('total_items', 0)}"
+            notes=f"Data erasure completed. Items processed: {erasure_summary.get('total_items', 0)}",
         )
 
     async def process_portability_request(
-        self,
-        request_id: str,
-        export_format: DataExportFormat = DataExportFormat.JSON
+        self, request_id: str, export_format: DataExportFormat = DataExportFormat.JSON
     ) -> DataSubjectRequestResponse:
         """Process GDPR Article 20 data portability request"""
 
@@ -264,16 +259,12 @@ class DataSubjectRequestHandler:
 
             # Collect portable data (only data provided by user with consent)
             portable_data = await self._collect_portable_data(
-                str(request.user_id),
-                request.data_categories
+                str(request.user_id), request.data_categories
             )
 
             # Generate structured export
             export_url = await self._generate_data_export(
-                request_id,
-                portable_data,
-                export_format,
-                structured_format=True
+                request_id, portable_data, export_format, structured_format=True
             )
 
             # Update request status
@@ -293,7 +284,7 @@ class DataSubjectRequestHandler:
             outcome="success",
             user_id=str(request.user_id),
             control_id="GDPR-20",
-            compliance_frameworks=[ComplianceFramework.GDPR]
+            compliance_frameworks=[ComplianceFramework.GDPR],
         )
 
         return DataSubjectRequestResponse(
@@ -302,22 +293,24 @@ class DataSubjectRequestHandler:
             data=portable_data,
             export_url=export_url,
             completion_time=datetime.utcnow(),
-            notes=f"Data portability export generated in {export_format.value} format"
+            notes=f"Data portability export generated in {export_format.value} format",
         )
 
-    async def _schedule_request_processing(self, request_id: str, request_type: DataSubjectRequestType):
+    async def _schedule_request_processing(
+        self, request_id: str, request_type: DataSubjectRequestType
+    ):
         """Schedule automated processing for request"""
         # Implementation would integrate with task queue
         logger.info(f"Scheduled processing for {request_type.value} request: {request_id}")
 
     async def _collect_user_data(
-        self, 
-        user_id: str, 
+        self,
+        user_id: str,
         data_categories: List[DataCategory] = None,
         specific_fields: List[str] = None,
         date_range_start: Optional[datetime] = None,
         date_range_end: Optional[datetime] = None,
-        include_metadata: bool = True
+        include_metadata: bool = True,
     ) -> Dict[str, Any]:
         """Collect user data according to specified criteria"""
         # Implementation would collect data from various sources
@@ -325,38 +318,32 @@ class DataSubjectRequestHandler:
             "user_id": user_id,
             "collection_timestamp": datetime.utcnow().isoformat(),
             "data_categories": [cat.value for cat in (data_categories or [])],
-            "metadata_included": include_metadata
+            "metadata_included": include_metadata,
         }
 
     async def _collect_portable_data(
-        self, 
-        user_id: str, 
-        data_categories: List[DataCategory] = None
+        self, user_id: str, data_categories: List[DataCategory] = None
     ) -> Dict[str, Any]:
         """Collect data that can be ported according to GDPR Article 20"""
         # Implementation would collect only user-provided data with consent basis
         return {
             "user_id": user_id,
             "portable_data": {},
-            "collection_timestamp": datetime.utcnow().isoformat()
+            "collection_timestamp": datetime.utcnow().isoformat(),
         }
 
     async def _generate_data_export(
-        self, 
-        request_id: str, 
-        data: Dict[str, Any], 
+        self,
+        request_id: str,
+        data: Dict[str, Any],
         format: DataExportFormat,
-        structured_format: bool = False
+        structured_format: bool = False,
     ) -> str:
         """Generate secure data export file"""
         # Implementation would create secure export files
         return f"/secure/exports/{request_id}.{format.value}"
 
-    async def _create_erasure_backup(
-        self, 
-        request_id: str, 
-        user_data: Dict[str, Any]
-    ) -> str:
+    async def _create_erasure_backup(self, request_id: str, user_data: Dict[str, Any]) -> str:
         """Create backup before data erasure"""
         # Implementation would create secure backup
         backup_ref = f"BACKUP-{request_id}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
@@ -364,10 +351,10 @@ class DataSubjectRequestHandler:
         return backup_ref
 
     async def _perform_data_erasure(
-        self, 
-        user_id: str, 
+        self,
+        user_id: str,
         data_categories: List[DataCategory] = None,
-        specific_fields: List[str] = None
+        specific_fields: List[str] = None,
     ) -> Dict[str, Any]:
         """Perform data erasure according to specified criteria"""
         # Implementation would perform actual data deletion
@@ -376,5 +363,5 @@ class DataSubjectRequestHandler:
             "erasure_timestamp": datetime.utcnow().isoformat(),
             "categories_processed": [cat.value for cat in (data_categories or [])],
             "total_items": 0,
-            "status": "completed"
+            "status": "completed",
         }

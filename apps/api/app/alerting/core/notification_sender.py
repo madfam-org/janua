@@ -22,17 +22,17 @@ class NotificationSender:
     def __init__(self):
         self.http_client = httpx.AsyncClient(timeout=30.0)
         # Create a Jinja2 environment with autoescape enabled for HTML templates
-        self.jinja_env = Environment(autoescape=select_autoescape(['html', 'xml']))
+        self.jinja_env = Environment(autoescape=select_autoescape(["html", "xml"]))
 
     async def send_email(self, channel: NotificationChannel, alert: Alert) -> bool:
         """Send email notification"""
         try:
             config = channel.config
-            smtp_server = config.get('smtp_server')
-            smtp_port = config.get('smtp_port', 587)
-            username = config.get('username')
-            password = config.get('password')
-            to_addresses = config.get('to_addresses', [])
+            smtp_server = config.get("smtp_server")
+            smtp_port = config.get("smtp_port", 587)
+            username = config.get("username")
+            password = config.get("password")
+            to_addresses = config.get("to_addresses", [])
 
             if not all([smtp_server, username, password, to_addresses]):
                 logger.error("Incomplete email configuration", channel_id=channel.channel_id)
@@ -42,7 +42,8 @@ class NotificationSender:
             subject = f"[{alert.severity.value.upper()}] {alert.title}"
 
             # HTML email template with autoescape enabled
-            html_template = self.jinja_env.from_string("""
+            html_template = self.jinja_env.from_string(
+                """
             <html>
             <head><title>Janua Alert</title></head>
             <body>
@@ -74,14 +75,15 @@ class NotificationSender:
                 </div>
             </body>
             </html>
-            """)
+            """
+            )
 
             # Color based on severity
             severity_colors = {
                 "low": "#4CAF50",
                 "medium": "#FF9800",
                 "high": "#FF5722",
-                "critical": "#F44336"
+                "critical": "#F44336",
             }
 
             html_body = html_template.render(
@@ -94,17 +96,17 @@ class NotificationSender:
                 threshold_value=alert.threshold_value,
                 context=alert.context,
                 alert_id=alert.alert_id,
-                rule_id=alert.rule_id
+                rule_id=alert.rule_id,
             )
 
             # Create message
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From'] = username
-            msg['To'] = ', '.join(to_addresses)
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = username
+            msg["To"] = ", ".join(to_addresses)
 
             # Add HTML part
-            html_part = MIMEText(html_body, 'html')
+            html_part = MIMEText(html_body, "html")
             msg.attach(html_part)
 
             # Send email
@@ -113,23 +115,27 @@ class NotificationSender:
                 server.login(username, password)
                 server.send_message(msg)
 
-            logger.info("Email alert sent successfully",
-                       channel_id=channel.channel_id,
-                       alert_id=alert.alert_id,
-                       recipients=len(to_addresses))
+            logger.info(
+                "Email alert sent successfully",
+                channel_id=channel.channel_id,
+                alert_id=alert.alert_id,
+                recipients=len(to_addresses),
+            )
             return True
 
         except Exception as e:
-            logger.error("Failed to send email alert",
-                        channel_id=channel.channel_id,
-                        alert_id=alert.alert_id,
-                        error=str(e))
+            logger.error(
+                "Failed to send email alert",
+                channel_id=channel.channel_id,
+                alert_id=alert.alert_id,
+                error=str(e),
+            )
             return False
 
     async def send_slack(self, channel: NotificationChannel, alert: Alert) -> bool:
         """Send Slack notification"""
         try:
-            webhook_url = channel.config.get('webhook_url')
+            webhook_url = channel.config.get("webhook_url")
             if not webhook_url:
                 logger.error("Slack webhook URL not configured", channel_id=channel.channel_id)
                 return False
@@ -139,7 +145,7 @@ class NotificationSender:
                 "low": "good",
                 "medium": "warning",
                 "high": "danger",
-                "critical": "#FF0000"
+                "critical": "#FF0000",
             }
 
             # Create Slack payload
@@ -149,68 +155,62 @@ class NotificationSender:
                     {
                         "color": severity_colors.get(alert.severity.value, "good"),
                         "fields": [
-                            {
-                                "title": "Description",
-                                "value": alert.description,
-                                "short": False
-                            },
+                            {"title": "Description", "value": alert.description, "short": False},
                             {
                                 "title": "Current Value",
                                 "value": str(alert.metric_value),
-                                "short": True
+                                "short": True,
                             },
                             {
                                 "title": "Threshold",
                                 "value": str(alert.threshold_value),
-                                "short": True
+                                "short": True,
                             },
                             {
                                 "title": "Triggered At",
                                 "value": alert.triggered_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
-                                "short": True
+                                "short": True,
                             },
-                            {
-                                "title": "Alert ID",
-                                "value": alert.alert_id,
-                                "short": True
-                            }
+                            {"title": "Alert ID", "value": alert.alert_id, "short": True},
                         ],
                         "footer": "Janua Alert System",
-                        "ts": int(alert.triggered_at.timestamp())
+                        "ts": int(alert.triggered_at.timestamp()),
                     }
-                ]
+                ],
             }
 
             # Add context fields if available
             if alert.context:
                 for key, value in alert.context.items():
-                    payload["attachments"][0]["fields"].append({
-                        "title": key,
-                        "value": str(value),
-                        "short": True
-                    })
+                    payload["attachments"][0]["fields"].append(
+                        {"title": key, "value": str(value), "short": True}
+                    )
 
             response = await self.http_client.post(webhook_url, json=payload)
             response.raise_for_status()
 
-            logger.info("Slack alert sent successfully",
-                       channel_id=channel.channel_id,
-                       alert_id=alert.alert_id)
+            logger.info(
+                "Slack alert sent successfully",
+                channel_id=channel.channel_id,
+                alert_id=alert.alert_id,
+            )
             return True
 
         except Exception as e:
-            logger.error("Failed to send Slack alert",
-                        channel_id=channel.channel_id,
-                        alert_id=alert.alert_id,
-                        error=str(e))
+            logger.error(
+                "Failed to send Slack alert",
+                channel_id=channel.channel_id,
+                alert_id=alert.alert_id,
+                error=str(e),
+            )
             return False
 
     async def send_webhook(self, channel: NotificationChannel, alert: Alert) -> bool:
         """Send webhook notification"""
         try:
-            webhook_url = channel.config.get('webhook_url')
-            headers = channel.config.get('headers', {})
-            method = channel.config.get('method', 'POST').upper()
+            webhook_url = channel.config.get("webhook_url")
+            headers = channel.config.get("headers", {})
+            method = channel.config.get("method", "POST").upper()
 
             if not webhook_url:
                 logger.error("Webhook URL not configured", channel_id=channel.channel_id)
@@ -227,12 +227,12 @@ class NotificationSender:
                 "metric_value": alert.metric_value,
                 "threshold_value": alert.threshold_value,
                 "triggered_at": alert.triggered_at.isoformat(),
-                "context": alert.context
+                "context": alert.context,
             }
 
-            if method == 'POST':
+            if method == "POST":
                 response = await self.http_client.post(webhook_url, json=payload, headers=headers)
-            elif method == 'PUT':
+            elif method == "PUT":
                 response = await self.http_client.put(webhook_url, json=payload, headers=headers)
             else:
                 logger.error("Unsupported webhook method", method=method)
@@ -240,23 +240,27 @@ class NotificationSender:
 
             response.raise_for_status()
 
-            logger.info("Webhook alert sent successfully",
-                       channel_id=channel.channel_id,
-                       alert_id=alert.alert_id,
-                       webhook_url=webhook_url)
+            logger.info(
+                "Webhook alert sent successfully",
+                channel_id=channel.channel_id,
+                alert_id=alert.alert_id,
+                webhook_url=webhook_url,
+            )
             return True
 
         except Exception as e:
-            logger.error("Failed to send webhook alert",
-                        channel_id=channel.channel_id,
-                        alert_id=alert.alert_id,
-                        error=str(e))
+            logger.error(
+                "Failed to send webhook alert",
+                channel_id=channel.channel_id,
+                alert_id=alert.alert_id,
+                error=str(e),
+            )
             return False
 
     async def send_discord(self, channel: NotificationChannel, alert: Alert) -> bool:
         """Send Discord notification"""
         try:
-            webhook_url = channel.config.get('webhook_url')
+            webhook_url = channel.config.get("webhook_url")
             if not webhook_url:
                 logger.error("Discord webhook URL not configured", channel_id=channel.channel_id)
                 return False
@@ -266,7 +270,7 @@ class NotificationSender:
                 "low": 0x4CAF50,
                 "medium": 0xFF9800,
                 "high": 0xFF5722,
-                "critical": 0xF44336
+                "critical": 0xF44336,
             }
 
             # Create Discord embed
@@ -275,57 +279,39 @@ class NotificationSender:
                 "description": alert.title,
                 "color": severity_colors.get(alert.severity.value, 0x666666),
                 "fields": [
-                    {
-                        "name": "Description",
-                        "value": alert.description,
-                        "inline": False
-                    },
-                    {
-                        "name": "Current Value",
-                        "value": str(alert.metric_value),
-                        "inline": True
-                    },
-                    {
-                        "name": "Threshold",
-                        "value": str(alert.threshold_value),
-                        "inline": True
-                    },
-                    {
-                        "name": "Alert ID",
-                        "value": alert.alert_id,
-                        "inline": True
-                    }
+                    {"name": "Description", "value": alert.description, "inline": False},
+                    {"name": "Current Value", "value": str(alert.metric_value), "inline": True},
+                    {"name": "Threshold", "value": str(alert.threshold_value), "inline": True},
+                    {"name": "Alert ID", "value": alert.alert_id, "inline": True},
                 ],
                 "timestamp": alert.triggered_at.isoformat(),
-                "footer": {
-                    "text": "Janua Alert System"
-                }
+                "footer": {"text": "Janua Alert System"},
             }
 
             # Add context fields
             if alert.context:
                 for key, value in list(alert.context.items())[:5]:  # Limit to 5 additional fields
-                    embed["fields"].append({
-                        "name": key,
-                        "value": str(value),
-                        "inline": True
-                    })
+                    embed["fields"].append({"name": key, "value": str(value), "inline": True})
 
             payload = {"embeds": [embed]}
 
             response = await self.http_client.post(webhook_url, json=payload)
             response.raise_for_status()
 
-            logger.info("Discord alert sent successfully",
-                       channel_id=channel.channel_id,
-                       alert_id=alert.alert_id)
+            logger.info(
+                "Discord alert sent successfully",
+                channel_id=channel.channel_id,
+                alert_id=alert.alert_id,
+            )
             return True
 
         except Exception as e:
-            logger.error("Failed to send Discord alert",
-                        channel_id=channel.channel_id,
-                        alert_id=alert.alert_id,
-                        error=str(e))
+            logger.error(
+                "Failed to send Discord alert",
+                channel_id=channel.channel_id,
+                alert_id=alert.alert_id,
+                error=str(e),
+            )
             return False
 
     async def close(self):

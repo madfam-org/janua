@@ -1,4 +1,5 @@
 import pytest
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -9,12 +10,7 @@ Comprehensive unit tests for MonitoringService
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
 
-from app.services.monitoring import (
-    MonitoringService,
-    MetricsCollector,
-    MetricType,
-    AlertSeverity
-)
+from app.services.monitoring import MonitoringService, MetricsCollector, MetricType, AlertSeverity
 
 
 class TestMetricsCollector:
@@ -24,7 +20,7 @@ class TestMetricsCollector:
         """Test metrics collector initializes correctly."""
         collector = MetricsCollector()
         assert collector._metrics == {}
-        assert hasattr(collector, '_redis_client')
+        assert hasattr(collector, "_redis_client")
 
     def test_record_metric_counter(self):
         """Test recording counter metrics."""
@@ -222,7 +218,7 @@ class TestAlertManager:
         metrics = Mock()
         manager = AlertManager(metrics)
 
-        with patch('app.services.monitoring.AlertManager._send_webhook') as mock_webhook:
+        with patch("app.services.monitoring.AlertManager._send_webhook") as mock_webhook:
             mock_webhook.return_value = AsyncMock()
 
             await manager.send_alert("test_alert", AlertSeverity.WARNING, {"key": "value"})
@@ -239,7 +235,7 @@ class TestSystemMonitor:
         monitor = SystemMonitor(metrics)
         assert monitor.metrics == metrics
 
-    @patch('psutil.cpu_percent')
+    @patch("psutil.cpu_percent")
     def test_collect_cpu_metrics(self, mock_cpu):
         """Test collecting CPU metrics."""
         metrics = Mock()
@@ -251,7 +247,7 @@ class TestSystemMonitor:
         mock_cpu.assert_called_once()
         metrics.record_metric.assert_called_with("system.cpu_percent", 75.5, MetricType.GAUGE)
 
-    @patch('psutil.virtual_memory')
+    @patch("psutil.virtual_memory")
     def test_collect_memory_metrics(self, mock_memory):
         """Test collecting memory metrics."""
         metrics = Mock()
@@ -265,7 +261,7 @@ class TestSystemMonitor:
 
         assert metrics.record_metric.call_count == 3
 
-    @patch('psutil.disk_usage')
+    @patch("psutil.disk_usage")
     def test_collect_disk_metrics(self, mock_disk):
         """Test collecting disk metrics."""
         metrics = Mock()
@@ -285,10 +281,9 @@ class TestSystemMonitor:
         metrics = Mock()
         monitor = SystemMonitor(metrics)
 
-        with patch.object(monitor, 'collect_cpu_metrics') as mock_cpu, \
-             patch.object(monitor, 'collect_memory_metrics') as mock_memory, \
-             patch.object(monitor, 'collect_disk_metrics') as mock_disk:
-
+        with patch.object(monitor, "collect_cpu_metrics") as mock_cpu, patch.object(
+            monitor, "collect_memory_metrics"
+        ) as mock_memory, patch.object(monitor, "collect_disk_metrics") as mock_disk:
             await monitor.collect_all_metrics()
 
             mock_cpu.assert_called_once()
@@ -313,9 +308,9 @@ class TestMonitoringService:
         """Test service initialization."""
         service = MonitoringService()
 
-        with patch.object(service.metrics, 'initialize') as mock_metrics_init, \
-             patch.object(service.health_checker, 'add_health_check') as mock_add_check:
-
+        with patch.object(service.metrics, "initialize") as mock_metrics_init, patch.object(
+            service.health_checker, "add_health_check"
+        ) as mock_add_check:
             await service.initialize()
 
             mock_metrics_init.assert_called_once()
@@ -337,7 +332,7 @@ class TestMonitoringService:
         """Test recording request metrics."""
         service = MonitoringService()
 
-        with patch.object(service.metrics, 'record_metric') as mock_record:
+        with patch.object(service.metrics, "record_metric") as mock_record:
             await service.record_request_metric("/api/users", "GET", 200, 150.5)
 
             assert mock_record.call_count >= 2  # Request count and duration
@@ -347,7 +342,7 @@ class TestMonitoringService:
         """Test recording error metrics."""
         service = MonitoringService()
 
-        with patch.object(service.metrics, 'record_metric') as mock_record:
+        with patch.object(service.metrics, "record_metric") as mock_record:
             await service.record_error_metric("ValidationError", "/api/users", 400)
 
             mock_record.assert_called()
@@ -357,7 +352,7 @@ class TestMonitoringService:
         """Test recording business metrics."""
         service = MonitoringService()
 
-        with patch.object(service.metrics, 'record_metric') as mock_record:
+        with patch.object(service.metrics, "record_metric") as mock_record:
             await service.record_business_metric("user_signup", 1, {"source": "web"})
 
             mock_record.assert_called()
@@ -367,7 +362,7 @@ class TestMonitoringService:
         """Test getting health status."""
         service = MonitoringService()
 
-        with patch.object(service.health_checker, 'check_health') as mock_check:
+        with patch.object(service.health_checker, "check_health") as mock_check:
             mock_check.return_value = Mock(status=HealthStatus.HEALTHY)
 
             health = await service.get_health_status()
@@ -380,7 +375,7 @@ class TestMonitoringService:
         """Test getting metrics summary."""
         service = MonitoringService()
 
-        with patch.object(service.metrics, 'get_all_metrics') as mock_get:
+        with patch.object(service.metrics, "get_all_metrics") as mock_get:
             mock_get.return_value = {"api_calls": {"value": 100}}
 
             summary = await service.get_metrics_summary()
@@ -393,7 +388,7 @@ class TestMonitoringService:
         """Test checking alerts."""
         service = MonitoringService()
 
-        with patch.object(service.alerting, 'check_alerts') as mock_check:
+        with patch.object(service.alerting, "check_alerts") as mock_check:
             mock_check.return_value = []
 
             alerts = await service.check_alerts()

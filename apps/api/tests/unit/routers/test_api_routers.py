@@ -13,14 +13,14 @@ pytestmark = pytest.mark.asyncio
 def mock_external_dependencies():
     """Mock external dependencies for router testing"""
     mocked_modules = {
-        'aioredis': Mock(),
-        'redis': Mock(),
-        'celery': Mock(),
-        'stripe': Mock(),
-        'requests': Mock(),
-        'httpx': Mock()
+        "aioredis": Mock(),
+        "redis": Mock(),
+        "celery": Mock(),
+        "stripe": Mock(),
+        "requests": Mock(),
+        "httpx": Mock(),
     }
-    with patch.dict('sys.modules', mocked_modules):
+    with patch.dict("sys.modules", mocked_modules):
         yield
 
 
@@ -35,22 +35,22 @@ class TestAuthRouter:
             assert auth_router is not None
 
             # Test router has routes defined
-            if hasattr(auth_router, 'routes'):
+            if hasattr(auth_router, "routes"):
                 routes = auth_router.routes
                 assert len(routes) >= 0
 
                 # Test route configuration
                 for route in routes:
-                    if hasattr(route, 'methods') and hasattr(route, 'path'):
+                    if hasattr(route, "methods") and hasattr(route, "path"):
                         # Validate route structure
                         assert route.path is not None
                         assert route.methods is not None
 
             # Test router metadata
-            if hasattr(auth_router, 'tags'):
+            if hasattr(auth_router, "tags"):
                 assert auth_router.tags is not None
 
-            if hasattr(auth_router, 'prefix'):
+            if hasattr(auth_router, "prefix"):
                 assert auth_router.prefix is not None
 
         except ImportError:
@@ -62,11 +62,11 @@ class TestAuthRouter:
             from app.auth.router import router as auth_router
 
             # Test router has authentication routes
-            if hasattr(auth_router, 'routes'):
-                route_paths = [route.path for route in auth_router.routes if hasattr(route, 'path')]
-                
+            if hasattr(auth_router, "routes"):
+                route_paths = [route.path for route in auth_router.routes if hasattr(route, "path")]
+
                 # Common auth endpoints
-                expected_paths = ['/login', '/logout', '/register', '/refresh', '/verify']
+                expected_paths = ["/login", "/logout", "/register", "/refresh", "/verify"]
                 for expected_path in expected_paths:
                     # Check if any route contains the expected path pattern
                     any(expected_path in path for path in route_paths)
@@ -87,12 +87,12 @@ class TestUsersRouter:
             assert users_router is not None
 
             # Test router functionality
-            if hasattr(users_router, 'routes'):
+            if hasattr(users_router, "routes"):
                 routes = users_router.routes
                 assert len(routes) >= 0
 
             # Test router metadata
-            if hasattr(users_router, 'tags'):
+            if hasattr(users_router, "tags"):
                 assert users_router.tags is not None
 
         except ImportError:
@@ -104,11 +104,13 @@ class TestUsersRouter:
             from app.users.router import router as users_router
 
             # Test router has user management routes
-            if hasattr(users_router, 'routes'):
-                route_paths = [route.path for route in users_router.routes if hasattr(route, 'path')]
-                
+            if hasattr(users_router, "routes"):
+                route_paths = [
+                    route.path for route in users_router.routes if hasattr(route, "path")
+                ]
+
                 # Common user endpoints
-                expected_paths = ['/users', '/profile', '/settings', '/preferences']
+                expected_paths = ["/users", "/profile", "/settings", "/preferences"]
                 for expected_path in expected_paths:
                     # Check if any route contains the expected path pattern
                     any(expected_path in path for path in route_paths)
@@ -129,7 +131,7 @@ class TestBillingRouter:
             assert billing_router is not None
 
             # Test router configuration
-            if hasattr(billing_router, 'routes'):
+            if hasattr(billing_router, "routes"):
                 routes = billing_router.routes
                 assert len(routes) >= 0
 
@@ -141,11 +143,13 @@ class TestBillingRouter:
         try:
             from app.routers.billing import router as billing_router
 
-            if hasattr(billing_router, 'routes'):
-                route_paths = [route.path for route in billing_router.routes if hasattr(route, 'path')]
-                
+            if hasattr(billing_router, "routes"):
+                route_paths = [
+                    route.path for route in billing_router.routes if hasattr(route, "path")
+                ]
+
                 # Common billing endpoints
-                expected_paths = ['/subscription', '/payment', '/invoice', '/billing']
+                expected_paths = ["/subscription", "/payment", "/invoice", "/billing"]
                 for expected_path in expected_paths:
                     any(expected_path in path for path in route_paths)
 
@@ -164,7 +168,7 @@ class TestOrganizationsRouter:
             assert org_router is not None
 
             # Test router configuration
-            if hasattr(org_router, 'routes'):
+            if hasattr(org_router, "routes"):
                 routes = org_router.routes
                 assert len(routes) >= 0
 
@@ -176,11 +180,11 @@ class TestOrganizationsRouter:
         try:
             from app.routers.organizations import router as org_router
 
-            if hasattr(org_router, 'routes'):
-                route_paths = [route.path for route in org_router.routes if hasattr(route, 'path')]
-                
+            if hasattr(org_router, "routes"):
+                route_paths = [route.path for route in org_router.routes if hasattr(route, "path")]
+
                 # Common organization endpoints
-                expected_paths = ['/org', '/organization', '/team', '/members']
+                expected_paths = ["/org", "/organization", "/team", "/members"]
                 for expected_path in expected_paths:
                     any(expected_path in path for path in route_paths)
 
@@ -199,7 +203,7 @@ class TestAdminRouter:
             assert admin_router is not None
 
             # Test router configuration
-            if hasattr(admin_router, 'routes'):
+            if hasattr(admin_router, "routes"):
                 routes = admin_router.routes
                 assert len(routes) >= 0
 
@@ -211,11 +215,13 @@ class TestAdminRouter:
         try:
             from app.routers.admin import router as admin_router
 
-            if hasattr(admin_router, 'routes'):
-                route_paths = [route.path for route in admin_router.routes if hasattr(route, 'path')]
-                
+            if hasattr(admin_router, "routes"):
+                route_paths = [
+                    route.path for route in admin_router.routes if hasattr(route, "path")
+                ]
+
                 # Common admin endpoints
-                expected_paths = ['/admin', '/dashboard', '/users', '/system']
+                expected_paths = ["/admin", "/dashboard", "/users", "/system"]
                 for expected_path in expected_paths:
                     any(expected_path in path for path in route_paths)
 
@@ -233,7 +239,7 @@ class TestComplianceRouter:
 
             assert compliance_router is not None
 
-            if hasattr(compliance_router, 'routes'):
+            if hasattr(compliance_router, "routes"):
                 routes = compliance_router.routes
                 assert len(routes) >= 0
 
@@ -251,7 +257,7 @@ class TestReportsRouter:
 
             assert reports_router is not None
 
-            if hasattr(reports_router, 'routes'):
+            if hasattr(reports_router, "routes"):
                 routes = reports_router.routes
                 assert len(routes) >= 0
 
@@ -269,7 +275,7 @@ class TestWebhooksRouter:
 
             assert webhooks_router is not None
 
-            if hasattr(webhooks_router, 'routes'):
+            if hasattr(webhooks_router, "routes"):
                 routes = webhooks_router.routes
                 assert len(routes) >= 0
 
@@ -287,7 +293,7 @@ class TestAPIKeysRouter:
 
             assert api_keys_router is not None
 
-            if hasattr(api_keys_router, 'routes'):
+            if hasattr(api_keys_router, "routes"):
                 routes = api_keys_router.routes
                 assert len(routes) >= 0
 
@@ -305,7 +311,7 @@ class TestAuditRouter:
 
             assert audit_router is not None
 
-            if hasattr(audit_router, 'routes'):
+            if hasattr(audit_router, "routes"):
                 routes = audit_router.routes
                 assert len(routes) >= 0
 
@@ -323,7 +329,7 @@ class TestNotificationsRouter:
 
             assert notifications_router is not None
 
-            if hasattr(notifications_router, 'routes'):
+            if hasattr(notifications_router, "routes"):
                 routes = notifications_router.routes
                 assert len(routes) >= 0
 
@@ -341,7 +347,7 @@ class TestHealthRouter:
 
             assert health_router is not None
 
-            if hasattr(health_router, 'routes'):
+            if hasattr(health_router, "routes"):
                 routes = health_router.routes
                 assert len(routes) >= 0
 
@@ -350,4 +356,13 @@ class TestHealthRouter:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--cov=app.routers", "--cov=app.auth.router", "--cov=app.users.router", "--cov-report=term-missing"])
+    pytest.main(
+        [
+            __file__,
+            "-v",
+            "--cov=app.routers",
+            "--cov=app.auth.router",
+            "--cov=app.users.router",
+            "--cov-report=term-missing",
+        ]
+    )

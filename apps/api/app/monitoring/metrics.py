@@ -15,13 +15,8 @@ logger = structlog.get_logger()
 
 # Try to import Prometheus client
 try:
-    from prometheus_client import (
-        Counter,
-        Histogram,
-        Gauge,
-        generate_latest,
-        CONTENT_TYPE_LATEST
-    )
+    from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
@@ -32,51 +27,37 @@ except ImportError:
 if PROMETHEUS_AVAILABLE:
     # Request latency histogram
     request_latency = Histogram(
-        'janua_request_latency_milliseconds',
-        'Request latency in milliseconds',
-        labelnames=['method', 'path', 'status'],
-        buckets=(10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000)
+        "janua_request_latency_milliseconds",
+        "Request latency in milliseconds",
+        labelnames=["method", "path", "status"],
+        buckets=(10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000),
     )
 
     # Database query counter
     db_queries_total = Counter(
-        'janua_db_queries_total',
-        'Total database queries executed',
-        labelnames=['path']
+        "janua_db_queries_total", "Total database queries executed", labelnames=["path"]
     )
 
     # Cache hit rate gauge
-    cache_hit_rate_gauge = Gauge(
-        'janua_cache_hit_rate_percent',
-        'Cache hit rate percentage'
-    )
+    cache_hit_rate_gauge = Gauge("janua_cache_hit_rate_percent", "Cache hit rate percentage")
 
     # Request counter
     requests_total = Counter(
-        'janua_requests_total',
-        'Total HTTP requests',
-        labelnames=['method', 'path', 'status']
+        "janua_requests_total", "Total HTTP requests", labelnames=["method", "path", "status"]
     )
 
     # Error counter
-    errors_total = Counter(
-        'janua_errors_total',
-        'Total errors',
-        labelnames=['error_type', 'path']
-    )
+    errors_total = Counter("janua_errors_total", "Total errors", labelnames=["error_type", "path"])
 
     # Active sessions gauge
-    active_sessions = Gauge(
-        'janua_active_sessions',
-        'Number of active user sessions'
-    )
+    active_sessions = Gauge("janua_active_sessions", "Number of active user sessions")
 
     # Auth operation latency
     auth_operation_latency = Histogram(
-        'janua_auth_operation_milliseconds',
-        'Authentication operation latency',
-        labelnames=['operation'],
-        buckets=(5, 10, 25, 50, 100, 250, 500, 1000)
+        "janua_auth_operation_milliseconds",
+        "Authentication operation latency",
+        labelnames=["operation"],
+        buckets=(5, 10, 25, 50, 100, 250, 500, 1000),
     )
 
 

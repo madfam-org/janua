@@ -29,8 +29,8 @@ class TestRealAuthentication:
                     "email": self.test_email,
                     "password": self.test_password,
                     "full_name": "Test User",
-                    "terms_accepted": True
-                }
+                    "terms_accepted": True,
+                },
             )
 
         # Should return valid response (accepting various codes as endpoints may not exist or have validation)
@@ -48,8 +48,8 @@ class TestRealAuthentication:
                     "email": self.test_email,
                     "password": self.weak_password,
                     "full_name": "Test User",
-                    "terms_accepted": True
-                }
+                    "terms_accepted": True,
+                },
             )
 
         # Should return validation error or endpoint response
@@ -67,8 +67,8 @@ class TestRealAuthentication:
                     "email": self.test_email,
                     "password": self.test_password,
                     "full_name": "Test User",
-                    "terms_accepted": True
-                }
+                    "terms_accepted": True,
+                },
             )
 
         # Should return valid response
@@ -79,10 +79,7 @@ class TestRealAuthentication:
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.post(
                 "/api/v1/auth/signin",
-                json={
-                    "email": self.test_email,
-                    "password": self.test_password
-                }
+                json={"email": self.test_email, "password": self.test_password},
             )
 
         # Should return valid response
@@ -93,10 +90,7 @@ class TestRealAuthentication:
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.post(
                 "/api/v1/auth/signin",
-                json={
-                    "email": self.test_email,
-                    "password": "WrongPassword123!"
-                }
+                json={"email": self.test_email, "password": "WrongPassword123!"},
             )
 
         # Should return valid response
@@ -107,10 +101,7 @@ class TestRealAuthentication:
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.post(
                 "/api/v1/auth/signin",
-                json={
-                    "email": "nonexistent@example.com",
-                    "password": self.test_password
-                }
+                json={"email": "nonexistent@example.com", "password": self.test_password},
             )
 
         # Should return valid response
@@ -128,8 +119,7 @@ class TestRealAuthentication:
         """Test that protected endpoints work with tokens."""
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.get(
-                "/api/v1/auth/me",
-                headers={"Authorization": "Bearer mock_token"}
+                "/api/v1/auth/me", headers={"Authorization": "Bearer mock_token"}
             )
 
         # Should return valid response (400 for bad token format or host validation)
@@ -139,8 +129,7 @@ class TestRealAuthentication:
         """Test that refresh token endpoint responds."""
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.post(
-                "/api/v1/auth/refresh",
-                headers={"Authorization": "Bearer mock_refresh_token"}
+                "/api/v1/auth/refresh", headers={"Authorization": "Bearer mock_refresh_token"}
             )
 
         # Should return valid response (400 for bad token format)
@@ -150,8 +139,7 @@ class TestRealAuthentication:
         """Test password reset endpoint."""
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.post(
-                "/api/v1/auth/password/forgot",
-                json={"email": self.test_email}
+                "/api/v1/auth/password/forgot", json={"email": self.test_email}
             )
 
         # Should return valid response
@@ -161,8 +149,7 @@ class TestRealAuthentication:
         """Test email verification endpoint."""
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.post(
-                "/api/v1/auth/email/verify",
-                json={"token": "invalid-token-123"}
+                "/api/v1/auth/email/verify", json={"token": "invalid-token-123"}
             )
 
         # Should return valid response
@@ -172,8 +159,7 @@ class TestRealAuthentication:
         """Test signout endpoint."""
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.post(
-                "/api/v1/auth/signout",
-                headers={"Authorization": "Bearer mock_token"}
+                "/api/v1/auth/signout", headers={"Authorization": "Bearer mock_token"}
             )
 
         # Should return valid response (400 for bad token format)
@@ -192,10 +178,7 @@ class TestRateLimiting:
             for i in range(3):  # Reduced number for faster test
                 response = await client.post(
                     "/api/v1/auth/signin",
-                    json={
-                        "email": f"user{i}@example.com",
-                        "password": "password123"
-                    }
+                    json={"email": f"user{i}@example.com", "password": "password123"},
                 )
                 responses.append(response)
 
@@ -216,10 +199,7 @@ class TestInputValidation:
         async with AsyncClient(app=app, base_url="http://test") as client:
             response = await client.post(
                 "/api/v1/auth/signin",
-                json={
-                    "email": "admin' OR '1'='1",
-                    "password": "'; DROP TABLE users; --"
-                }
+                json={"email": "admin' OR '1'='1", "password": "'; DROP TABLE users; --"},
             )
 
         # Should return validation error, not SQL error
@@ -246,8 +226,8 @@ class TestInputValidation:
                     "email": "test@example.com",
                     "password": "SecureP@ssw0rd123!",
                     "full_name": "<script>alert('XSS')</script>",
-                    "terms_accepted": True
-                }
+                    "terms_accepted": True,
+                },
             )
 
         # Test passes - endpoint should handle XSS attempts safely
@@ -258,11 +238,7 @@ class TestInputValidation:
 
     async def test_email_format_validation(self):
         """Test that invalid email formats are handled properly."""
-        invalid_emails = [
-            "notanemail",
-            "@example.com",
-            "user@"
-        ]
+        invalid_emails = ["notanemail", "@example.com", "user@"]
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             for email in invalid_emails:
@@ -272,8 +248,8 @@ class TestInputValidation:
                         "email": email,
                         "password": "SecureP@ssw0rd123!",
                         "full_name": "Test User",
-                        "terms_accepted": True
-                    }
+                        "terms_accepted": True,
+                    },
                 )
 
                 # Should return validation error or endpoint not found

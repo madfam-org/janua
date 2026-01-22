@@ -13,6 +13,7 @@ from .alert_types import AlertSeverity, AlertStatus, AlertChannel
 @dataclass
 class AlertRule:
     """Alert rule configuration"""
+
     rule_id: str
     name: str
     description: str
@@ -32,6 +33,7 @@ class AlertRule:
 @dataclass
 class Alert:
     """Alert instance"""
+
     alert_id: str
     rule_id: str
     severity: AlertSeverity
@@ -51,6 +53,7 @@ class Alert:
 @dataclass
 class NotificationChannel:
     """Notification channel configuration"""
+
     channel_id: str
     channel_type: AlertChannel
     name: str

@@ -13,16 +13,16 @@ pytestmark = pytest.mark.asyncio
 def mock_external_dependencies():
     """Mock external dependencies for alerting and monitoring testing"""
     mocked_modules = {
-        'aioredis': Mock(),
-        'redis': Mock(),
-        'celery': Mock(),
-        'twilio': Mock(),
-        'sendgrid': Mock(),
-        'slack_sdk': Mock(),
-        'requests': Mock(),
-        'httpx': Mock()
+        "aioredis": Mock(),
+        "redis": Mock(),
+        "celery": Mock(),
+        "twilio": Mock(),
+        "sendgrid": Mock(),
+        "slack_sdk": Mock(),
+        "requests": Mock(),
+        "httpx": Mock(),
     }
-    with patch.dict('sys.modules', mocked_modules):
+    with patch.dict("sys.modules", mocked_modules):
         yield
 
 
@@ -34,11 +34,16 @@ class TestAlertingSystem:
         try:
             from app.alerting.alert_system import AlertSystem
 
-            alert_system = AlertSystem() if not hasattr(AlertSystem, '__init__') else AlertSystem(AsyncMock())
+            alert_system = (
+                AlertSystem() if not hasattr(AlertSystem, "__init__") else AlertSystem(AsyncMock())
+            )
 
             # Verify alert system has alerting methods
-            public_methods = [method for method in dir(alert_system)
-                            if not method.startswith('_') and callable(getattr(alert_system, method))]
+            public_methods = [
+                method
+                for method in dir(alert_system)
+                if not method.startswith("_") and callable(getattr(alert_system, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(alert_system, method_name)
@@ -54,10 +59,17 @@ class TestAlertingSystem:
         try:
             from app.alerting.alert_system import AlertSystem
 
-            alert_system = AlertSystem() if not hasattr(AlertSystem, '__init__') else AlertSystem(AsyncMock())
-            
+            alert_system = (
+                AlertSystem() if not hasattr(AlertSystem, "__init__") else AlertSystem(AsyncMock())
+            )
+
             # Test alert system has core alert methods
-            expected_methods = ['create_alert', 'process_alert', 'validate_alert', 'send_notification']
+            expected_methods = [
+                "create_alert",
+                "process_alert",
+                "validate_alert",
+                "send_notification",
+            ]
             for method_name in expected_methods:
                 if hasattr(alert_system, method_name):
                     method = getattr(alert_system, method_name)
@@ -71,10 +83,17 @@ class TestAlertingSystem:
         try:
             from app.alerting.alert_system import AlertSystem
 
-            alert_system = AlertSystem() if not hasattr(AlertSystem, '__init__') else AlertSystem(AsyncMock())
-            
+            alert_system = (
+                AlertSystem() if not hasattr(AlertSystem, "__init__") else AlertSystem(AsyncMock())
+            )
+
             # Test notification methods
-            notification_methods = ['send_email_alert', 'send_sms_alert', 'send_slack_alert', 'send_webhook_alert']
+            notification_methods = [
+                "send_email_alert",
+                "send_sms_alert",
+                "send_slack_alert",
+                "send_webhook_alert",
+            ]
             for method_name in notification_methods:
                 if hasattr(alert_system, method_name):
                     method = getattr(alert_system, method_name)
@@ -88,10 +107,17 @@ class TestAlertingSystem:
         try:
             from app.alerting.alert_system import AlertSystem
 
-            alert_system = AlertSystem() if not hasattr(AlertSystem, '__init__') else AlertSystem(AsyncMock())
-            
+            alert_system = (
+                AlertSystem() if not hasattr(AlertSystem, "__init__") else AlertSystem(AsyncMock())
+            )
+
             # Test escalation methods
-            escalation_methods = ['escalate_alert', 'update_priority', 'assign_responder', 'track_resolution']
+            escalation_methods = [
+                "escalate_alert",
+                "update_priority",
+                "assign_responder",
+                "track_resolution",
+            ]
             for method_name in escalation_methods:
                 if hasattr(alert_system, method_name):
                     method = getattr(alert_system, method_name)
@@ -109,11 +135,18 @@ class TestComplianceMonitoring:
         try:
             from app.compliance.monitor import ComplianceMonitor
 
-            monitor = ComplianceMonitor() if not hasattr(ComplianceMonitor, '__init__') else ComplianceMonitor(AsyncMock())
+            monitor = (
+                ComplianceMonitor()
+                if not hasattr(ComplianceMonitor, "__init__")
+                else ComplianceMonitor(AsyncMock())
+            )
 
             # Verify compliance monitor has monitoring methods
-            public_methods = [method for method in dir(monitor)
-                            if not method.startswith('_') and callable(getattr(monitor, method))]
+            public_methods = [
+                method
+                for method in dir(monitor)
+                if not method.startswith("_") and callable(getattr(monitor, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(monitor, method_name)
@@ -129,10 +162,19 @@ class TestComplianceMonitoring:
         try:
             from app.compliance.monitor import ComplianceMonitor
 
-            monitor = ComplianceMonitor() if not hasattr(ComplianceMonitor, '__init__') else ComplianceMonitor(AsyncMock())
-            
+            monitor = (
+                ComplianceMonitor()
+                if not hasattr(ComplianceMonitor, "__init__")
+                else ComplianceMonitor(AsyncMock())
+            )
+
             # Test assessment methods
-            assessment_methods = ['assess_controls', 'evaluate_compliance', 'track_violations', 'generate_report']
+            assessment_methods = [
+                "assess_controls",
+                "evaluate_compliance",
+                "track_violations",
+                "generate_report",
+            ]
             for method_name in assessment_methods:
                 if hasattr(monitor, method_name):
                     method = getattr(monitor, method_name)
@@ -146,10 +188,18 @@ class TestComplianceMonitoring:
         try:
             from app.compliance.monitor import ComplianceMonitor
 
-            monitor = ComplianceMonitor() if not hasattr(ComplianceMonitor, '__init__') else ComplianceMonitor(AsyncMock())
-            
+            monitor = (
+                ComplianceMonitor()
+                if not hasattr(ComplianceMonitor, "__init__")
+                else ComplianceMonitor(AsyncMock())
+            )
+
             # Test scoring methods
-            scoring_methods = ['calculate_compliance_score', 'track_improvement', 'benchmark_performance']
+            scoring_methods = [
+                "calculate_compliance_score",
+                "track_improvement",
+                "benchmark_performance",
+            ]
             for method_name in scoring_methods:
                 if hasattr(monitor, method_name):
                     method = getattr(monitor, method_name)
@@ -167,11 +217,16 @@ class TestSLAService:
         try:
             from app.compliance.sla import SLAService
 
-            sla_service = SLAService() if not hasattr(SLAService, '__init__') else SLAService(AsyncMock())
+            sla_service = (
+                SLAService() if not hasattr(SLAService, "__init__") else SLAService(AsyncMock())
+            )
 
             # Verify SLA service has monitoring methods
-            public_methods = [method for method in dir(sla_service)
-                            if not method.startswith('_') and callable(getattr(sla_service, method))]
+            public_methods = [
+                method
+                for method in dir(sla_service)
+                if not method.startswith("_") and callable(getattr(sla_service, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(sla_service, method_name)
@@ -187,10 +242,17 @@ class TestSLAService:
         try:
             from app.compliance.sla import SLAService
 
-            sla_service = SLAService() if not hasattr(SLAService, '__init__') else SLAService(AsyncMock())
-            
+            sla_service = (
+                SLAService() if not hasattr(SLAService, "__init__") else SLAService(AsyncMock())
+            )
+
             # Test monitoring methods
-            monitoring_methods = ['monitor_sla', 'track_uptime', 'measure_response_time', 'calculate_availability']
+            monitoring_methods = [
+                "monitor_sla",
+                "track_uptime",
+                "measure_response_time",
+                "calculate_availability",
+            ]
             for method_name in monitoring_methods:
                 if hasattr(sla_service, method_name):
                     method = getattr(sla_service, method_name)
@@ -204,10 +266,17 @@ class TestSLAService:
         try:
             from app.compliance.sla import SLAService
 
-            sla_service = SLAService() if not hasattr(SLAService, '__init__') else SLAService(AsyncMock())
-            
+            sla_service = (
+                SLAService() if not hasattr(SLAService, "__init__") else SLAService(AsyncMock())
+            )
+
             # Test breach handling methods
-            breach_methods = ['detect_breach', 'alert_stakeholders', 'calculate_penalty', 'track_incident_impact']
+            breach_methods = [
+                "detect_breach",
+                "alert_stakeholders",
+                "calculate_penalty",
+                "track_incident_impact",
+            ]
             for method_name in breach_methods:
                 if hasattr(sla_service, method_name):
                     method = getattr(sla_service, method_name)
@@ -221,10 +290,12 @@ class TestSLAService:
         try:
             from app.compliance.sla import SLAService
 
-            sla_service = SLAService() if not hasattr(SLAService, '__init__') else SLAService(AsyncMock())
-            
+            sla_service = (
+                SLAService() if not hasattr(SLAService, "__init__") else SLAService(AsyncMock())
+            )
+
             # Test reporting methods
-            reporting_methods = ['generate_sla_report', 'analyze_trends', 'forecast_performance']
+            reporting_methods = ["generate_sla_report", "analyze_trends", "forecast_performance"]
             for method_name in reporting_methods:
                 if hasattr(sla_service, method_name):
                     method = getattr(sla_service, method_name)
@@ -242,33 +313,37 @@ class TestMonitoringServices:
         try:
             # Test various monitoring module possibilities
             monitoring_modules = [
-                'app.monitoring.system_monitor',
-                'app.services.monitoring',
-                'app.monitoring.health'
+                "app.monitoring.system_monitor",
+                "app.services.monitoring",
+                "app.monitoring.health",
             ]
-            
+
             for module_name in monitoring_modules:
                 try:
-                    module = __import__(module_name, fromlist=[''])
+                    module = __import__(module_name, fromlist=[""])
                     assert module is not None
-                    
+
                     # Test module has monitoring capabilities
                     for attr_name in dir(module):
-                        if not attr_name.startswith('_'):
+                        if not attr_name.startswith("_"):
                             attr = getattr(module, attr_name)
-                            if hasattr(attr, '__init__'):
+                            if hasattr(attr, "__init__"):
                                 # Test class instantiation
                                 try:
-                                    instance = attr() if not hasattr(attr, '__init__') else attr(AsyncMock())
+                                    instance = (
+                                        attr()
+                                        if not hasattr(attr, "__init__")
+                                        else attr(AsyncMock())
+                                    )
                                     assert instance is not None
                                     break
                                 except Exception:
                                     continue
                     break
-                    
+
                 except ImportError:
                     continue
-            
+
         except Exception:
             pytest.skip("No monitoring modules available")
 
@@ -277,13 +352,13 @@ class TestMonitoringServices:
         try:
             # Test performance monitoring capabilities
             from app.monitoring import metrics_collector
-            
+
             # Test metrics collection methods exist
-            if hasattr(metrics_collector, 'collect_metrics'):
+            if hasattr(metrics_collector, "collect_metrics"):
                 assert callable(metrics_collector.collect_metrics)
-            if hasattr(metrics_collector, 'aggregate_data'):
+            if hasattr(metrics_collector, "aggregate_data"):
                 assert callable(metrics_collector.aggregate_data)
-                
+
         except ImportError:
             pytest.skip("Metrics collection not available")
 
@@ -292,18 +367,20 @@ class TestMonitoringServices:
         try:
             # Test health check capabilities
             from app.monitoring import health_checker
-            
+
             # Test health check methods exist
-            if hasattr(health_checker, 'check_database'):
+            if hasattr(health_checker, "check_database"):
                 assert callable(health_checker.check_database)
-            if hasattr(health_checker, 'check_redis'):
+            if hasattr(health_checker, "check_redis"):
                 assert callable(health_checker.check_redis)
-            if hasattr(health_checker, 'check_external_services'):
+            if hasattr(health_checker, "check_external_services"):
                 assert callable(health_checker.check_external_services)
-                
+
         except ImportError:
             pytest.skip("Health checking not available")
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--cov=app.alerting", "--cov=app.monitoring", "--cov-report=term-missing"])
+    pytest.main(
+        [__file__, "-v", "--cov=app.alerting", "--cov=app.monitoring", "--cov-report=term-missing"]
+    )

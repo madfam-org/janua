@@ -42,10 +42,11 @@ class AlertManager:
         """Initialize Redis connection"""
         try:
             from app.config import settings
+
             self.redis_client = aioredis.from_url(
                 f"redis://{getattr(settings, 'REDIS_HOST', 'localhost')}:{getattr(settings, 'REDIS_PORT', 6379)}/4",
                 encoding="utf-8",
-                decode_responses=True
+                decode_responses=True,
             )
             await self.redis_client.ping()
             logger.info("Alert manager Redis connection initialized")
@@ -126,7 +127,7 @@ class AlertManager:
                         metric_value=current_value,
                         threshold_value=rule.threshold_value,
                         triggered_at=datetime.now(),
-                        context=await self.metrics_collector.get_alert_context(rule, current_value)
+                        context=await self.metrics_collector.get_alert_context(rule, current_value),
                     )
 
                     await self._trigger_alert(alert, rule)
@@ -148,11 +149,13 @@ class AlertManager:
             # Set cooldown
             await self._set_cooldown(rule.rule_id, rule.cooldown_period)
 
-            logger.info("Alert triggered",
-                       alert_id=alert.alert_id,
-                       rule_id=rule.rule_id,
-                       severity=alert.severity.value,
-                       metric_value=alert.metric_value)
+            logger.info(
+                "Alert triggered",
+                alert_id=alert.alert_id,
+                rule_id=rule.rule_id,
+                severity=alert.severity.value,
+                metric_value=alert.metric_value,
+            )
 
         except Exception as e:
             logger.error("Failed to trigger alert", alert_id=alert.alert_id, error=str(e))
@@ -162,7 +165,8 @@ class AlertManager:
         try:
             # Find configured channels of this type
             matching_channels = [
-                ch for ch in self.notification_channels.values()
+                ch
+                for ch in self.notification_channels.values()
                 if ch.channel_type == channel_type and ch.enabled
             ]
 
@@ -180,14 +184,18 @@ class AlertManager:
                 success = await self.notification_sender.send_notification(channel, alert)
 
                 if success:
-                    alert.notifications_sent.append(f"{channel.channel_type.value}:{channel.channel_id}")
+                    alert.notifications_sent.append(
+                        f"{channel.channel_type.value}:{channel.channel_id}"
+                    )
                     await self._record_notification(channel)
 
         except Exception as e:
-            logger.error("Failed to send notification",
-                        alert_id=alert.alert_id,
-                        channel_type=channel_type.value,
-                        error=str(e))
+            logger.error(
+                "Failed to send notification",
+                alert_id=alert.alert_id,
+                channel_type=channel_type.value,
+                error=str(e),
+            )
 
     async def _check_rate_limit(self, channel: NotificationChannel) -> bool:
         """Check if channel is within rate limit"""
@@ -234,8 +242,14 @@ class AlertManager:
 
     async def _get_active_alert(self, rule_id: str) -> Optional[Alert]:
         """Get active alert for rule"""
-        return next((alert for alert in self.active_alerts.values()
-                    if alert.rule_id == rule_id and alert.status == AlertStatus.TRIGGERED), None)
+        return next(
+            (
+                alert
+                for alert in self.active_alerts.values()
+                if alert.rule_id == rule_id and alert.status == AlertStatus.TRIGGERED
+            ),
+            None,
+        )
 
     async def _store_alert(self, alert: Alert):
         """Store alert in Redis"""
@@ -252,7 +266,7 @@ class AlertManager:
                 "threshold_value": alert.threshold_value,
                 "triggered_at": alert.triggered_at.isoformat(),
                 "context": json.dumps(alert.context),
-                "notifications_sent": json.dumps(alert.notifications_sent)
+                "notifications_sent": json.dumps(alert.notifications_sent),
             }
             await self.redis_client.hset(alert_key, mapping=alert_data)
             await self.redis_client.expire(alert_key, 86400 * 7)  # 7 days
@@ -271,7 +285,7 @@ class AlertManager:
                 evaluation_window=300,
                 trigger_count=3,
                 cooldown_period=600,
-                channels=[AlertChannel.EMAIL, AlertChannel.SLACK]
+                channels=[AlertChannel.EMAIL, AlertChannel.SLACK],
             ),
             AlertRule(
                 rule_id="high_error_rate",
@@ -284,8 +298,8 @@ class AlertManager:
                 evaluation_window=300,
                 trigger_count=2,
                 cooldown_period=300,
-                channels=[AlertChannel.EMAIL, AlertChannel.SLACK, AlertChannel.WEBHOOK]
-            )
+                channels=[AlertChannel.EMAIL, AlertChannel.SLACK, AlertChannel.WEBHOOK],
+            ),
         ]
 
         for rule in default_rules:

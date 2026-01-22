@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Any
 
 class ControlStatus(str, Enum):
     """SOC2 control effectiveness status"""
+
     EFFECTIVE = "effective"
     INEFFECTIVE = "ineffective"
     NEEDS_IMPROVEMENT = "needs_improvement"
@@ -20,6 +21,7 @@ class ControlStatus(str, Enum):
 
 class EvidenceType(str, Enum):
     """Types of compliance evidence"""
+
     SYSTEM_GENERATED = "system_generated"
     MANUAL_REVIEW = "manual_review"
     DOCUMENTATION = "documentation"
@@ -31,6 +33,7 @@ class EvidenceType(str, Enum):
 @dataclass
 class ControlResult:
     """Result of a compliance control test"""
+
     control_id: str
     status: ControlStatus
     effectiveness_score: float
@@ -47,6 +50,7 @@ class ControlResult:
 @dataclass
 class ComplianceEvidence:
     """Compliance evidence record"""
+
     evidence_id: str
     control_id: str
     evidence_type: EvidenceType

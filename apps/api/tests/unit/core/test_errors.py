@@ -15,7 +15,7 @@ from app.core.errors import (
     ValidationError,
     RateLimitError,
     InternalServerError,
-    ServiceUnavailableError
+    ServiceUnavailableError,
 )
 
 
@@ -31,11 +31,7 @@ class TestErrorDetail:
 
     def test_error_detail_with_field_and_code(self):
         """Test ErrorDetail with field and code"""
-        detail = ErrorDetail(
-            field="email",
-            message="Invalid email format",
-            code="INVALID_EMAIL"
-        )
+        detail = ErrorDetail(field="email", message="Invalid email format", code="INVALID_EMAIL")
         assert detail.field == "email"
         assert detail.message == "Invalid email format"
         assert detail.code == "INVALID_EMAIL"
@@ -50,7 +46,7 @@ class TestErrorResponse:
             error="Test Error",
             message="This is a test",
             status_code=400,
-            timestamp="2023-01-01T00:00:00Z"
+            timestamp="2023-01-01T00:00:00Z",
         )
         assert response.error == "Test Error"
         assert response.message == "This is a test"
@@ -65,7 +61,7 @@ class TestErrorResponse:
             message="Validation failed",
             status_code=422,
             timestamp="2023-01-01T00:00:00Z",
-            details=details
+            details=details,
         )
         assert len(response.details) == 1
         assert response.details[0].field == "email"
@@ -76,11 +72,7 @@ class TestJanuaAPIException:
 
     def test_janua_api_exception_creation(self):
         """Test basic JanuaAPIException creation"""
-        exc = JanuaAPIException(
-            status_code=400,
-            error="Test Error",
-            message="Test message"
-        )
+        exc = JanuaAPIException(status_code=400, error="Test Error", message="Test message")
         assert exc.status_code == 400
         assert exc.error == "Test Error"
         assert exc.message == "Test message"
@@ -94,7 +86,7 @@ class TestJanuaAPIException:
             error="Validation Error",
             message="Validation failed",
             error_code="VALIDATION_001",
-            details=details
+            details=details,
         )
         assert exc.error_code == "VALIDATION_001"
         assert len(exc.details) == 1
@@ -102,11 +94,8 @@ class TestJanuaAPIException:
     def test_janua_api_exception_inheritance(self):
         """Test JanuaAPIException inherits from HTTPException"""
         from fastapi import HTTPException
-        exc = JanuaAPIException(
-            status_code=400,
-            error="Test",
-            message="Test"
-        )
+
+        exc = JanuaAPIException(status_code=400, error="Test", message="Test")
         assert isinstance(exc, HTTPException)
 
 
@@ -215,7 +204,7 @@ class TestValidationError:
         """Test ValidationError with field details"""
         details = [
             ErrorDetail(field="email", message="Invalid format"),
-            ErrorDetail(field="password", message="Too short")
+            ErrorDetail(field="password", message="Too short"),
         ]
         error = ValidationError("Multiple validation errors", details=details)
         assert error.message == "Multiple validation errors"
@@ -287,9 +276,15 @@ class TestErrorHierarchy:
     def test_all_errors_inherit_from_janua_api_exception(self):
         """Test that all error classes inherit from JanuaAPIException"""
         error_classes = [
-            BadRequestError, UnauthorizedError, ForbiddenError,
-            NotFoundError, ConflictError, ValidationError,
-            RateLimitError, InternalServerError, ServiceUnavailableError
+            BadRequestError,
+            UnauthorizedError,
+            ForbiddenError,
+            NotFoundError,
+            ConflictError,
+            ValidationError,
+            RateLimitError,
+            InternalServerError,
+            ServiceUnavailableError,
         ]
 
         for error_class in error_classes:
@@ -301,9 +296,15 @@ class TestErrorHierarchy:
         from fastapi import HTTPException
 
         error_classes = [
-            BadRequestError, UnauthorizedError, ForbiddenError,
-            NotFoundError, ConflictError, ValidationError,
-            RateLimitError, InternalServerError, ServiceUnavailableError
+            BadRequestError,
+            UnauthorizedError,
+            ForbiddenError,
+            NotFoundError,
+            ConflictError,
+            ValidationError,
+            RateLimitError,
+            InternalServerError,
+            ServiceUnavailableError,
         ]
 
         for error_class in error_classes:
@@ -321,7 +322,7 @@ class TestErrorHierarchy:
             ValidationError: status.HTTP_422_UNPROCESSABLE_ENTITY,
             RateLimitError: status.HTTP_429_TOO_MANY_REQUESTS,
             InternalServerError: status.HTTP_500_INTERNAL_SERVER_ERROR,
-            ServiceUnavailableError: status.HTTP_503_SERVICE_UNAVAILABLE
+            ServiceUnavailableError: status.HTTP_503_SERVICE_UNAVAILABLE,
         }
 
         for error_class, expected_status in status_mapping.items():
@@ -335,11 +336,7 @@ class TestErrorEdgeCases:
     def test_error_with_none_values(self):
         """Test error creation with None values"""
         error = JanuaAPIException(
-            status_code=400,
-            error="Test",
-            message="Test",
-            error_code=None,
-            details=None
+            status_code=400, error="Test", message="Test", error_code=None, details=None
         )
         assert error.error_code is None
         assert error.details is None

@@ -15,6 +15,7 @@ import json
 
 class SDKPlatform(str, Enum):
     """Supported SDK platforms for code generation."""
+
     PYTHON = "python"
     TYPESCRIPT = "typescript"
     JAVASCRIPT = "javascript"
@@ -29,6 +30,7 @@ class SDKPlatform(str, Enum):
 
 class CodeExample(BaseModel):
     """Code example for a specific platform."""
+
     platform: SDKPlatform
     title: str
     description: Optional[str] = None
@@ -39,6 +41,7 @@ class CodeExample(BaseModel):
 
 class SDKMethodInfo(BaseModel):
     """Enhanced method information for SDK generation."""
+
     method_name: str  # SDK method name (may differ from endpoint)
     description: str
     is_async: bool = True
@@ -53,6 +56,7 @@ class SDKMethodInfo(BaseModel):
 
 class SDKModelInfo(BaseModel):
     """Enhanced model information for SDK generation."""
+
     class_name: str  # SDK class name
     description: str
     is_request_model: bool = False
@@ -126,21 +130,13 @@ class APIDocumentationEnhancer:
             "supported_platforms": [platform.value for platform in SDKPlatform],
             "default_timeout": 30,
             "default_retry_attempts": 3,
-            "rate_limiting": {
-                "enabled": True,
-                "default_limit": 100,
-                "default_window": 3600
-            },
+            "rate_limiting": {"enabled": True, "default_limit": 100, "default_window": 3600},
             "authentication": {
                 "methods": ["api_key", "jwt_token", "oauth2"],
                 "default_method": "jwt_token",
-                "token_refresh": True
+                "token_refresh": True,
             },
-            "pagination": {
-                "default_page_size": 20,
-                "max_page_size": 100,
-                "style": "cursor_based"
-            }
+            "pagination": {"default_page_size": 20, "max_page_size": 100, "style": "cursor_based"},
         }
 
     def _generate_code_samples(self) -> Dict[str, List[Dict[str, Any]]]:
@@ -155,7 +151,7 @@ class APIDocumentationEnhancer:
                     "source": example.code,
                     "description": example.description,
                     "imports": example.imports,
-                    "dependencies": example.dependencies
+                    "dependencies": example.dependencies,
                 }
                 for example in examples
             ]
@@ -175,7 +171,7 @@ class APIDocumentationEnhancer:
                 "platform_specific": {
                     platform.value: config
                     for platform, config in model_info.platform_specific.items()
-                }
+                },
             }
 
         return models
@@ -214,19 +210,14 @@ class APIDocumentationEnhancer:
         # Add platform-specific configuration
         if method_info.platform_specific:
             operation["x-sdk-platform-config"] = {
-                platform.value: config
-                for platform, config in method_info.platform_specific.items()
+                platform.value: config for platform, config in method_info.platform_specific.items()
             }
 
         # Add code examples if available
         operation_id = operation.get("operationId")
         if operation_id in self._platform_examples:
             operation["x-code-samples"] = [
-                {
-                    "lang": example.platform.value,
-                    "label": example.title,
-                    "source": example.code
-                }
+                {"lang": example.platform.value, "label": example.title, "source": example.code}
                 for example in self._platform_examples[operation_id]
             ]
 
@@ -281,10 +272,12 @@ except ValidationError as e:
 except AuthenticationError as e:
     print(f"Authentication failed: {e.message}")
             """,
-            imports=["from janua import JanuaClient", "from janua.exceptions import ValidationError, AuthenticationError"],
-            dependencies=["janua>=1.0.0"]
+            imports=[
+                "from janua import JanuaClient",
+                "from janua.exceptions import ValidationError, AuthenticationError",
+            ],
+            dependencies=["janua>=1.0.0"],
         ),
-
         CodeExample(
             platform=SDKPlatform.TYPESCRIPT,
             title="Sign In with TypeScript",
@@ -314,9 +307,8 @@ try {
 }
             """,
             imports=["@janua/typescript-sdk"],
-            dependencies=["@janua/typescript-sdk@^1.0.0"]
+            dependencies=["@janua/typescript-sdk@^1.0.0"],
         ),
-
         CodeExample(
             platform=SDKPlatform.GO,
             title="Sign In with Go",
@@ -359,8 +351,8 @@ func main() {
 }
             """,
             imports=["github.com/madfam-org/go-sdk"],
-            dependencies=["github.com/madfam-org/go-sdk@v1.0.0"]
-        )
+            dependencies=["github.com/madfam-org/go-sdk@v1.0.0"],
+        ),
     ]
 
     # User management examples
@@ -373,9 +365,8 @@ user = await client.users.get_me()
 print(f"User ID: {user.data.id}")
 print(f"Email: {user.data.email}")
 print(f"Verified: {user.data.email_verified}")
-            """
+            """,
         ),
-
         CodeExample(
             platform=SDKPlatform.TYPESCRIPT,
             title="Get Current User (TypeScript)",
@@ -384,8 +375,8 @@ const user = await client.users.getMe();
 console.log(`User ID: ${user.data.id}`);
 console.log(`Email: ${user.data.email}`);
 console.log(`Verified: ${user.data.emailVerified}`);
-            """
-        )
+            """,
+        ),
     ]
 
     # Organization examples
@@ -400,9 +391,8 @@ org = await client.organizations.create(
     description="Our company organization"
 )
 print(f"Created organization: {org.data.name}")
-            """
+            """,
         ),
-
         CodeExample(
             platform=SDKPlatform.TYPESCRIPT,
             title="Create Organization (TypeScript)",
@@ -413,8 +403,8 @@ const org = await client.organizations.create({
   description: 'Our company organization'
 });
 console.log(`Created organization: ${org.data.name}`);
-            """
-        )
+            """,
+        ),
     ]
 
     return examples
@@ -433,51 +423,63 @@ def setup_sdk_documentation(app: FastAPI) -> APIDocumentationEnhancer:
     enhancer = APIDocumentationEnhancer(app)
 
     # Add common method information
-    enhancer.add_method_info("auth_signin", SDKMethodInfo(
-        method_name="sign_in",
-        description="Authenticate a user with email and password",
-        is_async=True,
-        requires_auth=False,
-        rate_limited=True,
-        platform_specific={
-            SDKPlatform.PYTHON: {"method_name": "sign_in"},
-            SDKPlatform.TYPESCRIPT: {"method_name": "signIn"},
-            SDKPlatform.GO: {"method_name": "SignIn"},
-            SDKPlatform.JAVA: {"method_name": "signIn"},
-        }
-    ))
+    enhancer.add_method_info(
+        "auth_signin",
+        SDKMethodInfo(
+            method_name="sign_in",
+            description="Authenticate a user with email and password",
+            is_async=True,
+            requires_auth=False,
+            rate_limited=True,
+            platform_specific={
+                SDKPlatform.PYTHON: {"method_name": "sign_in"},
+                SDKPlatform.TYPESCRIPT: {"method_name": "signIn"},
+                SDKPlatform.GO: {"method_name": "SignIn"},
+                SDKPlatform.JAVA: {"method_name": "signIn"},
+            },
+        ),
+    )
 
-    enhancer.add_method_info("users_get_me", SDKMethodInfo(
-        method_name="get_me",
-        description="Get current authenticated user information",
-        is_async=True,
-        requires_auth=True,
-        platform_specific={
-            SDKPlatform.PYTHON: {"method_name": "get_me"},
-            SDKPlatform.TYPESCRIPT: {"method_name": "getMe"},
-            SDKPlatform.GO: {"method_name": "GetMe"},
-        }
-    ))
+    enhancer.add_method_info(
+        "users_get_me",
+        SDKMethodInfo(
+            method_name="get_me",
+            description="Get current authenticated user information",
+            is_async=True,
+            requires_auth=True,
+            platform_specific={
+                SDKPlatform.PYTHON: {"method_name": "get_me"},
+                SDKPlatform.TYPESCRIPT: {"method_name": "getMe"},
+                SDKPlatform.GO: {"method_name": "GetMe"},
+            },
+        ),
+    )
 
-    enhancer.add_method_info("organizations_list", SDKMethodInfo(
-        method_name="list",
-        description="List organizations with pagination",
-        is_async=True,
-        returns_paginated=True,
-        requires_auth=True
-    ))
+    enhancer.add_method_info(
+        "organizations_list",
+        SDKMethodInfo(
+            method_name="list",
+            description="List organizations with pagination",
+            is_async=True,
+            returns_paginated=True,
+            requires_auth=True,
+        ),
+    )
 
     # Add model information
-    enhancer.add_model_info("UserResponse", SDKModelInfo(
-        class_name="User",
-        description="User account information",
-        is_response_model=True,
-        platform_specific={
-            SDKPlatform.PYTHON: {"base_class": "BaseModel"},
-            SDKPlatform.TYPESCRIPT: {"interface": True},
-            SDKPlatform.GO: {"struct_tags": "json"},
-        }
-    ))
+    enhancer.add_model_info(
+        "UserResponse",
+        SDKModelInfo(
+            class_name="User",
+            description="User account information",
+            is_response_model=True,
+            platform_specific={
+                SDKPlatform.PYTHON: {"base_class": "BaseModel"},
+                SDKPlatform.TYPESCRIPT: {"interface": True},
+                SDKPlatform.GO: {"struct_tags": "json"},
+            },
+        ),
+    )
 
     # Add code examples
     examples = create_platform_examples()
@@ -499,7 +501,7 @@ def export_sdk_spec(app: FastAPI, output_file: str = "openapi-sdk.json") -> None
     enhancer = setup_sdk_documentation(app)
     enhanced_spec = enhancer.generate_enhanced_openapi()
 
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         json.dump(enhanced_spec, f, indent=2, default=str)
 
     print(f"Enhanced OpenAPI specification exported to {output_file}")

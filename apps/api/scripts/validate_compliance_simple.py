@@ -8,10 +8,11 @@ Validates the structure and basic syntax of compliance components without full i
 import ast
 from pathlib import Path
 
+
 def validate_python_syntax(file_path):
     """Validate Python syntax of a file"""
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             content = f.read()
         ast.parse(content)
         return True, "Syntax OK"
@@ -20,10 +21,11 @@ def validate_python_syntax(file_path):
     except Exception as e:
         return False, f"Error: {e}"
 
+
 def check_class_definitions(file_path, expected_classes):
     """Check if expected classes are defined in file"""
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             content = f.read()
 
         tree = ast.parse(content)
@@ -42,6 +44,7 @@ def check_class_definitions(file_path, expected_classes):
     except Exception as e:
         return False, [], [f"Error: {e}"]
 
+
 def main():
     """Validate compliance components"""
 
@@ -56,7 +59,7 @@ def main():
         "privacy.py": ["PrivacyManager", "GDPRCompliance", "DataSubjectRequestResponse"],
         "dashboard.py": ["ComplianceDashboard", "ComplianceMetrics", "ComplianceDashboardData"],
         "support.py": ["SupportSystem", "SupportTicket", "SupportMetrics"],
-        "policies.py": ["PolicyManager", "SecurityPolicy", "PolicyCompliance", "PolicyViolation"]
+        "policies.py": ["PolicyManager", "SecurityPolicy", "PolicyCompliance", "PolicyViolation"],
     }
 
     all_passed = True
@@ -83,7 +86,9 @@ def main():
             continue
 
         # Check classes
-        classes_ok, defined_classes, missing_classes = check_class_definitions(file_path, expected_classes)
+        classes_ok, defined_classes, missing_classes = check_class_definitions(
+            file_path, expected_classes
+        )
 
         if classes_ok:
             print(f"✅ Classes: All {len(expected_classes)} classes found")
@@ -91,7 +96,10 @@ def main():
             print(f"❌ Classes: Missing {missing_classes}")
             all_passed = False
 
-        print(f"📊 Defined classes: {', '.join(defined_classes[:5])}" + ("..." if len(defined_classes) > 5 else ""))
+        print(
+            f"📊 Defined classes: {', '.join(defined_classes[:5])}"
+            + ("..." if len(defined_classes) > 5 else "")
+        )
 
     # Check __init__.py
     print(f"\n📁 Validating __init__.py...")
@@ -104,12 +112,15 @@ def main():
             print(f"✅ __init__.py syntax: {syntax_msg}")
 
             # Check if main exports are present
-            with open(init_file, 'r') as f:
+            with open(init_file, "r") as f:
                 content = f.read()
 
             key_exports = [
-                "AuditLogger", "PrivacyManager", "ComplianceDashboard",
-                "SupportSystem", "PolicyManager"
+                "AuditLogger",
+                "PrivacyManager",
+                "ComplianceDashboard",
+                "SupportSystem",
+                "PolicyManager",
             ]
 
             missing_exports = []
@@ -149,6 +160,7 @@ def main():
         print("⚠️  Some validation issues found")
         print("Please review the errors above")
         return 1
+
 
 if __name__ == "__main__":
     exit(main())

@@ -15,6 +15,7 @@ import re
 
 class APIVersion(str, Enum):
     """Supported API versions."""
+
     V1 = "v1"
     V2 = "v2"  # Future version
     BETA = "beta"
@@ -23,6 +24,7 @@ class APIVersion(str, Enum):
 
 class CompatibilityLevel(str, Enum):
     """Compatibility levels between API versions."""
+
     FULLY_COMPATIBLE = "fully_compatible"
     BACKWARD_COMPATIBLE = "backward_compatible"
     BREAKING_CHANGES = "breaking_changes"
@@ -33,6 +35,7 @@ class CompatibilityLevel(str, Enum):
 @dataclass
 class VersionInfo:
     """Information about a specific API version."""
+
     version: str
     release_date: date
     deprecation_date: Optional[date] = None
@@ -96,8 +99,8 @@ class APIVersionManager:
                 "sessions",
                 "oauth",
                 "admin_operations",
-                "audit_logging"
-            }
+                "audit_logging",
+            },
         )
 
         # V2 - Future version with enhanced features
@@ -121,20 +124,20 @@ class APIVersionManager:
                 "bulk_operations",
                 "real_time_notifications",
                 "sso_saml",
-                "scim_provisioning"
+                "scim_provisioning",
             },
             breaking_changes=[
                 "User response format includes additional security fields",
                 "Pagination response structure changed",
                 "Some endpoint URLs have changed",
-                "Error response format enhanced"
+                "Error response format enhanced",
             ],
             migration_notes=[
                 "Update user model to handle new security fields",
                 "Modify pagination handling logic",
                 "Update endpoint URLs in API calls",
-                "Handle enhanced error response format"
-            ]
+                "Handle enhanced error response format",
+            ],
         )
 
         # Initialize feature compatibility matrix
@@ -154,7 +157,7 @@ class APIVersionManager:
                 "bulk_operations": False,
                 "real_time_notifications": False,
                 "sso_saml": False,
-                "scim_provisioning": False
+                "scim_provisioning": False,
             },
             "v2": {
                 "authentication": True,
@@ -171,8 +174,8 @@ class APIVersionManager:
                 "bulk_operations": True,
                 "real_time_notifications": True,
                 "sso_saml": True,
-                "scim_provisioning": True
-            }
+                "scim_provisioning": True,
+            },
         }
 
     def get_version_info(self, version: str) -> Optional[VersionInfo]:
@@ -281,7 +284,9 @@ class APIVersionManager:
         elif version_info.is_deprecated:
             warnings.append(f"API version {version} is deprecated")
             if version_info.end_of_life_date:
-                warnings.append(f"Version {version} will be end-of-life on {version_info.end_of_life_date}")
+                warnings.append(
+                    f"Version {version} will be end-of-life on {version_info.end_of_life_date}"
+                )
 
         if version_info.is_preview:
             warnings.append(f"API version {version} is in preview and may have breaking changes")
@@ -311,9 +316,7 @@ class APIVersionManager:
 
         # Recommend upgrade if current version is deprecated or has issues
         should_upgrade = (
-            current_info.is_deprecated or
-            current_info.is_end_of_life or
-            current_info.is_preview
+            current_info.is_deprecated or current_info.is_end_of_life or current_info.is_preview
         )
 
         if not should_upgrade:
@@ -333,7 +336,11 @@ class APIVersionManager:
             "new_features": list(new_features),
             "breaking_changes": latest_info.breaking_changes,
             "migration_notes": latest_info.migration_notes,
-            "urgency": "high" if current_info.is_end_of_life else "medium" if current_info.is_deprecated else "low"
+            "urgency": "high"
+            if current_info.is_end_of_life
+            else "medium"
+            if current_info.is_deprecated
+            else "low",
         }
 
 
@@ -433,7 +440,7 @@ class VersionMiddleware:
             "warnings": warnings,
             "upgrade_recommendation": upgrade_recommendation,
             "expected_api_version": expected_api_version,
-            "actual_api_version": api_version
+            "actual_api_version": api_version,
         }
 
     def _extract_api_version_from_sdk(self, sdk_version: str) -> str:
@@ -469,7 +476,9 @@ def create_version_manager() -> APIVersionManager:
     return APIVersionManager()
 
 
-def create_version_middleware(version_manager: Optional[APIVersionManager] = None) -> VersionMiddleware:
+def create_version_middleware(
+    version_manager: Optional[APIVersionManager] = None,
+) -> VersionMiddleware:
     """Create version middleware with optional custom version manager."""
     if version_manager is None:
         version_manager = create_version_manager()
@@ -496,7 +505,7 @@ def parse_sdk_version(version_string: str) -> Dict[str, str]:
             "language": language,
             "version": version,
             "api_version": api_version or "v1",
-            "full_version": version_string
+            "full_version": version_string,
         }
 
     # Fallback parsing
@@ -504,5 +513,5 @@ def parse_sdk_version(version_string: str) -> Dict[str, str]:
         "language": "unknown",
         "version": "unknown",
         "api_version": "v1",
-        "full_version": version_string
+        "full_version": version_string,
     }

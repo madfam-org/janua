@@ -13,16 +13,16 @@ pytestmark = pytest.mark.asyncio
 def mock_external_dependencies():
     """Mock external dependencies for distributed services testing"""
     mocked_modules = {
-        'aioredis': Mock(),
-        'redis': Mock(),
-        'celery': Mock(),
-        'boto3': Mock(),
-        'botocore': Mock(),
-        'psycopg2': Mock(),
-        'requests': Mock(),
-        'httpx': Mock()
+        "aioredis": Mock(),
+        "redis": Mock(),
+        "celery": Mock(),
+        "boto3": Mock(),
+        "botocore": Mock(),
+        "psycopg2": Mock(),
+        "requests": Mock(),
+        "httpx": Mock(),
     }
-    with patch.dict('sys.modules', mocked_modules):
+    with patch.dict("sys.modules", mocked_modules):
         yield
 
 
@@ -36,14 +36,18 @@ class TestDistributedSessionManager:
 
             mock_redis = AsyncMock()
             mock_db = AsyncMock()
-            session_manager = DistributedSessionManager(
-                redis_client=mock_redis,
-                db_session=mock_db
-            ) if hasattr(DistributedSessionManager, '__init__') else DistributedSessionManager()
+            session_manager = (
+                DistributedSessionManager(redis_client=mock_redis, db_session=mock_db)
+                if hasattr(DistributedSessionManager, "__init__")
+                else DistributedSessionManager()
+            )
 
             # Verify session manager has session methods
-            public_methods = [method for method in dir(session_manager)
-                            if not method.startswith('_') and callable(getattr(session_manager, method))]
+            public_methods = [
+                method
+                for method in dir(session_manager)
+                if not method.startswith("_") and callable(getattr(session_manager, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(session_manager, method_name)
@@ -59,10 +63,14 @@ class TestDistributedSessionManager:
         try:
             from app.services.distributed_session_manager import SessionReplication
 
-            replication = SessionReplication() if not hasattr(SessionReplication, '__init__') else SessionReplication(AsyncMock())
-            
+            replication = (
+                SessionReplication()
+                if not hasattr(SessionReplication, "__init__")
+                else SessionReplication(AsyncMock())
+            )
+
             # Test replication has sync methods
-            expected_methods = ['replicate_session', 'sync_nodes', 'handle_node_failure']
+            expected_methods = ["replicate_session", "sync_nodes", "handle_node_failure"]
             for method_name in expected_methods:
                 if hasattr(replication, method_name):
                     assert callable(getattr(replication, method_name))
@@ -75,10 +83,14 @@ class TestDistributedSessionManager:
         try:
             from app.services.distributed_session_manager import SessionStore
 
-            store = SessionStore() if not hasattr(SessionStore, '__init__') else SessionStore(AsyncMock())
-            
+            store = (
+                SessionStore()
+                if not hasattr(SessionStore, "__init__")
+                else SessionStore(AsyncMock())
+            )
+
             # Test store has CRUD methods
-            expected_methods = ['create_session', 'get_session', 'update_session', 'delete_session']
+            expected_methods = ["create_session", "get_session", "update_session", "delete_session"]
             for method_name in expected_methods:
                 if hasattr(store, method_name):
                     assert callable(getattr(store, method_name))
@@ -95,11 +107,18 @@ class TestWebSocketManager:
         try:
             from app.services.websocket_manager import WebSocketManager
 
-            ws_manager = WebSocketManager() if not hasattr(WebSocketManager, '__init__') else WebSocketManager(AsyncMock())
+            ws_manager = (
+                WebSocketManager()
+                if not hasattr(WebSocketManager, "__init__")
+                else WebSocketManager(AsyncMock())
+            )
 
             # Verify WebSocket manager has connection methods
-            public_methods = [method for method in dir(ws_manager)
-                            if not method.startswith('_') and callable(getattr(ws_manager, method))]
+            public_methods = [
+                method
+                for method in dir(ws_manager)
+                if not method.startswith("_") and callable(getattr(ws_manager, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(ws_manager, method_name)
@@ -115,10 +134,15 @@ class TestWebSocketManager:
         try:
             from app.services.websocket_manager import ConnectionPool
 
-            pool = ConnectionPool() if not hasattr(ConnectionPool, '__init__') else ConnectionPool()
-            
+            pool = ConnectionPool() if not hasattr(ConnectionPool, "__init__") else ConnectionPool()
+
             # Test pool has connection management methods
-            expected_methods = ['add_connection', 'remove_connection', 'get_connections', 'broadcast']
+            expected_methods = [
+                "add_connection",
+                "remove_connection",
+                "get_connections",
+                "broadcast",
+            ]
             for method_name in expected_methods:
                 if hasattr(pool, method_name):
                     assert callable(getattr(pool, method_name))
@@ -131,10 +155,15 @@ class TestWebSocketManager:
         try:
             from app.services.websocket_manager import MessageRouter
 
-            router = MessageRouter() if not hasattr(MessageRouter, '__init__') else MessageRouter()
-            
+            router = MessageRouter() if not hasattr(MessageRouter, "__init__") else MessageRouter()
+
             # Test router has routing methods
-            expected_methods = ['route_message', 'send_to_user', 'send_to_room', 'broadcast_message']
+            expected_methods = [
+                "route_message",
+                "send_to_user",
+                "send_to_room",
+                "broadcast_message",
+            ]
             for method_name in expected_methods:
                 if hasattr(router, method_name):
                     assert callable(getattr(router, method_name))
@@ -155,8 +184,11 @@ class TestStorageService:
             storage_service = StorageService()
 
             # Verify storage service has file methods
-            public_methods = [method for method in dir(storage_service)
-                            if not method.startswith('_') and callable(getattr(storage_service, method))]
+            public_methods = [
+                method
+                for method in dir(storage_service)
+                if not method.startswith("_") and callable(getattr(storage_service, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(storage_service, method_name)
@@ -172,10 +204,10 @@ class TestStorageService:
         try:
             from app.services.storage import FileManager
 
-            file_manager = FileManager() if not hasattr(FileManager, '__init__') else FileManager()
-            
+            file_manager = FileManager() if not hasattr(FileManager, "__init__") else FileManager()
+
             # Test file manager has file operation methods
-            expected_methods = ['upload_file', 'download_file', 'delete_file', 'list_files']
+            expected_methods = ["upload_file", "download_file", "delete_file", "list_files"]
             for method_name in expected_methods:
                 if hasattr(file_manager, method_name):
                     assert callable(getattr(file_manager, method_name))
@@ -188,10 +220,12 @@ class TestStorageService:
         try:
             from app.services.storage import CloudStorage
 
-            cloud_storage = CloudStorage() if not hasattr(CloudStorage, '__init__') else CloudStorage()
-            
+            cloud_storage = (
+                CloudStorage() if not hasattr(CloudStorage, "__init__") else CloudStorage()
+            )
+
             # Test cloud storage has provider methods
-            expected_methods = ['upload_to_cloud', 'sync_with_cloud', 'get_cloud_metadata']
+            expected_methods = ["upload_to_cloud", "sync_with_cloud", "get_cloud_metadata"]
             for method_name in expected_methods:
                 if hasattr(cloud_storage, method_name):
                     assert callable(getattr(cloud_storage, method_name))
@@ -208,11 +242,18 @@ class TestPolicyEngine:
         try:
             from app.services.policy_engine import PolicyEngine
 
-            policy_engine = PolicyEngine() if not hasattr(PolicyEngine, '__init__') else PolicyEngine(AsyncMock())
+            policy_engine = (
+                PolicyEngine()
+                if not hasattr(PolicyEngine, "__init__")
+                else PolicyEngine(AsyncMock())
+            )
 
             # Verify policy engine has policy methods
-            public_methods = [method for method in dir(policy_engine)
-                            if not method.startswith('_') and callable(getattr(policy_engine, method))]
+            public_methods = [
+                method
+                for method in dir(policy_engine)
+                if not method.startswith("_") and callable(getattr(policy_engine, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(policy_engine, method_name)
@@ -228,10 +269,10 @@ class TestPolicyEngine:
         try:
             from app.services.policy_engine import RuleEngine
 
-            rule_engine = RuleEngine() if not hasattr(RuleEngine, '__init__') else RuleEngine()
-            
+            rule_engine = RuleEngine() if not hasattr(RuleEngine, "__init__") else RuleEngine()
+
             # Test rule engine has rule methods
-            expected_methods = ['evaluate_rule', 'execute_action', 'validate_conditions']
+            expected_methods = ["evaluate_rule", "execute_action", "validate_conditions"]
             for method_name in expected_methods:
                 if hasattr(rule_engine, method_name):
                     assert callable(getattr(rule_engine, method_name))
@@ -252,8 +293,11 @@ class TestRiskAssessmentService:
             risk_service = RiskAssessmentService()
 
             # Verify risk service has assessment methods
-            public_methods = [method for method in dir(risk_service)
-                            if not method.startswith('_') and callable(getattr(risk_service, method))]
+            public_methods = [
+                method
+                for method in dir(risk_service)
+                if not method.startswith("_") and callable(getattr(risk_service, method))
+            ]
 
             for method_name in public_methods:
                 method = getattr(risk_service, method_name)
@@ -269,10 +313,12 @@ class TestRiskAssessmentService:
         try:
             from app.services.risk_assessment_service import ThreatAnalysis
 
-            threat_analyzer = ThreatAnalysis() if not hasattr(ThreatAnalysis, '__init__') else ThreatAnalysis()
-            
+            threat_analyzer = (
+                ThreatAnalysis() if not hasattr(ThreatAnalysis, "__init__") else ThreatAnalysis()
+            )
+
             # Test threat analyzer has analysis methods
-            expected_methods = ['identify_threats', 'assess_vulnerability', 'calculate_impact']
+            expected_methods = ["identify_threats", "assess_vulnerability", "calculate_impact"]
             for method_name in expected_methods:
                 if hasattr(threat_analyzer, method_name):
                     assert callable(getattr(threat_analyzer, method_name))
@@ -285,10 +331,14 @@ class TestRiskAssessmentService:
         try:
             from app.services.risk_assessment_service import RiskAnalyzer
 
-            analyzer = RiskAnalyzer() if not hasattr(RiskAnalyzer, '__init__') else RiskAnalyzer()
-            
+            analyzer = RiskAnalyzer() if not hasattr(RiskAnalyzer, "__init__") else RiskAnalyzer()
+
             # Test analyzer has scoring methods
-            expected_methods = ['calculate_risk_score', 'generate_mitigation_plan', 'track_risk_changes']
+            expected_methods = [
+                "calculate_risk_score",
+                "generate_mitigation_plan",
+                "track_risk_changes",
+            ]
             for method_name in expected_methods:
                 if hasattr(analyzer, method_name):
                     assert callable(getattr(analyzer, method_name))

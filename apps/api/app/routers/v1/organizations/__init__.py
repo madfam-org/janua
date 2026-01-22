@@ -5,6 +5,7 @@ Refactored from single large file into focused sub-modules for better maintainab
 
 from fastapi import APIRouter
 from .core import router as core_router
+
 # from .members import router as members_router
 # from .invitations import router as invitations_router
 # from .roles import router as roles_router
@@ -41,5 +42,5 @@ __all__ = [
     # Dependencies
     "check_organization_permission",
     "check_organization_admin_permission",
-    "check_organization_member_permission"
+    "check_organization_member_permission",
 ]

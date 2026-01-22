@@ -9,11 +9,7 @@ import asyncio
 from unittest.mock import AsyncMock
 import redis.asyncio as redis
 
-from app.core.redis_circuit_breaker import (
-    CircuitState,
-    RedisCircuitBreaker,
-    ResilientRedisClient
-)
+from app.core.redis_circuit_breaker import CircuitState, RedisCircuitBreaker, ResilientRedisClient
 
 
 class TestRedisCircuitBreaker:
@@ -51,10 +47,7 @@ class TestRedisCircuitBreaker:
 
         # Execute 3 failing operations
         for _ in range(3):
-            result = await cb.execute(
-                failing_operation,
-                fallback_value="fallback"
-            )
+            result = await cb.execute(failing_operation, fallback_value="fallback")
             assert result == "fallback"
 
         # Circuit should now be OPEN
@@ -97,11 +90,7 @@ class TestRedisCircuitBreaker:
         async def successful_op():
             return "cached_value"
 
-        result = await cb.execute(
-            successful_op,
-            fallback_value="default",
-            cache_key="test_key"
-        )
+        result = await cb.execute(successful_op, fallback_value="default", cache_key="test_key")
         assert result == "cached_value"
 
         # Open the circuit
@@ -114,11 +103,7 @@ class TestRedisCircuitBreaker:
         assert cb.state == CircuitState.OPEN
 
         # Should use cached value
-        result = await cb.execute(
-            failing_op,
-            fallback_value="default",
-            cache_key="test_key"
-        )
+        result = await cb.execute(failing_op, fallback_value="default", cache_key="test_key")
         assert result == "cached_value"
         assert cb._cache_hits == 1
 
@@ -126,9 +111,7 @@ class TestRedisCircuitBreaker:
     async def test_half_open_recovery(self):
         """Circuit should transition to HALF_OPEN for recovery testing"""
         cb = RedisCircuitBreaker(
-            failure_threshold=2,
-            recovery_timeout=1,  # 1 second
-            half_open_max_calls=2
+            failure_threshold=2, recovery_timeout=1, half_open_max_calls=2  # 1 second
         )
 
         # Open the circuit
@@ -164,10 +147,7 @@ class TestRedisCircuitBreaker:
     @pytest.mark.asyncio
     async def test_half_open_failure_reopens_circuit(self):
         """Failed call in HALF_OPEN should reopen circuit"""
-        cb = RedisCircuitBreaker(
-            failure_threshold=2,
-            recovery_timeout=1
-        )
+        cb = RedisCircuitBreaker(failure_threshold=2, recovery_timeout=1)
 
         # Open circuit
         async def failing_op():

@@ -1,4 +1,3 @@
-
 import pytest
 
 pytestmark = pytest.mark.asyncio
@@ -16,8 +15,14 @@ from datetime import datetime, timedelta
 import uuid
 
 from app.models import (
-    User, UserStatus, Organization, OrganizationRole, OrganizationMember,
-    Session, EmailVerification, ActivityLog
+    User,
+    UserStatus,
+    Organization,
+    OrganizationRole,
+    OrganizationMember,
+    Session,
+    EmailVerification,
+    ActivityLog,
 )
 
 
@@ -36,7 +41,7 @@ class TestDatabaseModelRelationships:
             first_name="John",
             last_name="Doe",
             status=UserStatus.ACTIVE,
-            email_verified=True
+            email_verified=True,
         )
         test_db_session.add(user)
         await test_db_session.commit()
@@ -46,7 +51,7 @@ class TestDatabaseModelRelationships:
             id=str(uuid.uuid4()),
             name="Test Company",
             description="A test organization",
-            owner_id=user.id
+            owner_id=user.id,
         )
         test_db_session.add(org)
         await test_db_session.commit()
@@ -56,15 +61,13 @@ class TestDatabaseModelRelationships:
             user_id=user.id,
             organization_id=org.id,
             role=OrganizationRole.OWNER,
-            joined_at=datetime.utcnow()
+            joined_at=datetime.utcnow(),
         )
         test_db_session.add(member)
         await test_db_session.commit()
 
         # Test relationship queries
-        result = await test_db_session.execute(
-            select(User).where(User.id == user.id)
-        )
+        result = await test_db_session.execute(select(User).where(User.id == user.id))
         found_user = result.scalar_one()
         assert found_user.email == "test@example.com"
 
@@ -81,7 +84,7 @@ class TestDatabaseModelRelationships:
             select(OrganizationMember).where(
                 and_(
                     OrganizationMember.user_id == user.id,
-                    OrganizationMember.organization_id == org.id
+                    OrganizationMember.organization_id == org.id,
                 )
             )
         )
@@ -99,7 +102,7 @@ class TestDatabaseModelRelationships:
             first_name="Session",
             last_name="User",
             status=UserStatus.ACTIVE,
-            email_verified=True
+            email_verified=True,
         )
         test_db_session.add(user)
         await test_db_session.commit()
@@ -114,7 +117,7 @@ class TestDatabaseModelRelationships:
                 ip_address=f"192.168.1.{i+1}",
                 user_agent=f"Chrome/{90+i}",
                 created_at=datetime.utcnow(),
-                expires_at=datetime.utcnow() + timedelta(days=30)
+                expires_at=datetime.utcnow() + timedelta(days=30),
             )
             sessions.append(session)
             test_db_session.add(session)
@@ -122,9 +125,7 @@ class TestDatabaseModelRelationships:
         await test_db_session.commit()
 
         # Test querying user's sessions
-        result = await test_db_session.execute(
-            select(Session).where(Session.user_id == user.id)
-        )
+        result = await test_db_session.execute(select(Session).where(Session.user_id == user.id))
         user_sessions = result.scalars().all()
         assert len(user_sessions) == 3
 
@@ -143,7 +144,7 @@ class TestDatabaseModelRelationships:
             first_name="Verify",
             last_name="User",
             status=UserStatus.ACTIVE,
-            email_verified=False
+            email_verified=False,
         )
         test_db_session.add(user)
         await test_db_session.commit()
@@ -153,7 +154,7 @@ class TestDatabaseModelRelationships:
             id=str(uuid.uuid4()),
             user_id=user.id,
             token="verification_token_123",
-            expires_at=datetime.utcnow() + timedelta(hours=24)
+            expires_at=datetime.utcnow() + timedelta(hours=24),
         )
         test_db_session.add(verification)
         await test_db_session.commit()
@@ -177,7 +178,7 @@ class TestDatabaseModelRelationships:
             first_name="Activity",
             last_name="User",
             status=UserStatus.ACTIVE,
-            email_verified=True
+            email_verified=True,
         )
         test_db_session.add(user)
         await test_db_session.commit()
@@ -192,7 +193,7 @@ class TestDatabaseModelRelationships:
                 resource_id=str(uuid.uuid4()),
                 ip_address="192.168.1.1",
                 user_agent="Chrome/91.0",
-                timestamp=datetime.utcnow() - timedelta(hours=i)
+                timestamp=datetime.utcnow() - timedelta(hours=i),
             )
             for i in range(5)
         ]
@@ -226,7 +227,7 @@ class TestDatabaseConstraints:
             hashed_password="hashed_password",
             first_name="First",
             last_name="User",
-            status=UserStatus.ACTIVE
+            status=UserStatus.ACTIVE,
         )
         test_db_session.add(user1)
         await test_db_session.commit()
@@ -238,7 +239,7 @@ class TestDatabaseConstraints:
             hashed_password="hashed_password",
             first_name="Second",
             last_name="User",
-            status=UserStatus.ACTIVE
+            status=UserStatus.ACTIVE,
         )
         test_db_session.add(user2)
 
@@ -256,18 +257,14 @@ class TestDatabaseConstraints:
             hashed_password="hashed_password",
             first_name="Org",
             last_name="Owner",
-            status=UserStatus.ACTIVE
+            status=UserStatus.ACTIVE,
         )
         test_db_session.add(user)
         await test_db_session.commit()
 
         # Create organization with empty name (should fail validation)
         with pytest.raises((IntegrityError, ValueError)):
-            org = Organization(
-                id=str(uuid.uuid4()),
-                name="",  # Empty name
-                owner_id=user.id
-            )
+            org = Organization(id=str(uuid.uuid4()), name="", owner_id=user.id)  # Empty name
             test_db_session.add(org)
             await test_db_session.commit()
 
@@ -279,7 +276,7 @@ class TestDatabaseConstraints:
             member = OrganizationMember(
                 user_id=str(uuid.uuid4()),  # Non-existent user
                 organization_id=str(uuid.uuid4()),  # Non-existent org
-                role=OrganizationRole.MEMBER
+                role=OrganizationRole.MEMBER,
             )
             test_db_session.add(member)
             await test_db_session.commit()
@@ -294,7 +291,7 @@ class TestDatabaseConstraints:
             hashed_password="hashed_password",
             first_name="Cascade",
             last_name="User",
-            status=UserStatus.ACTIVE
+            status=UserStatus.ACTIVE,
         )
         test_db_session.add(user)
         await test_db_session.commit()
@@ -306,7 +303,7 @@ class TestDatabaseConstraints:
             refresh_token="refresh_token_123",
             ip_address="192.168.1.1",
             user_agent="Chrome/91.0",
-            expires_at=datetime.utcnow() + timedelta(days=30)
+            expires_at=datetime.utcnow() + timedelta(days=30),
         )
         test_db_session.add(session)
         await test_db_session.commit()
@@ -316,9 +313,7 @@ class TestDatabaseConstraints:
         await test_db_session.commit()
 
         # Check if session is also deleted (depends on cascade configuration)
-        result = await test_db_session.execute(
-            select(Session).where(Session.user_id == user.id)
-        )
+        result = await test_db_session.execute(select(Session).where(Session.user_id == user.id))
         remaining_sessions = result.scalars().all()
         # Should be empty if cascade delete is configured
         assert len(remaining_sessions) == 0
@@ -338,7 +333,7 @@ class TestDatabaseTransactions:
             hashed_password="hashed_password",
             first_name="Transaction",
             last_name="User",
-            status=UserStatus.ACTIVE
+            status=UserStatus.ACTIVE,
         )
         test_db_session.add(user)
 
@@ -368,7 +363,7 @@ class TestDatabaseTransactions:
             hashed_password="hashed_password",
             first_name="Rollback",
             last_name="User",
-            status=UserStatus.ACTIVE
+            status=UserStatus.ACTIVE,
         )
         test_db_session.add(user)
 
@@ -404,7 +399,7 @@ class TestDatabaseTransactions:
                     hashed_password="hashed_password",
                     first_name="Concurrent",
                     last_name=f"User{email_suffix}",
-                    status=UserStatus.ACTIVE
+                    status=UserStatus.ACTIVE,
                 )
                 session.add(user)
                 await session.commit()
@@ -421,9 +416,7 @@ class TestDatabaseTransactions:
         # Verify users exist in database
         async with async_session() as session:
             result = await session.execute(
-                select(func.count(User.id)).where(
-                    User.email.like("concurrent_%@example.com")
-                )
+                select(func.count(User.id)).where(User.email.like("concurrent_%@example.com"))
             )
             user_count = result.scalar()
             assert user_count == 5
@@ -444,7 +437,7 @@ class TestDatabaseQueries:
             first_name="Query",
             last_name="User",
             status=UserStatus.ACTIVE,
-            email_verified=True
+            email_verified=True,
         )
         test_db_session.add(user)
 
@@ -452,7 +445,7 @@ class TestDatabaseQueries:
             id=str(uuid.uuid4()),
             name="Query Test Company",
             description="Test organization for queries",
-            owner_id=user.id
+            owner_id=user.id,
         )
         test_db_session.add(org)
 
@@ -460,7 +453,7 @@ class TestDatabaseQueries:
             user_id=user.id,
             organization_id=org.id,
             role=OrganizationRole.OWNER,
-            joined_at=datetime.utcnow()
+            joined_at=datetime.utcnow(),
         )
         test_db_session.add(member)
 
@@ -477,8 +470,8 @@ class TestDatabaseQueries:
 
         assert len(rows) == 1
         assert rows[0][0] == "query_test@example.com"  # User email
-        assert rows[0][1] == "Query Test Company"       # Organization name
-        assert rows[0][2] == OrganizationRole.OWNER     # User role
+        assert rows[0][1] == "Query Test Company"  # Organization name
+        assert rows[0][2] == OrganizationRole.OWNER  # User role
 
     @pytest.mark.asyncio
     async def test_aggregation_queries(self, test_db_session: AsyncSession):
@@ -493,7 +486,7 @@ class TestDatabaseQueries:
                 first_name=f"User{i}",
                 last_name="Test",
                 status=UserStatus.ACTIVE if i % 2 == 0 else UserStatus.INACTIVE,
-                email_verified=i % 3 == 0
+                email_verified=i % 3 == 0,
             )
             users.append(user)
             test_db_session.add(user)
@@ -502,8 +495,7 @@ class TestDatabaseQueries:
 
         # Aggregation query: Count users by status
         result = await test_db_session.execute(
-            select(User.status, func.count(User.id))
-            .group_by(User.status)
+            select(User.status, func.count(User.id)).group_by(User.status)
         )
         status_counts = dict(result.all())
 
@@ -512,8 +504,7 @@ class TestDatabaseQueries:
 
         # Aggregation query: Count verified vs unverified users
         result = await test_db_session.execute(
-            select(User.email_verified, func.count(User.id))
-            .group_by(User.email_verified)
+            select(User.email_verified, func.count(User.id)).group_by(User.email_verified)
         )
         verification_counts = dict(result.all())
 
@@ -533,7 +524,7 @@ class TestDatabaseQueries:
                 first_name=f"PageUser{i}",
                 last_name="Test",
                 status=UserStatus.ACTIVE,
-                created_at=datetime.utcnow() - timedelta(minutes=i)
+                created_at=datetime.utcnow() - timedelta(minutes=i),
             )
             test_db_session.add(user)
 
@@ -587,7 +578,7 @@ class TestDatabaseQueries:
             ("Jane Smith", "jane.smith@example.com"),
             ("John Johnson", "john.johnson@example.com"),
             ("Alice Wonder", "alice.wonder@example.com"),
-            ("Bob Builder", "bob.builder@example.com")
+            ("Bob Builder", "bob.builder@example.com"),
         ]
 
         for name, email in search_users:
@@ -598,33 +589,26 @@ class TestDatabaseQueries:
                 hashed_password="hashed_password",
                 first_name=first_name,
                 last_name=last_name,
-                status=UserStatus.ACTIVE
+                status=UserStatus.ACTIVE,
             )
             test_db_session.add(user)
 
         await test_db_session.commit()
 
         # Search by first name
-        result = await test_db_session.execute(
-            select(User).where(User.first_name.ilike("%john%"))
-        )
+        result = await test_db_session.execute(select(User).where(User.first_name.ilike("%john%")))
         john_users = result.scalars().all()
         assert len(john_users) == 2
 
         # Search by email domain
-        result = await test_db_session.execute(
-            select(User).where(User.email.like("%@example.com"))
-        )
+        result = await test_db_session.execute(select(User).where(User.email.like("%@example.com")))
         example_users = result.scalars().all()
         assert len(example_users) >= 5
 
         # Complex search (first name OR last name)
         result = await test_db_session.execute(
             select(User).where(
-                or_(
-                    User.first_name.ilike("%alice%"),
-                    User.last_name.ilike("%smith%")
-                )
+                or_(User.first_name.ilike("%alice%"), User.last_name.ilike("%smith%"))
             )
         )
         complex_search_users = result.scalars().all()
@@ -647,7 +631,7 @@ class TestDatabaseIndexes:
                 first_name=f"IndexUser{i}",
                 last_name="Test",
                 status=UserStatus.ACTIVE,
-                created_at=datetime.utcnow() - timedelta(minutes=i)
+                created_at=datetime.utcnow() - timedelta(minutes=i),
             )
             test_db_session.add(user)
 
@@ -682,7 +666,7 @@ class TestDatabaseIndexes:
                 first_name=f"PerfUser{i}",
                 last_name="Test",
                 status=UserStatus.ACTIVE if i % 2 == 0 else UserStatus.INACTIVE,
-                created_at=datetime.utcnow() - timedelta(minutes=i)
+                created_at=datetime.utcnow() - timedelta(minutes=i),
             )
             users_batch.append(user)
 
@@ -741,7 +725,7 @@ class TestDatabaseEdgeCases:
             hashed_password="hashed_password",
             first_name="José",
             last_name="González",
-            status=UserStatus.ACTIVE
+            status=UserStatus.ACTIVE,
         )
         test_db_session.add(user)
         await test_db_session.commit()
@@ -767,7 +751,7 @@ class TestDatabaseEdgeCases:
             first_name="Large",
             last_name="Text",
             status=UserStatus.ACTIVE,
-            bio=large_bio
+            bio=large_bio,
         )
         test_db_session.add(user)
         await test_db_session.commit()
@@ -796,7 +780,7 @@ class TestDatabaseEdgeCases:
             last_name="Test",
             status=UserStatus.ACTIVE,
             created_at=past,
-            updated_at=now
+            updated_at=now,
         )
         test_db_session.add(user)
 
@@ -808,7 +792,7 @@ class TestDatabaseEdgeCases:
             ip_address="192.168.1.1",
             user_agent="Test Agent",
             created_at=now,
-            expires_at=future
+            expires_at=future,
         )
         test_db_session.add(session)
         await test_db_session.commit()

@@ -47,7 +47,7 @@ class PerformanceTrackingMiddleware(BaseHTTPMiddleware):
             "db_queries": 0,
             "cache_hits": 0,
             "cache_misses": 0,
-            "start_time": start_time
+            "start_time": start_time,
         }
 
         # Structured logging context
@@ -55,7 +55,7 @@ class PerformanceTrackingMiddleware(BaseHTTPMiddleware):
             "request_id": request_id,
             "method": request.method,
             "path": request.url.path,
-            "client_ip": request.client.host if request.client else None
+            "client_ip": request.client.host if request.client else None,
         }
 
         try:
@@ -82,7 +82,7 @@ class PerformanceTrackingMiddleware(BaseHTTPMiddleware):
                 status_code=response.status_code,
                 latency_ms=round(latency_ms, 2),
                 db_queries=db_queries,
-                cache_hit_rate=round(hit_rate, 1) if total_cache_ops > 0 else None
+                cache_hit_rate=round(hit_rate, 1) if total_cache_ops > 0 else None,
             )
 
             # Add performance headers (helpful for debugging)
@@ -101,7 +101,7 @@ class PerformanceTrackingMiddleware(BaseHTTPMiddleware):
                 status_code=response.status_code,
                 latency=latency_ms,
                 db_queries=db_queries,
-                cache_hit_rate=hit_rate
+                cache_hit_rate=hit_rate,
             )
 
             return response
@@ -115,7 +115,7 @@ class PerformanceTrackingMiddleware(BaseHTTPMiddleware):
                 **log_context,
                 error=str(e),
                 error_type=type(e).__name__,
-                latency_ms=round(latency_ms, 2)
+                latency_ms=round(latency_ms, 2),
             )
 
             raise
@@ -127,36 +127,26 @@ class PerformanceTrackingMiddleware(BaseHTTPMiddleware):
         status_code: int,
         latency: float,
         db_queries: int,
-        cache_hit_rate: float
+        cache_hit_rate: float,
     ):
         """Record metrics to Prometheus (if available)"""
         try:
             from app.monitoring.metrics import (
                 record_request_latency,
                 record_db_queries,
-                record_cache_hit_rate
+                record_cache_hit_rate,
             )
 
             # Record latency histogram
-            record_request_latency(
-                method=method,
-                path=path,
-                status=status_code,
-                latency=latency
-            )
+            record_request_latency(method=method, path=path, status=status_code, latency=latency)
 
             # Record DB query count
             if db_queries > 0:
-                record_db_queries(
-                    path=path,
-                    count=db_queries
-                )
+                record_db_queries(path=path, count=db_queries)
 
             # Record cache hit rate
             if cache_hit_rate > 0:
-                record_cache_hit_rate(
-                    hit_rate=cache_hit_rate
-                )
+                record_cache_hit_rate(hit_rate=cache_hit_rate)
 
         except ImportError:
             # Prometheus not available, skip metrics
@@ -167,6 +157,7 @@ class PerformanceTrackingMiddleware(BaseHTTPMiddleware):
 
 
 # Helper functions for tracking within request handlers
+
 
 def increment_db_query_count(request: Request, count: int = 1):
     """Increment DB query counter for current request"""

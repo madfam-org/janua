@@ -14,10 +14,7 @@ logger = structlog.get_logger()
 
 
 def log_error(
-    message: str,
-    error: Optional[Exception] = None,
-    level: str = "error",
-    **context
+    message: str, error: Optional[Exception] = None, level: str = "error", **context
 ) -> None:
     """
     Log an error with structured context.
@@ -39,10 +36,7 @@ def log_error(
                 key="user:123"
             )
     """
-    log_data = {
-        "message": message,
-        **context
-    }
+    log_data = {"message": message, **context}
 
     if error:
         log_data["error_type"] = type(error).__name__
@@ -57,10 +51,7 @@ def log_error(
     log_func(**log_data)
 
 
-def log_exception(
-    context_message: str,
-    **context
-) -> Callable:
+def log_exception(context_message: str, **context) -> Callable:
     """
     Decorator to log exceptions in a function.
 
@@ -84,18 +75,14 @@ def log_exception(
         #   "traceback": "..."
         # }
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
             except Exception as e:
-                log_error(
-                    context_message,
-                    error=e,
-                    function=func.__name__,
-                    **context
-                )
+                log_error(context_message, error=e, function=func.__name__, **context)
                 raise
 
         @wraps(func)
@@ -103,16 +90,12 @@ def log_exception(
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                log_error(
-                    context_message,
-                    error=e,
-                    function=func.__name__,
-                    **context
-                )
+                log_error(context_message, error=e, function=func.__name__, **context)
                 raise
 
         # Return appropriate wrapper based on function type
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         else:
@@ -126,7 +109,7 @@ def safe_execute(
     fallback: Any = None,
     error_message: str = "Operation failed",
     log_level: str = "warning",
-    **context
+    **context,
 ) -> Any:
     """
     Execute an operation safely with automatic error logging and fallback.
@@ -160,18 +143,14 @@ def safe_execute(
     """
     try:
         import asyncio
+
         if asyncio.iscoroutinefunction(operation):
             result = asyncio.create_task(operation())
         else:
             result = operation()
         return result
     except Exception as e:
-        log_error(
-            error_message,
-            error=e,
-            level=log_level,
-            **context
-        )
+        log_error(error_message, error=e, level=log_level, **context)
         return fallback
 
 
@@ -209,18 +188,17 @@ class LoggedOperation:
 
     async def __aenter__(self):
         import time
+
         self.start_time = time.time()
 
         logger.info(
-            f"{self.operation} started",
-            operation=self.operation,
-            status="started",
-            **self.context
+            f"{self.operation} started", operation=self.operation, status="started", **self.context
         )
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         import time
+
         duration_ms = (time.time() - self.start_time) * 1000
 
         if exc_type is None:
@@ -230,7 +208,7 @@ class LoggedOperation:
                 operation=self.operation,
                 status="completed",
                 duration_ms=round(duration_ms, 2),
-                **self.context
+                **self.context,
             )
         else:
             # Failure
@@ -240,7 +218,7 @@ class LoggedOperation:
                 operation=self.operation,
                 status="failed",
                 duration_ms=round(duration_ms, 2),
-                **self.context
+                **self.context,
             )
 
         # Don't suppress the exception
@@ -452,12 +430,7 @@ class ErrorMetrics:
         self.error_counts = {}
         self.error_rates = {}
 
-    def record_error(
-        self,
-        error_type: str,
-        operation: str,
-        **context
-    ):
+    def record_error(self, error_type: str, operation: str, **context):
         """Record an error occurrence"""
         key = f"{operation}:{error_type}"
 
@@ -471,7 +444,7 @@ class ErrorMetrics:
             error_type=error_type,
             operation=operation,
             count=self.error_counts[key],
-            **context
+            **context,
         )
 
     def get_error_count(self, operation: str, error_type: str) -> int:

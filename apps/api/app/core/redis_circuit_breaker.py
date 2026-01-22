@@ -16,6 +16,7 @@ logger = structlog.get_logger()
 
 class CircuitState(Enum):
     """Circuit breaker states"""
+
     CLOSED = "closed"  # Normal operation
     OPEN = "open"  # Redis is failing, using fallback
     HALF_OPEN = "half_open"  # Testing if Redis has recovered
@@ -35,7 +36,7 @@ class RedisCircuitBreaker:
         self,
         failure_threshold: int = 5,
         recovery_timeout: int = 60,  # seconds
-        half_open_max_calls: int = 3
+        half_open_max_calls: int = 3,
     ):
         self.state = CircuitState.CLOSED
         self.failure_count = 0
@@ -92,7 +93,7 @@ class RedisCircuitBreaker:
             logger.error(
                 "Redis circuit breaker opened",
                 failure_count=self.failure_count,
-                threshold=self.failure_threshold
+                threshold=self.failure_threshold,
             )
             self.state = CircuitState.OPEN
 
@@ -108,14 +109,13 @@ class RedisCircuitBreaker:
             "cache_hits": self._cache_hits,
             "cache_misses": self._cache_misses,
             "cache_size": len(self._fallback_cache),
-            "last_failure_time": self.last_failure_time.isoformat() if self.last_failure_time else None
+            "last_failure_time": self.last_failure_time.isoformat()
+            if self.last_failure_time
+            else None,
         }
 
     async def execute(
-        self,
-        redis_operation: Callable,
-        fallback_value: Any = None,
-        cache_key: Optional[str] = None
+        self, redis_operation: Callable, fallback_value: Any = None, cache_key: Optional[str] = None
     ) -> Any:
         """
         Execute a Redis operation with circuit breaker protection.
@@ -203,32 +203,24 @@ class ResilientRedisClient:
     def __init__(self, redis_client: Optional[redis.Redis] = None):
         self.redis = redis_client
         self.circuit_breaker = RedisCircuitBreaker(
-            failure_threshold=5,
-            recovery_timeout=60,
-            half_open_max_calls=3
+            failure_threshold=5, recovery_timeout=60, half_open_max_calls=3
         )
 
     async def get(self, key: str, default: Any = None) -> Any:
         """Get value with fallback"""
+
         async def operation():
             if self.redis is None:
                 raise redis.RedisError("Redis client not initialized")
             return await self.redis.get(key)
 
         return await self.circuit_breaker.execute(
-            operation,
-            fallback_value=default,
-            cache_key=f"get:{key}"
+            operation, fallback_value=default, cache_key=f"get:{key}"
         )
 
-    async def set(
-        self,
-        key: str,
-        value: Any,
-        ex: Optional[int] = None,
-        **kwargs
-    ) -> bool:
+    async def set(self, key: str, value: Any, ex: Optional[int] = None, **kwargs) -> bool:
         """Set value with fallback (returns success status)"""
+
         async def operation():
             if self.redis is None:
                 raise redis.RedisError("Redis client not initialized")
@@ -238,8 +230,7 @@ class ResilientRedisClient:
             return result
 
         result = await self.circuit_breaker.execute(
-            operation,
-            fallback_value=False  # Indicate write failed
+            operation, fallback_value=False  # Indicate write failed
         )
         return bool(result)
 
@@ -254,52 +245,50 @@ class ResilientRedisClient:
 
     async def delete(self, *keys: str) -> int:
         """Delete keys with fallback"""
+
         async def operation():
             if self.redis is None:
                 raise redis.RedisError("Redis client not initialized")
             return await self.redis.delete(*keys)
 
         return await self.circuit_breaker.execute(
-            operation,
-            fallback_value=0  # Indicate no keys deleted
+            operation, fallback_value=0  # Indicate no keys deleted
         )
 
     async def exists(self, *keys: str) -> int:
         """Check if keys exist with fallback"""
+
         async def operation():
             if self.redis is None:
                 raise redis.RedisError("Redis client not initialized")
             return await self.redis.exists(*keys)
 
         return await self.circuit_breaker.execute(
-            operation,
-            fallback_value=0  # Assume keys don't exist
+            operation, fallback_value=0  # Assume keys don't exist
         )
 
     async def hget(self, name: str, key: str) -> Optional[Any]:
         """Get hash field with fallback"""
+
         async def operation():
             if self.redis is None:
                 raise redis.RedisError("Redis client not initialized")
             return await self.redis.hget(name, key)
 
         return await self.circuit_breaker.execute(
-            operation,
-            fallback_value=None,
-            cache_key=f"hget:{name}:{key}"
+            operation, fallback_value=None, cache_key=f"hget:{name}:{key}"
         )
 
     async def hgetall(self, name: str) -> Dict:
         """Get all hash fields with fallback"""
+
         async def operation():
             if self.redis is None:
                 raise redis.RedisError("Redis client not initialized")
             return await self.redis.hgetall(name)
 
         return await self.circuit_breaker.execute(
-            operation,
-            fallback_value={},
-            cache_key=f"hgetall:{name}"
+            operation, fallback_value={}, cache_key=f"hgetall:{name}"
         )
 
     async def hset(
@@ -307,44 +296,38 @@ class ResilientRedisClient:
         name: str,
         key: Optional[str] = None,
         value: Optional[str] = None,
-        mapping: Optional[Dict] = None
+        mapping: Optional[Dict] = None,
     ) -> int:
         """Set hash field with fallback"""
+
         async def operation():
             if self.redis is None:
                 raise redis.RedisError("Redis client not initialized")
             return await self.redis.hset(name, key=key, value=value, mapping=mapping)
 
-        return await self.circuit_breaker.execute(
-            operation,
-            fallback_value=0
-        )
+        return await self.circuit_breaker.execute(operation, fallback_value=0)
 
     async def expire(self, key: str, seconds: int) -> bool:
         """Set key expiration with fallback"""
+
         async def operation():
             if self.redis is None:
                 raise redis.RedisError("Redis client not initialized")
             return await self.redis.expire(key, seconds)
 
-        result = await self.circuit_breaker.execute(
-            operation,
-            fallback_value=False
-        )
+        result = await self.circuit_breaker.execute(operation, fallback_value=False)
         return bool(result)
 
     async def ping(self) -> bool:
         """Ping Redis with fallback"""
+
         async def operation():
             if self.redis is None:
                 raise redis.RedisError("Redis client not initialized")
             await self.redis.ping()
             return True
 
-        result = await self.circuit_breaker.execute(
-            operation,
-            fallback_value=False
-        )
+        result = await self.circuit_breaker.execute(operation, fallback_value=False)
         return bool(result)
 
     def get_circuit_status(self) -> Dict[str, Any]:
@@ -359,5 +342,5 @@ class ResilientRedisClient:
         return {
             "redis_available": redis_available,
             "circuit_breaker": circuit_status,
-            "degraded_mode": circuit_status["state"] != "closed"
+            "degraded_mode": circuit_status["state"] != "closed",
         }

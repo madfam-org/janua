@@ -29,7 +29,7 @@ def fix_test_method_signatures(file_path: Path) -> int:
     # Add @staticmethod before the method if not already present
     # Remove self parameter
 
-    lines = content.split('\n')
+    lines = content.split("\n")
     new_lines = []
     i = 0
 
@@ -37,17 +37,17 @@ def fix_test_method_signatures(file_path: Path) -> int:
         line = lines[i]
 
         # Check if this is a test method definition
-        if re.match(r'\s*async def test_\w+\(', line):
+        if re.match(r"\s*async def test_\w+\(", line):
             # Check if next line has 'self' parameter
-            if i + 1 < len(lines) and 'self,' in lines[i + 1]:
+            if i + 1 < len(lines) and "self," in lines[i + 1]:
                 # Check if @staticmethod is already present
                 has_staticmethod = False
                 j = i - 1
-                while j >= 0 and (lines[j].strip().startswith('@') or not lines[j].strip()):
-                    if '@staticmethod' in lines[j]:
+                while j >= 0 and (lines[j].strip().startswith("@") or not lines[j].strip()):
+                    if "@staticmethod" in lines[j]:
                         has_staticmethod = True
                         break
-                    if lines[j].strip() and not lines[j].strip().startswith('@'):
+                    if lines[j].strip() and not lines[j].strip().startswith("@"):
                         break
                     j -= 1
 
@@ -55,14 +55,14 @@ def fix_test_method_signatures(file_path: Path) -> int:
                 if not has_staticmethod:
                     # Find the indentation of the async def line
                     indent = len(line) - len(line.lstrip())
-                    staticmethod_line = ' ' * indent + '@staticmethod'
+                    staticmethod_line = " " * indent + "@staticmethod"
 
                     # Insert @staticmethod before decorators
                     # Find the first decorator line
                     insert_pos = i
                     while insert_pos > 0:
                         prev_line = lines[insert_pos - 1]
-                        if prev_line.strip().startswith('@'):
+                        if prev_line.strip().startswith("@"):
                             insert_pos -= 1
                         else:
                             break
@@ -82,7 +82,7 @@ def fix_test_method_signatures(file_path: Path) -> int:
         i += 1
 
     if changes > 0:
-        file_path.write_text('\n'.join(new_lines))
+        file_path.write_text("\n".join(new_lines))
         print(f"  ✅ Fixed {changes // 2} test methods in {file_path.name}")
     else:
         print(f"  ℹ️  No changes needed in {file_path.name}")
@@ -92,7 +92,9 @@ def fix_test_method_signatures(file_path: Path) -> int:
 
 def main():
     test_files = [
-        Path("/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_auth_registration.py"),
+        Path(
+            "/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_auth_registration.py"
+        ),
         Path("/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_auth_login.py"),
         Path("/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_tokens.py"),
         Path("/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_mfa.py"),

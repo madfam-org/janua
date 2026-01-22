@@ -60,7 +60,7 @@ class ControlMonitor:
                 deficiencies=[f"Test execution failed: {str(e)}"],
                 recommendations=["Investigate test execution environment"],
                 testing_method="automated",
-                tester="system"
+                tester="system",
             )
 
     async def _test_access_control(self, control_id: str) -> ControlResult:
@@ -76,9 +76,9 @@ class ControlMonitor:
                 async with get_session() as session:
                     # Check for recent user provisioning activities
                     recent_users = await session.execute(
-                        select(User).where(
-                            User.created_at >= datetime.utcnow() - timedelta(days=7)
-                        ).limit(10)
+                        select(User)
+                        .where(User.created_at >= datetime.utcnow() - timedelta(days=7))
+                        .limit(10)
                     )
                     users = recent_users.scalars().all()
 
@@ -87,7 +87,9 @@ class ControlMonitor:
                         # Check if proper approval process was followed
                         for user in users:
                             if not user.approved_by:
-                                deficiencies.append(f"User {user.email} lacks approval documentation")
+                                deficiencies.append(
+                                    f"User {user.email} lacks approval documentation"
+                                )
                                 effectiveness_score -= 0.1
                     else:
                         evidence.append("No recent user provisioning activities")
@@ -125,7 +127,9 @@ class ControlMonitor:
                     if total_count > 0:
                         admin_percentage = admin_count / total_count
                         if admin_percentage > 0.1:  # More than 10% admins
-                            deficiencies.append(f"High percentage of admin users: {admin_percentage:.1%}")
+                            deficiencies.append(
+                                f"High percentage of admin users: {admin_percentage:.1%}"
+                            )
                             recommendations.append("Review and reduce admin privileges")
                             effectiveness_score -= 0.15
 
@@ -138,7 +142,9 @@ class ControlMonitor:
                     try:
                         inactive_sessions = await self.redis_client.keys("session:*:inactive")
                         if inactive_sessions:
-                            evidence.append(f"Found {len(inactive_sessions)} inactive sessions to clean up")
+                            evidence.append(
+                                f"Found {len(inactive_sessions)} inactive sessions to clean up"
+                            )
                     except Exception:
                         evidence.append("Session cleanup verification skipped")
 
@@ -152,7 +158,7 @@ class ControlMonitor:
                         select(func.count(AuditLog.id)).where(
                             and_(
                                 AuditLog.created_at >= datetime.utcnow() - timedelta(days=1),
-                                AuditLog.action.like("%admin%")
+                                AuditLog.action.like("%admin%"),
                             )
                         )
                     )
@@ -190,7 +196,7 @@ class ControlMonitor:
             recommendations=recommendations,
             testing_method="automated",
             tester="system",
-            next_test_date=datetime.utcnow() + timedelta(days=30)
+            next_test_date=datetime.utcnow() + timedelta(days=30),
         )
 
     async def _test_system_operations_control(self, control_id: str) -> ControlResult:
@@ -211,9 +217,11 @@ class ControlMonitor:
                     cpu_usage = psutil.cpu_percent(interval=1)
                     memory = psutil.virtual_memory()
                     # Disk usage check - could be expanded for disk monitoring
-                    psutil.disk_usage('/')
+                    psutil.disk_usage("/")
 
-                    evidence.append(f"System monitoring active - CPU: {cpu_usage}%, Memory: {memory.percent}%")
+                    evidence.append(
+                        f"System monitoring active - CPU: {cpu_usage}%, Memory: {memory.percent}%"
+                    )
 
                     if cpu_usage > 90:
                         deficiencies.append("High CPU usage detected")
@@ -230,7 +238,7 @@ class ControlMonitor:
             elif control_id == "CC7.4":  # System Capacity
                 # Check system capacity management
                 try:
-                    disk = psutil.disk_usage('/')
+                    disk = psutil.disk_usage("/")
                     disk_percent = (disk.used / disk.total) * 100
 
                     evidence.append(f"Disk usage monitoring: {disk_percent:.1f}%")
@@ -266,7 +274,7 @@ class ControlMonitor:
             recommendations=recommendations,
             testing_method="automated",
             tester="system",
-            next_test_date=datetime.utcnow() + timedelta(days=7)
+            next_test_date=datetime.utcnow() + timedelta(days=7),
         )
 
     async def _test_availability_control(self, control_id: str) -> ControlResult:
@@ -293,7 +301,9 @@ class ControlMonitor:
 
         return ControlResult(
             control_id=control_id,
-            status=ControlStatus.EFFECTIVE if effectiveness_score >= 0.9 else ControlStatus.NEEDS_IMPROVEMENT,
+            status=ControlStatus.EFFECTIVE
+            if effectiveness_score >= 0.9
+            else ControlStatus.NEEDS_IMPROVEMENT,
             effectiveness_score=effectiveness_score,
             test_date=datetime.utcnow(),
             evidence=evidence,
@@ -301,7 +311,7 @@ class ControlMonitor:
             recommendations=recommendations,
             testing_method="automated",
             tester="system",
-            next_test_date=datetime.utcnow() + timedelta(days=14)
+            next_test_date=datetime.utcnow() + timedelta(days=14),
         )
 
     async def _test_processing_integrity_control(self, control_id: str) -> ControlResult:
@@ -327,7 +337,9 @@ class ControlMonitor:
 
         return ControlResult(
             control_id=control_id,
-            status=ControlStatus.EFFECTIVE if effectiveness_score >= 0.9 else ControlStatus.NEEDS_IMPROVEMENT,
+            status=ControlStatus.EFFECTIVE
+            if effectiveness_score >= 0.9
+            else ControlStatus.NEEDS_IMPROVEMENT,
             effectiveness_score=effectiveness_score,
             test_date=datetime.utcnow(),
             evidence=evidence,
@@ -335,7 +347,7 @@ class ControlMonitor:
             recommendations=recommendations,
             testing_method="automated",
             tester="system",
-            next_test_date=datetime.utcnow() + timedelta(days=30)
+            next_test_date=datetime.utcnow() + timedelta(days=30),
         )
 
     async def _test_confidentiality_control(self, control_id: str) -> ControlResult:
@@ -358,7 +370,9 @@ class ControlMonitor:
 
         return ControlResult(
             control_id=control_id,
-            status=ControlStatus.EFFECTIVE if effectiveness_score >= 0.9 else ControlStatus.NEEDS_IMPROVEMENT,
+            status=ControlStatus.EFFECTIVE
+            if effectiveness_score >= 0.9
+            else ControlStatus.NEEDS_IMPROVEMENT,
             effectiveness_score=effectiveness_score,
             test_date=datetime.utcnow(),
             evidence=evidence,
@@ -366,7 +380,7 @@ class ControlMonitor:
             recommendations=recommendations,
             testing_method="automated",
             tester="system",
-            next_test_date=datetime.utcnow() + timedelta(days=30)
+            next_test_date=datetime.utcnow() + timedelta(days=30),
         )
 
     async def _test_privacy_control(self, control_id: str) -> ControlResult:
@@ -386,7 +400,9 @@ class ControlMonitor:
 
         return ControlResult(
             control_id=control_id,
-            status=ControlStatus.EFFECTIVE if effectiveness_score >= 0.9 else ControlStatus.NEEDS_IMPROVEMENT,
+            status=ControlStatus.EFFECTIVE
+            if effectiveness_score >= 0.9
+            else ControlStatus.NEEDS_IMPROVEMENT,
             effectiveness_score=effectiveness_score,
             test_date=datetime.utcnow(),
             evidence=evidence,
@@ -394,7 +410,7 @@ class ControlMonitor:
             recommendations=recommendations,
             testing_method="automated",
             tester="system",
-            next_test_date=datetime.utcnow() + timedelta(days=30)
+            next_test_date=datetime.utcnow() + timedelta(days=30),
         )
 
     async def _test_common_criteria_control(self, control_id: str) -> ControlResult:
@@ -424,7 +440,9 @@ class ControlMonitor:
 
         return ControlResult(
             control_id=control_id,
-            status=ControlStatus.EFFECTIVE if effectiveness_score >= 0.9 else ControlStatus.NEEDS_IMPROVEMENT,
+            status=ControlStatus.EFFECTIVE
+            if effectiveness_score >= 0.9
+            else ControlStatus.NEEDS_IMPROVEMENT,
             effectiveness_score=effectiveness_score,
             test_date=datetime.utcnow(),
             evidence=evidence,
@@ -432,5 +450,5 @@ class ControlMonitor:
             recommendations=recommendations,
             testing_method="automated",
             tester="system",
-            next_test_date=datetime.utcnow() + timedelta(days=30)
+            next_test_date=datetime.utcnow() + timedelta(days=30),
         )

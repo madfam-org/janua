@@ -199,6 +199,8 @@ class AccountLockoutService:
             "seconds_until_unlock": seconds_remaining,
             "failed_login_attempts": user.failed_login_attempts or 0,
             "lockout_threshold": settings.ACCOUNT_LOCKOUT_THRESHOLD,
-            "last_failed_login": user.last_failed_login.isoformat() if user.last_failed_login else None,
+            "last_failed_login": user.last_failed_login.isoformat()
+            if user.last_failed_login
+            else None,
             "locked_until": user.locked_until.isoformat() if user.locked_until else None,
         }

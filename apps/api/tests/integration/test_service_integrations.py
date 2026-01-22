@@ -1,4 +1,3 @@
-
 import pytest
 
 pytestmark = pytest.mark.asyncio
@@ -33,11 +32,7 @@ class TestJWTServiceIntegration:
         jwt_service = JWTService(mock_db, mock_redis)
 
         # Test token creation
-        user_data = {
-            "user_id": str(uuid.uuid4()),
-            "email": "test@example.com",
-            "role": "user"
-        }
+        user_data = {"user_id": str(uuid.uuid4()), "email": "test@example.com", "role": "user"}
 
         # Create access token
         access_token = jwt_service.create_access_token(user_data)
@@ -67,13 +62,10 @@ class TestJWTServiceIntegration:
         mock_redis = AsyncMock()
         jwt_service = JWTService(mock_db, mock_redis)
 
-        user_data = {
-            "user_id": str(uuid.uuid4()),
-            "email": "test@example.com"
-        }
+        user_data = {"user_id": str(uuid.uuid4()), "email": "test@example.com"}
 
         # Create token with short expiration
-        with patch.object(jwt_service, 'access_token_expire_minutes', 0.01):  # 0.6 seconds
+        with patch.object(jwt_service, "access_token_expire_minutes", 0.01):  # 0.6 seconds
             token = jwt_service.create_access_token(user_data)
 
             # Token should be valid immediately
@@ -82,6 +74,7 @@ class TestJWTServiceIntegration:
 
             # Wait for expiration
             import asyncio
+
             await asyncio.sleep(1)
 
             # Token should now be expired
@@ -101,7 +94,7 @@ class TestJWTServiceIntegration:
             "header.payload.signature",
             "",
             None,
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid.signature"
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid.signature",
         ]
 
         for invalid_token in invalid_tokens:
@@ -115,10 +108,7 @@ class TestJWTServiceIntegration:
         mock_redis = AsyncMock()
         jwt_service = JWTService(mock_db, mock_redis)
 
-        user_data = {
-            "user_id": str(uuid.uuid4()),
-            "email": "test@example.com"
-        }
+        user_data = {"user_id": str(uuid.uuid4()), "email": "test@example.com"}
 
         # Create initial tokens
         access_token = jwt_service.create_access_token(user_data)
@@ -146,7 +136,7 @@ class TestJWTServiceIntegration:
             "email": "test@example.com",
             "permissions": ["read", "write"],
             "organization_id": str(uuid.uuid4()),
-            "role": "admin"
+            "role": "admin",
         }
 
         token = jwt_service.create_access_token(user_data)
@@ -194,14 +184,12 @@ class TestCacheServiceIntegration:
         complex_data = {
             "user_id": str(uuid.uuid4()),
             "permissions": ["read", "write"],
-            "metadata": {
-                "last_login": datetime.utcnow().isoformat(),
-                "session_count": 5
-            }
+            "metadata": {"last_login": datetime.utcnow().isoformat(), "session_count": 5},
         }
 
         # Mock Redis to return JSON string
         import json as json_lib
+
         json_string = json_lib.dumps(complex_data)
         mock_redis.get.return_value = json_string
 
@@ -241,7 +229,7 @@ class TestCacheServiceIntegration:
             "user_id": str(uuid.uuid4()),
             "created_at": datetime.utcnow().isoformat(),
             "ip_address": "192.168.1.1",
-            "user_agent": "Chrome/91.0"
+            "user_agent": "Chrome/91.0",
         }
 
         session_id = str(uuid.uuid4())
@@ -267,7 +255,7 @@ class TestEmailServiceIntegration:
         email_service = EmailService()
         assert email_service is not None
         # Test configuration loading
-        assert hasattr(email_service, 'smtp_server') or hasattr(email_service, 'config')
+        assert hasattr(email_service, "smtp_server") or hasattr(email_service, "config")
 
     @pytest.mark.asyncio
     async def test_verification_email_sending(self):
@@ -277,16 +265,14 @@ class TestEmailServiceIntegration:
         user_data = {
             "email": "test@example.com",
             "first_name": "John",
-            "verification_token": "verification_token_123"
+            "verification_token": "verification_token_123",
         }
 
-        with patch.object(email_service, 'send_email') as mock_send:
+        with patch.object(email_service, "send_email") as mock_send:
             mock_send.return_value = True
 
             result = await email_service.send_verification_email(
-                user_data["email"],
-                user_data["first_name"],
-                user_data["verification_token"]
+                user_data["email"], user_data["first_name"], user_data["verification_token"]
             )
 
             assert result is True
@@ -305,15 +291,14 @@ class TestEmailServiceIntegration:
         reset_data = {
             "email": "user@example.com",
             "first_name": "Jane",
-            "reset_token": "reset_token_456"
+            "reset_token": "reset_token_456",
         }
 
-        with patch.object(email_service, 'send_email') as mock_send:
+        with patch.object(email_service, "send_email") as mock_send:
             mock_send.return_value = True
 
             result = await email_service.send_password_reset_email(
-                reset_data["email"],
-                reset_data["first_name"]
+                reset_data["email"], reset_data["first_name"]
             )
 
             assert result is True
@@ -327,16 +312,14 @@ class TestEmailServiceIntegration:
         magic_data = {
             "email": "magic@example.com",
             "first_name": "Magic",
-            "magic_token": "magic_token_789"
+            "magic_token": "magic_token_789",
         }
 
-        with patch.object(email_service, 'send_email') as mock_send:
+        with patch.object(email_service, "send_email") as mock_send:
             mock_send.return_value = True
 
             result = await email_service.send_magic_link_email(
-                magic_data["email"],
-                magic_data["first_name"],
-                magic_data["magic_token"]
+                magic_data["email"], magic_data["first_name"], magic_data["magic_token"]
             )
 
             assert result is True
@@ -352,10 +335,10 @@ class TestEmailServiceIntegration:
             "inviter_name": "John Doe",
             "organization_name": "Test Company",
             "invitation_token": "invite_token_abc",
-            "role": "member"
+            "role": "member",
         }
 
-        with patch.object(email_service, 'send_email') as mock_send:
+        with patch.object(email_service, "send_email") as mock_send:
             mock_send.return_value = True
 
             result = await email_service.send_organization_invitation(
@@ -363,7 +346,7 @@ class TestEmailServiceIntegration:
                 invitation_data["inviter_name"],
                 invitation_data["organization_name"],
                 invitation_data["invitation_token"],
-                invitation_data["role"]
+                invitation_data["role"],
             )
 
             assert result is True
@@ -377,10 +360,10 @@ class TestEmailServiceIntegration:
         template_data = {
             "user_name": "John Doe",
             "verification_url": "https://app.example.com/verify?token=123",
-            "company_name": "Test Company"
+            "company_name": "Test Company",
         }
 
-        with patch.object(email_service, 'render_template') as mock_render:
+        with patch.object(email_service, "render_template") as mock_render:
             mock_render.return_value = "Rendered HTML content"
 
             rendered = email_service.render_template("verification_email.html", template_data)
@@ -392,13 +375,11 @@ class TestEmailServiceIntegration:
         """Test email delivery failure handling"""
         email_service = EmailService()
 
-        with patch.object(email_service, 'send_email') as mock_send:
+        with patch.object(email_service, "send_email") as mock_send:
             mock_send.side_effect = Exception("SMTP server unavailable")
 
             result = await email_service.send_verification_email(
-                "test@example.com",
-                "Test User",
-                "token_123"
+                "test@example.com", "Test User", "token_123"
             )
 
             # Should handle failure gracefully
@@ -423,22 +404,22 @@ class TestBillingServiceIntegration:
         subscription_data = {
             "organization_id": str(uuid.uuid4()),
             "plan_id": "pro_plan",
-            "payment_method_id": "pm_test_123"
+            "payment_method_id": "pm_test_123",
         }
 
-        with patch.object(billing_service, 'create_subscription') as mock_create:
+        with patch.object(billing_service, "create_subscription") as mock_create:
             mock_subscription = {
                 "id": "sub_test_123",
                 "status": "active",
                 "current_period_start": datetime.utcnow().isoformat(),
-                "current_period_end": (datetime.utcnow() + timedelta(days=30)).isoformat()
+                "current_period_end": (datetime.utcnow() + timedelta(days=30)).isoformat(),
             }
             mock_create.return_value = mock_subscription
 
             result = await billing_service.create_subscription(
                 subscription_data["organization_id"],
                 subscription_data["plan_id"],
-                subscription_data["payment_method_id"]
+                subscription_data["payment_method_id"],
             )
 
             assert result["id"] == "sub_test_123"
@@ -456,12 +437,12 @@ class TestBillingServiceIntegration:
                     "id": "in_test_123",
                     "subscription": "sub_test_123",
                     "amount_paid": 2999,
-                    "status": "paid"
+                    "status": "paid",
                 }
-            }
+            },
         }
 
-        with patch.object(billing_service, 'process_webhook') as mock_process:
+        with patch.object(billing_service, "process_webhook") as mock_process:
             mock_process.return_value = True
 
             result = await billing_service.process_webhook(webhook_data)
@@ -477,16 +458,14 @@ class TestBillingServiceIntegration:
             "organization_id": str(uuid.uuid4()),
             "metric": "api_calls",
             "quantity": 100,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
-        with patch.object(billing_service, 'track_usage') as mock_track:
+        with patch.object(billing_service, "track_usage") as mock_track:
             mock_track.return_value = True
 
             result = await billing_service.track_usage(
-                usage_data["organization_id"],
-                usage_data["metric"],
-                usage_data["quantity"]
+                usage_data["organization_id"], usage_data["metric"], usage_data["quantity"]
             )
 
             assert result is True
@@ -500,22 +479,22 @@ class TestBillingServiceIntegration:
         invoice_data = {
             "organization_id": str(uuid.uuid4()),
             "billing_period_start": datetime.utcnow() - timedelta(days=30),
-            "billing_period_end": datetime.utcnow()
+            "billing_period_end": datetime.utcnow(),
         }
 
-        with patch.object(billing_service, 'generate_invoice') as mock_generate:
+        with patch.object(billing_service, "generate_invoice") as mock_generate:
             mock_invoice = {
                 "id": "inv_test_123",
                 "amount": 2999,
                 "status": "draft",
-                "due_date": (datetime.utcnow() + timedelta(days=30)).isoformat()
+                "due_date": (datetime.utcnow() + timedelta(days=30)).isoformat(),
             }
             mock_generate.return_value = mock_invoice
 
             result = await billing_service.generate_invoice(
                 invoice_data["organization_id"],
                 invoice_data["billing_period_start"],
-                invoice_data["billing_period_end"]
+                invoice_data["billing_period_end"],
             )
 
             assert result["id"] == "inv_test_123"
@@ -535,10 +514,10 @@ class TestAuthServiceIntegration:
             "email": "newuser@example.com",
             "password": "SecurePassword123!",
             "first_name": "John",
-            "last_name": "Doe"
+            "last_name": "Doe",
         }
 
-        with patch.object(auth_service, 'create_user') as mock_create:
+        with patch.object(auth_service, "create_user") as mock_create:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = user_data["email"]
@@ -549,7 +528,7 @@ class TestAuthServiceIntegration:
                 user_data["email"],
                 user_data["password"],
                 user_data["first_name"],
-                user_data["last_name"]
+                user_data["last_name"],
             )
 
             assert result.email == user_data["email"]
@@ -560,12 +539,9 @@ class TestAuthServiceIntegration:
         """Test user authentication flow"""
         auth_service = AuthService()
 
-        credentials = {
-            "email": "user@example.com",
-            "password": "UserPassword123!"
-        }
+        credentials = {"email": "user@example.com", "password": "UserPassword123!"}
 
-        with patch.object(auth_service, 'authenticate_user') as mock_auth:
+        with patch.object(auth_service, "authenticate_user") as mock_auth:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = credentials["email"]
@@ -574,9 +550,7 @@ class TestAuthServiceIntegration:
             mock_auth.return_value = mock_user
 
             result = await auth_service.authenticate_user(
-                test_db_session,
-                credentials["email"],
-                credentials["password"]
+                test_db_session, credentials["email"], credentials["password"]
             )
 
             assert result.email == credentials["email"]
@@ -591,25 +565,23 @@ class TestAuthServiceIntegration:
             "user_id": str(uuid.uuid4()),
             "email": "user@example.com",
             "ip_address": "192.168.1.1",
-            "user_agent": "Chrome/91.0"
+            "user_agent": "Chrome/91.0",
         }
 
-        with patch.object(auth_service, 'create_session') as mock_create_session:
+        with patch.object(auth_service, "create_session") as mock_create_session:
             mock_session_data = {
                 "access_token": "access_token_123",
                 "refresh_token": "refresh_token_123",
-                "session_id": str(uuid.uuid4())
+                "session_id": str(uuid.uuid4()),
             }
             mock_create_session.return_value = (
                 mock_session_data["access_token"],
                 mock_session_data["refresh_token"],
-                {"id": mock_session_data["session_id"]}
+                {"id": mock_session_data["session_id"]},
             )
 
             access_token, refresh_token, session = await auth_service.create_session(
-                user_data["user_id"],
-                user_data["ip_address"],
-                user_data["user_agent"]
+                user_data["user_id"], user_data["ip_address"], user_data["user_agent"]
             )
 
             assert access_token == mock_session_data["access_token"]
@@ -624,15 +596,14 @@ class TestAuthServiceIntegration:
         reset_data = {
             "email": "user@example.com",
             "new_password": "NewPassword123!",
-            "reset_token": "reset_token_456"
+            "reset_token": "reset_token_456",
         }
 
-        with patch.object(auth_service, 'reset_password') as mock_reset:
+        with patch.object(auth_service, "reset_password") as mock_reset:
             mock_reset.return_value = True
 
             result = await auth_service.reset_password(
-                reset_data["reset_token"],
-                reset_data["new_password"]
+                reset_data["reset_token"], reset_data["new_password"]
             )
 
             assert result is True
@@ -644,7 +615,7 @@ class TestAuthServiceIntegration:
 
         verification_token = "verification_token_123"
 
-        with patch.object(auth_service, 'verify_email') as mock_verify:
+        with patch.object(auth_service, "verify_email") as mock_verify:
             mock_verify.return_value = True
 
             result = await auth_service.verify_email(verification_token)
@@ -678,10 +649,7 @@ class TestServiceIntegrationEdgeCases:
         mock_redis = AsyncMock()
         jwt_service = JWTService(mock_db, mock_redis)
 
-        user_data = {
-            "user_id": str(uuid.uuid4()),
-            "email": "test@example.com"
-        }
+        user_data = {"user_id": str(uuid.uuid4()), "email": "test@example.com"}
 
         # Create token with original secret
         token = jwt_service.create_access_token(user_data)
@@ -691,7 +659,7 @@ class TestServiceIntegrationEdgeCases:
         assert decoded["user_id"] == user_data["user_id"]
 
         # Simulate secret rotation
-        with patch.object(jwt_service, 'secret_key', 'new_secret_key'):
+        with patch.object(jwt_service, "secret_key", "new_secret_key"):
             # Old token should be invalid with new secret
             with pytest.raises(Exception):
                 jwt_service.verify_token(token)
@@ -701,13 +669,11 @@ class TestServiceIntegrationEdgeCases:
         """Test email service SMTP failure handling"""
         email_service = EmailService()
 
-        with patch.object(email_service, 'smtp_client') as mock_smtp:
+        with patch.object(email_service, "smtp_client") as mock_smtp:
             mock_smtp.send_message.side_effect = Exception("SMTP connection failed")
 
             result = await email_service.send_verification_email(
-                "test@example.com",
-                "Test User",
-                "token_123"
+                "test@example.com", "Test User", "token_123"
             )
 
             # Should handle SMTP failure gracefully
@@ -718,13 +684,11 @@ class TestServiceIntegrationEdgeCases:
         """Test billing service API failure handling"""
         billing_service = BillingService()
 
-        with patch.object(billing_service, 'stripe_client') as mock_stripe:
+        with patch.object(billing_service, "stripe_client") as mock_stripe:
             mock_stripe.Subscription.create.side_effect = Exception("Stripe API unavailable")
 
             result = await billing_service.create_subscription(
-                str(uuid.uuid4()),
-                "pro_plan",
-                "pm_test_123"
+                str(uuid.uuid4()), "pro_plan", "pm_test_123"
             )
 
             # Should handle API failure gracefully
@@ -739,16 +703,10 @@ class TestServiceIntegrationEdgeCases:
         mock_redis = AsyncMock()
         jwt_service = JWTService(mock_db, mock_redis)
 
-        user_data = {
-            "user_id": str(uuid.uuid4()),
-            "email": "test@example.com"
-        }
+        user_data = {"user_id": str(uuid.uuid4()), "email": "test@example.com"}
 
         # Create multiple tokens concurrently
-        tasks = [
-            jwt_service.create_access_token(user_data)
-            for _ in range(10)
-        ]
+        tasks = [jwt_service.create_access_token(user_data) for _ in range(10)]
 
         tokens = await asyncio.gather(*tasks)
 
@@ -771,10 +729,7 @@ class TestServiceIntegrationEdgeCases:
         # Create many tokens to test memory usage
         tokens = []
         for i in range(1000):
-            user_data = {
-                "user_id": str(uuid.uuid4()),
-                "email": f"user{i}@example.com"
-            }
+            user_data = {"user_id": str(uuid.uuid4()), "email": f"user{i}@example.com"}
             token = jwt_service.create_access_token(user_data)
             tokens.append(token)
 

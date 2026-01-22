@@ -19,7 +19,7 @@ class MembershipService:
         current_role: OrganizationRole,
         new_role: OrganizationRole,
         requester_role: OrganizationRole,
-        is_owner_change: bool = False
+        is_owner_change: bool = False,
     ) -> None:
         """Validate if a role change is allowed"""
 
@@ -42,9 +42,7 @@ class MembershipService:
 
     @staticmethod
     def validate_member_removal(
-        member_role: OrganizationRole,
-        requester_role: OrganizationRole,
-        is_owner: bool = False
+        member_role: OrganizationRole, requester_role: OrganizationRole, is_owner: bool = False
     ) -> None:
         """Validate if a member can be removed"""
 
@@ -66,8 +64,7 @@ class MembershipService:
 
     @staticmethod
     def validate_invitation_role(
-        invited_role: OrganizationRole,
-        inviter_role: OrganizationRole
+        invited_role: OrganizationRole, inviter_role: OrganizationRole
     ) -> None:
         """Validate if an invitation role is allowed"""
 
@@ -86,7 +83,7 @@ class MembershipService:
     @staticmethod
     def create_invitation_token() -> str:
         """Generate a secure invitation token"""
-        return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
+        return "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
 
     @staticmethod
     def calculate_invitation_expiry(days: int = 7) -> datetime:
@@ -94,10 +91,7 @@ class MembershipService:
         return datetime.utcnow() + timedelta(days=days)
 
     @staticmethod
-    def validate_invitation_acceptance(
-        invitation: OrganizationInvitation,
-        user_email: str
-    ) -> None:
+    def validate_invitation_acceptance(invitation: OrganizationInvitation, user_email: str) -> None:
         """Validate if an invitation can be accepted"""
 
         if not invitation.is_pending():
@@ -119,10 +113,10 @@ class MembershipService:
                 "manage_settings",
                 "manage_billing",
                 "read",
-                "write"
+                "write",
             ],
             OrganizationRole.MEMBER: ["read", "write"],
-            OrganizationRole.VIEWER: ["read"]
+            OrganizationRole.VIEWER: ["read"],
         }
 
         return permission_map.get(role, [])
@@ -137,7 +131,9 @@ class MembershipService:
         if role != OrganizationRole.OWNER:  # Owner can have any permissions
             for permission in permissions:
                 if permission not in default_permissions and permission != "*":
-                    raise ValueError(f"Permission '{permission}' not allowed for role '{role.value}'")
+                    raise ValueError(
+                        f"Permission '{permission}' not allowed for role '{role.value}'"
+                    )
 
     @staticmethod
     def _has_management_privileges(role: OrganizationRole) -> bool:
@@ -151,7 +147,7 @@ class MembershipService:
             OrganizationRole.VIEWER: 0,
             OrganizationRole.MEMBER: 1,
             OrganizationRole.ADMIN: 2,
-            OrganizationRole.OWNER: 3
+            OrganizationRole.OWNER: 3,
         }
 
     @staticmethod
@@ -165,7 +161,7 @@ class MembershipService:
     @staticmethod
     def can_access_organization(
         user_role: Optional[OrganizationRole],
-        required_role: OrganizationRole = OrganizationRole.MEMBER
+        required_role: OrganizationRole = OrganizationRole.MEMBER,
     ) -> bool:
         """Check if user role meets required access level"""
         if not user_role:

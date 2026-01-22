@@ -13,39 +13,29 @@ class SSOProtocol(ABC):
 
     @abstractmethod
     async def initiate_authentication(
-        self,
-        organization_id: str,
-        return_url: Optional[str] = None,
-        **kwargs
+        self, organization_id: str, return_url: Optional[str] = None, **kwargs
     ) -> Dict[str, Any]:
         """
         Initiate authentication flow for the protocol
-        
+
         Returns:
             Dict containing auth_url, protocol-specific params, and request metadata
         """
 
     @abstractmethod
-    async def handle_callback(
-        self,
-        callback_data: Dict[str, Any],
-        **kwargs
-    ) -> Dict[str, Any]:
+    async def handle_callback(self, callback_data: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """
         Handle callback from identity provider
-        
+
         Returns:
             Dict containing user data, session info, and tokens
         """
 
     @abstractmethod
-    async def validate_configuration(
-        self,
-        config: Dict[str, Any]
-    ) -> bool:
+    async def validate_configuration(self, config: Dict[str, Any]) -> bool:
         """
         Validate protocol-specific configuration
-        
+
         Returns:
             True if configuration is valid
         """
@@ -61,7 +51,7 @@ class SSOProtocol(ABC):
 
 class SSOConfiguration:
     """Value object for SSO configuration data"""
-    
+
     def __init__(
         self,
         organization_id: str,
@@ -70,7 +60,7 @@ class SSOConfiguration:
         config: Dict[str, Any],
         attribute_mapping: Optional[Dict[str, str]] = None,
         jit_provisioning: bool = True,
-        default_role: str = "member"
+        default_role: str = "member",
     ):
         self.organization_id = organization_id
         self.protocol = protocol
@@ -80,11 +70,11 @@ class SSOConfiguration:
         self.jit_provisioning = jit_provisioning
         self.default_role = default_role
         self.created_at = datetime.utcnow()
-    
+
     def get_config_value(self, key: str, default: Any = None) -> Any:
         """Get configuration value with optional default"""
         return self.config.get(key, default)
-    
+
     def update_config(self, updates: Dict[str, Any]) -> None:
         """Update configuration values"""
         self.config.update(updates)
@@ -92,7 +82,7 @@ class SSOConfiguration:
 
 class SSOSession:
     """Value object for SSO session data"""
-    
+
     def __init__(
         self,
         user_id: str,
@@ -102,7 +92,7 @@ class SSOSession:
         attributes: Dict[str, Any],
         expires_at: datetime,
         session_index: Optional[str] = None,
-        name_id: Optional[str] = None
+        name_id: Optional[str] = None,
     ):
         self.user_id = user_id
         self.session_id = session_id
@@ -113,11 +103,11 @@ class SSOSession:
         self.session_index = session_index
         self.name_id = name_id
         self.created_at = datetime.utcnow()
-    
+
     def is_expired(self) -> bool:
         """Check if session has expired"""
         return datetime.utcnow() > self.expires_at
-    
+
     def get_attribute(self, key: str, default: Any = None) -> Any:
         """Get session attribute with optional default"""
         return self.attributes.get(key, default)
@@ -125,21 +115,21 @@ class SSOSession:
 
 class UserProvisioningData:
     """Value object for user provisioning data"""
-    
+
     def __init__(
         self,
         email: str,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
         display_name: Optional[str] = None,
-        attributes: Optional[Dict[str, Any]] = None
+        attributes: Optional[Dict[str, Any]] = None,
     ):
         self.email = email
         self.first_name = first_name
         self.last_name = last_name
         self.display_name = display_name
         self.attributes = attributes or {}
-    
+
     def get_full_name(self) -> str:
         """Get full name from first and last name"""
         if self.first_name and self.last_name:

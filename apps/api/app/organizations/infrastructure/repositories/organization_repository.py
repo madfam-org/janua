@@ -16,7 +16,7 @@ from app.models import (
     Organization as ORMOrganization,
     OrganizationInvitation as ORMOrganizationInvitation,
     User,
-    organization_members
+    organization_members,
 )
 from ...domain.models.organization import Organization
 from ...domain.models.membership import Membership, OrganizationInvitation
@@ -41,9 +41,9 @@ class OrganizationRepository:
 
     async def find_by_id(self, organization_id: UUID) -> Optional[Organization]:
         """Find organization by ID"""
-        orm_org = self.db.query(ORMOrganization).filter(
-            ORMOrganization.id == organization_id
-        ).first()
+        orm_org = (
+            self.db.query(ORMOrganization).filter(ORMOrganization.id == organization_id).first()
+        )
 
         if not orm_org:
             return None
@@ -52,9 +52,7 @@ class OrganizationRepository:
 
     async def find_by_slug(self, slug: str) -> Optional[Organization]:
         """Find organization by slug"""
-        orm_org = self.db.query(ORMOrganization).filter(
-            ORMOrganization.slug == slug
-        ).first()
+        orm_org = self.db.query(ORMOrganization).filter(ORMOrganization.slug == slug).first()
 
         if not orm_org:
             return None
@@ -64,9 +62,9 @@ class OrganizationRepository:
     async def save(self, organization: Organization) -> Organization:
         """Save organization to database"""
         # Check if this is an update or create
-        existing = self.db.query(ORMOrganization).filter(
-            ORMOrganization.id == organization.id
-        ).first()
+        existing = (
+            self.db.query(ORMOrganization).filter(ORMOrganization.id == organization.id).first()
+        )
 
         if existing:
             # Update existing
@@ -98,7 +96,7 @@ class OrganizationRepository:
                 billing_email=organization.billing_email,
                 billing_plan=organization.billing_plan,
                 created_at=organization.created_at,
-                updated_at=organization.updated_at
+                updated_at=organization.updated_at,
             )
 
             self.db.add(orm_org)
@@ -109,9 +107,9 @@ class OrganizationRepository:
 
     async def delete(self, organization_id: UUID) -> bool:
         """Delete organization"""
-        orm_org = self.db.query(ORMOrganization).filter(
-            ORMOrganization.id == organization_id
-        ).first()
+        orm_org = (
+            self.db.query(ORMOrganization).filter(ORMOrganization.id == organization_id).first()
+        )
 
         if not orm_org:
             return False
@@ -121,12 +119,16 @@ class OrganizationRepository:
 
     async def find_membership(self, organization_id: UUID, user_id: UUID) -> Optional[Membership]:
         """Find user's membership in organization"""
-        member_row = self.db.query(organization_members).filter(
-            and_(
-                organization_members.c.organization_id == organization_id,
-                organization_members.c.user_id == user_id
+        member_row = (
+            self.db.query(organization_members)
+            .filter(
+                and_(
+                    organization_members.c.organization_id == organization_id,
+                    organization_members.c.user_id == user_id,
+                )
             )
-        ).first()
+            .first()
+        )
 
         if not member_row:
             return None
@@ -137,7 +139,7 @@ class OrganizationRepository:
             role=member_row.role,
             permissions=member_row.permissions or [],
             joined_at=member_row.joined_at,
-            invited_by=member_row.invited_by
+            invited_by=member_row.invited_by,
         )
 
     async def add_membership(self, membership: Membership) -> Membership:
@@ -149,7 +151,7 @@ class OrganizationRepository:
                 role=membership.role,
                 permissions=membership.permissions,
                 joined_at=membership.joined_at,
-                invited_by=membership.invited_by
+                invited_by=membership.invited_by,
             )
         )
         self.db.flush()
@@ -158,15 +160,14 @@ class OrganizationRepository:
     async def update_membership(self, membership: Membership) -> Membership:
         """Update an existing membership"""
         self.db.execute(
-            organization_members.update().where(
+            organization_members.update()
+            .where(
                 and_(
                     organization_members.c.organization_id == membership.organization_id,
-                    organization_members.c.user_id == membership.user_id
+                    organization_members.c.user_id == membership.user_id,
                 )
-            ).values(
-                role=membership.role,
-                permissions=membership.permissions
             )
+            .values(role=membership.role, permissions=membership.permissions)
         )
         self.db.flush()
         return membership
@@ -177,7 +178,7 @@ class OrganizationRepository:
             organization_members.delete().where(
                 and_(
                     organization_members.c.organization_id == organization_id,
-                    organization_members.c.user_id == user_id
+                    organization_members.c.user_id == user_id,
                 )
             )
         )
@@ -185,18 +186,18 @@ class OrganizationRepository:
 
     async def list_memberships_with_users(self, organization_id: UUID) -> List[MembershipWithUser]:
         """List all memberships with user details"""
-        results = self.db.query(
-            User,
-            organization_members.c.role,
-            organization_members.c.permissions,
-            organization_members.c.joined_at,
-            organization_members.c.invited_by
-        ).join(
-            organization_members,
-            User.id == organization_members.c.user_id
-        ).filter(
-            organization_members.c.organization_id == organization_id
-        ).all()
+        results = (
+            self.db.query(
+                User,
+                organization_members.c.role,
+                organization_members.c.permissions,
+                organization_members.c.joined_at,
+                organization_members.c.invited_by,
+            )
+            .join(organization_members, User.id == organization_members.c.user_id)
+            .filter(organization_members.c.organization_id == organization_id)
+            .all()
+        )
 
         memberships_with_users = []
         for user, role, permissions, joined_at, invited_by in results:
@@ -206,20 +207,20 @@ class OrganizationRepository:
                 role=role,
                 permissions=permissions or [],
                 joined_at=joined_at,
-                invited_by=invited_by
+                invited_by=invited_by,
             )
 
-            memberships_with_users.append(
-                MembershipWithUser(membership=membership, user=user)
-            )
+            memberships_with_users.append(MembershipWithUser(membership=membership, user=user))
 
         return memberships_with_users
 
     async def get_member_count(self, organization_id: UUID) -> int:
         """Get count of organization members"""
-        count = self.db.query(func.count(organization_members.c.user_id)).filter(
-            organization_members.c.organization_id == organization_id
-        ).scalar()
+        count = (
+            self.db.query(func.count(organization_members.c.user_id))
+            .filter(organization_members.c.organization_id == organization_id)
+            .scalar()
+        )
 
         return count or 0
 
@@ -227,16 +228,22 @@ class OrganizationRepository:
         """Find user by email"""
         return self.db.query(User).filter(User.email == email).first()
 
-    async def find_pending_invitation(self, organization_id: UUID, email: str) -> Optional[OrganizationInvitation]:
+    async def find_pending_invitation(
+        self, organization_id: UUID, email: str
+    ) -> Optional[OrganizationInvitation]:
         """Find pending invitation by organization and email"""
-        orm_invitation = self.db.query(ORMOrganizationInvitation).filter(
-            and_(
-                ORMOrganizationInvitation.organization_id == organization_id,
-                ORMOrganizationInvitation.email == email,
-                ORMOrganizationInvitation.status == "pending",
-                ORMOrganizationInvitation.expires_at > datetime.utcnow()
+        orm_invitation = (
+            self.db.query(ORMOrganizationInvitation)
+            .filter(
+                and_(
+                    ORMOrganizationInvitation.organization_id == organization_id,
+                    ORMOrganizationInvitation.email == email,
+                    ORMOrganizationInvitation.status == "pending",
+                    ORMOrganizationInvitation.expires_at > datetime.utcnow(),
+                )
             )
-        ).first()
+            .first()
+        )
 
         if not orm_invitation:
             return None
@@ -256,7 +263,7 @@ class OrganizationRepository:
             status=invitation.status,
             expires_at=invitation.expires_at,
             created_at=invitation.created_at,
-            accepted_at=invitation.accepted_at
+            accepted_at=invitation.accepted_at,
         )
 
         self.db.add(orm_invitation)
@@ -267,15 +274,14 @@ class OrganizationRepository:
 
     async def list_user_organizations(self, user_id: UUID) -> List[tuple[Organization, str]]:
         """List organizations where user is a member"""
-        results = self.db.query(
-            ORMOrganization,
-            organization_members.c.role
-        ).join(
-            organization_members,
-            ORMOrganization.id == organization_members.c.organization_id
-        ).filter(
-            organization_members.c.user_id == user_id
-        ).all()
+        results = (
+            self.db.query(ORMOrganization, organization_members.c.role)
+            .join(
+                organization_members, ORMOrganization.id == organization_members.c.organization_id
+            )
+            .filter(organization_members.c.user_id == user_id)
+            .all()
+        )
 
         organizations = []
         for orm_org, role in results:
@@ -298,10 +304,12 @@ class OrganizationRepository:
             billing_email=orm_org.billing_email,
             billing_plan=orm_org.billing_plan,
             created_at=orm_org.created_at,
-            updated_at=orm_org.updated_at
+            updated_at=orm_org.updated_at,
         )
 
-    def _map_orm_invitation_to_domain(self, orm_invitation: ORMOrganizationInvitation) -> OrganizationInvitation:
+    def _map_orm_invitation_to_domain(
+        self, orm_invitation: ORMOrganizationInvitation
+    ) -> OrganizationInvitation:
         """Map ORM invitation to domain model"""
         return OrganizationInvitation(
             id=orm_invitation.id,
@@ -314,5 +322,5 @@ class OrganizationRepository:
             status=orm_invitation.status,
             created_at=orm_invitation.created_at,
             expires_at=orm_invitation.expires_at,
-            accepted_at=orm_invitation.accepted_at
+            accepted_at=orm_invitation.accepted_at,
         )

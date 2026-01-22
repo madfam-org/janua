@@ -187,13 +187,20 @@ async def check_organization_permission(
     # Cache the organization data (10 minute TTL)
     try:
         redis = await get_redis()
-        await redis.set(cache_key, json.dumps({
-            "id": str(org.id),
-            "name": org.name,
-            "slug": org.slug,
-            "owner_id": str(org.owner_id),
-            "settings": org.settings or {},
-        }, default=str), ex=600)  # 10 minutes
+        await redis.set(
+            cache_key,
+            json.dumps(
+                {
+                    "id": str(org.id),
+                    "name": org.name,
+                    "slug": org.slug,
+                    "owner_id": str(org.owner_id),
+                    "settings": org.settings or {},
+                },
+                default=str,
+            ),
+            ex=600,
+        )  # 10 minutes
     except Exception:
         pass  # Continue without caching
 
@@ -306,7 +313,7 @@ async def list_organizations(
     member_count_subquery = (
         select(
             organization_members.c.organization_id,
-            func.count(organization_members.c.user_id).label('member_count')
+            func.count(organization_members.c.user_id).label("member_count"),
         )
         .group_by(organization_members.c.organization_id)
         .subquery()
@@ -317,10 +324,12 @@ async def list_organizations(
         select(
             Organization,
             organization_members.c.role,
-            func.coalesce(member_count_subquery.c.member_count, 0).label('member_count')
+            func.coalesce(member_count_subquery.c.member_count, 0).label("member_count"),
         )
         .join(organization_members, Organization.id == organization_members.c.organization_id)
-        .outerjoin(member_count_subquery, Organization.id == member_count_subquery.c.organization_id)
+        .outerjoin(
+            member_count_subquery, Organization.id == member_count_subquery.c.organization_id
+        )
         .where(organization_members.c.user_id == current_user.id)
     )
     user_orgs = result_set.all()
@@ -422,6 +431,7 @@ async def update_organization(
 
     # Invalidate organization cache
     from app.core.redis import get_redis
+
     try:
         redis = await get_redis()
         await redis.delete(f"org:data:{org.id}")

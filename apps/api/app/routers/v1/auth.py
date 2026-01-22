@@ -218,7 +218,7 @@ async def sign_up(
             first_name=user.first_name,
             last_name=user.last_name,
             profile_image_url=user.profile_image_url,
-            is_admin=getattr(user, 'is_admin', False),
+            is_admin=getattr(user, "is_admin", False),
             created_at=user.created_at,
             updated_at=user.updated_at,
             last_sign_in_at=user.last_sign_in_at,
@@ -238,14 +238,10 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
     # Find user - we need to find the user first to check lockout status
     # Note: We look for any user (not just ACTIVE) to check lockout, then verify status
     if credentials.email:
-        result = await db.execute(
-            select(User).where(User.email == credentials.email)
-        )
+        result = await db.execute(select(User).where(User.email == credentials.email))
         user = result.scalar_one_or_none()
     else:
-        result = await db.execute(
-            select(User).where(User.username == credentials.username)
-        )
+        result = await db.execute(select(User).where(User.username == credentials.username))
         user = result.scalar_one_or_none()
 
     if not user:
@@ -258,7 +254,7 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
         raise HTTPException(
             status_code=423,  # HTTP 423 Locked
             detail=f"Account temporarily locked due to too many failed login attempts. "
-                   f"Please try again in {minutes_remaining} minute(s).",
+            f"Please try again in {minutes_remaining} minute(s).",
         )
 
     # Check user status after lockout check
@@ -279,7 +275,7 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
             raise HTTPException(
                 status_code=423,
                 detail=f"Account locked due to too many failed login attempts. "
-                       f"Please try again in {minutes_remaining} minute(s).",
+                f"Please try again in {minutes_remaining} minute(s).",
             )
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -303,7 +299,7 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
             first_name=user.first_name,
             last_name=user.last_name,
             profile_image_url=user.profile_image_url,
-            is_admin=getattr(user, 'is_admin', False),
+            is_admin=getattr(user, "is_admin", False),
             created_at=user.created_at,
             updated_at=user.updated_at,
             last_sign_in_at=user.last_sign_in_at,
@@ -336,27 +332,19 @@ async def check_session(
     access_token = request.cookies.get("access_token")
 
     if not access_token:
-        raise HTTPException(
-            status_code=401,
-            detail="No session cookie found"
-        )
+        raise HTTPException(status_code=401, detail="No session cookie found")
 
     # Validate access token
     payload = AuthService.verify_token(access_token, token_type="access")
     if not payload:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired session"
-        )
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
 
     # Fetch user from database
     from uuid import UUID as PyUUID
+
     user_id = payload.get("sub")
     if not user_id:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token payload"
-        )
+        raise HTTPException(status_code=401, detail="Invalid token payload")
 
     result = await db.execute(
         select(User).where(User.id == PyUUID(user_id), User.status == UserStatus.ACTIVE)
@@ -364,10 +352,7 @@ async def check_session(
     user = result.scalar_one_or_none()
 
     if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="User not found or inactive"
-        )
+        raise HTTPException(status_code=401, detail="User not found or inactive")
 
     return {
         "authenticated": True,
@@ -378,13 +363,13 @@ async def check_session(
             "first_name": user.first_name,
             "last_name": user.last_name,
             "email_verified": user.email_verified,
-            "roles": getattr(user, 'roles', []),
-            "permissions": getattr(user, 'permissions', []),
-            "is_admin": getattr(user, 'is_admin', False),
+            "roles": getattr(user, "roles", []),
+            "permissions": getattr(user, "permissions", []),
+            "is_admin": getattr(user, "is_admin", False),
         },
         "session": {
             "expires_at": payload.get("exp"),
-        }
+        },
     }
 
 
@@ -413,12 +398,13 @@ async def login_page(
 
     # Escape values for HTML safety
     import html
+
     # SECURITY: Validate the 'next' URL to prevent open redirect attacks (CWE-601)
     safe_next = validate_redirect_url(next or "/", default_url="/")
     next_url = html.escape(safe_next)
     app_name = html.escape(client_name or "Application")
 
-    html_content = f'''
+    html_content = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -564,7 +550,7 @@ async def login_page(
     </div>
 </body>
 </html>
-'''
+"""
     return HTMLResponse(content=html_content)
 
 
@@ -601,7 +587,7 @@ async def login_form(
 
     # Helper to return error page
     def make_error_page(error_message: str) -> HTMLResponse:
-        error_html = f'''
+        error_html = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -685,7 +671,7 @@ async def login_form(
     </div>
 </body>
 </html>
-'''
+"""
         return HTMLResponse(content=error_html, status_code=401)
 
     # Find user by email (without status filter to check lockout first)
@@ -827,7 +813,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         first_name=current_user.first_name,
         last_name=current_user.last_name,
         profile_image_url=current_user.profile_image_url,
-        is_admin=getattr(current_user, 'is_admin', False),
+        is_admin=getattr(current_user, "is_admin", False),
         created_at=current_user.created_at,
         updated_at=current_user.updated_at,
         last_sign_in_at=current_user.last_sign_in_at,
@@ -1106,7 +1092,7 @@ async def verify_magic_link(
             first_name=user.first_name,
             last_name=user.last_name,
             profile_image_url=user.profile_image_url,
-            is_admin=getattr(user, 'is_admin', False),
+            is_admin=getattr(user, "is_admin", False),
             created_at=user.created_at,
             updated_at=user.updated_at,
             last_sign_in_at=user.last_sign_in_at,

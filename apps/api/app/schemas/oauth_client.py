@@ -189,7 +189,9 @@ class OAuthClientSecretStatusResponse(BaseModel):
     has_primary: bool
     primary_created_at: Optional[datetime] = None
     primary_age_days: Optional[int] = None
-    rotation_recommended: bool = Field(..., description="True if rotation is recommended based on age")
+    rotation_recommended: bool = Field(
+        ..., description="True if rotation is recommended based on age"
+    )
     max_age_days: int = Field(..., description="Maximum recommended age for secrets")
     secrets: List[OAuthClientSecretInfo]
 
@@ -207,5 +209,5 @@ class OAuthClientSecretRotateRequest(BaseModel):
         None,
         ge=0,
         le=168,
-        description="Hours before old secrets expire (0-168, default from config)"
+        description="Hours before old secrets expire (0-168, default from config)",
     )

@@ -13,6 +13,7 @@ from app.models.compliance import DataCategory, LegalBasis
 @dataclass
 class DataSubjectRequestResponse:
     """Response to a data subject request"""
+
     request_id: str
     response_type: str
     data: Optional[Dict[str, Any]]
@@ -24,6 +25,7 @@ class DataSubjectRequestResponse:
 @dataclass
 class PrivacyImpactAssessment:
     """Privacy Impact Assessment (PIA) for GDPR compliance"""
+
     pia_id: str
     title: str
     description: str

@@ -34,7 +34,9 @@ class CreateOrganizationResult:
     membership: Membership
 
 
-class CreateOrganizationHandler(CommandHandler[CreateOrganizationCommand, CreateOrganizationResult]):
+class CreateOrganizationHandler(
+    CommandHandler[CreateOrganizationCommand, CreateOrganizationResult]
+):
     """Handler for creating organizations"""
 
     def __init__(self, repository: OrganizationRepository):
@@ -60,7 +62,7 @@ class CreateOrganizationHandler(CommandHandler[CreateOrganizationCommand, Create
             billing_email=command.billing_email or command.owner_email,
             billing_plan="free",
             settings={},
-            org_metadata={}
+            org_metadata={},
         )
 
         # Create owner membership
@@ -68,17 +70,14 @@ class CreateOrganizationHandler(CommandHandler[CreateOrganizationCommand, Create
             organization_id=organization.id,
             user_id=command.owner_id,
             role=OrganizationRole.ADMIN,  # Owner gets admin role in membership table
-            permissions=[]
+            permissions=[],
         )
 
         # Save to repository
         saved_org = await self.repository.save(organization)
         await self.repository.add_membership(membership)
 
-        return CreateOrganizationResult(
-            organization=saved_org,
-            membership=membership
-        )
+        return CreateOrganizationResult(organization=saved_org, membership=membership)
 
     async def _validate_command(self, command: CreateOrganizationCommand) -> None:
         """Validate the create organization command"""
@@ -97,8 +96,11 @@ class CreateOrganizationHandler(CommandHandler[CreateOrganizationCommand, Create
 
         # Validate slug format
         import re
-        if not re.match(r'^[a-z0-9-]+$', command.slug.lower()):
-            raise ValidationError("Organization slug must contain only lowercase letters, numbers, and hyphens")
+
+        if not re.match(r"^[a-z0-9-]+$", command.slug.lower()):
+            raise ValidationError(
+                "Organization slug must contain only lowercase letters, numbers, and hyphens"
+            )
 
         if command.description and len(command.description) > 1000:
             raise ValidationError("Organization description cannot exceed 1000 characters")

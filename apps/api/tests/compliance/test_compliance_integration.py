@@ -12,8 +12,13 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 from app.models.compliance import (
-    ConsentType, ConsentStatus, LegalBasis, DataSubjectRequestType,
-    RequestStatus, ComplianceFramework, DataCategory
+    ConsentType,
+    ConsentStatus,
+    LegalBasis,
+    DataSubjectRequestType,
+    RequestStatus,
+    ComplianceFramework,
+    DataCategory,
 )
 from app.services.compliance_service import ComplianceService
 from app.services.audit_logger import AuditLogger
@@ -39,7 +44,9 @@ class TestComplianceIntegration:
         return uuid4()
 
     @pytest.mark.asyncio
-    async def test_gdpr_consent_lifecycle(self, compliance_service, sample_user_id, sample_tenant_id):
+    async def test_gdpr_consent_lifecycle(
+        self, compliance_service, sample_user_id, sample_tenant_id
+    ):
         """Test complete GDPR consent lifecycle"""
 
         # 1. Record initial consent
@@ -53,7 +60,7 @@ class TestComplianceIntegration:
             third_parties=["mailchimp", "google_analytics"],
             ip_address="192.168.1.1",
             user_agent="Mozilla/5.0 Test",
-            tenant_id=sample_tenant_id
+            tenant_id=sample_tenant_id,
         )
 
         assert consent_record.user_id == sample_user_id
@@ -66,7 +73,7 @@ class TestComplianceIntegration:
         is_valid = await compliance_service.consent_service.check_consent(
             user_id=sample_user_id,
             consent_type=ConsentType.MARKETING,
-            purpose="Email marketing campaigns"
+            purpose="Email marketing campaigns",
         )
         assert is_valid
 
@@ -77,7 +84,7 @@ class TestComplianceIntegration:
             purpose="Email marketing campaigns",
             withdrawal_reason="No longer interested",
             ip_address="192.168.1.2",
-            tenant_id=sample_tenant_id
+            tenant_id=sample_tenant_id,
         )
         assert withdrawal_success
 
@@ -85,21 +92,22 @@ class TestComplianceIntegration:
         is_valid_after_withdrawal = await compliance_service.consent_service.check_consent(
             user_id=sample_user_id,
             consent_type=ConsentType.MARKETING,
-            purpose="Email marketing campaigns"
+            purpose="Email marketing campaigns",
         )
         assert not is_valid_after_withdrawal
 
         # 5. Check consent records include withdrawal
         all_consents = await compliance_service.consent_service.get_user_consents(
-            user_id=sample_user_id,
-            include_withdrawn=True
+            user_id=sample_user_id, include_withdrawn=True
         )
         assert len(all_consents) == 1
         assert all_consents[0].status == ConsentStatus.WITHDRAWN
         assert all_consents[0].withdrawal_reason == "No longer interested"
 
     @pytest.mark.asyncio
-    async def test_data_subject_rights_request_flow(self, compliance_service, sample_user_id, sample_tenant_id):
+    async def test_data_subject_rights_request_flow(
+        self, compliance_service, sample_user_id, sample_tenant_id
+    ):
         """Test GDPR data subject rights request flow"""
 
         # 1. Create access request (Article 15)
@@ -109,7 +117,7 @@ class TestComplianceIntegration:
             description="I want to see all my personal data",
             data_categories=[DataCategory.IDENTITY, DataCategory.CONTACT],
             ip_address="192.168.1.1",
-            tenant_id=sample_tenant_id
+            tenant_id=sample_tenant_id,
         )
 
         assert access_request.user_id == sample_user_id
@@ -125,7 +133,7 @@ class TestComplianceIntegration:
             description="Please delete all my personal data",
             data_categories=[DataCategory.IDENTITY, DataCategory.CONTACT, DataCategory.BEHAVIORAL],
             ip_address="192.168.1.1",
-            tenant_id=sample_tenant_id
+            tenant_id=sample_tenant_id,
         )
 
         assert erasure_request.request_type == DataSubjectRequestType.ERASURE
@@ -137,7 +145,9 @@ class TestComplianceIntegration:
         assert abs((erasure_request.response_due_date - expected_deadline).total_seconds()) < 60
 
     @pytest.mark.asyncio
-    async def test_data_retention_policy_creation(self, compliance_service, sample_user_id, sample_tenant_id):
+    async def test_data_retention_policy_creation(
+        self, compliance_service, sample_user_id, sample_tenant_id
+    ):
         """Test data retention policy creation and enforcement"""
 
         # 1. Create retention policy for user data
@@ -150,7 +160,7 @@ class TestComplianceIntegration:
             deletion_method="anonymize",
             auto_deletion_enabled=True,
             tenant_id=sample_tenant_id,
-            approved_by=sample_user_id
+            approved_by=sample_user_id,
         )
 
         assert policy.name == "User Data Retention Policy"
@@ -167,8 +177,7 @@ class TestComplianceIntegration:
 
         # 3. Test dry run of retention policy execution
         execution_result = await compliance_service.data_retention_service.execute_retention_policy(
-            policy_id=policy.id,
-            dry_run=True
+            policy_id=policy.id, dry_run=True
         )
 
         assert execution_result["dry_run"] is True
@@ -176,7 +185,9 @@ class TestComplianceIntegration:
         assert "expired_items_count" in execution_result
 
     @pytest.mark.asyncio
-    async def test_compliance_dashboard_metrics(self, compliance_service, sample_user_id, sample_tenant_id):
+    async def test_compliance_dashboard_metrics(
+        self, compliance_service, sample_user_id, sample_tenant_id
+    ):
         """Test compliance dashboard metrics calculation"""
 
         # 1. Create some test data
@@ -184,20 +195,18 @@ class TestComplianceIntegration:
             user_id=sample_user_id,
             consent_type=ConsentType.ANALYTICS,
             purpose="Website analytics",
-            tenant_id=sample_tenant_id
+            tenant_id=sample_tenant_id,
         )
 
         await compliance_service.data_subject_rights_service.create_request(
             user_id=sample_user_id,
             request_type=DataSubjectRequestType.ACCESS,
             description="Test request",
-            tenant_id=sample_tenant_id
+            tenant_id=sample_tenant_id,
         )
 
         # 2. Get dashboard metrics
-        dashboard = await compliance_service.get_compliance_dashboard(
-            tenant_id=sample_tenant_id
-        )
+        dashboard = await compliance_service.get_compliance_dashboard(tenant_id=sample_tenant_id)
 
         assert "consent_metrics" in dashboard
         assert "data_subject_request_metrics" in dashboard
@@ -213,15 +222,14 @@ class TestComplianceIntegration:
         assert isinstance(dashboard["data_subject_request_metrics"], dict)
 
     @pytest.mark.asyncio
-    async def test_privacy_settings_defaults(self, compliance_service, sample_user_id, sample_tenant_id, async_db_session):
+    async def test_privacy_settings_defaults(
+        self, compliance_service, sample_user_id, sample_tenant_id, async_db_session
+    ):
         """Test privacy-by-default settings"""
         from app.models.compliance import PrivacySettings
 
         # 1. Create default privacy settings for new user
-        privacy_settings = PrivacySettings(
-            user_id=sample_user_id,
-            tenant_id=sample_tenant_id
-        )
+        privacy_settings = PrivacySettings(user_id=sample_user_id, tenant_id=sample_tenant_id)
         async_db_session.add(privacy_settings)
         await async_db_session.commit()
         await async_db_session.refresh(privacy_settings)
@@ -239,7 +247,9 @@ class TestComplianceIntegration:
         assert privacy_settings.consent_renewal_due is None  # No renewal needed yet
 
     @pytest.mark.asyncio
-    async def test_audit_trail_compliance_events(self, compliance_service, sample_user_id, sample_tenant_id, async_db_session):
+    async def test_audit_trail_compliance_events(
+        self, compliance_service, sample_user_id, sample_tenant_id, async_db_session
+    ):
         """Test that compliance events are properly logged in audit trail"""
 
         # Mock audit logger to capture events
@@ -260,7 +270,7 @@ class TestComplianceIntegration:
             user_id=sample_user_id,
             consent_type=ConsentType.FUNCTIONAL,
             purpose="Essential website functionality",
-            tenant_id=sample_tenant_id
+            tenant_id=sample_tenant_id,
         )
 
         # 2. Create data subject request (should trigger audit event)
@@ -268,7 +278,7 @@ class TestComplianceIntegration:
             user_id=sample_user_id,
             request_type=DataSubjectRequestType.ACCESS,
             description="Audit trail test",
-            tenant_id=sample_tenant_id
+            tenant_id=sample_tenant_id,
         )
 
         # 3. Verify audit events were logged
@@ -314,7 +324,9 @@ class TestComplianceIntegration:
         assert settings.GDPR_BREACH_NOTIFICATION_HOURS == 72
 
     @pytest.mark.asyncio
-    async def test_compliance_report_generation(self, compliance_service, sample_user_id, sample_tenant_id):
+    async def test_compliance_report_generation(
+        self, compliance_service, sample_user_id, sample_tenant_id
+    ):
         """Test compliance report generation"""
 
         # 1. Create some test data for the report
@@ -322,7 +334,7 @@ class TestComplianceIntegration:
             user_id=sample_user_id,
             consent_type=ConsentType.ANALYTICS,
             purpose="Reporting test",
-            tenant_id=sample_tenant_id
+            tenant_id=sample_tenant_id,
         )
 
         # 2. Generate GDPR compliance report
@@ -331,7 +343,7 @@ class TestComplianceIntegration:
             period_start=datetime.utcnow() - timedelta(days=30),
             period_end=datetime.utcnow(),
             tenant_id=sample_tenant_id,
-            generated_by=sample_user_id
+            generated_by=sample_user_id,
         )
 
         assert report.report_id.startswith("RPT-GDPR-")
@@ -348,7 +360,9 @@ class TestComplianceIntegration:
         assert 0 <= report.compliance_score <= 100
 
     @pytest.mark.asyncio
-    async def test_data_anonymization_compliance(self, compliance_service, sample_user_id, sample_tenant_id, async_db_session):
+    async def test_data_anonymization_compliance(
+        self, compliance_service, sample_user_id, sample_tenant_id, async_db_session
+    ):
         """Test data anonymization for compliance"""
         from app.models import User
 
@@ -358,7 +372,7 @@ class TestComplianceIntegration:
             email="test@example.com",
             first_name="John",
             last_name="Doe",
-            tenant_id=sample_tenant_id
+            tenant_id=sample_tenant_id,
         )
         async_db_session.add(test_user)
         await async_db_session.commit()
@@ -368,14 +382,14 @@ class TestComplianceIntegration:
             user_id=sample_user_id,
             request_type=DataSubjectRequestType.ERASURE,
             description="GDPR erasure test",
-            tenant_id=sample_tenant_id
+            tenant_id=sample_tenant_id,
         )
 
         # 3. Process the erasure request (anonymization)
         success = await compliance_service.data_subject_rights_service.process_erasure_request(
             request_id=erasure_request.request_id,
             processor_id=sample_user_id,
-            deletion_method="anonymize"
+            deletion_method="anonymize",
         )
 
         assert success
@@ -418,7 +432,7 @@ class TestCompliancePerformance:
                 user_id=user_id,
                 consent_type=ConsentType.ANALYTICS,
                 purpose=f"Bulk test {i}",
-                tenant_id=uuid4()
+                tenant_id=uuid4(),
             )
             tasks.append(task)
 

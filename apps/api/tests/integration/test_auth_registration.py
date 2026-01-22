@@ -44,13 +44,10 @@ async def test_user_signup_success(client: AsyncClient):
         "password": "SecurePassword123!",
         "first_name": "New",
         "last_name": "User",
-        "username": "newuser"
+        "username": "newuser",
     }
 
-    response = await client.post(
-        "/api/v1/auth/signup",
-        json=registration_data
-    )
+    response = await client.post("/api/v1/auth/signup", json=registration_data)
 
     assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
 
@@ -70,11 +67,12 @@ async def test_user_signup_success(client: AsyncClient):
     assert "hashed_password" not in data["user"]
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_user_signup_duplicate_email(client: AsyncClient, test_user: User): # Existing user fixture
+async def test_user_signup_duplicate_email(
+    client: AsyncClient, test_user: User
+):  # Existing user fixture
     """
     Test registration rejection for duplicate email
 
@@ -91,10 +89,7 @@ async def test_user_signup_duplicate_email(client: AsyncClient, test_user: User)
         "last_name": "User",
     }
 
-    response = await client.post(
-        "/api/v1/auth/signup",
-        json=registration_data
-    )
+    response = await client.post("/api/v1/auth/signup", json=registration_data)
 
     assert response.status_code in [400, 409], "Should reject duplicate email with 400 or 409"
 
@@ -102,7 +97,6 @@ async def test_user_signup_duplicate_email(client: AsyncClient, test_user: User)
     assert "error" in data or "detail" in data
     error_message = (data.get("error", {}).get("message", "") or data.get("detail", "")).lower()
     assert any(keyword in error_message for keyword in ["email", "exists", "already", "duplicate"])
-
 
 
 @pytest.mark.asyncio
@@ -125,18 +119,18 @@ async def test_email_verification_token_created(client: AsyncClient):
         "last_name": "User",
     }
 
-    with patch('app.services.email.EmailService.send_verification_email', new_callable=AsyncMock) as mock_send:
-        response = await client.post(
-            "/api/v1/auth/signup",
-            json=registration_data
-        )
+    with patch(
+        "app.services.email.EmailService.send_verification_email", new_callable=AsyncMock
+    ) as mock_send:
+        response = await client.post("/api/v1/auth/signup", json=registration_data)
 
     assert response.status_code == 201
 
     data = response.json()
     # New users should NOT be verified initially (security best practice)
-    assert data["user"]["email_verified"] == False or data["user"]["email_verified"] == True  # Depends on config
-
+    assert (
+        data["user"]["email_verified"] == False or data["user"]["email_verified"] == True
+    )  # Depends on config
 
 
 @pytest.mark.asyncio
@@ -160,7 +154,6 @@ async def test_signup_rate_limiting(client: AsyncClient):
     # Manual testing: Run without MockLimiter to verify rate limiting works
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
@@ -181,16 +174,16 @@ async def test_signup_email_case_normalization(client: AsyncClient):
         "last_name": "User",
     }
 
-    response1 = await client.post(
-        "/api/v1/auth/signup",
-        json=registration_data_1
-    )
+    response1 = await client.post("/api/v1/auth/signup", json=registration_data_1)
 
     assert response1.status_code == 201
 
     # Email should be normalized to lowercase
     data1 = response1.json()
-    assert data1["user"]["email"] == "testuser@example.com" or data1["user"]["email"] == "TestUser@Example.COM"
+    assert (
+        data1["user"]["email"] == "testuser@example.com"
+        or data1["user"]["email"] == "TestUser@Example.COM"
+    )
 
     # Try to register with different case - should fail
     registration_data_2 = {
@@ -200,13 +193,9 @@ async def test_signup_email_case_normalization(client: AsyncClient):
         "last_name": "User2",
     }
 
-    response2 = await client.post(
-        "/api/v1/auth/signup",
-        json=registration_data_2
-    )
+    response2 = await client.post("/api/v1/auth/signup", json=registration_data_2)
 
     assert response2.status_code in [400, 409], "Should detect duplicate email regardless of case"
-
 
 
 @pytest.mark.asyncio
@@ -227,13 +216,10 @@ async def test_signup_username_validation(client: AsyncClient):
         "email": "username_test@example.com",
         "password": "SecurePassword123!",
         "username": "valid_user-123",
-        "first_name": "Test"
+        "first_name": "Test",
     }
 
-    response = await client.post(
-        "/api/v1/auth/signup",
-        json=valid_data
-    )
+    response = await client.post("/api/v1/auth/signup", json=valid_data)
 
     assert response.status_code == 201, "Valid username should be accepted"
 
@@ -242,16 +228,12 @@ async def test_signup_username_validation(client: AsyncClient):
         "email": "invalid_username@example.com",
         "password": "SecurePassword123!",
         "username": "invalid@user!",
-        "first_name": "Test"
+        "first_name": "Test",
     }
 
-    response_invalid = await client.post(
-        "/api/v1/auth/signup",
-        json=invalid_data
-    )
+    response_invalid = await client.post("/api/v1/auth/signup", json=invalid_data)
 
     assert response_invalid.status_code in [400, 422], "Invalid username should be rejected"
-
 
 
 @pytest.mark.asyncio
@@ -273,10 +255,7 @@ async def test_signup_whitespace_handling(client: AsyncClient):
         "last_name": "  User  ",
     }
 
-    response = await client.post(
-        "/api/v1/auth/signup",
-        json=registration_data
-    )
+    response = await client.post("/api/v1/auth/signup", json=registration_data)
 
     # Should either succeed or fail validation, but not crash
     assert response.status_code in [201, 400, 422]
@@ -285,7 +264,6 @@ async def test_signup_whitespace_handling(client: AsyncClient):
         data = response.json()
         # Email should be trimmed
         assert data["user"]["email"].strip() == data["user"]["email"]
-
 
 
 @pytest.mark.asyncio
@@ -307,10 +285,7 @@ async def test_signup_password_not_logged(client: AsyncClient):
         "last_name": "Test",
     }
 
-    response = await client.post(
-        "/api/v1/auth/signup",
-        json=registration_data
-    )
+    response = await client.post("/api/v1/auth/signup", json=registration_data)
 
     assert response.status_code == 201
 
@@ -318,8 +293,6 @@ async def test_signup_password_not_logged(client: AsyncClient):
     data = response.json()
     assert "password" not in data["user"]
     assert "hashed_password" not in data["user"]
-
-
 
 
 @pytest.mark.asyncio
@@ -339,18 +312,12 @@ async def test_email_verification_success(client: AsyncClient, test_user_unverif
     verification_token = "mock_verification_token_12345"
 
     # Mock the verification endpoint (implementation may vary)
-    verify_data = {
-        "token": verification_token
-    }
+    verify_data = {"token": verification_token}
 
-    response = await client.post(
-        "/api/v1/auth/verify-email",
-        json=verify_data
-    )
+    response = await client.post("/api/v1/auth/verify-email", json=verify_data)
 
     # Accept either success or error (depends on mock implementation)
     assert response.status_code in [200, 400, 404]
-
 
 
 @pytest.mark.asyncio
@@ -365,17 +332,11 @@ async def test_email_verification_invalid_token(client: AsyncClient):
     - Appropriate error message
     - Email status NOT changed
     """
-    verify_data = {
-        "token": "invalid_token_that_does_not_exist"
-    }
+    verify_data = {"token": "invalid_token_that_does_not_exist"}
 
-    response = await client.post(
-        "/api/v1/auth/verify-email",
-        json=verify_data
-    )
+    response = await client.post("/api/v1/auth/verify-email", json=verify_data)
 
     assert response.status_code in [400, 404], "Invalid token should be rejected"
-
 
 
 @pytest.mark.asyncio
@@ -392,8 +353,6 @@ async def test_email_verification_expired_token(client: AsyncClient):
     """
     # This would require creating an expired token
     # Implementation depends on token generation logic
-
-
 
 
 @pytest.mark.asyncio
@@ -422,15 +381,11 @@ async def test_signup_sql_injection_attempt(client: AsyncClient):
             "last_name": "Test",
         }
 
-        response = await client.post(
-            "/api/v1/auth/signup",
-            json=registration_data
-        )
+        response = await client.post("/api/v1/auth/signup", json=registration_data)
 
         # Should either succeed (payload escaped) or fail validation
         # But should NOT crash or execute SQL
         assert response.status_code in [201, 400, 422]
-
 
 
 @pytest.mark.asyncio
@@ -459,10 +414,7 @@ async def test_signup_xss_prevention(client: AsyncClient):
             "last_name": "Test",
         }
 
-        response = await client.post(
-            "/api/v1/auth/signup",
-            json=registration_data
-        )
+        response = await client.post("/api/v1/auth/signup", json=registration_data)
 
         # Should handle safely
         assert response.status_code in [201, 400, 422]
@@ -471,7 +423,6 @@ async def test_signup_xss_prevention(client: AsyncClient):
             data = response.json()
             # XSS payload should be escaped or sanitized
             assert payload not in str(data) or "<" not in data["user"]["first_name"]
-
 
 
 @pytest.mark.asyncio
@@ -493,14 +444,10 @@ async def test_signup_unicode_characters(client: AsyncClient):
         "last_name": "Müller 👨‍💻",
     }
 
-    response = await client.post(
-        "/api/v1/auth/signup",
-        json=registration_data
-    )
+    response = await client.post("/api/v1/auth/signup", json=registration_data)
 
     # Should handle Unicode characters
     assert response.status_code in [201, 400, 422]
-
 
 
 @pytest.mark.asyncio
@@ -522,13 +469,7 @@ async def test_signup_very_long_inputs(client: AsyncClient):
         "last_name": "B" * 500,
     }
 
-    response = await client.post(
-        "/api/v1/auth/signup",
-        json=registration_data
-    )
+    response = await client.post("/api/v1/auth/signup", json=registration_data)
 
     # Should reject with validation error
     assert response.status_code in [400, 422], "Should enforce maximum lengths"
-
-
-

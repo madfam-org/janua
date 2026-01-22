@@ -71,8 +71,8 @@ class DatabaseManager:
                 )
 
                 # Disable SSL for asyncpg connections when DATABASE_SSL_MODE is 'disable'
-                ssl_mode = getattr(settings, 'DATABASE_SSL_MODE', 'disable')
-                if ssl_mode == 'disable' and 'asyncpg' in database_url:
+                ssl_mode = getattr(settings, "DATABASE_SSL_MODE", "disable")
+                if ssl_mode == "disable" and "asyncpg" in database_url:
                     engine_kwargs["connect_args"] = {"ssl": False}
 
                 # Production-specific optimizations

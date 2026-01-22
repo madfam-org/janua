@@ -30,6 +30,7 @@ logger = structlog.get_logger()
 
 class MetricType(Enum):
     """Types of metrics we can collect"""
+
     COUNTER = "counter"
     HISTOGRAM = "histogram"
     GAUGE = "gauge"
@@ -38,6 +39,7 @@ class MetricType(Enum):
 
 class TraceLevel(Enum):
     """Trace detail levels"""
+
     MINIMAL = "minimal"
     STANDARD = "standard"
     DETAILED = "detailed"
@@ -47,6 +49,7 @@ class TraceLevel(Enum):
 @dataclass
 class PerformanceMetric:
     """Individual performance metric"""
+
     name: str
     value: float
     timestamp: datetime
@@ -57,6 +60,7 @@ class PerformanceMetric:
 @dataclass
 class TraceSpan:
     """Distributed trace span"""
+
     span_id: str
     trace_id: str
     parent_span_id: Optional[str]
@@ -73,6 +77,7 @@ class TraceSpan:
 @dataclass
 class PerformanceProfile:
     """Performance profile for a request/operation"""
+
     request_id: str
     operation: str
     start_time: datetime
@@ -99,62 +104,56 @@ class APMCollector:
 
         # Prometheus metrics
         self.request_duration = Histogram(
-            'http_request_duration_seconds',
-            'HTTP request duration in seconds',
-            ['method', 'endpoint', 'status_code'],
-            registry=self.registry
+            "http_request_duration_seconds",
+            "HTTP request duration in seconds",
+            ["method", "endpoint", "status_code"],
+            registry=self.registry,
         )
 
         self.request_counter = Counter(
-            'http_requests_total',
-            'Total HTTP requests',
-            ['method', 'endpoint', 'status_code'],
-            registry=self.registry
+            "http_requests_total",
+            "Total HTTP requests",
+            ["method", "endpoint", "status_code"],
+            registry=self.registry,
         )
 
         self.database_operations = Histogram(
-            'database_operation_duration_seconds',
-            'Database operation duration',
-            ['operation', 'table'],
-            registry=self.registry
+            "database_operation_duration_seconds",
+            "Database operation duration",
+            ["operation", "table"],
+            registry=self.registry,
         )
 
         self.redis_operations = Histogram(
-            'redis_operation_duration_seconds',
-            'Redis operation duration',
-            ['operation', 'key_pattern'],
-            registry=self.registry
+            "redis_operation_duration_seconds",
+            "Redis operation duration",
+            ["operation", "key_pattern"],
+            registry=self.registry,
         )
 
         self.system_cpu_usage = Gauge(
-            'system_cpu_usage_percent',
-            'System CPU usage percentage',
-            registry=self.registry
+            "system_cpu_usage_percent", "System CPU usage percentage", registry=self.registry
         )
 
         self.system_memory_usage = Gauge(
-            'system_memory_usage_percent',
-            'System memory usage percentage',
-            registry=self.registry
+            "system_memory_usage_percent", "System memory usage percentage", registry=self.registry
         )
 
         self.application_memory = Gauge(
-            'application_memory_bytes',
-            'Application memory usage in bytes',
-            registry=self.registry
+            "application_memory_bytes", "Application memory usage in bytes", registry=self.registry
         )
 
         self.active_connections = Gauge(
-            'active_database_connections',
-            'Number of active database connections',
-            registry=self.registry
+            "active_database_connections",
+            "Number of active database connections",
+            registry=self.registry,
         )
 
         self.error_rate = Counter(
-            'application_errors_total',
-            'Total application errors',
-            ['error_type', 'component'],
-            registry=self.registry
+            "application_errors_total",
+            "Total application errors",
+            ["error_type", "component"],
+            registry=self.registry,
         )
 
         # Initialize OpenTelemetry
@@ -169,8 +168,8 @@ class APMCollector:
         try:
             # Set up Jaeger exporter
             jaeger_exporter = JaegerExporter(
-                agent_host_name=getattr(settings, 'JAEGER_HOST', 'localhost'),
-                agent_port=getattr(settings, 'JAEGER_PORT', 6831),
+                agent_host_name=getattr(settings, "JAEGER_HOST", "localhost"),
+                agent_port=getattr(settings, "JAEGER_PORT", 6831),
             )
 
             # Set up tracer provider
@@ -210,7 +209,7 @@ class APMCollector:
             self.redis_client = aioredis.from_url(
                 f"redis://{getattr(settings, 'REDIS_HOST', 'localhost')}:{getattr(settings, 'REDIS_PORT', 6379)}/2",
                 encoding="utf-8",
-                decode_responses=True
+                decode_responses=True,
             )
             await self.redis_client.ping()
             logger.info("APM Redis connection initialized")
@@ -242,8 +241,8 @@ class APMCollector:
                         {
                             f"cpu:{timestamp}": cpu_percent,
                             f"memory:{timestamp}": memory.percent,
-                            f"app_memory:{timestamp}": app_memory
-                        }
+                            f"app_memory:{timestamp}": app_memory,
+                        },
                     )
 
                     # Keep only last 24 hours of data
@@ -259,14 +258,14 @@ class APMCollector:
     def start_trace(self, operation_name: str, parent_span_id: Optional[str] = None) -> str:
         """Start a new trace span"""
         span_id = str(uuid.uuid4())
-        trace_id = parent_span_id.split(':')[0] if parent_span_id else str(uuid.uuid4())
+        trace_id = parent_span_id.split(":")[0] if parent_span_id else str(uuid.uuid4())
 
         span = TraceSpan(
             span_id=span_id,
             trace_id=trace_id,
             parent_span_id=parent_span_id,
             operation_name=operation_name,
-            start_time=datetime.now()
+            start_time=datetime.now(),
         )
 
         self.active_traces[span_id] = span
@@ -299,7 +298,7 @@ class APMCollector:
                 "timestamp": datetime.now().isoformat(),
                 "level": level,
                 "message": message,
-                **kwargs
+                **kwargs,
             }
             self.active_traces[span_id].logs.append(log_entry)
 
@@ -320,26 +319,21 @@ class APMCollector:
                 "tags": span.tags,
                 "logs": span.logs,
                 "status": span.status,
-                "error": span.error
+                "error": span.error,
             }
 
             # Store individual span
             await self.redis_client.hset(
-                f"apm:trace:{span.trace_id}:{span.span_id}",
-                mapping=trace_data
+                f"apm:trace:{span.trace_id}:{span.span_id}", mapping=trace_data
             )
 
             # Add to trace index
             await self.redis_client.zadd(
-                f"apm:trace_index:{span.trace_id}",
-                {span.span_id: time.time()}
+                f"apm:trace_index:{span.trace_id}", {span.span_id: time.time()}
             )
 
             # Add to global trace list
-            await self.redis_client.zadd(
-                "apm:traces",
-                {span.trace_id: time.time()}
-            )
+            await self.redis_client.zadd("apm:traces", {span.trace_id: time.time()})
 
             # Set expiration (keep traces for 7 days)
             await self.redis_client.expire(f"apm:trace:{span.trace_id}:{span.span_id}", 604800)
@@ -351,9 +345,7 @@ class APMCollector:
     def start_performance_profile(self, request_id: str, operation: str) -> str:
         """Start performance profiling for a request"""
         profile = PerformanceProfile(
-            request_id=request_id,
-            operation=operation,
-            start_time=datetime.now()
+            request_id=request_id, operation=operation, start_time=datetime.now()
         )
 
         self.active_profiles[request_id] = profile
@@ -379,7 +371,7 @@ class APMCollector:
                 "Failed to collect system metrics for performance profile",
                 request_id=request_id,
                 error=str(e),
-                error_type=type(e).__name__
+                error_type=type(e).__name__,
             )
 
         # Store completed profile
@@ -422,37 +414,35 @@ class APMCollector:
                 "redis_calls": profile.redis_calls,
                 "external_api_calls": profile.external_api_calls,
                 "error_count": profile.error_count,
-                "custom_metrics": profile.custom_metrics
+                "custom_metrics": profile.custom_metrics,
             }
 
             # Store profile
-            await self.redis_client.hset(
-                f"apm:profile:{profile.request_id}",
-                mapping=profile_data
-            )
+            await self.redis_client.hset(f"apm:profile:{profile.request_id}", mapping=profile_data)
 
             # Add to performance index
             await self.redis_client.zadd(
                 f"apm:performance:{profile.operation}",
-                {profile.request_id: profile.duration_ms or 0}
+                {profile.request_id: profile.duration_ms or 0},
             )
 
             # Add to global performance list
-            await self.redis_client.zadd(
-                "apm:profiles",
-                {profile.request_id: time.time()}
-            )
+            await self.redis_client.zadd("apm:profiles", {profile.request_id: time.time()})
 
             # Set expiration (keep profiles for 7 days)
             await self.redis_client.expire(f"apm:profile:{profile.request_id}", 604800)
 
         except Exception as e:
-            logger.error("Failed to store performance profile", error=str(e), request_id=profile.request_id)
+            logger.error(
+                "Failed to store performance profile", error=str(e), request_id=profile.request_id
+            )
 
     def record_http_request(self, method: str, endpoint: str, status_code: int, duration: float):
         """Record HTTP request metrics"""
         self.request_counter.labels(method=method, endpoint=endpoint, status_code=status_code).inc()
-        self.request_duration.labels(method=method, endpoint=endpoint, status_code=status_code).observe(duration)
+        self.request_duration.labels(
+            method=method, endpoint=endpoint, status_code=status_code
+        ).observe(duration)
 
     def record_database_operation(self, operation: str, table: str, duration: float):
         """Record database operation metrics"""
@@ -472,10 +462,11 @@ class APMCollector:
 
     def get_metrics(self) -> str:
         """Get Prometheus metrics output"""
-        return generate_latest(self.registry).decode('utf-8')
+        return generate_latest(self.registry).decode("utf-8")
 
-    async def get_performance_summary(self, operation: Optional[str] = None,
-                                    hours: int = 24) -> Dict[str, Any]:
+    async def get_performance_summary(
+        self, operation: Optional[str] = None, hours: int = 24
+    ) -> Dict[str, Any]:
         """Get performance summary for the last N hours"""
         if not self.redis_client:
             return {}
@@ -486,15 +477,12 @@ class APMCollector:
             if operation:
                 # Get performance data for specific operation
                 profile_ids = await self.redis_client.zrangebyscore(
-                    f"apm:performance:{operation}",
-                    cutoff_time, "+inf",
-                    withscores=True
+                    f"apm:performance:{operation}", cutoff_time, "+inf", withscores=True
                 )
             else:
                 # Get all recent profiles
                 profile_ids = await self.redis_client.zrangebyscore(
-                    "apm:profiles",
-                    cutoff_time, "+inf"
+                    "apm:profiles", cutoff_time, "+inf"
                 )
 
             if not profile_ids:
@@ -513,14 +501,14 @@ class APMCollector:
 
                 profile_data = await self.redis_client.hgetall(f"apm:profile:{profile_id}")
                 if profile_data:
-                    if profile_data.get('duration_ms'):
-                        durations.append(float(profile_data['duration_ms']))
-                    if profile_data.get('error_count'):
-                        error_counts.append(int(profile_data['error_count']))
-                    if profile_data.get('database_calls'):
-                        db_calls.append(int(profile_data['database_calls']))
-                    if profile_data.get('redis_calls'):
-                        redis_calls.append(int(profile_data['redis_calls']))
+                    if profile_data.get("duration_ms"):
+                        durations.append(float(profile_data["duration_ms"]))
+                    if profile_data.get("error_count"):
+                        error_counts.append(int(profile_data["error_count"]))
+                    if profile_data.get("database_calls"):
+                        db_calls.append(int(profile_data["database_calls"]))
+                    if profile_data.get("redis_calls"):
+                        redis_calls.append(int(profile_data["redis_calls"]))
 
             summary = {
                 "period_hours": hours,
@@ -530,8 +518,12 @@ class APMCollector:
                     "avg_duration_ms": sum(durations) / len(durations) if durations else 0,
                     "min_duration_ms": min(durations) if durations else 0,
                     "max_duration_ms": max(durations) if durations else 0,
-                    "p95_duration_ms": sorted(durations)[int(len(durations) * 0.95)] if durations else 0,
-                    "p99_duration_ms": sorted(durations)[int(len(durations) * 0.99)] if durations else 0,
+                    "p95_duration_ms": sorted(durations)[int(len(durations) * 0.95)]
+                    if durations
+                    else 0,
+                    "p99_duration_ms": sorted(durations)[int(len(durations) * 0.99)]
+                    if durations
+                    else 0,
                 },
                 "errors": {
                     "total_errors": sum(error_counts),
@@ -542,9 +534,11 @@ class APMCollector:
                     "total_db_calls": sum(db_calls),
                 },
                 "redis": {
-                    "avg_calls_per_request": sum(redis_calls) / len(redis_calls) if redis_calls else 0,
+                    "avg_calls_per_request": sum(redis_calls) / len(redis_calls)
+                    if redis_calls
+                    else 0,
                     "total_redis_calls": sum(redis_calls),
-                }
+                },
             }
 
             return summary
@@ -561,6 +555,7 @@ apm_collector = APMCollector()
 # Decorators for automatic instrumentation
 def trace_async(operation_name: Optional[str] = None):
     """Decorator to automatically trace async functions"""
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -581,11 +576,13 @@ def trace_async(operation_name: Optional[str] = None):
                 raise
 
         return wrapper
+
     return decorator
 
 
 def trace_sync(operation_name: Optional[str] = None):
     """Decorator to automatically trace sync functions"""
+
     def decorator(func: Callable):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -606,11 +603,13 @@ def trace_sync(operation_name: Optional[str] = None):
                 raise
 
         return wrapper
+
     return decorator
 
 
 def profile_performance(operation: Optional[str] = None):
     """Decorator to automatically profile function performance"""
+
     def decorator(func: Callable):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -684,11 +683,7 @@ async def get_apm_health() -> Dict[str, Any]:
     health = {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "components": {
-            "redis": "unknown",
-            "metrics": "active",
-            "tracing": "active"
-        }
+        "components": {"redis": "unknown", "metrics": "active", "tracing": "active"},
     }
 
     # Check Redis connectivity

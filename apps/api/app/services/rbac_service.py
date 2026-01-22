@@ -12,23 +12,29 @@ from fastapi import HTTPException, status
 
 from ..models import User, OrganizationMember
 
+
 # Temporary mock classes until models are implemented
 class RBACPolicy:
     """Mock RBACPolicy model"""
+
     id = None
     name = None
     resource_type = None
     resource_id = None
     permission = None
     conditions = None
-    effect = 'allow'
-    
+    effect = "allow"
+
+
 class Permission:
     """Mock Permission model"""
+
     id = None
     name = None
     resource = None
     action = None
+
+
 from ..core.redis import ResilientRedisClient
 from ..core.events import EventEmitter
 
@@ -40,41 +46,27 @@ class RBACService:
 
     # Role hierarchy definition
     ROLE_HIERARCHY = {
-        'super_admin': 4,  # Platform-wide admin
-        'owner': 3,        # Organization owner
-        'admin': 2,        # Organization admin
-        'member': 1,       # Regular member
-        'viewer': 0        # Read-only access
+        "super_admin": 4,  # Platform-wide admin
+        "owner": 3,  # Organization owner
+        "admin": 2,  # Organization admin
+        "member": 1,  # Regular member
+        "viewer": 0,  # Read-only access
     }
 
     # Permission patterns
     PERMISSIONS = {
-        'super_admin': ['*'],  # All permissions
-        'owner': [
-            'org:*',
-            'users:*',
-            'billing:*',
-            'settings:*',
-            'integrations:*'
+        "super_admin": ["*"],  # All permissions
+        "owner": ["org:*", "users:*", "billing:*", "settings:*", "integrations:*"],
+        "admin": [
+            "org:read",
+            "org:update",
+            "users:*",
+            "settings:read",
+            "settings:update",
+            "integrations:*",
         ],
-        'admin': [
-            'org:read',
-            'org:update',
-            'users:*',
-            'settings:read',
-            'settings:update',
-            'integrations:*'
-        ],
-        'member': [
-            'org:read',
-            'users:read',
-            'users:update:self',
-            'settings:read'
-        ],
-        'viewer': [
-            'org:read',
-            'users:read:self'
-        ]
+        "member": ["org:read", "users:read", "users:update:self", "settings:read"],
+        "viewer": ["org:read", "users:read:self"],
     }
 
     def __init__(self, db: Session, redis: ResilientRedisClient):
@@ -96,7 +88,7 @@ class RBACService:
         organization_id: Optional[UUID],
         permission: str,
         resource_id: Optional[UUID] = None,
-        context: Optional[Dict] = None
+        context: Optional[Dict] = None,
     ) -> bool:
         """
         Check if user has specific permission
@@ -107,13 +99,13 @@ class RBACService:
         cached = await self.redis.get(cache_key)
 
         if cached is not None:
-            return cached == 'true'
+            return cached == "true"
 
         # Get user role
         user_role = await self.get_user_role(user_id, organization_id)
 
         if not user_role:
-            await self.redis.set(cache_key, 'false', ex=300)
+            await self.redis.set(cache_key, "false", ex=300)
             return False
 
         # Check base permissions
@@ -122,34 +114,22 @@ class RBACService:
         # Check policy engine for conditional permissions
         if not has_permission and context:
             has_permission = await self._evaluate_policies(
-                user_id,
-                organization_id,
-                permission,
-                resource_id,
-                context
+                user_id, organization_id, permission, resource_id, context
             )
 
         # Cache result
-        await self.redis.set(
-            cache_key,
-            'true' if has_permission else 'false',
-            ex=300
-        )
+        await self.redis.set(cache_key, "true" if has_permission else "false", ex=300)
 
         return has_permission
 
-    async def get_user_role(
-        self,
-        user_id: UUID,
-        organization_id: Optional[UUID]
-    ) -> Optional[str]:
+    async def get_user_role(self, user_id: UUID, organization_id: Optional[UUID]) -> Optional[str]:
         """Get user's role in organization (cached for 5 minutes)"""
         # Check cache first
         cache_key = f"rbac:role:{user_id}:{organization_id}"
         try:
             cached_role = await self.redis.get(cache_key)
             if cached_role is not None:
-                return cached_role if cached_role != 'null' else None
+                return cached_role if cached_role != "null" else None
         except Exception:
             pass  # Intentionally ignoring - cache failure falls through to database query
 
@@ -158,37 +138,37 @@ class RBACService:
         if user and user.is_super_admin:
             # Cache super admin role
             try:
-                await self.redis.set(cache_key, 'super_admin', ex=300)
+                await self.redis.set(cache_key, "super_admin", ex=300)
             except Exception:
                 pass  # Intentionally ignoring - caching super_admin role is optional optimization
-            return 'super_admin'
+            return "super_admin"
 
         if not organization_id:
             # Cache null result
             try:
-                await self.redis.set(cache_key, 'null', ex=300)
+                await self.redis.set(cache_key, "null", ex=300)
             except Exception:
                 pass  # Intentionally ignoring - caching null role is optional optimization
             return None
 
         # Organization member role
-        member = self.db.query(OrganizationMember).filter(
-            and_(
-                OrganizationMember.user_id == user_id,
-                OrganizationMember.organization_id == organization_id,
-                OrganizationMember.status == 'active'
+        member = (
+            self.db.query(OrganizationMember)
+            .filter(
+                and_(
+                    OrganizationMember.user_id == user_id,
+                    OrganizationMember.organization_id == organization_id,
+                    OrganizationMember.status == "active",
+                )
             )
-        ).first()
+            .first()
+        )
 
         role = member.role if member else None
 
         # Cache the result
         try:
-            await self.redis.set(
-                cache_key,
-                role if role else 'null',
-                ex=300  # 5 minutes
-            )
+            await self.redis.set(cache_key, role if role else "null", ex=300)  # 5 minutes
         except Exception:
             pass  # Intentionally ignoring - caching role is optional optimization, return result anyway
 
@@ -211,9 +191,9 @@ class RBACService:
             return True
 
         # Wildcard match
-        if '*' in pattern:
+        if "*" in pattern:
             # Convert pattern to regex
-            regex_pattern = pattern.replace('*', '.*')
+            regex_pattern = pattern.replace("*", ".*")
             regex_pattern = f"^{regex_pattern}$"
             return bool(re.match(regex_pattern, permission))
 
@@ -225,16 +205,20 @@ class RBACService:
         organization_id: Optional[UUID],
         permission: str,
         resource_id: Optional[UUID],
-        context: Dict
+        context: Dict,
     ) -> bool:
         """Evaluate conditional policies"""
-        policies = self.db.query(RBACPolicy).filter(
-            and_(
-                RBACPolicy.organization_id == organization_id,
-                RBACPolicy.permission == permission,
-                RBACPolicy.is_active == True
+        policies = (
+            self.db.query(RBACPolicy)
+            .filter(
+                and_(
+                    RBACPolicy.organization_id == organization_id,
+                    RBACPolicy.permission == permission,
+                    RBACPolicy.is_active == True,
+                )
             )
-        ).all()
+            .all()
+        )
 
         for policy in policies:
             if self._evaluate_policy(policy, user_id, resource_id, context):
@@ -243,33 +227,29 @@ class RBACService:
         return False
 
     def _evaluate_policy(
-        self,
-        policy: RBACPolicy,
-        user_id: UUID,
-        resource_id: Optional[UUID],
-        context: Dict
+        self, policy: RBACPolicy, user_id: UUID, resource_id: Optional[UUID], context: Dict
     ) -> bool:
         """Evaluate single policy conditions"""
         conditions = policy.conditions or {}
 
         # Check user condition
-        if 'user_id' in conditions:
-            if str(user_id) != conditions['user_id']:
+        if "user_id" in conditions:
+            if str(user_id) != conditions["user_id"]:
                 return False
 
         # Check resource condition
-        if 'resource_id' in conditions:
-            if not resource_id or str(resource_id) != conditions['resource_id']:
+        if "resource_id" in conditions:
+            if not resource_id or str(resource_id) != conditions["resource_id"]:
                 return False
 
         # Check time-based conditions
-        if 'time_range' in conditions:
-            if not self._check_time_range(conditions['time_range']):
+        if "time_range" in conditions:
+            if not self._check_time_range(conditions["time_range"]):
                 return False
 
         # Check custom conditions
-        if 'custom' in conditions:
-            for key, value in conditions['custom'].items():
+        if "custom" in conditions:
+            for key, value in conditions["custom"].items():
                 if context.get(key) != value:
                     return False
 
@@ -279,22 +259,20 @@ class RBACService:
         """Check if current time is within range"""
         now = datetime.utcnow()
 
-        if 'start' in time_range:
-            start = datetime.fromisoformat(time_range['start'])
+        if "start" in time_range:
+            start = datetime.fromisoformat(time_range["start"])
             if now < start:
                 return False
 
-        if 'end' in time_range:
-            end = datetime.fromisoformat(time_range['end'])
+        if "end" in time_range:
+            end = datetime.fromisoformat(time_range["end"])
             if now > end:
                 return False
 
         return True
 
     async def get_user_permissions(
-        self,
-        user_id: UUID,
-        organization_id: Optional[UUID]
+        self, user_id: UUID, organization_id: Optional[UUID]
     ) -> Set[str]:
         """Get all permissions for user"""
         role = await self.get_user_role(user_id, organization_id)
@@ -307,27 +285,25 @@ class RBACService:
 
         # Add policy-based permissions
         if organization_id:
-            policies = self.db.query(RBACPolicy).filter(
-                and_(
-                    RBACPolicy.organization_id == organization_id,
-                    RBACPolicy.is_active == True
+            policies = (
+                self.db.query(RBACPolicy)
+                .filter(
+                    and_(
+                        RBACPolicy.organization_id == organization_id, RBACPolicy.is_active == True
+                    )
                 )
-            ).all()
+                .all()
+            )
 
             for policy in policies:
-                if policy.conditions and 'user_id' in policy.conditions:
-                    if str(user_id) == policy.conditions['user_id']:
+                if policy.conditions and "user_id" in policy.conditions:
+                    if str(user_id) == policy.conditions["user_id"]:
                         permissions.add(policy.permission)
 
         return permissions
 
     async def create_policy(
-        self,
-        organization_id: UUID,
-        name: str,
-        permission: str,
-        conditions: Dict,
-        created_by: UUID
+        self, organization_id: UUID, name: str, permission: str, conditions: Dict, created_by: UUID
     ) -> RBACPolicy:
         """Create conditional access policy"""
         policy = RBACPolicy(
@@ -337,7 +313,7 @@ class RBACService:
             conditions=conditions,
             is_active=True,
             created_by=created_by,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
 
         self.db.add(policy)
@@ -348,26 +324,16 @@ class RBACService:
         await self._clear_rbac_cache(organization_id)
 
         # Emit event
-        await self.events.emit('policy:created', policy)
+        await self.events.emit("policy:created", policy)
 
         return policy
 
-    async def update_policy(
-        self,
-        policy_id: UUID,
-        updates: Dict,
-        updated_by: UUID
-    ) -> RBACPolicy:
+    async def update_policy(self, policy_id: UUID, updates: Dict, updated_by: UUID) -> RBACPolicy:
         """Update existing policy"""
-        policy = self.db.query(RBACPolicy).filter(
-            RBACPolicy.id == policy_id
-        ).first()
+        policy = self.db.query(RBACPolicy).filter(RBACPolicy.id == policy_id).first()
 
         if not policy:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Policy not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
 
         # Update fields
         for key, value in updates.items():
@@ -384,21 +350,16 @@ class RBACService:
         await self._clear_rbac_cache(policy.organization_id)
 
         # Emit event
-        await self.events.emit('policy:updated', policy)
+        await self.events.emit("policy:updated", policy)
 
         return policy
 
     async def delete_policy(self, policy_id: UUID) -> None:
         """Delete policy (soft delete)"""
-        policy = self.db.query(RBACPolicy).filter(
-            RBACPolicy.id == policy_id
-        ).first()
+        policy = self.db.query(RBACPolicy).filter(RBACPolicy.id == policy_id).first()
 
         if not policy:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Policy not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
 
         policy.is_active = False
         policy.deleted_at = datetime.utcnow()
@@ -409,7 +370,7 @@ class RBACService:
         await self._clear_rbac_cache(policy.organization_id)
 
         # Emit event
-        await self.events.emit('policy:deleted', policy)
+        await self.events.emit("policy:deleted", policy)
 
     async def _clear_rbac_cache(self, organization_id: UUID) -> None:
         """Clear all RBAC cache for organization"""
@@ -433,46 +394,37 @@ class RBACService:
         organization_id: Optional[UUID],
         permission: str,
         resource_id: Optional[UUID] = None,
-        context: Optional[Dict] = None
+        context: Optional[Dict] = None,
     ) -> None:
         """Enforce permission or raise exception"""
         has_permission = await self.check_permission(
-            user_id,
-            organization_id,
-            permission,
-            resource_id,
-            context
+            user_id, organization_id, permission, resource_id, context
         )
 
         if not has_permission:
             # Log unauthorized attempt
-            await self.events.emit('rbac:unauthorized', {
-                'user_id': user_id,
-                'organization_id': organization_id,
-                'permission': permission,
-                'resource_id': resource_id,
-                'context': context
-            })
+            await self.events.emit(
+                "rbac:unauthorized",
+                {
+                    "user_id": user_id,
+                    "organization_id": organization_id,
+                    "permission": permission,
+                    "resource_id": resource_id,
+                    "context": context,
+                },
+            )
 
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission denied: {permission}"
+                status_code=status.HTTP_403_FORBIDDEN, detail=f"Permission denied: {permission}"
             )
 
     async def bulk_check_permissions(
-        self,
-        user_id: UUID,
-        organization_id: Optional[UUID],
-        permissions: List[str]
+        self, user_id: UUID, organization_id: Optional[UUID], permissions: List[str]
     ) -> Dict[str, bool]:
         """Check multiple permissions at once"""
         results = {}
 
         for permission in permissions:
-            results[permission] = await self.check_permission(
-                user_id,
-                organization_id,
-                permission
-            )
+            results[permission] = await self.check_permission(user_id, organization_id, permission)
 
         return results

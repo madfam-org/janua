@@ -1,4 +1,5 @@
 import pytest
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -9,12 +10,7 @@ Unit tests for MonitoringService - simplified to match actual implementation
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
 
-from app.services.monitoring import (
-    MonitoringService,
-    MetricsCollector,
-    MetricType,
-    AlertSeverity
-)
+from app.services.monitoring import MonitoringService, MetricsCollector, MetricType, AlertSeverity
 
 
 class TestMetricsCollector:
@@ -33,7 +29,7 @@ class TestMetricsCollector:
         """Test metrics collector initialization."""
         collector = MetricsCollector()
 
-        with patch('app.services.monitoring.get_redis') as mock_redis:
+        with patch("app.services.monitoring.get_redis") as mock_redis:
             mock_redis.return_value = AsyncMock()
             await collector.initialize()
             assert collector.redis is not None
@@ -105,7 +101,7 @@ class TestMetricsCollector:
         collector = MetricsCollector()
         collector.redis = AsyncMock()
 
-        with patch('asyncio.create_task') as mock_task:
+        with patch("asyncio.create_task") as mock_task:
             collector.start_flush_task()
             mock_task.assert_called_once()
 
@@ -127,8 +123,8 @@ class TestMonitoringService:
     def test_monitoring_service_initialization(self):
         """Test monitoring service initializes correctly."""
         service = MonitoringService()
-        assert hasattr(service, 'metrics')
-        assert hasattr(service, 'alerts')
+        assert hasattr(service, "metrics")
+        assert hasattr(service, "alerts")
         assert service.initialized is False
 
     @pytest.mark.asyncio
@@ -136,7 +132,7 @@ class TestMonitoringService:
         """Test service initialization."""
         service = MonitoringService()
 
-        with patch.object(service.metrics, 'initialize') as mock_init:
+        with patch.object(service.metrics, "initialize") as mock_init:
             await service.initialize()
             mock_init.assert_called_once()
             assert service.initialized is True
@@ -147,7 +143,7 @@ class TestMonitoringService:
         service = MonitoringService()
         service.initialized = True
 
-        with patch.object(service.metrics, 'stop') as mock_stop:
+        with patch.object(service.metrics, "stop") as mock_stop:
             await service.shutdown()
             mock_stop.assert_called_once()
             assert service.initialized is False
@@ -157,7 +153,7 @@ class TestMonitoringService:
         """Test tracking request metrics."""
         service = MonitoringService()
 
-        with patch.object(service.metrics, 'record_metric') as mock_record:
+        with patch.object(service.metrics, "record_metric") as mock_record:
             await service.track_request("/api/users", "GET", 200, 150.5)
 
             # Should record at least request count and duration
@@ -168,7 +164,7 @@ class TestMonitoringService:
         """Test tracking error metrics."""
         service = MonitoringService()
 
-        with patch.object(service.metrics, 'record_metric') as mock_record:
+        with patch.object(service.metrics, "record_metric") as mock_record:
             await service.track_error("ValidationError", "/api/users", 400)
 
             mock_record.assert_called()
@@ -178,7 +174,7 @@ class TestMonitoringService:
         """Test tracking business metrics."""
         service = MonitoringService()
 
-        with patch.object(service.metrics, 'record_metric') as mock_record:
+        with patch.object(service.metrics, "record_metric") as mock_record:
             await service.track_business_event("user_signup", {"source": "web"})
 
             mock_record.assert_called()
@@ -188,7 +184,7 @@ class TestMonitoringService:
         """Test database health check."""
         service = MonitoringService()
 
-        with patch('app.services.monitoring.get_db') as mock_db:
+        with patch("app.services.monitoring.get_db") as mock_db:
             mock_db.return_value.execute = AsyncMock()
 
             result = await service.health_check_database()
@@ -200,7 +196,7 @@ class TestMonitoringService:
         """Test database health check failure."""
         service = MonitoringService()
 
-        with patch('app.services.monitoring.get_db') as mock_db:
+        with patch("app.services.monitoring.get_db") as mock_db:
             mock_db.return_value.execute = AsyncMock(side_effect=Exception("DB error"))
 
             result = await service.health_check_database()
@@ -212,7 +208,7 @@ class TestMonitoringService:
         """Test Redis health check."""
         service = MonitoringService()
 
-        with patch('app.services.monitoring.get_redis') as mock_redis:
+        with patch("app.services.monitoring.get_redis") as mock_redis:
             mock_redis_client = AsyncMock()
             mock_redis.return_value = mock_redis_client
 
@@ -226,7 +222,7 @@ class TestMonitoringService:
         """Test Redis health check failure."""
         service = MonitoringService()
 
-        with patch('app.services.monitoring.get_redis') as mock_redis:
+        with patch("app.services.monitoring.get_redis") as mock_redis:
             mock_redis.return_value.ping = AsyncMock(side_effect=Exception("Redis error"))
 
             result = await service.health_check_redis()
@@ -238,33 +234,32 @@ class TestMonitoringService:
         """Test getting system metrics."""
         service = MonitoringService()
 
-        with patch('psutil.cpu_percent') as mock_cpu, \
-             patch('psutil.virtual_memory') as mock_memory, \
-             patch('psutil.disk_usage') as mock_disk:
-
+        with patch("psutil.cpu_percent") as mock_cpu, patch(
+            "psutil.virtual_memory"
+        ) as mock_memory, patch("psutil.disk_usage") as mock_disk:
             mock_cpu.return_value = 75.0
             mock_memory.return_value.percent = 60.0
             mock_disk.return_value.percent = 45.0
 
             metrics = await service.get_system_metrics()
 
-            assert metrics['cpu_percent'] == 75.0
-            assert metrics['memory_percent'] == 60.0
-            assert metrics['disk_percent'] == 45.0
+            assert metrics["cpu_percent"] == 75.0
+            assert metrics["memory_percent"] == 60.0
+            assert metrics["disk_percent"] == 45.0
 
     @pytest.mark.asyncio
     async def test_send_alert(self):
         """Test sending alerts."""
         service = MonitoringService()
 
-        with patch('aiohttp.ClientSession.post') as mock_post:
+        with patch("aiohttp.ClientSession.post") as mock_post:
             mock_post.return_value.__aenter__ = AsyncMock()
             mock_post.return_value.__aexit__ = AsyncMock()
 
             await service.send_alert("Test alert", AlertSeverity.WARNING, {"key": "value"})
 
             # Should attempt to send webhook if configured
-            if hasattr(service, 'webhook_url') and service.webhook_url:
+            if hasattr(service, "webhook_url") and service.webhook_url:
                 mock_post.assert_called()
 
     @pytest.mark.asyncio
@@ -272,14 +267,14 @@ class TestMonitoringService:
         """Test checking metric thresholds."""
         service = MonitoringService()
 
-        with patch.object(service, 'get_system_metrics') as mock_metrics, \
-             patch.object(service, 'send_alert') as mock_alert:
-
+        with patch.object(service, "get_system_metrics") as mock_metrics, patch.object(
+            service, "send_alert"
+        ) as mock_alert:
             # Simulate high CPU usage
             mock_metrics.return_value = {
-                'cpu_percent': 95.0,  # Above threshold
-                'memory_percent': 50.0,
-                'disk_percent': 30.0
+                "cpu_percent": 95.0,  # Above threshold
+                "memory_percent": 50.0,
+                "disk_percent": 30.0,
             }
 
             await service.check_thresholds()
@@ -292,47 +287,45 @@ class TestMonitoringService:
         """Test getting overall health status."""
         service = MonitoringService()
 
-        with patch.object(service, 'health_check_database') as mock_db, \
-             patch.object(service, 'health_check_redis') as mock_redis, \
-             patch.object(service, 'get_system_metrics') as mock_metrics:
-
+        with patch.object(service, "health_check_database") as mock_db, patch.object(
+            service, "health_check_redis"
+        ) as mock_redis, patch.object(service, "get_system_metrics") as mock_metrics:
             mock_db.return_value = True
             mock_redis.return_value = True
             mock_metrics.return_value = {
-                'cpu_percent': 50.0,
-                'memory_percent': 60.0,
-                'disk_percent': 30.0
+                "cpu_percent": 50.0,
+                "memory_percent": 60.0,
+                "disk_percent": 30.0,
             }
 
             health = await service.get_health_status()
 
-            assert health['status'] == 'healthy'
-            assert health['checks']['database'] is True
-            assert health['checks']['redis'] is True
-            assert 'system' in health
+            assert health["status"] == "healthy"
+            assert health["checks"]["database"] is True
+            assert health["checks"]["redis"] is True
+            assert "system" in health
 
     @pytest.mark.asyncio
     async def test_get_health_status_degraded(self):
         """Test getting health status when degraded."""
         service = MonitoringService()
 
-        with patch.object(service, 'health_check_database') as mock_db, \
-             patch.object(service, 'health_check_redis') as mock_redis, \
-             patch.object(service, 'get_system_metrics') as mock_metrics:
-
+        with patch.object(service, "health_check_database") as mock_db, patch.object(
+            service, "health_check_redis"
+        ) as mock_redis, patch.object(service, "get_system_metrics") as mock_metrics:
             mock_db.return_value = True
             mock_redis.return_value = False  # Redis failure
             mock_metrics.return_value = {
-                'cpu_percent': 50.0,
-                'memory_percent': 60.0,
-                'disk_percent': 30.0
+                "cpu_percent": 50.0,
+                "memory_percent": 60.0,
+                "disk_percent": 30.0,
             }
 
             health = await service.get_health_status()
 
-            assert health['status'] == 'degraded'
-            assert health['checks']['database'] is True
-            assert health['checks']['redis'] is False
+            assert health["status"] == "degraded"
+            assert health["checks"]["database"] is True
+            assert health["checks"]["redis"] is False
 
     @pytest.mark.asyncio
     async def test_cleanup_old_metrics(self):
@@ -354,7 +347,7 @@ class TestErrorHandling:
         """Test handling Redis connection errors gracefully."""
         service = MonitoringService()
 
-        with patch('app.services.monitoring.get_redis') as mock_redis:
+        with patch("app.services.monitoring.get_redis") as mock_redis:
             mock_redis.side_effect = Exception("Redis connection failed")
 
             # Should not raise exception during initialization
@@ -381,7 +374,7 @@ class TestErrorHandling:
         """Test handling alert sending failures."""
         service = MonitoringService()
 
-        with patch('aiohttp.ClientSession.post') as mock_post:
+        with patch("aiohttp.ClientSession.post") as mock_post:
             mock_post.side_effect = Exception("Webhook failed")
 
             # Should not raise exception when alert sending fails

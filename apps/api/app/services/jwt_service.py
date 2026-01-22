@@ -315,7 +315,11 @@ class JWTService:
 
             return claims
 
-        except (jwt.exceptions.DecodeError, jwt.exceptions.ExpiredSignatureError, InvalidTokenError) as e:
+        except (
+            jwt.exceptions.DecodeError,
+            jwt.exceptions.ExpiredSignatureError,
+            InvalidTokenError,
+        ) as e:
             logger.warning("JWT verification failed", error=str(e))
             raise AuthenticationError(f"Invalid token: {str(e)}")
 
@@ -385,7 +389,11 @@ class JWTService:
 
             return payload
 
-        except (jwt.exceptions.DecodeError, jwt.exceptions.ExpiredSignatureError, InvalidTokenError) as e:
+        except (
+            jwt.exceptions.DecodeError,
+            jwt.exceptions.ExpiredSignatureError,
+            InvalidTokenError,
+        ) as e:
             raise ValueError(f"Invalid token: {e}")
 
     async def revoke_token(self, token: str, jti: str):

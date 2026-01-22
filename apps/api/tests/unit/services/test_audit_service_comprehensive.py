@@ -1,4 +1,5 @@
 import pytest
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -25,8 +26,8 @@ class TestAuditServiceInitialization:
         """Test audit service initializes correctly"""
         service = AuditService()
         assert service is not None
-        assert hasattr(service, 'high_risk_actions')
-        assert hasattr(service, 'compliance_relevant_actions')
+        assert hasattr(service, "high_risk_actions")
+        assert hasattr(service, "compliance_relevant_actions")
         assert isinstance(service.high_risk_actions, set)
         assert isinstance(service.compliance_relevant_actions, set)
 
@@ -34,8 +35,14 @@ class TestAuditServiceInitialization:
         """Test high-risk actions are properly configured"""
         service = AuditService()
         expected_high_risk = {
-            'user_delete', 'admin_login', 'password_reset', 'sso_config_change',
-            'user_suspend', 'role_change', 'api_key_create', 'webhook_create'
+            "user_delete",
+            "admin_login",
+            "password_reset",
+            "sso_config_change",
+            "user_suspend",
+            "role_change",
+            "api_key_create",
+            "webhook_create",
         }
         assert service.high_risk_actions == expected_high_risk
 
@@ -43,8 +50,14 @@ class TestAuditServiceInitialization:
         """Test compliance-relevant actions are properly configured"""
         service = AuditService()
         expected_compliance = {
-            'user_create', 'user_update', 'user_delete', 'consent_granted',
-            'consent_revoked', 'data_export', 'data_delete', 'privacy_setting_change'
+            "user_create",
+            "user_update",
+            "user_delete",
+            "consent_granted",
+            "consent_revoked",
+            "data_export",
+            "data_delete",
+            "privacy_setting_change",
         }
         assert service.compliance_relevant_actions == expected_compliance
 
@@ -66,7 +79,7 @@ class TestAuditLogging:
     @pytest.mark.asyncio
     async def test_log_action_success(self, audit_service, mock_db_session):
         """Test successful audit action logging"""
-        with patch('app.services.audit_service.AuditLog') as mock_audit_log:
+        with patch("app.services.audit_service.AuditLog") as mock_audit_log:
             mock_audit_log.return_value = Mock(id=uuid.uuid4())
 
             result = await audit_service.log_action(
@@ -82,7 +95,7 @@ class TestAuditLogging:
                 metadata={"source": "api"},
                 actor_ip="192.168.1.1",
                 actor_user_agent="Mozilla/5.0",
-                success=True
+                success=True,
             )
 
             assert result is not None
@@ -92,7 +105,7 @@ class TestAuditLogging:
     @pytest.mark.asyncio
     async def test_log_action_high_risk_event(self, audit_service, mock_db_session):
         """Test logging of high-risk events"""
-        with patch('app.services.audit_service.AuditLog') as mock_audit_log:
+        with patch("app.services.audit_service.AuditLog") as mock_audit_log:
             mock_audit_log.return_value = Mock(id=uuid.uuid4())
 
             result = await audit_service.log_action(
@@ -102,7 +115,7 @@ class TestAuditLogging:
                 actor_id="admin123",
                 actor_type="user",
                 resource_id="deleted_user_456",
-                success=True
+                success=True,
             )
 
             assert result is not None
@@ -114,7 +127,7 @@ class TestAuditLogging:
     @pytest.mark.asyncio
     async def test_log_action_compliance_relevant(self, audit_service, mock_db_session):
         """Test logging of compliance-relevant events"""
-        with patch('app.services.audit_service.AuditLog') as mock_audit_log:
+        with patch("app.services.audit_service.AuditLog") as mock_audit_log:
             mock_audit_log.return_value = Mock(id=uuid.uuid4())
 
             result = await audit_service.log_action(
@@ -123,28 +136,28 @@ class TestAuditLogging:
                 resource_type="user_data",
                 actor_id="user123",
                 resource_id="export_456",
-                success=True
+                success=True,
             )
 
             assert result is not None
             call_args = mock_audit_log.call_args[1]
-            assert call_args['compliance_relevant'] is True
-            assert "gdpr" in call_args['compliance_standards']
-            assert "hipaa" in call_args['compliance_standards']
+            assert call_args["compliance_relevant"] is True
+            assert "gdpr" in call_args["compliance_standards"]
+            assert "hipaa" in call_args["compliance_standards"]
 
     @pytest.mark.asyncio
     async def test_log_action_failure_handling(self, audit_service, mock_db_session):
         """Test audit logging failure doesn't break main operation"""
         mock_db_session.commit.side_effect = Exception("Database error")
 
-        with patch('app.services.audit_service.logger') as mock_logger:
+        with patch("app.services.audit_service.logger") as mock_logger:
             result = await audit_service.log_action(
                 db=mock_db_session,
                 action="user_login",
                 resource_type="authentication",
                 actor_id="user123",
                 success=False,
-                error_message="Invalid credentials"
+                error_message="Invalid credentials",
             )
 
             assert result is None  # Should return None on failure
@@ -153,11 +166,11 @@ class TestAuditLogging:
     @pytest.mark.asyncio
     async def test_log_action_suspicious_activity_detection(self, audit_service, mock_db_session):
         """Test suspicious activity detection"""
-        with patch('app.services.audit_service.AuditLog') as mock_audit_log:
+        with patch("app.services.audit_service.AuditLog") as mock_audit_log:
             mock_audit_log.return_value = Mock(id=uuid.uuid4())
 
             # Mock suspicious activity detection
-            with patch.object(audit_service, '_is_suspicious_activity', return_value=True):
+            with patch.object(audit_service, "_is_suspicious_activity", return_value=True):
                 result = await audit_service.log_action(
                     db=mock_db_session,
                     action="user_login",
@@ -166,12 +179,12 @@ class TestAuditLogging:
                     actor_ip="10.0.0.1",  # Suspicious IP
                     actor_user_agent="bot/1.0",
                     metadata={"rapid_requests": True},
-                    success=True
+                    success=True,
                 )
 
                 assert result is not None
                 call_args = mock_audit_log.call_args[1]
-                assert call_args['is_suspicious'] is True
+                assert call_args["is_suspicious"] is True
 
 
 class TestAuthenticationEventLogging:
@@ -189,7 +202,9 @@ class TestAuthenticationEventLogging:
     @pytest.mark.asyncio
     async def test_log_authentication_event_success(self, audit_service, mock_db_session):
         """Test successful authentication event logging"""
-        with patch.object(audit_service, 'log_action', return_value="audit_id_123") as mock_log_action:
+        with patch.object(
+            audit_service, "log_action", return_value="audit_id_123"
+        ) as mock_log_action:
             result = await audit_service.log_authentication_event(
                 db=mock_db_session,
                 event_type="login_success",
@@ -198,37 +213,39 @@ class TestAuthenticationEventLogging:
                 ip_address="192.168.1.1",
                 user_agent="Mozilla/5.0",
                 auth_method="password",
-                organization_id="org456"
+                organization_id="org456",
             )
 
             assert result == "audit_id_123"
             mock_log_action.assert_called_once()
             call_args = mock_log_action.call_args[1]
-            assert call_args['action'] == "login_success"
-            assert call_args['resource_type'] == "authentication"
-            assert call_args['success'] is True
-            assert call_args['metadata']['auth_method'] == "password"
-            assert call_args['metadata']['email'] == "test@example.com"
+            assert call_args["action"] == "login_success"
+            assert call_args["resource_type"] == "authentication"
+            assert call_args["success"] is True
+            assert call_args["metadata"]["auth_method"] == "password"
+            assert call_args["metadata"]["email"] == "test@example.com"
 
     @pytest.mark.asyncio
     async def test_log_authentication_event_failure(self, audit_service, mock_db_session):
         """Test failed authentication event logging"""
-        with patch.object(audit_service, 'log_action', return_value="audit_id_456") as mock_log_action:
+        with patch.object(
+            audit_service, "log_action", return_value="audit_id_456"
+        ) as mock_log_action:
             result = await audit_service.log_authentication_event(
                 db=mock_db_session,
                 event_type="login_failure",
                 user_id="user123",
                 email="test@example.com",
                 ip_address="192.168.1.1",
-                failure_reason="Invalid password"
+                failure_reason="Invalid password",
             )
 
             assert result == "audit_id_456"
             call_args = mock_log_action.call_args[1]
-            assert call_args['action'] == "login_failure"
-            assert call_args['success'] is False
-            assert call_args['error_message'] == "Invalid password"
-            assert call_args['metadata']['failure_reason'] == "Invalid password"
+            assert call_args["action"] == "login_failure"
+            assert call_args["success"] is False
+            assert call_args["error_message"] == "Invalid password"
+            assert call_args["metadata"]["failure_reason"] == "Invalid password"
 
 
 class TestDataAccessLogging:
@@ -246,7 +263,9 @@ class TestDataAccessLogging:
     @pytest.mark.asyncio
     async def test_log_data_access_read(self, audit_service, mock_db_session):
         """Test data access logging for read operations"""
-        with patch.object(audit_service, 'log_action', return_value="audit_id_789") as mock_log_action:
+        with patch.object(
+            audit_service, "log_action", return_value="audit_id_789"
+        ) as mock_log_action:
             result = await audit_service.log_data_access(
                 db=mock_db_session,
                 access_type="read",
@@ -257,21 +276,23 @@ class TestDataAccessLogging:
                 data_fields=["email", "name", "phone"],
                 ip_address="192.168.1.1",
                 lawful_basis="consent",
-                purpose="profile_management"
+                purpose="profile_management",
             )
 
             assert result == "audit_id_789"
             call_args = mock_log_action.call_args[1]
-            assert call_args['action'] == "data_read"
-            assert call_args['resource_type'] == "user_data"
-            assert call_args['metadata']['data_fields'] == ["email", "name", "phone"]
-            assert call_args['metadata']['lawful_basis'] == "consent"
-            assert call_args['metadata']['purpose'] == "profile_management"
+            assert call_args["action"] == "data_read"
+            assert call_args["resource_type"] == "user_data"
+            assert call_args["metadata"]["data_fields"] == ["email", "name", "phone"]
+            assert call_args["metadata"]["lawful_basis"] == "consent"
+            assert call_args["metadata"]["purpose"] == "profile_management"
 
     @pytest.mark.asyncio
     async def test_log_data_access_export(self, audit_service, mock_db_session):
         """Test data access logging for export operations"""
-        with patch.object(audit_service, 'log_action', return_value="audit_id_101") as mock_log_action:
+        with patch.object(
+            audit_service, "log_action", return_value="audit_id_101"
+        ) as mock_log_action:
             result = await audit_service.log_data_access(
                 db=mock_db_session,
                 access_type="export",
@@ -280,13 +301,13 @@ class TestDataAccessLogging:
                 resource_id="export789",
                 data_fields=["users", "billing", "settings"],
                 lawful_basis="legitimate_interest",
-                purpose="data_portability"
+                purpose="data_portability",
             )
 
             assert result == "audit_id_101"
             call_args = mock_log_action.call_args[1]
-            assert call_args['action'] == "data_export"
-            assert call_args['metadata']['purpose'] == "data_portability"
+            assert call_args["action"] == "data_export"
+            assert call_args["metadata"]["purpose"] == "data_portability"
 
 
 class TestAuditLogSearch:
@@ -323,7 +344,7 @@ class TestAuditLogSearch:
     async def test_search_audit_logs_basic(self, audit_service, mock_db_session, mock_audit_logs):
         """Test basic audit log search"""
         # Mock the search_audit_logs method directly since it uses a different model structure
-        with patch.object(audit_service, 'search_audit_logs') as mock_search:
+        with patch.object(audit_service, "search_audit_logs") as mock_search:
             mock_search.return_value = [
                 {
                     "id": str(uuid.uuid4()),
@@ -331,25 +352,25 @@ class TestAuditLogSearch:
                     "resource_type": "authentication",
                     "success": True,
                     "risk_level": "low",
-                    "is_suspicious": False
+                    "is_suspicious": False,
                 }
             ]
 
             logs = await audit_service.search_audit_logs(
-                db=mock_db_session,
-                organization_id="org123",
-                limit=10
+                db=mock_db_session, organization_id="org123", limit=10
             )
 
             assert len(logs) == 1
-            assert logs[0]['action'] == "user_login"
+            assert logs[0]["action"] == "user_login"
             mock_search.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_search_audit_logs_with_filters(self, audit_service, mock_db_session, mock_audit_logs):
+    async def test_search_audit_logs_with_filters(
+        self, audit_service, mock_db_session, mock_audit_logs
+    ):
         """Test audit log search with multiple filters"""
         # Mock the search_audit_logs method directly
-        with patch.object(audit_service, 'search_audit_logs') as mock_search:
+        with patch.object(audit_service, "search_audit_logs") as mock_search:
             mock_search.return_value = [
                 {
                     "id": str(uuid.uuid4()),
@@ -357,33 +378,27 @@ class TestAuditLogSearch:
                     "actor_id": "user0",
                     "resource_type": "authentication",
                     "risk_level": "low",
-                    "compliance_relevant": False
+                    "compliance_relevant": False,
                 }
             ]
 
             logs = await audit_service.search_audit_logs(
-                db=mock_db_session,
-                organization_id="org123",
-                actor_id="user0",
-                action="user_login"
+                db=mock_db_session, organization_id="org123", actor_id="user0", action="user_login"
             )
 
             assert len(logs) == 1
-            assert logs[0]['action'] == "user_login"
+            assert logs[0]["action"] == "user_login"
             mock_search.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_search_audit_logs_error_handling(self, audit_service, mock_db_session):
         """Test audit log search error handling"""
         # Mock database exception in search method
-        with patch.object(audit_service, 'search_audit_logs') as mock_search:
+        with patch.object(audit_service, "search_audit_logs") as mock_search:
             mock_search.side_effect = Exception("Database connection error")
 
             with pytest.raises(Exception) as exc_info:
-                await audit_service.search_audit_logs(
-                    db=mock_db_session,
-                    organization_id="org123"
-                )
+                await audit_service.search_audit_logs(db=mock_db_session, organization_id="org123")
 
             assert "Database connection error" in str(exc_info.value)
 
@@ -410,7 +425,7 @@ class TestComplianceReporting:
                 "resource_type": "user_data",
                 "success": True,
                 "risk_level": "medium",
-                "is_suspicious": False
+                "is_suspicious": False,
             },
             {
                 "id": str(uuid.uuid4()),
@@ -418,7 +433,7 @@ class TestComplianceReporting:
                 "resource_type": "user",
                 "success": False,
                 "risk_level": "critical",
-                "is_suspicious": True
+                "is_suspicious": True,
             },
             {
                 "id": str(uuid.uuid4()),
@@ -426,21 +441,23 @@ class TestComplianceReporting:
                 "resource_type": "user_data",
                 "success": True,
                 "risk_level": "high",
-                "is_suspicious": False
-            }
+                "is_suspicious": False,
+            },
         ]
         return logs
 
     @pytest.mark.asyncio
-    async def test_generate_compliance_report_success(self, audit_service, mock_db_session, mock_compliance_logs):
+    async def test_generate_compliance_report_success(
+        self, audit_service, mock_db_session, mock_compliance_logs
+    ):
         """Test successful compliance report generation"""
-        with patch.object(audit_service, 'search_audit_logs', return_value=mock_compliance_logs):
+        with patch.object(audit_service, "search_audit_logs", return_value=mock_compliance_logs):
             report = await audit_service.generate_compliance_report(
                 db=mock_db_session,
                 organization_id="org123",
                 start_date=datetime.utcnow() - timedelta(days=30),
                 end_date=datetime.utcnow(),
-                standards=["gdpr", "hipaa"]
+                standards=["gdpr", "hipaa"],
             )
 
             assert "report_period" in report
@@ -456,21 +473,47 @@ class TestComplianceReporting:
             assert "compliance_status" in report
 
     @pytest.mark.asyncio
-    async def test_generate_compliance_report_data_access_summary(self, audit_service, mock_db_session):
+    async def test_generate_compliance_report_data_access_summary(
+        self, audit_service, mock_db_session
+    ):
         """Test compliance report data access summary"""
         data_access_logs = [
-            {"action": "data_read", "resource_type": "user_data", "success": True, "risk_level": "low", "is_suspicious": False},
-            {"action": "data_export", "resource_type": "user_data", "success": True, "risk_level": "medium", "is_suspicious": False},
-            {"action": "data_delete", "resource_type": "billing_data", "success": True, "risk_level": "high", "is_suspicious": False},
-            {"action": "data_read", "resource_type": "user_data", "success": True, "risk_level": "low", "is_suspicious": False}
+            {
+                "action": "data_read",
+                "resource_type": "user_data",
+                "success": True,
+                "risk_level": "low",
+                "is_suspicious": False,
+            },
+            {
+                "action": "data_export",
+                "resource_type": "user_data",
+                "success": True,
+                "risk_level": "medium",
+                "is_suspicious": False,
+            },
+            {
+                "action": "data_delete",
+                "resource_type": "billing_data",
+                "success": True,
+                "risk_level": "high",
+                "is_suspicious": False,
+            },
+            {
+                "action": "data_read",
+                "resource_type": "user_data",
+                "success": True,
+                "risk_level": "low",
+                "is_suspicious": False,
+            },
         ]
 
-        with patch.object(audit_service, 'search_audit_logs', return_value=data_access_logs):
+        with patch.object(audit_service, "search_audit_logs", return_value=data_access_logs):
             report = await audit_service.generate_compliance_report(
                 db=mock_db_session,
                 organization_id="org123",
                 start_date=datetime.utcnow() - timedelta(days=7),
-                end_date=datetime.utcnow()
+                end_date=datetime.utcnow(),
             )
 
             data_summary = report["data_access_summary"]
@@ -484,13 +527,15 @@ class TestComplianceReporting:
     @pytest.mark.asyncio
     async def test_generate_compliance_report_error_handling(self, audit_service, mock_db_session):
         """Test compliance report generation error handling"""
-        with patch.object(audit_service, 'search_audit_logs', side_effect=Exception("Search failed")):
+        with patch.object(
+            audit_service, "search_audit_logs", side_effect=Exception("Search failed")
+        ):
             with pytest.raises(Exception) as exc_info:
                 await audit_service.generate_compliance_report(
                     db=mock_db_session,
                     organization_id="org123",
                     start_date=datetime.utcnow() - timedelta(days=30),
-                    end_date=datetime.utcnow()
+                    end_date=datetime.utcnow(),
                 )
 
             assert "Search failed" in str(exc_info.value)
@@ -510,7 +555,9 @@ class TestRiskAssessment:
 
     def test_calculate_risk_level_high_risk_failure(self, audit_service):
         """Test risk calculation for failed high-risk actions"""
-        risk_level = audit_service._calculate_risk_level("admin_login", False, "Authentication failed")
+        risk_level = audit_service._calculate_risk_level(
+            "admin_login", False, "Authentication failed"
+        )
         assert risk_level == "critical"
 
     def test_calculate_risk_level_normal_failure(self, audit_service):
@@ -536,24 +583,32 @@ class TestRiskAssessment:
     def test_is_suspicious_activity_rapid_requests(self, audit_service):
         """Test suspicious activity detection for rapid requests"""
         metadata = {"rapid_requests": True}
-        is_suspicious = audit_service._is_suspicious_activity("user_login", "192.168.1.1", "Mozilla/5.0", metadata)
+        is_suspicious = audit_service._is_suspicious_activity(
+            "user_login", "192.168.1.1", "Mozilla/5.0", metadata
+        )
         assert is_suspicious is True
 
     def test_is_suspicious_activity_suspicious_ip(self, audit_service):
         """Test suspicious activity detection for suspicious IP"""
-        with patch.object(audit_service, '_is_suspicious_ip', return_value=True):
-            is_suspicious = audit_service._is_suspicious_activity("user_login", "10.0.0.1", "Mozilla/5.0", {})
+        with patch.object(audit_service, "_is_suspicious_ip", return_value=True):
+            is_suspicious = audit_service._is_suspicious_activity(
+                "user_login", "10.0.0.1", "Mozilla/5.0", {}
+            )
             assert is_suspicious is True
 
     def test_is_suspicious_activity_bot_user_agent(self, audit_service):
         """Test suspicious activity detection for bot user agents"""
-        with patch.object(audit_service, '_is_bot_user_agent', return_value=True):
-            is_suspicious = audit_service._is_suspicious_activity("user_login", "192.168.1.1", "bot/1.0", {})
+        with patch.object(audit_service, "_is_bot_user_agent", return_value=True):
+            is_suspicious = audit_service._is_suspicious_activity(
+                "user_login", "192.168.1.1", "bot/1.0", {}
+            )
             assert is_suspicious is True
 
     def test_is_suspicious_activity_normal(self, audit_service):
         """Test suspicious activity detection for normal activity"""
-        is_suspicious = audit_service._is_suspicious_activity("user_login", "192.168.1.1", "Mozilla/5.0", {})
+        is_suspicious = audit_service._is_suspicious_activity(
+            "user_login", "192.168.1.1", "Mozilla/5.0", {}
+        )
         assert is_suspicious is False
 
     def test_is_suspicious_ip(self, audit_service):
@@ -566,7 +621,9 @@ class TestRiskAssessment:
         assert audit_service._is_suspicious_ip("8.8.8.8") is False
         assert audit_service._is_suspicious_ip("172.16.0.1") is False
         assert audit_service._is_suspicious_ip("10.0.0.123") is False  # Doesn't start with 10.0.0.0
-        assert audit_service._is_suspicious_ip("192.168.1.5") is False  # Doesn't start with 192.168.1.0
+        assert (
+            audit_service._is_suspicious_ip("192.168.1.5") is False
+        )  # Doesn't start with 192.168.1.0
 
     def test_is_bot_user_agent(self, audit_service):
         """Test bot user agent detection"""
@@ -590,7 +647,7 @@ class TestComplianceUtilities:
             {"action": "data_export", "resource_type": "user_data"},
             {"action": "data_delete", "resource_type": "billing_data"},
             {"action": "data_read", "resource_type": "user_data"},
-            {"action": "data_update", "resource_type": "organization_data"}
+            {"action": "data_update", "resource_type": "organization_data"},
         ]
 
         summary = audit_service._summarize_data_access(data_access_events)
@@ -609,7 +666,7 @@ class TestComplianceUtilities:
         logs = [
             {"success": True, "risk_level": "low", "is_suspicious": False},
             {"success": True, "risk_level": "medium", "is_suspicious": False},
-            {"success": True, "risk_level": "low", "is_suspicious": False}
+            {"success": True, "risk_level": "low", "is_suspicious": False},
         ]
 
         status = audit_service._assess_compliance_status(logs)
@@ -623,7 +680,7 @@ class TestComplianceUtilities:
         logs = [
             {"success": False, "risk_level": "high", "is_suspicious": False},
             {"success": True, "risk_level": "low", "is_suspicious": True},
-            {"success": True, "risk_level": "medium", "is_suspicious": False}
+            {"success": True, "risk_level": "medium", "is_suspicious": False},
         ]
 
         status = audit_service._assess_compliance_status(logs)
@@ -638,20 +695,20 @@ class TestComplianceUtilities:
         """Test compliance status assessment for non-compliant scenario"""
         # Since current implementation only has 2 issue types, we need to mock additional issue types
         # to test the non_compliant path
-        with patch.object(audit_service, '_assess_compliance_status') as mock_assess:
+        with patch.object(audit_service, "_assess_compliance_status") as mock_assess:
             mock_assess.return_value = {
                 "status": "non_compliant",
                 "issues": [
                     "2 failed high-risk operations",
                     "3 suspicious activities detected",
-                    "1 data breach incident"  # Mock third issue type
+                    "1 data breach incident",  # Mock third issue type
                 ],
-                "total_violations": 3
+                "total_violations": 3,
             }
 
             logs = [
                 {"success": False, "risk_level": "critical", "is_suspicious": False},
-                {"success": True, "risk_level": "low", "is_suspicious": True}
+                {"success": True, "risk_level": "low", "is_suspicious": True},
             ]
 
             status = audit_service._assess_compliance_status(logs)

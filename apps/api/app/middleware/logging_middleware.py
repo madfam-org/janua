@@ -14,7 +14,7 @@ import structlog
 from app.logging.structured_logger import (
     structured_logger,
     request_logging_context,
-    generate_correlation_id
+    generate_correlation_id,
 )
 
 logger = structlog.get_logger()
@@ -30,15 +30,24 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         log_request_body: bool = False,
         log_response_body: bool = False,
         max_body_size: int = 1000,
-        sensitive_headers: Optional[list] = None
+        sensitive_headers: Optional[list] = None,
     ):
         super().__init__(app)
-        self.exclude_paths = exclude_paths or ["/health", "/metrics", "/favicon.ico", "/docs", "/openapi.json"]
+        self.exclude_paths = exclude_paths or [
+            "/health",
+            "/metrics",
+            "/favicon.ico",
+            "/docs",
+            "/openapi.json",
+        ]
         self.log_request_body = log_request_body
         self.log_response_body = log_response_body
         self.max_body_size = max_body_size
         self.sensitive_headers = sensitive_headers or [
-            'authorization', 'cookie', 'x-api-key', 'x-auth-token'
+            "authorization",
+            "cookie",
+            "x-api-key",
+            "x-auth-token",
         ]
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -61,14 +70,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         user_agent = request.headers.get("user-agent", "unknown")
 
         # Extract user context if available (from auth middleware)
-        user_id = getattr(request.state, 'user_id', None)
-        session_id = getattr(request.state, 'session_id', None)
+        user_id = getattr(request.state, "user_id", None)
+        session_id = getattr(request.state, "session_id", None)
 
         # Set up logging context
         with request_logging_context(
-            request_id=correlation_id,
-            user_id=user_id,
-            trace_id=request.headers.get("x-trace-id")
+            request_id=correlation_id, user_id=user_id, trace_id=request.headers.get("x-trace-id")
         ):
             # Log request start
             await self._log_request_start(
@@ -78,7 +85,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 user_agent=user_agent,
                 request_size=request_size,
                 user_id=user_id,
-                session_id=session_id
+                session_id=session_id,
             )
 
             response = None
@@ -95,7 +102,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 error_details = {
                     "error_type": type(e).__name__,
                     "error_message": str(e),
-                    "error_traceback": None  # Don't log full traceback in middleware
+                    "error_traceback": None,  # Don't log full traceback in middleware
                 }
 
                 structured_logger.exception(
@@ -104,7 +111,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     error_type=type(e).__name__,
                     error_message=str(e),
                     request_path=request.url.path,
-                    request_method=request.method
+                    request_method=request.method,
                 )
 
                 # Return error response
@@ -113,8 +120,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     content={
                         "detail": "Internal server error",
                         "correlation_id": correlation_id,
-                        "timestamp": time.time()
-                    }
+                        "timestamp": time.time(),
+                    },
                 )
                 status_code = 500
 
@@ -142,7 +149,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     user_agent=user_agent,
                     user_id=user_id,
                     session_id=session_id,
-                    error_details=error_details
+                    error_details=error_details,
                 )
 
         return response
@@ -155,7 +162,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         user_agent: str,
         request_size: int,
         user_id: Optional[str] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ):
         """Log request start with detailed information"""
 
@@ -171,12 +178,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             try:
                 body_bytes = await request.body()
                 if body_bytes:
-                    request_body = body_bytes.decode('utf-8')[:self.max_body_size]
+                    request_body = body_bytes.decode("utf-8")[: self.max_body_size]
             except Exception as e:
                 structured_logger.warning(
                     "Failed to read request body for logging",
                     correlation_id=correlation_id,
-                    error=str(e)
+                    error=str(e),
                 )
 
         # Log the request
@@ -195,7 +202,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             url=str(request.url),
             scheme=request.url.scheme,
             host=request.url.hostname,
-            port=request.url.port
+            port=request.url.port,
         )
 
     async def _log_request_completion(
@@ -211,7 +218,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         user_agent: str,
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
-        error_details: Optional[Dict[str, Any]] = None
+        error_details: Optional[Dict[str, Any]] = None,
     ):
         """Log request completion with metrics and response details"""
 
@@ -245,7 +252,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             "user_id": user_id,
             "session_id": session_id,
             "http_method": request.method,
-            "http_path": request.url.path
+            "http_path": request.url.path,
         }
 
         if error_details:
@@ -261,7 +268,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 status_code=status_code,
                 path=request.url.path,
                 client_ip=client_ip,
-                user_id=user_id
+                user_id=user_id,
             )
 
         # Log performance metrics
@@ -271,7 +278,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 value=duration_ms,
                 unit="ms",
                 path=request.url.path,
-                method=request.method
+                method=request.method,
             )
 
     def _get_client_ip(self, request: Request) -> str:
@@ -323,15 +330,21 @@ class DatabaseLoggingMixin:
     """Mixin to add database operation logging to database classes"""
 
     @staticmethod
-    def log_query(operation: str, table: str, query: str, duration_ms: float,
-                  rows_affected: Optional[int] = None, error: Optional[str] = None):
+    def log_query(
+        operation: str,
+        table: str,
+        query: str,
+        duration_ms: float,
+        rows_affected: Optional[int] = None,
+        error: Optional[str] = None,
+    ):
         """Log database query execution"""
         log_data = {
             "db_operation": operation,
             "db_table": table,
             "db_query": query[:500] if query else None,  # Truncate long queries
             "duration_ms": duration_ms,
-            "rows_affected": rows_affected
+            "rows_affected": rows_affected,
         }
 
         if error:
@@ -347,7 +360,7 @@ class DatabaseLoggingMixin:
                 value=duration_ms,
                 unit="ms",
                 operation=operation,
-                table=table
+                table=table,
             )
 
 
@@ -355,9 +368,14 @@ class SecurityLoggingMixin:
     """Mixin to add security event logging"""
 
     @staticmethod
-    def log_authentication_attempt(user_identifier: str, success: bool,
-                                 method: str = "password", ip_address: str = "unknown",
-                                 user_agent: str = "unknown", failure_reason: Optional[str] = None):
+    def log_authentication_attempt(
+        user_identifier: str,
+        success: bool,
+        method: str = "password",
+        ip_address: str = "unknown",
+        user_agent: str = "unknown",
+        failure_reason: Optional[str] = None,
+    ):
         """Log authentication attempts"""
         structured_logger.log_authentication(
             action="login_attempt",
@@ -366,7 +384,7 @@ class SecurityLoggingMixin:
             auth_method=method,
             client_ip=ip_address,
             user_agent=user_agent,
-            failure_reason=failure_reason
+            failure_reason=failure_reason,
         )
 
         if not success:
@@ -376,19 +394,16 @@ class SecurityLoggingMixin:
                 user_identifier=user_identifier,
                 auth_method=method,
                 client_ip=ip_address,
-                failure_reason=failure_reason
+                failure_reason=failure_reason,
             )
 
     @staticmethod
-    def log_authorization_check(user_id: str, resource: str, action: str,
-                              allowed: bool, reason: Optional[str] = None):
+    def log_authorization_check(
+        user_id: str, resource: str, action: str, allowed: bool, reason: Optional[str] = None
+    ):
         """Log authorization checks"""
         structured_logger.log_authorization(
-            action=action,
-            resource=resource,
-            user_id=user_id,
-            allowed=allowed,
-            reason=reason
+            action=action, resource=resource, user_id=user_id, allowed=allowed, reason=reason
         )
 
         if not allowed:
@@ -398,13 +413,18 @@ class SecurityLoggingMixin:
                 user_id=user_id,
                 resource=resource,
                 action=action,
-                reason=reason
+                reason=reason,
             )
 
     @staticmethod
-    def log_suspicious_activity(event_type: str, severity: str, description: str,
-                              user_id: Optional[str] = None, ip_address: str = "unknown",
-                              **additional_data):
+    def log_suspicious_activity(
+        event_type: str,
+        severity: str,
+        description: str,
+        user_id: Optional[str] = None,
+        ip_address: str = "unknown",
+        **additional_data,
+    ):
         """Log suspicious activities"""
         structured_logger.log_security_event(
             event_type=event_type,
@@ -412,13 +432,14 @@ class SecurityLoggingMixin:
             description=description,
             user_id=user_id,
             client_ip=ip_address,
-            **additional_data
+            **additional_data,
         )
 
 
 # Helper functions for specific logging scenarios
-def log_api_key_usage(api_key_id: str, endpoint: str, user_id: Optional[str] = None,
-                     rate_limited: bool = False):
+def log_api_key_usage(
+    api_key_id: str, endpoint: str, user_id: Optional[str] = None, rate_limited: bool = False
+):
     """Log API key usage"""
     structured_logger.info(
         "API key usage",
@@ -426,11 +447,11 @@ def log_api_key_usage(api_key_id: str, endpoint: str, user_id: Optional[str] = N
         endpoint=endpoint,
         user_id=user_id,
         rate_limited=rate_limited,
-        event_type="api_key_usage"
+        event_type="api_key_usage",
     )
 
-def log_data_export(user_id: str, data_type: str, record_count: int,
-                   export_format: str = "json"):
+
+def log_data_export(user_id: str, data_type: str, record_count: int, export_format: str = "json"):
     """Log data export activities"""
     structured_logger.info(
         "Data export",
@@ -438,11 +459,13 @@ def log_data_export(user_id: str, data_type: str, record_count: int,
         data_type=data_type,
         record_count=record_count,
         export_format=export_format,
-        event_type="data_export"
+        event_type="data_export",
     )
 
-def log_configuration_change(user_id: str, config_key: str, old_value: Any,
-                           new_value: Any, component: str = "system"):
+
+def log_configuration_change(
+    user_id: str, config_key: str, old_value: Any, new_value: Any, component: str = "system"
+):
     """Log configuration changes"""
     structured_logger.info(
         "Configuration change",
@@ -451,11 +474,16 @@ def log_configuration_change(user_id: str, config_key: str, old_value: Any,
         old_value=str(old_value)[:100],
         new_value=str(new_value)[:100],
         component=component,
-        event_type="configuration_change"
+        event_type="configuration_change",
     )
 
-def log_feature_flag_usage(user_id: Optional[str], flag_name: str, flag_value: bool,
-                         context: Optional[Dict[str, Any]] = None):
+
+def log_feature_flag_usage(
+    user_id: Optional[str],
+    flag_name: str,
+    flag_value: bool,
+    context: Optional[Dict[str, Any]] = None,
+):
     """Log feature flag usage"""
     structured_logger.debug(
         "Feature flag evaluation",
@@ -463,5 +491,5 @@ def log_feature_flag_usage(user_id: Optional[str], flag_name: str, flag_value: b
         flag_name=flag_name,
         flag_value=flag_value,
         context=context,
-        event_type="feature_flag_usage"
+        event_type="feature_flag_usage",
     )

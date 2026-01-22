@@ -460,10 +460,13 @@ async def link_oauth_callback(
         user_info = await OAuthService.get_user_info(oauth_provider, tokens["access_token"])
 
         if not user_info:
-            raise HTTPException(status_code=401, detail="Failed to get user info from OAuth provider")
+            raise HTTPException(
+                status_code=401, detail="Failed to get user info from OAuth provider"
+            )
 
         # Get the user from database
         from uuid import UUID
+
         result = await db.execute(select(User).where(User.id == UUID(user_id)))
         user = result.scalar_one_or_none()
 
@@ -500,18 +503,18 @@ async def link_oauth_callback(
                 granted_scopes = [s.strip() for s in scope_str.split(",")]
             else:
                 granted_scopes = scope_str.split()
-        
+
         # Fallback to configured scopes if provider doesn't return them
         if not granted_scopes:
             config = OAuthService.get_provider_config(oauth_provider)
             if config:
                 granted_scopes = config.get("scopes", [])
-        
+
         provider_data = {
             "scopes": granted_scopes,
             "raw_user_info": user_info,
         }
-        
+
         # Create OAuth account link
         oauth_account = OAuthAccount(
             user_id=UUID(user_id),
@@ -603,7 +606,9 @@ async def unlink_oauth_account(
 
         # Log activity
         activity = ActivityLog(
-            user_id=current_user.id, action="oauth_unlinked", activity_metadata={"provider": provider}
+            user_id=current_user.id,
+            action="oauth_unlinked",
+            activity_metadata={"provider": provider},
         )
         db.add(activity)
 

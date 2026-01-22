@@ -22,14 +22,16 @@ settings = get_settings()
 
 class TicketPriority(str, Enum):
     """Support ticket priority levels"""
-    EMERGENCY = "emergency"    # 15 minutes response
-    HIGH = "high"             # 2 hours response
-    MEDIUM = "medium"         # 8 hours response
-    LOW = "low"              # 24 hours response
+
+    EMERGENCY = "emergency"  # 15 minutes response
+    HIGH = "high"  # 2 hours response
+    MEDIUM = "medium"  # 8 hours response
+    LOW = "low"  # 24 hours response
 
 
 class TicketStatus(str, Enum):
     """Support ticket status"""
+
     OPEN = "open"
     ASSIGNED = "assigned"
     IN_PROGRESS = "in_progress"
@@ -41,6 +43,7 @@ class TicketStatus(str, Enum):
 
 class TicketCategory(str, Enum):
     """Support ticket categories"""
+
     TECHNICAL_ISSUE = "technical_issue"
     ACCOUNT_ACCESS = "account_access"
     BILLING_INQUIRY = "billing_inquiry"
@@ -55,14 +58,16 @@ class TicketCategory(str, Enum):
 
 class SupportTier(str, Enum):
     """Customer support tier levels"""
-    ENTERPRISE = "enterprise"      # Fastest response times
+
+    ENTERPRISE = "enterprise"  # Fastest response times
     PROFESSIONAL = "professional"  # Standard response times
-    STANDARD = "standard"          # Basic response times
-    COMMUNITY = "community"        # Best effort
+    STANDARD = "standard"  # Basic response times
+    COMMUNITY = "community"  # Best effort
 
 
 class EscalationReason(str, Enum):
     """Reasons for ticket escalation"""
+
     SLA_BREACH = "sla_breach"
     CUSTOMER_REQUEST = "customer_request"
     TECHNICAL_COMPLEXITY = "technical_complexity"
@@ -74,6 +79,7 @@ class EscalationReason(str, Enum):
 @dataclass
 class SupportTicket:
     """Support ticket with SLA tracking"""
+
     ticket_id: str
     customer_id: str
     organization_id: str
@@ -130,6 +136,7 @@ class SupportTicket:
 @dataclass
 class SupportMetrics:
     """Support team performance metrics"""
+
     period_start: datetime
     period_end: datetime
     organization_id: str
@@ -142,9 +149,9 @@ class SupportMetrics:
 
     # SLA performance
     first_response_sla_met: float  # percentage
-    resolution_sla_met: float      # percentage
+    resolution_sla_met: float  # percentage
     average_first_response_time: float  # minutes
-    average_resolution_time: float      # minutes
+    average_resolution_time: float  # minutes
 
     # Quality metrics
     customer_satisfaction_avg: float
@@ -183,7 +190,7 @@ class SupportSystem:
         environment: str = None,
         tenant_id: str = None,
         tags: List[str] = None,
-        custom_fields: Dict[str, Any] = None
+        custom_fields: Dict[str, Any] = None,
     ) -> str:
         """Create a new support ticket with automatic SLA assignment"""
 
@@ -234,7 +241,7 @@ class SupportSystem:
             tags=tags or [],
             custom_fields=custom_fields or {},
             internal_notes=[],
-            customer_communication=[]
+            customer_communication=[],
         )
 
         # Store ticket in database
@@ -262,16 +269,19 @@ class SupportSystem:
                 "category": category.value,
                 "support_tier": support_tier.value,
                 "first_response_due": ticket.first_response_due.isoformat(),
-                "resolution_due": ticket.resolution_due.isoformat()
-            }
+                "resolution_due": ticket.resolution_due.isoformat(),
+            },
         )
 
-        logger.info(f"Support ticket created: {ticket_id}", extra={
-            "customer_id": customer_id,
-            "priority": priority.value,
-            "category": category.value,
-            "first_response_due": ticket.first_response_due.isoformat()
-        })
+        logger.info(
+            f"Support ticket created: {ticket_id}",
+            extra={
+                "customer_id": customer_id,
+                "priority": priority.value,
+                "category": category.value,
+                "first_response_due": ticket.first_response_due.isoformat(),
+            },
+        )
 
         return ticket_id
 
@@ -281,7 +291,7 @@ class SupportSystem:
         agent_id: str,
         team: str = None,
         assigned_by: str = None,
-        assignment_notes: str = None
+        assignment_notes: str = None,
     ) -> bool:
         """Assign ticket to support agent"""
 
@@ -299,7 +309,8 @@ class SupportSystem:
             "timestamp": datetime.utcnow().isoformat(),
             "author": assigned_by or "system",
             "type": "assignment",
-            "content": f"Ticket assigned to {agent_id}" + (f" ({assignment_notes})" if assignment_notes else "")
+            "content": f"Ticket assigned to {agent_id}"
+            + (f" ({assignment_notes})" if assignment_notes else ""),
         }
         ticket.internal_notes.append(assignment_note)
 
@@ -316,11 +327,7 @@ class SupportSystem:
             user_id=agent_id,
             organization_id=ticket.organization_id,
             control_id="SUP-002",
-            raw_data={
-                "assigned_to": agent_id,
-                "assigned_team": team,
-                "assigned_by": assigned_by
-            }
+            raw_data={"assigned_to": agent_id, "assigned_team": team, "assigned_by": assigned_by},
         )
 
         # Notify agent
@@ -336,7 +343,7 @@ class SupportSystem:
         response_type: str = "customer_response",
         is_first_response: bool = None,
         resolution_provided: bool = False,
-        internal_note: bool = False
+        internal_note: bool = False,
     ) -> bool:
         """Record agent response to ticket"""
 
@@ -353,7 +360,9 @@ class SupportSystem:
         # Record first response time
         if is_first_response and ticket.first_response_at is None:
             ticket.first_response_at = response_time
-            ticket.response_time_minutes = int((response_time - ticket.created_at).total_seconds() / 60)
+            ticket.response_time_minutes = int(
+                (response_time - ticket.created_at).total_seconds() / 60
+            )
 
             # Check SLA compliance
             first_response_sla_met = response_time <= ticket.first_response_due
@@ -371,7 +380,7 @@ class SupportSystem:
             "content": response_content,
             "is_first_response": is_first_response,
             "resolution_provided": resolution_provided,
-            "internal": internal_note
+            "internal": internal_note,
         }
 
         if internal_note:
@@ -383,7 +392,9 @@ class SupportSystem:
         if resolution_provided:
             ticket.status = TicketStatus.RESOLVED
             ticket.resolved_at = response_time
-            ticket.resolution_time_minutes = int((response_time - ticket.created_at).total_seconds() / 60)
+            ticket.resolution_time_minutes = int(
+                (response_time - ticket.created_at).total_seconds() / 60
+            )
 
             # Check resolution SLA compliance
             resolution_sla_met = response_time <= ticket.resolution_due
@@ -406,8 +417,10 @@ class SupportSystem:
                 "response_type": response_type,
                 "is_first_response": is_first_response,
                 "resolution_provided": resolution_provided,
-                "response_time_minutes": ticket.response_time_minutes if is_first_response else None
-            }
+                "response_time_minutes": ticket.response_time_minutes
+                if is_first_response
+                else None,
+            },
         )
 
         # Send customer notification (if not internal)
@@ -422,7 +435,7 @@ class SupportSystem:
         escalation_reason: EscalationReason,
         escalated_to: str = None,
         escalated_by: str = None,
-        escalation_notes: str = None
+        escalation_notes: str = None,
     ) -> bool:
         """Escalate ticket to higher support tier or management"""
 
@@ -440,8 +453,9 @@ class SupportSystem:
             "timestamp": datetime.utcnow().isoformat(),
             "author": escalated_by or "system",
             "type": "escalation",
-            "content": f"Ticket escalated: {escalation_reason.value}" + (f" - {escalation_notes}" if escalation_notes else ""),
-            "escalation_level": ticket.escalation_count
+            "content": f"Ticket escalated: {escalation_reason.value}"
+            + (f" - {escalation_notes}" if escalation_notes else ""),
+            "escalation_level": ticket.escalation_count,
         }
         ticket.internal_notes.append(escalation_note)
 
@@ -467,18 +481,21 @@ class SupportSystem:
             raw_data={
                 "escalation_reason": escalation_reason.value,
                 "escalated_to": escalated_to,
-                "escalation_count": ticket.escalation_count
-            }
+                "escalation_count": ticket.escalation_count,
+            },
         )
 
         # Notify escalation target
         await self._notify_escalation(ticket, escalated_to, escalation_reason)
 
-        logger.warning(f"Ticket escalated: {ticket_id}", extra={
-            "reason": escalation_reason.value,
-            "escalated_to": escalated_to,
-            "escalation_count": ticket.escalation_count
-        })
+        logger.warning(
+            f"Ticket escalated: {ticket_id}",
+            extra={
+                "reason": escalation_reason.value,
+                "escalated_to": escalated_to,
+                "escalation_count": ticket.escalation_count,
+            },
+        )
 
         return True
 
@@ -488,7 +505,7 @@ class SupportSystem:
         closed_by: str,
         closure_reason: str = "resolved",
         customer_satisfaction: int = None,
-        resolution_summary: str = None
+        resolution_summary: str = None,
     ) -> bool:
         """Close resolved ticket"""
 
@@ -508,8 +525,9 @@ class SupportSystem:
             "timestamp": ticket.closed_at.isoformat(),
             "author": closed_by,
             "type": "closure",
-            "content": f"Ticket closed: {closure_reason}" + (f" - {resolution_summary}" if resolution_summary else ""),
-            "customer_satisfaction": customer_satisfaction
+            "content": f"Ticket closed: {closure_reason}"
+            + (f" - {resolution_summary}" if resolution_summary else ""),
+            "customer_satisfaction": customer_satisfaction,
         }
         ticket.internal_notes.append(closure_note)
 
@@ -529,8 +547,8 @@ class SupportSystem:
             raw_data={
                 "closure_reason": closure_reason,
                 "customer_satisfaction": customer_satisfaction,
-                "total_resolution_time": ticket.resolution_time_minutes
-            }
+                "total_resolution_time": ticket.resolution_time_minutes,
+            },
         )
 
         return True
@@ -541,7 +559,7 @@ class SupportSystem:
         start_date: datetime,
         end_date: datetime,
         team: str = None,
-        agent_id: str = None
+        agent_id: str = None,
     ) -> SupportMetrics:
         """Generate comprehensive support metrics"""
 
@@ -551,7 +569,7 @@ class SupportSystem:
             start_date=start_date,
             end_date=end_date,
             team=team,
-            agent_id=agent_id
+            agent_id=agent_id,
         )
 
         # Calculate volume metrics
@@ -566,22 +584,42 @@ class SupportSystem:
             tickets_by_status[ticket.status] += 1
 
         # Calculate SLA performance
-        first_response_met = len([t for t in tickets if t.first_response_at and t.first_response_at <= t.first_response_due])
+        first_response_met = len(
+            [
+                t
+                for t in tickets
+                if t.first_response_at and t.first_response_at <= t.first_response_due
+            ]
+        )
         first_response_sla_met = first_response_met / total_tickets if total_tickets > 0 else 0
 
-        resolution_met = len([t for t in tickets if t.resolved_at and t.resolved_at <= t.resolution_due])
+        resolution_met = len(
+            [t for t in tickets if t.resolved_at and t.resolved_at <= t.resolution_due]
+        )
         resolution_sla_met = resolution_met / total_tickets if total_tickets > 0 else 0
 
         # Calculate average times
-        response_times = [t.response_time_minutes for t in tickets if t.response_time_minutes is not None]
+        response_times = [
+            t.response_time_minutes for t in tickets if t.response_time_minutes is not None
+        ]
         avg_first_response_time = sum(response_times) / len(response_times) if response_times else 0
 
-        resolution_times = [t.resolution_time_minutes for t in tickets if t.resolution_time_minutes is not None]
-        avg_resolution_time = sum(resolution_times) / len(resolution_times) if resolution_times else 0
+        resolution_times = [
+            t.resolution_time_minutes for t in tickets if t.resolution_time_minutes is not None
+        ]
+        avg_resolution_time = (
+            sum(resolution_times) / len(resolution_times) if resolution_times else 0
+        )
 
         # Calculate quality metrics
-        satisfaction_scores = [t.customer_satisfaction_score for t in tickets if t.customer_satisfaction_score is not None]
-        customer_satisfaction_avg = sum(satisfaction_scores) / len(satisfaction_scores) if satisfaction_scores else 0
+        satisfaction_scores = [
+            t.customer_satisfaction_score
+            for t in tickets
+            if t.customer_satisfaction_score is not None
+        ]
+        customer_satisfaction_avg = (
+            sum(satisfaction_scores) / len(satisfaction_scores) if satisfaction_scores else 0
+        )
 
         escalated_tickets = len([t for t in tickets if t.escalation_count > 0])
         ticket_escalation_rate = escalated_tickets / total_tickets if total_tickets > 0 else 0
@@ -590,8 +628,16 @@ class SupportSystem:
         ticket_reopen_rate = reopened_tickets / total_tickets if total_tickets > 0 else 0
 
         # First contact resolution (simplified calculation)
-        first_contact_resolved = len([t for t in tickets if t.status == TicketStatus.CLOSED and len(t.customer_communication) <= 2])
-        first_contact_resolution_rate = first_contact_resolved / total_tickets if total_tickets > 0 else 0
+        first_contact_resolved = len(
+            [
+                t
+                for t in tickets
+                if t.status == TicketStatus.CLOSED and len(t.customer_communication) <= 2
+            ]
+        )
+        first_contact_resolution_rate = (
+            first_contact_resolved / total_tickets if total_tickets > 0 else 0
+        )
 
         # Agent performance metrics
         tickets_per_agent = {}
@@ -640,13 +686,11 @@ class SupportSystem:
             first_contact_resolution_rate=first_contact_resolution_rate * 100,
             tickets_per_agent=tickets_per_agent,
             agent_satisfaction_scores=agent_satisfaction_scores,
-            agent_response_times=agent_response_times
+            agent_response_times=agent_response_times,
         )
 
     async def get_sla_breach_alerts(
-        self,
-        organization_id: str,
-        look_ahead_minutes: int = 60
+        self, organization_id: str, look_ahead_minutes: int = 60
     ) -> List[Dict[str, Any]]:
         """Get tickets at risk of SLA breach"""
 
@@ -661,31 +705,37 @@ class SupportSystem:
         for ticket in tickets:
             # Check first response SLA
             if not ticket.first_response_at and ticket.first_response_due <= alert_threshold:
-                time_remaining = int((ticket.first_response_due - current_time).total_seconds() / 60)
-                alerts.append({
-                    "ticket_id": ticket.ticket_id,
-                    "alert_type": "first_response_sla",
-                    "priority": ticket.priority.value,
-                    "customer": ticket.customer_name,
-                    "due_in_minutes": time_remaining,
-                    "overdue": time_remaining < 0,
-                    "assigned_to": ticket.assigned_to,
-                    "created_at": ticket.created_at.isoformat()
-                })
+                time_remaining = int(
+                    (ticket.first_response_due - current_time).total_seconds() / 60
+                )
+                alerts.append(
+                    {
+                        "ticket_id": ticket.ticket_id,
+                        "alert_type": "first_response_sla",
+                        "priority": ticket.priority.value,
+                        "customer": ticket.customer_name,
+                        "due_in_minutes": time_remaining,
+                        "overdue": time_remaining < 0,
+                        "assigned_to": ticket.assigned_to,
+                        "created_at": ticket.created_at.isoformat(),
+                    }
+                )
 
             # Check resolution SLA
             if not ticket.resolved_at and ticket.resolution_due <= alert_threshold:
                 time_remaining = int((ticket.resolution_due - current_time).total_seconds() / 60)
-                alerts.append({
-                    "ticket_id": ticket.ticket_id,
-                    "alert_type": "resolution_sla",
-                    "priority": ticket.priority.value,
-                    "customer": ticket.customer_name,
-                    "due_in_minutes": time_remaining,
-                    "overdue": time_remaining < 0,
-                    "assigned_to": ticket.assigned_to,
-                    "created_at": ticket.created_at.isoformat()
-                })
+                alerts.append(
+                    {
+                        "ticket_id": ticket.ticket_id,
+                        "alert_type": "resolution_sla",
+                        "priority": ticket.priority.value,
+                        "customer": ticket.customer_name,
+                        "due_in_minutes": time_remaining,
+                        "overdue": time_remaining < 0,
+                        "assigned_to": ticket.assigned_to,
+                        "created_at": ticket.created_at.isoformat(),
+                    }
+                )
 
         # Sort by urgency (overdue first, then by time remaining)
         alerts.sort(key=lambda x: (not x["overdue"], abs(x["due_in_minutes"])))
@@ -695,10 +745,7 @@ class SupportSystem:
     # Helper methods
 
     async def _auto_detect_priority(
-        self,
-        category: TicketCategory,
-        description: str,
-        support_tier: SupportTier
+        self, category: TicketCategory, description: str, support_tier: SupportTier
     ) -> TicketPriority:
         """Automatically detect ticket priority based on content and tier"""
 
@@ -707,11 +754,23 @@ class SupportSystem:
             return TicketPriority.HIGH
 
         # Check description for urgency keywords
-        urgent_keywords = ["urgent", "emergency", "critical", "down", "outage", "security", "breach"]
+        urgent_keywords = [
+            "urgent",
+            "emergency",
+            "critical",
+            "down",
+            "outage",
+            "security",
+            "breach",
+        ]
         description_lower = description.lower()
 
         if any(keyword in description_lower for keyword in urgent_keywords):
-            return TicketPriority.HIGH if support_tier == SupportTier.ENTERPRISE else TicketPriority.MEDIUM
+            return (
+                TicketPriority.HIGH
+                if support_tier == SupportTier.ENTERPRISE
+                else TicketPriority.MEDIUM
+            )
 
         # Account access issues for enterprise customers
         if category == TicketCategory.ACCOUNT_ACCESS and support_tier == SupportTier.ENTERPRISE:
@@ -724,9 +783,7 @@ class SupportSystem:
             return TicketPriority.LOW
 
     async def _get_sla_times(
-        self,
-        priority: TicketPriority,
-        support_tier: SupportTier
+        self, priority: TicketPriority, support_tier: SupportTier
     ) -> Dict[str, int]:
         """Get SLA response and resolution times in minutes"""
 
@@ -735,7 +792,7 @@ class SupportSystem:
             TicketPriority.EMERGENCY: {"first_response": 15, "resolution": 120},
             TicketPriority.HIGH: {"first_response": 120, "resolution": 480},
             TicketPriority.MEDIUM: {"first_response": 480, "resolution": 1440},
-            TicketPriority.LOW: {"first_response": 1440, "resolution": 4320}
+            TicketPriority.LOW: {"first_response": 1440, "resolution": 4320},
         }
 
         # Tier multipliers
@@ -743,7 +800,7 @@ class SupportSystem:
             SupportTier.ENTERPRISE: 1.0,
             SupportTier.PROFESSIONAL: 1.5,
             SupportTier.STANDARD: 2.0,
-            SupportTier.COMMUNITY: 3.0
+            SupportTier.COMMUNITY: 3.0,
         }
 
         multiplier = tier_multipliers[support_tier]
@@ -751,7 +808,7 @@ class SupportSystem:
 
         return {
             "first_response_minutes": int(base["first_response"] * multiplier),
-            "resolution_minutes": int(base["resolution"] * multiplier)
+            "resolution_minutes": int(base["resolution"] * multiplier),
         }
 
     async def _store_ticket(self, ticket: SupportTicket):
@@ -769,8 +826,8 @@ class SupportSystem:
                 "ticket_id": ticket.ticket_id,
                 "priority": ticket.priority.value,
                 "status": ticket.status.value,
-                "support_tier": ticket.support_tier.value
-            }
+                "support_tier": ticket.support_tier.value,
+            },
         )
 
     async def _get_ticket(self, ticket_id: str) -> Optional[SupportTicket]:
@@ -785,7 +842,7 @@ class SupportSystem:
         start_date: datetime,
         end_date: datetime,
         team: str = None,
-        agent_id: str = None
+        agent_id: str = None,
     ) -> List[SupportTicket]:
         """Query tickets with filters (simplified)"""
         # In production, this would query the database
@@ -804,7 +861,7 @@ class SupportSystem:
                 "priority": ticket.priority.value,
                 "category": ticket.category.value,
                 "support_tier": ticket.support_tier.value,
-                "created_at": ticket.created_at.isoformat()
+                "created_at": ticket.created_at.isoformat(),
             }
 
             # Use priority-based queues
@@ -825,7 +882,7 @@ class SupportSystem:
             measurement_window_hours=24,
             organization_id=ticket.organization_id,
             tenant_id=ticket.tenant_id,
-            is_active=True
+            is_active=True,
         )
 
         resolution_slo = ServiceLevelObjective(
@@ -838,19 +895,14 @@ class SupportSystem:
             measurement_window_hours=168,  # 1 week
             organization_id=ticket.organization_id,
             tenant_id=ticket.tenant_id,
-            is_active=True
+            is_active=True,
         )
 
         # Register SLAs with monitor
         await self.sla_monitor.add_slo(first_response_slo)
         await self.sla_monitor.add_slo(resolution_slo)
 
-    async def _record_sla_performance(
-        self,
-        ticket: SupportTicket,
-        sla_type: str,
-        met: bool
-    ):
+    async def _record_sla_performance(self, ticket: SupportTicket, sla_type: str, met: bool):
         """Record SLA performance metrics"""
 
         # Log SLA performance
@@ -867,8 +919,8 @@ class SupportSystem:
                 "sla_type": sla_type,
                 "met": met,
                 "priority": ticket.priority.value,
-                "support_tier": ticket.support_tier.value
-            }
+                "support_tier": ticket.support_tier.value,
+            },
         )
 
     async def _notify_agent_assignment(self, ticket: SupportTicket, agent_id: str):
@@ -880,10 +932,7 @@ class SupportSystem:
         # Implementation would send email notification
 
     async def _notify_escalation(
-        self,
-        ticket: SupportTicket,
-        escalated_to: str,
-        reason: EscalationReason
+        self, ticket: SupportTicket, escalated_to: str, reason: EscalationReason
     ):
         """Notify escalation target"""
         # Implementation would send urgent notification

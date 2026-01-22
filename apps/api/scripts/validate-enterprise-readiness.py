@@ -24,14 +24,14 @@ class EnterpriseReadinessValidator:
     """Validates enterprise readiness across multiple dimensions."""
 
     def __init__(self, base_url: str = "http://localhost:8000"):
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.results = {
             "timestamp": datetime.utcnow().isoformat(),
             "overall_score": 0,
             "categories": {},
             "critical_issues": [],
             "recommendations": [],
-            "enterprise_ready": False
+            "enterprise_ready": False,
         }
 
     async def validate_all(self) -> Dict[str, Any]:
@@ -63,7 +63,7 @@ class EnterpriseReadinessValidator:
             "score": 0,
             "max_score": 100,
             "tests": [],
-            "critical": False
+            "critical": False,
         }
 
         # Test core endpoints
@@ -91,24 +91,30 @@ class EnterpriseReadinessValidator:
                 # Accept various status codes (endpoint exists)
                 if response.status_code < 500:
                     passed_tests += 1
-                    category["tests"].append({
-                        "name": description,
-                        "status": "PASS",
-                        "details": f"Endpoint accessible ({response.status_code})"
-                    })
+                    category["tests"].append(
+                        {
+                            "name": description,
+                            "status": "PASS",
+                            "details": f"Endpoint accessible ({response.status_code})",
+                        }
+                    )
                 else:
-                    category["tests"].append({
-                        "name": description,
-                        "status": "FAIL",
-                        "details": f"Server error ({response.status_code})"
-                    })
+                    category["tests"].append(
+                        {
+                            "name": description,
+                            "status": "FAIL",
+                            "details": f"Server error ({response.status_code})",
+                        }
+                    )
 
             except requests.exceptions.RequestException as e:
-                category["tests"].append({
-                    "name": description,
-                    "status": "FAIL",
-                    "details": f"Connection error: {str(e)}"
-                })
+                category["tests"].append(
+                    {
+                        "name": description,
+                        "status": "FAIL",
+                        "details": f"Connection error: {str(e)}",
+                    }
+                )
 
         category["score"] = (passed_tests / len(endpoints)) * 100
         if category["score"] < 70:
@@ -128,7 +134,7 @@ class EnterpriseReadinessValidator:
             "score": 0,
             "max_score": 100,
             "tests": [],
-            "critical": False
+            "critical": False,
         }
 
         # Test security headers
@@ -141,34 +147,40 @@ class EnterpriseReadinessValidator:
                 "X-Frame-Options": ["DENY", "SAMEORIGIN"],
                 "X-XSS-Protection": "1; mode=block",
                 "Strict-Transport-Security": None,  # Any value
-                "Content-Security-Policy": None
+                "Content-Security-Policy": None,
             }
 
             header_score = 0
             for header, expected in security_headers.items():
                 if header.lower() in [h.lower() for h in headers.keys()]:
                     header_score += 20
-                    category["tests"].append({
-                        "name": f"Security Header: {header}",
-                        "status": "PASS",
-                        "details": f"Present: {headers.get(header, 'N/A')}"
-                    })
+                    category["tests"].append(
+                        {
+                            "name": f"Security Header: {header}",
+                            "status": "PASS",
+                            "details": f"Present: {headers.get(header, 'N/A')}",
+                        }
+                    )
                 else:
-                    category["tests"].append({
-                        "name": f"Security Header: {header}",
-                        "status": "FAIL",
-                        "details": "Missing security header"
-                    })
+                    category["tests"].append(
+                        {
+                            "name": f"Security Header: {header}",
+                            "status": "FAIL",
+                            "details": "Missing security header",
+                        }
+                    )
 
             category["score"] = header_score
 
         except requests.exceptions.RequestException:
             category["score"] = 0
-            category["tests"].append({
-                "name": "Security Headers Check",
-                "status": "FAIL",
-                "details": "Could not connect to API"
-            })
+            category["tests"].append(
+                {
+                    "name": "Security Headers Check",
+                    "status": "FAIL",
+                    "details": "Could not connect to API",
+                }
+            )
 
         if category["score"] < 60:
             category["critical"] = True
@@ -187,7 +199,7 @@ class EnterpriseReadinessValidator:
             "score": 0,
             "max_score": 100,
             "tests": [],
-            "critical": False
+            "critical": False,
         }
 
         # Test signup flow
@@ -195,41 +207,49 @@ class EnterpriseReadinessValidator:
             "email": f"test_{int(time.time())}@example.com",
             "password": "TestPassword123!",  # nosec B105 - test fixture
             "first_name": "Test",
-            "last_name": "User"
+            "last_name": "User",
         }
 
         try:
             response = requests.post(
-                f"{self.base_url}/api/v1/auth/signup",
-                json=signup_data,
-                timeout=10
+                f"{self.base_url}/api/v1/auth/signup", json=signup_data, timeout=10
             )
 
             if response.status_code in [200, 201]:
-                category["tests"].append({
-                    "name": "User Registration",
-                    "status": "PASS",
-                    "details": "Signup endpoint functional"
-                })
+                category["tests"].append(
+                    {
+                        "name": "User Registration",
+                        "status": "PASS",
+                        "details": "Signup endpoint functional",
+                    }
+                )
                 category["score"] += 25
             else:
-                category["tests"].append({
-                    "name": "User Registration",
-                    "status": "FAIL",
-                    "details": f"Signup failed ({response.status_code})"
-                })
+                category["tests"].append(
+                    {
+                        "name": "User Registration",
+                        "status": "FAIL",
+                        "details": f"Signup failed ({response.status_code})",
+                    }
+                )
 
         except requests.exceptions.RequestException as e:
-            category["tests"].append({
-                "name": "User Registration",
-                "status": "FAIL",
-                "details": f"Connection error: {str(e)}"
-            })
+            category["tests"].append(
+                {
+                    "name": "User Registration",
+                    "status": "FAIL",
+                    "details": f"Connection error: {str(e)}",
+                }
+            )
 
         # Test password policy enforcement using COMMON WEAK passwords
         # These are intentionally weak test patterns, not real credentials
         # Note: Only the count of rejections is logged, not the test patterns
-        weak_test_patterns = ["123456", "password", "qwerty"]  # nosec B105 - weak password test patterns
+        weak_test_patterns = [
+            "123456",
+            "password",
+            "qwerty",
+        ]  # nosec B105 - weak password test patterns
         password_policy_score = 0
 
         for test_pattern in weak_test_patterns:
@@ -240,9 +260,9 @@ class EnterpriseReadinessValidator:
                         "email": f"weak_{test_pattern}@example.com",
                         "password": test_pattern,  # nosec B105 - intentional weak password test
                         "first_name": "Test",
-                        "last_name": "User"
+                        "last_name": "User",
                     },
-                    timeout=5
+                    timeout=5,
                 )
 
                 if response.status_code == 400:  # Should reject weak password
@@ -252,18 +272,22 @@ class EnterpriseReadinessValidator:
                 pass  # Intentionally ignoring - network errors expected during password policy testing
 
         if password_policy_score >= 2:
-            category["tests"].append({
-                "name": "Password Policy Enforcement",
-                "status": "PASS",
-                "details": f"Rejected {password_policy_score}/{len(weak_test_patterns)} weak passwords"
-            })
+            category["tests"].append(
+                {
+                    "name": "Password Policy Enforcement",
+                    "status": "PASS",
+                    "details": f"Rejected {password_policy_score}/{len(weak_test_patterns)} weak passwords",
+                }
+            )
             category["score"] += 25
         else:
-            category["tests"].append({
-                "name": "Password Policy Enforcement",
-                "status": "FAIL",
-                "details": "Weak password policy or not enforced"
-            })
+            category["tests"].append(
+                {
+                    "name": "Password Policy Enforcement",
+                    "status": "FAIL",
+                    "details": "Weak password policy or not enforced",
+                }
+            )
 
         # Test rate limiting
         rate_limit_score = 0
@@ -273,9 +297,9 @@ class EnterpriseReadinessValidator:
                     f"{self.base_url}/api/v1/auth/signin",
                     json={
                         "email": "nonexistent@example.com",
-                        "password": "wrongpassword"  # nosec B105 - intentional wrong password for rate limit test
+                        "password": "wrongpassword",  # nosec B105 - intentional wrong password for rate limit test
                     },
-                    timeout=2
+                    timeout=2,
                 )
 
                 if response.status_code == 429:  # Rate limited
@@ -286,18 +310,14 @@ class EnterpriseReadinessValidator:
                 pass  # Intentionally ignoring - network errors expected during rate limit testing
 
         if rate_limit_score > 0:
-            category["tests"].append({
-                "name": "Rate Limiting",
-                "status": "PASS",
-                "details": "Rate limiting active"
-            })
+            category["tests"].append(
+                {"name": "Rate Limiting", "status": "PASS", "details": "Rate limiting active"}
+            )
             category["score"] += 25
         else:
-            category["tests"].append({
-                "name": "Rate Limiting",
-                "status": "WARN",
-                "details": "Rate limiting not detected"
-            })
+            category["tests"].append(
+                {"name": "Rate Limiting", "status": "WARN", "details": "Rate limiting not detected"}
+            )
             category["score"] += 10
 
         # Test JWT token structure
@@ -306,31 +326,37 @@ class EnterpriseReadinessValidator:
                 f"{self.base_url}/api/v1/auth/signin",
                 json={
                     "email": "test@example.com",
-                    "password": "TestPassword123!"  # nosec B105 - test fixture
+                    "password": "TestPassword123!",  # nosec B105 - test fixture
                 },
-                timeout=5
+                timeout=5,
             )
 
             if response.status_code == 200 and "access_token" in response.json():
-                category["tests"].append({
-                    "name": "JWT Token Generation",
-                    "status": "PASS",
-                    "details": "JWT tokens generated correctly"
-                })
+                category["tests"].append(
+                    {
+                        "name": "JWT Token Generation",
+                        "status": "PASS",
+                        "details": "JWT tokens generated correctly",
+                    }
+                )
                 category["score"] += 25
             else:
-                category["tests"].append({
-                    "name": "JWT Token Generation",
-                    "status": "FAIL",
-                    "details": "JWT token generation issues"
-                })
+                category["tests"].append(
+                    {
+                        "name": "JWT Token Generation",
+                        "status": "FAIL",
+                        "details": "JWT token generation issues",
+                    }
+                )
 
         except requests.exceptions.RequestException:
-            category["tests"].append({
-                "name": "JWT Token Generation",
-                "status": "FAIL",
-                "details": "Cannot test JWT generation"
-            })
+            category["tests"].append(
+                {
+                    "name": "JWT Token Generation",
+                    "status": "FAIL",
+                    "details": "Cannot test JWT generation",
+                }
+            )
 
         if category["score"] < 75:
             category["critical"] = True
@@ -349,14 +375,14 @@ class EnterpriseReadinessValidator:
             "score": 0,
             "max_score": 100,
             "tests": [],
-            "critical": False
+            "critical": False,
         }
 
         # Test SSO endpoints
         sso_endpoints = [
             "/api/v1/sso/providers",
             "/api/v1/sso/saml/configure",
-            "/api/v1/sso/oidc/configure"
+            "/api/v1/sso/oidc/configure",
         ]
 
         sso_score = 0
@@ -370,90 +396,108 @@ class EnterpriseReadinessValidator:
                 pass  # Intentionally ignoring - network errors expected during SSO endpoint check
 
         if sso_score >= 2:
-            category["tests"].append({
-                "name": "SSO Infrastructure",
-                "status": "PASS",
-                "details": f"SSO endpoints available ({sso_score}/{len(sso_endpoints)})"
-            })
+            category["tests"].append(
+                {
+                    "name": "SSO Infrastructure",
+                    "status": "PASS",
+                    "details": f"SSO endpoints available ({sso_score}/{len(sso_endpoints)})",
+                }
+            )
             category["score"] += 30
         else:
-            category["tests"].append({
-                "name": "SSO Infrastructure",
-                "status": "FAIL",
-                "details": "SSO endpoints missing or non-functional"
-            })
+            category["tests"].append(
+                {
+                    "name": "SSO Infrastructure",
+                    "status": "FAIL",
+                    "details": "SSO endpoints missing or non-functional",
+                }
+            )
 
         # Test audit logging
         try:
             response = requests.get(f"{self.base_url}/api/v1/audit-logs", timeout=5)
             if response.status_code in [200, 401, 403]:  # Endpoint exists
-                category["tests"].append({
-                    "name": "Audit Logging",
-                    "status": "PASS",
-                    "details": "Audit logging endpoint available"
-                })
+                category["tests"].append(
+                    {
+                        "name": "Audit Logging",
+                        "status": "PASS",
+                        "details": "Audit logging endpoint available",
+                    }
+                )
                 category["score"] += 25
             else:
-                category["tests"].append({
-                    "name": "Audit Logging",
-                    "status": "FAIL",
-                    "details": "Audit logging not implemented"
-                })
+                category["tests"].append(
+                    {
+                        "name": "Audit Logging",
+                        "status": "FAIL",
+                        "details": "Audit logging not implemented",
+                    }
+                )
 
         except requests.exceptions.RequestException:
-            category["tests"].append({
-                "name": "Audit Logging",
-                "status": "FAIL",
-                "details": "Audit logging endpoint not accessible"
-            })
+            category["tests"].append(
+                {
+                    "name": "Audit Logging",
+                    "status": "FAIL",
+                    "details": "Audit logging endpoint not accessible",
+                }
+            )
 
         # Test RBAC
         try:
             response = requests.get(f"{self.base_url}/api/v1/rbac/roles", timeout=5)
             if response.status_code < 500:
-                category["tests"].append({
-                    "name": "RBAC System",
-                    "status": "PASS",
-                    "details": "RBAC endpoints available"
-                })
+                category["tests"].append(
+                    {"name": "RBAC System", "status": "PASS", "details": "RBAC endpoints available"}
+                )
                 category["score"] += 25
             else:
-                category["tests"].append({
-                    "name": "RBAC System",
-                    "status": "FAIL",
-                    "details": "RBAC system not available"
-                })
+                category["tests"].append(
+                    {
+                        "name": "RBAC System",
+                        "status": "FAIL",
+                        "details": "RBAC system not available",
+                    }
+                )
 
         except requests.exceptions.RequestException:
-            category["tests"].append({
-                "name": "RBAC System",
-                "status": "FAIL",
-                "details": "RBAC endpoints not accessible"
-            })
+            category["tests"].append(
+                {
+                    "name": "RBAC System",
+                    "status": "FAIL",
+                    "details": "RBAC endpoints not accessible",
+                }
+            )
 
         # Test compliance endpoints
         try:
             response = requests.get(f"{self.base_url}/api/v1/compliance/gdpr", timeout=5)
             if response.status_code < 500:
-                category["tests"].append({
-                    "name": "Compliance Features",
-                    "status": "PASS",
-                    "details": "Compliance endpoints available"
-                })
+                category["tests"].append(
+                    {
+                        "name": "Compliance Features",
+                        "status": "PASS",
+                        "details": "Compliance endpoints available",
+                    }
+                )
                 category["score"] += 20
             else:
-                category["tests"].append({
-                    "name": "Compliance Features",
-                    "status": "FAIL",
-                    "details": "Compliance features not implemented"
-                })
+                category["tests"].append(
+                    {
+                        "name": "Compliance Features",
+                        "status": "FAIL",
+                        "details": "Compliance features not implemented",
+                    }
+                )
 
         except requests.exceptions.RequestException:
-            category["tests"].append({
-                "name": "Compliance Features",
-                "status": "FAIL",
-                "details": "Compliance endpoints not accessible"
-            })
+            category["tests"].append(
+                {
+                    "name": "Compliance Features",
+                    "status": "FAIL",
+                    "details": "Compliance endpoints not accessible",
+                }
+            )
 
         if category["score"] < 60:
             self.results["recommendations"].append(
@@ -471,7 +515,7 @@ class EnterpriseReadinessValidator:
             "score": 0,
             "max_score": 100,
             "tests": [],
-            "critical": False
+            "critical": False,
         }
 
         # Test response times
@@ -494,18 +538,22 @@ class EnterpriseReadinessValidator:
         if response_times:
             avg_response_time = sum(response_times) / len(response_times)
             if avg_response_time < 0.1:  # Under 100ms
-                category["tests"].append({
-                    "name": "Response Time Performance",
-                    "status": "PASS",
-                    "details": f"Average response time: {avg_response_time:.3f}s"
-                })
+                category["tests"].append(
+                    {
+                        "name": "Response Time Performance",
+                        "status": "PASS",
+                        "details": f"Average response time: {avg_response_time:.3f}s",
+                    }
+                )
                 category["score"] += 50
             else:
-                category["tests"].append({
-                    "name": "Response Time Performance",
-                    "status": "WARN",
-                    "details": f"Slow response time: {avg_response_time:.3f}s"
-                })
+                category["tests"].append(
+                    {
+                        "name": "Response Time Performance",
+                        "status": "WARN",
+                        "details": f"Slow response time: {avg_response_time:.3f}s",
+                    }
+                )
                 category["score"] += 25
 
         # Test concurrent request handling
@@ -527,26 +575,32 @@ class EnterpriseReadinessValidator:
         try:
             concurrent_success = await test_concurrency()
             if concurrent_success >= 18:  # 90% success rate
-                category["tests"].append({
-                    "name": "Concurrent Request Handling",
-                    "status": "PASS",
-                    "details": f"Handled {concurrent_success}/20 concurrent requests"
-                })
+                category["tests"].append(
+                    {
+                        "name": "Concurrent Request Handling",
+                        "status": "PASS",
+                        "details": f"Handled {concurrent_success}/20 concurrent requests",
+                    }
+                )
                 category["score"] += 50
             else:
-                category["tests"].append({
-                    "name": "Concurrent Request Handling",
-                    "status": "FAIL",
-                    "details": f"Only handled {concurrent_success}/20 concurrent requests"
-                })
+                category["tests"].append(
+                    {
+                        "name": "Concurrent Request Handling",
+                        "status": "FAIL",
+                        "details": f"Only handled {concurrent_success}/20 concurrent requests",
+                    }
+                )
                 category["score"] += 25
 
         except Exception as e:
-            category["tests"].append({
-                "name": "Concurrent Request Handling",
-                "status": "FAIL",
-                "details": f"Concurrency test failed: {str(e)}"
-            })
+            category["tests"].append(
+                {
+                    "name": "Concurrent Request Handling",
+                    "status": "FAIL",
+                    "details": f"Concurrency test failed: {str(e)}",
+                }
+            )
 
         self.results["categories"]["scalability"] = category
 
@@ -559,7 +613,7 @@ class EnterpriseReadinessValidator:
             "score": 0,
             "max_score": 100,
             "tests": [],
-            "critical": False
+            "critical": False,
         }
 
         # Check for compliance endpoints
@@ -567,7 +621,7 @@ class EnterpriseReadinessValidator:
             ("/api/v1/compliance/gdpr", "GDPR Data Export"),
             ("/api/v1/compliance/audit", "Audit Trail"),
             ("/api/v1/compliance/data-retention", "Data Retention"),
-            ("/api/v1/compliance/report", "Compliance Reporting")
+            ("/api/v1/compliance/report", "Compliance Reporting"),
         ]
 
         feature_score = 0
@@ -576,24 +630,22 @@ class EnterpriseReadinessValidator:
                 response = requests.get(f"{self.base_url}{endpoint}", timeout=5)
                 if response.status_code < 500:
                     feature_score += 25
-                    category["tests"].append({
-                        "name": feature_name,
-                        "status": "PASS",
-                        "details": "Endpoint available"
-                    })
+                    category["tests"].append(
+                        {"name": feature_name, "status": "PASS", "details": "Endpoint available"}
+                    )
                 else:
-                    category["tests"].append({
-                        "name": feature_name,
-                        "status": "FAIL",
-                        "details": "Endpoint not implemented"
-                    })
+                    category["tests"].append(
+                        {
+                            "name": feature_name,
+                            "status": "FAIL",
+                            "details": "Endpoint not implemented",
+                        }
+                    )
 
             except requests.exceptions.RequestException:
-                category["tests"].append({
-                    "name": feature_name,
-                    "status": "FAIL",
-                    "details": "Endpoint not accessible"
-                })
+                category["tests"].append(
+                    {"name": feature_name, "status": "FAIL", "details": "Endpoint not accessible"}
+                )
 
         category["score"] = feature_score
 
@@ -613,7 +665,7 @@ class EnterpriseReadinessValidator:
             "score": 0,
             "max_score": 100,
             "tests": [],
-            "critical": False
+            "critical": False,
         }
 
         # Test health endpoints
@@ -621,7 +673,7 @@ class EnterpriseReadinessValidator:
             ("/api/v1/health", "Basic Health Check"),
             ("/api/v1/health/ready", "Readiness Probe"),
             ("/api/v1/health/live", "Liveness Probe"),
-            ("/api/v1/metrics", "Metrics Endpoint")
+            ("/api/v1/metrics", "Metrics Endpoint"),
         ]
 
         health_score = 0
@@ -630,24 +682,26 @@ class EnterpriseReadinessValidator:
                 response = requests.get(f"{self.base_url}{endpoint}", timeout=5)
                 if response.status_code in [200, 503]:  # Both OK and not ready are valid
                     health_score += 25
-                    category["tests"].append({
-                        "name": description,
-                        "status": "PASS",
-                        "details": f"Available ({response.status_code})"
-                    })
+                    category["tests"].append(
+                        {
+                            "name": description,
+                            "status": "PASS",
+                            "details": f"Available ({response.status_code})",
+                        }
+                    )
                 else:
-                    category["tests"].append({
-                        "name": description,
-                        "status": "FAIL",
-                        "details": f"Unexpected status ({response.status_code})"
-                    })
+                    category["tests"].append(
+                        {
+                            "name": description,
+                            "status": "FAIL",
+                            "details": f"Unexpected status ({response.status_code})",
+                        }
+                    )
 
             except requests.exceptions.RequestException:
-                category["tests"].append({
-                    "name": description,
-                    "status": "FAIL",
-                    "details": "Endpoint not accessible"
-                })
+                category["tests"].append(
+                    {"name": description, "status": "FAIL", "details": "Endpoint not accessible"}
+                )
 
         category["score"] = health_score
 
@@ -667,7 +721,7 @@ class EnterpriseReadinessValidator:
             "score": 0,
             "max_score": 100,
             "tests": [],
-            "critical": False
+            "critical": False,
         }
 
         # Check for documentation files
@@ -678,24 +732,20 @@ class EnterpriseReadinessValidator:
             ("SECURITY.md", "Security Documentation"),
             ("packages/typescript-sdk/README.md", "TypeScript SDK Docs"),
             ("packages/python-sdk/README.md", "Python SDK Docs"),
-            ("packages/react-sdk/README.md", "React SDK Docs")
+            ("packages/react-sdk/README.md", "React SDK Docs"),
         ]
 
         docs_score = 0
         for doc_path, description in docs_to_check:
             if Path(doc_path).exists():
                 docs_score += 15
-                category["tests"].append({
-                    "name": description,
-                    "status": "PASS",
-                    "details": "Documentation file exists"
-                })
+                category["tests"].append(
+                    {"name": description, "status": "PASS", "details": "Documentation file exists"}
+                )
             else:
-                category["tests"].append({
-                    "name": description,
-                    "status": "FAIL",
-                    "details": "Documentation file missing"
-                })
+                category["tests"].append(
+                    {"name": description, "status": "FAIL", "details": "Documentation file missing"}
+                )
 
         category["score"] = min(docs_score, 100)
 
@@ -721,20 +771,22 @@ class EnterpriseReadinessValidator:
             "scalability": 10,
             "compliance": 15,
             "monitoring": 10,
-            "documentation": 10
+            "documentation": 10,
         }
 
         for category_name, category_data in self.results["categories"].items():
             weight = weights.get(category_name, 10)
             score = category_data["score"]
 
-            total_score += (score * weight)
-            total_weight += (100 * weight)
+            total_score += score * weight
+            total_weight += 100 * weight
 
             if category_data.get("critical", False):
                 critical_failures += 1
 
-        self.results["overall_score"] = (total_score / total_weight) * 100 if total_weight > 0 else 0
+        self.results["overall_score"] = (
+            (total_score / total_weight) * 100 if total_weight > 0 else 0
+        )
         self.results["enterprise_ready"] = (
             self.results["overall_score"] >= 75 and critical_failures == 0
         )
@@ -742,12 +794,13 @@ class EnterpriseReadinessValidator:
         # Add summary recommendations
         if not self.results["enterprise_ready"]:
             if critical_failures > 0:
-                self.results["recommendations"].insert(0,
-                    f"CRITICAL: {critical_failures} critical issues must be resolved"
+                self.results["recommendations"].insert(
+                    0, f"CRITICAL: {critical_failures} critical issues must be resolved"
                 )
             if self.results["overall_score"] < 75:
-                self.results["recommendations"].insert(0,
-                    f"Overall score too low ({self.results['overall_score']:.1f}%). Need 75%+ for enterprise readiness"
+                self.results["recommendations"].insert(
+                    0,
+                    f"Overall score too low ({self.results['overall_score']:.1f}%). Need 75%+ for enterprise readiness",
                 )
 
     def print_summary(self):
@@ -767,7 +820,7 @@ class EnterpriseReadinessValidator:
 
         # Overall status - numeric scores and boolean flags
         status_emoji = "✅" if self.results["enterprise_ready"] else "❌"
-        overall_score = self.results['overall_score']  # nosec - numeric score, not secret
+        overall_score = self.results["overall_score"]  # nosec - numeric score, not secret
         print(f"\n{status_emoji} Overall Score: {overall_score:.1f}%")
         print(f"Enterprise Ready: {'YES' if self.results['enterprise_ready'] else 'NO'}")
 
@@ -777,12 +830,12 @@ class EnterpriseReadinessValidator:
             score = category_data["score"]  # nosec - numeric score, not secret
             critical = category_data.get("critical", False)  # nosec - boolean flag
             status = "🔴 CRITICAL" if critical else ("🟢 PASS" if score >= 75 else "🟡 NEEDS WORK")
-            cat_name = category_data['name']  # nosec - category name, not secret
+            cat_name = category_data["name"]  # nosec - category name, not secret
             print(f"  {cat_name}: {score:.1f}% {status}")
 
         # Critical issues - summary text, not sensitive data
         if self.results["critical_issues"]:
-            issue_count = len(self.results['critical_issues'])
+            issue_count = len(self.results["critical_issues"])
             print(f"\n🚨 Critical Issues ({issue_count}):")
             for issue in self.results["critical_issues"]:
                 issue_text = str(issue)  # nosec - issue summary, not secret
@@ -790,13 +843,13 @@ class EnterpriseReadinessValidator:
 
         # Recommendations - action items, not sensitive data
         if self.results["recommendations"]:
-            rec_count = len(self.results['recommendations'])
+            rec_count = len(self.results["recommendations"])
             print(f"\n💡 Recommendations ({rec_count}):")
             for rec in self.results["recommendations"]:
                 rec_text = str(rec)  # nosec - recommendation text, not secret
                 print(f"  • {rec_text}")
 
-        timestamp = self.results['timestamp']  # nosec - timestamp, not secret
+        timestamp = self.results["timestamp"]  # nosec - timestamp, not secret
         print(f"\n⏰ Validation completed at: {timestamp}")
 
 
@@ -820,7 +873,7 @@ async def main():
             validator.print_summary()
 
         if args.output:
-            with open(args.output, 'w') as f:
+            with open(args.output, "w") as f:
                 json.dump(results, f, indent=2)
             print(f"\n📄 Results saved to: {args.output}")
 

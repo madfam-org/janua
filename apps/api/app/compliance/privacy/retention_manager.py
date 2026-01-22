@@ -12,9 +12,7 @@ from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
-from app.models.compliance import (
-    DataRetentionPolicy, DataCategory, ComplianceFramework
-)
+from app.models.compliance import DataRetentionPolicy, DataCategory, ComplianceFramework
 from app.models.users import User
 from app.models.audit import AuditLog
 from ..audit import AuditLogger, AuditEventType
@@ -31,9 +29,7 @@ class RetentionManager:
         self.audit_logger = audit_logger
 
     async def execute_retention_policies(
-        self,
-        organization_id: Optional[str] = None,
-        dry_run: bool = False
+        self, organization_id: Optional[str] = None, dry_run: bool = False
     ) -> Dict[str, Any]:
         """Execute automated data retention and deletion based on policies"""
 
@@ -46,14 +42,12 @@ class RetentionManager:
             "archived_records": 0,
             "errors": 0,
             "processing_details": [],
-            "dry_run": dry_run
+            "dry_run": dry_run,
         }
 
         async with get_session() as session:
             # Get active retention policies
-            policy_query = select(DataRetentionPolicy).where(
-                DataRetentionPolicy.is_active == True
-            )
+            policy_query = select(DataRetentionPolicy).where(DataRetentionPolicy.is_active == True)
 
             if organization_id:
                 policy_query = policy_query.where(
@@ -93,14 +87,16 @@ class RetentionManager:
                     retention_summary["anonymized_records"] += records_processed["anonymized"]
                     retention_summary["archived_records"] += records_processed["archived"]
 
-                    retention_summary["processing_details"].append({
-                        "policy_id": str(policy.id),
-                        "policy_name": policy.name,
-                        "data_category": policy.data_category.value,
-                        "retention_days": policy.retention_period_days,
-                        "cutoff_date": cutoff_date.isoformat(),
-                        "records_processed": records_processed
-                    })
+                    retention_summary["processing_details"].append(
+                        {
+                            "policy_id": str(policy.id),
+                            "policy_name": policy.name,
+                            "data_category": policy.data_category.value,
+                            "retention_days": policy.retention_period_days,
+                            "cutoff_date": cutoff_date.isoformat(),
+                            "records_processed": records_processed,
+                        }
+                    )
 
                 except Exception as e:
                     retention_summary["errors"] += 1
@@ -116,7 +112,7 @@ class RetentionManager:
             organization_id=organization_id,
             control_id="GDPR-5",
             compliance_frameworks=[ComplianceFramework.GDPR],
-            raw_data=retention_summary
+            raw_data=retention_summary,
         )
 
         logger.info("Automated data retention completed", extra=retention_summary)
@@ -132,7 +128,7 @@ class RetentionManager:
         data_sources: List[str],
         legal_basis: str,
         organization_id: Optional[str] = None,
-        creator_id: Optional[str] = None
+        creator_id: Optional[str] = None,
     ) -> str:
         """Create a new data retention policy"""
 
@@ -149,7 +145,7 @@ class RetentionManager:
                 organization_id=uuid.UUID(organization_id) if organization_id else None,
                 created_by=uuid.UUID(creator_id) if creator_id else None,
                 created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                updated_at=datetime.utcnow(),
             )
 
             session.add(policy)
@@ -172,15 +168,18 @@ class RetentionManager:
                 "policy_name": name,
                 "data_category": data_category.value,
                 "retention_days": retention_period_days,
-                "retention_action": retention_action.value
-            }
+                "retention_action": retention_action.value,
+            },
         )
 
-        logger.info(f"Retention policy created: {name}", extra={
-            "policy_id": policy_id,
-            "data_category": data_category.value,
-            "retention_days": retention_period_days
-        })
+        logger.info(
+            f"Retention policy created: {name}",
+            extra={
+                "policy_id": policy_id,
+                "data_category": data_category.value,
+                "retention_days": retention_period_days,
+            },
+        )
 
         return policy_id
 
@@ -189,7 +188,7 @@ class RetentionManager:
         session: AsyncSession,
         policy: DataRetentionPolicy,
         cutoff_date: datetime,
-        dry_run: bool
+        dry_run: bool,
     ) -> Dict[str, int]:
         """Process identity data retention"""
 
@@ -197,8 +196,8 @@ class RetentionManager:
 
         # Find records older than cutoff date
         if "users" in policy.data_sources:
-            users_query = select(func.count()).select_from(User).where(
-                User.created_at < cutoff_date
+            users_query = (
+                select(func.count()).select_from(User).where(User.created_at < cutoff_date)
             )
             affected_count = (await session.execute(users_query)).scalar()
             result["affected"] += affected_count
@@ -220,7 +219,7 @@ class RetentionManager:
         session: AsyncSession,
         policy: DataRetentionPolicy,
         cutoff_date: datetime,
-        dry_run: bool
+        dry_run: bool,
     ) -> Dict[str, int]:
         """Process behavioral data retention"""
 
@@ -228,8 +227,8 @@ class RetentionManager:
 
         # Find audit logs older than cutoff date
         if "audit_logs" in policy.data_sources:
-            logs_query = select(func.count()).select_from(AuditLog).where(
-                AuditLog.timestamp < cutoff_date
+            logs_query = (
+                select(func.count()).select_from(AuditLog).where(AuditLog.timestamp < cutoff_date)
             )
             affected_count = (await session.execute(logs_query)).scalar()
             result["affected"] += affected_count
@@ -251,7 +250,7 @@ class RetentionManager:
         session: AsyncSession,
         policy: DataRetentionPolicy,
         cutoff_date: datetime,
-        dry_run: bool
+        dry_run: bool,
     ) -> Dict[str, int]:
         """Process technical data retention"""
 
@@ -267,7 +266,7 @@ class RetentionManager:
         session: AsyncSession,
         policy: DataRetentionPolicy,
         cutoff_date: datetime,
-        dry_run: bool
+        dry_run: bool,
     ) -> Dict[str, int]:
         """Process generic data retention"""
 
@@ -279,8 +278,7 @@ class RetentionManager:
         return result
 
     async def get_active_policies(
-        self,
-        organization_id: Optional[str] = None
+        self, organization_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Get all active retention policies"""
 
@@ -305,15 +303,13 @@ class RetentionManager:
                     "retention_action": policy.retention_action,
                     "data_sources": policy.data_sources,
                     "legal_basis": policy.legal_basis,
-                    "created_at": policy.created_at.isoformat()
+                    "created_at": policy.created_at.isoformat(),
                 }
                 for policy in policies
             ]
 
     async def deactivate_policy(
-        self,
-        policy_id: str,
-        organization_id: Optional[str] = None
+        self, policy_id: str, organization_id: Optional[str] = None
     ) -> bool:
         """Deactivate a retention policy"""
 
@@ -339,7 +335,7 @@ class RetentionManager:
             outcome="success",
             organization_id=organization_id,
             control_id="GDPR-5",
-            compliance_frameworks=[ComplianceFramework.GDPR]
+            compliance_frameworks=[ComplianceFramework.GDPR],
         )
 
         return True

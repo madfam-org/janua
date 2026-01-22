@@ -16,9 +16,17 @@ from sqlalchemy import select, and_, desc, delete
 
 from app.core.database import get_session
 from app.models.compliance import (
-    DataSubjectRequest, ConsentRecord, PrivacySettings, DataRetentionPolicy,
-    DataSubjectRequestType, RequestStatus, ConsentType, ConsentStatus,
-    DataCategory, LegalBasis, ComplianceFramework
+    DataSubjectRequest,
+    ConsentRecord,
+    PrivacySettings,
+    DataRetentionPolicy,
+    DataSubjectRequestType,
+    RequestStatus,
+    ConsentType,
+    ConsentStatus,
+    DataCategory,
+    LegalBasis,
+    ComplianceFramework,
 )
 from app.models.users import User
 from app.core.config import get_settings
@@ -30,17 +38,19 @@ settings = get_settings()
 
 class PrivacyRightType(str, Enum):
     """GDPR privacy rights under Articles 15-22"""
-    ACCESS = "access"                    # Article 15 - Right of access
-    RECTIFICATION = "rectification"      # Article 16 - Right to rectification
-    ERASURE = "erasure"                  # Article 17 - Right to be forgotten
-    PORTABILITY = "portability"          # Article 20 - Right to data portability
-    RESTRICTION = "restriction"          # Article 18 - Right to restriction
-    OBJECTION = "objection"             # Article 21 - Right to object
+
+    ACCESS = "access"  # Article 15 - Right of access
+    RECTIFICATION = "rectification"  # Article 16 - Right to rectification
+    ERASURE = "erasure"  # Article 17 - Right to be forgotten
+    PORTABILITY = "portability"  # Article 20 - Right to data portability
+    RESTRICTION = "restriction"  # Article 18 - Right to restriction
+    OBJECTION = "objection"  # Article 21 - Right to object
     AUTOMATED_DECISION = "automated_decision"  # Article 22 - Automated decision-making
 
 
 class DataExportFormat(str, Enum):
     """Supported formats for data export"""
+
     JSON = "json"
     CSV = "csv"
     XML = "xml"
@@ -49,6 +59,7 @@ class DataExportFormat(str, Enum):
 
 class RetentionAction(str, Enum):
     """Actions to take when retention period expires"""
+
     DELETE = "delete"
     ANONYMIZE = "anonymize"
     ARCHIVE = "archive"
@@ -58,6 +69,7 @@ class RetentionAction(str, Enum):
 @dataclass
 class DataSubjectRequestResponse:
     """Response to a data subject request"""
+
     request_id: str
     response_type: str
     data: Optional[Dict[str, Any]]
@@ -69,6 +81,7 @@ class DataSubjectRequestResponse:
 @dataclass
 class PrivacyImpactAssessment:
     """Privacy Impact Assessment (PIA) for GDPR compliance"""
+
     pia_id: str
     title: str
     description: str
@@ -119,7 +132,7 @@ class PrivacyManager:
         organization_id: Optional[str] = None,
         tenant_id: Optional[str] = None,
         ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None
+        user_agent: Optional[str] = None,
     ) -> str:
         """Create a new data subject request with automated processing"""
 
@@ -144,7 +157,7 @@ class PrivacyManager:
                 tenant_id=uuid.UUID(tenant_id) if tenant_id else None,
                 ip_address=ip_address,
                 user_agent=user_agent,
-                request_source="api"
+                request_source="api",
             )
 
             session.add(request)
@@ -168,25 +181,26 @@ class PrivacyManager:
             raw_data={
                 "request_type": request_type.value,
                 "data_categories": data_categories,
-                "specific_fields": specific_fields
-            }
+                "specific_fields": specific_fields,
+            },
         )
 
         # Schedule automated processing
         await self._schedule_request_processing(request_id, request_type)
 
-        logger.info(f"Data subject request created: {request_id}", extra={
-            "user_id": user_id,
-            "request_type": request_type.value,
-            "response_due_date": response_due_date.isoformat()
-        })
+        logger.info(
+            f"Data subject request created: {request_id}",
+            extra={
+                "user_id": user_id,
+                "request_type": request_type.value,
+                "response_due_date": response_due_date.isoformat(),
+            },
+        )
 
         return request_id
 
     async def process_access_request(
-        self,
-        request_id: str,
-        include_metadata: bool = True
+        self, request_id: str, include_metadata: bool = True
     ) -> DataSubjectRequestResponse:
         """Process GDPR Article 15 access request"""
 
@@ -207,14 +221,12 @@ class PrivacyManager:
                 request.specific_fields,
                 request.date_range_start,
                 request.date_range_end,
-                include_metadata
+                include_metadata,
             )
 
             # Generate export file
             export_url = await self._generate_data_export(
-                request_id,
-                user_data,
-                DataExportFormat.JSON
+                request_id, user_data, DataExportFormat.JSON
             )
 
             # Update request status
@@ -234,7 +246,7 @@ class PrivacyManager:
             outcome="success",
             user_id=str(request.user_id),
             control_id="GDPR-15",
-            compliance_frameworks=[ComplianceFramework.GDPR]
+            compliance_frameworks=[ComplianceFramework.GDPR],
         )
 
         # Collect evidence
@@ -246,7 +258,7 @@ class PrivacyManager:
             source_system="privacy_manager",
             collector_id="system",
             control_objectives=["GDPR-15"],
-            compliance_frameworks=[ComplianceFramework.GDPR]
+            compliance_frameworks=[ComplianceFramework.GDPR],
         )
 
         return DataSubjectRequestResponse(
@@ -255,14 +267,11 @@ class PrivacyManager:
             data=user_data,
             export_url=export_url,
             completion_time=datetime.utcnow(),
-            notes="Data access request completed successfully"
+            notes="Data access request completed successfully",
         )
 
     async def process_erasure_request(
-        self,
-        request_id: str,
-        verify_identity: bool = True,
-        backup_before_deletion: bool = True
+        self, request_id: str, verify_identity: bool = True, backup_before_deletion: bool = True
     ) -> DataSubjectRequestResponse:
         """Process GDPR Article 17 right to be forgotten request"""
 
@@ -289,9 +298,7 @@ class PrivacyManager:
 
             # Perform erasure according to data categories
             erasure_summary = await self._perform_data_erasure(
-                user_id,
-                request.data_categories,
-                request.specific_fields
+                user_id, request.data_categories, request.specific_fields
             )
 
             # Update request status
@@ -311,7 +318,7 @@ class PrivacyManager:
             user_id=user_id,
             control_id="GDPR-17",
             compliance_frameworks=[ComplianceFramework.GDPR],
-            raw_data=erasure_summary
+            raw_data=erasure_summary,
         )
 
         return DataSubjectRequestResponse(
@@ -320,13 +327,11 @@ class PrivacyManager:
             data=erasure_summary,
             export_url=None,
             completion_time=datetime.utcnow(),
-            notes=f"Data erasure completed. Items processed: {erasure_summary.get('total_items', 0)}"
+            notes=f"Data erasure completed. Items processed: {erasure_summary.get('total_items', 0)}",
         )
 
     async def process_portability_request(
-        self,
-        request_id: str,
-        export_format: DataExportFormat = DataExportFormat.JSON
+        self, request_id: str, export_format: DataExportFormat = DataExportFormat.JSON
     ) -> DataSubjectRequestResponse:
         """Process GDPR Article 20 data portability request"""
 
@@ -342,16 +347,12 @@ class PrivacyManager:
 
             # Collect portable data (only data provided by user with consent)
             portable_data = await self._collect_portable_data(
-                str(request.user_id),
-                request.data_categories
+                str(request.user_id), request.data_categories
             )
 
             # Generate structured export
             export_url = await self._generate_data_export(
-                request_id,
-                portable_data,
-                export_format,
-                structured_format=True
+                request_id, portable_data, export_format, structured_format=True
             )
 
             # Update request status
@@ -371,7 +372,7 @@ class PrivacyManager:
             outcome="success",
             user_id=str(request.user_id),
             control_id="GDPR-20",
-            compliance_frameworks=[ComplianceFramework.GDPR]
+            compliance_frameworks=[ComplianceFramework.GDPR],
         )
 
         return DataSubjectRequestResponse(
@@ -380,7 +381,7 @@ class PrivacyManager:
             data=portable_data,
             export_url=export_url,
             completion_time=datetime.utcnow(),
-            notes=f"Data portability export generated in {export_format.value} format"
+            notes=f"Data portability export generated in {export_format.value} format",
         )
 
     async def manage_consent(
@@ -397,7 +398,7 @@ class PrivacyManager:
         user_agent: Optional[str] = None,
         consent_method: str = "api",
         organization_id: Optional[str] = None,
-        tenant_id: Optional[str] = None
+        tenant_id: Optional[str] = None,
     ) -> str:
         """Manage user consent with comprehensive audit trail"""
 
@@ -424,8 +425,8 @@ class PrivacyManager:
                         "method": consent_method,
                         "ip_address": ip_address,
                         "user_agent": user_agent,
-                        "purpose": purpose
-                    }
+                        "purpose": purpose,
+                    },
                 )
 
                 session.add(consent)
@@ -437,13 +438,15 @@ class PrivacyManager:
             elif action == "withdraw":
                 # Find and update existing consent
                 result = await session.execute(
-                    select(ConsentRecord).where(
+                    select(ConsentRecord)
+                    .where(
                         and_(
                             ConsentRecord.user_id == uuid.UUID(user_id),
                             ConsentRecord.consent_type == consent_type,
-                            ConsentRecord.status == ConsentStatus.GIVEN
+                            ConsentRecord.status == ConsentStatus.GIVEN,
                         )
-                    ).order_by(desc(ConsentRecord.given_at))
+                    )
+                    .order_by(desc(ConsentRecord.given_at))
                 )
                 consent = result.scalar_one_or_none()
 
@@ -478,23 +481,24 @@ class PrivacyManager:
                 "consent_type": consent_type.value,
                 "purpose": purpose,
                 "legal_basis": legal_basis.value,
-                "consent_method": consent_method
-            }
+                "consent_method": consent_method,
+            },
         )
 
-        logger.info(f"Consent {action} processed", extra={
-            "user_id": user_id,
-            "consent_type": consent_type.value,
-            "consent_id": consent_id,
-            "action": action
-        })
+        logger.info(
+            f"Consent {action} processed",
+            extra={
+                "user_id": user_id,
+                "consent_type": consent_type.value,
+                "consent_id": consent_id,
+                "action": action,
+            },
+        )
 
         return consent_id
 
     async def automated_data_retention(
-        self,
-        organization_id: Optional[str] = None,
-        dry_run: bool = False
+        self, organization_id: Optional[str] = None, dry_run: bool = False
     ) -> Dict[str, Any]:
         """Automated data retention and deletion based on policies"""
 
@@ -506,14 +510,12 @@ class PrivacyManager:
             "anonymized_records": 0,
             "archived_records": 0,
             "errors": 0,
-            "processing_details": []
+            "processing_details": [],
         }
 
         async with get_session() as session:
             # Get active retention policies
-            policy_query = select(DataRetentionPolicy).where(
-                DataRetentionPolicy.is_active == True
-            )
+            policy_query = select(DataRetentionPolicy).where(DataRetentionPolicy.is_active == True)
 
             if organization_id:
                 policy_query = policy_query.where(
@@ -553,14 +555,16 @@ class PrivacyManager:
                     retention_summary["anonymized_records"] += records_processed["anonymized"]
                     retention_summary["archived_records"] += records_processed["archived"]
 
-                    retention_summary["processing_details"].append({
-                        "policy_id": str(policy.id),
-                        "policy_name": policy.name,
-                        "data_category": policy.data_category.value,
-                        "retention_days": policy.retention_period_days,
-                        "cutoff_date": cutoff_date.isoformat(),
-                        "records_processed": records_processed
-                    })
+                    retention_summary["processing_details"].append(
+                        {
+                            "policy_id": str(policy.id),
+                            "policy_name": policy.name,
+                            "data_category": policy.data_category.value,
+                            "retention_days": policy.retention_period_days,
+                            "cutoff_date": cutoff_date.isoformat(),
+                            "records_processed": records_processed,
+                        }
+                    )
 
                 except Exception as e:
                     retention_summary["errors"] += 1
@@ -576,7 +580,7 @@ class PrivacyManager:
             organization_id=organization_id,
             control_id="GDPR-5",
             compliance_frameworks=[ComplianceFramework.GDPR],
-            raw_data=retention_summary
+            raw_data=retention_summary,
         )
 
         logger.info("Automated data retention completed", extra=retention_summary)
@@ -595,7 +599,7 @@ class PrivacyManager:
         privacy_risks: List[Dict[str, Any]],
         mitigation_measures: List[str],
         creator_id: str,
-        organization_id: Optional[str] = None
+        organization_id: Optional[str] = None,
     ) -> str:
         """Create a Privacy Impact Assessment (PIA) for GDPR compliance"""
 
@@ -634,7 +638,7 @@ class PrivacyManager:
             review_date=datetime.utcnow() + timedelta(days=365),  # Annual review
             monitoring_measures=[],
             created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            updated_at=datetime.utcnow(),
         )
 
         # Store PIA as evidence
@@ -650,15 +654,18 @@ class PrivacyManager:
             metadata={
                 "project_name": project_name,
                 "risk_level": risk_level,
-                "data_categories": [cat.value for cat in data_categories]
-            }
+                "data_categories": [cat.value for cat in data_categories],
+            },
         )
 
-        logger.info(f"Privacy Impact Assessment created: {pia_id}", extra={
-            "project_name": project_name,
-            "risk_level": risk_level,
-            "creator_id": creator_id
-        })
+        logger.info(
+            f"Privacy Impact Assessment created: {pia_id}",
+            extra={
+                "project_name": project_name,
+                "risk_level": risk_level,
+                "creator_id": creator_id,
+            },
+        )
 
         return pia_id
 
@@ -671,7 +678,7 @@ class PrivacyManager:
         specific_fields: List[str] = None,
         date_range_start: Optional[datetime] = None,
         date_range_end: Optional[datetime] = None,
-        include_metadata: bool = True
+        include_metadata: bool = True,
     ) -> Dict[str, Any]:
         """Collect all user data for access requests"""
 
@@ -679,7 +686,7 @@ class PrivacyManager:
             "user_id": user_id,
             "collection_timestamp": datetime.utcnow().isoformat(),
             "data_categories": data_categories or [],
-            "data": {}
+            "data": {},
         }
 
         async with get_session() as session:
@@ -695,8 +702,10 @@ class PrivacyManager:
                         "email": user.email,
                         "name": user.name,
                         "created_at": user.created_at.isoformat() if user.created_at else None,
-                        "last_login": user.last_login_at.isoformat() if user.last_login_at else None,
-                        "is_active": user.is_active
+                        "last_login": user.last_login_at.isoformat()
+                        if user.last_login_at
+                        else None,
+                        "is_active": user.is_active,
                     }
 
             # Consent records
@@ -712,7 +721,9 @@ class PrivacyManager:
                         "purpose": consent.purpose,
                         "status": consent.status.value,
                         "given_at": consent.given_at.isoformat() if consent.given_at else None,
-                        "withdrawn_at": consent.withdrawn_at.isoformat() if consent.withdrawn_at else None
+                        "withdrawn_at": consent.withdrawn_at.isoformat()
+                        if consent.withdrawn_at
+                        else None,
                     }
                     for consent in consents
                 ]
@@ -728,15 +739,13 @@ class PrivacyManager:
                     "email_marketing": privacy_settings.email_marketing,
                     "analytics_tracking": privacy_settings.analytics_tracking,
                     "personalization": privacy_settings.personalization,
-                    "third_party_sharing": privacy_settings.third_party_sharing
+                    "third_party_sharing": privacy_settings.third_party_sharing,
                 }
 
         return user_data
 
     async def _collect_portable_data(
-        self,
-        user_id: str,
-        data_categories: List[DataCategory] = None
+        self, user_id: str, data_categories: List[DataCategory] = None
     ) -> Dict[str, Any]:
         """Collect data provided by user with consent (Article 20)"""
 
@@ -744,22 +753,20 @@ class PrivacyManager:
             "user_id": user_id,
             "export_timestamp": datetime.utcnow().isoformat(),
             "format_version": "1.0",
-            "data": {}
+            "data": {},
         }
 
         # Only include data that user provided and based on consent
         async with get_session() as session:
             # User-provided profile data
-            user_result = await session.execute(
-                select(User).where(User.id == uuid.UUID(user_id))
-            )
+            user_result = await session.execute(select(User).where(User.id == uuid.UUID(user_id)))
             user = user_result.scalar_one_or_none()
 
             if user:
                 portable_data["data"]["profile"] = {
                     "email": user.email,
                     "name": user.name,
-                    "preferences": {}  # Only user-set preferences
+                    "preferences": {},  # Only user-set preferences
                 }
 
             # User-controlled privacy settings
@@ -772,12 +779,12 @@ class PrivacyManager:
                 portable_data["data"]["preferences"] = {
                     "communication": {
                         "email_marketing": privacy_settings.email_marketing,
-                        "email_product_updates": privacy_settings.email_product_updates
+                        "email_product_updates": privacy_settings.email_product_updates,
                     },
                     "privacy": {
                         "analytics_tracking": privacy_settings.analytics_tracking,
-                        "personalization": privacy_settings.personalization
-                    }
+                        "personalization": privacy_settings.personalization,
+                    },
                 }
 
         return portable_data
@@ -786,7 +793,7 @@ class PrivacyManager:
         self,
         user_id: str,
         data_categories: List[DataCategory] = None,
-        specific_fields: List[str] = None
+        specific_fields: List[str] = None,
     ) -> Dict[str, Any]:
         """Perform data erasure while respecting legal requirements"""
 
@@ -798,7 +805,7 @@ class PrivacyManager:
             "items_anonymized": 0,
             "items_retained": 0,
             "retention_reasons": [],
-            "details": []
+            "details": [],
         }
 
         async with get_session() as session:
@@ -837,9 +844,9 @@ class PrivacyManager:
             await session.commit()
 
         erasure_summary["items_processed"] = (
-            erasure_summary["items_deleted"] +
-            erasure_summary["items_anonymized"] +
-            erasure_summary["items_retained"]
+            erasure_summary["items_deleted"]
+            + erasure_summary["items_anonymized"]
+            + erasure_summary["items_retained"]
         )
 
         return erasure_summary
@@ -849,11 +856,13 @@ class PrivacyManager:
         request_id: str,
         data: Dict[str, Any],
         format_type: DataExportFormat,
-        structured_format: bool = False
+        structured_format: bool = False,
     ) -> str:
         """Generate secure data export file"""
 
-        export_filename = f"{request_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.{format_type.value}"
+        export_filename = (
+            f"{request_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.{format_type.value}"
+        )
         export_path = Path(settings.DATA_EXPORT_PATH) / export_filename
         export_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -865,7 +874,7 @@ class PrivacyManager:
         else:
             content = json.dumps(data, default=str)
 
-        async with aiofiles.open(export_path, 'w') as f:
+        async with aiofiles.open(export_path, "w") as f:
             await f.write(content)
 
         # Generate secure download URL (implementation depends on file serving setup)
@@ -874,9 +883,7 @@ class PrivacyManager:
         return export_url
 
     async def _schedule_request_processing(
-        self,
-        request_id: str,
-        request_type: DataSubjectRequestType
+        self, request_id: str, request_type: DataSubjectRequestType
     ):
         """Schedule automated processing of data subject requests"""
 
@@ -886,13 +893,10 @@ class PrivacyManager:
                 "request_id": request_id,
                 "request_type": request_type.value,
                 "scheduled_at": datetime.utcnow().isoformat(),
-                "priority": "high" if request_type == DataSubjectRequestType.ERASURE else "normal"
+                "priority": "high" if request_type == DataSubjectRequestType.ERASURE else "normal",
             }
 
-            await self.redis.lpush(
-                "privacy:request_queue",
-                json.dumps(queue_item)
-            )
+            await self.redis.lpush("privacy:request_queue", json.dumps(queue_item))
 
     def _convert_to_csv(self, data: Dict[str, Any]) -> str:
         """Simple CSV conversion for data export"""
@@ -915,10 +919,7 @@ class GDPRCompliance:
     def __init__(self, privacy_manager: PrivacyManager):
         self.privacy_manager = privacy_manager
 
-    async def assess_compliance_status(
-        self,
-        organization_id: str
-    ) -> Dict[str, Any]:
+    async def assess_compliance_status(self, organization_id: str) -> Dict[str, Any]:
         """Assess overall GDPR compliance status"""
 
         assessment = {
@@ -931,10 +932,10 @@ class GDPRCompliance:
                 "accuracy": {"score": 0, "details": []},
                 "storage_limitation": {"score": 0, "details": []},
                 "integrity_confidentiality": {"score": 0, "details": []},
-                "accountability": {"score": 0, "details": []}
+                "accountability": {"score": 0, "details": []},
             },
             "recommendations": [],
-            "priority_actions": []
+            "priority_actions": [],
         }
 
         async with get_session() as session:
@@ -943,13 +944,17 @@ class GDPRCompliance:
                 select(DataSubjectRequest).where(
                     and_(
                         DataSubjectRequest.created_at >= datetime.utcnow() - timedelta(days=90),
-                        DataSubjectRequest.organization_id == uuid.UUID(organization_id)
+                        DataSubjectRequest.organization_id == uuid.UUID(organization_id),
                     )
                 )
             )
             requests = recent_requests.scalars().all()
 
-            on_time_responses = sum(1 for req in requests if req.completed_at and req.completed_at <= req.response_due_date)
+            on_time_responses = sum(
+                1
+                for req in requests
+                if req.completed_at and req.completed_at <= req.response_due_date
+            )
             total_requests = len(requests)
 
             if total_requests > 0:
@@ -964,7 +969,7 @@ class GDPRCompliance:
                 select(ConsentRecord).where(
                     and_(
                         ConsentRecord.status == ConsentStatus.GIVEN,
-                        ConsentRecord.organization_id == uuid.UUID(organization_id)
+                        ConsentRecord.organization_id == uuid.UUID(organization_id),
                     )
                 )
             )

@@ -2,7 +2,9 @@
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
-  transpilePackages: ['@janua/ui', '@janua/react-sdk-sdk'],
+  transpilePackages: ['@janua/ui', '@janua/react-sdk'],
+  // Enable Turbopack with empty config (Next.js 16 default)
+  turbopack: {},
   async headers() {
     return [
       {

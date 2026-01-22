@@ -33,7 +33,7 @@ structlog.configure(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
-        structlog.processors.JSONRenderer()
+        structlog.processors.JSONRenderer(),
     ],
     context_class=dict,
     logger_factory=structlog.stdlib.LoggerFactory(),
@@ -44,6 +44,7 @@ structlog.configure(
 
 class LogLevel(Enum):
     """Log levels with numeric values"""
+
     CRITICAL = 50
     ERROR = 40
     WARNING = 30
@@ -95,41 +96,41 @@ class StructuredLogger:
 
         # Create formatters
         json_formatter = jsonlogger.JsonFormatter(
-            '%(asctime)s %(name)s %(levelname)s %(message)s %(pathname)s %(lineno)d'
+            "%(asctime)s %(name)s %(levelname)s %(message)s %(pathname)s %(lineno)d"
         )
 
         console_formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
 
         # Root logger configuration
         root_logger = logging.getLogger()
-        root_logger.setLevel(getattr(logging, getattr(settings, 'LOG_LEVEL', 'INFO')))
+        root_logger.setLevel(getattr(logging, getattr(settings, "LOG_LEVEL", "INFO")))
 
         # Console handler
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setFormatter(console_formatter if getattr(settings, 'LOG_FORMAT', 'json') == 'console' else json_formatter)
+        console_handler.setFormatter(
+            console_formatter
+            if getattr(settings, "LOG_FORMAT", "json") == "console"
+            else json_formatter
+        )
         console_handler.setLevel(logging.INFO)
 
         # File handler (if configured)
-        log_file = getattr(settings, 'LOG_FILE', None)
+        log_file = getattr(settings, "LOG_FILE", None)
         if log_file:
             file_handler = logging.handlers.RotatingFileHandler(
-                log_file,
-                maxBytes=10*1024*1024,  # 10MB
-                backupCount=5
+                log_file, maxBytes=10 * 1024 * 1024, backupCount=5  # 10MB
             )
             file_handler.setFormatter(json_formatter)
             file_handler.setLevel(logging.DEBUG)
             root_logger.addHandler(file_handler)
 
         # Error file handler
-        error_log_file = getattr(settings, 'ERROR_LOG_FILE', None)
+        error_log_file = getattr(settings, "ERROR_LOG_FILE", None)
         if error_log_file:
             error_handler = logging.handlers.RotatingFileHandler(
-                error_log_file,
-                maxBytes=10*1024*1024,  # 10MB
-                backupCount=10
+                error_log_file, maxBytes=10 * 1024 * 1024, backupCount=10  # 10MB
             )
             error_handler.setFormatter(json_formatter)
             error_handler.setLevel(logging.ERROR)
@@ -145,21 +146,21 @@ class StructuredLogger:
         """Get base logging context"""
         context = {
             "service": "janua-api",
-            "version": getattr(settings, 'VERSION', '1.0.0'),
-            "environment": getattr(settings, 'ENVIRONMENT', 'development'),
+            "version": getattr(settings, "VERSION", "1.0.0"),
+            "environment": getattr(settings, "ENVIRONMENT", "development"),
             "timestamp": datetime.utcnow().isoformat(),
         }
 
         # Add request context if available
-        request_id = LogContext.get('request_id')
+        request_id = LogContext.get("request_id")
         if request_id:
             context["request_id"] = request_id
 
-        user_id = LogContext.get('user_id')
+        user_id = LogContext.get("user_id")
         if user_id:
             context["user_id"] = user_id
 
-        trace_id = LogContext.get('trace_id')
+        trace_id = LogContext.get("trace_id")
         if trace_id:
             context["trace_id"] = trace_id
 
@@ -168,8 +169,8 @@ class StructuredLogger:
             span = trace.get_current_span()
             if span and span.is_recording():
                 span_context = span.get_span_context()
-                context["otel_trace_id"] = format(span_context.trace_id, '032x')
-                context["otel_span_id"] = format(span_context.span_id, '016x')
+                context["otel_trace_id"] = format(span_context.trace_id, "032x")
+                context["otel_span_id"] = format(span_context.span_id, "016x")
         except Exception as e:
             # OpenTelemetry might not be configured, skip trace context
             # Only log if it's an unexpected error (not ImportError or AttributeError)
@@ -177,7 +178,7 @@ class StructuredLogger:
                 logger.debug(
                     "Failed to get OpenTelemetry trace context",
                     error=str(e),
-                    error_type=type(e).__name__
+                    error_type=type(e).__name__,
                 )
 
         # Add any additional context
@@ -191,12 +192,12 @@ class StructuredLogger:
         context.update(kwargs)
 
         # Add caller information for debugging
-        if level.lower() in ['debug', 'trace']:
+        if level.lower() in ["debug", "trace"]:
             frame = sys._getframe(2)
             context["caller"] = {
                 "file": frame.f_code.co_filename,
                 "function": frame.f_code.co_name,
-                "line": frame.f_lineno
+                "line": frame.f_lineno,
             }
 
         getattr(self.logger, level.lower())(message, **context)
@@ -239,7 +240,7 @@ class StructuredLogger:
             http_method=method,
             http_path=path,
             event_type="request_start",
-            **kwargs
+            **kwargs,
         )
 
     def log_request_end(self, request_id: str, status_code: int, **kwargs):
@@ -255,7 +256,7 @@ class StructuredLogger:
             http_status_code=status_code,
             duration_ms=duration_ms,
             event_type="request_end",
-            **kwargs
+            **kwargs,
         )
 
     def log_database_operation(self, operation: str, table: str, duration_ms: float, **kwargs):
@@ -266,10 +267,17 @@ class StructuredLogger:
             db_table=table,
             duration_ms=duration_ms,
             event_type="database_operation",
-            **kwargs
+            **kwargs,
         )
 
-    def log_external_api_call(self, service: str, endpoint: str, duration_ms: float, status_code: Optional[int] = None, **kwargs):
+    def log_external_api_call(
+        self,
+        service: str,
+        endpoint: str,
+        duration_ms: float,
+        status_code: Optional[int] = None,
+        **kwargs,
+    ):
         """Log external API call"""
         level = "error" if status_code and status_code >= 400 else "info"
         self._log(
@@ -280,7 +288,7 @@ class StructuredLogger:
             duration_ms=duration_ms,
             status_code=status_code,
             event_type="external_api_call",
-            **kwargs
+            **kwargs,
         )
 
     def log_security_event(self, event_type: str, severity: str, **kwargs):
@@ -292,7 +300,7 @@ class StructuredLogger:
             security_event_type=event_type,
             security_severity=severity,
             event_type="security_event",
-            **kwargs
+            **kwargs,
         )
 
     def log_performance_metric(self, metric_name: str, value: float, unit: str = "ms", **kwargs):
@@ -303,7 +311,7 @@ class StructuredLogger:
             metric_value=value,
             metric_unit=unit,
             event_type="performance_metric",
-            **kwargs
+            **kwargs,
         )
 
     def log_business_event(self, event_name: str, **kwargs):
@@ -312,10 +320,12 @@ class StructuredLogger:
             f"Business event: {event_name}",
             business_event=event_name,
             event_type="business_event",
-            **kwargs
+            **kwargs,
         )
 
-    def log_authentication(self, action: str, user_id: Optional[str] = None, success: bool = True, **kwargs):
+    def log_authentication(
+        self, action: str, user_id: Optional[str] = None, success: bool = True, **kwargs
+    ):
         """Log authentication events"""
         level = "info" if success else "warning"
         self._log(
@@ -325,7 +335,7 @@ class StructuredLogger:
             auth_success=success,
             user_id=user_id,
             event_type="authentication",
-            **kwargs
+            **kwargs,
         )
 
     def log_authorization(self, action: str, resource: str, user_id: str, allowed: bool, **kwargs):
@@ -339,7 +349,7 @@ class StructuredLogger:
             authz_allowed=allowed,
             user_id=user_id,
             event_type="authorization",
-            **kwargs
+            **kwargs,
         )
 
     def increment_operation_counter(self, operation: str):
@@ -364,9 +374,10 @@ def log_function_call(
     operation_name: Optional[str] = None,
     log_args: bool = False,
     log_result: bool = False,
-    level: str = "debug"
+    level: str = "debug",
 ):
     """Decorator to automatically log function calls"""
+
     def decorator(func: Callable):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -445,6 +456,7 @@ def log_function_call(
 
 def log_database_operation(operation: str, table: str):
     """Decorator to log database operations"""
+
     def decorator(func: Callable):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -453,12 +465,16 @@ def log_database_operation(operation: str, table: str):
             try:
                 result = await func(*args, **kwargs)
                 duration_ms = (time.time() - start_time) * 1000
-                structured_logger.log_database_operation(operation, table, duration_ms, status="success")
+                structured_logger.log_database_operation(
+                    operation, table, duration_ms, status="success"
+                )
                 return result
 
             except Exception as e:
                 duration_ms = (time.time() - start_time) * 1000
-                structured_logger.log_database_operation(operation, table, duration_ms, status="error", error=str(e))
+                structured_logger.log_database_operation(
+                    operation, table, duration_ms, status="error", error=str(e)
+                )
                 raise
 
         @wraps(func)
@@ -468,12 +484,16 @@ def log_database_operation(operation: str, table: str):
             try:
                 result = func(*args, **kwargs)
                 duration_ms = (time.time() - start_time) * 1000
-                structured_logger.log_database_operation(operation, table, duration_ms, status="success")
+                structured_logger.log_database_operation(
+                    operation, table, duration_ms, status="success"
+                )
                 return result
 
             except Exception as e:
                 duration_ms = (time.time() - start_time) * 1000
-                structured_logger.log_database_operation(operation, table, duration_ms, status="error", error=str(e))
+                structured_logger.log_database_operation(
+                    operation, table, duration_ms, status="error", error=str(e)
+                )
                 raise
 
         return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
@@ -513,16 +533,18 @@ async def async_log_context(**kwargs):
 
 
 @contextmanager
-def request_logging_context(request_id: str, user_id: Optional[str] = None, trace_id: Optional[str] = None):
+def request_logging_context(
+    request_id: str, user_id: Optional[str] = None, trace_id: Optional[str] = None
+):
     """Context manager for request-scoped logging"""
     original_context = LogContext.get_all()
 
     try:
-        LogContext.set('request_id', request_id)
+        LogContext.set("request_id", request_id)
         if user_id:
-            LogContext.set('user_id', user_id)
+            LogContext.set("user_id", user_id)
         if trace_id:
-            LogContext.set('trace_id', trace_id)
+            LogContext.set("trace_id", trace_id)
         yield
     finally:
         LogContext.clear()
@@ -545,16 +567,16 @@ def configure_logging(
     level: str = "INFO",
     format_type: str = "json",
     log_file: Optional[str] = None,
-    error_log_file: Optional[str] = None
+    error_log_file: Optional[str] = None,
 ):
     """Configure global logging settings"""
     # Update environment variables to affect logger configuration
-    os.environ['LOG_LEVEL'] = level
-    os.environ['LOG_FORMAT'] = format_type
+    os.environ["LOG_LEVEL"] = level
+    os.environ["LOG_FORMAT"] = format_type
     if log_file:
-        os.environ['LOG_FILE'] = log_file
+        os.environ["LOG_FILE"] = log_file
     if error_log_file:
-        os.environ['ERROR_LOG_FILE'] = error_log_file
+        os.environ["ERROR_LOG_FILE"] = error_log_file
 
     # Recreate logger with new configuration
     global structured_logger
@@ -563,15 +585,15 @@ def configure_logging(
 
 # Export commonly used functions
 __all__ = [
-    'structured_logger',
-    'get_logger',
-    'log_function_call',
-    'log_database_operation',
-    'log_context',
-    'async_log_context',
-    'request_logging_context',
-    'generate_correlation_id',
-    'configure_logging',
-    'LogContext',
-    'LogLevel'
+    "structured_logger",
+    "get_logger",
+    "log_function_call",
+    "log_database_operation",
+    "log_context",
+    "async_log_context",
+    "request_logging_context",
+    "generate_correlation_id",
+    "configure_logging",
+    "LogContext",
+    "LogLevel",
 ]

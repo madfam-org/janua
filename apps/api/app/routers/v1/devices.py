@@ -112,15 +112,16 @@ async def list_devices_and_sessions(
     session_responses = [
         ActiveSessionResponse(
             id=str(session.id),
-            device_name=session.device_name or DeviceVerificationService.get_friendly_device_name(
-                session.user_agent
-            ),
+            device_name=session.device_name
+            or DeviceVerificationService.get_friendly_device_name(session.user_agent),
             ip_address=session.ip_address,
             user_agent=session.user_agent[:100] if session.user_agent else None,  # Truncate
             is_trusted_device=session.is_trusted_device or False,
             last_activity=session.last_activity,
             created_at=session.created_at,
-            is_current_session=session.device_fingerprint == current_fingerprint if session.device_fingerprint else False,
+            is_current_session=session.device_fingerprint == current_fingerprint
+            if session.device_fingerprint
+            else False,
         )
         for session in active_sessions
     ]

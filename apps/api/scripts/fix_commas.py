@@ -13,8 +13,8 @@ def fix_missing_commas(file_path: Path) -> int:
 
     # Pattern: 'client: AsyncClient' at end of line followed by another parameter
     # Replace with: 'client: AsyncClient,'
-    pattern = r'(\s+client: AsyncClient)\n(\s+\w+:)'
-    replacement = r'\1,\n\2'
+    pattern = r"(\s+client: AsyncClient)\n(\s+\w+:)"
+    replacement = r"\1,\n\2"
 
     new_content, count = re.subn(pattern, replacement, content)
 
@@ -29,8 +29,12 @@ def fix_missing_commas(file_path: Path) -> int:
 
 def main():
     test_files = [
-        Path("/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_auth_registration.py"),
-        Path("/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_auth_login_complete.py"),
+        Path(
+            "/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_auth_registration.py"
+        ),
+        Path(
+            "/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_auth_login_complete.py"
+        ),
         Path("/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_tokens.py"),
         Path("/Users/aldoruizluna/labspace/janua/apps/api/tests/integration/test_mfa.py"),
     ]

@@ -26,7 +26,7 @@ def _redact_ip(ip_address: str) -> str:
     if len(parts) == 4:  # IPv4
         return f"{parts[0]}.{parts[1]}.*.*"
     elif ":" in ip_address:  # IPv6
-        return ip_address[:ip_address.find(":", 4) + 1] + "***"
+        return ip_address[: ip_address.find(":", 4) + 1] + "***"
     return "[redacted]"
 
 
@@ -51,7 +51,7 @@ class GeolocationService:
         self,
         ip_address: Optional[str] = None,
         user_country: Optional[str] = None,
-        billing_country: Optional[str] = None
+        billing_country: Optional[str] = None,
     ) -> str:
         """
         Detect user's country using multi-tier strategy.
@@ -73,14 +73,18 @@ class GeolocationService:
         # Note: Country codes (e.g., "MX", "US") are not PII - safe to log
         if billing_country:
             country_code = self._normalize_country_code(billing_country)
-            logger.info("Country detected from billing address: %s", country_code)  # nosec - country code is not PII
+            logger.info(
+                "Country detected from billing address: %s", country_code
+            )  # nosec - country code is not PII
             return country_code
 
         # Tier 2: User profile country
         # Note: Country codes are not PII - safe to log
         if user_country:
             country_code = self._normalize_country_code(user_country)
-            logger.info("Country detected from user profile: %s", country_code)  # nosec - country code is not PII
+            logger.info(
+                "Country detected from user profile: %s", country_code
+            )  # nosec - country code is not PII
             return country_code
 
         # Tier 3: IP geolocation (fallback)
@@ -217,9 +221,7 @@ class GeolocationService:
         return "US"
 
     def is_mexican_customer(
-        self,
-        country_code: Optional[str] = None,
-        billing_address: Optional[Dict[str, Any]] = None
+        self, country_code: Optional[str] = None, billing_address: Optional[Dict[str, Any]] = None
     ) -> bool:
         """
         Check if customer is from Mexico for Conekta routing.

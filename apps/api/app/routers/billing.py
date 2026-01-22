@@ -28,7 +28,7 @@ from app.models.billing import (
     Invoice,
     SubscriptionStatus,
     BillingInterval,
-    PaymentStatus
+    PaymentStatus,
 )
 from app.services.payment.router import PaymentRouter, TransactionType
 from app.services.payment.base import CustomerData, PaymentMethodData, SubscriptionData
@@ -41,8 +41,10 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 # Request/Response Models
 # ============================================================================
 
+
 class SubscriptionPlanResponse(BaseModel):
     """Subscription plan response."""
+
     id: UUID
     name: str
     description: Optional[str]
@@ -60,6 +62,7 @@ class SubscriptionPlanResponse(BaseModel):
 
 class CreateSubscriptionRequest(BaseModel):
     """Create subscription request."""
+
     plan_id: UUID
     billing_interval: BillingInterval
     payment_method_id: Optional[UUID] = None
@@ -68,12 +71,14 @@ class CreateSubscriptionRequest(BaseModel):
 
 class UpdateSubscriptionRequest(BaseModel):
     """Update subscription request."""
+
     plan_id: Optional[UUID] = None
     billing_interval: Optional[BillingInterval] = None
 
 
 class SubscriptionResponse(BaseModel):
     """Subscription response."""
+
     id: UUID
     organization_id: UUID
     plan_id: UUID
@@ -93,6 +98,7 @@ class SubscriptionResponse(BaseModel):
 
 class AddPaymentMethodRequest(BaseModel):
     """Add payment method request."""
+
     token: str  # Provider-specific token from client SDK
     billing_address: Dict[str, str]
     set_as_default: bool = False
@@ -100,6 +106,7 @@ class AddPaymentMethodRequest(BaseModel):
 
 class PaymentMethodResponse(BaseModel):
     """Payment method response."""
+
     id: UUID
     provider: str
     type: str
@@ -116,6 +123,7 @@ class PaymentMethodResponse(BaseModel):
 
 class InvoiceResponse(BaseModel):
     """Invoice response."""
+
     id: UUID
     subscription_id: UUID
     provider: str
@@ -137,10 +145,10 @@ class InvoiceResponse(BaseModel):
 # Subscription Plans
 # ============================================================================
 
+
 @router.get("/plans", response_model=List[SubscriptionPlanResponse])
 async def list_plans(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """
     List all available subscription plans.
@@ -149,9 +157,7 @@ async def list_plans(
     """
     from sqlalchemy import select
 
-    result = await db.execute(
-        select(SubscriptionPlan).where(SubscriptionPlan.is_active == True)
-    )
+    result = await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.is_active == True))
     plans = result.scalars().all()
 
     return plans
@@ -161,20 +167,17 @@ async def list_plans(
 async def get_plan(
     plan_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get specific subscription plan details."""
     from sqlalchemy import select
 
-    result = await db.execute(
-        select(SubscriptionPlan).where(SubscriptionPlan.id == plan_id)
-    )
+    result = await db.execute(select(SubscriptionPlan).where(SubscriptionPlan.id == plan_id))
     plan = result.scalar_one_or_none()
 
     if not plan:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription plan not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Subscription plan not found"
         )
 
     return plan
@@ -184,12 +187,13 @@ async def get_plan(
 # Subscriptions
 # ============================================================================
 
+
 @router.post("/subscriptions", response_model=SubscriptionResponse)
 async def create_subscription(
     request_data: CreateSubscriptionRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create new subscription for organization.
@@ -206,8 +210,7 @@ async def create_subscription(
     # Get organization (assuming user has organization)
     if not current_user.organization_id:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User must belong to an organization"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="User must belong to an organization"
         )
 
     # Get plan
@@ -218,8 +221,7 @@ async def create_subscription(
 
     if not plan or not plan.is_active:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription plan not found or inactive"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Subscription plan not found or inactive"
         )
 
     # Initialize payment router
@@ -232,7 +234,7 @@ async def create_subscription(
     provider, fallback_info = await payment_router.get_provider(
         transaction_type=TransactionType.SUBSCRIPTION,
         ip_address=client_ip,
-        user_country=getattr(current_user, "country", None)
+        user_country=getattr(current_user, "country", None),
     )
 
     # Log fallback events for monitoring
@@ -251,24 +253,25 @@ async def create_subscription(
         result = await db.execute(
             select(PaymentMethod).where(
                 PaymentMethod.id == request_data.payment_method_id,
-                PaymentMethod.organization_id == current_user.organization_id
+                PaymentMethod.organization_id == current_user.organization_id,
             )
         )
         payment_method = result.scalar_one_or_none()
 
         if not payment_method:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Payment method not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Payment method not found"
             )
         payment_method_provider_id = payment_method.provider_payment_method_id
 
     # Check if organization already has customer in provider
     result = await db.execute(
-        select(Subscription).where(
+        select(Subscription)
+        .where(
             Subscription.organization_id == current_user.organization_id,
-            Subscription.provider == provider.provider_name
-        ).limit(1)
+            Subscription.provider == provider.provider_name,
+        )
+        .limit(1)
     )
     existing_subscription = result.scalar_one_or_none()
 
@@ -279,7 +282,7 @@ async def create_subscription(
         customer_data = CustomerData(
             email=current_user.email,
             name=getattr(current_user, "name", None),
-            metadata={"organization_id": str(current_user.organization_id)}
+            metadata={"organization_id": str(current_user.organization_id)},
         )
         customer_response = await provider.create_customer(customer_data)
         provider_customer_id = customer_response["customer_id"]
@@ -291,7 +294,7 @@ async def create_subscription(
     if not provider_plan_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Plan not configured for provider {provider.provider_name}"
+            detail=f"Plan not configured for provider {provider.provider_name}",
         )
 
     # Create subscription in provider
@@ -303,8 +306,8 @@ async def create_subscription(
         metadata={
             "organization_id": str(current_user.organization_id),
             "plan_id": str(plan.id),
-            "created_by": str(current_user.id)
-        }
+            "created_by": str(current_user.id),
+        },
     )
 
     provider_subscription = await provider.create_subscription(subscription_data)
@@ -320,7 +323,9 @@ async def create_subscription(
         billing_interval=request_data.billing_interval,
         current_period_start=datetime.fromtimestamp(provider_subscription["current_period_start"]),
         current_period_end=datetime.fromtimestamp(provider_subscription["current_period_end"]),
-        trial_end=datetime.fromtimestamp(provider_subscription["trial_end"]) if provider_subscription.get("trial_end") else None
+        trial_end=datetime.fromtimestamp(provider_subscription["trial_end"])
+        if provider_subscription.get("trial_end")
+        else None,
     )
 
     db.add(subscription)
@@ -336,8 +341,7 @@ async def create_subscription(
 
 @router.get("/subscriptions", response_model=List[SubscriptionResponse])
 async def list_subscriptions(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
     """List all subscriptions for current organization."""
     from sqlalchemy import select
@@ -371,7 +375,7 @@ async def list_subscriptions(
 async def get_subscription(
     subscription_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Get subscription details."""
     from sqlalchemy import select
@@ -379,16 +383,13 @@ async def get_subscription(
     result = await db.execute(
         select(Subscription).where(
             Subscription.id == subscription_id,
-            Subscription.organization_id == current_user.organization_id
+            Subscription.organization_id == current_user.organization_id,
         )
     )
     subscription = result.scalar_one_or_none()
 
     if not subscription:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
     # Get plan name
     result = await db.execute(
@@ -407,7 +408,7 @@ async def update_subscription(
     subscription_id: UUID,
     request_data: UpdateSubscriptionRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Update subscription (change plan or billing interval).
@@ -420,16 +421,13 @@ async def update_subscription(
     result = await db.execute(
         select(Subscription).where(
             Subscription.id == subscription_id,
-            Subscription.organization_id == current_user.organization_id
+            Subscription.organization_id == current_user.organization_id,
         )
     )
     subscription = result.scalar_one_or_none()
 
     if not subscription:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
     # Get provider
     payment_router = PaymentRouter()
@@ -438,7 +436,7 @@ async def update_subscription(
     if not provider:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Provider {subscription.provider} not configured"
+            detail=f"Provider {subscription.provider} not configured",
         )
 
     # Update subscription in provider
@@ -451,16 +449,13 @@ async def update_subscription(
         new_plan = result.scalar_one_or_none()
 
         if not new_plan:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="New plan not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="New plan not found")
 
         provider_plan_id = new_plan.provider_plan_ids.get(provider.provider_name)
         if not provider_plan_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"New plan not configured for provider {provider.provider_name}"
+                detail=f"New plan not configured for provider {provider.provider_name}",
             )
 
         update_data["plan_id"] = provider_plan_id
@@ -472,13 +467,16 @@ async def update_subscription(
     # Update in provider
     if update_data:
         provider_response = await provider.update_subscription(
-            subscription.provider_subscription_id,
-            update_data
+            subscription.provider_subscription_id, update_data
         )
 
         subscription.status = SubscriptionStatus(provider_response["status"])
-        subscription.current_period_start = datetime.fromtimestamp(provider_response["current_period_start"])
-        subscription.current_period_end = datetime.fromtimestamp(provider_response["current_period_end"])
+        subscription.current_period_start = datetime.fromtimestamp(
+            provider_response["current_period_start"]
+        )
+        subscription.current_period_end = datetime.fromtimestamp(
+            provider_response["current_period_end"]
+        )
 
     await db.commit()
     await db.refresh(subscription)
@@ -500,7 +498,7 @@ async def cancel_subscription(
     subscription_id: UUID,
     cancel_immediately: bool = False,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Cancel subscription.
@@ -513,16 +511,13 @@ async def cancel_subscription(
     result = await db.execute(
         select(Subscription).where(
             Subscription.id == subscription_id,
-            Subscription.organization_id == current_user.organization_id
+            Subscription.organization_id == current_user.organization_id,
         )
     )
     subscription = result.scalar_one_or_none()
 
     if not subscription:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
     # Get provider
     payment_router = PaymentRouter()
@@ -531,13 +526,12 @@ async def cancel_subscription(
     if not provider:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Provider {subscription.provider} not configured"
+            detail=f"Provider {subscription.provider} not configured",
         )
 
     # Cancel in provider
     provider_response = await provider.cancel_subscription(
-        subscription.provider_subscription_id,
-        cancel_immediately
+        subscription.provider_subscription_id, cancel_immediately
     )
 
     # Update database
@@ -566,7 +560,7 @@ async def cancel_subscription(
 async def resume_subscription(
     subscription_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Resume a canceled subscription (only if cancel_at_period_end was set)."""
     from sqlalchemy import select
@@ -574,21 +568,18 @@ async def resume_subscription(
     result = await db.execute(
         select(Subscription).where(
             Subscription.id == subscription_id,
-            Subscription.organization_id == current_user.organization_id
+            Subscription.organization_id == current_user.organization_id,
         )
     )
     subscription = result.scalar_one_or_none()
 
     if not subscription:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Subscription not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
 
     if not subscription.cancel_at_period_end:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Subscription is not scheduled for cancellation"
+            detail="Subscription is not scheduled for cancellation",
         )
 
     # Get provider
@@ -598,13 +589,11 @@ async def resume_subscription(
     if not provider:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Provider {subscription.provider} not configured"
+            detail=f"Provider {subscription.provider} not configured",
         )
 
     # Resume in provider
-    provider_response = await provider.resume_subscription(
-        subscription.provider_subscription_id
-    )
+    provider_response = await provider.resume_subscription(subscription.provider_subscription_id)
 
     # Update database
     subscription.status = SubscriptionStatus(provider_response["status"])
@@ -624,24 +613,25 @@ async def resume_subscription(
 
     return response
 
+
 # ============================================================================
 # Payment Methods
 # ============================================================================
+
 
 @router.post("/payment-methods", response_model=PaymentMethodResponse)
 async def add_payment_method(
     request_data: AddPaymentMethodRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Add payment method to organization."""
     from sqlalchemy import select
 
     if not current_user.organization_id:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User must belong to an organization"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="User must belong to an organization"
         )
 
     payment_router = PaymentRouter()
@@ -651,7 +641,7 @@ async def add_payment_method(
     provider, fallback_info = await payment_router.get_provider(
         billing_address=request_data.billing_address,
         ip_address=client_ip,
-        user_country=getattr(current_user, "country", None)
+        user_country=getattr(current_user, "country", None),
     )
 
     # Log fallback events for monitoring
@@ -666,10 +656,12 @@ async def add_payment_method(
 
     # Get or create customer
     result = await db.execute(
-        select(Subscription).where(
+        select(Subscription)
+        .where(
             Subscription.organization_id == current_user.organization_id,
-            Subscription.provider == provider.provider_name
-        ).limit(1)
+            Subscription.provider == provider.provider_name,
+        )
+        .limit(1)
     )
     existing_subscription = result.scalar_one_or_none()
 
@@ -679,21 +671,18 @@ async def add_payment_method(
         customer_data = CustomerData(
             email=current_user.email,
             name=getattr(current_user, "name", None),
-            metadata={"organization_id": str(current_user.organization_id)}
+            metadata={"organization_id": str(current_user.organization_id)},
         )
         customer_response = await provider.create_customer(customer_data)
         provider_customer_id = customer_response["customer_id"]
 
     # Add payment method
     payment_method_data = PaymentMethodData(
-        token=request_data.token,
-        type="card",
-        billing_address=request_data.billing_address
+        token=request_data.token, type="card", billing_address=request_data.billing_address
     )
 
     provider_response = await provider.create_payment_method(
-        provider_customer_id,
-        payment_method_data
+        provider_customer_id, payment_method_data
     )
 
     payment_method = PaymentMethod(
@@ -707,7 +696,7 @@ async def add_payment_method(
         exp_month=provider_response.get("exp_month"),
         exp_year=provider_response.get("exp_year"),
         billing_address=request_data.billing_address,
-        is_default=request_data.set_as_default
+        is_default=request_data.set_as_default,
     )
 
     if request_data.set_as_default:
@@ -715,7 +704,7 @@ async def add_payment_method(
             select(PaymentMethod).where(
                 PaymentMethod.organization_id == current_user.organization_id,
                 PaymentMethod.provider == provider.provider_name,
-                PaymentMethod.is_default == True
+                PaymentMethod.is_default == True,
             )
         )
         for old_default in result.scalars().all():
@@ -732,7 +721,7 @@ async def add_payment_method(
 async def list_payment_methods(
     provider: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """List payment methods for organization."""
     from sqlalchemy import select
@@ -755,7 +744,7 @@ async def list_payment_methods(
 async def delete_payment_method(
     payment_method_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """Remove payment method."""
     from sqlalchemy import select
@@ -763,7 +752,7 @@ async def delete_payment_method(
     result = await db.execute(
         select(PaymentMethod).where(
             PaymentMethod.id == payment_method_id,
-            PaymentMethod.organization_id == current_user.organization_id
+            PaymentMethod.organization_id == current_user.organization_id,
         )
     )
     payment_method = result.scalar_one_or_none()
@@ -776,8 +765,7 @@ async def delete_payment_method(
 
     if provider:
         await provider.delete_payment_method(
-            payment_method.provider_customer_id,
-            payment_method.provider_payment_method_id
+            payment_method.provider_customer_id, payment_method.provider_payment_method_id
         )
 
     await db.delete(payment_method)
@@ -790,11 +778,12 @@ async def delete_payment_method(
 # Invoices
 # ============================================================================
 
+
 @router.get("/invoices", response_model=List[InvoiceResponse])
 async def list_invoices(
     subscription_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """List invoices for organization."""
     from sqlalchemy import select

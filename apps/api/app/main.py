@@ -414,16 +414,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
 
         # Security headers for A+ SSL rating
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains; preload"
-        )
+        response.headers[
+            "Strict-Transport-Security"
+        ] = "max-age=31536000; includeSubDomains; preload"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
-        )
+        response.headers[
+            "Content-Security-Policy"
+        ] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         response.headers["Server"] = "Janua-API"  # Hide server version info
 
@@ -472,7 +472,12 @@ else:
     # Add custom domain aliases from environment (e.g., auth.madfam.io for MADFAM deployment)
     custom_domain = os.getenv("JANUA_CUSTOM_DOMAIN")
     if custom_domain:
-        allowed_hosts.extend([custom_domain, f"*.{custom_domain.split('.', 1)[-1] if '.' in custom_domain else custom_domain}"])
+        allowed_hosts.extend(
+            [
+                custom_domain,
+                f"*.{custom_domain.split('.', 1)[-1] if '.' in custom_domain else custom_domain}",
+            ]
+        )
     # Add test host for integration tests
     if settings.ENVIRONMENT == "test":
         allowed_hosts.extend(["test", "testserver", "testclient"])
@@ -534,6 +539,7 @@ app.add_middleware(
     max_age=600,
     enable_database_origins=True,
 )
+
 
 # Direct Redis connection using Railway environment variables
 async def get_redis_client():
@@ -622,16 +628,40 @@ def openid_configuration():
         "introspection_endpoint": f"{base_url}/api/v1/oauth/introspect",
         "revocation_endpoint": f"{base_url}/api/v1/oauth/revoke",
         "registration_endpoint": f"{base_url}/api/v1/oauth/register",
-        "response_types_supported": ["code", "token", "id_token", "code token", "code id_token", "token id_token", "code token id_token"],
+        "response_types_supported": [
+            "code",
+            "token",
+            "id_token",
+            "code token",
+            "code id_token",
+            "token id_token",
+            "code token id_token",
+        ],
         "response_modes_supported": ["query", "fragment", "form_post"],
         "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
         "subject_types_supported": ["public"],
         "id_token_signing_alg_values_supported": ["RS256"],
         "scopes_supported": ["openid", "profile", "email", "offline_access"],
-        "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "none"],
+        "token_endpoint_auth_methods_supported": [
+            "client_secret_basic",
+            "client_secret_post",
+            "none",
+        ],
         "claims_supported": [
-            "sub", "iss", "aud", "exp", "iat", "auth_time", "nonce",
-            "email", "email_verified", "name", "given_name", "family_name", "picture", "updated_at"
+            "sub",
+            "iss",
+            "aud",
+            "exp",
+            "iat",
+            "auth_time",
+            "nonce",
+            "email",
+            "email_verified",
+            "name",
+            "given_name",
+            "family_name",
+            "picture",
+            "updated_at",
         ],
         "code_challenge_methods_supported": ["S256", "plain"],
         "service_documentation": "https://docs.janua.dev",
@@ -645,6 +675,7 @@ def jwks():
     Used by edge workers and clients to verify JWT signatures.
     """
     from app.core.jwt_manager import jwt_manager
+
     return jwt_manager.get_jwks()
 
 
@@ -811,7 +842,9 @@ if settings.ENABLE_BETA_ENDPOINTS:
         try:
             # Validate
             if len(signup_request.password) < 8:
-                raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+                raise HTTPException(
+                    status_code=400, detail="Password must be at least 8 characters"
+                )
 
             # Try Redis first, fallback to memory
             user_id = secrets.token_hex(16)
@@ -901,7 +934,11 @@ if settings.ENABLE_BETA_ENDPOINTS:
             return {
                 "access_token": access_token,
                 "token_type": "bearer",
-                "user": {"id": user_data["id"], "email": user_data["email"], "name": user_data["name"]},
+                "user": {
+                    "id": user_data["id"],
+                    "email": user_data["email"],
+                    "name": user_data["name"],
+                },
                 "storage": storage_type,
             }
 
@@ -1025,6 +1062,7 @@ async def startup_event():
 
         # Bootstrap admin user if ADMIN_BOOTSTRAP_PASSWORD is set
         from app.core.database import bootstrap_admin_user
+
         await bootstrap_admin_user()
 
         # Initialize performance cache manager

@@ -18,6 +18,7 @@ logger = structlog.get_logger()
 
 class DatabaseRole(Enum):
     """Database server roles"""
+
     PRIMARY = "primary"
     REPLICA = "replica"
     UNKNOWN = "unknown"
@@ -25,6 +26,7 @@ class DatabaseRole(Enum):
 
 class ConnectionType(Enum):
     """Connection types for routing"""
+
     READ = "read"
     WRITE = "write"
 
@@ -32,6 +34,7 @@ class ConnectionType(Enum):
 @dataclass
 class DatabaseServer:
     """Database server configuration"""
+
     host: str
     port: int
     database: str
@@ -49,6 +52,7 @@ class DatabaseServer:
 @dataclass
 class ReplicationStatus:
     """Replication status information"""
+
     primary_server: str
     replica_servers: List[str]
     total_lag_bytes: int
@@ -82,7 +86,7 @@ class DatabaseReplicationManager:
             username=settings.DATABASE_USER,
             password=settings.DATABASE_PASSWORD,
             role=DatabaseRole.PRIMARY,
-            weight=0  # Primary doesn't participate in read load balancing
+            weight=0,  # Primary doesn't participate in read load balancing
         )
         self.servers["primary"] = primary
 
@@ -97,7 +101,7 @@ class DatabaseReplicationManager:
                 username=replica_config["username"],
                 password=replica_config["password"],
                 role=DatabaseRole.REPLICA,
-                weight=replica_config.get("weight", 100)
+                weight=replica_config.get("weight", 100),
             )
             self.servers[replica_name] = replica
 
@@ -112,9 +116,15 @@ class DatabaseReplicationManager:
                 replica_config = {
                     "host": getattr(settings, host_key),
                     "port": getattr(settings, f"DATABASE_REPLICA_{i}_PORT", 5432),
-                    "database": getattr(settings, f"DATABASE_REPLICA_{i}_NAME", settings.DATABASE_NAME),
-                    "username": getattr(settings, f"DATABASE_REPLICA_{i}_USER", settings.DATABASE_USER),
-                    "password": getattr(settings, f"DATABASE_REPLICA_{i}_PASSWORD", settings.DATABASE_PASSWORD),
+                    "database": getattr(
+                        settings, f"DATABASE_REPLICA_{i}_NAME", settings.DATABASE_NAME
+                    ),
+                    "username": getattr(
+                        settings, f"DATABASE_REPLICA_{i}_USER", settings.DATABASE_USER
+                    ),
+                    "password": getattr(
+                        settings, f"DATABASE_REPLICA_{i}_PASSWORD", settings.DATABASE_PASSWORD
+                    ),
                     "weight": getattr(settings, f"DATABASE_REPLICA_{i}_WEIGHT", 100),
                 }
                 replicas.append(replica_config)
@@ -135,15 +145,17 @@ class DatabaseReplicationManager:
                     max_inactive_connection_lifetime=300.0,
                     command_timeout=60.0,
                     server_settings={
-                        'application_name': f'janua_{server_name}',
-                        'tcp_keepalives_idle': '600',
-                        'tcp_keepalives_interval': '30',
-                        'tcp_keepalives_count': '3',
-                    }
+                        "application_name": f"janua_{server_name}",
+                        "tcp_keepalives_idle": "600",
+                        "tcp_keepalives_interval": "30",
+                        "tcp_keepalives_count": "3",
+                    },
                 )
 
                 self.connection_pools[server_name] = pool
-                logger.info("Database connection pool created", server=server_name, role=server.role.value)
+                logger.info(
+                    "Database connection pool created", server=server_name, role=server.role.value
+                )
 
             except Exception as e:
                 logger.error("Failed to create connection pool", server=server_name, error=str(e))
@@ -152,7 +164,9 @@ class DatabaseReplicationManager:
         # Start health check task
         asyncio.create_task(self._health_check_loop())
 
-    async def get_connection(self, connection_type: ConnectionType = ConnectionType.READ) -> Tuple[asyncpg.Connection, str]:
+    async def get_connection(
+        self, connection_type: ConnectionType = ConnectionType.READ
+    ) -> Tuple[asyncpg.Connection, str]:
         """Get database connection based on type"""
         if connection_type == ConnectionType.WRITE:
             return await self._get_write_connection()
@@ -179,7 +193,8 @@ class DatabaseReplicationManager:
         """Get connection to read replica (or primary if no replicas available)"""
         # Get healthy replicas
         healthy_replicas = [
-            (name, server) for name, server in self.servers.items()
+            (name, server)
+            for name, server in self.servers.items()
             if server.role == DatabaseRole.REPLICA and server.is_healthy
         ]
 
@@ -290,9 +305,9 @@ class DatabaseReplicationManager:
             )
 
             if result:
-                receive_lsn = result['pg_last_wal_receive_lsn']
-                replay_lsn = result['pg_last_wal_replay_lsn']
-                lag_seconds = result['lag_seconds'] or 0.0
+                receive_lsn = result["pg_last_wal_receive_lsn"]
+                replay_lsn = result["pg_last_wal_replay_lsn"]
+                lag_seconds = result["lag_seconds"] or 0.0
 
                 # Calculate byte lag (simplified)
                 if receive_lsn and replay_lsn:
@@ -308,7 +323,7 @@ class DatabaseReplicationManager:
                     logger.warning(
                         "High replication lag detected",
                         server=server.host,
-                        lag_seconds=server.lag_seconds
+                        lag_seconds=server.lag_seconds,
                     )
 
         except Exception as e:
@@ -316,20 +331,29 @@ class DatabaseReplicationManager:
 
     async def _update_replication_status(self):
         """Update overall replication status"""
-        primary_servers = [name for name, server in self.servers.items()
-                          if server.role == DatabaseRole.PRIMARY]
-        replica_servers = [name for name, server in self.servers.items()
-                          if server.role == DatabaseRole.REPLICA]
+        primary_servers = [
+            name for name, server in self.servers.items() if server.role == DatabaseRole.PRIMARY
+        ]
+        replica_servers = [
+            name for name, server in self.servers.items() if server.role == DatabaseRole.REPLICA
+        ]
 
-        healthy_replicas = sum(1 for name in replica_servers
-                              if self.servers[name].is_healthy)
+        healthy_replicas = sum(1 for name in replica_servers if self.servers[name].is_healthy)
         unhealthy_replicas = len(replica_servers) - healthy_replicas
 
-        total_lag_bytes = sum(self.servers[name].lag_bytes
-                             for name in replica_servers if self.servers[name].is_healthy)
-        max_lag_seconds = max((self.servers[name].lag_seconds
-                              for name in replica_servers if self.servers[name].is_healthy),
-                             default=0.0)
+        total_lag_bytes = sum(
+            self.servers[name].lag_bytes
+            for name in replica_servers
+            if self.servers[name].is_healthy
+        )
+        max_lag_seconds = max(
+            (
+                self.servers[name].lag_seconds
+                for name in replica_servers
+                if self.servers[name].is_healthy
+            ),
+            default=0.0,
+        )
 
         # ReplicationStatus created for status tracking and logging
         ReplicationStatus(
@@ -339,7 +363,7 @@ class DatabaseReplicationManager:
             max_lag_seconds=max_lag_seconds,
             healthy_replicas=healthy_replicas,
             unhealthy_replicas=unhealthy_replicas,
-            last_updated=datetime.now()
+            last_updated=datetime.now(),
         )
 
         # Log status if there are issues
@@ -348,7 +372,7 @@ class DatabaseReplicationManager:
                 "Replication issues detected",
                 healthy_replicas=healthy_replicas,
                 unhealthy_replicas=unhealthy_replicas,
-                max_lag_seconds=max_lag_seconds
+                max_lag_seconds=max_lag_seconds,
             )
 
     async def _handle_primary_failure(self):
@@ -378,7 +402,8 @@ class DatabaseReplicationManager:
     def _select_failover_candidate(self) -> Optional[str]:
         """Select the best replica for failover"""
         healthy_replicas = [
-            (name, server) for name, server in self.servers.items()
+            (name, server)
+            for name, server in self.servers.items()
             if server.role == DatabaseRole.REPLICA and server.is_healthy
         ]
 
@@ -402,7 +427,7 @@ class DatabaseReplicationManager:
         logger.info(
             "Replica promotion initiated - manual intervention may be required",
             replica=replica_name,
-            host=replica_server.host
+            host=replica_server.host,
         )
 
         # Update server role (this would normally be done after successful promotion)
@@ -414,10 +439,16 @@ class DatabaseReplicationManager:
 
     async def get_replication_status(self) -> Dict[str, Any]:
         """Get current replication status"""
-        primary_servers = [(name, server) for name, server in self.servers.items()
-                          if server.role == DatabaseRole.PRIMARY]
-        replica_servers = [(name, server) for name, server in self.servers.items()
-                          if server.role == DatabaseRole.REPLICA]
+        primary_servers = [
+            (name, server)
+            for name, server in self.servers.items()
+            if server.role == DatabaseRole.PRIMARY
+        ]
+        replica_servers = [
+            (name, server)
+            for name, server in self.servers.items()
+            if server.role == DatabaseRole.REPLICA
+        ]
 
         status = {
             "primary": {
@@ -433,16 +464,20 @@ class DatabaseReplicationManager:
                     "lag_seconds": server.lag_seconds,
                     "lag_bytes": server.lag_bytes,
                     "weight": server.weight,
-                    "last_health_check": server.last_health_check.isoformat() if server.last_health_check else None
+                    "last_health_check": server.last_health_check.isoformat()
+                    if server.last_health_check
+                    else None,
                 }
                 for name, server in replica_servers
             ],
             "summary": {
                 "total_replicas": len(replica_servers),
                 "healthy_replicas": sum(1 for _, server in replica_servers if server.is_healthy),
-                "max_lag_seconds": max((server.lag_seconds for _, server in replica_servers), default=0.0),
-                "failover_in_progress": self.failover_in_progress
-            }
+                "max_lag_seconds": max(
+                    (server.lag_seconds for _, server in replica_servers), default=0.0
+                ),
+                "failover_in_progress": self.failover_in_progress,
+            },
         }
 
         return status
@@ -473,7 +508,9 @@ class DatabaseConnection:
         self.server_name = None
 
     async def __aenter__(self):
-        self.connection, self.server_name = await db_replication_manager.get_connection(self.connection_type)
+        self.connection, self.server_name = await db_replication_manager.get_connection(
+            self.connection_type
+        )
         return self.connection
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

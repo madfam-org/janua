@@ -13,6 +13,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "apps" / "api"))
 
+
 def validate_imports():
     """Validate that all compliance components can be imported"""
 
@@ -23,29 +24,41 @@ def validate_imports():
     try:
         from app.compliance import (
             # Core monitoring
-            ComplianceMonitor, ControlMonitor, EvidenceCollector,
-
+            ComplianceMonitor,
+            ControlMonitor,
+            EvidenceCollector,
             # Incident response
-            IncidentResponse, SecurityIncident, IncidentSeverity,
-
+            IncidentResponse,
+            SecurityIncident,
+            IncidentSeverity,
             # SLA monitoring
-            SLAMonitor, ServiceLevelObjective, UptimeTracker,
-
+            SLAMonitor,
+            ServiceLevelObjective,
+            UptimeTracker,
             # Audit trails
-            AuditTrail, ComplianceEvent, AuditLogger, AuditEvidence,
-
+            AuditTrail,
+            ComplianceEvent,
+            AuditLogger,
+            AuditEvidence,
             # Policy management
-            PolicyManager, SecurityPolicy, PolicyCompliance, PolicyViolation,
-
+            PolicyManager,
+            SecurityPolicy,
+            PolicyCompliance,
+            PolicyViolation,
             # Dashboard and metrics
-            ComplianceDashboard, ComplianceMetrics, ComplianceDashboardData,
-
+            ComplianceDashboard,
+            ComplianceMetrics,
+            ComplianceDashboardData,
             # Privacy and GDPR
-            PrivacyManager, DataSubjectRequestResponse, GDPRCompliance,
-
+            PrivacyManager,
+            DataSubjectRequestResponse,
+            GDPRCompliance,
             # Enterprise support
-            SupportSystem, SupportTicket, SupportMetrics
+            SupportSystem,
+            SupportTicket,
+            SupportMetrics,
         )
+
         print("✅ Core compliance imports successful")
     except ImportError as e:
         print(f"❌ Core compliance import failed: {e}")
@@ -57,7 +70,7 @@ def validate_imports():
         ("privacy", ["PrivacyManager", "GDPRCompliance"]),
         ("dashboard", ["ComplianceDashboard", "ComplianceMetrics"]),
         ("support", ["SupportSystem", "SupportTicket"]),
-        ("policies", ["PolicyManager", "SecurityPolicy"])
+        ("policies", ["PolicyManager", "SecurityPolicy"]),
     ]
 
     for module_name, classes in components:
@@ -74,6 +87,7 @@ def validate_imports():
             return False
 
     return True
+
 
 def validate_enums():
     """Validate that all required enums are defined"""
@@ -102,6 +116,7 @@ def validate_enums():
         print(f"❌ Enum import failed: {e}")
         return False
 
+
 def validate_dataclasses():
     """Validate that all dataclasses are properly defined"""
 
@@ -129,6 +144,7 @@ def validate_dataclasses():
         print(f"❌ Dataclass import failed: {e}")
         return False
 
+
 def validate_file_structure():
     """Validate that all required files exist"""
 
@@ -143,9 +159,9 @@ def validate_file_structure():
         "dashboard.py",
         "support.py",
         "policies.py",
-        "monitor.py",    # Existing
-        "incident.py",   # Existing
-        "sla.py"        # Existing
+        "monitor.py",  # Existing
+        "incident.py",  # Existing
+        "sla.py",  # Existing
     ]
 
     all_exist = True
@@ -159,19 +175,14 @@ def validate_file_structure():
 
     return all_exist
 
+
 def validate_dependencies():
     """Check if required dependencies are available"""
 
     print("\n🔍 Validating Dependencies...")
     print("=" * 32)
 
-    required_deps = [
-        "sqlalchemy",
-        "asyncio",
-        "aioredis",
-        "aiofiles",
-        "pydantic"
-    ]
+    required_deps = ["sqlalchemy", "asyncio", "aioredis", "aiofiles", "pydantic"]
 
     all_available = True
     for dep in required_deps:
@@ -184,6 +195,7 @@ def validate_dependencies():
 
     return all_available
 
+
 def main():
     """Run all validation checks"""
 
@@ -195,7 +207,7 @@ def main():
         ("Dependencies", validate_dependencies),
         ("Core Imports", validate_imports),
         ("Enums", validate_enums),
-        ("Dataclasses", validate_dataclasses)
+        ("Dataclasses", validate_dataclasses),
     ]
 
     all_passed = True
@@ -223,6 +235,7 @@ def main():
         print("⚠️  Some validation checks failed.")
         print("❌ Please fix the issues before deployment.")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

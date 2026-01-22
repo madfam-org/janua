@@ -27,9 +27,7 @@ class TestHealthEndpointsIntegration:
 
     async def test_ready_endpoint_healthy_services(self, test_client: AsyncClient):
         """Test readiness endpoint when all services are healthy."""
-        with patch('app.main.engine') as mock_engine, \
-             patch('app.main.redis_client') as mock_redis:
-
+        with patch("app.main.engine") as mock_engine, patch("app.main.redis_client") as mock_redis:
             # Mock successful database connection
             mock_conn = AsyncMock()
             mock_engine.connect.return_value.__aenter__.return_value = mock_conn
@@ -49,9 +47,7 @@ class TestHealthEndpointsIntegration:
 
     async def test_ready_endpoint_degraded_services(self, test_client: AsyncClient):
         """Test readiness endpoint when services are degraded."""
-        with patch('app.main.engine') as mock_engine, \
-             patch('app.main.redis_client') as mock_redis:
-
+        with patch("app.main.engine") as mock_engine, patch("app.main.redis_client") as mock_redis:
             # Mock failed database connection
             mock_engine.connect.side_effect = Exception("DB connection failed")
 
@@ -87,7 +83,7 @@ class TestOpenIDEndpointsIntegration:
             "jwks_uri",
             "response_types_supported",
             "subject_types_supported",
-            "id_token_signing_alg_values_supported"
+            "id_token_signing_alg_values_supported",
         ]
 
         for field in required_fields:
@@ -96,7 +92,9 @@ class TestOpenIDEndpointsIntegration:
         # Validate URL formats
         url_fields = ["authorization_endpoint", "token_endpoint", "userinfo_endpoint", "jwks_uri"]
         for field in url_fields:
-            assert data[field].startswith(("http://", "https://")), f"Invalid URL format for {field}: {data[field]}"
+            assert data[field].startswith(
+                ("http://", "https://")
+            ), f"Invalid URL format for {field}: {data[field]}"
 
         # Validate response types and algorithms
         assert "code" in data["response_types_supported"]
@@ -147,7 +145,7 @@ class TestTestEndpointsIntegration:
             {"nested": {"level1": {"level2": "value"}}},
             {"array": [1, 2, 3, 4, 5]},
             {"unicode": "héllo wörld 🌍"},
-            {"boolean": True, "null": None}
+            {"boolean": True, "null": None},
         ]
 
         for test_data in test_cases:
@@ -285,7 +283,7 @@ class TestPerformanceIntegration:
             test_client.get("/ready"),
             test_client.get("/test"),
             test_client.get("/.well-known/openid-configuration"),
-            test_client.get("/.well-known/jwks.json")
+            test_client.get("/.well-known/jwks.json"),
         ]
 
         # Execute all requests concurrently

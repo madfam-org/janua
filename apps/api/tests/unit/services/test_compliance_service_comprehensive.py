@@ -1,4 +1,5 @@
 import pytest
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -16,11 +17,19 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 from app.services.compliance_service import (
-    ConsentService, DataSubjectRightsService, DataRetentionService, ComplianceService
+    ConsentService,
+    DataSubjectRightsService,
+    DataRetentionService,
+    ComplianceService,
 )
 from app.models.compliance import (
-    ConsentType, ConsentStatus, LegalBasis, DataSubjectRequestType,
-    RequestStatus, DataCategory, ComplianceFramework
+    ConsentType,
+    ConsentStatus,
+    LegalBasis,
+    DataSubjectRequestType,
+    RequestStatus,
+    DataCategory,
+    ComplianceFramework,
 )
 from app.services.audit_logger import AuditEventType
 
@@ -81,7 +90,7 @@ class TestConsentManagement:
             ip_address="192.168.1.1",
             user_agent="Mozilla/5.0...",
             consent_method="cookie_banner",
-            consent_version="1.0"
+            consent_version="1.0",
         )
 
         # Check that we get a result back (will be a real ConsentRecord object)
@@ -112,7 +121,7 @@ class TestConsentManagement:
             user_id=user_id,
             consent_type=ConsentType.ANALYTICS,
             purpose="Website analytics",
-            ip_address="192.168.1.1"
+            ip_address="192.168.1.1",
         )
 
         assert result == existing_consent
@@ -140,7 +149,7 @@ class TestConsentManagement:
             consent_type=ConsentType.MARKETING,
             purpose="Email marketing",
             withdrawal_reason="No longer interested",
-            ip_address="192.168.1.1"
+            ip_address="192.168.1.1",
         )
 
         assert result is True
@@ -161,9 +170,7 @@ class TestConsentManagement:
         mock_db.execute.return_value = mock_execute_result
 
         result = await service.withdraw_consent(
-            user_id=user_id,
-            consent_type=ConsentType.MARKETING,
-            purpose="Email marketing"
+            user_id=user_id, consent_type=ConsentType.MARKETING, purpose="Email marketing"
         )
 
         assert result is False
@@ -187,10 +194,7 @@ class TestConsentManagement:
         mock_execute_result.scalars.return_value = mock_scalars_result
         mock_db.execute.return_value = mock_execute_result
 
-        result = await service.get_user_consents(
-            user_id=user_id,
-            include_withdrawn=False
-        )
+        result = await service.get_user_consents(user_id=user_id, include_withdrawn=False)
 
         assert len(result) == 1
         assert result[0] == consent1
@@ -208,9 +212,7 @@ class TestConsentManagement:
         mock_db.execute.return_value = mock_execute_result
 
         result = await service.check_consent(
-            user_id=user_id,
-            consent_type=ConsentType.ANALYTICS,
-            purpose="Website tracking"
+            user_id=user_id, consent_type=ConsentType.ANALYTICS, purpose="Website tracking"
         )
 
         assert result is True
@@ -227,9 +229,7 @@ class TestConsentManagement:
         mock_db.execute.return_value = mock_execute_result
 
         result = await service.check_consent(
-            user_id=user_id,
-            consent_type=ConsentType.MARKETING,
-            purpose="Email campaigns"
+            user_id=user_id, consent_type=ConsentType.MARKETING, purpose="Email campaigns"
         )
 
         assert result is False
@@ -259,7 +259,7 @@ class TestDataSubjectRightsService:
             request_type=DataSubjectRequestType.ACCESS,
             description="Need access to my personal data",
             data_categories=[DataCategory.IDENTITY, DataCategory.CONTACT],
-            ip_address="192.168.1.1"
+            ip_address="192.168.1.1",
         )
 
         # Check that we get a real DataSubjectRequest object back
@@ -316,7 +316,7 @@ class TestDataSubjectRightsService:
             mock_request_result,
             mock_user_result,
             mock_consent_result,
-            mock_privacy_result
+            mock_privacy_result,
         ]
 
         mock_db.commit = AsyncMock()
@@ -372,11 +372,7 @@ class TestDataSubjectRightsService:
 
         mock_sql_result = MagicMock()
 
-        mock_db.execute.side_effect = [
-            mock_request_result,
-            mock_user_result,
-            mock_sql_result
-        ]
+        mock_db.execute.side_effect = [mock_request_result, mock_user_result, mock_sql_result]
 
         mock_db.commit = AsyncMock()
 
@@ -416,10 +412,7 @@ class TestDataSubjectRightsService:
         mock_user_result = MagicMock()
         mock_user_result.scalar_one_or_none.return_value = mock_user
 
-        mock_db.execute.side_effect = [
-            mock_request_result,
-            mock_user_result
-        ]
+        mock_db.execute.side_effect = [mock_request_result, mock_user_result]
 
         mock_db.delete = AsyncMock()
         mock_db.commit = AsyncMock()
@@ -457,7 +450,7 @@ class TestDataRetentionService:
             retention_period_days=365,
             compliance_framework=ComplianceFramework.GDPR,
             description="Personal data retention policy",
-            deletion_method="anonymize"
+            deletion_method="anonymize",
         )
 
         # Check that we get a real DataRetentionPolicy object back
@@ -499,10 +492,7 @@ class TestDataRetentionService:
         mock_users_scalars.all.return_value = [mock_user]
         mock_users_result.scalars.return_value = mock_users_scalars
 
-        mock_db.execute.side_effect = [
-            mock_policies_result,
-            mock_users_result
-        ]
+        mock_db.execute.side_effect = [mock_policies_result, mock_users_result]
 
         result = await service.check_expired_data()
 
@@ -527,7 +517,7 @@ class TestDataRetentionService:
         mock_db.execute.return_value = mock_execute_result
 
         # Mock expired items
-        with patch.object(service, 'check_expired_data') as mock_check:
+        with patch.object(service, "check_expired_data") as mock_check:
             mock_check.return_value = [
                 {"policy_id": str(policy_id), "data_type": "user", "data_id": str(uuid4())}
             ]
@@ -564,21 +554,18 @@ class TestDataRetentionService:
         mock_user_result = MagicMock()
         mock_user_result.scalar_one_or_none.return_value = mock_user
 
-        mock_db.execute.side_effect = [
-            mock_policy_result,
-            mock_user_result
-        ]
+        mock_db.execute.side_effect = [mock_policy_result, mock_user_result]
 
         mock_db.commit = AsyncMock()
 
         # Mock expired items
-        with patch.object(service, 'check_expired_data') as mock_check:
+        with patch.object(service, "check_expired_data") as mock_check:
             mock_check.return_value = [
                 {
                     "policy_id": str(policy_id),
                     "data_type": "user",
                     "data_id": str(user_id),
-                    "created_at": datetime.utcnow() - timedelta(days=400)
+                    "created_at": datetime.utcnow() - timedelta(days=400),
                 }
             ]
 
@@ -634,7 +621,7 @@ class TestComplianceService:
             mock_consent_result,
             mock_dsr_result,
             mock_breach_result,
-            mock_overdue_result
+            mock_overdue_result,
         ]
 
         result = await service.get_compliance_dashboard(tenant_id=tenant_id)
@@ -695,10 +682,9 @@ class TestComplianceService:
         mock_db.refresh = AsyncMock()
 
         # Mock metric methods
-        with patch.object(service, '_get_consent_metrics') as mock_consent, \
-             patch.object(service, '_get_dsr_metrics') as mock_dsr, \
-             patch.object(service, '_get_breach_metrics') as mock_breach:
-
+        with patch.object(service, "_get_consent_metrics") as mock_consent, patch.object(
+            service, "_get_dsr_metrics"
+        ) as mock_dsr, patch.object(service, "_get_breach_metrics") as mock_breach:
             mock_consent.return_value = {"given": 100, "withdrawn": 5}
             mock_dsr.return_value = {"total_requests": 10, "overdue_responses": 1}
             mock_breach.return_value = {"total": 0}
@@ -708,7 +694,7 @@ class TestComplianceService:
                 period_start=period_start,
                 period_end=period_end,
                 tenant_id=tenant_id,
-                generated_by=generated_by
+                generated_by=generated_by,
             )
 
         # Check that we get a real ComplianceReport object back
@@ -729,10 +715,7 @@ class TestComplianceService:
         tenant_id = uuid4()
 
         mock_execute_result = MagicMock()
-        mock_execute_result.fetchall.return_value = [
-            ("given", 100),
-            ("withdrawn", 10)
-        ]
+        mock_execute_result.fetchall.return_value = [("given", 100), ("withdrawn", 10)]
         mock_db.execute.return_value = mock_execute_result
 
         result = await service._get_consent_metrics(start_date, end_date, tenant_id)
@@ -755,10 +738,7 @@ class TestComplianceService:
         mock_overdue_result = MagicMock()
         mock_overdue_result.scalar.return_value = 2
 
-        mock_db.execute.side_effect = [
-            mock_total_result,
-            mock_overdue_result
-        ]
+        mock_db.execute.side_effect = [mock_total_result, mock_overdue_result]
 
         result = await service._get_dsr_metrics(start_date, end_date, tenant_id)
 
@@ -802,33 +782,26 @@ class TestComplianceIntegration:
         mock_consent = AsyncMock()
         mock_consent.id = uuid4()
 
-        with patch.object(service.consent_service, 'record_consent') as mock_record, \
-             patch.object(service.consent_service, 'check_consent') as mock_check, \
-             patch.object(service.consent_service, 'withdraw_consent') as mock_withdraw:
-
+        with patch.object(service.consent_service, "record_consent") as mock_record, patch.object(
+            service.consent_service, "check_consent"
+        ) as mock_check, patch.object(service.consent_service, "withdraw_consent") as mock_withdraw:
             mock_record.return_value = mock_consent
             mock_check.return_value = True
             mock_withdraw.return_value = True
 
             # Record consent
             consent = await service.consent_service.record_consent(
-                user_id=user_id,
-                consent_type=ConsentType.MARKETING,
-                purpose="Email marketing"
+                user_id=user_id, consent_type=ConsentType.MARKETING, purpose="Email marketing"
             )
 
             # Check consent
             is_valid = await service.consent_service.check_consent(
-                user_id=user_id,
-                consent_type=ConsentType.MARKETING,
-                purpose="Email marketing"
+                user_id=user_id, consent_type=ConsentType.MARKETING, purpose="Email marketing"
             )
 
             # Withdraw consent
             withdrawn = await service.consent_service.withdraw_consent(
-                user_id=user_id,
-                consent_type=ConsentType.MARKETING,
-                purpose="Email marketing"
+                user_id=user_id, consent_type=ConsentType.MARKETING, purpose="Email marketing"
             )
 
             assert consent == mock_consent
@@ -849,12 +822,14 @@ class TestComplianceIntegration:
         mock_user_data = {
             "personal_information": {"email": "test@example.com"},
             "consent_records": [],
-            "privacy_settings": {}
+            "privacy_settings": {},
         }
 
-        with patch.object(service.data_subject_rights_service, 'create_request') as mock_create, \
-             patch.object(service.data_subject_rights_service, 'process_access_request') as mock_process:
-
+        with patch.object(
+            service.data_subject_rights_service, "create_request"
+        ) as mock_create, patch.object(
+            service.data_subject_rights_service, "process_access_request"
+        ) as mock_process:
             mock_create.return_value = mock_request
             mock_process.return_value = mock_user_data
 
@@ -862,7 +837,7 @@ class TestComplianceIntegration:
             request = await service.data_subject_rights_service.create_request(
                 user_id=user_id,
                 request_type=DataSubjectRequestType.ACCESS,
-                description="Access my data"
+                description="Access my data",
             )
 
             # Process request
@@ -890,13 +865,16 @@ class TestComplianceIntegration:
             "policy_name": "Test Policy",
             "deleted_count": 1,
             "errors": [],
-            "dry_run": False
+            "dry_run": False,
         }
 
-        with patch.object(service.data_retention_service, 'create_retention_policy') as mock_create, \
-             patch.object(service.data_retention_service, 'check_expired_data') as mock_check, \
-             patch.object(service.data_retention_service, 'execute_retention_policy') as mock_execute:
-
+        with patch.object(
+            service.data_retention_service, "create_retention_policy"
+        ) as mock_create, patch.object(
+            service.data_retention_service, "check_expired_data"
+        ) as mock_check, patch.object(
+            service.data_retention_service, "execute_retention_policy"
+        ) as mock_execute:
             mock_create.return_value = mock_policy
             mock_check.return_value = mock_expired_items
             mock_execute.return_value = mock_execution_result
@@ -906,7 +884,7 @@ class TestComplianceIntegration:
                 name="Test Policy",
                 data_category=DataCategory.IDENTITY,
                 retention_period_days=365,
-                compliance_framework=ComplianceFramework.GDPR
+                compliance_framework=ComplianceFramework.GDPR,
             )
 
             # Check expired data
@@ -954,9 +932,7 @@ class TestErrorHandling:
         mock_db.execute.return_value.scalar_one_or_none.return_value = mock_request
 
         with pytest.raises(ValueError, match="Invalid access request"):
-            await service.data_subject_rights_service.process_access_request(
-                "DSR-INVALID", uuid4()
-            )
+            await service.data_subject_rights_service.process_access_request("DSR-INVALID", uuid4())
 
     @pytest.mark.asyncio
     async def test_missing_resources(self, error_service):
@@ -984,13 +960,11 @@ class TestErrorHandling:
         mock_db.commit = AsyncMock()
         mock_db.refresh = AsyncMock()
 
-        with patch('app.services.compliance_service.ConsentRecord') as MockConsentRecord:
+        with patch("app.services.compliance_service.ConsentRecord") as MockConsentRecord:
             MockConsentRecord.return_value = mock_consent
 
             await service.consent_service.record_consent(
-                user_id=user_id,
-                consent_type=ConsentType.ANALYTICS,
-                purpose="Website analytics"
+                user_id=user_id, consent_type=ConsentType.ANALYTICS, purpose="Website analytics"
             )
 
         # Verify audit log was called

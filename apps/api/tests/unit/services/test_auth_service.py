@@ -284,9 +284,11 @@ class TestSessionManagement:
 
         # Track what gets added to db
         added_session = None
+
         def capture_add(obj):
             nonlocal added_session
             added_session = obj
+
         mock_db.add = MagicMock(side_effect=capture_add)
         mock_db.commit = AsyncMock()
         mock_db.refresh = AsyncMock()
@@ -588,5 +590,3 @@ class TestTokenGeneration:
             payload = await AuthService.verify_token(token, token_type="access")
 
             assert payload is None
-
-

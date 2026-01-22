@@ -357,9 +357,12 @@ async def saml_acs(request: Request, db: AsyncSession = Depends(get_db)):
         access_token, access_jti, access_expires = jwt_manager.create_access_token(
             str(user.id), user.email
         )
-        refresh_token, refresh_jti, token_family, refresh_expires = (
-            jwt_manager.create_refresh_token(str(user.id))
-        )
+        (
+            refresh_token,
+            refresh_jti,
+            token_family,
+            refresh_expires,
+        ) = jwt_manager.create_refresh_token(str(user.id))
 
         # Create session record
         session = UserSession(

@@ -33,7 +33,7 @@ def cache_key(*args, **kwargs) -> str:
     # Convert args/kwargs to deterministic string
     key_data = {
         "args": [str(arg) for arg in args],
-        "kwargs": {k: str(v) for k, v in sorted(kwargs.items())}
+        "kwargs": {k: str(v) for k, v in sorted(kwargs.items())},
     }
     key_str = json.dumps(key_data, sort_keys=True)
 
@@ -45,7 +45,7 @@ def cache_key(*args, **kwargs) -> str:
 def cached(
     ttl: int = 300,  # 5 minutes default
     key_prefix: Optional[str] = None,
-    key_builder: Optional[Callable] = None
+    key_builder: Optional[Callable] = None,
 ):
     """
     Decorator for caching function results with circuit-breaker protected Redis.
@@ -70,6 +70,7 @@ def cached(
         async def get_organization(org_id: str) -> Organization:
             return await db.query(Organization).filter(Organization.id == org_id).first()
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
@@ -89,18 +90,10 @@ def cached(
                 cached_value = await redis_client.get(full_key)
 
                 if cached_value is not None:
-                    logger.debug(
-                        "Cache hit",
-                        key=full_key,
-                        function=func.__name__
-                    )
+                    logger.debug("Cache hit", key=full_key, function=func.__name__)
                     return json.loads(cached_value)
 
-                logger.debug(
-                    "Cache miss",
-                    key=full_key,
-                    function=func.__name__
-                )
+                logger.debug("Cache miss", key=full_key, function=func.__name__)
 
             except Exception as e:
                 # If cache lookup fails, just proceed with function call
@@ -108,7 +101,7 @@ def cached(
                     "Cache lookup failed, proceeding without cache",
                     key=full_key,
                     function=func.__name__,
-                    error=str(e)
+                    error=str(e),
                 )
 
             # Call the actual function
@@ -122,12 +115,7 @@ def cached(
 
                 await redis_client.set(full_key, serialized, ex=ttl)
 
-                logger.debug(
-                    "Cached result",
-                    key=full_key,
-                    function=func.__name__,
-                    ttl=ttl
-                )
+                logger.debug("Cached result", key=full_key, function=func.__name__, ttl=ttl)
 
             except Exception as e:
                 # If caching fails, we still have the result
@@ -135,12 +123,13 @@ def cached(
                     "Failed to cache result, returning uncached",
                     key=full_key,
                     function=func.__name__,
-                    error=str(e)
+                    error=str(e),
                 )
 
             return result
 
         return wrapper
+
     return decorator
 
 
@@ -177,20 +166,12 @@ class CacheManager:
             client = await self._get_client()
             deleted = await client.delete(key)
 
-            logger.info(
-                "Cache invalidated",
-                key=key,
-                deleted=bool(deleted)
-            )
+            logger.info("Cache invalidated", key=key, deleted=bool(deleted))
 
             return bool(deleted)
 
         except Exception as e:
-            logger.error(
-                "Cache invalidation failed",
-                key=key,
-                error=str(e)
-            )
+            logger.error("Cache invalidation failed", key=key, error=str(e))
             return False
 
     async def invalidate_pattern(self, pattern: str) -> int:
@@ -221,25 +202,16 @@ class CacheManager:
             logger.warning(
                 "Pattern invalidation requires raw Redis access",
                 pattern=pattern,
-                message="Consider invalidating specific keys instead"
+                message="Consider invalidating specific keys instead",
             )
 
             return 0
 
         except Exception as e:
-            logger.error(
-                "Pattern invalidation failed",
-                pattern=pattern,
-                error=str(e)
-            )
+            logger.error("Pattern invalidation failed", pattern=pattern, error=str(e))
             return 0
 
-    async def warm_cache(
-        self,
-        key: str,
-        value: Any,
-        ttl: int = 300
-    ) -> bool:
+    async def warm_cache(self, key: str, value: Any, ttl: int = 300) -> bool:
         """
         Warm cache with a specific value.
 
@@ -267,20 +239,12 @@ class CacheManager:
 
             await client.set(key, serialized, ex=ttl)
 
-            logger.info(
-                "Cache warmed",
-                key=key,
-                ttl=ttl
-            )
+            logger.info("Cache warmed", key=key, ttl=ttl)
 
             return True
 
         except Exception as e:
-            logger.error(
-                "Cache warming failed",
-                key=key,
-                error=str(e)
-            )
+            logger.error("Cache warming failed", key=key, error=str(e))
             return False
 
 
@@ -297,18 +261,14 @@ cache_manager = CacheManager()
 def cache_user(ttl: int = 600):
     """Cache user lookups (10 minutes default)"""
     return cached(
-        ttl=ttl,
-        key_prefix="user",
-        key_builder=lambda user_id, *args, **kwargs: f"{user_id}"
+        ttl=ttl, key_prefix="user", key_builder=lambda user_id, *args, **kwargs: f"{user_id}"
     )
 
 
 def cache_organization(ttl: int = 3600):
     """Cache organization lookups (1 hour default)"""
     return cached(
-        ttl=ttl,
-        key_prefix="org",
-        key_builder=lambda org_id, *args, **kwargs: f"{org_id}"
+        ttl=ttl, key_prefix="org", key_builder=lambda org_id, *args, **kwargs: f"{org_id}"
     )
 
 
@@ -317,7 +277,7 @@ def cache_permissions(ttl: int = 300):
     return cached(
         ttl=ttl,
         key_prefix="perms",
-        key_builder=lambda user_id, resource, action, *args, **kwargs: f"{user_id}:{resource}:{action}"
+        key_builder=lambda user_id, resource, action, *args, **kwargs: f"{user_id}:{resource}:{action}",
     )
 
 
@@ -326,7 +286,7 @@ def cache_sso_config(ttl: int = 1800):
     return cached(
         ttl=ttl,
         key_prefix="sso",
-        key_builder=lambda org_id, provider, *args, **kwargs: f"{org_id}:{provider}"
+        key_builder=lambda org_id, provider, *args, **kwargs: f"{org_id}:{provider}",
     )
 
 

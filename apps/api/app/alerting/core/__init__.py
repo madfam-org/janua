@@ -11,12 +11,12 @@ from .alert_manager import AlertManager
 
 __all__ = [
     "AlertSeverity",
-    "AlertStatus", 
+    "AlertStatus",
     "AlertChannel",
     "AlertRule",
     "Alert",
     "NotificationChannel",
     "AlertEvaluator",
     "NotificationSender",
-    "AlertManager"
+    "AlertManager",
 ]

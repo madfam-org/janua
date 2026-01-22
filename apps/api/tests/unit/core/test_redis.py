@@ -20,9 +20,9 @@ class TestRedisInitialization:
         mock_redis = AsyncMock()
         mock_redis.ping.return_value = True
 
-        with patch('app.core.redis.redis.from_url', return_value=mock_redis) as mock_from_url, \
-             patch('app.core.redis.settings') as mock_settings:
-
+        with patch(
+            "app.core.redis.redis.from_url", return_value=mock_redis
+        ) as mock_from_url, patch("app.core.redis.settings") as mock_settings:
             mock_settings.REDIS_URL = "redis://localhost:6379/0"
             mock_settings.REDIS_DECODE_RESPONSES = True
             mock_settings.REDIS_POOL_SIZE = 10
@@ -33,7 +33,7 @@ class TestRedisInitialization:
                 "redis://localhost:6379/0",
                 encoding="utf-8",
                 decode_responses=True,
-                max_connections=10
+                max_connections=10,
             )
             mock_redis.ping.assert_called_once()
 
@@ -42,9 +42,9 @@ class TestRedisInitialization:
         mock_redis = AsyncMock()
         mock_redis.ping.side_effect = Exception("Connection failed")
 
-        with patch('app.core.redis.redis.from_url', return_value=mock_redis), \
-             patch('app.core.redis.logger') as mock_logger:
-
+        with patch("app.core.redis.redis.from_url", return_value=mock_redis), patch(
+            "app.core.redis.logger"
+        ) as mock_logger:
             with pytest.raises(Exception, match="Connection failed"):
                 await init_redis()
 
@@ -54,7 +54,7 @@ class TestRedisInitialization:
         """Test get_redis dependency function."""
         mock_redis = AsyncMock()
 
-        with patch('app.core.redis.redis_client', mock_redis):
+        with patch("app.core.redis.redis_client", mock_redis):
             result = await get_redis()
             assert result == mock_redis
 
@@ -155,14 +155,12 @@ class TestSessionStore:
         session_data = {
             "user_id": "user_123",
             "email": "test@example.com",
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.utcnow().isoformat(),
         }
 
         self.mock_redis.setex.return_value = True
 
-        result = await self.session_store.store_session(
-            "session_id", session_data, ttl=3600
-        )
+        result = await self.session_store.store_session("session_id", session_data, ttl=3600)
 
         assert result is True
 
@@ -176,10 +174,7 @@ class TestSessionStore:
 
     async def test_get_session(self):
         """Test retrieving a session."""
-        session_data = {
-            "user_id": "user_123",
-            "email": "test@example.com"
-        }
+        session_data = {"user_id": "user_123", "email": "test@example.com"}
 
         self.mock_redis.get.return_value = json.dumps(session_data)
 
@@ -228,10 +223,7 @@ class TestSessionStore:
         session_data = {"user_id": "user_123"}
 
         self.mock_redis.keys.return_value = keys
-        self.mock_redis.mget.return_value = [
-            json.dumps(session_data),
-            json.dumps(session_data)
-        ]
+        self.mock_redis.mget.return_value = [json.dumps(session_data), json.dumps(session_data)]
 
         result = await self.session_store.get_all_user_sessions("user_123")
 

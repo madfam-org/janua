@@ -13,8 +13,11 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import User
 from app.models.compliance import (
-    ConsentType, LegalBasis, DataCategory, DataSubjectRequestType,
-    ComplianceFramework
+    ConsentType,
+    LegalBasis,
+    DataCategory,
+    DataSubjectRequestType,
+    ComplianceFramework,
 )
 from app.services.compliance_service import ComplianceService
 from app.services.audit_logger import AuditLogger
@@ -90,7 +93,7 @@ async def record_consent(
     request: ConsentRequest,
     http_request: Request,
     user: User = Depends(get_current_user),
-    compliance_service: ComplianceService = Depends(get_compliance_service)
+    compliance_service: ComplianceService = Depends(get_compliance_service),
 ):
     """Record user consent (GDPR Article 7)"""
 
@@ -108,7 +111,7 @@ async def record_consent(
             user_agent=http_request.headers.get("User-Agent"),
             consent_method=request.consent_method,
             consent_version=request.consent_version,
-            tenant_id=user.tenant_id
+            tenant_id=user.tenant_id,
         )
 
         return ComplianceResponse(
@@ -118,8 +121,8 @@ async def record_consent(
                 "consent_id": str(consent_record.id),
                 "consent_type": consent_record.consent_type.value,
                 "status": consent_record.status.value,
-                "given_at": consent_record.given_at.isoformat()
-            }
+                "given_at": consent_record.given_at.isoformat(),
+            },
         )
 
     except Exception as e:
@@ -132,7 +135,7 @@ async def withdraw_consent(
     request: ConsentWithdrawalRequest,
     http_request: Request,
     user: User = Depends(get_current_user),
-    compliance_service: ComplianceService = Depends(get_compliance_service)
+    compliance_service: ComplianceService = Depends(get_compliance_service),
 ):
     """Withdraw user consent (GDPR Article 7.3)"""
 
@@ -144,14 +147,11 @@ async def withdraw_consent(
             withdrawal_reason=request.withdrawal_reason,
             ip_address=http_request.client.host if http_request.client else None,
             user_agent=http_request.headers.get("User-Agent"),
-            tenant_id=user.tenant_id
+            tenant_id=user.tenant_id,
         )
 
         if success:
-            return ComplianceResponse(
-                success=True,
-                message="Consent withdrawn successfully"
-            )
+            return ComplianceResponse(success=True, message="Consent withdrawn successfully")
         else:
             raise HTTPException(status_code=404, detail="Consent not found")
 
@@ -164,14 +164,13 @@ async def withdraw_consent(
 async def get_user_consents(
     include_withdrawn: bool = Query(False, description="Include withdrawn consents"),
     user: User = Depends(get_current_user),
-    compliance_service: ComplianceService = Depends(get_compliance_service)
+    compliance_service: ComplianceService = Depends(get_compliance_service),
 ):
     """Get user's consent records"""
 
     try:
         consents = await compliance_service.consent_service.get_user_consents(
-            user_id=user.id,
-            include_withdrawn=include_withdrawn
+            user_id=user.id, include_withdrawn=include_withdrawn
         )
 
         consent_data = [
@@ -185,15 +184,13 @@ async def get_user_consents(
                 "withdrawn_at": consent.withdrawn_at.isoformat() if consent.withdrawn_at else None,
                 "data_categories": consent.data_categories,
                 "processing_purposes": consent.processing_purposes,
-                "consent_version": consent.consent_version
+                "consent_version": consent.consent_version,
             }
             for consent in consents
         ]
 
         return ComplianceResponse(
-            success=True,
-            message="Consents retrieved successfully",
-            data={"consents": consent_data}
+            success=True, message="Consents retrieved successfully", data={"consents": consent_data}
         )
 
     except Exception as e:
@@ -206,7 +203,7 @@ async def create_data_subject_request(
     request: DataSubjectRightsRequest,
     http_request: Request,
     user: User = Depends(get_current_user),
-    compliance_service: ComplianceService = Depends(get_compliance_service)
+    compliance_service: ComplianceService = Depends(get_compliance_service),
 ):
     """Create a data subject rights request (GDPR Articles 15-22)"""
 
@@ -221,7 +218,7 @@ async def create_data_subject_request(
             specific_fields=request.specific_fields,
             ip_address=http_request.client.host if http_request.client else None,
             user_agent=http_request.headers.get("User-Agent"),
-            tenant_id=user.tenant_id
+            tenant_id=user.tenant_id,
         )
 
         return ComplianceResponse(
@@ -232,8 +229,8 @@ async def create_data_subject_request(
                 "request_type": dsr.request_type.value,
                 "status": dsr.status.value,
                 "response_due_date": dsr.response_due_date.isoformat(),
-                "received_at": dsr.received_at.isoformat()
-            }
+                "received_at": dsr.received_at.isoformat(),
+            },
         )
 
     except Exception as e:
@@ -245,20 +242,17 @@ async def create_data_subject_request(
 async def get_personal_data_export(
     request_id: str,
     user: User = Depends(get_current_user),
-    compliance_service: ComplianceService = Depends(get_compliance_service)
+    compliance_service: ComplianceService = Depends(get_compliance_service),
 ):
     """Get personal data export (GDPR Article 15)"""
 
     try:
         user_data = await compliance_service.data_subject_rights_service.process_access_request(
-            request_id=request_id,
-            processor_id=user.id  # Self-service for now
+            request_id=request_id, processor_id=user.id  # Self-service for now
         )
 
         return ComplianceResponse(
-            success=True,
-            message="Personal data exported successfully",
-            data=user_data
+            success=True, message="Personal data exported successfully", data=user_data
         )
 
     except ValueError as e:
@@ -270,8 +264,7 @@ async def get_personal_data_export(
 
 @router.get("/privacy-settings", response_model=ComplianceResponse)
 async def get_privacy_settings(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
     """Get user's privacy settings"""
 
@@ -279,17 +272,12 @@ async def get_privacy_settings(
         from sqlalchemy import select
         from app.models.compliance import PrivacySettings
 
-        result = await db.execute(
-            select(PrivacySettings).where(PrivacySettings.user_id == user.id)
-        )
+        result = await db.execute(select(PrivacySettings).where(PrivacySettings.user_id == user.id))
         privacy_settings = result.scalar_one_or_none()
 
         if not privacy_settings:
             # Create default privacy settings
-            privacy_settings = PrivacySettings(
-                user_id=user.id,
-                tenant_id=user.tenant_id
-            )
+            privacy_settings = PrivacySettings(user_id=user.id, tenant_id=user.tenant_id)
             db.add(privacy_settings)
             await db.commit()
             await db.refresh(privacy_settings)
@@ -306,13 +294,15 @@ async def get_privacy_settings(
             "functional_cookies": privacy_settings.functional_cookies,
             "analytics_cookies": privacy_settings.analytics_cookies,
             "marketing_cookies": privacy_settings.marketing_cookies,
-            "updated_at": privacy_settings.updated_at.isoformat() if privacy_settings.updated_at else None
+            "updated_at": privacy_settings.updated_at.isoformat()
+            if privacy_settings.updated_at
+            else None,
         }
 
         return ComplianceResponse(
             success=True,
             message="Privacy settings retrieved successfully",
-            data={"privacy_settings": settings_data}
+            data={"privacy_settings": settings_data},
         )
 
     except Exception as e:
@@ -324,7 +314,7 @@ async def get_privacy_settings(
 async def update_privacy_settings(
     settings: PrivacySettingsUpdate,
     user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Update user's privacy settings"""
 
@@ -332,9 +322,7 @@ async def update_privacy_settings(
         from sqlalchemy import select
         from app.models.compliance import PrivacySettings
 
-        result = await db.execute(
-            select(PrivacySettings).where(PrivacySettings.user_id == user.id)
-        )
+        result = await db.execute(select(PrivacySettings).where(PrivacySettings.user_id == user.id))
         privacy_settings = result.scalar_one_or_none()
 
         if not privacy_settings:
@@ -359,13 +347,10 @@ async def update_privacy_settings(
             tenant_id=str(user.tenant_id) if user.tenant_id else "default",
             identity_id=str(user.id),
             details={"updated_fields": list(update_fields.keys())},
-            severity="info"
+            severity="info",
         )
 
-        return ComplianceResponse(
-            success=True,
-            message="Privacy settings updated successfully"
-        )
+        return ComplianceResponse(success=True, message="Privacy settings updated successfully")
 
     except Exception as e:
         logger.error(f"Failed to update privacy settings: {e}")
@@ -375,19 +360,15 @@ async def update_privacy_settings(
 @router.get("/dashboard", response_model=ComplianceResponse)
 async def get_compliance_dashboard(
     user: User = Depends(get_current_user),
-    compliance_service: ComplianceService = Depends(get_compliance_service)
+    compliance_service: ComplianceService = Depends(get_compliance_service),
 ):
     """Get compliance dashboard metrics"""
 
     try:
-        dashboard_data = await compliance_service.get_compliance_dashboard(
-            tenant_id=user.tenant_id
-        )
+        dashboard_data = await compliance_service.get_compliance_dashboard(tenant_id=user.tenant_id)
 
         return ComplianceResponse(
-            success=True,
-            message="Compliance dashboard retrieved successfully",
-            data=dashboard_data
+            success=True, message="Compliance dashboard retrieved successfully", data=dashboard_data
         )
 
     except Exception as e:
@@ -400,12 +381,12 @@ async def get_compliance_dashboard(
 async def create_retention_policy(
     policy: RetentionPolicyRequest,
     user: User = Depends(get_current_user),
-    compliance_service: ComplianceService = Depends(get_compliance_service)
+    compliance_service: ComplianceService = Depends(get_compliance_service),
 ):
     """Create a data retention policy (Admin only)"""
 
     # Check if user is admin (simplified check - in production use proper RBAC)
-    if not getattr(user, 'is_admin', False):
+    if not getattr(user, "is_admin", False):
         raise HTTPException(status_code=403, detail="Admin privileges required")
 
     try:
@@ -418,7 +399,7 @@ async def create_retention_policy(
             deletion_method=policy.deletion_method,
             auto_deletion_enabled=policy.auto_deletion_enabled,
             tenant_id=user.tenant_id,
-            approved_by=user.id
+            approved_by=user.id,
         )
 
         return ComplianceResponse(
@@ -428,8 +409,8 @@ async def create_retention_policy(
                 "policy_id": str(retention_policy.id),
                 "name": retention_policy.name,
                 "data_category": retention_policy.data_category.value,
-                "retention_period_days": retention_policy.retention_period_days
-            }
+                "retention_period_days": retention_policy.retention_period_days,
+            },
         )
 
     except Exception as e:
@@ -440,11 +421,11 @@ async def create_retention_policy(
 @router.get("/admin/expired-data", response_model=ComplianceResponse)
 async def check_expired_data(
     user: User = Depends(get_current_user),
-    compliance_service: ComplianceService = Depends(get_compliance_service)
+    compliance_service: ComplianceService = Depends(get_compliance_service),
 ):
     """Check for data that has exceeded retention periods (Admin only)"""
 
-    if not getattr(user, 'is_admin', False):
+    if not getattr(user, "is_admin", False):
         raise HTTPException(status_code=403, detail="Admin privileges required")
 
     try:
@@ -453,10 +434,7 @@ async def check_expired_data(
         return ComplianceResponse(
             success=True,
             message="Expired data check completed",
-            data={
-                "expired_items_count": len(expired_items),
-                "expired_items": expired_items
-            }
+            data={"expired_items_count": len(expired_items), "expired_items": expired_items},
         )
 
     except Exception as e:
@@ -470,11 +448,11 @@ async def generate_compliance_report(
     period_start: datetime = Body(...),
     period_end: datetime = Body(...),
     user: User = Depends(get_current_user),
-    compliance_service: ComplianceService = Depends(get_compliance_service)
+    compliance_service: ComplianceService = Depends(get_compliance_service),
 ):
     """Generate a compliance report (Admin only)"""
 
-    if not getattr(user, 'is_admin', False):
+    if not getattr(user, "is_admin", False):
         raise HTTPException(status_code=403, detail="Admin privileges required")
 
     try:
@@ -483,7 +461,7 @@ async def generate_compliance_report(
             period_start=period_start,
             period_end=period_end,
             tenant_id=user.tenant_id,
-            generated_by=user.id
+            generated_by=user.id,
         )
 
         return ComplianceResponse(
@@ -496,8 +474,8 @@ async def generate_compliance_report(
                 "period_start": report.period_start.isoformat(),
                 "period_end": report.period_end.isoformat(),
                 "compliance_score": report.compliance_score,
-                "status": report.status
-            }
+                "status": report.status,
+            },
         )
 
     except Exception as e:

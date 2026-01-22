@@ -49,7 +49,7 @@ def _redact_ip(ip_address: str) -> str:
     if len(parts) == 4:  # IPv4
         return f"{parts[0]}.{parts[1]}.*.*"
     elif ":" in ip_address:  # IPv6
-        return ip_address[:ip_address.find(":", 4) + 1] + "***"
+        return ip_address[: ip_address.find(":", 4) + 1] + "***"
     return "[redacted]"
 
 
@@ -57,13 +57,14 @@ def _redact_ip(ip_address: str) -> str:
 # Invitation Emails
 # ============================================================================
 
+
 async def send_invitation_email(
     invitee_email: str,
     inviter_name: str,
     organization_name: str,
     role: str,
     invitation_token: str,
-    expires_days: int = 7
+    expires_days: int = 7,
 ) -> None:
     """
     Send invitation to new user.
@@ -93,31 +94,24 @@ async def send_invitation_email(
                 "invitation_link": invitation_link,
                 "expiration_date": expiration_date,
             },
-            tags={"type": "invitation", "org": organization_name}
+            tags={"type": "invitation", "org": organization_name},
         )
 
         # Log with redacted PII - email is sanitized before logging
         redacted = _redact_email(invitee_email)  # nosec B608 - data is redacted before logging
-        logger.info(
-            "Invitation email sent: email=%s, org=%s",
-            redacted,
-            organization_name
-        )
+        logger.info("Invitation email sent: email=%s, org=%s", redacted, organization_name)
 
     except Exception as e:
         logger.error(
             "Failed to send invitation email: email=%s, error_type=%s",
             _redact_email(invitee_email),
-            type(e).__name__
+            type(e).__name__,
         )
         raise
 
 
 async def send_invitation_accepted_email(
-    inviter_email: str,
-    invitee_name: str,
-    invitee_email: str,
-    organization_name: str
+    inviter_email: str, invitee_name: str, invitee_email: str, organization_name: str
 ) -> None:
     """
     Notify inviter that invitation was accepted.
@@ -140,23 +134,24 @@ async def send_invitation_accepted_email(
                 "invitee_email": invitee_email,
                 "organization_name": organization_name,
             },
-            tags={"type": "invitation_accepted", "org": organization_name}
+            tags={"type": "invitation_accepted", "org": organization_name},
         )
 
         # Log with redacted PII - emails are sanitized before logging
-        redacted_inviter = _redact_email(inviter_email)  # nosec B608 - data is redacted before logging
-        redacted_invitee = _redact_email(invitee_email)  # nosec B608 - data is redacted before logging
+        redacted_inviter = _redact_email(
+            inviter_email
+        )  # nosec B608 - data is redacted before logging
+        redacted_invitee = _redact_email(
+            invitee_email
+        )  # nosec B608 - data is redacted before logging
         logger.info(
             "Invitation accepted email sent: inviter=%s, invitee=%s",
             redacted_inviter,
-            redacted_invitee
+            redacted_invitee,
         )
 
     except Exception as e:
-        logger.error(
-            "Failed to send invitation accepted email: error_type=%s",
-            type(e).__name__
-        )
+        logger.error("Failed to send invitation accepted email: error_type=%s", type(e).__name__)
         # Don't raise - this is a nice-to-have notification
 
 
@@ -164,12 +159,13 @@ async def send_invitation_accepted_email(
 # SSO Emails
 # ============================================================================
 
+
 async def send_sso_configured_email(
     admin_emails: List[str],
     organization_name: str,
     provider_type: str,
     provider_name: str,
-    configured_by: str
+    configured_by: str,
 ) -> None:
     """
     Notify admins that SSO was configured.
@@ -195,21 +191,18 @@ async def send_sso_configured_email(
                 "configured_by": configured_by,
                 "test_link": f"{FRONTEND_URL}/auth/sso/test",
             },
-            tags={"type": "sso_configured", "org": organization_name}
+            tags={"type": "sso_configured", "org": organization_name},
         )
 
         logger.info(
             "SSO configured email sent: org=%s, provider=%s, recipients=%d",
             organization_name,
             provider_name,
-            len(admin_emails)
+            len(admin_emails),
         )
 
     except Exception as e:
-        logger.error(
-            "Failed to send SSO configured email: error_type=%s",
-            type(e).__name__
-        )
+        logger.error("Failed to send SSO configured email: error_type=%s", type(e).__name__)
         # Don't raise - this is a nice-to-have notification
 
 
@@ -218,7 +211,7 @@ async def send_sso_login_notification(
     ip_address: str,
     location: str,
     timestamp: datetime,
-    device_info: Optional[str] = None
+    device_info: Optional[str] = None,
 ) -> None:
     """
     Send notification for SSO login (security alert).
@@ -246,29 +239,23 @@ async def send_sso_login_notification(
                 "device_info": device_info or "Unknown device",
                 "security_link": f"{FRONTEND_URL}/security",
             },
-            tags={"type": "sso_login", "ip": ip_address}
+            tags={"type": "sso_login", "ip": ip_address},
         )
 
         # Log with redacted PII - email and IP are sanitized before logging
         redacted_email = _redact_email(user_email)  # nosec B608 - data is redacted before logging
         redacted_ip = _redact_ip(ip_address)  # nosec B608 - data is redacted before logging
-        logger.info(
-            "SSO login notification sent: email=%s, ip=%s",
-            redacted_email,
-            redacted_ip
-        )
+        logger.info("SSO login notification sent: email=%s, ip=%s", redacted_email, redacted_ip)
 
     except Exception as e:
-        logger.error(
-            "Failed to send SSO login notification: error_type=%s",
-            type(e).__name__
-        )
+        logger.error("Failed to send SSO login notification: error_type=%s", type(e).__name__)
         # Don't raise - login should still succeed
 
 
 # ============================================================================
 # Payment Emails
 # ============================================================================
+
 
 async def send_invoice_payment_failed_email(
     billing_email: str,
@@ -277,7 +264,7 @@ async def send_invoice_payment_failed_email(
     amount: float,
     currency: str,
     payment_method_last4: str,
-    retry_url: Optional[str] = None
+    retry_url: Optional[str] = None,
 ) -> None:
     """
     Notify about failed invoice payment.
@@ -309,22 +296,15 @@ async def send_invoice_payment_failed_email(
                 "payment_method_last4": payment_method_last4,
                 "retry_link": retry_link,
             },
-            tags={"type": "payment_failed", "invoice": invoice_number}
+            tags={"type": "payment_failed", "invoice": invoice_number},
         )
 
         # Log with redacted email - sanitized before logging
         redacted = _redact_email(billing_email)  # nosec B608 - data is redacted before logging
-        logger.info(
-            "Payment failed email sent: email=%s, invoice=%s",
-            redacted,
-            invoice_number
-        )
+        logger.info("Payment failed email sent: email=%s, invoice=%s", redacted, invoice_number)
 
     except Exception as e:
-        logger.error(
-            "Failed to send payment failed email: error_type=%s",
-            type(e).__name__
-        )
+        logger.error("Failed to send payment failed email: error_type=%s", type(e).__name__)
         raise
 
 
@@ -333,7 +313,7 @@ async def send_subscription_canceled_email(
     organization_name: str,
     plan_name: str,
     cancellation_date: datetime,
-    reason: Optional[str] = None
+    reason: Optional[str] = None,
 ) -> None:
     """
     Notify about subscription cancellation.
@@ -361,22 +341,17 @@ async def send_subscription_canceled_email(
                 "reason": reason or "Not provided",
                 "reactivate_link": f"{FRONTEND_URL}/billing",
             },
-            tags={"type": "subscription_canceled", "org": organization_name}
+            tags={"type": "subscription_canceled", "org": organization_name},
         )
 
         # Log with redacted email - sanitized before logging
         redacted = _redact_email(billing_email)  # nosec B608 - data is redacted before logging
         logger.info(
-            "Subscription canceled email sent: email=%s, org=%s",
-            redacted,
-            organization_name
+            "Subscription canceled email sent: email=%s, org=%s", redacted, organization_name
         )
 
     except Exception as e:
-        logger.error(
-            "Failed to send subscription canceled email: error_type=%s",
-            type(e).__name__
-        )
+        logger.error("Failed to send subscription canceled email: error_type=%s", type(e).__name__)
         # Don't raise - cancellation should still proceed
 
 
@@ -384,11 +359,9 @@ async def send_subscription_canceled_email(
 # Compliance Emails
 # ============================================================================
 
+
 async def send_data_export_ready_email(
-    user_email: str,
-    export_id: str,
-    download_url: str,
-    expires_hours: int = 24
+    user_email: str, export_id: str, download_url: str, expires_hours: int = 24
 ) -> None:
     """
     Notify user that data export is ready.
@@ -402,7 +375,9 @@ async def send_data_export_ready_email(
     try:
         resend = get_resend_service()
 
-        expiration_time = (datetime.utcnow() + timedelta(hours=expires_hours)).strftime("%B %d, %Y at %I:%M %p UTC")
+        expiration_time = (datetime.utcnow() + timedelta(hours=expires_hours)).strftime(
+            "%B %d, %Y at %I:%M %p UTC"
+        )
 
         await resend.send_template_email(
             to=user_email,
@@ -413,29 +388,20 @@ async def send_data_export_ready_email(
                 "download_url": download_url,
                 "expiration_time": expiration_time,
             },
-            tags={"type": "data_export", "export_id": export_id}
+            tags={"type": "data_export", "export_id": export_id},
         )
 
         # Log with redacted email - sanitized before logging
         redacted = _redact_email(user_email)  # nosec B608 - data is redacted before logging
-        logger.info(
-            "Data export ready email sent: email=%s, export_id=%s",
-            redacted,
-            export_id
-        )
+        logger.info("Data export ready email sent: email=%s, export_id=%s", redacted, export_id)
 
     except Exception as e:
-        logger.error(
-            "Failed to send data export ready email: error_type=%s",
-            type(e).__name__
-        )
+        logger.error("Failed to send data export ready email: error_type=%s", type(e).__name__)
         raise
 
 
 async def send_account_deletion_confirmation_email(
-    user_email: str,
-    deletion_date: datetime,
-    cancellation_url: Optional[str] = None
+    user_email: str, deletion_date: datetime, cancellation_url: Optional[str] = None
 ) -> None:
     """
     Confirm account deletion request.
@@ -458,19 +424,15 @@ async def send_account_deletion_confirmation_email(
                 "deletion_date": formatted_date,
                 "cancellation_url": cancellation_url or f"{FRONTEND_URL}/account/cancel-deletion",
             },
-            tags={"type": "account_deletion"}
+            tags={"type": "account_deletion"},
         )
 
         # Log with redacted email - sanitized before logging
         redacted = _redact_email(user_email)  # nosec B608 - data is redacted before logging
-        logger.info(
-            "Account deletion confirmation email sent: email=%s",
-            redacted
-        )
+        logger.info("Account deletion confirmation email sent: email=%s", redacted)
 
     except Exception as e:
         logger.error(
-            "Failed to send account deletion confirmation email: error_type=%s",
-            type(e).__name__
+            "Failed to send account deletion confirmation email: error_type=%s", type(e).__name__
         )
         raise

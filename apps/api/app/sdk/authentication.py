@@ -15,6 +15,7 @@ from .error_handling import AuthenticationError, ConfigurationError
 
 class TokenType(str, Enum):
     """Token types supported by the authentication system."""
+
     ACCESS_TOKEN = "access_token"
     REFRESH_TOKEN = "refresh_token"
     API_KEY = "api_key"
@@ -22,9 +23,10 @@ class TokenType(str, Enum):
 
 class TokenRefreshStrategy(str, Enum):
     """Strategies for refreshing tokens."""
+
     AUTOMATIC = "automatic"  # Refresh automatically when near expiration
     ON_DEMAND = "on_demand"  # Refresh only when request fails with 401
-    MANUAL = "manual"       # Never refresh automatically
+    MANUAL = "manual"  # Never refresh automatically
 
 
 class TokenStorage(Protocol):
@@ -38,7 +40,9 @@ class TokenStorage(Protocol):
     - Desktop: OS credential manager
     """
 
-    async def store_token(self, token_type: TokenType, token: str, expires_at: Optional[datetime] = None) -> None:
+    async def store_token(
+        self, token_type: TokenType, token: str, expires_at: Optional[datetime] = None
+    ) -> None:
         """Store a token securely."""
         ...  # noqa: B018 - Protocol method stub, implementation in concrete classes
 
@@ -65,11 +69,13 @@ class InMemoryTokenStorage:
     def __init__(self):
         self._tokens: Dict[TokenType, Dict[str, Any]] = {}
 
-    async def store_token(self, token_type: TokenType, token: str, expires_at: Optional[datetime] = None) -> None:
+    async def store_token(
+        self, token_type: TokenType, token: str, expires_at: Optional[datetime] = None
+    ) -> None:
         self._tokens[token_type] = {
             "token": token,
             "expires_at": expires_at,
-            "stored_at": datetime.utcnow()
+            "stored_at": datetime.utcnow(),
         }
 
     async def get_token(self, token_type: TokenType) -> Optional[str]:
@@ -109,7 +115,7 @@ class TokenManager:
         self,
         storage: Optional[TokenStorage] = None,
         refresh_strategy: TokenRefreshStrategy = TokenRefreshStrategy.AUTOMATIC,
-        refresh_buffer_seconds: int = 300  # Refresh 5 minutes before expiration
+        refresh_buffer_seconds: int = 300,  # Refresh 5 minutes before expiration
     ):
         self.storage = storage or InMemoryTokenStorage()
         self.refresh_strategy = refresh_strategy
@@ -121,7 +127,7 @@ class TokenManager:
         self,
         access_token: str,
         refresh_token: Optional[str] = None,
-        expires_in: Optional[int] = None
+        expires_in: Optional[int] = None,
     ) -> None:
         """
         Store authentication tokens.
@@ -224,7 +230,7 @@ class TokenManager:
             return False
 
         # Get token info from storage
-        storage_with_info = getattr(self.storage, 'get_token_info', None)
+        storage_with_info = getattr(self.storage, "get_token_info", None)
         if not storage_with_info:
             return False
 
@@ -261,7 +267,10 @@ class TokenManager:
             True if recovery was attempted, False if manual intervention is needed
         """
         if error_code == "ACCESS_TOKEN_EXPIRED":
-            if self.refresh_strategy in [TokenRefreshStrategy.AUTOMATIC, TokenRefreshStrategy.ON_DEMAND]:
+            if self.refresh_strategy in [
+                TokenRefreshStrategy.AUTOMATIC,
+                TokenRefreshStrategy.ON_DEMAND,
+            ]:
                 try:
                     await self._refresh_access_token()
                     return True
@@ -270,7 +279,7 @@ class TokenManager:
                         "Failed to automatically refresh access token",
                         error=str(e),
                         error_type=type(e).__name__,
-                        refresh_strategy=self.refresh_strategy.value
+                        refresh_strategy=self.refresh_strategy.value,
                     )
 
         # For other errors or failed refresh, clear tokens
@@ -317,7 +326,9 @@ class AuthenticationFlow:
         await self.token_manager._handle_token_response(response)
         return response
 
-    async def authenticate_with_oauth(self, provider: str, code: str, state: Optional[str] = None) -> Dict[str, Any]:
+    async def authenticate_with_oauth(
+        self, provider: str, code: str, state: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Authenticate using OAuth provider."""
         callback = self._auth_callbacks.get("oauth_auth")
         if not callback:
@@ -339,7 +350,7 @@ class AuthenticationFlow:
                 logger.warning(
                     "Sign out callback failed, continuing with local token clearance",
                     error=str(e),
-                    error_type=type(e).__name__
+                    error_type=type(e).__name__,
                 )
 
         # Clear local tokens
@@ -362,7 +373,7 @@ class APIKeyAuth:
         """Get authentication headers for API key auth."""
         return {
             "Authorization": f"Bearer {self.api_key}",
-            "X-API-Key": self.api_key  # Some APIs prefer this header
+            "X-API-Key": self.api_key,  # Some APIs prefer this header
         }
 
     def is_valid(self) -> bool:
@@ -374,7 +385,7 @@ class APIKeyAuth:
 async def create_token_manager(
     storage_type: str = "memory",
     refresh_strategy: TokenRefreshStrategy = TokenRefreshStrategy.AUTOMATIC,
-    **storage_kwargs
+    **storage_kwargs,
 ) -> TokenManager:
     """
     Factory function to create a token manager with appropriate storage.

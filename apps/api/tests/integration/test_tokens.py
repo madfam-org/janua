@@ -29,10 +29,7 @@ from app.config import settings
 @pytest.mark.auth
 async def test_access_token_generation(client: AsyncClient, test_user: User):
     """Test access token is generated on login"""
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -53,17 +50,13 @@ async def test_access_token_generation(client: AsyncClient, test_user: User):
             pass
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_access_token_validation(client: AsyncClient, test_user: User):
     """Test protected endpoint requires valid access token"""
     # Get access token
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -73,13 +66,11 @@ async def test_access_token_validation(client: AsyncClient, test_user: User):
 
         # Try to access protected endpoint
         protected_response = await client.get(
-            "/api/v1/users/me",
-            headers={"Authorization": f"Bearer {access_token}"}
+            "/api/v1/users/me", headers={"Authorization": f"Bearer {access_token}"}
         )
 
         # Should succeed with valid token
         assert protected_response.status_code in [200, 404]  # 200 if endpoint exists
-
 
 
 @pytest.mark.asyncio
@@ -87,10 +78,7 @@ async def test_access_token_validation(client: AsyncClient, test_user: User):
 @pytest.mark.auth
 async def test_access_token_without_bearer_prefix(client: AsyncClient, test_user: User):
     """Test token validation requires Bearer prefix"""
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -100,13 +88,11 @@ async def test_access_token_without_bearer_prefix(client: AsyncClient, test_user
 
         # Try without Bearer prefix
         response = await client.get(
-            "/api/v1/users/me",
-            headers={"Authorization": access_token}  # Missing "Bearer "
+            "/api/v1/users/me", headers={"Authorization": access_token}  # Missing "Bearer "
         )
 
         # Should reject
         assert response.status_code in [401, 403]
-
 
 
 @pytest.mark.asyncio
@@ -122,13 +108,11 @@ async def test_access_token_invalid_format(client: AsyncClient):
 
     for token in invalid_tokens:
         response = await client.get(
-            "/api/v1/users/me",
-            headers={"Authorization": f"Bearer {token}"}
+            "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}
         )
 
         # Should reject invalid tokens
         assert response.status_code in [401, 403, 422]
-
 
 
 @pytest.mark.asyncio
@@ -136,10 +120,7 @@ async def test_access_token_invalid_format(client: AsyncClient):
 @pytest.mark.auth
 async def test_access_token_claims_validation(client: AsyncClient, test_user: User):
     """Test JWT claims are properly set"""
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -166,18 +147,13 @@ async def test_access_token_claims_validation(client: AsyncClient, test_user: Us
             pass
 
 
-
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_refresh_token_rotation(client: AsyncClient, test_user: User):
     """Test refresh token rotation on token refresh"""
     # Login to get tokens
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -188,10 +164,7 @@ async def test_refresh_token_rotation(client: AsyncClient, test_user: User):
         # Use refresh token to get new access token
         refresh_data = {"refresh_token": refresh_token}
 
-        refresh_response = await client.post(
-            "/api/v1/auth/refresh",
-            json=refresh_data
-        )
+        refresh_response = await client.post("/api/v1/auth/refresh", json=refresh_data)
 
         # Should succeed (or fail if endpoint doesn't exist)
         assert refresh_response.status_code in [200, 404]
@@ -204,16 +177,12 @@ async def test_refresh_token_rotation(client: AsyncClient, test_user: User):
             assert new_refresh_token != refresh_token
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_refresh_token_reuse_detection(client: AsyncClient, test_user: User):
     """Test that reused refresh tokens are rejected"""
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -233,21 +202,17 @@ async def test_refresh_token_reuse_detection(client: AsyncClient, test_user: Use
             assert second_refresh.status_code in [401, 403]
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_refresh_token_invalid(client: AsyncClient):
     """Test invalid refresh token is rejected"""
-    refresh_data = {
-        "refresh_token": "invalid.refresh.token"
-    }
+    refresh_data = {"refresh_token": "invalid.refresh.token"}
 
     response = await client.post("/api/v1/auth/refresh", json=refresh_data)
 
     # Should reject
     assert response.status_code in [400, 401, 404]
-
 
 
 @pytest.mark.asyncio
@@ -256,10 +221,7 @@ async def test_refresh_token_invalid(client: AsyncClient):
 async def test_refresh_token_revocation(client: AsyncClient, test_user: User):
     """Test refresh token revocation on logout"""
     # Login
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -270,8 +232,7 @@ async def test_refresh_token_revocation(client: AsyncClient, test_user: User):
 
         # Logout
         await client.post(
-            "/api/v1/auth/logout",
-            headers={"Authorization": f"Bearer {access_token}"}
+            "/api/v1/auth/logout", headers={"Authorization": f"Bearer {access_token}"}
         )
 
         # Try to use refresh token after logout
@@ -282,18 +243,13 @@ async def test_refresh_token_revocation(client: AsyncClient, test_user: User):
         assert refresh_response.status_code in [401, 403, 404]
 
 
-
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_token_tampering_detection(client: AsyncClient, test_user: User):
     """Test that tampered tokens are rejected"""
     # Get valid token
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -306,13 +262,11 @@ async def test_token_tampering_detection(client: AsyncClient, test_user: User):
 
         # Try to use tampered token
         response = await client.get(
-            "/api/v1/users/me",
-            headers={"Authorization": f"Bearer {tampered_token}"}
+            "/api/v1/users/me", headers={"Authorization": f"Bearer {tampered_token}"}
         )
 
         # Should reject
         assert response.status_code in [401, 403, 422]
-
 
 
 @pytest.mark.asyncio
@@ -325,21 +279,18 @@ async def test_token_expired(client: AsyncClient):
 
     expired_payload = {
         "sub": "test-user-id",
-        "exp": datetime.utcnow() - timedelta(hours=1)  # Expired 1 hour ago
+        "exp": datetime.utcnow() - timedelta(hours=1),  # Expired 1 hour ago
     }
 
     # Create expired token
     try:
         expired_token = jwt.encode(
-            expired_payload,
-            getattr(settings, "JWT_SECRET_KEY", "test-secret"),
-            algorithm="HS256"
+            expired_payload, getattr(settings, "JWT_SECRET_KEY", "test-secret"), algorithm="HS256"
         )
 
         # Try to use expired token
         response = await client.get(
-            "/api/v1/users/me",
-            headers={"Authorization": f"Bearer {expired_token}"}
+            "/api/v1/users/me", headers={"Authorization": f"Bearer {expired_token}"}
         )
 
         # Should reject expired token
@@ -347,7 +298,6 @@ async def test_token_expired(client: AsyncClient):
     except Exception:
         # If we can't create expired token, skip this assertion
         pass
-
 
 
 @pytest.mark.asyncio
@@ -361,17 +311,13 @@ async def test_token_missing_authorization_header(client: AsyncClient):
     assert response.status_code in [401, 403]
 
 
-
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.auth
 async def test_token_signature_verification(client: AsyncClient, test_user: User):
     """Test JWT signature is properly verified"""
     # Get valid token
-    login_data = {
-        "email": test_user.email,
-        "password": "TestPassword123!"
-    }
+    login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
     login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -386,8 +332,7 @@ async def test_token_signature_verification(client: AsyncClient, test_user: User
 
             # Try to use token with wrong signature
             response = await client.get(
-                "/api/v1/users/me",
-                headers={"Authorization": f"Bearer {wrong_secret_token}"}
+                "/api/v1/users/me", headers={"Authorization": f"Bearer {wrong_secret_token}"}
             )
 
             # Should reject
@@ -395,6 +340,3 @@ async def test_token_signature_verification(client: AsyncClient, test_user: User
         except Exception:
             # If we can't forge token, test passes (good security!)
             pass
-
-
-

@@ -19,6 +19,7 @@ class GUID(TypeDecorator):
     Uses PostgreSQL's UUID type, otherwise uses CHAR(36) storing as stringified hex values.
     This allows the same model to work with both PostgreSQL and SQLite.
     """
+
     impl = CHAR
     cache_ok = True
 
@@ -28,7 +29,7 @@ class GUID(TypeDecorator):
         super().__init__()
 
     def load_dialect_impl(self, dialect):
-        if dialect.name == 'postgresql':
+        if dialect.name == "postgresql":
             return dialect.type_descriptor(PG_UUID())
         else:
             return dialect.type_descriptor(CHAR(36))
@@ -36,7 +37,7 @@ class GUID(TypeDecorator):
     def process_bind_param(self, value, dialect):
         if value is None:
             return value
-        elif dialect.name == 'postgresql':
+        elif dialect.name == "postgresql":
             return str(value)
         else:
             if not isinstance(value, uuid.UUID):
@@ -60,11 +61,12 @@ class JSON(TypeDecorator):
     Uses PostgreSQL's JSONB type when available, otherwise uses TEXT with JSON serialization.
     This allows the same model to work with both PostgreSQL and SQLite.
     """
+
     impl = Text
     cache_ok = True
 
     def load_dialect_impl(self, dialect):
-        if dialect.name == 'postgresql':
+        if dialect.name == "postgresql":
             return dialect.type_descriptor(PG_JSONB())
         else:
             return dialect.type_descriptor(Text())
@@ -90,12 +92,14 @@ class InetAddress(TypeDecorator):
     Uses PostgreSQL INET type when available, otherwise VARCHAR(45) for SQLite.
     This allows the same model to work with both PostgreSQL and SQLite.
     """
+
     impl = String
     cache_ok = True
 
     def load_dialect_impl(self, dialect):
-        if dialect.name == 'postgresql':
+        if dialect.name == "postgresql":
             from sqlalchemy.dialects.postgresql import INET
+
             return dialect.type_descriptor(INET())
         else:
             return dialect.type_descriptor(String(45))

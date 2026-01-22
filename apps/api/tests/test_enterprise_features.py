@@ -19,21 +19,26 @@ from app.models import (
     OrganizationRole,
     WebhookEndpoint,
     WebhookDelivery,
-    WebhookStatus
+    WebhookStatus,
 )
+
 
 # Mock missing imports for tests
 class TenantContext:
     pass
 
+
 class ResourceType:
     pass
+
 
 class Action:
     pass
 
+
 class WebhookEventTypes:
     pass
+
 
 rbac_engine = None
 audit_logger = None
@@ -54,31 +59,20 @@ class TestTenantContext:
         user_id = uuid4()
         tenant_id = uuid4()
 
-        org = Organization(
-            id=org_id,
-            tenant_id=tenant_id,
-            name="Test Org",
-            slug="test-org"
-        )
+        org = Organization(id=org_id, tenant_id=tenant_id, name="Test Org", slug="test-org")
         db_session.add(org)
 
-        user = User(
-            id=user_id,
-            email="test@example.com",
-            username="testuser"
-        )
+        user = User(id=user_id, email="test@example.com", username="testuser")
         db_session.add(user)
         await db_session.commit()
 
         # Create JWT with tenant info
         from app.core.jwt_manager import jwt_manager
+
         access_token, _, _ = jwt_manager.create_access_token(
             str(user_id),
             "test@example.com",
-            additional_claims={
-                "tid": str(tenant_id),
-                "oid": str(org_id)
-            }
+            additional_claims={"tid": str(tenant_id), "oid": str(org_id)},
         )
 
         # Make request with token
@@ -129,7 +123,7 @@ class TestRBACEngine:
         role = OrganizationRole(
             organization_id=org.id,
             name="Editor",
-            permissions=["user:read", "user:update", "project:*"]
+            permissions=["user:read", "user:update", "project:*"],
         )
         db_session.add(role)
         await db_session.flush()
@@ -139,10 +133,7 @@ class TestRBACEngine:
         await db_session.flush()
 
         member = OrganizationMember(
-            organization_id=org.id,
-            user_id=user.id,
-            role_id=role.id,
-            status="active"
+            organization_id=org.id, user_id=user.id, role_id=role.id, status="active"
         )
         db_session.add(member)
         await db_session.commit()
@@ -152,27 +143,18 @@ class TestRBACEngine:
 
         # Test permissions
         can_read = await rbac_engine.check_permission(
-            db_session,
-            str(user.id),
-            ResourceType.USER,
-            Action.READ
+            db_session, str(user.id), ResourceType.USER, Action.READ
         )
         assert can_read is True
 
         can_delete = await rbac_engine.check_permission(
-            db_session,
-            str(user.id),
-            ResourceType.USER,
-            Action.DELETE
+            db_session, str(user.id), ResourceType.USER, Action.DELETE
         )
         assert can_delete is False
 
         # Test wildcard permission
         can_create_project = await rbac_engine.check_permission(
-            db_session,
-            str(user.id),
-            ResourceType.PROJECT,
-            Action.CREATE
+            db_session, str(user.id), ResourceType.PROJECT, Action.CREATE
         )
         assert can_create_project is True
 
@@ -187,9 +169,7 @@ class TestRBACEngine:
 
         # Create parent role
         parent_role = OrganizationRole(
-            organization_id=org.id,
-            name="Manager",
-            permissions=["user:read", "project:read"]
+            organization_id=org.id, name="Manager", permissions=["user:read", "project:read"]
         )
         db_session.add(parent_role)
         await db_session.flush()
@@ -199,7 +179,7 @@ class TestRBACEngine:
             organization_id=org.id,
             name="Team Lead",
             parent_role_id=parent_role.id,
-            permissions=["project:create"]  # Additional permission
+            permissions=["project:create"],  # Additional permission
         )
         db_session.add(child_role)
         await db_session.flush()
@@ -209,10 +189,7 @@ class TestRBACEngine:
         await db_session.flush()
 
         member = OrganizationMember(
-            organization_id=org.id,
-            user_id=user.id,
-            role_id=child_role.id,
-            status="active"
+            organization_id=org.id, user_id=user.id, role_id=child_role.id, status="active"
         )
         db_session.add(member)
         await db_session.commit()
@@ -222,19 +199,13 @@ class TestRBACEngine:
 
         # Test inherited permission
         can_read_user = await rbac_engine.check_permission(
-            db_session,
-            str(user.id),
-            ResourceType.USER,
-            Action.READ
+            db_session, str(user.id), ResourceType.USER, Action.READ
         )
         assert can_read_user is True
 
         # Test own permission
         can_create_project = await rbac_engine.check_permission(
-            db_session,
-            str(user.id),
-            ResourceType.PROJECT,
-            Action.CREATE
+            db_session, str(user.id), ResourceType.PROJECT, Action.CREATE
         )
         assert can_create_project is True
 
@@ -247,11 +218,7 @@ class TestSCIMIntegration:
         """Test SCIM user creation and sync"""
 
         # Create organization with SCIM enabled
-        org = Organization(
-            name="SCIM Org",
-            slug="scim-org",
-            scim_enabled=True
-        )
+        org = Organization(name="SCIM Org", slug="scim-org", scim_enabled=True)
         db_session.add(org)
         await db_session.commit()
 
@@ -263,19 +230,10 @@ class TestSCIMIntegration:
         scim_user = {
             "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
             "userName": "scim.user",
-            "emails": [
-                {
-                    "value": "scim@example.com",
-                    "type": "work",
-                    "primary": True
-                }
-            ],
-            "name": {
-                "givenName": "SCIM",
-                "familyName": "User"
-            },
+            "emails": [{"value": "scim@example.com", "type": "work", "primary": True}],
+            "name": {"givenName": "SCIM", "familyName": "User"},
             "displayName": "SCIM User",
-            "active": True
+            "active": True,
         }
 
         # Create user via SCIM
@@ -286,10 +244,7 @@ class TestSCIMIntegration:
 
         # For this test, we'll create the resource manually
         user = User(
-            email="scim@example.com",
-            username="scim.user",
-            first_name="SCIM",
-            last_name="User"
+            email="scim@example.com", username="scim.user", first_name="SCIM", last_name="User"
         )
         db_session.add(user)
         await db_session.flush()
@@ -299,7 +254,7 @@ class TestSCIMIntegration:
             scim_id=str(uuid4()),
             resource_type="User",
             internal_id=user.id,
-            raw_attributes=scim_user
+            raw_attributes=scim_user,
         )
         db_session.add(scim_resource)
         await db_session.commit()
@@ -333,7 +288,7 @@ class TestAuditLogging:
             resource_id="user-123",
             event_data={"method": "password"},
             ip_address="192.168.1.1",
-            user_agent="TestClient/1.0"
+            user_agent="TestClient/1.0",
         )
 
         await db_session.commit()
@@ -362,7 +317,7 @@ class TestAuditLogging:
                 event_type=AuditEventType.ACCESS,
                 event_name=f"resource.access.{i}",
                 resource_type="document",
-                resource_id=f"doc-{i}"
+                resource_id=f"doc-{i}",
             )
 
             if previous_hash:
@@ -373,8 +328,7 @@ class TestAuditLogging:
 
         # Verify integrity
         result = await audit_logger.verify_integrity(
-            session=db_session,
-            organization_id=str(org.id)
+            session=db_session, organization_id=str(org.id)
         )
 
         assert result["verified"] is True
@@ -399,7 +353,7 @@ class TestAuditLogging:
             event_type=AuditEventType.MODIFY,
             event_name="data.modified",
             resource_type="record",
-            resource_id="rec-123"
+            resource_id="rec-123",
         )
         await db_session.commit()
 
@@ -409,8 +363,7 @@ class TestAuditLogging:
 
         # Verify integrity should fail
         result = await audit_logger.verify_integrity(
-            session=db_session,
-            organization_id=str(org.id)
+            session=db_session, organization_id=str(org.id)
         )
 
         assert result["verified"] is False
@@ -435,7 +388,7 @@ class TestWebhookDispatcher:
             url="https://example.com/webhook",
             secret="webhook-secret",
             events=[WebhookEventTypes.USER_CREATED],
-            is_active=True
+            is_active=True,
         )
         db_session.add(endpoint)
         await db_session.commit()
@@ -448,7 +401,7 @@ class TestWebhookDispatcher:
             session=db_session,
             event_type=WebhookEventTypes.USER_CREATED,
             data={"user_id": "new-user-123", "email": "new@example.com"},
-            organization_id=str(org.id)
+            organization_id=str(org.id),
         )
 
         # Verify event and delivery were created
@@ -457,9 +410,7 @@ class TestWebhookDispatcher:
 
         # Check delivery was queued
         deliveries = await db_session.execute(
-            select(WebhookDelivery).where(
-                WebhookDelivery.webhook_event_id == event.id
-            )
+            select(WebhookDelivery).where(WebhookDelivery.webhook_event_id == event.id)
         )
         delivery = deliveries.scalar_one()
         assert delivery.status == WebhookStatus.PENDING
@@ -472,28 +423,20 @@ class TestWebhookDispatcher:
         payload = json.dumps({"test": "data"}).encode()
 
         # Calculate signature
-        expected_signature = hmac.new(
-            secret.encode(),
-            payload,
-            hashlib.sha256
-        ).hexdigest()
+        expected_signature = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
         # Verify signature
         from app.core.webhook_dispatcher import verify_webhook_signature
 
         is_valid = verify_webhook_signature(
-            payload=payload,
-            signature=expected_signature,
-            secret=secret
+            payload=payload, signature=expected_signature, secret=secret
         )
 
         assert is_valid is True
 
         # Test with wrong signature
         is_invalid = verify_webhook_signature(
-            payload=payload,
-            signature="wrong-signature",
-            secret=secret
+            payload=payload, signature="wrong-signature", secret=secret
         )
 
         assert is_invalid is False
@@ -514,16 +457,12 @@ class TestWebhookDispatcher:
             events=["test.event"],
             is_active=True,
             max_retries=3,
-            retry_delay=60
+            retry_delay=60,
         )
         db_session.add(endpoint)
         await db_session.flush()
 
-        event = WebhookEvent(
-            type="test.event",
-            data={"test": "data"},
-            organization_id=org.id
-        )
+        event = WebhookEvent(type="test.event", data={"test": "data"}, organization_id=org.id)
         db_session.add(event)
         await db_session.flush()
 
@@ -531,7 +470,7 @@ class TestWebhookDispatcher:
             webhook_endpoint_id=endpoint.id,
             webhook_event_id=event.id,
             status=WebhookStatus.PENDING,
-            attempts=0
+            attempts=0,
         )
         db_session.add(delivery)
         await db_session.commit()
@@ -567,7 +506,7 @@ class TestEnterpriseIntegration:
             subscription_tier="enterprise",
             scim_enabled=True,
             sso_enabled=True,
-            mfa_required=True
+            mfa_required=True,
         )
         db_session.add(org)
         await db_session.flush()
@@ -577,38 +516,25 @@ class TestEnterpriseIntegration:
 
         # 3. Create RBAC roles
         admin_role = OrganizationRole(
-            organization_id=org.id,
-            name="Admin",
-            permissions=["*:*"],
-            is_system=True
+            organization_id=org.id, name="Admin", permissions=["*:*"], is_system=True
         )
         db_session.add(admin_role)
         await db_session.flush()
 
         # 4. Create user via SCIM
-        user = User(
-            email="admin@enterprise.com",
-            username="admin",
-            mfa_enabled=True
-        )
+        user = User(email="admin@enterprise.com", username="admin", mfa_enabled=True)
         db_session.add(user)
         await db_session.flush()
 
         # 5. Add user to organization with role
         member = OrganizationMember(
-            organization_id=org.id,
-            user_id=user.id,
-            role_id=admin_role.id,
-            status="active"
+            organization_id=org.id, user_id=user.id, role_id=admin_role.id, status="active"
         )
         db_session.add(member)
 
         # 6. Create SCIM mapping
         scim_resource = SCIMResource(
-            organization_id=org.id,
-            scim_id=str(uuid4()),
-            resource_type="User",
-            internal_id=user.id
+            organization_id=org.id, scim_id=str(uuid4()), resource_type="User", internal_id=user.id
         )
         db_session.add(scim_resource)
 
@@ -620,7 +546,7 @@ class TestEnterpriseIntegration:
             resource_type="organization",
             resource_id=str(org.id),
             user_id=str(user.id),
-            compliance_tags=["SOC2", "HIPAA"]
+            compliance_tags=["SOC2", "HIPAA"],
         )
 
         # 8. Create webhook endpoint
@@ -629,7 +555,7 @@ class TestEnterpriseIntegration:
             url="https://enterprise.com/webhooks",
             secret="enterprise-secret",
             events=["*"],  # All events
-            is_active=True
+            is_active=True,
         )
         db_session.add(webhook_endpoint)
 
@@ -641,15 +567,12 @@ class TestEnterpriseIntegration:
             event_type="organization.created",
             data={"org_id": str(org.id), "name": org.name},
             user_id=str(user.id),
-            organization_id=str(org.id)
+            organization_id=str(org.id),
         )
 
         # 10. Verify RBAC permissions
         has_admin = await rbac_engine.check_permission(
-            db_session,
-            str(user.id),
-            ResourceType.ORGANIZATION,
-            Action.ADMIN
+            db_session, str(user.id), ResourceType.ORGANIZATION, Action.ADMIN
         )
 
         # Assertions

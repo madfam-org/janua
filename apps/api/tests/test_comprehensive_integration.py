@@ -25,7 +25,7 @@ class TestAuthenticationIntegrationFlows:
                 "email": "integration_test@example.com",
                 "password": "SecurePassword123!",
                 "name": "Integration Test User",
-                "organization": "Test Org"
+                "organization": "Test Org",
             }
 
             try:
@@ -47,10 +47,7 @@ class TestAuthenticationIntegrationFlows:
 
         async with AsyncClient(app=app, base_url="http://test") as client:
             # Test login endpoint
-            login_data = {
-                "email": "test@example.com",
-                "password": "password123"
-            }
+            login_data = {"email": "test@example.com", "password": "password123"}
 
             try:
                 response = await client.post("/auth/login", json=login_data)
@@ -80,7 +77,7 @@ class TestAuthenticationIntegrationFlows:
                 "/api/users/profile",
                 "/auth/profile",
                 "/dashboard",
-                "/admin"
+                "/admin",
             ]
 
             for endpoint in protected_endpoints:
@@ -110,25 +107,23 @@ class TestBillingIntegrationFlows:
             _subscription_data = {
                 "user_id": "user123",
                 "plan": "premium",
-                "billing_cycle": "monthly"
+                "billing_cycle": "monthly",
             }
 
             # Test each step of lifecycle if methods exist
-            if hasattr(billing_service, 'create_subscription'):
+            if hasattr(billing_service, "create_subscription"):
                 # create_subscription expects (customer_id, tier, country, ...)
                 result = await billing_service.create_subscription(
-                    customer_id="cust_123",
-                    tier="pro",
-                    country="US"
+                    customer_id="cust_123", tier="pro", country="US"
                 )
                 assert result is not None or result is None
 
-            if hasattr(billing_service, 'update_subscription'):
+            if hasattr(billing_service, "update_subscription"):
                 update_data = {"plan": "enterprise"}
                 result = await billing_service.update_subscription("sub123", update_data)
                 assert result is not None or result is None
 
-            if hasattr(billing_service, 'cancel_subscription'):
+            if hasattr(billing_service, "cancel_subscription"):
                 result = await billing_service.cancel_subscription("sub123")
                 assert result is not None or result is None
 
@@ -149,15 +144,15 @@ class TestBillingIntegrationFlows:
                 "amount": 99.99,
                 "currency": "USD",
                 "payment_method": "card",
-                "customer_id": "cust123"
+                "customer_id": "cust123",
             }
 
-            if hasattr(billing_service, 'process_payment'):
+            if hasattr(billing_service, "process_payment"):
                 result = await billing_service.process_payment(payment_data)
                 assert result is not None or result is None
 
             # Test payment failure handling
-            if hasattr(billing_service, 'handle_payment_failure'):
+            if hasattr(billing_service, "handle_payment_failure"):
                 failure_data = {"payment_id": "pay123", "reason": "insufficient_funds"}
                 result = await billing_service.handle_payment_failure(failure_data)
                 assert result is not None or result is None
@@ -179,21 +174,21 @@ class TestComplianceIntegrationFlows:
             privacy_service = PrivacyService(mock_db)
 
             # Test data export request
-            if hasattr(privacy_service, 'handle_data_export_request'):
+            if hasattr(privacy_service, "handle_data_export_request"):
                 request_data = {
                     "user_id": "user123",
                     "request_type": "export",
-                    "data_categories": ["profile", "activity", "preferences"]
+                    "data_categories": ["profile", "activity", "preferences"],
                 }
                 result = await privacy_service.handle_data_export_request(request_data)
                 assert result is not None or result is None
 
             # Test data deletion request
-            if hasattr(privacy_service, 'handle_data_deletion_request'):
+            if hasattr(privacy_service, "handle_data_deletion_request"):
                 deletion_data = {
                     "user_id": "user123",
                     "request_type": "deletion",
-                    "verify_identity": True
+                    "verify_identity": True,
                 }
                 result = await privacy_service.handle_data_deletion_request(deletion_data)
                 assert result is not None or result is None
@@ -211,11 +206,11 @@ class TestComplianceIntegrationFlows:
             monitor = ComplianceMonitor(mock_db)
 
             # Test compliance check integration
-            if hasattr(monitor, 'run_compliance_check'):
+            if hasattr(monitor, "run_compliance_check"):
                 check_config = {
                     "frameworks": ["GDPR", "HIPAA", "SOX"],
                     "scope": "full_audit",
-                    "generate_report": True
+                    "generate_report": True,
                 }
                 result = await monitor.run_compliance_check(check_config)
                 assert result is not None or result is None
@@ -239,22 +234,22 @@ class TestAlertingIntegrationFlows:
             incident_service = IncidentService(mock_db)
 
             # Test alert generation and incident creation
-            if hasattr(alert_system, 'trigger_alert'):
+            if hasattr(alert_system, "trigger_alert"):
                 alert_data = {
                     "severity": "critical",
                     "source": "security_monitor",
                     "message": "Unauthorized access detected",
-                    "metadata": {"ip": "192.168.1.100", "user_id": "user123"}
+                    "metadata": {"ip": "192.168.1.100", "user_id": "user123"},
                 }
                 result = await alert_system.trigger_alert(alert_data)
                 assert result is not None or result is None
 
             # Test incident creation from alert
-            if hasattr(incident_service, 'create_incident_from_alert'):
+            if hasattr(incident_service, "create_incident_from_alert"):
                 incident_data = {
                     "alert_id": "alert123",
                     "severity": "critical",
-                    "assigned_to": "security_team"
+                    "assigned_to": "security_team",
                 }
                 result = await incident_service.create_incident_from_alert(incident_data)
                 assert result is not None or result is None
@@ -275,21 +270,21 @@ class TestMonitoringIntegrationFlows:
             monitoring = MonitoringService()
 
             # Test performance data collection and analysis
-            if hasattr(monitoring, 'collect_and_analyze_metrics'):
+            if hasattr(monitoring, "collect_and_analyze_metrics"):
                 config = {
                     "metrics": ["response_time", "throughput", "error_rate"],
                     "time_window": "1h",
-                    "analysis_type": "trend"
+                    "analysis_type": "trend",
                 }
                 result = await monitoring.collect_and_analyze_metrics(config)
                 assert result is not None or result is None
 
             # Test performance alerting thresholds
-            if hasattr(monitoring, 'check_performance_thresholds'):
+            if hasattr(monitoring, "check_performance_thresholds"):
                 thresholds = {
                     "response_time_ms": 2000,
                     "error_rate_percent": 5.0,
-                    "cpu_usage_percent": 80.0
+                    "cpu_usage_percent": 80.0,
                 }
                 result = await monitoring.check_performance_thresholds(thresholds)
                 assert result is not None or result is None
@@ -316,27 +311,23 @@ class TestAuditIntegrationFlows:
                     "event_type": "user_login",
                     "user_id": "user123",
                     "timestamp": datetime.utcnow(),
-                    "metadata": {"ip": "192.168.1.1", "user_agent": "test"}
+                    "metadata": {"ip": "192.168.1.1", "user_agent": "test"},
                 },
                 {
                     "event_type": "data_access",
                     "user_id": "user123",
                     "resource": "user_profile",
-                    "action": "read"
+                    "action": "read",
                 },
-                {
-                    "event_type": "user_logout",
-                    "user_id": "user123",
-                    "session_duration": 3600
-                }
+                {"event_type": "user_logout", "user_id": "user123", "session_duration": 3600},
             ]
 
-            if hasattr(audit_logger, 'log_event_sequence'):
+            if hasattr(audit_logger, "log_event_sequence"):
                 result = await audit_logger.log_event_sequence(events)
                 assert result is not None or result is None
             else:
                 # Log events individually if sequence method doesn't exist
-                if hasattr(audit_logger, 'log_event'):
+                if hasattr(audit_logger, "log_event"):
                     for event in events:
                         result = await audit_logger.log_event(event)
                         assert result is not None or result is None
@@ -360,7 +351,7 @@ class TestEndToEndWorkflows:
                 registration_data = {
                     "email": "onboarding@example.com",
                     "password": "SecurePass123!",
-                    "name": "Onboarding User"
+                    "name": "Onboarding User",
                 }
                 response = await client.post("/auth/register", json=registration_data)
                 assert response.status_code in [200, 201, 400, 422, 500]
@@ -369,7 +360,7 @@ class TestEndToEndWorkflows:
                 profile_data = {
                     "company": "Test Company",
                     "role": "Developer",
-                    "preferences": {"theme": "dark", "notifications": True}
+                    "preferences": {"theme": "dark", "notifications": True},
                 }
                 response = await client.put("/users/profile", json=profile_data)
                 assert response.status_code in [200, 201, 400, 401, 404, 422, 500]
@@ -390,20 +381,20 @@ class TestEndToEndWorkflows:
             dashboard = ComplianceDashboard(mock_db)
 
             # Test compliance assessment → reporting → dashboard workflow
-            if hasattr(monitor, 'assess_compliance'):
+            if hasattr(monitor, "assess_compliance"):
                 assessment_config = {
                     "frameworks": ["SOX", "GDPR"],
                     "depth": "comprehensive",
-                    "include_recommendations": True
+                    "include_recommendations": True,
                 }
                 assessment = await monitor.assess_compliance(assessment_config)
                 assert assessment is not None or assessment is None
 
-            if hasattr(dashboard, 'generate_compliance_dashboard'):
+            if hasattr(dashboard, "generate_compliance_dashboard"):
                 dashboard_config = {
                     "assessment_id": "assess123",
                     "include_trends": True,
-                    "export_format": "json"
+                    "export_format": "json",
                 }
                 dashboard_data = await dashboard.generate_compliance_dashboard(dashboard_config)
                 assert dashboard_data is not None or dashboard_data is None

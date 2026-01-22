@@ -63,8 +63,8 @@ router = APIRouter(prefix="/rbac", tags=["RBAC"])
 async def check_permission(
     request: PermissionCheckRequest,
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
+    redis=Depends(get_redis),
+    current_user: User = Depends(get_current_user),
 ):
     """Check if user has specific permission"""
     service = RBACService(db, redis)
@@ -73,13 +73,13 @@ async def check_permission(
         organization_id=request.organization_id,
         permission=request.permission,
         resource_id=request.resource_id,
-        context=request.context
+        context=request.context,
     )
 
     return {
         "has_permission": has_permission,
         "permission": request.permission,
-        "user_id": current_user.id
+        "user_id": current_user.id,
     }
 
 
@@ -87,41 +87,37 @@ async def check_permission(
 async def check_permissions_bulk(
     request: BulkPermissionCheckRequest,
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
+    redis=Depends(get_redis),
+    current_user: User = Depends(get_current_user),
 ):
     """Check multiple permissions at once"""
     service = RBACService(db, redis)
     results = await service.bulk_check_permissions(
         user_id=current_user.id,
         organization_id=request.organization_id,
-        permissions=request.permissions
+        permissions=request.permissions,
     )
 
-    return {
-        "permissions": results,
-        "user_id": current_user.id
-    }
+    return {"permissions": results, "user_id": current_user.id}
 
 
 @router.get("/permissions")
 async def get_user_permissions(
     organization_id: Optional[UUID] = Query(None, description="Organization ID"),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
+    redis=Depends(get_redis),
+    current_user: User = Depends(get_current_user),
 ):
     """Get all permissions for current user"""
     service = RBACService(db, redis)
     permissions = await service.get_user_permissions(
-        user_id=current_user.id,
-        organization_id=organization_id
+        user_id=current_user.id, organization_id=organization_id
     )
 
     return {
         "permissions": list(permissions),
         "user_id": current_user.id,
-        "organization_id": organization_id
+        "organization_id": organization_id,
     }
 
 
@@ -129,27 +125,24 @@ async def get_user_permissions(
 async def get_user_role(
     organization_id: UUID = Query(..., description="Organization ID"),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
+    redis=Depends(get_redis),
+    current_user: User = Depends(get_current_user),
 ):
     """Get user's role in organization"""
     service = RBACService(db, redis)
-    role = await service.get_user_role(
-        user_id=current_user.id,
-        organization_id=organization_id
-    )
+    role = await service.get_user_role(user_id=current_user.id, organization_id=organization_id)
 
     if not role:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User is not a member of this organization"
+            detail="User is not a member of this organization",
         )
 
     return {
         "role": role,
         "user_id": current_user.id,
         "organization_id": organization_id,
-        "role_level": service.get_role_level(role)
+        "role_level": service.get_role_level(role),
     }
 
 
@@ -157,8 +150,8 @@ async def get_user_role(
 async def create_policy(
     request: PolicyCreateRequest,
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
+    redis=Depends(get_redis),
+    current_user: User = Depends(get_current_user),
 ):
     """Create new conditional access policy"""
     # Check permissions
@@ -166,7 +159,7 @@ async def create_policy(
     await service.enforce_permission(
         user_id=current_user.id,
         organization_id=request.organization_id,
-        permission="policies:create"
+        permission="policies:create",
     )
 
     policy = await service.create_policy(
@@ -174,7 +167,7 @@ async def create_policy(
         name=request.name,
         permission=request.permission,
         conditions=request.conditions,
-        created_by=current_user.id
+        created_by=current_user.id,
     )
 
     return policy
@@ -185,36 +178,32 @@ async def update_policy(
     policy_id: UUID,
     request: PolicyUpdateRequest,
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
+    redis=Depends(get_redis),
+    current_user: User = Depends(get_current_user),
 ):
     """Update existing policy"""
     service = RBACService(db, redis)
 
     # Get policy to check organization
     from ...models import RBACPolicy
+
     result = await db.execute(select(RBACPolicy).where(RBACPolicy.id == policy_id))
     policy = result.scalar_one_or_none()
 
     if not policy:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Policy not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
 
     # Check permissions
     await service.enforce_permission(
         user_id=current_user.id,
         organization_id=policy.organization_id,
-        permission="policies:update"
+        permission="policies:update",
     )
 
     # Update policy
     updates = request.dict(exclude_unset=True)
     updated_policy = await service.update_policy(
-        policy_id=policy_id,
-        updates=updates,
-        updated_by=current_user.id
+        policy_id=policy_id, updates=updates, updated_by=current_user.id
     )
 
     return updated_policy
@@ -224,28 +213,26 @@ async def update_policy(
 async def delete_policy(
     policy_id: UUID,
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
+    redis=Depends(get_redis),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete policy (soft delete)"""
     service = RBACService(db, redis)
 
     # Get policy to check organization
     from ...models import RBACPolicy
+
     result = await db.execute(select(RBACPolicy).where(RBACPolicy.id == policy_id))
     policy = result.scalar_one_or_none()
 
     if not policy:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Policy not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Policy not found")
 
     # Check permissions
     await service.enforce_permission(
         user_id=current_user.id,
         organization_id=policy.organization_id,
-        permission="policies:delete"
+        permission="policies:delete",
     )
 
     await service.delete_policy(policy_id)
@@ -258,23 +245,20 @@ async def list_policies(
     organization_id: UUID = Query(..., description="Organization ID"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
+    redis=Depends(get_redis),
+    current_user: User = Depends(get_current_user),
 ):
     """List all policies for organization"""
     service = RBACService(db, redis)
 
     # Check permissions
     await service.enforce_permission(
-        user_id=current_user.id,
-        organization_id=organization_id,
-        permission="policies:read"
+        user_id=current_user.id, organization_id=organization_id, permission="policies:read"
     )
 
     from ...models import RBACPolicy
-    stmt = select(RBACPolicy).where(
-        RBACPolicy.organization_id == organization_id
-    )
+
+    stmt = select(RBACPolicy).where(RBACPolicy.organization_id == organization_id)
 
     if is_active is not None:
         stmt = stmt.where(RBACPolicy.is_active == is_active)
@@ -290,11 +274,11 @@ async def list_policies(
                 "permission": p.permission,
                 "conditions": p.conditions,
                 "is_active": p.is_active,
-                "created_at": p.created_at.isoformat() if p.created_at else None
+                "created_at": p.created_at.isoformat() if p.created_at else None,
             }
             for p in policies
         ],
-        "total": len(policies)
+        "total": len(policies),
     }
 
 
@@ -302,8 +286,8 @@ async def list_policies(
 async def enforce_permission(
     request: PermissionCheckRequest,
     db: Session = Depends(get_db),
-    redis = Depends(get_redis),
-    current_user: User = Depends(get_current_user)
+    redis=Depends(get_redis),
+    current_user: User = Depends(get_current_user),
 ):
     """Enforce permission or return 403"""
     service = RBACService(db, redis)
@@ -314,7 +298,7 @@ async def enforce_permission(
             organization_id=request.organization_id,
             permission=request.permission,
             resource_id=request.resource_id,
-            context=request.context
+            context=request.context,
         )
         return {"status": "granted", "permission": request.permission}
     except HTTPException as e:

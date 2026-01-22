@@ -41,7 +41,7 @@ class SecurityComplianceAuditor:
     """Comprehensive security and compliance auditing."""
 
     def __init__(self, base_url: str = "http://localhost:8000"):
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.results = {
             "timestamp": datetime.utcnow().isoformat(),
             "security_score": 0,
@@ -49,7 +49,7 @@ class SecurityComplianceAuditor:
             "vulnerabilities": [],
             "compliance_gaps": [],
             "recommendations": [],
-            "critical_issues": []
+            "critical_issues": [],
         }
 
     async def audit_all(self) -> Dict[str, Any]:
@@ -77,14 +77,7 @@ class SecurityComplianceAuditor:
 
         # Test password policy enforcement using COMMON WEAK passwords
         # These are intentionally weak test patterns, not real credentials
-        weak_test_patterns = [
-            "123456",
-            "password",
-            "qwerty",
-            "abc123",
-            "12345678",
-            "password123"
-        ]
+        weak_test_patterns = ["123456", "password", "qwerty", "abc123", "12345678", "password123"]
 
         policy_violations = 0
         for test_pattern in weak_test_patterns:
@@ -95,22 +88,24 @@ class SecurityComplianceAuditor:
                         "email": f"weak_{secrets.token_hex(4)}@example.com",
                         "password": test_pattern,  # nosec B105 - intentional weak password test
                         "first_name": "Test",
-                        "last_name": "User"
+                        "last_name": "User",
                     },
-                    timeout=5
+                    timeout=5,
                 )
 
                 if response.status_code == 200:  # Should be rejected
                     policy_violations += 1
                     # Mask the test pattern in the description for security
                     masked_pattern = _mask_test_value(test_pattern)
-                    self.results["vulnerabilities"].append({
-                        "severity": "HIGH",
-                        "category": "Authentication",
-                        "title": "Weak Password Accepted",
-                        "description": f"Common weak password pattern ({masked_pattern}) was accepted",
-                        "recommendation": "Implement stronger password policy"
-                    })
+                    self.results["vulnerabilities"].append(
+                        {
+                            "severity": "HIGH",
+                            "category": "Authentication",
+                            "title": "Weak Password Accepted",
+                            "description": f"Common weak password pattern ({masked_pattern}) was accepted",
+                            "recommendation": "Implement stronger password policy",
+                        }
+                    )
 
             except requests.exceptions.RequestException:
                 pass  # Network errors expected during audit probing
@@ -142,9 +137,9 @@ class SecurityComplianceAuditor:
                     "email": test_email,
                     "password": "ValidPassword123!",  # nosec B105 - test fixture
                     "first_name": "Test",
-                    "last_name": "User"
+                    "last_name": "User",
                 },
-                timeout=5
+                timeout=5,
             )
         except Exception:
             pass  # Account creation may fail, testing lockout is the goal
@@ -157,9 +152,9 @@ class SecurityComplianceAuditor:
                     f"{self.base_url}/api/v1/auth/signin",
                     json={
                         "email": test_email,
-                        "password": "WrongPassword123!"  # nosec B105 - intentional wrong password
+                        "password": "WrongPassword123!",  # nosec B105 - intentional wrong password
                     },
-                    timeout=5
+                    timeout=5,
                 )
 
                 if response.status_code == 429:  # Rate limited/locked
@@ -172,13 +167,15 @@ class SecurityComplianceAuditor:
                 pass  # Network errors expected during lockout testing
 
         if failed_attempts >= 8:  # No lockout after many attempts
-            self.results["vulnerabilities"].append({
-                "severity": "MEDIUM",
-                "category": "Authentication",
-                "title": "No Account Lockout",
-                "description": "Account not locked after multiple failed attempts",
-                "recommendation": "Implement account lockout after failed attempts"
-            })
+            self.results["vulnerabilities"].append(
+                {
+                    "severity": "MEDIUM",
+                    "category": "Authentication",
+                    "title": "No Account Lockout",
+                    "description": "Account not locked after multiple failed attempts",
+                    "recommendation": "Implement account lockout after failed attempts",
+                }
+            )
             print("[WARN] Account lockout mechanism: WEAK")
         else:
             print("[PASS] Account lockout mechanism: OK")
@@ -190,12 +187,14 @@ class SecurityComplianceAuditor:
             if response.status_code < 500:
                 print("[PASS] MFA endpoints available")
             else:
-                self.results["compliance_gaps"].append({
-                    "category": "MFA",
-                    "title": "MFA Not Implemented",
-                    "description": "Multi-factor authentication not available",
-                    "requirement": "Enterprise MFA requirement"
-                })
+                self.results["compliance_gaps"].append(
+                    {
+                        "category": "MFA",
+                        "title": "MFA Not Implemented",
+                        "description": "Multi-factor authentication not available",
+                        "requirement": "Enterprise MFA requirement",
+                    }
+                )
                 print("[FAIL] MFA endpoints not available")
 
         except requests.exceptions.RequestException:
@@ -210,9 +209,9 @@ class SecurityComplianceAuditor:
                 f"{self.base_url}/api/v1/auth/signin",
                 json={
                     "email": "test@example.com",
-                    "password": "TestPassword123!"  # nosec B105 - test fixture
+                    "password": "TestPassword123!",  # nosec B105 - test fixture
                 },
-                timeout=5
+                timeout=5,
             )
 
             if response.status_code == 200:
@@ -221,38 +220,40 @@ class SecurityComplianceAuditor:
                     token = data["access_token"]
 
                     # Basic JWT structure validation
-                    parts = token.split('.')
+                    parts = token.split(".")
                     if len(parts) == 3:
                         print("[PASS] JWT structure valid")
                     else:
-                        self.results["vulnerabilities"].append({
-                            "severity": "HIGH",
-                            "category": "JWT",
-                            "title": "Invalid JWT Structure",
-                            "description": "JWT tokens don't follow standard structure",
-                            "recommendation": "Fix JWT implementation"
-                        })
+                        self.results["vulnerabilities"].append(
+                            {
+                                "severity": "HIGH",
+                                "category": "JWT",
+                                "title": "Invalid JWT Structure",
+                                "description": "JWT tokens don't follow standard structure",
+                                "recommendation": "Fix JWT implementation",
+                            }
+                        )
 
                     # Test token tampering
                     tampered_token = token[:-5] + "XXXXX"
                     auth_header = {"Authorization": f"Bearer {tampered_token}"}
 
                     response = requests.get(
-                        f"{self.base_url}/api/v1/auth/me",
-                        headers=auth_header,
-                        timeout=5
+                        f"{self.base_url}/api/v1/auth/me", headers=auth_header, timeout=5
                     )
 
                     if response.status_code == 401:
                         print("[PASS] JWT tampering protection: OK")
                     else:
-                        self.results["vulnerabilities"].append({
-                            "severity": "CRITICAL",
-                            "category": "JWT",
-                            "title": "JWT Tampering Possible",
-                            "description": "Tampered JWT tokens accepted",
-                            "recommendation": "Fix JWT signature validation"
-                        })
+                        self.results["vulnerabilities"].append(
+                            {
+                                "severity": "CRITICAL",
+                                "category": "JWT",
+                                "title": "JWT Tampering Possible",
+                                "description": "Tampered JWT tokens accepted",
+                                "recommendation": "Fix JWT signature validation",
+                            }
+                        )
 
         except requests.exceptions.RequestException:
             pass  # Network errors expected during JWT security testing
@@ -267,12 +268,14 @@ class SecurityComplianceAuditor:
             if response.status_code < 500:
                 print("[PASS] RBAC endpoints available")
             else:
-                self.results["compliance_gaps"].append({
-                    "category": "Authorization",
-                    "title": "RBAC Not Implemented",
-                    "description": "Role-based access control not available",
-                    "requirement": "Enterprise authorization requirement"
-                })
+                self.results["compliance_gaps"].append(
+                    {
+                        "category": "Authorization",
+                        "title": "RBAC Not Implemented",
+                        "description": "Role-based access control not available",
+                        "requirement": "Enterprise authorization requirement",
+                    }
+                )
 
         except requests.exceptions.RequestException:
             pass  # Network errors expected during RBAC endpoint check
@@ -286,7 +289,7 @@ class SecurityComplianceAuditor:
             "/api/v1/admin/users",
             "/api/v1/organizations",
             "/api/v1/audit-logs",
-            "/api/v1/sso/configure"
+            "/api/v1/sso/configure",
         ]
 
         unauthorized_access = 0
@@ -295,13 +298,15 @@ class SecurityComplianceAuditor:
                 response = requests.get(f"{self.base_url}{endpoint}", timeout=5)
                 if response.status_code == 200:  # Should require authentication
                     unauthorized_access += 1
-                    self.results["vulnerabilities"].append({
-                        "severity": "HIGH",
-                        "category": "Authorization",
-                        "title": "Unauthorized Access",
-                        "description": f"Endpoint {endpoint} accessible without authentication",
-                        "recommendation": "Implement proper authentication checks"
-                    })
+                    self.results["vulnerabilities"].append(
+                        {
+                            "severity": "HIGH",
+                            "category": "Authorization",
+                            "title": "Unauthorized Access",
+                            "description": f"Endpoint {endpoint} accessible without authentication",
+                            "recommendation": "Implement proper authentication checks",
+                        }
+                    )
 
             except requests.exceptions.RequestException:
                 pass  # Network errors expected during unauthorized access testing
@@ -329,13 +334,15 @@ class SecurityComplianceAuditor:
         if self.base_url.startswith("https://"):
             print("[PASS] HTTPS encryption: OK")
         else:
-            self.results["vulnerabilities"].append({
-                "severity": "HIGH",
-                "category": "Data Protection",
-                "title": "No HTTPS Encryption",
-                "description": "API not using HTTPS encryption",
-                "recommendation": "Implement HTTPS for all communications"
-            })
+            self.results["vulnerabilities"].append(
+                {
+                    "severity": "HIGH",
+                    "category": "Data Protection",
+                    "title": "No HTTPS Encryption",
+                    "description": "API not using HTTPS encryption",
+                    "recommendation": "Implement HTTPS for all communications",
+                }
+            )
             print("[FAIL] HTTPS encryption: Missing")
 
     async def _test_sensitive_data_exposure(self):
@@ -346,9 +353,9 @@ class SecurityComplianceAuditor:
                 f"{self.base_url}/api/v1/auth/signin",
                 json={
                     "email": "test@example.com",
-                    "password": "TestPassword123!"  # nosec B105 - test fixture
+                    "password": "TestPassword123!",  # nosec B105 - test fixture
                 },
-                timeout=5
+                timeout=5,
             )
 
             if response.status_code == 200:
@@ -356,25 +363,29 @@ class SecurityComplianceAuditor:
 
                 # Check for password exposure
                 if "password" in str(data).lower():
-                    self.results["vulnerabilities"].append({
-                        "severity": "CRITICAL",
-                        "category": "Data Protection",
-                        "title": "Password Exposure",
-                        "description": "Password data exposed in API response",
-                        "recommendation": "Remove password from all API responses"
-                    })
+                    self.results["vulnerabilities"].append(
+                        {
+                            "severity": "CRITICAL",
+                            "category": "Data Protection",
+                            "title": "Password Exposure",
+                            "description": "Password data exposed in API response",
+                            "recommendation": "Remove password from all API responses",
+                        }
+                    )
 
                 # Check for internal system exposure
                 internal_fields = ["database", "secret", "key", "internal"]
                 for field in internal_fields:
                     if field in str(data).lower():
-                        self.results["vulnerabilities"].append({
-                            "severity": "HIGH",
-                            "category": "Data Protection",
-                            "title": "Internal Data Exposure",
-                            "description": f"Internal field type '{field}' exposed in response",
-                            "recommendation": "Remove internal data from API responses"
-                        })
+                        self.results["vulnerabilities"].append(
+                            {
+                                "severity": "HIGH",
+                                "category": "Data Protection",
+                                "title": "Internal Data Exposure",
+                                "description": f"Internal field type '{field}' exposed in response",
+                                "recommendation": "Remove internal data from API responses",
+                            }
+                        )
 
         except requests.exceptions.RequestException:
             pass  # Network errors expected during sensitive data exposure testing
@@ -391,9 +402,9 @@ class SecurityComplianceAuditor:
                     f"{self.base_url}/api/v1/auth/signin",
                     json={
                         "email": "'; DROP TABLE users; --",
-                        "password": "password"  # nosec B105 - test payload
+                        "password": "password",  # nosec B105 - test payload
                     },
-                    timeout=5
+                    timeout=5,
                 )
 
                 # Server should return 400 (validation error) or 401 (auth failed)
@@ -405,13 +416,15 @@ class SecurityComplianceAuditor:
                 pass  # Network errors expected during SQL injection testing
 
         if sql_failures > 0:
-            self.results["vulnerabilities"].append({
-                "severity": "CRITICAL",
-                "category": "Input Validation",
-                "title": "SQL Injection Vulnerability",
-                "description": "SQL injection test payloads caused server errors",
-                "recommendation": "Implement proper input validation and parameterized queries"
-            })
+            self.results["vulnerabilities"].append(
+                {
+                    "severity": "CRITICAL",
+                    "category": "Input Validation",
+                    "title": "SQL Injection Vulnerability",
+                    "description": "SQL injection test payloads caused server errors",
+                    "recommendation": "Implement proper input validation and parameterized queries",
+                }
+            )
 
         # XSS tests - using generic test patterns
         xss_test_count = 3
@@ -425,9 +438,9 @@ class SecurityComplianceAuditor:
                         "email": f"test_{secrets.token_hex(4)}@example.com",
                         "password": "ValidPassword123!",  # nosec B105 - test fixture
                         "first_name": "<script>test</script>",
-                        "last_name": "User"
+                        "last_name": "User",
                     },
-                    timeout=5
+                    timeout=5,
                 )
 
                 if response.status_code == 200:
@@ -439,13 +452,15 @@ class SecurityComplianceAuditor:
                 pass  # Network errors expected during XSS testing
 
         if xss_failures > 0:
-            self.results["vulnerabilities"].append({
-                "severity": "HIGH",
-                "category": "Input Validation",
-                "title": "XSS Vulnerability",
-                "description": "XSS test payloads reflected in response",
-                "recommendation": "Implement proper input sanitization"
-            })
+            self.results["vulnerabilities"].append(
+                {
+                    "severity": "HIGH",
+                    "category": "Input Validation",
+                    "title": "XSS Vulnerability",
+                    "description": "XSS test payloads reflected in response",
+                    "recommendation": "Implement proper input sanitization",
+                }
+            )
 
     async def audit_input_validation(self):
         """Audit input validation mechanisms."""
@@ -470,9 +485,9 @@ class SecurityComplianceAuditor:
                         "email": f"test_{secrets.token_hex(4)}@example.com",
                         "password": "ValidPassword123!",  # nosec B105 - test fixture
                         "first_name": "; ls -la",
-                        "last_name": "User"
+                        "last_name": "User",
                     },
-                    timeout=5
+                    timeout=5,
                 )
 
                 # Look for command execution indicators in response
@@ -486,22 +501,20 @@ class SecurityComplianceAuditor:
                 pass  # Network errors expected during command injection testing
 
         if cmd_failures > 0:
-            self.results["vulnerabilities"].append({
-                "severity": "CRITICAL",
-                "category": "Input Validation",
-                "title": "Command Injection Vulnerability",
-                "description": "Command injection test payloads showed system output",
-                "recommendation": "Implement strict input validation"
-            })
+            self.results["vulnerabilities"].append(
+                {
+                    "severity": "CRITICAL",
+                    "category": "Input Validation",
+                    "title": "Command Injection Vulnerability",
+                    "description": "Command injection test payloads showed system output",
+                    "recommendation": "Implement strict input validation",
+                }
+            )
 
     async def _test_file_upload_security(self):
         """Test file upload security if endpoints exist."""
         # Check if file upload endpoints exist
-        upload_endpoints = [
-            "/api/v1/users/avatar",
-            "/api/v1/organizations/logo",
-            "/api/v1/upload"
-        ]
+        upload_endpoints = ["/api/v1/users/avatar", "/api/v1/organizations/logo", "/api/v1/upload"]
 
         for endpoint in upload_endpoints:
             try:
@@ -533,9 +546,9 @@ class SecurityComplianceAuditor:
                 f"{self.base_url}/api/v1/auth/signin",
                 json={
                     "email": "test@example.com",
-                    "password": "TestPassword123!"  # nosec B105 - test fixture
+                    "password": "TestPassword123!",  # nosec B105 - test fixture
                 },
-                timeout=5
+                timeout=5,
             )
 
             if response.status_code == 200:
@@ -545,13 +558,15 @@ class SecurityComplianceAuditor:
 
                     # Check token randomness/entropy
                     if len(token) < 32:
-                        self.results["vulnerabilities"].append({
-                            "severity": "MEDIUM",
-                            "category": "Session Management",
-                            "title": "Weak Session Token",
-                            "description": "Session token appears to have low entropy",
-                            "recommendation": "Use cryptographically secure token generation"
-                        })
+                        self.results["vulnerabilities"].append(
+                            {
+                                "severity": "MEDIUM",
+                                "category": "Session Management",
+                                "title": "Weak Session Token",
+                                "description": "Session token appears to have low entropy",
+                                "recommendation": "Use cryptographically secure token generation",
+                            }
+                        )
 
                     print("[PASS] Session tokens generated")
 
@@ -588,9 +603,9 @@ class SecurityComplianceAuditor:
                     f"{self.base_url}/api/v1/auth/signin",
                     json={
                         "email": "test@example.com",
-                        "password": "TestPassword123!"  # nosec B105 - test fixture
+                        "password": "TestPassword123!",  # nosec B105 - test fixture
                     },
-                    timeout=5
+                    timeout=5,
                 )
 
                 if response.status_code == 200:
@@ -605,13 +620,15 @@ class SecurityComplianceAuditor:
         if len(set(tokens)) == len(tokens) and len(tokens) > 1:
             print("[PASS] Token generation randomness: OK")
         elif len(tokens) > 1:
-            self.results["vulnerabilities"].append({
-                "severity": "HIGH",
-                "category": "Cryptography",
-                "title": "Weak Random Generation",
-                "description": "Generated tokens show poor randomness",
-                "recommendation": "Use cryptographically secure random generation"
-            })
+            self.results["vulnerabilities"].append(
+                {
+                    "severity": "HIGH",
+                    "category": "Cryptography",
+                    "title": "Weak Random Generation",
+                    "description": "Generated tokens show poor randomness",
+                    "recommendation": "Use cryptographically secure random generation",
+                }
+            )
 
     async def audit_logging_monitoring(self):
         """Audit logging and monitoring capabilities."""
@@ -623,12 +640,14 @@ class SecurityComplianceAuditor:
             if response.status_code < 500:
                 print("[PASS] Audit logging endpoints available")
             else:
-                self.results["compliance_gaps"].append({
-                    "category": "Logging",
-                    "title": "No Audit Logging",
-                    "description": "Audit logging not implemented",
-                    "requirement": "SOC2, GDPR audit trail requirements"
-                })
+                self.results["compliance_gaps"].append(
+                    {
+                        "category": "Logging",
+                        "title": "No Audit Logging",
+                        "description": "Audit logging not implemented",
+                        "requirement": "SOC2, GDPR audit trail requirements",
+                    }
+                )
 
         except requests.exceptions.RequestException:
             pass  # Network errors expected during audit logging check
@@ -653,7 +672,7 @@ class SecurityComplianceAuditor:
         gdpr_endpoints = [
             ("/api/v1/compliance/export-data", "Data Export"),
             ("/api/v1/compliance/delete-data", "Data Deletion"),
-            ("/api/v1/compliance/data-processing", "Data Processing Records")
+            ("/api/v1/compliance/data-processing", "Data Processing Records"),
         ]
 
         gdpr_features = 0
@@ -668,12 +687,14 @@ class SecurityComplianceAuditor:
                 pass  # Network errors expected during GDPR endpoint check
 
         if gdpr_features < 2:
-            self.results["compliance_gaps"].append({
-                "category": "GDPR",
-                "title": "Incomplete GDPR Implementation",
-                "description": "Missing GDPR data rights implementation",
-                "requirement": "GDPR Articles 15, 17 (Right to access, right to deletion)"
-            })
+            self.results["compliance_gaps"].append(
+                {
+                    "category": "GDPR",
+                    "title": "Incomplete GDPR Implementation",
+                    "description": "Missing GDPR data rights implementation",
+                    "requirement": "GDPR Articles 15, 17 (Right to access, right to deletion)",
+                }
+            )
 
     async def audit_infrastructure_security(self):
         """Audit infrastructure security."""
@@ -689,7 +710,7 @@ class SecurityComplianceAuditor:
                 "X-Frame-Options": ["DENY", "SAMEORIGIN"],
                 "X-XSS-Protection": "1; mode=block",
                 "Strict-Transport-Security": None,
-                "Content-Security-Policy": None
+                "Content-Security-Policy": None,
             }
 
             missing_headers = []
@@ -698,13 +719,15 @@ class SecurityComplianceAuditor:
                     missing_headers.append(header)
 
             if missing_headers:
-                self.results["vulnerabilities"].append({
-                    "severity": "MEDIUM",
-                    "category": "Infrastructure",
-                    "title": "Missing Security Headers",
-                    "description": f"Missing headers: {', '.join(missing_headers)}",
-                    "recommendation": "Implement all security headers"
-                })
+                self.results["vulnerabilities"].append(
+                    {
+                        "severity": "MEDIUM",
+                        "category": "Infrastructure",
+                        "title": "Missing Security Headers",
+                        "description": f"Missing headers: {', '.join(missing_headers)}",
+                        "recommendation": "Implement all security headers",
+                    }
+                )
 
         except requests.exceptions.RequestException:
             pass  # Network errors expected during security headers check
@@ -714,12 +737,7 @@ class SecurityComplianceAuditor:
         print("[DEPS] Auditing Dependency Security...")
 
         # Check for common dependency files
-        dependency_files = [
-            "requirements.txt",
-            "package.json",
-            "go.mod",
-            "Pipfile"
-        ]
+        dependency_files = ["requirements.txt", "package.json", "go.mod", "Pipfile"]
 
         for dep_file in dependency_files:
             if Path(dep_file).exists():
@@ -732,15 +750,19 @@ class SecurityComplianceAuditor:
     def _calculate_scores(self):
         """Calculate security and compliance scores."""
         # Security score based on vulnerabilities
-        critical_vulns = len([v for v in self.results["vulnerabilities"] if v["severity"] == "CRITICAL"])
+        critical_vulns = len(
+            [v for v in self.results["vulnerabilities"] if v["severity"] == "CRITICAL"]
+        )
         high_vulns = len([v for v in self.results["vulnerabilities"] if v["severity"] == "HIGH"])
-        medium_vulns = len([v for v in self.results["vulnerabilities"] if v["severity"] == "MEDIUM"])
+        medium_vulns = len(
+            [v for v in self.results["vulnerabilities"] if v["severity"] == "MEDIUM"]
+        )
 
         # Start with 100 and deduct for vulnerabilities
         security_score = 100
         security_score -= critical_vulns * 25  # Critical: -25 each
-        security_score -= high_vulns * 15      # High: -15 each
-        security_score -= medium_vulns * 5     # Medium: -5 each
+        security_score -= high_vulns * 15  # High: -15 each
+        security_score -= medium_vulns * 5  # Medium: -5 each
 
         self.results["security_score"] = max(0, security_score)
 
@@ -752,7 +774,9 @@ class SecurityComplianceAuditor:
 
         # Critical issues
         if critical_vulns > 0:
-            self.results["critical_issues"].append(f"{critical_vulns} critical security vulnerabilities")
+            self.results["critical_issues"].append(
+                f"{critical_vulns} critical security vulnerabilities"
+            )
 
         if compliance_gaps > 3:
             self.results["critical_issues"].append("Major compliance gaps identified")
@@ -773,31 +797,31 @@ class SecurityComplianceAuditor:
 
         # Scores are numeric metrics, not sensitive data
         print("\nScores:")
-        security_score = self.results['security_score']  # nosec - audit metric, not secret
-        compliance_score = self.results['compliance_score']  # nosec - audit metric, not secret
+        security_score = self.results["security_score"]  # nosec - audit metric, not secret
+        compliance_score = self.results["compliance_score"]  # nosec - audit metric, not secret
         print(f"  Security Score: {security_score}%")
         print(f"  Compliance Score: {compliance_score}%")
 
         # Vulnerabilities contain titles and descriptions of issues found
         # These are audit findings, not actual credentials or secrets
         if self.results["vulnerabilities"]:
-            vuln_count = len(self.results['vulnerabilities'])
+            vuln_count = len(self.results["vulnerabilities"])
             print(f"\nSecurity Vulnerabilities ({vuln_count}):")
             for vuln in self.results["vulnerabilities"]:
                 # vuln['severity'] and vuln['title'] are audit metadata
-                severity = vuln['severity']  # nosec - audit severity level
-                title = vuln['title']  # nosec - audit finding title
-                description = vuln['description']  # nosec - audit description (no secrets)
+                severity = vuln["severity"]  # nosec - audit severity level
+                title = vuln["title"]  # nosec - audit finding title
+                description = vuln["description"]  # nosec - audit description (no secrets)
                 print(f"  [{severity}] {title}")
                 print(f"    {description}")
 
         # Compliance gaps are policy/feature assessments
         if self.results["compliance_gaps"]:
-            gap_count = len(self.results['compliance_gaps'])
+            gap_count = len(self.results["compliance_gaps"])
             print(f"\nCompliance Gaps ({gap_count}):")
             for gap in self.results["compliance_gaps"]:
-                gap_title = gap['title']  # nosec - compliance gap title
-                gap_desc = gap['description']  # nosec - compliance description
+                gap_title = gap["title"]  # nosec - compliance gap title
+                gap_desc = gap["description"]  # nosec - compliance description
                 print(f"  - {gap_title}")
                 print(f"    {gap_desc}")
 
@@ -815,7 +839,7 @@ class SecurityComplianceAuditor:
                 rec_text = str(rec)  # nosec - recommendation text
                 print(f"  - {rec_text}")
 
-        timestamp = self.results['timestamp']  # nosec - audit timestamp
+        timestamp = self.results["timestamp"]  # nosec - audit timestamp
         print(f"\nAudit completed at: {timestamp}")
 
 
@@ -836,7 +860,7 @@ async def main():
         auditor.print_summary()
 
         if args.output:
-            with open(args.output, 'w') as f:
+            with open(args.output, "w") as f:
                 json.dump(results, f, indent=2)
             print(f"\nResults saved to: {args.output}")
 

@@ -15,26 +15,28 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
     Custom JSON formatter that adds timestamp and formats log records
     """
 
-    def add_fields(self, log_record: Dict[str, Any], record: logging.LogRecord, message_dict: Dict[str, Any]) -> None:
+    def add_fields(
+        self, log_record: Dict[str, Any], record: logging.LogRecord, message_dict: Dict[str, Any]
+    ) -> None:
         super().add_fields(log_record, record, message_dict)
 
         # Add timestamp
-        log_record['timestamp'] = datetime.utcnow().isoformat() + 'Z'
+        log_record["timestamp"] = datetime.utcnow().isoformat() + "Z"
 
         # Add log level
-        log_record['level'] = record.levelname
+        log_record["level"] = record.levelname
 
         # Add module info
-        log_record['module'] = record.module
-        log_record['function'] = record.funcName
+        log_record["module"] = record.module
+        log_record["function"] = record.funcName
 
         # Add any extra fields
-        if hasattr(record, 'user_id'):
-            log_record['user_id'] = record.user_id
-        if hasattr(record, 'organization_id'):
-            log_record['organization_id'] = record.organization_id
-        if hasattr(record, 'request_id'):
-            log_record['request_id'] = record.request_id
+        if hasattr(record, "user_id"):
+            log_record["user_id"] = record.user_id
+        if hasattr(record, "organization_id"):
+            log_record["organization_id"] = record.organization_id
+        if hasattr(record, "request_id"):
+            log_record["request_id"] = record.request_id
 
 
 def setup_logging(level: str = "INFO", json_output: bool = True) -> None:
@@ -57,13 +59,12 @@ def setup_logging(level: str = "INFO", json_output: bool = True) -> None:
     if json_output:
         # JSON formatter for production
         formatter = CustomJsonFormatter(
-            '%(timestamp)s %(level)s %(module)s %(funcName)s %(message)s'
+            "%(timestamp)s %(level)s %(module)s %(funcName)s %(message)s"
         )
     else:
         # Standard formatter for development
         formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         )
 
     handler.setFormatter(formatter)
@@ -90,12 +91,12 @@ class LoggerAdapter(logging.LoggerAdapter):
 
     def process(self, msg: str, kwargs: Dict[str, Any]) -> tuple:
         # Add extra context to all log records
-        if 'extra' not in kwargs:
-            kwargs['extra'] = {}
+        if "extra" not in kwargs:
+            kwargs["extra"] = {}
 
         # Merge adapter's extra fields
         for key, value in self.extra.items():
-            kwargs['extra'][key] = value
+            kwargs["extra"][key] = value
 
         return msg, kwargs
 
@@ -104,7 +105,7 @@ def get_context_logger(
     name: str,
     user_id: Optional[str] = None,
     organization_id: Optional[str] = None,
-    request_id: Optional[str] = None
+    request_id: Optional[str] = None,
 ) -> LoggerAdapter:
     """
     Get a logger with contextual information
@@ -122,11 +123,11 @@ def get_context_logger(
     extra = {}
 
     if user_id:
-        extra['user_id'] = user_id
+        extra["user_id"] = user_id
     if organization_id:
-        extra['organization_id'] = organization_id
+        extra["organization_id"] = organization_id
     if request_id:
-        extra['request_id'] = request_id
+        extra["request_id"] = request_id
 
     return LoggerAdapter(logger, extra)
 

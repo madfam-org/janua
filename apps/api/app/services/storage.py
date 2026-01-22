@@ -21,6 +21,7 @@ except ImportError:
     class ClientError(Exception):
         def __init__(self, error_response, operation_name):
             self.response = error_response
+
     boto3 = None
 
 try:
@@ -37,6 +38,7 @@ except ImportError:
         @staticmethod
         def from_buffer(data, mime=True):
             return "application/octet-stream"
+
     magic = MockMagic()
 
 logger = logging.getLogger(__name__)
@@ -76,24 +78,26 @@ class StorageService:
 
         if self.storage_type == "s3" and boto3 is not None:
             self.s3_client = boto3.client(
-                's3',
+                "s3",
                 aws_access_key_id=settings.CLOUDFLARE_R2_ACCESS_KEY,
                 aws_secret_access_key=settings.CLOUDFLARE_R2_SECRET_KEY,
-                endpoint_url=f"https://{settings.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+                endpoint_url=f"https://{settings.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com",
             )
             self.bucket_name = settings.CLOUDFLARE_R2_BUCKET
         else:
             # Local storage (or fallback when S3 dependencies unavailable)
-            self.upload_dir = getattr(settings, 'UPLOAD_DIR', '/tmp/uploads')
+            self.upload_dir = getattr(settings, "UPLOAD_DIR", "/tmp/uploads")
             os.makedirs(self.upload_dir, exist_ok=True)
 
     def _determine_storage_type(self) -> str:
         """Determine which storage backend to use"""
-        if (boto3 is not None and
-            hasattr(settings, 'CLOUDFLARE_R2_ACCESS_KEY') and
-            hasattr(settings, 'CLOUDFLARE_R2_SECRET_KEY') and
-            settings.CLOUDFLARE_R2_ACCESS_KEY and
-            settings.CLOUDFLARE_R2_SECRET_KEY):
+        if (
+            boto3 is not None
+            and hasattr(settings, "CLOUDFLARE_R2_ACCESS_KEY")
+            and hasattr(settings, "CLOUDFLARE_R2_SECRET_KEY")
+            and settings.CLOUDFLARE_R2_ACCESS_KEY
+            and settings.CLOUDFLARE_R2_SECRET_KEY
+        ):
             return "s3"
         return "local"
 
@@ -104,7 +108,7 @@ class StorageService:
         content_type: Optional[str] = None,
         directory: str = "uploads",
         user_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Upload a file to storage
@@ -131,21 +135,12 @@ class StorageService:
 
             # Get or guess content type
             if not content_type:
-                content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+                content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
 
             if self.storage_type == "s3":
-                url = await self._upload_to_s3(
-                    file_content,
-                    file_path,
-                    content_type,
-                    metadata
-                )
+                url = await self._upload_to_s3(file_content, file_path, content_type, metadata)
             else:
-                url = await self._upload_to_local(
-                    file_content,
-                    file_path,
-                    content_type
-                )
+                url = await self._upload_to_local(file_content, file_path, content_type)
 
             return {
                 "url": url,
@@ -156,7 +151,7 @@ class StorageService:
                 "content_type": content_type,
                 "hash": file_hash,
                 "storage_type": self.storage_type,
-                "uploaded_at": datetime.utcnow().isoformat()
+                "uploaded_at": datetime.utcnow().isoformat(),
             }
 
         except Exception as e:
@@ -168,13 +163,13 @@ class StorageService:
         file_content: bytes,
         file_path: str,
         content_type: str,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Upload file to S3/R2"""
         try:
             # Prepare metadata
             s3_metadata = metadata or {}
-            s3_metadata['upload_time'] = datetime.utcnow().isoformat()
+            s3_metadata["upload_time"] = datetime.utcnow().isoformat()
 
             # Upload to S3
             self.s3_client.put_object(
@@ -182,7 +177,7 @@ class StorageService:
                 Key=file_path,
                 Body=file_content,
                 ContentType=content_type,
-                Metadata=s3_metadata
+                Metadata=s3_metadata,
             )
 
             # Generate URL using secure endpoint validation
@@ -200,12 +195,7 @@ class StorageService:
             logger.error(f"S3 upload error: {e}")
             raise
 
-    async def _upload_to_local(
-        self,
-        file_content: bytes,
-        file_path: str,
-        content_type: str
-    ) -> str:
+    async def _upload_to_local(self, file_content: bytes, file_path: str, content_type: str) -> str:
         """Upload file to local storage"""
         try:
             # Create full path
@@ -215,7 +205,7 @@ class StorageService:
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
 
             # Write file
-            async with aiofiles.open(full_path, 'wb') as f:
+            async with aiofiles.open(full_path, "wb") as f:
                 await f.write(file_content)
 
             # Return URL path
@@ -239,10 +229,7 @@ class StorageService:
     async def _delete_from_s3(self, file_path: str) -> bool:
         """Delete file from S3"""
         try:
-            self.s3_client.delete_object(
-                Bucket=self.bucket_name,
-                Key=file_path
-            )
+            self.s3_client.delete_object(Bucket=self.bucket_name, Key=file_path)
             return True
         except ClientError as e:
             logger.error(f"S3 deletion error: {e}")
@@ -273,11 +260,8 @@ class StorageService:
     async def _get_from_s3(self, file_path: str) -> Optional[bytes]:
         """Get file from S3"""
         try:
-            response = self.s3_client.get_object(
-                Bucket=self.bucket_name,
-                Key=file_path
-            )
-            return response['Body'].read()
+            response = self.s3_client.get_object(Bucket=self.bucket_name, Key=file_path)
+            return response["Body"].read()
         except ClientError as e:
             logger.error(f"S3 retrieval error: {e}")
             return None
@@ -289,49 +273,38 @@ class StorageService:
             if not os.path.exists(full_path):
                 return None
 
-            async with aiofiles.open(full_path, 'rb') as f:
+            async with aiofiles.open(full_path, "rb") as f:
                 return await f.read()
         except Exception as e:
             logger.error(f"Local retrieval error: {e}")
             return None
 
-    async def generate_presigned_url(
-        self,
-        file_path: str,
-        expires_in: int = 3600
-    ) -> Optional[str]:
+    async def generate_presigned_url(self, file_path: str, expires_in: int = 3600) -> Optional[str]:
         """Generate presigned URL for direct upload/download"""
         if self.storage_type != "s3":
             return None
 
         try:
             url = self.s3_client.generate_presigned_url(
-                'get_object',
-                Params={
-                    'Bucket': self.bucket_name,
-                    'Key': file_path
-                },
-                ExpiresIn=expires_in
+                "get_object",
+                Params={"Bucket": self.bucket_name, "Key": file_path},
+                ExpiresIn=expires_in,
             )
             return url
         except ClientError as e:
             logger.error(f"Presigned URL generation error: {e}")
             return None
 
-    def _validate_file_type(
-        self,
-        file_content: bytes,
-        claimed_type: Optional[str] = None
-    ) -> bool:
+    def _validate_file_type(self, file_content: bytes, claimed_type: Optional[str] = None) -> bool:
         """Validate file type for security"""
         # Allowed MIME types for avatars
         allowed_types = {
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/gif',
-            'image/webp',
-            'image/svg+xml'
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "image/gif",
+            "image/webp",
+            "image/svg+xml",
         }
 
         # Use python-magic to detect actual file type
@@ -346,7 +319,9 @@ class StorageService:
 
             # If claimed type is provided, verify it matches
             if claimed_type and claimed_type != detected_type:
-                logger.warning(f"File type mismatch: claimed {claimed_type}, detected {detected_type}")
+                logger.warning(
+                    f"File type mismatch: claimed {claimed_type}, detected {detected_type}"
+                )
                 return False
 
             return True
@@ -362,11 +337,7 @@ class StorageService:
         return len(file_content) <= max_size_bytes
 
     async def optimize_image(
-        self,
-        file_content: bytes,
-        max_width: int = 512,
-        max_height: int = 512,
-        quality: int = 85
+        self, file_content: bytes, max_width: int = 512, max_height: int = 512, quality: int = 85
     ) -> bytes:
         """Optimize image for storage (resize, compress)"""
         try:
@@ -377,9 +348,9 @@ class StorageService:
             img = Image.open(io.BytesIO(file_content))
 
             # Convert RGBA to RGB if necessary
-            if img.mode in ('RGBA', 'LA'):
-                background = Image.new('RGB', img.size, (255, 255, 255))
-                background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+            if img.mode in ("RGBA", "LA"):
+                background = Image.new("RGB", img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
                 img = background
 
             # Resize if larger than max dimensions
@@ -387,7 +358,7 @@ class StorageService:
 
             # Save optimized image
             output = io.BytesIO()
-            img.save(output, format='JPEG', quality=quality, optimize=True)
+            img.save(output, format="JPEG", quality=quality, optimize=True)
             output.seek(0)
 
             return output.getvalue()
@@ -407,10 +378,7 @@ class AvatarService:
 
     @staticmethod
     async def upload_avatar(
-        user_id: str,
-        file_content: bytes,
-        filename: str,
-        content_type: Optional[str] = None
+        user_id: str, file_content: bytes, filename: str, content_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """Upload user avatar with optimization"""
         try:
@@ -424,23 +392,17 @@ class AvatarService:
 
             # Optimize image
             optimized_content = await storage_service.optimize_image(
-                file_content,
-                max_width=512,
-                max_height=512,
-                quality=85
+                file_content, max_width=512, max_height=512, quality=85
             )
 
             # Upload to storage
             result = await storage_service.upload_file(
                 file_content=optimized_content,
                 filename=filename,
-                content_type=content_type or 'image/jpeg',
+                content_type=content_type or "image/jpeg",
                 directory="avatars",
                 user_id=user_id,
-                metadata={
-                    "type": "avatar",
-                    "user_id": user_id
-                }
+                metadata={"type": "avatar", "user_id": user_id},
             )
 
             return result

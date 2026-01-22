@@ -29,7 +29,7 @@ class APIException(Exception):
         message: str,
         status_code: int = 500,
         error_code: str = "INTERNAL_ERROR",
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
     ):
         self.message = message
         self.status_code = status_code
@@ -46,7 +46,7 @@ class AuthenticationError(APIException):
             message=message,
             status_code=status.HTTP_401_UNAUTHORIZED,
             error_code="AUTHENTICATION_FAILED",
-            details=details
+            details=details,
         )
 
 
@@ -58,7 +58,7 @@ class AuthorizationError(APIException):
             message=message,
             status_code=status.HTTP_403_FORBIDDEN,
             error_code="ACCESS_DENIED",
-            details=details
+            details=details,
         )
 
 
@@ -70,7 +70,7 @@ class ValidationError(APIException):
             message=message,
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             error_code="VALIDATION_ERROR",
-            details=details
+            details=details,
         )
 
 
@@ -82,7 +82,7 @@ class BusinessLogicError(APIException):
             message=message,
             status_code=status.HTTP_400_BAD_REQUEST,
             error_code="BUSINESS_LOGIC_ERROR",
-            details=details
+            details=details,
         )
 
 
@@ -94,19 +94,21 @@ class DatabaseError(APIException):
             message=message,
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             error_code="DATABASE_ERROR",
-            details=details
+            details=details,
         )
 
 
 class ExternalServiceError(APIException):
     """External service errors"""
 
-    def __init__(self, message: str = "External service unavailable", details: Optional[Dict] = None):
+    def __init__(
+        self, message: str = "External service unavailable", details: Optional[Dict] = None
+    ):
         super().__init__(
             message=message,
             status_code=status.HTTP_502_BAD_GATEWAY,
             error_code="EXTERNAL_SERVICE_ERROR",
-            details=details
+            details=details,
         )
 
 
@@ -136,7 +138,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                 "Request completed",
                 **logger_context,
                 status_code=response.status_code,
-                duration_ms=round(duration_ms, 2)
+                duration_ms=round(duration_ms, 2),
             )
 
             return response
@@ -155,7 +157,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                 error_message=str(exc),
                 status_code=error_response.status_code,
                 duration_ms=round(duration_ms, 2),
-                traceback=traceback.format_exc() if error_response.status_code >= 500 else None
+                traceback=traceback.format_exc() if error_response.status_code >= 500 else None,
             )
 
             return error_response
@@ -171,13 +173,10 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                     "message": exc.message,
                     "details": exc.details,
                     "request_id": request_id,
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
             }
-            return JSONResponse(
-                status_code=exc.status_code,
-                content=error_data
-            )
+            return JSONResponse(status_code=exc.status_code, content=error_data)
 
         # Handle legacy APIException (from this file) for backward compatibility
         elif isinstance(exc, APIException):
@@ -188,13 +187,10 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                     "message": exc.message,
                     "details": exc.details,
                     "request_id": request_id,
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
             }
-            return JSONResponse(
-                status_code=exc.status_code,
-                content=error_data
-            )
+            return JSONResponse(status_code=exc.status_code, content=error_data)
 
         elif isinstance(exc, HTTPException):
             # FastAPI HTTP exceptions
@@ -203,23 +199,22 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                     "code": "HTTP_ERROR",
                     "message": exc.detail,
                     "request_id": request_id,
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
             }
-            return JSONResponse(
-                status_code=exc.status_code,
-                content=error_data
-            )
+            return JSONResponse(status_code=exc.status_code, content=error_data)
 
         elif isinstance(exc, RequestValidationError):
             # Pydantic validation errors
             validation_errors = []
             for error in exc.errors():
-                validation_errors.append({
-                    "field": ".".join(str(loc) for loc in error["loc"]),
-                    "message": error["msg"],
-                    "type": error["type"]
-                })
+                validation_errors.append(
+                    {
+                        "field": ".".join(str(loc) for loc in error["loc"]),
+                        "message": error["msg"],
+                        "type": error["type"],
+                    }
+                )
 
             error_data = {
                 "error": {
@@ -227,12 +222,11 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                     "message": "Request validation failed",
                     "details": {"validation_errors": validation_errors},
                     "request_id": request_id,
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
             }
             return JSONResponse(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                content=error_data
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=error_data
             )
 
         elif isinstance(exc, SQLAlchemyError):
@@ -242,13 +236,10 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                     "code": "DATABASE_ERROR",
                     "message": "Database operation failed",
                     "request_id": request_id,
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
             }
-            return JSONResponse(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content=error_data
-            )
+            return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=error_data)
 
         else:
             # Unexpected errors
@@ -257,12 +248,11 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                     "code": "INTERNAL_ERROR",
                     "message": "An unexpected error occurred",
                     "request_id": request_id,
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
             }
             return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content=error_data
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=error_data
             )
 
     def _get_client_ip(self, request: Request) -> str:
@@ -289,24 +279,25 @@ async def api_exception_handler(request: Request, exc: APIException) -> JSONResp
             "message": exc.message,
             "details": exc.details,
             "request_id": id(request),
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
     }
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=error_data
-    )
+    return JSONResponse(status_code=exc.status_code, content=error_data)
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
     """Handler for validation errors"""
     validation_errors = []
     for error in exc.errors():
-        validation_errors.append({
-            "field": ".".join(str(loc) for loc in error["loc"]),
-            "message": error["msg"],
-            "type": error["type"]
-        })
+        validation_errors.append(
+            {
+                "field": ".".join(str(loc) for loc in error["loc"]),
+                "message": error["msg"],
+                "type": error["type"],
+            }
+        )
 
     error_data = {
         "error": {
@@ -314,13 +305,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "message": "Request validation failed",
             "details": {"validation_errors": validation_errors},
             "request_id": id(request),
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
     }
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content=error_data
-    )
+    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=error_data)
 
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
@@ -330,13 +318,10 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
             "code": "HTTP_ERROR",
             "message": exc.detail,
             "request_id": id(request),
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
     }
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=error_data
-    )
+    return JSONResponse(status_code=exc.status_code, content=error_data)
 
 
 async def janua_exception_handler(request: Request, exc: JanuaAPIException) -> JSONResponse:
@@ -347,7 +332,7 @@ async def janua_exception_handler(request: Request, exc: JanuaAPIException) -> J
             "message": exc.message,
             "details": exc.details,
             "request_id": id(request),
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
     }
 
@@ -359,10 +344,7 @@ async def janua_exception_handler(request: Request, exc: JanuaAPIException) -> J
         details=exc.details,
         status_code=exc.status_code,
         request_id=id(request),
-        path=str(request.url)
+        path=str(request.url),
     )
 
-    return JSONResponse(
-        status_code=exc.status_code,
-        content=error_data
-    )
+    return JSONResponse(status_code=exc.status_code, content=error_data)

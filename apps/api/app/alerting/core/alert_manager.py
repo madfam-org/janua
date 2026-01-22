@@ -50,7 +50,7 @@ class AlertManager:
             self.redis_client = aioredis.from_url(
                 f"redis://{getattr(settings, 'REDIS_HOST', 'localhost')}:{getattr(settings, 'REDIS_PORT', 6379)}/4",
                 encoding="utf-8",
-                decode_responses=True
+                decode_responses=True,
             )
             await self.redis_client.ping()
             logger.info("Alert manager Redis connection initialized")
@@ -74,7 +74,7 @@ class AlertManager:
                 comparison_operator=">",
                 evaluation_window=300,  # 5 minutes
                 trigger_count=3,
-                channels=[AlertChannel.EMAIL, AlertChannel.SLACK]
+                channels=[AlertChannel.EMAIL, AlertChannel.SLACK],
             ),
             AlertRule(
                 rule_id="high_error_rate",
@@ -86,7 +86,7 @@ class AlertManager:
                 comparison_operator=">",
                 evaluation_window=300,
                 trigger_count=2,
-                channels=[AlertChannel.EMAIL, AlertChannel.SLACK]
+                channels=[AlertChannel.EMAIL, AlertChannel.SLACK],
             ),
             AlertRule(
                 rule_id="low_disk_space",
@@ -98,7 +98,7 @@ class AlertManager:
                 comparison_operator=">",
                 evaluation_window=600,  # 10 minutes
                 trigger_count=1,
-                channels=[AlertChannel.EMAIL]
+                channels=[AlertChannel.EMAIL],
             ),
             AlertRule(
                 rule_id="high_memory_usage",
@@ -110,7 +110,7 @@ class AlertManager:
                 comparison_operator=">",
                 evaluation_window=300,
                 trigger_count=2,
-                channels=[AlertChannel.EMAIL, AlertChannel.SLACK]
+                channels=[AlertChannel.EMAIL, AlertChannel.SLACK],
             ),
             AlertRule(
                 rule_id="database_connection_failure",
@@ -122,7 +122,7 @@ class AlertManager:
                 comparison_operator=">",
                 evaluation_window=60,
                 trigger_count=1,
-                channels=[AlertChannel.EMAIL, AlertChannel.SLACK]
+                channels=[AlertChannel.EMAIL, AlertChannel.SLACK],
             ),
             AlertRule(
                 rule_id="security_events",
@@ -134,8 +134,8 @@ class AlertManager:
                 comparison_operator=">",
                 evaluation_window=300,
                 trigger_count=1,
-                channels=[AlertChannel.EMAIL, AlertChannel.SLACK]
-            )
+                channels=[AlertChannel.EMAIL, AlertChannel.SLACK],
+            ),
         ]
 
         for rule in default_rules:
@@ -154,20 +154,22 @@ class AlertManager:
                 if rule_data:
                     # Reconstruct AlertRule object
                     rule = AlertRule(
-                        rule_id=rule_data['rule_id'],
-                        name=rule_data['name'],
-                        description=rule_data['description'],
-                        severity=AlertSeverity(rule_data['severity']),
-                        metric_name=rule_data['metric_name'],
-                        threshold_value=float(rule_data['threshold_value']),
-                        comparison_operator=rule_data['comparison_operator'],
-                        evaluation_window=int(rule_data['evaluation_window']),
-                        trigger_count=int(rule_data.get('trigger_count', 1)),
-                        cooldown_period=int(rule_data.get('cooldown_period', 300)),
-                        enabled=rule_data.get('enabled', 'true').lower() == 'true',
-                        channels=[AlertChannel(ch) for ch in json.loads(rule_data.get('channels', '[]'))],
-                        conditions=json.loads(rule_data.get('conditions', '{}')),
-                        metadata=json.loads(rule_data.get('metadata', '{}'))
+                        rule_id=rule_data["rule_id"],
+                        name=rule_data["name"],
+                        description=rule_data["description"],
+                        severity=AlertSeverity(rule_data["severity"]),
+                        metric_name=rule_data["metric_name"],
+                        threshold_value=float(rule_data["threshold_value"]),
+                        comparison_operator=rule_data["comparison_operator"],
+                        evaluation_window=int(rule_data["evaluation_window"]),
+                        trigger_count=int(rule_data.get("trigger_count", 1)),
+                        cooldown_period=int(rule_data.get("cooldown_period", 300)),
+                        enabled=rule_data.get("enabled", "true").lower() == "true",
+                        channels=[
+                            AlertChannel(ch) for ch in json.loads(rule_data.get("channels", "[]"))
+                        ],
+                        conditions=json.loads(rule_data.get("conditions", "{}")),
+                        metadata=json.loads(rule_data.get("metadata", "{}")),
                     )
                     self.alert_rules[rule_id] = rule
 
@@ -177,12 +179,14 @@ class AlertManager:
                 channel_data = await self.redis_client.hgetall(f"alert:channel:{channel_id}")
                 if channel_data:
                     channel = NotificationChannel(
-                        channel_id=channel_data['channel_id'],
-                        channel_type=AlertChannel(channel_data['channel_type']),
-                        name=channel_data['name'],
-                        config=json.loads(channel_data['config']),
-                        enabled=channel_data.get('enabled', 'true').lower() == 'true',
-                        rate_limit=int(channel_data['rate_limit']) if channel_data.get('rate_limit') else None
+                        channel_id=channel_data["channel_id"],
+                        channel_type=AlertChannel(channel_data["channel_type"]),
+                        name=channel_data["name"],
+                        config=json.loads(channel_data["config"]),
+                        enabled=channel_data.get("enabled", "true").lower() == "true",
+                        rate_limit=int(channel_data["rate_limit"])
+                        if channel_data.get("rate_limit")
+                        else None,
                     )
                     self.notification_channels[channel_id] = channel
 
@@ -265,7 +269,7 @@ class AlertManager:
                 metric_value=current_value,
                 threshold_value=rule.threshold_value,
                 triggered_at=datetime.now(),
-                context=await self._get_alert_context(rule, current_value)
+                context=await self._get_alert_context(rule, current_value),
             )
 
             await self._trigger_alert(alert, rule)
@@ -312,14 +316,16 @@ class AlertManager:
         context = {
             "metric_name": rule.metric_name,
             "evaluation_window": rule.evaluation_window,
-            "comparison": f"{current_value} {rule.comparison_operator} {rule.threshold_value}"
+            "comparison": f"{current_value} {rule.comparison_operator} {rule.threshold_value}",
         }
 
         # Add rule-specific context
         if rule.metric_name == "avg_response_time":
             # Add slowest endpoints
             perf_summary = await apm_collector.get_performance_summary("all", hours=1)
-            context["slowest_endpoints"] = perf_summary.get("performance", {}).get("slowest_endpoints", [])[:5]
+            context["slowest_endpoints"] = perf_summary.get("performance", {}).get(
+                "slowest_endpoints", []
+            )[:5]
 
         elif rule.metric_name == "error_rate":
             # Add error distribution
@@ -342,11 +348,13 @@ class AlertManager:
             # Set cooldown
             await self._set_cooldown(rule.rule_id, rule.cooldown_period)
 
-            logger.info("Alert triggered",
-                       alert_id=alert.alert_id,
-                       rule_id=rule.rule_id,
-                       severity=alert.severity.value,
-                       metric_value=alert.metric_value)
+            logger.info(
+                "Alert triggered",
+                alert_id=alert.alert_id,
+                rule_id=rule.rule_id,
+                severity=alert.severity.value,
+                metric_value=alert.metric_value,
+            )
 
         except Exception as e:
             logger.error("Failed to trigger alert", alert_id=alert.alert_id, error=str(e))
@@ -356,7 +364,8 @@ class AlertManager:
         try:
             # Find configured channels of this type
             matching_channels = [
-                ch for ch in self.notification_channels.values()
+                ch
+                for ch in self.notification_channels.values()
                 if ch.channel_type == channel_type and ch.enabled
             ]
 
@@ -382,14 +391,18 @@ class AlertManager:
                     success = await self.notification_sender.send_discord(channel, alert)
 
                 if success:
-                    alert.notifications_sent.append(f"{channel.channel_type.value}:{channel.channel_id}")
+                    alert.notifications_sent.append(
+                        f"{channel.channel_type.value}:{channel.channel_id}"
+                    )
                     await self._record_notification(channel)
 
         except Exception as e:
-            logger.error("Failed to send notification",
-                        alert_id=alert.alert_id,
-                        channel_type=channel_type.value,
-                        error=str(e))
+            logger.error(
+                "Failed to send notification",
+                alert_id=alert.alert_id,
+                channel_type=channel_type.value,
+                error=str(e),
+            )
 
     async def _check_rate_limit(self, channel: NotificationChannel) -> bool:
         """Check if channel is within rate limit"""
@@ -436,8 +449,14 @@ class AlertManager:
 
     async def _get_active_alert(self, rule_id: str) -> Optional[Alert]:
         """Get active alert for rule"""
-        return next((alert for alert in self.active_alerts.values()
-                    if alert.rule_id == rule_id and alert.status == AlertStatus.TRIGGERED), None)
+        return next(
+            (
+                alert
+                for alert in self.active_alerts.values()
+                if alert.rule_id == rule_id and alert.status == AlertStatus.TRIGGERED
+            ),
+            None,
+        )
 
     async def _store_alert(self, alert: Alert):
         """Store alert in Redis"""
@@ -456,7 +475,7 @@ class AlertManager:
                 "threshold_value": alert.threshold_value,
                 "triggered_at": alert.triggered_at.isoformat(),
                 "context": json.dumps(alert.context),
-                "notifications_sent": json.dumps(alert.notifications_sent)
+                "notifications_sent": json.dumps(alert.notifications_sent),
             }
 
             await self.redis_client.hset(f"alert:instance:{alert.alert_id}", mapping=alert_data)
@@ -479,9 +498,9 @@ class AlertManager:
 
                 await self._store_alert(alert)
 
-                logger.info("Alert acknowledged",
-                           alert_id=alert_id,
-                           acknowledged_by=acknowledged_by)
+                logger.info(
+                    "Alert acknowledged", alert_id=alert_id, acknowledged_by=acknowledged_by
+                )
                 return True
 
             return False
@@ -517,7 +536,9 @@ class AlertManager:
 
         try:
             cutoff_time = time.time() - (hours * 3600)
-            alert_ids = await self.redis_client.zrangebyscore("alerts:timeline", cutoff_time, "+inf")
+            alert_ids = await self.redis_client.zrangebyscore(
+                "alerts:timeline", cutoff_time, "+inf"
+            )
 
             alerts = []
             for alert_id in alert_ids:
@@ -527,9 +548,9 @@ class AlertManager:
 
             # Statistics
             total_alerts = len(alerts)
-            severity_counts = Counter(alert['severity'] for alert in alerts)
-            status_counts = Counter(alert['status'] for alert in alerts)
-            rule_counts = Counter(alert['rule_id'] for alert in alerts)
+            severity_counts = Counter(alert["severity"] for alert in alerts)
+            status_counts = Counter(alert["status"] for alert in alerts)
+            rule_counts = Counter(alert["rule_id"] for alert in alerts)
 
             return {
                 "time_range_hours": hours,
@@ -537,7 +558,7 @@ class AlertManager:
                 "severity_distribution": dict(severity_counts),
                 "status_distribution": dict(status_counts),
                 "top_triggered_rules": dict(rule_counts.most_common(10)),
-                "active_alerts": len(self.active_alerts)
+                "active_alerts": len(self.active_alerts),
             }
 
         except Exception as e:

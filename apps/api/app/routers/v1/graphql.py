@@ -20,8 +20,8 @@ async def get_context(
     request: Request = None,
     websocket: WebSocket = None,
     background_tasks: BackgroundTasks = None,
-    db = Depends(get_db),
-    current_user = Depends(get_current_user_optional)
+    db=Depends(get_db),
+    current_user=Depends(get_current_user_optional),
 ) -> dict:
     """
     Create context for GraphQL resolvers.
@@ -32,16 +32,18 @@ async def get_context(
         "tenant_id": str(current_user.tenant_id) if current_user else None,
         "request": request,
         "websocket": websocket,
-        "background_tasks": background_tasks
+        "background_tasks": background_tasks,
     }
-    
+
     # Add request metadata if available
     if request:
-        context.update({
-            "ip_address": request.client.host if request.client else None,
-            "user_agent": request.headers.get("user-agent")
-        })
-    
+        context.update(
+            {
+                "ip_address": request.client.host if request.client else None,
+                "user_agent": request.headers.get("user-agent"),
+            }
+        )
+
     return context
 
 
@@ -67,8 +69,9 @@ async def graphql_playground():
     """
     if not settings.DEBUG:
         return HTMLResponse("GraphQL Playground is disabled in production", status_code=404)
-    
-    return HTMLResponse("""
+
+    return HTMLResponse(
+        """
     <!DOCTYPE html>
     <html>
     <head>
@@ -97,7 +100,8 @@ async def graphql_playground():
         </script>
     </body>
     </html>
-    """)
+    """
+    )
 
 
 # GraphQL schema introspection endpoint (for tooling)
@@ -106,9 +110,7 @@ async def get_graphql_schema():
     """
     Get GraphQL schema in SDL format.
     """
-    return {
-        "schema": str(schema)
-    }
+    return {"schema": str(schema)}
 
 
 # Health check for GraphQL endpoint
@@ -122,5 +124,5 @@ async def graphql_health():
         "endpoint": "/graphql",
         "playground": "/graphql-playground" if settings.DEBUG else None,
         "subscriptions": "enabled",
-        "introspection": settings.DEBUG
+        "introspection": settings.DEBUG,
     }

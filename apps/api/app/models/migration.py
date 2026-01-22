@@ -7,6 +7,7 @@ import enum
 
 from . import Base
 
+
 class MigrationStatus(str, enum.Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
@@ -14,12 +15,14 @@ class MigrationStatus(str, enum.Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
 
+
 class MigrationProvider(str, enum.Enum):
     AUTH0 = "auth0"
     OKTA = "okta"
     FIREBASE = "firebase"
     COGNITO = "cognito"
     CUSTOM = "custom"
+
 
 class MigrationJob(Base):
     __tablename__ = "migration_jobs"
@@ -35,6 +38,7 @@ class MigrationJob(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class MigratedUser(Base):
     __tablename__ = "migrated_users"
 
@@ -46,6 +50,7 @@ class MigratedUser(Base):
     migration_metadata = Column(JSONB, default={})
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
 class MigrationLog(Base):
     __tablename__ = "migration_logs"
 
@@ -55,6 +60,7 @@ class MigrationLog(Base):
     message = Column(Text)
     details = Column(JSONB, default={})
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
 class MigrationTemplate(Base):
     __tablename__ = "migration_templates"

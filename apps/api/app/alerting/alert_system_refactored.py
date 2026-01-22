@@ -20,11 +20,12 @@ async def initialize_alerting():
     await alert_manager.start_monitoring()
 
 
-async def trigger_manual_alert(title: str, description: str, severity: AlertSeverity,
-                             context: Optional[Dict[str, Any]] = None) -> str:
+async def trigger_manual_alert(
+    title: str, description: str, severity: AlertSeverity, context: Optional[Dict[str, Any]] = None
+) -> str:
     """Trigger a manual alert"""
     from .core.alert_types import AlertChannel
-    
+
     alert = Alert(
         alert_id=str(uuid.uuid4()),
         rule_id="manual",
@@ -35,7 +36,7 @@ async def trigger_manual_alert(title: str, description: str, severity: AlertSeve
         metric_value=0,
         threshold_value=0,
         triggered_at=datetime.now(),
-        context=context or {}
+        context=context or {},
     )
 
     # Send notifications to all configured channels
@@ -51,9 +52,11 @@ async def trigger_manual_alert(title: str, description: str, severity: AlertSeve
 async def get_alert_health() -> Dict[str, Any]:
     """Get alerting system health"""
     return {
-        "status": "healthy" if alert_manager.evaluation_task and not alert_manager.evaluation_task.done() else "stopped",
+        "status": "healthy"
+        if alert_manager.evaluation_task and not alert_manager.evaluation_task.done()
+        else "stopped",
         "active_alerts": len(alert_manager.active_alerts),
         "configured_rules": len(alert_manager.alert_rules),
         "configured_channels": len(alert_manager.notification_channels),
-        "redis_connected": alert_manager.redis_client is not None
+        "redis_connected": alert_manager.redis_client is not None,
     }

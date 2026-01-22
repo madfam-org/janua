@@ -25,6 +25,7 @@ settings = get_settings()
 
 class PolicyType(str, Enum):
     """Types of security and compliance policies"""
+
     SECURITY_POLICY = "security_policy"
     DATA_PROTECTION = "data_protection"
     ACCESS_CONTROL = "access_control"
@@ -41,6 +42,7 @@ class PolicyType(str, Enum):
 
 class PolicyStatus(str, Enum):
     """Policy lifecycle status"""
+
     DRAFT = "draft"
     REVIEW = "review"
     APPROVED = "approved"
@@ -51,6 +53,7 @@ class PolicyStatus(str, Enum):
 
 class AcknowledgmentStatus(str, Enum):
     """Policy acknowledgment status"""
+
     PENDING = "pending"
     ACKNOWLEDGED = "acknowledged"
     OVERDUE = "overdue"
@@ -59,6 +62,7 @@ class AcknowledgmentStatus(str, Enum):
 
 class PolicyViolationType(str, Enum):
     """Types of policy violations"""
+
     ACCESS_VIOLATION = "access_violation"
     DATA_MISUSE = "data_misuse"
     SECURITY_BREACH = "security_breach"
@@ -70,6 +74,7 @@ class PolicyViolationType(str, Enum):
 
 class ViolationSeverity(str, Enum):
     """Severity levels for policy violations"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -79,6 +84,7 @@ class ViolationSeverity(str, Enum):
 @dataclass
 class SecurityPolicy:
     """Security policy with version control and compliance tracking"""
+
     policy_id: str
     title: str
     description: str
@@ -134,6 +140,7 @@ class SecurityPolicy:
 @dataclass
 class PolicyAcknowledgment:
     """User acknowledgment of policy"""
+
     acknowledgment_id: str
     policy_id: str
     policy_version: str
@@ -171,6 +178,7 @@ class PolicyAcknowledgment:
 @dataclass
 class PolicyViolation:
     """Policy violation incident"""
+
     violation_id: str
     policy_id: str
     policy_version: str
@@ -247,13 +255,13 @@ class PolicyManager:
         effective_date: Optional[datetime] = None,
         expiry_date: Optional[datetime] = None,
         tags: List[str] = None,
-        categories: List[str] = None
+        categories: List[str] = None,
     ) -> str:
         """Create a new security policy"""
 
         policy_id = str(uuid.uuid4())
         version = "1.0"
-        content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
         created_at = datetime.utcnow()
 
         policy = SecurityPolicy(
@@ -293,7 +301,7 @@ class PolicyManager:
             references=[],
             created_at=created_at,
             updated_at=created_at,
-            published_at=None
+            published_at=None,
         )
 
         # Store policy
@@ -314,8 +322,8 @@ class PolicyManager:
                 "policy_type": policy_type.value,
                 "version": version,
                 "mandatory": mandatory,
-                "requires_training": requires_training
-            }
+                "requires_training": requires_training,
+            },
         )
 
         # Collect policy as evidence
@@ -331,16 +339,19 @@ class PolicyManager:
             metadata={
                 "policy_type": policy_type.value,
                 "version": version,
-                "content_hash": content_hash
-            }
+                "content_hash": content_hash,
+            },
         )
 
-        logger.info(f"Policy created: {policy_id}", extra={
-            "title": title,
-            "policy_type": policy_type.value,
-            "owner_id": owner_id,
-            "version": version
-        })
+        logger.info(
+            f"Policy created: {policy_id}",
+            extra={
+                "title": title,
+                "policy_type": policy_type.value,
+                "owner_id": owner_id,
+                "version": version,
+            },
+        )
 
         return policy_id
 
@@ -349,7 +360,7 @@ class PolicyManager:
         policy_id: str,
         approver_id: str,
         approval_comments: str = None,
-        auto_publish: bool = True
+        auto_publish: bool = True,
     ) -> bool:
         """Approve policy for publication"""
 
@@ -387,8 +398,8 @@ class PolicyManager:
             raw_data={
                 "approved_by": approver_id,
                 "auto_published": auto_publish,
-                "approval_comments": approval_comments
-            }
+                "approval_comments": approval_comments,
+            },
         )
 
         # If published, start acknowledgment process
@@ -398,10 +409,7 @@ class PolicyManager:
         return True
 
     async def publish_policy(
-        self,
-        policy_id: str,
-        published_by: str,
-        notification_groups: List[str] = None
+        self, policy_id: str, published_by: str, notification_groups: List[str] = None
     ) -> bool:
         """Publish approved policy and start acknowledgment process"""
 
@@ -432,8 +440,8 @@ class PolicyManager:
             raw_data={
                 "published_by": published_by,
                 "effective_date": policy.effective_date.isoformat(),
-                "acknowledgment_required": policy.acknowledgment_required
-            }
+                "acknowledgment_required": policy.acknowledgment_required,
+            },
         )
 
         # Start acknowledgment process
@@ -453,7 +461,7 @@ class PolicyManager:
         content: str = None,
         review_date: datetime = None,
         expiry_date: datetime = None,
-        change_summary: str = None
+        change_summary: str = None,
     ) -> str:
         """Update existing policy and create new version"""
 
@@ -462,7 +470,7 @@ class PolicyManager:
             raise ValueError(f"Policy not found: {policy_id}")
 
         # Calculate new version
-        current_version_parts = policy.version.split('.')
+        current_version_parts = policy.version.split(".")
         major, minor = int(current_version_parts[0]), int(current_version_parts[1])
 
         # Major version change if content changes, minor for other updates
@@ -481,7 +489,7 @@ class PolicyManager:
             content=content or policy.content,
             version=new_version,
             previous_version=policy.version,
-            content_hash=hashlib.sha256((content or policy.content).encode('utf-8')).hexdigest(),
+            content_hash=hashlib.sha256((content or policy.content).encode("utf-8")).hexdigest(),
             effective_date=policy.effective_date,
             expiry_date=expiry_date or policy.expiry_date,
             review_date=review_date or policy.review_date,
@@ -509,7 +517,7 @@ class PolicyManager:
             references=policy.references,
             created_at=policy.created_at,
             updated_at=datetime.utcnow(),
-            published_at=None
+            published_at=None,
         )
 
         await self._store_policy(updated_policy)
@@ -528,8 +536,8 @@ class PolicyManager:
                 "previous_version": policy.version,
                 "new_version": new_version,
                 "change_summary": change_summary,
-                "content_changed": content is not None
-            }
+                "content_changed": content is not None,
+            },
         )
 
         return new_version
@@ -541,7 +549,7 @@ class PolicyManager:
         acknowledgment_method: str = "portal",
         ip_address: str = None,
         user_agent: str = None,
-        digital_signature: str = None
+        digital_signature: str = None,
     ) -> str:
         """Record user acknowledgment of policy"""
 
@@ -583,7 +591,7 @@ class PolicyManager:
             reminder_sent=False,
             escalation_sent=False,
             created_at=acknowledged_at,
-            updated_at=acknowledged_at
+            updated_at=acknowledged_at,
         )
 
         await self._store_acknowledgment(acknowledgment)
@@ -604,22 +612,23 @@ class PolicyManager:
                 "policy_id": policy_id,
                 "policy_version": policy.version,
                 "acknowledgment_method": acknowledgment_method,
-                "training_required": policy.requires_training
-            }
+                "training_required": policy.requires_training,
+            },
         )
 
-        logger.info(f"Policy acknowledged: {policy_id}", extra={
-            "user_id": user_id,
-            "acknowledgment_id": acknowledgment_id,
-            "policy_version": policy.version
-        })
+        logger.info(
+            f"Policy acknowledged: {policy_id}",
+            extra={
+                "user_id": user_id,
+                "acknowledgment_id": acknowledgment_id,
+                "policy_version": policy.version,
+            },
+        )
 
         return acknowledgment_id
 
     async def detect_policy_violations(
-        self,
-        organization_id: str,
-        lookback_hours: int = 24
+        self, organization_id: str, lookback_hours: int = 24
     ) -> List[PolicyViolation]:
         """Detect potential policy violations through automated monitoring"""
 
@@ -631,15 +640,18 @@ class PolicyManager:
         async with get_session() as session:
             # Query recent audit events for violation patterns
             recent_events = await session.execute(
-                select(AuditLog).where(
+                select(AuditLog)
+                .where(
                     and_(
                         AuditLog.created_at >= start_time,
                         func.coalesce(
-                            AuditLog.metadata['compliance_event']['organization_id'].astext,
-                            'default'
-                        ) == organization_id
+                            AuditLog.metadata["compliance_event"]["organization_id"].astext,
+                            "default",
+                        )
+                        == organization_id,
                     )
-                ).order_by(AuditLog.created_at)
+                )
+                .order_by(AuditLog.created_at)
             )
             events = recent_events.scalars().all()
 
@@ -650,8 +662,12 @@ class PolicyManager:
                     violations.append(violation)
 
         # Additional violation detection logic
-        violations.extend(await self._detect_access_violations(organization_id, start_time, end_time))
-        violations.extend(await self._detect_data_misuse_violations(organization_id, start_time, end_time))
+        violations.extend(
+            await self._detect_access_violations(organization_id, start_time, end_time)
+        )
+        violations.extend(
+            await self._detect_data_misuse_violations(organization_id, start_time, end_time)
+        )
         violations.extend(await self._detect_training_violations(organization_id))
 
         # Log violation detection results
@@ -666,16 +682,13 @@ class PolicyManager:
             raw_data={
                 "violations_detected": len(violations),
                 "scan_period_hours": lookback_hours,
-                "events_analyzed": len(events)
-            }
+                "events_analyzed": len(events),
+            },
         )
 
         return violations
 
-    async def get_policy_compliance_dashboard(
-        self,
-        organization_id: str
-    ) -> Dict[str, Any]:
+    async def get_policy_compliance_dashboard(self, organization_id: str) -> Dict[str, Any]:
         """Generate policy compliance dashboard"""
 
         # Get active policies
@@ -689,48 +702,75 @@ class PolicyManager:
 
         # Calculate compliance metrics
         total_policies = len(policies)
-        policies_with_violations = len([p for p in policies if p.policy_id in violation_stats.get("policies_with_violations", [])])
+        policies_with_violations = len(
+            [
+                p
+                for p in policies
+                if p.policy_id in violation_stats.get("policies_with_violations", [])
+            ]
+        )
 
         compliance_score = 100
         if total_policies > 0:
             violation_penalty = (policies_with_violations / total_policies) * 30
-            acknowledgment_penalty = (1 - acknowledgment_stats.get("overall_acknowledgment_rate", 1)) * 20
+            acknowledgment_penalty = (
+                1 - acknowledgment_stats.get("overall_acknowledgment_rate", 1)
+            ) * 20
             compliance_score = max(0, 100 - violation_penalty - acknowledgment_penalty)
 
         dashboard = {
             "organization_id": organization_id,
             "generated_at": datetime.utcnow().isoformat(),
-
             "policy_summary": {
                 "total_policies": total_policies,
-                "published_policies": len([p for p in policies if p.status == PolicyStatus.PUBLISHED]),
-                "policies_requiring_review": len([p for p in policies if p.review_date < datetime.utcnow()]),
-                "policies_expiring_soon": len([p for p in policies if p.expiry_date and p.expiry_date < datetime.utcnow() + timedelta(days=30)])
+                "published_policies": len(
+                    [p for p in policies if p.status == PolicyStatus.PUBLISHED]
+                ),
+                "policies_requiring_review": len(
+                    [p for p in policies if p.review_date < datetime.utcnow()]
+                ),
+                "policies_expiring_soon": len(
+                    [
+                        p
+                        for p in policies
+                        if p.expiry_date and p.expiry_date < datetime.utcnow() + timedelta(days=30)
+                    ]
+                ),
             },
-
             "acknowledgment_summary": acknowledgment_stats,
-
             "violation_summary": violation_stats,
-
             "compliance_metrics": {
                 "overall_compliance_score": round(compliance_score, 1),
-                "policy_acknowledgment_rate": acknowledgment_stats.get("overall_acknowledgment_rate", 0) * 100,
-                "violation_rate": (policies_with_violations / total_policies * 100) if total_policies > 0 else 0,
-                "training_completion_rate": acknowledgment_stats.get("training_completion_rate", 0) * 100
+                "policy_acknowledgment_rate": acknowledgment_stats.get(
+                    "overall_acknowledgment_rate", 0
+                )
+                * 100,
+                "violation_rate": (policies_with_violations / total_policies * 100)
+                if total_policies > 0
+                else 0,
+                "training_completion_rate": acknowledgment_stats.get("training_completion_rate", 0)
+                * 100,
             },
-
             "risk_indicators": {
                 "overdue_acknowledgments": acknowledgment_stats.get("overdue_acknowledgments", 0),
                 "critical_violations": violation_stats.get("critical_violations", 0),
                 "unresolved_violations": violation_stats.get("unresolved_violations", 0),
-                "policies_without_owner": len([p for p in policies if not p.owner_id])
+                "policies_without_owner": len([p for p in policies if not p.owner_id]),
             },
-
             "recent_activity": {
-                "policies_published_last_30_days": len([p for p in policies if p.published_at and p.published_at > datetime.utcnow() - timedelta(days=30)]),
+                "policies_published_last_30_days": len(
+                    [
+                        p
+                        for p in policies
+                        if p.published_at
+                        and p.published_at > datetime.utcnow() - timedelta(days=30)
+                    ]
+                ),
                 "violations_detected_last_7_days": violation_stats.get("recent_violations", 0),
-                "acknowledgments_last_7_days": acknowledgment_stats.get("recent_acknowledgments", 0)
-            }
+                "acknowledgments_last_7_days": acknowledgment_stats.get(
+                    "recent_acknowledgments", 0
+                ),
+            },
         }
 
         return dashboard
@@ -752,8 +792,8 @@ class PolicyManager:
                 "policy_id": policy.policy_id,
                 "version": policy.version,
                 "status": policy.status.value,
-                "policy_type": policy.policy_type.value
-            }
+                "policy_type": policy.policy_type.value,
+            },
         )
 
     async def _get_policy(self, policy_id: str) -> Optional[SecurityPolicy]:
@@ -776,8 +816,8 @@ class PolicyManager:
                 "acknowledgment_id": acknowledgment.acknowledgment_id,
                 "policy_id": acknowledgment.policy_id,
                 "user_id": acknowledgment.user_id,
-                "verification_code": acknowledgment.verification_code
-            }
+                "verification_code": acknowledgment.verification_code,
+            },
         )
 
     async def _initiate_acknowledgment_process(self, policy: SecurityPolicy):
@@ -804,7 +844,9 @@ class PolicyManager:
         # For now, return empty list
         return []
 
-    async def _send_policy_notifications(self, policy: SecurityPolicy, notification_groups: List[str]):
+    async def _send_policy_notifications(
+        self, policy: SecurityPolicy, notification_groups: List[str]
+    ):
         """Send notifications about new/updated policy"""
         # Implementation would send email/Slack notifications
 
@@ -827,20 +869,14 @@ class PolicyManager:
         return None
 
     async def _detect_access_violations(
-        self,
-        organization_id: str,
-        start_time: datetime,
-        end_time: datetime
+        self, organization_id: str, start_time: datetime, end_time: datetime
     ) -> List[PolicyViolation]:
         """Detect access control policy violations"""
         # Implementation would analyze access patterns for violations
         return []
 
     async def _detect_data_misuse_violations(
-        self,
-        organization_id: str,
-        start_time: datetime,
-        end_time: datetime
+        self, organization_id: str, start_time: datetime, end_time: datetime
     ) -> List[PolicyViolation]:
         """Detect data misuse policy violations"""
         # Implementation would analyze data access patterns
@@ -862,7 +898,7 @@ class PolicyManager:
             "overall_acknowledgment_rate": 0.85,
             "overdue_acknowledgments": 0,
             "training_completion_rate": 0.92,
-            "recent_acknowledgments": 15
+            "recent_acknowledgments": 15,
         }
 
     async def _get_violation_statistics(self, organization_id: str) -> Dict[str, Any]:
@@ -872,7 +908,7 @@ class PolicyManager:
             "critical_violations": 0,
             "unresolved_violations": 0,
             "recent_violations": 0,
-            "policies_with_violations": []
+            "policies_with_violations": [],
         }
 
 
@@ -883,9 +919,7 @@ class PolicyCompliance:
         self.policy_manager = policy_manager
 
     async def generate_compliance_report(
-        self,
-        organization_id: str,
-        report_period_days: int = 30
+        self, organization_id: str, report_period_days: int = 30
     ) -> Dict[str, Any]:
         """Generate comprehensive policy compliance report"""
 
@@ -895,33 +929,35 @@ class PolicyCompliance:
             "organization_id": organization_id,
             "report_period_days": report_period_days,
             "generated_at": datetime.utcnow().isoformat(),
-
             "executive_summary": {
-                "overall_compliance_score": dashboard_data["compliance_metrics"]["overall_compliance_score"],
+                "overall_compliance_score": dashboard_data["compliance_metrics"][
+                    "overall_compliance_score"
+                ],
                 "total_policies": dashboard_data["policy_summary"]["total_policies"],
-                "acknowledgment_rate": dashboard_data["compliance_metrics"]["policy_acknowledgment_rate"],
+                "acknowledgment_rate": dashboard_data["compliance_metrics"][
+                    "policy_acknowledgment_rate"
+                ],
                 "violation_count": dashboard_data["violation_summary"]["total_violations"],
-                "risk_level": "low" if dashboard_data["compliance_metrics"]["overall_compliance_score"] > 85 else "medium"
+                "risk_level": "low"
+                if dashboard_data["compliance_metrics"]["overall_compliance_score"] > 85
+                else "medium",
             },
-
             "policy_management": dashboard_data["policy_summary"],
             "acknowledgment_compliance": dashboard_data["acknowledgment_summary"],
             "violation_analysis": dashboard_data["violation_summary"],
             "risk_assessment": dashboard_data["risk_indicators"],
-
             "recommendations": [
                 "Continue regular policy review cycles",
                 "Ensure timely acknowledgment of new policies",
                 "Address any identified policy violations promptly",
-                "Maintain policy training programs"
+                "Maintain policy training programs",
             ],
-
             "next_actions": [
                 "Review policies requiring updates",
                 "Follow up on overdue acknowledgments",
                 "Investigate unresolved violations",
-                "Schedule policy effectiveness review"
-            ]
+                "Schedule policy effectiveness review",
+            ],
         }
 
         return report

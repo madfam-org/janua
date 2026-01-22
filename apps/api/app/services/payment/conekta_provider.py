@@ -26,7 +26,7 @@ from app.services.payment.base import (
 class ConektaProvider(PaymentProvider):
     """
     Conekta payment provider implementation for Mexican market.
-    
+
     Conekta specializes in Mexican payment methods:
     - Cards (Visa, Mastercard, Amex)
     - OXXO (cash payment at convenience stores)
@@ -36,7 +36,7 @@ class ConektaProvider(PaymentProvider):
 
     def __init__(self, api_key: str, test_mode: bool = False):
         super().__init__(api_key, test_mode)
-        
+
         # Configure Conekta SDK
         conekta.api_key = api_key
         conekta.api_version = "2.0.0"
@@ -53,12 +53,14 @@ class ConektaProvider(PaymentProvider):
     async def create_customer(self, customer_data: CustomerData) -> Dict[str, Any]:
         """Create Conekta customer."""
         try:
-            customer = conekta.Customer.create({
-                "name": customer_data.name or customer_data.email,
-                "email": customer_data.email,
-                "phone": customer_data.phone,
-                "metadata": customer_data.metadata or {},
-            })
+            customer = conekta.Customer.create(
+                {
+                    "name": customer_data.name or customer_data.email,
+                    "email": customer_data.email,
+                    "phone": customer_data.phone,
+                    "metadata": customer_data.metadata or {},
+                }
+            )
 
             return {
                 "customer_id": customer.id,
@@ -88,11 +90,7 @@ class ConektaProvider(PaymentProvider):
         except conekta.ConektaError as e:
             raise Exception(f"Conekta customer retrieval failed: {e.message}")
 
-    async def update_customer(
-        self,
-        customer_id: str,
-        updates: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def update_customer(self, customer_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
         """Update Conekta customer."""
         try:
             customer = conekta.Customer.find(customer_id)
@@ -123,13 +121,11 @@ class ConektaProvider(PaymentProvider):
     # ============================================================================
 
     async def create_payment_method(
-        self,
-        customer_id: str,
-        payment_method_data: PaymentMethodData
+        self, customer_id: str, payment_method_data: PaymentMethodData
     ) -> Dict[str, Any]:
         """
         Attach payment method to Conekta customer.
-        
+
         Supports:
         - Cards: token from Conekta.js
         - OXXO: type "oxxo_recurrent"
@@ -153,12 +149,14 @@ class ConektaProvider(PaymentProvider):
             }
 
             if payment_method_data.type == "card":
-                result.update({
-                    "last4": payment_source.last4,
-                    "brand": payment_source.brand,
-                    "exp_month": payment_source.exp_month,
-                    "exp_year": payment_source.exp_year,
-                })
+                result.update(
+                    {
+                        "last4": payment_source.last4,
+                        "brand": payment_source.brand,
+                        "exp_month": payment_source.exp_month,
+                        "exp_year": payment_source.exp_year,
+                    }
+                )
 
             return result
 
@@ -175,9 +173,7 @@ class ConektaProvider(PaymentProvider):
         )
 
     async def list_payment_methods(
-        self,
-        customer_id: str,
-        type: Optional[str] = None
+        self, customer_id: str, type: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """List customer payment sources."""
         try:
@@ -195,12 +191,14 @@ class ConektaProvider(PaymentProvider):
                 }
 
                 if source.type == "card":
-                    source_data.update({
-                        "last4": source.last4,
-                        "brand": source.brand,
-                        "exp_month": source.exp_month,
-                        "exp_year": source.exp_year,
-                    })
+                    source_data.update(
+                        {
+                            "last4": source.last4,
+                            "brand": source.brand,
+                            "exp_month": source.exp_month,
+                            "exp_year": source.exp_year,
+                        }
+                    )
 
                 result.append(source_data)
 
@@ -218,16 +216,12 @@ class ConektaProvider(PaymentProvider):
         )
 
     async def set_default_payment_method(
-        self,
-        customer_id: str,
-        payment_method_id: str
+        self, customer_id: str, payment_method_id: str
     ) -> Dict[str, Any]:
         """Set default payment source."""
         try:
             customer = conekta.Customer.find(customer_id)
-            customer.update({
-                "default_payment_source_id": payment_method_id
-            })
+            customer.update({"default_payment_source_id": payment_method_id})
 
             return {
                 "customer_id": customer.id,
@@ -241,13 +235,10 @@ class ConektaProvider(PaymentProvider):
     # Subscription Management
     # ============================================================================
 
-    async def create_subscription(
-        self,
-        subscription_data: SubscriptionData
-    ) -> Dict[str, Any]:
+    async def create_subscription(self, subscription_data: SubscriptionData) -> Dict[str, Any]:
         """
         Create Conekta subscription.
-        
+
         Note: Conekta subscriptions are created on customers, not standalone.
         """
         try:
@@ -275,7 +266,9 @@ class ConektaProvider(PaymentProvider):
                 "plan_id": subscription.plan_id,
                 "billing_cycle_start": subscription.billing_cycle_start,
                 "billing_cycle_end": subscription.billing_cycle_end,
-                "trial_start": subscription.trial_start if hasattr(subscription, "trial_start") else None,
+                "trial_start": subscription.trial_start
+                if hasattr(subscription, "trial_start")
+                else None,
                 "trial_end": subscription.trial_end if hasattr(subscription, "trial_end") else None,
                 "created": subscription.created_at,
             }
@@ -292,9 +285,7 @@ class ConektaProvider(PaymentProvider):
         )
 
     async def update_subscription(
-        self,
-        subscription_id: str,
-        updates: Dict[str, Any]
+        self, subscription_id: str, updates: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Update subscription (change plan, card, etc)."""
         # Note: Requires customer context
@@ -304,9 +295,7 @@ class ConektaProvider(PaymentProvider):
         )
 
     async def cancel_subscription(
-        self,
-        subscription_id: str,
-        cancel_at_period_end: bool = True
+        self, subscription_id: str, cancel_at_period_end: bool = True
     ) -> Dict[str, Any]:
         """Cancel subscription."""
         # Note: Requires customer context
@@ -341,15 +330,11 @@ class ConektaProvider(PaymentProvider):
         except conekta.ConektaError as e:
             raise Exception(f"Conekta invoice retrieval failed: {e.message}")
 
-    async def list_invoices(
-        self,
-        customer_id: str,
-        limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    async def list_invoices(self, customer_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """List customer charges/invoices."""
         try:
             customer = conekta.Customer.find(customer_id)
-            
+
             # Get charges from customer's subscription
             charges = []
             if hasattr(customer, "subscription") and customer.subscription:
@@ -369,22 +354,15 @@ class ConektaProvider(PaymentProvider):
     # Webhook Handling
     # ============================================================================
 
-    def verify_webhook_signature(
-        self,
-        payload: bytes,
-        signature: str,
-        webhook_secret: str
-    ) -> bool:
+    def verify_webhook_signature(self, payload: bytes, signature: str, webhook_secret: str) -> bool:
         """
         Verify Conekta webhook signature using HMAC SHA256.
-        
+
         Conekta sends signature in X-Conekta-Signature header.
         """
         try:
             computed_signature = hmac.new(
-                webhook_secret.encode(),
-                payload,
-                hashlib.sha256
+                webhook_secret.encode(), payload, hashlib.sha256
             ).hexdigest()
 
             return hmac.compare_digest(computed_signature, signature)
@@ -412,14 +390,16 @@ class ConektaProvider(PaymentProvider):
 
             result = []
             for plan in plans:
-                result.append({
-                    "plan_id": plan.id,
-                    "name": plan.name,
-                    "amount": self.parse_amount(plan.amount, "MXN"),
-                    "currency": "MXN",
-                    "interval": plan.frequency,  # days, weeks, months
-                    "interval_count": plan.frequency_count,
-                })
+                result.append(
+                    {
+                        "plan_id": plan.id,
+                        "name": plan.name,
+                        "amount": self.parse_amount(plan.amount, "MXN"),
+                        "currency": "MXN",
+                        "interval": plan.frequency,  # days, weeks, months
+                        "interval_count": plan.frequency_count,
+                    }
+                )
 
             return result
 
@@ -457,21 +437,17 @@ class ConektaProvider(PaymentProvider):
         return ["MXN"]
 
     async def create_oxxo_charge(
-        self,
-        customer_id: str,
-        amount: float,
-        description: str,
-        expires_at: Optional[int] = None
+        self, customer_id: str, amount: float, description: str, expires_at: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Create OXXO cash payment (Mexican convenience store payment).
-        
+
         Args:
             customer_id: Conekta customer ID
             amount: Amount in MXN
             description: Payment description
             expires_at: Unix timestamp when payment expires (default: 3 days)
-            
+
         Returns:
             Dict with charge details and OXXO reference number
         """
@@ -480,18 +456,20 @@ class ConektaProvider(PaymentProvider):
             if not expires_at:
                 expires_at = int(datetime.utcnow().timestamp() + (3 * 86400))
 
-            charge = conekta.Charge.create({
-                "amount": self.format_amount(amount, "MXN"),
-                "currency": "MXN",
-                "description": description,
-                "customer_info": {
-                    "customer_id": customer_id,
-                },
-                "cash": {
-                    "type": "oxxo",
-                    "expires_at": expires_at,
+            charge = conekta.Charge.create(
+                {
+                    "amount": self.format_amount(amount, "MXN"),
+                    "currency": "MXN",
+                    "description": description,
+                    "customer_info": {
+                        "customer_id": customer_id,
+                    },
+                    "cash": {
+                        "type": "oxxo",
+                        "expires_at": expires_at,
+                    },
                 }
-            })
+            )
 
             return {
                 "charge_id": charge.id,
@@ -505,21 +483,17 @@ class ConektaProvider(PaymentProvider):
             raise Exception(f"Conekta OXXO charge creation failed: {e.message}")
 
     async def create_spei_charge(
-        self,
-        customer_id: str,
-        amount: float,
-        description: str,
-        expires_at: Optional[int] = None
+        self, customer_id: str, amount: float, description: str, expires_at: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Create SPEI bank transfer (Mexican instant bank transfer).
-        
+
         Args:
             customer_id: Conekta customer ID
             amount: Amount in MXN
             description: Payment description
             expires_at: Unix timestamp when payment expires
-            
+
         Returns:
             Dict with CLABE account number for transfer
         """
@@ -528,18 +502,20 @@ class ConektaProvider(PaymentProvider):
             if not expires_at:
                 expires_at = int(datetime.utcnow().timestamp() + 86400)
 
-            charge = conekta.Charge.create({
-                "amount": self.format_amount(amount, "MXN"),
-                "currency": "MXN",
-                "description": description,
-                "customer_info": {
-                    "customer_id": customer_id,
-                },
-                "bank_transfer": {
-                    "type": "spei",
-                    "expires_at": expires_at,
+            charge = conekta.Charge.create(
+                {
+                    "amount": self.format_amount(amount, "MXN"),
+                    "currency": "MXN",
+                    "description": description,
+                    "customer_info": {
+                        "customer_id": customer_id,
+                    },
+                    "bank_transfer": {
+                        "type": "spei",
+                        "expires_at": expires_at,
+                    },
                 }
-            })
+            )
 
             return {
                 "charge_id": charge.id,

@@ -6,12 +6,18 @@ import pytest
 from datetime import datetime
 from uuid import uuid4
 
+
 def test_compliance_imports():
     """Test that all compliance modules can be imported"""
     try:
         from app.models.compliance import (
-            ConsentType, ConsentStatus, LegalBasis, DataSubjectRequestType,
-            RequestStatus, ComplianceFramework, DataCategory
+            ConsentType,
+            ConsentStatus,
+            LegalBasis,
+            DataSubjectRequestType,
+            RequestStatus,
+            ComplianceFramework,
+            DataCategory,
         )
         from app.config import settings
 
@@ -25,9 +31,9 @@ def test_compliance_imports():
         assert DataCategory.CONTACT is not None
 
         # Test configuration values
-        assert hasattr(settings, 'COMPLIANCE_GDPR_ENABLED')
-        assert hasattr(settings, 'DEFAULT_RETENTION_PERIOD_DAYS')
-        assert hasattr(settings, 'GDPR_DSR_RESPONSE_DAYS')
+        assert hasattr(settings, "COMPLIANCE_GDPR_ENABLED")
+        assert hasattr(settings, "DEFAULT_RETENTION_PERIOD_DAYS")
+        assert hasattr(settings, "GDPR_DSR_RESPONSE_DAYS")
 
         print("✅ All compliance imports successful")
 
@@ -66,23 +72,23 @@ def test_audit_event_types():
     from app.services.audit_logger import AuditEventType
 
     # Test GDPR events
-    assert hasattr(AuditEventType, 'GDPR_CONSENT_GIVEN')
-    assert hasattr(AuditEventType, 'GDPR_CONSENT_WITHDRAWN')
-    assert hasattr(AuditEventType, 'GDPR_DATA_EXPORT')
-    assert hasattr(AuditEventType, 'GDPR_DATA_DELETION')
+    assert hasattr(AuditEventType, "GDPR_CONSENT_GIVEN")
+    assert hasattr(AuditEventType, "GDPR_CONSENT_WITHDRAWN")
+    assert hasattr(AuditEventType, "GDPR_DATA_EXPORT")
+    assert hasattr(AuditEventType, "GDPR_DATA_DELETION")
 
     # Test SOC2 events
-    assert hasattr(AuditEventType, 'SOC2_ACCESS_GRANTED')
-    assert hasattr(AuditEventType, 'SOC2_ACCESS_DENIED')
-    assert hasattr(AuditEventType, 'SOC2_ACCESS_REVOKED')
+    assert hasattr(AuditEventType, "SOC2_ACCESS_GRANTED")
+    assert hasattr(AuditEventType, "SOC2_ACCESS_DENIED")
+    assert hasattr(AuditEventType, "SOC2_ACCESS_REVOKED")
 
     # Test HIPAA events
-    assert hasattr(AuditEventType, 'HIPAA_PHI_ACCESS')
-    assert hasattr(AuditEventType, 'HIPAA_PHI_EXPORT')
+    assert hasattr(AuditEventType, "HIPAA_PHI_ACCESS")
+    assert hasattr(AuditEventType, "HIPAA_PHI_EXPORT")
 
     # Test Breach events
-    assert hasattr(AuditEventType, 'GDPR_BREACH_NOTIFICATION')
-    assert hasattr(AuditEventType, 'HIPAA_BREACH_DETECTED')
+    assert hasattr(AuditEventType, "GDPR_BREACH_NOTIFICATION")
+    assert hasattr(AuditEventType, "HIPAA_BREACH_DETECTED")
 
     print("✅ Audit event types validation successful")
 
@@ -90,9 +96,14 @@ def test_audit_event_types():
 def test_compliance_model_creation():
     """Test basic compliance model instantiation"""
     from app.models.compliance import (
-        ConsentRecord, ConsentType, ConsentStatus, LegalBasis,
-        DataSubjectRequest, DataSubjectRequestType, RequestStatus,
-        DataCategory
+        ConsentRecord,
+        ConsentType,
+        ConsentStatus,
+        LegalBasis,
+        DataSubjectRequest,
+        DataSubjectRequestType,
+        RequestStatus,
+        DataCategory,
     )
 
     # Test ConsentRecord creation
@@ -105,7 +116,7 @@ def test_compliance_model_creation():
         status=ConsentStatus.GIVEN,
         data_categories=[DataCategory.CONTACT.value],
         processing_purposes=["email_marketing"],
-        given_at=datetime.utcnow()
+        given_at=datetime.utcnow(),
     )
     assert consent.consent_type == ConsentType.MARKETING
     assert consent.status == ConsentStatus.GIVEN
@@ -119,7 +130,7 @@ def test_compliance_model_creation():
         status=RequestStatus.RECEIVED,
         request_id="DSR-TEST-001",
         received_at=datetime.utcnow(),
-        response_due_date=datetime.utcnow()
+        response_due_date=datetime.utcnow(),
     )
     assert dsr.request_type == DataSubjectRequestType.ACCESS
     assert dsr.status == RequestStatus.RECEIVED
@@ -140,7 +151,7 @@ def test_api_router_endpoints():
         "/consent/withdraw",
         "/data-subject-request",
         "/privacy-settings",
-        "/dashboard"
+        "/dashboard",
     ]
 
     for endpoint in required_endpoints:

@@ -49,8 +49,7 @@ async def get_email_service():
 
 
 async def get_jwt_service(
-    db: AsyncSession = Depends(get_db),
-    redis: ResilientRedisClient = Depends(get_redis)
+    db: AsyncSession = Depends(get_db), redis: ResilientRedisClient = Depends(get_redis)
 ):
     """
     Get JWTService instance with database and redis dependencies.
@@ -107,8 +106,7 @@ async def get_webhook_service():
 
 
 async def get_rbac_service(
-    db: AsyncSession = Depends(get_db),
-    redis_client: ResilientRedisClient = Depends(get_redis)
+    db: AsyncSession = Depends(get_db), redis_client: ResilientRedisClient = Depends(get_redis)
 ):
     """
     Get RBACService instance with dependencies.
@@ -133,9 +131,7 @@ async def get_rbac_service(
     return RBACService(db, redis_client)
 
 
-async def get_sso_service(
-    db: AsyncSession = Depends(get_db)
-):
+async def get_sso_service(db: AsyncSession = Depends(get_db)):
     """
     Get SSOService instance with database dependency.
 
@@ -158,7 +154,7 @@ async def get_sso_service(
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: AsyncSession = Depends(get_db),
-    redis: ResilientRedisClient = Depends(get_redis)
+    redis: ResilientRedisClient = Depends(get_redis),
 ) -> User:
     """Get current authenticated user from JWT token (cached for 5 minutes)"""
     from app.core.jwt_manager import jwt_manager
@@ -166,11 +162,11 @@ async def get_current_user(
     token = credentials.credentials
 
     # Decode token using JWT manager
-    payload = jwt_manager.verify_token(token, token_type='access')
+    payload = jwt_manager.verify_token(token, token_type="access")
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    user_id = payload.get('sub')
+    user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
@@ -189,10 +185,7 @@ async def get_current_user(
 
     # Get user using async session
     result = await db.execute(
-        select(User).where(
-            User.id == user_id,
-            User.status == UserStatus.ACTIVE
-        )
+        select(User).where(User.id == user_id, User.status == UserStatus.ACTIVE)
     )
     user = result.scalar_one_or_none()
 
@@ -216,7 +209,7 @@ async def get_current_user(
 async def get_current_user_optional(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
     db: AsyncSession = Depends(get_db),
-    redis: ResilientRedisClient = Depends(get_redis)
+    redis: ResilientRedisClient = Depends(get_redis),
 ) -> Optional[User]:
     """Get current authenticated user from JWT token, returns None if not authenticated.
 
@@ -233,18 +226,14 @@ async def get_current_user_optional(
         return None
 
 
-def require_admin(
-    current_user: User = Depends(get_current_user)
-) -> User:
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Require user to be an admin"""
-    if not hasattr(current_user, 'is_admin') or not current_user.is_admin:
+    if not hasattr(current_user, "is_admin") or not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Admin privileges required")
     return current_user
 
 
-def require_verified_email(
-    current_user: User = Depends(get_current_user)
-) -> User:
+def require_verified_email(current_user: User = Depends(get_current_user)) -> User:
     """
     Require user to have verified their email address.
 
@@ -263,7 +252,7 @@ def require_verified_email(
     if not settings.REQUIRE_EMAIL_VERIFICATION:
         return current_user
 
-    if getattr(current_user, 'email_verified', False):
+    if getattr(current_user, "email_verified", False):
         return current_user
 
     # Check if within grace period for new accounts
@@ -275,20 +264,19 @@ def require_verified_email(
 
     raise HTTPException(
         status_code=403,
-        detail="Email verification required. Please verify your email address to continue."
+        detail="Email verification required. Please verify your email address to continue.",
     )
 
 
 async def require_org_admin(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> User:
     """Require user to be an organization admin"""
     # Check if user has admin role in any organization using async session
     result = await db.execute(
         select(OrganizationMember).where(
             OrganizationMember.user_id == current_user.id,
-            OrganizationMember.role.in_(['admin', 'owner'])
+            OrganizationMember.role.in_(["admin", "owner"]),
         )
     )
     org_member = result.scalar_one_or_none()

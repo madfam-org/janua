@@ -23,8 +23,7 @@ MemberRole = OrganizationRole
 
 @pytest.fixture
 async def test_organization(
-    async_session: AsyncSession,
-    test_user: User
+    async_session: AsyncSession, test_user: User
 ) -> AsyncGenerator[Organization, None]:
     """
     Create test organization owned by test_user
@@ -68,9 +67,7 @@ async def test_organization(
 
 @pytest.fixture
 async def test_organization_with_members(
-    async_session: AsyncSession,
-    test_user: User,
-    test_users_batch: list[User]
+    async_session: AsyncSession, test_user: User, test_users_batch: list[User]
 ) -> AsyncGenerator[Organization, None]:
     """
     Create organization with multiple members at different roles
@@ -111,7 +108,7 @@ async def test_organization_with_members(
             organization_id=org.id,
             user_id=test_users_batch[i].id,
             role=MemberRole.ADMIN,
-            joined_at=datetime.utcnow() - timedelta(days=i+1),
+            joined_at=datetime.utcnow() - timedelta(days=i + 1),
         )
         async_session.add(member)
         members_to_cleanup.append(member)
@@ -122,7 +119,7 @@ async def test_organization_with_members(
             organization_id=org.id,
             user_id=test_users_batch[i].id,
             role=MemberRole.MEMBER,
-            joined_at=datetime.utcnow() - timedelta(days=i+1),
+            joined_at=datetime.utcnow() - timedelta(days=i + 1),
         )
         async_session.add(member)
         members_to_cleanup.append(member)
@@ -133,7 +130,7 @@ async def test_organization_with_members(
             organization_id=org.id,
             user_id=test_users_batch[i].id,
             role=MemberRole.VIEWER,
-            joined_at=datetime.utcnow() - timedelta(days=i+1),
+            joined_at=datetime.utcnow() - timedelta(days=i + 1),
         )
         async_session.add(member)
         members_to_cleanup.append(member)
@@ -151,8 +148,7 @@ async def test_organization_with_members(
 
 @pytest.fixture
 async def test_organization_suspended(
-    async_session: AsyncSession,
-    test_user: User
+    async_session: AsyncSession, test_user: User
 ) -> AsyncGenerator[Organization, None]:
     """
     Create suspended organization for testing access restrictions
@@ -184,8 +180,7 @@ async def test_organization_suspended(
 
 @pytest.fixture
 async def test_organizations_batch(
-    async_session: AsyncSession,
-    test_user: User
+    async_session: AsyncSession, test_user: User
 ) -> AsyncGenerator[list[Organization], None]:
     """
     Create batch of 5 organizations for list/pagination testing
@@ -229,7 +224,7 @@ async def create_test_organization(
     owner: User,
     slug: str = None,
     is_active: bool = True,
-    members: list[tuple[User, MemberRole]] = None
+    members: list[tuple[User, MemberRole]] = None,
 ) -> Organization:
     """
     Factory function for creating custom test organizations

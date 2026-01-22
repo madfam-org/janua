@@ -14,7 +14,7 @@ from .gdpr_compliance import GDPRCompliance
 
 __all__ = [
     "PrivacyRightType",
-    "DataExportFormat", 
+    "DataExportFormat",
     "RetentionAction",
     "DataSubjectRequestResponse",
     "PrivacyImpactAssessment",
@@ -22,5 +22,5 @@ __all__ = [
     "ConsentManager",
     "RetentionManager",
     "PrivacyManager",
-    "GDPRCompliance"
+    "GDPRCompliance",
 ]

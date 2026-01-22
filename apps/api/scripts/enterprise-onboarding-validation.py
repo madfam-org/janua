@@ -15,7 +15,7 @@ class EnterpriseOnboardingValidator:
     """Validates enterprise customer onboarding readiness."""
 
     def __init__(self, base_url: str = "http://localhost:8000"):
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.results = {
             "timestamp": datetime.utcnow().isoformat(),
             "onboarding_readiness": False,
@@ -24,7 +24,7 @@ class EnterpriseOnboardingValidator:
             "blockers": [],
             "missing_features": [],
             "documentation_gaps": [],
-            "recommendations": []
+            "recommendations": [],
         }
 
     async def validate_onboarding_readiness(self) -> Dict[str, Any]:
@@ -52,7 +52,7 @@ class EnterpriseOnboardingValidator:
             "name": "SDK Ecosystem",
             "score": 0,
             "items": [],
-            "required_for_enterprise": True
+            "required_for_enterprise": True,
         }
 
         # Check for SDK packages
@@ -64,36 +64,32 @@ class EnterpriseOnboardingValidator:
             ("packages/nextjs-sdk", "Next.js SDK"),
             ("packages/react-native-sdk", "React Native SDK"),
             ("packages/go-sdk", "Go SDK"),
-            ("packages/flutter-sdk", "Flutter SDK")
+            ("packages/flutter-sdk", "Flutter SDK"),
         ]
 
         available_sdks = 0
         for sdk_path, sdk_name in sdk_packages:
             if Path(sdk_path).exists():
                 available_sdks += 1
-                category["items"].append({
-                    "name": sdk_name,
-                    "status": "AVAILABLE",
-                    "path": sdk_path
-                })
+                category["items"].append(
+                    {"name": sdk_name, "status": "AVAILABLE", "path": sdk_path}
+                )
 
                 # Check for README
                 readme_path = Path(sdk_path) / "README.md"
                 if readme_path.exists():
-                    category["items"].append({
-                        "name": f"{sdk_name} Documentation",
-                        "status": "AVAILABLE",
-                        "path": str(readme_path)
-                    })
+                    category["items"].append(
+                        {
+                            "name": f"{sdk_name} Documentation",
+                            "status": "AVAILABLE",
+                            "path": str(readme_path),
+                        }
+                    )
                 else:
                     self.results["documentation_gaps"].append(f"Missing README for {sdk_name}")
 
             else:
-                category["items"].append({
-                    "name": sdk_name,
-                    "status": "MISSING",
-                    "path": sdk_path
-                })
+                category["items"].append({"name": sdk_name, "status": "MISSING", "path": sdk_path})
 
         category["score"] = (available_sdks / len(sdk_packages)) * 100
 
@@ -112,7 +108,7 @@ class EnterpriseOnboardingValidator:
             "name": "Documentation",
             "score": 0,
             "items": [],
-            "required_for_enterprise": True
+            "required_for_enterprise": True,
         }
 
         # Enterprise documentation requirements
@@ -126,18 +122,16 @@ class EnterpriseOnboardingValidator:
             ("docs/security-configuration.md", "Security Configuration"),
             ("docs/compliance.md", "Compliance Guide"),
             ("docs/integration-examples.md", "Integration Examples"),
-            ("docs/troubleshooting.md", "Troubleshooting Guide")
+            ("docs/troubleshooting.md", "Troubleshooting Guide"),
         ]
 
         available_docs = 0
         for doc_path, doc_name in required_docs:
             if Path(doc_path).exists():
                 available_docs += 1
-                category["items"].append({
-                    "name": doc_name,
-                    "status": "AVAILABLE",
-                    "path": doc_path
-                })
+                category["items"].append(
+                    {"name": doc_name, "status": "AVAILABLE", "path": doc_path}
+                )
 
                 # Check document quality (basic check for length)
                 try:
@@ -150,11 +144,7 @@ class EnterpriseOnboardingValidator:
                     pass  # Intentionally ignoring - file read errors during doc validation are non-critical
 
             else:
-                category["items"].append({
-                    "name": doc_name,
-                    "status": "MISSING",
-                    "path": doc_path
-                })
+                category["items"].append({"name": doc_name, "status": "MISSING", "path": doc_path})
                 self.results["documentation_gaps"].append(f"Missing: {doc_name}")
 
         category["score"] = (available_docs / len(required_docs)) * 100
@@ -174,7 +164,7 @@ class EnterpriseOnboardingValidator:
             "name": "Enterprise Features",
             "score": 0,
             "items": [],
-            "required_for_enterprise": True
+            "required_for_enterprise": True,
         }
 
         # Test enterprise feature endpoints
@@ -188,7 +178,7 @@ class EnterpriseOnboardingValidator:
             ("/api/v1/compliance/gdpr", "GDPR Compliance"),
             ("/api/v1/webhooks", "Webhook Management"),
             ("/api/v1/admin", "Admin Console"),
-            ("/api/v1/policies", "Security Policies")
+            ("/api/v1/policies", "Security Policies"),
         ]
 
         available_features = 0
@@ -197,27 +187,29 @@ class EnterpriseOnboardingValidator:
                 response = requests.get(f"{self.base_url}{endpoint}", timeout=5)
                 if response.status_code < 500:  # Endpoint exists
                     available_features += 1
-                    category["items"].append({
-                        "name": feature_name,
-                        "status": "AVAILABLE",
-                        "endpoint": endpoint,
-                        "response_code": response.status_code
-                    })
+                    category["items"].append(
+                        {
+                            "name": feature_name,
+                            "status": "AVAILABLE",
+                            "endpoint": endpoint,
+                            "response_code": response.status_code,
+                        }
+                    )
                 else:
-                    category["items"].append({
-                        "name": feature_name,
-                        "status": "ERROR",
-                        "endpoint": endpoint,
-                        "response_code": response.status_code
-                    })
+                    category["items"].append(
+                        {
+                            "name": feature_name,
+                            "status": "ERROR",
+                            "endpoint": endpoint,
+                            "response_code": response.status_code,
+                        }
+                    )
                     self.results["missing_features"].append(feature_name)
 
             except requests.exceptions.RequestException:
-                category["items"].append({
-                    "name": feature_name,
-                    "status": "UNAVAILABLE",
-                    "endpoint": endpoint
-                })
+                category["items"].append(
+                    {"name": feature_name, "status": "UNAVAILABLE", "endpoint": endpoint}
+                )
                 self.results["missing_features"].append(feature_name)
 
         category["score"] = (available_features / len(enterprise_features)) * 100
@@ -237,7 +229,7 @@ class EnterpriseOnboardingValidator:
             "name": "Security Requirements",
             "score": 0,
             "items": [],
-            "required_for_enterprise": True
+            "required_for_enterprise": True,
         }
 
         security_checks = [
@@ -245,7 +237,7 @@ class EnterpriseOnboardingValidator:
             ("Security Headers", self._check_security_headers),
             ("Authentication Security", self._check_auth_security),
             ("Rate Limiting", self._check_rate_limiting),
-            ("Input Validation", self._check_input_validation)
+            ("Input Validation", self._check_input_validation),
         ]
 
         passed_checks = 0
@@ -254,24 +246,16 @@ class EnterpriseOnboardingValidator:
                 result = await check_func()
                 if result["passed"]:
                     passed_checks += 1
-                    category["items"].append({
-                        "name": check_name,
-                        "status": "PASS",
-                        "details": result.get("details", "")
-                    })
+                    category["items"].append(
+                        {"name": check_name, "status": "PASS", "details": result.get("details", "")}
+                    )
                 else:
-                    category["items"].append({
-                        "name": check_name,
-                        "status": "FAIL",
-                        "details": result.get("details", "")
-                    })
+                    category["items"].append(
+                        {"name": check_name, "status": "FAIL", "details": result.get("details", "")}
+                    )
 
             except Exception as e:
-                category["items"].append({
-                    "name": check_name,
-                    "status": "ERROR",
-                    "details": str(e)
-                })
+                category["items"].append({"name": check_name, "status": "ERROR", "details": str(e)})
 
         category["score"] = (passed_checks / len(security_checks)) * 100
 
@@ -295,11 +279,7 @@ class EnterpriseOnboardingValidator:
             response = requests.get(f"{self.base_url}/api/v1/health", timeout=5)
             headers = response.headers
 
-            required_headers = [
-                "X-Content-Type-Options",
-                "X-Frame-Options",
-                "X-XSS-Protection"
-            ]
+            required_headers = ["X-Content-Type-Options", "X-Frame-Options", "X-XSS-Protection"]
 
             missing_headers = [h for h in required_headers if h not in headers]
 
@@ -308,7 +288,7 @@ class EnterpriseOnboardingValidator:
             else:
                 return {
                     "passed": False,
-                    "details": f"Missing headers: {', '.join(missing_headers)}"
+                    "details": f"Missing headers: {', '.join(missing_headers)}",
                 }
 
         except Exception:
@@ -324,9 +304,9 @@ class EnterpriseOnboardingValidator:
                     "email": "test_weak@example.com",
                     "password": "123456",
                     "first_name": "Test",
-                    "last_name": "User"
+                    "last_name": "User",
                 },
-                timeout=5
+                timeout=5,
             )
 
             if response.status_code == 400:  # Weak password rejected
@@ -345,7 +325,7 @@ class EnterpriseOnboardingValidator:
                 response = requests.post(
                     f"{self.base_url}/api/v1/auth/signin",
                     json={"email": "test@example.com", "password": "wrong"},
-                    timeout=2
+                    timeout=2,
                 )
 
                 if response.status_code == 429:  # Rate limited
@@ -362,11 +342,8 @@ class EnterpriseOnboardingValidator:
         try:
             response = requests.post(
                 f"{self.base_url}/api/v1/auth/signin",
-                json={
-                    "email": "'; DROP TABLE users; --",
-                    "password": "password"
-                },
-                timeout=5
+                json={"email": "'; DROP TABLE users; --", "password": "password"},
+                timeout=5,
             )
 
             # Should not cause server error
@@ -386,7 +363,7 @@ class EnterpriseOnboardingValidator:
             "name": "Deployment Options",
             "score": 0,
             "items": [],
-            "required_for_enterprise": False
+            "required_for_enterprise": False,
         }
 
         deployment_options = [
@@ -395,22 +372,16 @@ class EnterpriseOnboardingValidator:
             ("kubernetes", "Kubernetes manifests"),
             ("railway.json", "Railway deployment"),
             ("requirements.txt", "Python dependencies"),
-            ("package.json", "Node.js dependencies")
+            ("package.json", "Node.js dependencies"),
         ]
 
         available_options = 0
         for file_path, option_name in deployment_options:
             if Path(file_path).exists() or Path(f"deployment/{file_path}").exists():
                 available_options += 1
-                category["items"].append({
-                    "name": option_name,
-                    "status": "AVAILABLE"
-                })
+                category["items"].append({"name": option_name, "status": "AVAILABLE"})
             else:
-                category["items"].append({
-                    "name": option_name,
-                    "status": "MISSING"
-                })
+                category["items"].append({"name": option_name, "status": "MISSING"})
 
         category["score"] = (available_options / len(deployment_options)) * 100
 
@@ -429,32 +400,23 @@ class EnterpriseOnboardingValidator:
             "name": "Integration Capabilities",
             "score": 0,
             "items": [],
-            "required_for_enterprise": True
+            "required_for_enterprise": True,
         }
 
         # Check webhook capabilities
         try:
             response = requests.get(f"{self.base_url}/api/v1/webhooks", timeout=5)
             if response.status_code < 500:
-                category["items"].append({
-                    "name": "Webhook Support",
-                    "status": "AVAILABLE"
-                })
+                category["items"].append({"name": "Webhook Support", "status": "AVAILABLE"})
                 category["score"] += 25
         except Exception:
-            category["items"].append({
-                "name": "Webhook Support",
-                "status": "UNAVAILABLE"
-            })
+            category["items"].append({"name": "Webhook Support", "status": "UNAVAILABLE"})
 
         # Check API versioning
         try:
             response = requests.get(f"{self.base_url}/api/v1/health", timeout=5)
             if response.status_code == 200:
-                category["items"].append({
-                    "name": "API Versioning",
-                    "status": "AVAILABLE"
-                })
+                category["items"].append({"name": "API Versioning", "status": "AVAILABLE"})
                 category["score"] += 25
         except Exception:
             pass  # Intentionally ignoring - network errors expected during API versioning check
@@ -463,31 +425,19 @@ class EnterpriseOnboardingValidator:
         try:
             response = requests.post(f"{self.base_url}/api/v1/graphql", timeout=5)
             if response.status_code < 500:
-                category["items"].append({
-                    "name": "GraphQL Support",
-                    "status": "AVAILABLE"
-                })
+                category["items"].append({"name": "GraphQL Support", "status": "AVAILABLE"})
                 category["score"] += 25
         except Exception:
-            category["items"].append({
-                "name": "GraphQL Support",
-                "status": "UNAVAILABLE"
-            })
+            category["items"].append({"name": "GraphQL Support", "status": "UNAVAILABLE"})
 
         # Check SCIM provisioning
         try:
             response = requests.get(f"{self.base_url}/api/v1/scim/users", timeout=5)
             if response.status_code < 500:
-                category["items"].append({
-                    "name": "SCIM Provisioning",
-                    "status": "AVAILABLE"
-                })
+                category["items"].append({"name": "SCIM Provisioning", "status": "AVAILABLE"})
                 category["score"] += 25
         except Exception:
-            category["items"].append({
-                "name": "SCIM Provisioning",
-                "status": "UNAVAILABLE"
-            })
+            category["items"].append({"name": "SCIM Provisioning", "status": "UNAVAILABLE"})
 
         if category["score"] < 75:
             self.results["missing_features"].append("Integration capabilities insufficient")
@@ -502,17 +452,14 @@ class EnterpriseOnboardingValidator:
             "name": "Support Infrastructure",
             "score": 0,
             "items": [],
-            "required_for_enterprise": True
+            "required_for_enterprise": True,
         }
 
         # Check monitoring capabilities
         try:
             response = requests.get(f"{self.base_url}/api/v1/health", timeout=5)
             if response.status_code == 200:
-                category["items"].append({
-                    "name": "Health Monitoring",
-                    "status": "AVAILABLE"
-                })
+                category["items"].append({"name": "Health Monitoring", "status": "AVAILABLE"})
                 category["score"] += 20
 
                 # Check health details
@@ -521,67 +468,40 @@ class EnterpriseOnboardingValidator:
                     category["score"] += 10
 
         except Exception:
-            category["items"].append({
-                "name": "Health Monitoring",
-                "status": "UNAVAILABLE"
-            })
+            category["items"].append({"name": "Health Monitoring", "status": "UNAVAILABLE"})
 
         # Check metrics endpoint
         try:
             response = requests.get(f"{self.base_url}/api/v1/metrics", timeout=5)
             if response.status_code == 200:
-                category["items"].append({
-                    "name": "Metrics Endpoint",
-                    "status": "AVAILABLE"
-                })
+                category["items"].append({"name": "Metrics Endpoint", "status": "AVAILABLE"})
                 category["score"] += 20
         except Exception:
-            category["items"].append({
-                "name": "Metrics Endpoint",
-                "status": "UNAVAILABLE"
-            })
+            category["items"].append({"name": "Metrics Endpoint", "status": "UNAVAILABLE"})
 
         # Check error tracking setup
         if Path("sentry.properties").exists() or "SENTRY_DSN" in str(Path(".")):
-            category["items"].append({
-                "name": "Error Tracking",
-                "status": "CONFIGURED"
-            })
+            category["items"].append({"name": "Error Tracking", "status": "CONFIGURED"})
             category["score"] += 20
         else:
-            category["items"].append({
-                "name": "Error Tracking",
-                "status": "NOT_CONFIGURED"
-            })
+            category["items"].append({"name": "Error Tracking", "status": "NOT_CONFIGURED"})
 
         # Check logging configuration
         if Path("logging.conf").exists() or Path("logs").exists():
-            category["items"].append({
-                "name": "Structured Logging",
-                "status": "CONFIGURED"
-            })
+            category["items"].append({"name": "Structured Logging", "status": "CONFIGURED"})
             category["score"] += 15
         else:
-            category["items"].append({
-                "name": "Structured Logging",
-                "status": "NOT_CONFIGURED"
-            })
+            category["items"].append({"name": "Structured Logging", "status": "NOT_CONFIGURED"})
 
         # Check documentation for support
         support_docs = ["docs/troubleshooting.md", "docs/support.md", "SUPPORT.md"]
         support_doc_exists = any(Path(doc).exists() for doc in support_docs)
 
         if support_doc_exists:
-            category["items"].append({
-                "name": "Support Documentation",
-                "status": "AVAILABLE"
-            })
+            category["items"].append({"name": "Support Documentation", "status": "AVAILABLE"})
             category["score"] += 15
         else:
-            category["items"].append({
-                "name": "Support Documentation",
-                "status": "MISSING"
-            })
+            category["items"].append({"name": "Support Documentation", "status": "MISSING"})
 
         if category["score"] < 70:
             self.results["blockers"].append(
@@ -598,14 +518,14 @@ class EnterpriseOnboardingValidator:
             "name": "Compliance Readiness",
             "score": 0,
             "items": [],
-            "required_for_enterprise": True
+            "required_for_enterprise": True,
         }
 
         # Check GDPR endpoints
         gdpr_endpoints = [
             "/api/v1/compliance/gdpr",
             "/api/v1/compliance/export-data",
-            "/api/v1/compliance/delete-data"
+            "/api/v1/compliance/delete-data",
         ]
 
         gdpr_score = 0
@@ -618,46 +538,32 @@ class EnterpriseOnboardingValidator:
                 pass  # Intentionally ignoring - network errors expected during GDPR endpoint check
 
         if gdpr_score >= 2:
-            category["items"].append({
-                "name": "GDPR Compliance",
-                "status": "IMPLEMENTED"
-            })
+            category["items"].append({"name": "GDPR Compliance", "status": "IMPLEMENTED"})
             category["score"] += 30
         else:
-            category["items"].append({
-                "name": "GDPR Compliance",
-                "status": "NOT_IMPLEMENTED"
-            })
+            category["items"].append({"name": "GDPR Compliance", "status": "NOT_IMPLEMENTED"})
 
         # Check audit logging
         try:
             response = requests.get(f"{self.base_url}/api/v1/audit-logs", timeout=5)
             if response.status_code < 500:
-                category["items"].append({
-                    "name": "Audit Logging",
-                    "status": "IMPLEMENTED"
-                })
+                category["items"].append({"name": "Audit Logging", "status": "IMPLEMENTED"})
                 category["score"] += 35
         except Exception:
-            category["items"].append({
-                "name": "Audit Logging",
-                "status": "NOT_IMPLEMENTED"
-            })
+            category["items"].append({"name": "Audit Logging", "status": "NOT_IMPLEMENTED"})
 
         # Check data retention policies
         try:
             response = requests.get(f"{self.base_url}/api/v1/compliance/data-retention", timeout=5)
             if response.status_code < 500:
-                category["items"].append({
-                    "name": "Data Retention Policies",
-                    "status": "IMPLEMENTED"
-                })
+                category["items"].append(
+                    {"name": "Data Retention Policies", "status": "IMPLEMENTED"}
+                )
                 category["score"] += 35
         except Exception:
-            category["items"].append({
-                "name": "Data Retention Policies",
-                "status": "NOT_IMPLEMENTED"
-            })
+            category["items"].append(
+                {"name": "Data Retention Policies", "status": "NOT_IMPLEMENTED"}
+            )
 
         if category["score"] < 60:
             self.results["blockers"].append(
@@ -669,7 +575,8 @@ class EnterpriseOnboardingValidator:
     def _calculate_readiness(self):
         """Calculate overall onboarding readiness."""
         required_categories = [
-            cat for cat in self.results["categories"].values()
+            cat
+            for cat in self.results["categories"].values()
             if cat.get("required_for_enterprise", False)
         ]
 
@@ -707,14 +614,18 @@ class EnterpriseOnboardingValidator:
 
         # Overall status
         status_emoji = "✅" if self.results["onboarding_readiness"] else "❌"
-        print(f"\n{status_emoji} Onboarding Ready: {'YES' if self.results['onboarding_readiness'] else 'NO'}")
+        print(
+            f"\n{status_emoji} Onboarding Ready: {'YES' if self.results['onboarding_readiness'] else 'NO'}"
+        )
         print(f"📊 Readiness Score: {self.results['readiness_score']:.1f}%")
 
         # Category breakdown
         print(f"\n📊 Category Scores:")
         for category_name, category_data in self.results["categories"].items():
             score = category_data["score"]
-            required = "🔴 REQUIRED" if category_data.get("required_for_enterprise") else "🟡 OPTIONAL"
+            required = (
+                "🔴 REQUIRED" if category_data.get("required_for_enterprise") else "🟡 OPTIONAL"
+            )
             print(f"  {category_data['name']}: {score:.1f}% {required}")
 
         # Blockers
@@ -761,7 +672,7 @@ async def main():
         validator.print_summary()
 
         if args.output:
-            with open(args.output, 'w') as f:
+            with open(args.output, "w") as f:
                 json.dump(results, f, indent=2)
             print(f"\n📄 Results saved to: {args.output}")
 
@@ -778,4 +689,5 @@ async def main():
 
 if __name__ == "__main__":
     import sys
+
     asyncio.run(main())

@@ -93,20 +93,14 @@ class RedisService:
     # ==========================================
 
     async def store_webauthn_challenge(
-        self,
-        user_id: str,
-        challenge: str,
-        challenge_type: str = "registration",
-        ttl: int = 300
+        self, user_id: str, challenge: str, challenge_type: str = "registration", ttl: int = 300
     ) -> None:
         """Store WebAuthn challenge."""
         key = f"webauthn:{challenge_type}:{user_id}"
         await self.client.setex(key, ttl, challenge)
 
     async def get_webauthn_challenge(
-        self,
-        user_id: str,
-        challenge_type: str = "registration"
+        self, user_id: str, challenge_type: str = "registration"
     ) -> Optional[str]:
         """Get and delete WebAuthn challenge (one-time use)."""
         key = f"webauthn:{challenge_type}:{user_id}"
@@ -121,28 +115,14 @@ class RedisService:
     # MFA Code Management
     # ==========================================
 
-    async def store_mfa_code(
-        self,
-        user_id: str,
-        code: str,
-        method: str,
-        ttl: int = 300
-    ) -> None:
+    async def store_mfa_code(self, user_id: str, code: str, method: str, ttl: int = 300) -> None:
         """Store MFA verification code."""
         key = f"mfa:{method}:{user_id}"
-        data = {
-            "code": code,
-            "attempts": 0,
-            "created_at": int(time.time())
-        }
+        data = {"code": code, "attempts": 0, "created_at": int(time.time())}
         await self.client.setex(key, ttl, json.dumps(data))
 
     async def verify_mfa_code(
-        self,
-        user_id: str,
-        code: str,
-        method: str,
-        max_attempts: int = 3
+        self, user_id: str, code: str, method: str, max_attempts: int = 3
     ) -> bool:
         """Verify MFA code with attempt limiting."""
         key = f"mfa:{method}:{user_id}"
@@ -173,12 +153,7 @@ class RedisService:
     # Rate Limiting
     # ==========================================
 
-    async def check_rate_limit(
-        self,
-        identifier: str,
-        limit: int,
-        window: int = 60
-    ) -> dict:
+    async def check_rate_limit(self, identifier: str, limit: int, window: int = 60) -> dict:
         """Check rate limit for an identifier using sliding window."""
         key = f"ratelimit:{identifier}"
         now = int(time.time())
@@ -195,32 +170,19 @@ class RedisService:
             await self.client.zadd(key, {f"{now}-{id(self)}": now})
             await self.client.expire(key, window)
 
-            return {
-                "allowed": True,
-                "remaining": limit - count - 1,
-                "reset_at": now + window
-            }
+            return {"allowed": True, "remaining": limit - count - 1, "reset_at": now + window}
 
         # Get oldest entry to determine reset time
         oldest = await self.client.zrange(key, 0, 0, withscores=True)
         reset_at = int(oldest[0][1]) + window if oldest else now + window
 
-        return {
-            "allowed": False,
-            "remaining": 0,
-            "reset_at": reset_at
-        }
+        return {"allowed": False, "remaining": 0, "reset_at": reset_at}
 
     # ==========================================
     # Session Management
     # ==========================================
 
-    async def store_session(
-        self,
-        session_id: str,
-        data: dict,
-        ttl: int = 3600
-    ) -> None:
+    async def store_session(self, session_id: str, data: dict, ttl: int = 3600) -> None:
         """Store session data."""
         key = f"session:{session_id}"
         await self.client.setex(key, ttl, json.dumps(data))
@@ -245,12 +207,7 @@ class RedisService:
     # Passkey Challenge Storage
     # ==========================================
 
-    async def store_passkey_challenge(
-        self,
-        user_id: str,
-        challenge: str,
-        ttl: int = 300
-    ) -> None:
+    async def store_passkey_challenge(self, user_id: str, challenge: str, ttl: int = 300) -> None:
         """Store passkey registration/authentication challenge."""
         key = f"passkey:challenge:{user_id}"
         await self.client.setex(key, ttl, challenge)
@@ -270,30 +227,18 @@ class RedisService:
     # ==========================================
 
     async def add_trusted_device(
-        self,
-        user_id: str,
-        device_id: str,
-        device_info: dict,
-        ttl: int = 2592000  # 30 days
+        self, user_id: str, device_id: str, device_info: dict, ttl: int = 2592000  # 30 days
     ) -> None:
         """Add trusted device."""
         key = f"trusted_device:{user_id}:{device_id}"
         await self.client.setex(key, ttl, json.dumps(device_info))
 
-    async def is_trusted_device(
-        self,
-        user_id: str,
-        device_id: str
-    ) -> bool:
+    async def is_trusted_device(self, user_id: str, device_id: str) -> bool:
         """Check if device is trusted."""
         key = f"trusted_device:{user_id}:{device_id}"
         return await self.client.exists(key) == 1
 
-    async def revoke_trusted_device(
-        self,
-        user_id: str,
-        device_id: str
-    ) -> bool:
+    async def revoke_trusted_device(self, user_id: str, device_id: str) -> bool:
         """Revoke trusted device."""
         key = f"trusted_device:{user_id}:{device_id}"
         return await self.client.delete(key) == 1
@@ -303,16 +248,13 @@ class RedisService:
     # ==========================================
 
     async def store_backup_codes(
-        self,
-        user_id: str,
-        codes: list,
-        ttl: Optional[int] = None
+        self, user_id: str, codes: list, ttl: Optional[int] = None
     ) -> None:
         """Store backup codes."""
         key = f"backup_codes:{user_id}"
         data = {
             "codes": [{"code": code, "used": False} for code in codes],
-            "created_at": int(time.time())
+            "created_at": int(time.time()),
         }
 
         if ttl:
@@ -320,11 +262,7 @@ class RedisService:
         else:
             await self.client.set(key, json.dumps(data))
 
-    async def verify_backup_code(
-        self,
-        user_id: str,
-        code: str
-    ) -> tuple[bool, int]:
+    async def verify_backup_code(self, user_id: str, code: str) -> tuple[bool, int]:
         """Verify and mark backup code as used. Returns (valid, remaining_codes)."""
         key = f"backup_codes:{user_id}"
         data = await self.client.get(key)
@@ -353,6 +291,7 @@ class RedisService:
 # ==========================================
 # FastAPI Dependency
 # ==========================================
+
 
 async def get_redis_service() -> RedisService:
     """Get Redis service instance for dependency injection."""

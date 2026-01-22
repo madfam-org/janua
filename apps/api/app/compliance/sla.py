@@ -24,24 +24,27 @@ logger = logging.getLogger(__name__)
 
 class SLAStatus(str, Enum):
     """SLA compliance status"""
-    MEETING = "meeting"           # Above SLA threshold
-    AT_RISK = "at_risk"          # Close to SLA threshold
-    BREACH = "breach"            # Below SLA threshold
-    CRITICAL = "critical"        # Significantly below SLA threshold
+
+    MEETING = "meeting"  # Above SLA threshold
+    AT_RISK = "at_risk"  # Close to SLA threshold
+    BREACH = "breach"  # Below SLA threshold
+    CRITICAL = "critical"  # Significantly below SLA threshold
 
 
 class MetricType(str, Enum):
     """Types of SLA metrics"""
-    UPTIME = "uptime"                    # System availability percentage
-    RESPONSE_TIME = "response_time"      # API response time (ms)
-    ERROR_RATE = "error_rate"           # Error percentage
-    THROUGHPUT = "throughput"           # Requests per second
-    RECOVERY_TIME = "recovery_time"     # Incident recovery time (minutes)
-    SUPPORT_RESPONSE = "support_response" # Support ticket response time
+
+    UPTIME = "uptime"  # System availability percentage
+    RESPONSE_TIME = "response_time"  # API response time (ms)
+    ERROR_RATE = "error_rate"  # Error percentage
+    THROUGHPUT = "throughput"  # Requests per second
+    RECOVERY_TIME = "recovery_time"  # Incident recovery time (minutes)
+    SUPPORT_RESPONSE = "support_response"  # Support ticket response time
 
 
 class AlertLevel(str, Enum):
     """SLA alert severity levels"""
+
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
@@ -51,19 +54,20 @@ class AlertLevel(str, Enum):
 @dataclass
 class ServiceLevelObjective:
     """Service Level Objective definition"""
+
     slo_id: str
     name: str
     description: str
     metric_type: MetricType
-    target_value: float              # Target value (e.g., 99.9 for uptime %)
-    warning_threshold: float         # Warning threshold (e.g., 99.5)
-    critical_threshold: float        # Critical threshold (e.g., 99.0)
-    measurement_window_hours: int    # Measurement window (e.g., 24, 168, 720)
-    measurement_unit: str           # Unit (%, ms, count, etc.)
+    target_value: float  # Target value (e.g., 99.9 for uptime %)
+    warning_threshold: float  # Warning threshold (e.g., 99.5)
+    critical_threshold: float  # Critical threshold (e.g., 99.0)
+    measurement_window_hours: int  # Measurement window (e.g., 24, 168, 720)
+    measurement_unit: str  # Unit (%, ms, count, etc.)
 
     # Enterprise commitments
-    customer_facing: bool = False    # Customer-facing SLA
-    regulatory_required: bool = False # Required for compliance
+    customer_facing: bool = False  # Customer-facing SLA
+    regulatory_required: bool = False  # Required for compliance
     penalty_applicable: bool = False  # SLA credits/penalties apply
 
     # Monitoring configuration
@@ -84,6 +88,7 @@ class ServiceLevelObjective:
 @dataclass
 class SLAMeasurement:
     """Individual SLA measurement point"""
+
     measurement_id: str
     slo_id: str
     measured_value: float
@@ -99,6 +104,7 @@ class SLAMeasurement:
 @dataclass
 class SLAReport:
     """SLA performance report"""
+
     report_id: str
     slo_id: str
     reporting_period_start: datetime
@@ -157,91 +163,86 @@ class SLAMonitor:
                 name="System Uptime - Customer SLA",
                 description="Customer-facing uptime guarantee",
                 metric_type=MetricType.UPTIME,
-                target_value=99.9,          # 99.9% uptime
-                warning_threshold=99.5,     # Warning at 99.5%
-                critical_threshold=99.0,    # Critical at 99.0%
+                target_value=99.9,  # 99.9% uptime
+                warning_threshold=99.5,  # Warning at 99.5%
+                critical_threshold=99.0,  # Critical at 99.0%
                 measurement_window_hours=720,  # 30 days
                 measurement_unit="%",
                 customer_facing=True,
                 regulatory_required=True,
                 penalty_applicable=True,
-                check_interval_minutes=1
+                check_interval_minutes=1,
             ),
-
             # API Response Time - Customer-facing 1s SLA
             ServiceLevelObjective(
                 slo_id="api-response-time",
                 name="API Response Time",
                 description="API endpoint response time SLA",
                 metric_type=MetricType.RESPONSE_TIME,
-                target_value=1000,          # 1000ms (1 second)
-                warning_threshold=1500,     # Warning at 1.5s
-                critical_threshold=3000,    # Critical at 3s
+                target_value=1000,  # 1000ms (1 second)
+                warning_threshold=1500,  # Warning at 1.5s
+                critical_threshold=3000,  # Critical at 3s
                 measurement_window_hours=24,  # 24 hours
                 measurement_unit="ms",
                 customer_facing=True,
                 penalty_applicable=True,
-                check_interval_minutes=5
+                check_interval_minutes=5,
             ),
-
             # Error Rate - Internal monitoring
             ServiceLevelObjective(
                 slo_id="api-error-rate",
                 name="API Error Rate",
                 description="API error rate monitoring",
                 metric_type=MetricType.ERROR_RATE,
-                target_value=1.0,           # 1% error rate
-                warning_threshold=2.0,      # Warning at 2%
-                critical_threshold=5.0,     # Critical at 5%
+                target_value=1.0,  # 1% error rate
+                warning_threshold=2.0,  # Warning at 2%
+                critical_threshold=5.0,  # Critical at 5%
                 measurement_window_hours=24,
                 measurement_unit="%",
                 customer_facing=False,
-                alert_enabled=True
+                alert_enabled=True,
             ),
-
             # Support Response Time - Customer-facing
             ServiceLevelObjective(
                 slo_id="support-response-critical",
                 name="Critical Support Response",
                 description="Critical support ticket response time",
                 metric_type=MetricType.SUPPORT_RESPONSE,
-                target_value=60,            # 60 minutes
-                warning_threshold=45,       # Warning at 45 min
-                critical_threshold=30,      # Critical at 30 min
+                target_value=60,  # 60 minutes
+                warning_threshold=45,  # Warning at 45 min
+                critical_threshold=30,  # Critical at 30 min
                 measurement_window_hours=168,  # 7 days
                 measurement_unit="minutes",
                 customer_facing=True,
-                penalty_applicable=True
+                penalty_applicable=True,
             ),
-
             # Database Response Time - Internal
             ServiceLevelObjective(
                 slo_id="database-response-time",
                 name="Database Response Time",
                 description="Database query response time",
                 metric_type=MetricType.RESPONSE_TIME,
-                target_value=500,           # 500ms
-                warning_threshold=750,      # Warning at 750ms
-                critical_threshold=1000,    # Critical at 1s
+                target_value=500,  # 500ms
+                warning_threshold=750,  # Warning at 750ms
+                critical_threshold=1000,  # Critical at 1s
                 measurement_window_hours=24,
                 measurement_unit="ms",
-                customer_facing=False
+                customer_facing=False,
             ),
-
             # Authentication Service Uptime
             ServiceLevelObjective(
                 slo_id="auth-uptime",
                 name="Authentication Service Uptime",
                 description="Authentication service availability",
                 metric_type=MetricType.UPTIME,
-                target_value=99.95,         # 99.95% uptime
-                warning_threshold=99.9,     # Warning at 99.9%
-                critical_threshold=99.5,    # Critical at 99.5%
+                target_value=99.95,  # 99.95% uptime
+                warning_threshold=99.9,  # Warning at 99.9%
+                critical_threshold=99.5,  # Critical at 99.5%
                 measurement_window_hours=168,  # 7 days
                 measurement_unit="%",
                 customer_facing=True,
-                regulatory_required=True
-            )
+                regulatory_required=True,
+            ),
         ]
 
     async def initialize_slos(self) -> bool:
@@ -264,7 +265,7 @@ class SLAMonitor:
             "measurements": {},
             "alerts_generated": [],
             "breaches_detected": [],
-            "summary": {}
+            "summary": {},
         }
 
         try:
@@ -282,14 +283,16 @@ class SLAMonitor:
 
                     # Check for breaches
                     if measurement.status in [SLAStatus.BREACH, SLAStatus.CRITICAL]:
-                        results["breaches_detected"].append({
-                            "slo_id": slo.slo_id,
-                            "name": slo.name,
-                            "status": measurement.status,
-                            "actual_value": measurement.measured_value,
-                            "target_value": slo.target_value,
-                            "customer_facing": slo.customer_facing
-                        })
+                        results["breaches_detected"].append(
+                            {
+                                "slo_id": slo.slo_id,
+                                "name": slo.name,
+                                "status": measurement.status,
+                                "actual_value": measurement.measured_value,
+                                "target_value": slo.target_value,
+                                "customer_facing": slo.customer_facing,
+                            }
+                        )
 
                 except Exception as e:
                     logger.error(f"Error measuring SLO {slo.slo_id}: {e}")
@@ -342,7 +345,9 @@ class SLAMonitor:
             compliance_percentage = (compliant_measurements / len(values)) * 100
 
         # Calculate breach information
-        breach_measurements = [m for m in measurements if m.status in [SLAStatus.BREACH, SLAStatus.CRITICAL]]
+        breach_measurements = [
+            m for m in measurements if m.status in [SLAStatus.BREACH, SLAStatus.CRITICAL]
+        ]
 
         if breach_measurements:
             # Calculate breach duration (simplified - assumes continuous monitoring)
@@ -385,8 +390,9 @@ class SLAMonitor:
             p95_value=sorted_values[p95_index] if p95_index < len(sorted_values) else max(values),
             p99_value=sorted_values[p99_index] if p99_index < len(sorted_values) else max(values),
             sla_status=sla_status,
-            customer_impact=slo.customer_facing and sla_status in [SLAStatus.BREACH, SLAStatus.CRITICAL],
-            credits_applicable=slo.penalty_applicable and compliance_percentage < 100.0
+            customer_impact=slo.customer_facing
+            and sla_status in [SLAStatus.BREACH, SLAStatus.CRITICAL],
+            credits_applicable=slo.penalty_applicable and compliance_percentage < 100.0,
         )
 
         await self._save_sla_report(report)
@@ -403,7 +409,7 @@ class SLAMonitor:
             "overall_status": "healthy",
             "sla_metrics": [],
             "recent_incidents": [],
-            "uptime_statistics": {}
+            "uptime_statistics": {},
         }
 
         try:
@@ -414,7 +420,9 @@ class SLAMonitor:
 
             for slo in slos:
                 # Get latest report
-                report = await self.generate_sla_report(slo.slo_id, hours=slo.measurement_window_hours)
+                report = await self.generate_sla_report(
+                    slo.slo_id, hours=slo.measurement_window_hours
+                )
 
                 metric_data = {
                     "name": slo.name,
@@ -423,7 +431,7 @@ class SLAMonitor:
                     "unit": slo.measurement_unit,
                     "status": report.sla_status,
                     "compliance_percentage": report.compliance_percentage,
-                    "measurement_window_hours": slo.measurement_window_hours
+                    "measurement_window_hours": slo.measurement_window_hours,
                 }
 
                 dashboard["sla_metrics"].append(metric_data)
@@ -492,8 +500,8 @@ class SLAMonitor:
             status=status,
             metadata={
                 "measurement_method": f"automated_{slo.metric_type}",
-                "measurement_window_hours": slo.measurement_window_hours
-            }
+                "measurement_window_hours": slo.measurement_window_hours,
+            },
         )
 
         await self._save_measurement(measurement)
@@ -508,7 +516,7 @@ class SLAMonitor:
             if system_responsive:
                 return 100.0  # Currently up
             else:
-                return 0.0    # Currently down
+                return 0.0  # Currently down
 
         except Exception as e:
             logger.error(f"Error measuring uptime: {e}")
@@ -544,15 +552,15 @@ class SLAMonitor:
 
                 total_requests_query = select(func.count(AuditLog.id)).where(
                     and_(
-                        AuditLog.action.in_(['api_request', 'authentication', 'api_success']),
-                        AuditLog.created_at >= one_hour_ago
+                        AuditLog.action.in_(["api_request", "authentication", "api_success"]),
+                        AuditLog.created_at >= one_hour_ago,
                     )
                 )
 
                 error_requests_query = select(func.count(AuditLog.id)).where(
                     and_(
-                        AuditLog.action.in_(['api_error', 'authentication_failed']),
-                        AuditLog.created_at >= one_hour_ago
+                        AuditLog.action.in_(["api_error", "authentication_failed"]),
+                        AuditLog.created_at >= one_hour_ago,
                     )
                 )
 
@@ -581,8 +589,8 @@ class SLAMonitor:
 
                 requests_query = select(func.count(AuditLog.id)).where(
                     and_(
-                        AuditLog.action.in_(['api_request', 'authentication']),
-                        AuditLog.created_at >= one_minute_ago
+                        AuditLog.action.in_(["api_request", "authentication"]),
+                        AuditLog.created_at >= one_minute_ago,
                     )
                 )
 
@@ -619,7 +627,9 @@ class SLAMonitor:
             logger.error(f"System health check failed: {e}")
             return False
 
-    async def _check_sla_alerts(self, slo: ServiceLevelObjective, measurement: SLAMeasurement) -> List[Dict[str, Any]]:
+    async def _check_sla_alerts(
+        self, slo: ServiceLevelObjective, measurement: SLAMeasurement
+    ) -> List[Dict[str, Any]]:
         """Check if measurement triggers SLA alerts"""
         alerts = []
 
@@ -634,10 +644,14 @@ class SLAMonitor:
             message = f"CRITICAL SLA BREACH: {slo.name} at {measurement.measured_value}{slo.measurement_unit}"
         elif measurement.status == SLAStatus.BREACH:
             alert_level = AlertLevel.CRITICAL
-            message = f"SLA BREACH: {slo.name} at {measurement.measured_value}{slo.measurement_unit}"
+            message = (
+                f"SLA BREACH: {slo.name} at {measurement.measured_value}{slo.measurement_unit}"
+            )
         elif measurement.status == SLAStatus.AT_RISK:
             alert_level = AlertLevel.WARNING
-            message = f"SLA AT RISK: {slo.name} at {measurement.measured_value}{slo.measurement_unit}"
+            message = (
+                f"SLA AT RISK: {slo.name} at {measurement.measured_value}{slo.measurement_unit}"
+            )
 
         if alert_level:
             alert = {
@@ -649,7 +663,7 @@ class SLAMonitor:
                 "measured_value": measurement.measured_value,
                 "target_value": slo.target_value,
                 "customer_facing": slo.customer_facing,
-                "timestamp": measurement.timestamp.isoformat()
+                "timestamp": measurement.timestamp.isoformat(),
             }
 
             alerts.append(alert)
@@ -670,7 +684,7 @@ class SLAMonitor:
             "slos_in_breach": 0,
             "customer_facing_breaches": 0,
             "total_alerts": len(results.get("alerts_generated", [])),
-            "critical_alerts": 0
+            "critical_alerts": 0,
         }
 
         for measurement_data in measurements.values():
@@ -715,11 +729,11 @@ class SLAMonitor:
             return None
 
         try:
-            with open(slo_file, 'r') as f:
+            with open(slo_file, "r") as f:
                 slo_data = json.load(f)
 
             # Convert datetime strings back to datetime objects
-            for field in ['created_at', 'updated_at']:
+            for field in ["created_at", "updated_at"]:
                 if slo_data.get(field):
                     slo_data[field] = datetime.fromisoformat(slo_data[field])
 
@@ -758,11 +772,11 @@ class SLAMonitor:
         slo_data = asdict(slo)
 
         # Convert datetime objects to ISO strings
-        for field in ['created_at', 'updated_at']:
+        for field in ["created_at", "updated_at"]:
             if slo_data.get(field):
                 slo_data[field] = slo_data[field].isoformat()
 
-        with open(slo_file, 'w') as f:
+        with open(slo_file, "w") as f:
             json.dump(slo_data, f, indent=2, default=str)
 
     async def _save_measurement(self, measurement: SLAMeasurement):
@@ -776,7 +790,7 @@ class SLAMonitor:
         # Convert datetime to ISO string
         measurement_data["timestamp"] = measurement_data["timestamp"].isoformat()
 
-        with open(measurement_file, 'w') as f:
+        with open(measurement_file, "w") as f:
             json.dump(measurement_data, f, indent=2, default=str)
 
     async def _save_sla_report(self, report: SLAReport):
@@ -788,14 +802,16 @@ class SLAMonitor:
         report_data = asdict(report)
 
         # Convert datetime objects to ISO strings
-        for field in ['reporting_period_start', 'reporting_period_end', 'generated_at']:
+        for field in ["reporting_period_start", "reporting_period_end", "generated_at"]:
             if report_data.get(field):
                 report_data[field] = report_data[field].isoformat()
 
-        with open(report_file, 'w') as f:
+        with open(report_file, "w") as f:
             json.dump(report_data, f, indent=2, default=str)
 
-    async def _get_measurements(self, slo_id: str, start_time: datetime, end_time: datetime) -> List[SLAMeasurement]:
+    async def _get_measurements(
+        self, slo_id: str, start_time: datetime, end_time: datetime
+    ) -> List[SLAMeasurement]:
         """Get measurements for SLO in time range"""
         measurements = []
         measurements_dir = self.sla_storage / "measurements" / slo_id
@@ -805,7 +821,7 @@ class SLAMonitor:
 
         for measurement_file in measurements_dir.glob("*.json"):
             try:
-                with open(measurement_file, 'r') as f:
+                with open(measurement_file, "r") as f:
                     measurement_data = json.load(f)
 
                 timestamp = datetime.fromisoformat(measurement_data["timestamp"])
@@ -837,16 +853,13 @@ class UptimeTracker:
                 # Store uptime status with timestamp
                 status_value = 1 if is_up else 0
                 await self.redis_client.zadd(
-                    f"{self.uptime_key}:status",
-                    {timestamp.timestamp(): status_value}
+                    f"{self.uptime_key}:status", {timestamp.timestamp(): status_value}
                 )
 
                 # Keep last 30 days of data
                 cutoff_timestamp = (timestamp - timedelta(days=30)).timestamp()
                 await self.redis_client.zremrangebyscore(
-                    f"{self.uptime_key}:status",
-                    0,
-                    cutoff_timestamp
+                    f"{self.uptime_key}:status", 0, cutoff_timestamp
                 )
 
             except Exception as e:
@@ -866,7 +879,7 @@ class UptimeTracker:
                 f"{self.uptime_key}:status",
                 start_time.timestamp(),
                 end_time.timestamp(),
-                withscores=True
+                withscores=True,
             )
 
             if not status_checks:
@@ -889,7 +902,7 @@ class UptimeTracker:
             "uptime_7d": await self.get_uptime_percentage(168),
             "uptime_30d": await self.get_uptime_percentage(720),
             "last_incident": None,
-            "incident_count_30d": 0
+            "incident_count_30d": 0,
         }
 
         try:

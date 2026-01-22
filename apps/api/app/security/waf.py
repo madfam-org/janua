@@ -20,11 +20,12 @@ logger = structlog.get_logger()
 @dataclass
 class WAFRule:
     """WAF rule definition"""
+
     id: str
     name: str
     pattern: str
     severity: str  # LOW, MEDIUM, HIGH, CRITICAL
-    action: str    # BLOCK, LOG, RATE_LIMIT
+    action: str  # BLOCK, LOG, RATE_LIMIT
     enabled: bool = True
     description: str = ""
 
@@ -32,6 +33,7 @@ class WAFRule:
 @dataclass
 class AttackSignature:
     """Attack signature for detection"""
+
     name: str
     patterns: List[str]
     severity: str
@@ -56,7 +58,7 @@ class WAFEngine:
     def _load_malicious_patterns(self) -> Dict[str, List[str]]:
         """Load known malicious patterns"""
         return {
-            'sql_injection': [
+            "sql_injection": [
                 r"(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION)\b)",
                 r"(--|#|\/\*|\*\/)",
                 r"(\b(OR|AND)\s+\d+\s*=\s*\d+)",
@@ -64,7 +66,7 @@ class WAFEngine:
                 r"(\bUNION\s+SELECT\b)",
                 r"(\b(INFORMATION_SCHEMA|mysql\.user|pg_user)\b)",
             ],
-            'xss': [
+            "xss": [
                 r"(<script[^>]*>.*?</script>)",
                 r"(javascript\s*:)",
                 r"(on\w+\s*=)",
@@ -73,18 +75,18 @@ class WAFEngine:
                 r"(eval\s*\()",
                 r"(document\.(cookie|domain|location))",
             ],
-            'lfi': [
+            "lfi": [
                 r"(\.\./|\.\.\%2f|\.\.\%5c)",
                 r"(/etc/passwd|/etc/shadow|/proc/self/environ)",
                 r"(\%00|null\x00)",
                 r"(file\s*:|php\s*:|data\s*:)",
             ],
-            'rfi': [
+            "rfi": [
                 r"(https?://[^/\s]+)",
                 r"(ftp://[^/\s]+)",
                 r"(\?.*https?://)",
             ],
-            'command_injection': [
+            "command_injection": [
                 r"(\||&|;|`|\$\(|\${)",
                 r"(\b(cat|ls|ps|id|whoami|uname|netstat)\b)",
                 r"(\bnc\s+-)",
@@ -102,7 +104,7 @@ class WAFEngine:
                 pattern="sql_injection",
                 severity="HIGH",
                 action="BLOCK",
-                description="Detects common SQL injection patterns"
+                description="Detects common SQL injection patterns",
             ),
             WAFRule(
                 id="XSS_001",
@@ -110,7 +112,7 @@ class WAFEngine:
                 pattern="xss",
                 severity="HIGH",
                 action="BLOCK",
-                description="Detects XSS attack patterns"
+                description="Detects XSS attack patterns",
             ),
             WAFRule(
                 id="LFI_001",
@@ -118,7 +120,7 @@ class WAFEngine:
                 pattern="lfi",
                 severity="MEDIUM",
                 action="BLOCK",
-                description="Detects local file inclusion attempts"
+                description="Detects local file inclusion attempts",
             ),
             WAFRule(
                 id="RFI_001",
@@ -126,7 +128,7 @@ class WAFEngine:
                 pattern="rfi",
                 severity="HIGH",
                 action="BLOCK",
-                description="Detects remote file inclusion attempts"
+                description="Detects remote file inclusion attempts",
             ),
             WAFRule(
                 id="CMD_001",
@@ -134,7 +136,7 @@ class WAFEngine:
                 pattern="command_injection",
                 severity="CRITICAL",
                 action="BLOCK",
-                description="Detects command injection attempts"
+                description="Detects command injection attempts",
             ),
             WAFRule(
                 id="RATE_001",
@@ -142,7 +144,7 @@ class WAFEngine:
                 pattern="",
                 severity="MEDIUM",
                 action="RATE_LIMIT",
-                description="Rate limiting protection"
+                description="Rate limiting protection",
             ),
         ]
 
@@ -154,33 +156,33 @@ class WAFEngine:
         signatures = [
             AttackSignature(
                 name="Classic SQL Injection",
-                patterns=self.malicious_patterns['sql_injection'],
+                patterns=self.malicious_patterns["sql_injection"],
                 severity="HIGH",
-                category="SQL_INJECTION"
+                category="SQL_INJECTION",
             ),
             AttackSignature(
                 name="Cross-Site Scripting",
-                patterns=self.malicious_patterns['xss'],
+                patterns=self.malicious_patterns["xss"],
                 severity="HIGH",
-                category="XSS"
+                category="XSS",
             ),
             AttackSignature(
                 name="Local File Inclusion",
-                patterns=self.malicious_patterns['lfi'],
+                patterns=self.malicious_patterns["lfi"],
                 severity="MEDIUM",
-                category="LFI"
+                category="LFI",
             ),
             AttackSignature(
                 name="Remote File Inclusion",
-                patterns=self.malicious_patterns['rfi'],
+                patterns=self.malicious_patterns["rfi"],
                 severity="HIGH",
-                category="RFI"
+                category="RFI",
             ),
             AttackSignature(
                 name="Command Injection",
-                patterns=self.malicious_patterns['command_injection'],
+                patterns=self.malicious_patterns["command_injection"],
                 severity="CRITICAL",
-                category="COMMAND_INJECTION"
+                category="COMMAND_INJECTION",
             ),
         ]
 
@@ -224,11 +226,7 @@ class WAFEngine:
         # Check blocklist
         if self.is_ip_blocked(client_ip):
             logger.warning("Blocked IP attempted access", ip=client_ip)
-            return False, {
-                "status": "blocked",
-                "reason": "IP is blocklisted",
-                "ip": client_ip
-            }
+            return False, {"status": "blocked", "reason": "IP is blocklisted", "ip": client_ip}
 
         # Analyze request content
         threat_found, threat_details = self._analyze_content(request)
@@ -237,7 +235,7 @@ class WAFEngine:
             logger.warning("Threat detected", **threat_details, ip=client_ip)
 
             # Auto-block on critical threats
-            if threat_details.get('severity') == 'CRITICAL':
+            if threat_details.get("severity") == "CRITICAL":
                 self.add_to_blocklist(client_ip)
 
             return False, threat_details
@@ -280,7 +278,7 @@ class WAFEngine:
                         "severity": signature.severity,
                         "location": "url",
                         "pattern": pattern,
-                        "matched_content": url
+                        "matched_content": url,
                     }
 
                 # Check query parameters
@@ -291,7 +289,7 @@ class WAFEngine:
                         "severity": signature.severity,
                         "location": "query_params",
                         "pattern": pattern,
-                        "matched_content": query_params
+                        "matched_content": query_params,
                     }
 
         # Check headers for malicious content
@@ -302,7 +300,7 @@ class WAFEngine:
                     "threat_name": "Malicious Header Content",
                     "severity": "MEDIUM",
                     "location": f"header_{header_name}",
-                    "matched_content": header_value
+                    "matched_content": header_value,
                 }
 
         return False, {}
@@ -313,9 +311,20 @@ class WAFEngine:
 
         # Check for common attack patterns
         malicious_indicators = [
-            '<script', 'javascript:', 'vbscript:', 'onload=', 'onerror=',
-            'union select', 'drop table', '../', 'etc/passwd',
-            '<?php', '<%', 'eval(', 'exec(', 'system(',
+            "<script",
+            "javascript:",
+            "vbscript:",
+            "onload=",
+            "onerror=",
+            "union select",
+            "drop table",
+            "../",
+            "etc/passwd",
+            "<?php",
+            "<%",
+            "eval(",
+            "exec(",
+            "system(",
         ]
 
         return any(indicator in content_lower for indicator in malicious_indicators)
@@ -339,7 +348,7 @@ class WAFMiddleware:
                 **analysis_result,
                 url=str(request.url),
                 method=request.method,
-                user_agent=request.headers.get("User-Agent", "unknown")
+                user_agent=request.headers.get("User-Agent", "unknown"),
             )
 
             # Return blocked response
@@ -348,8 +357,8 @@ class WAFMiddleware:
                 content={
                     "error": "Request blocked by WAF",
                     "reason": analysis_result.get("threat_name", "Security violation"),
-                    "request_id": self._generate_request_id(request)
-                }
+                    "request_id": self._generate_request_id(request),
+                },
             )
 
         # Continue processing if safe
@@ -374,7 +383,7 @@ class WAFMiddleware:
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             "Content-Security-Policy": "default-src 'self'",
             "Referrer-Policy": "strict-origin-when-cross-origin",
-            "Permissions-Policy": "geolocation=(), microphone=(), camera=()"
+            "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
         }
 
         for header, value in security_headers.items():
@@ -389,7 +398,7 @@ class WAFConfig:
     def load_config(config_file: str = "waf_config.json") -> Dict:
         """Load WAF configuration from file"""
         try:
-            with open(config_file, 'r') as f:
+            with open(config_file, "r") as f:
                 return json.load(f)
         except FileNotFoundError:
             return WAFConfig.get_default_config()
@@ -400,23 +409,12 @@ class WAFConfig:
         return {
             "enabled": True,
             "block_mode": True,
-            "rate_limiting": {
-                "enabled": True,
-                "requests_per_minute": 60,
-                "burst_size": 20
-            },
-            "geoblocking": {
-                "enabled": False,
-                "blocked_countries": []
-            },
+            "rate_limiting": {"enabled": True, "requests_per_minute": 60, "burst_size": 20},
+            "geoblocking": {"enabled": False, "blocked_countries": []},
             "custom_rules": [],
             "whitelist": [],
             "blocklist": [],
-            "logging": {
-                "enabled": True,
-                "log_level": "INFO",
-                "log_blocked_only": False
-            }
+            "logging": {"enabled": True, "log_level": "INFO", "log_blocked_only": False},
         }
 
 
@@ -430,7 +428,7 @@ class WAFStats:
             "blocked_requests": 0,
             "threats_detected": {},
             "top_blocked_ips": {},
-            "last_reset": datetime.now()
+            "last_reset": datetime.now(),
         }
 
     def increment_total_requests(self):
@@ -459,7 +457,7 @@ class WAFStats:
         return {
             **self.stats,
             "block_rate": (blocked / total * 100) if total > 0 else 0,
-            "uptime": datetime.now() - self.stats["last_reset"]
+            "uptime": datetime.now() - self.stats["last_reset"],
         }
 
     def reset_stats(self):
@@ -469,7 +467,7 @@ class WAFStats:
             "blocked_requests": 0,
             "threats_detected": {},
             "top_blocked_ips": {},
-            "last_reset": datetime.now()
+            "last_reset": datetime.now(),
         }
 
 

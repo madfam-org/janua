@@ -21,6 +21,7 @@ logger = structlog.get_logger()
 
 class LogLevel(Enum):
     """Log level enumeration"""
+
     TRACE = 5
     DEBUG = 10
     INFO = 20
@@ -31,6 +32,7 @@ class LogLevel(Enum):
 
 class AlertSeverity(Enum):
     """Alert severity levels"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -40,6 +42,7 @@ class AlertSeverity(Enum):
 @dataclass
 class LogEntry:
     """Structured log entry"""
+
     timestamp: datetime
     level: str
     message: str
@@ -57,6 +60,7 @@ class LogEntry:
 @dataclass
 class LogPattern:
     """Detected log pattern"""
+
     pattern_id: str
     pattern_type: str
     frequency: int
@@ -70,6 +74,7 @@ class LogPattern:
 @dataclass
 class PerformanceMetrics:
     """Performance metrics extracted from logs"""
+
     total_requests: int
     avg_response_time: float
     p95_response_time: float
@@ -83,6 +88,7 @@ class PerformanceMetrics:
 @dataclass
 class SecurityAlert:
     """Security alert from log analysis"""
+
     alert_id: str
     severity: AlertSeverity
     alert_type: str
@@ -153,7 +159,7 @@ class LogAnalyzer:
             self.redis_client = aioredis.from_url(
                 f"redis://{getattr(settings, 'REDIS_HOST', 'localhost')}:{getattr(settings, 'REDIS_PORT', 6379)}/3",
                 encoding="utf-8",
-                decode_responses=True
+                decode_responses=True,
             )
             await self.redis_client.ping()
             logger.info("Log analyzer Redis connection initialized")
@@ -179,7 +185,7 @@ class LogAnalyzer:
                 "duration_ms": log_entry.duration_ms,
                 "status_code": log_entry.status_code,
                 "error_type": log_entry.error_type,
-                "metadata": json.dumps(log_entry.metadata) if log_entry.metadata else None
+                "metadata": json.dumps(log_entry.metadata) if log_entry.metadata else None,
             }
 
             # Store in Redis with timestamp-based key
@@ -192,11 +198,15 @@ class LogAnalyzer:
             await self.redis_client.zadd("logs:timeline", {log_key: timestamp})
 
             # Add to level-based index
-            await self.redis_client.zadd(f"logs:level:{log_entry.level.lower()}", {log_key: timestamp})
+            await self.redis_client.zadd(
+                f"logs:level:{log_entry.level.lower()}", {log_key: timestamp}
+            )
 
             # Add to event type index if available
             if log_entry.event_type:
-                await self.redis_client.zadd(f"logs:event:{log_entry.event_type}", {log_key: timestamp})
+                await self.redis_client.zadd(
+                    f"logs:event:{log_entry.event_type}", {log_key: timestamp}
+                )
 
             # Add to user index if available
             if log_entry.user_id:
@@ -230,18 +240,24 @@ class LogAnalyzer:
                 if log_data:
                     # Parse log entry
                     log_entry = LogEntry(
-                        timestamp=datetime.fromisoformat(log_data['timestamp']),
-                        level=log_data['level'],
-                        message=log_data['message'],
-                        service=log_data['service'],
-                        request_id=log_data.get('request_id'),
-                        user_id=log_data.get('user_id'),
-                        trace_id=log_data.get('trace_id'),
-                        event_type=log_data.get('event_type'),
-                        duration_ms=float(log_data['duration_ms']) if log_data.get('duration_ms') else None,
-                        status_code=int(log_data['status_code']) if log_data.get('status_code') else None,
-                        error_type=log_data.get('error_type'),
-                        metadata=json.loads(log_data['metadata']) if log_data.get('metadata') else {}
+                        timestamp=datetime.fromisoformat(log_data["timestamp"]),
+                        level=log_data["level"],
+                        message=log_data["message"],
+                        service=log_data["service"],
+                        request_id=log_data.get("request_id"),
+                        user_id=log_data.get("user_id"),
+                        trace_id=log_data.get("trace_id"),
+                        event_type=log_data.get("event_type"),
+                        duration_ms=float(log_data["duration_ms"])
+                        if log_data.get("duration_ms")
+                        else None,
+                        status_code=int(log_data["status_code"])
+                        if log_data.get("status_code")
+                        else None,
+                        error_type=log_data.get("error_type"),
+                        metadata=json.loads(log_data["metadata"])
+                        if log_data.get("metadata")
+                        else {},
                     )
                     logs.append(log_entry)
 
@@ -250,14 +266,14 @@ class LogAnalyzer:
                 "time_range": {
                     "start": start_time.isoformat(),
                     "end": end_time.isoformat(),
-                    "duration_hours": (end_time - start_time).total_seconds() / 3600
+                    "duration_hours": (end_time - start_time).total_seconds() / 3600,
                 },
                 "summary": await self._analyze_summary(logs),
                 "performance": await self._analyze_performance(logs),
                 "errors": await self._analyze_errors(logs),
                 "security": await self._analyze_security(logs),
                 "patterns": await self._detect_patterns(logs),
-                "recommendations": await self._generate_recommendations(logs)
+                "recommendations": await self._generate_recommendations(logs),
             }
 
             return analysis
@@ -284,8 +300,8 @@ class LogAnalyzer:
             "unique_requests": unique_requests,
             "time_span": {
                 "first_log": min(log.timestamp for log in logs).isoformat(),
-                "last_log": max(log.timestamp for log in logs).isoformat()
-            }
+                "last_log": max(log.timestamp for log in logs).isoformat(),
+            },
         }
 
     async def _analyze_performance(self, logs: List[LogEntry]) -> Dict[str, Any]:
@@ -306,8 +322,8 @@ class LogAnalyzer:
         # Endpoint analysis
         endpoint_performance = defaultdict(list)
         for log in request_logs:
-            if hasattr(log.metadata, 'get') and log.metadata.get('http_path'):
-                endpoint_performance[log.metadata['http_path']].append(log.duration_ms)
+            if hasattr(log.metadata, "get") and log.metadata.get("http_path"):
+                endpoint_performance[log.metadata["http_path"]].append(log.duration_ms)
 
         slowest_endpoints = []
         for endpoint, times in endpoint_performance.items():
@@ -324,14 +340,18 @@ class LogAnalyzer:
             "min_response_time": min(durations),
             "max_response_time": max(durations),
             "error_rate": error_responses / total_responses if total_responses > 0 else 0,
-            "slow_requests": len([d for d in durations if d > self.performance_thresholds["slow_request"]]),
-            "very_slow_requests": len([d for d in durations if d > self.performance_thresholds["very_slow_request"]]),
-            "slowest_endpoints": slowest_endpoints[:10]
+            "slow_requests": len(
+                [d for d in durations if d > self.performance_thresholds["slow_request"]]
+            ),
+            "very_slow_requests": len(
+                [d for d in durations if d > self.performance_thresholds["very_slow_request"]]
+            ),
+            "slowest_endpoints": slowest_endpoints[:10],
         }
 
     async def _analyze_errors(self, logs: List[LogEntry]) -> Dict[str, Any]:
         """Analyze error patterns and distribution"""
-        error_logs = [log for log in logs if log.level.upper() in ['ERROR', 'CRITICAL']]
+        error_logs = [log for log in logs if log.level.upper() in ["ERROR", "CRITICAL"]]
 
         if not error_logs:
             return {"message": "No errors found"}
@@ -355,7 +375,7 @@ class LogAnalyzer:
             "error_types": dict(error_types.most_common(10)),
             "common_error_messages": dict(error_messages.most_common(10)),
             "affected_users": len(affected_users),
-            "error_timeline": dict(error_timeline)
+            "error_timeline": dict(error_timeline),
         }
 
     async def _analyze_security(self, logs: List[LogEntry]) -> Dict[str, Any]:
@@ -364,11 +384,11 @@ class LogAnalyzer:
 
         # Authentication failures
         auth_failures = [log for log in logs if log.event_type == "authentication"]
-        failed_auths = [log for log in auth_failures if log.metadata.get('auth_success') is False]
+        failed_auths = [log for log in auth_failures if log.metadata.get("auth_success") is False]
 
         # Authorization denials
         authz_denials = [log for log in logs if log.event_type == "authorization"]
-        denied_authz = [log for log in authz_denials if log.metadata.get('authz_allowed') is False]
+        denied_authz = [log for log in authz_denials if log.metadata.get("authz_allowed") is False]
 
         # Suspicious patterns
         suspicious_ips = self._detect_suspicious_ips(logs)
@@ -380,7 +400,7 @@ class LogAnalyzer:
             "authorization_denials": len(denied_authz),
             "suspicious_ips": suspicious_ips,
             "brute_force_attempts": brute_force_attempts,
-            "security_recommendations": self._generate_security_recommendations(security_logs)
+            "security_recommendations": self._generate_security_recommendations(security_logs),
         }
 
     async def _detect_patterns(self, logs: List[LogEntry]) -> Dict[str, Any]:
@@ -392,19 +412,21 @@ class LogAnalyzer:
             matches = []
             for log in logs:
                 if re.search(pattern_regex, log.message):
-                    matches.append({
-                        "timestamp": log.timestamp.isoformat(),
-                        "message": log.message,
-                        "user_id": log.user_id,
-                        "request_id": log.request_id
-                    })
+                    matches.append(
+                        {
+                            "timestamp": log.timestamp.isoformat(),
+                            "message": log.message,
+                            "user_id": log.user_id,
+                            "request_id": log.request_id,
+                        }
+                    )
 
             if matches:
                 patterns_detected[pattern_name] = {
                     "count": len(matches),
                     "first_occurrence": matches[0]["timestamp"],
                     "last_occurrence": matches[-1]["timestamp"],
-                    "sample_logs": matches[:5]  # First 5 occurrences
+                    "sample_logs": matches[:5],  # First 5 occurrences
                 }
 
         return patterns_detected
@@ -414,19 +436,33 @@ class LogAnalyzer:
         recommendations = []
 
         # Performance recommendations
-        slow_requests = [log for log in logs if log.duration_ms and log.duration_ms > self.performance_thresholds["slow_request"]]
+        slow_requests = [
+            log
+            for log in logs
+            if log.duration_ms and log.duration_ms > self.performance_thresholds["slow_request"]
+        ]
         if len(slow_requests) > len(logs) * 0.1:  # More than 10% slow requests
-            recommendations.append("High number of slow requests detected. Consider optimizing database queries and API endpoints.")
+            recommendations.append(
+                "High number of slow requests detected. Consider optimizing database queries and API endpoints."
+            )
 
         # Error rate recommendations
-        error_logs = [log for log in logs if log.level.upper() in ['ERROR', 'CRITICAL']]
+        error_logs = [log for log in logs if log.level.upper() in ["ERROR", "CRITICAL"]]
         if len(error_logs) > len(logs) * self.performance_thresholds["high_error_rate"]:
-            recommendations.append("High error rate detected. Review error logs and implement proper error handling.")
+            recommendations.append(
+                "High error rate detected. Review error logs and implement proper error handling."
+            )
 
         # Security recommendations
-        auth_failures = [log for log in logs if log.event_type == "authentication" and log.metadata.get('auth_success') is False]
+        auth_failures = [
+            log
+            for log in logs
+            if log.event_type == "authentication" and log.metadata.get("auth_success") is False
+        ]
         if len(auth_failures) > 10:
-            recommendations.append("Multiple authentication failures detected. Consider implementing account lockout policies.")
+            recommendations.append(
+                "Multiple authentication failures detected. Consider implementing account lockout policies."
+            )
 
         return recommendations
 
@@ -435,29 +471,33 @@ class LogAnalyzer:
         ip_activity = defaultdict(lambda: {"requests": 0, "errors": 0, "failed_auths": 0})
 
         for log in logs:
-            client_ip = log.metadata.get('client_ip')
+            client_ip = log.metadata.get("client_ip")
             if not client_ip:
                 continue
 
             ip_activity[client_ip]["requests"] += 1
 
-            if log.level.upper() in ['ERROR', 'CRITICAL']:
+            if log.level.upper() in ["ERROR", "CRITICAL"]:
                 ip_activity[client_ip]["errors"] += 1
 
-            if log.event_type == "authentication" and log.metadata.get('auth_success') is False:
+            if log.event_type == "authentication" and log.metadata.get("auth_success") is False:
                 ip_activity[client_ip]["failed_auths"] += 1
 
         suspicious_ips = []
         for ip, activity in ip_activity.items():
             # Define suspicious criteria
-            if (activity["failed_auths"] > 5 or
-                activity["errors"] > activity["requests"] * 0.5 or
-                activity["requests"] > 100):  # High volume
-                suspicious_ips.append({
-                    "ip": ip,
-                    "activity": activity,
-                    "risk_score": self._calculate_ip_risk_score(activity)
-                })
+            if (
+                activity["failed_auths"] > 5
+                or activity["errors"] > activity["requests"] * 0.5
+                or activity["requests"] > 100
+            ):  # High volume
+                suspicious_ips.append(
+                    {
+                        "ip": ip,
+                        "activity": activity,
+                        "risk_score": self._calculate_ip_risk_score(activity),
+                    }
+                )
 
         return sorted(suspicious_ips, key=lambda x: x["risk_score"], reverse=True)
 
@@ -467,7 +507,7 @@ class LogAnalyzer:
         ip_attempts = defaultdict(list)
 
         for log in auth_failure_logs:
-            client_ip = log.metadata.get('client_ip')
+            client_ip = log.metadata.get("client_ip")
             if client_ip:
                 ip_attempts[client_ip].append(log.timestamp)
 
@@ -482,13 +522,15 @@ class LogAnalyzer:
                 window_end = timestamps[i + 4]
 
                 if (window_end - window_start).total_seconds() <= 300:  # 5 minutes
-                    brute_force_attempts.append({
-                        "ip": ip,
-                        "start_time": window_start.isoformat(),
-                        "end_time": window_end.isoformat(),
-                        "attempts": 5,
-                        "severity": "high"
-                    })
+                    brute_force_attempts.append(
+                        {
+                            "ip": ip,
+                            "start_time": window_start.isoformat(),
+                            "end_time": window_end.isoformat(),
+                            "attempts": 5,
+                            "severity": "high",
+                        }
+                    )
                     break
 
         return brute_force_attempts
@@ -516,11 +558,17 @@ class LogAnalyzer:
         recommendations = []
 
         if len(security_logs) > 10:
-            recommendations.append("Multiple security events detected. Review security monitoring and incident response procedures.")
+            recommendations.append(
+                "Multiple security events detected. Review security monitoring and incident response procedures."
+            )
 
-        high_severity = [log for log in security_logs if log.metadata.get('security_severity') == 'high']
+        high_severity = [
+            log for log in security_logs if log.metadata.get("security_severity") == "high"
+        ]
         if high_severity:
-            recommendations.append("High-severity security events detected. Immediate investigation recommended.")
+            recommendations.append(
+                "High-severity security events detected. Immediate investigation recommended."
+            )
 
         return recommendations
 
@@ -556,7 +604,9 @@ class LogAnalyzer:
                 await self.redis_client.delete(*old_log_keys)
                 await self.redis_client.zremrangebyscore("logs:timeline", 0, cutoff_ts)
 
-                logger.info("Cleaned up old logs", deleted_count=len(old_log_keys), cutoff_days=days)
+                logger.info(
+                    "Cleaned up old logs", deleted_count=len(old_log_keys), cutoff_days=days
+                )
 
         except Exception as e:
             logger.error("Failed to cleanup old logs", error=str(e))
@@ -581,18 +631,18 @@ async def store_log_for_analysis(log_data: Dict[str, Any]):
     """Store a log entry for analysis"""
     try:
         log_entry = LogEntry(
-            timestamp=datetime.fromisoformat(log_data['timestamp']),
-            level=log_data['level'],
-            message=log_data['message'],
-            service=log_data.get('service', 'unknown'),
-            request_id=log_data.get('request_id'),
-            user_id=log_data.get('user_id'),
-            trace_id=log_data.get('trace_id'),
-            event_type=log_data.get('event_type'),
-            duration_ms=log_data.get('duration_ms'),
-            status_code=log_data.get('status_code'),
-            error_type=log_data.get('error_type'),
-            metadata=log_data.get('metadata', {})
+            timestamp=datetime.fromisoformat(log_data["timestamp"]),
+            level=log_data["level"],
+            message=log_data["message"],
+            service=log_data.get("service", "unknown"),
+            request_id=log_data.get("request_id"),
+            user_id=log_data.get("user_id"),
+            trace_id=log_data.get("trace_id"),
+            event_type=log_data.get("event_type"),
+            duration_ms=log_data.get("duration_ms"),
+            status_code=log_data.get("status_code"),
+            error_type=log_data.get("error_type"),
+            metadata=log_data.get("metadata", {}),
         )
 
         await log_analyzer.store_log_entry(log_entry)

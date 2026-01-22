@@ -13,6 +13,7 @@ from jinja2 import Environment, select_autoescape
 
 from ...domain.models.notification import NotificationRequest, AbstractNotificationStrategy
 import structlog
+
 logger = structlog.get_logger()
 
 
@@ -21,7 +22,7 @@ class EmailNotificationStrategy(AbstractNotificationStrategy):
 
     def __init__(self):
         # Create a Jinja2 environment with autoescape enabled for HTML templates
-        self._jinja_env = Environment(autoescape=select_autoescape(['html', 'xml']))
+        self._jinja_env = Environment(autoescape=select_autoescape(["html", "xml"]))
         self._default_template = self._create_default_template()
 
     def get_channel_type(self) -> str:
@@ -72,20 +73,16 @@ class EmailNotificationStrategy(AbstractNotificationStrategy):
             self._log_attempt(request, "sending email")
 
             # Create email message
-            msg = await self._create_email_message(
-                request, username, from_name, to_addresses
-            )
+            msg = await self._create_email_message(request, username, from_name, to_addresses)
 
             # Send email
-            await self._send_smtp_email(
-                msg, smtp_server, smtp_port, username, password, use_tls
-            )
+            await self._send_smtp_email(msg, smtp_server, smtp_port, username, password, use_tls)
 
             logger.info(
                 "Email notification sent successfully",
                 request_id=request.request_id,
                 channel_id=request.channel.channel_id,
-                recipients=len(to_addresses)
+                recipients=len(to_addresses),
             )
 
             return True
@@ -95,31 +92,31 @@ class EmailNotificationStrategy(AbstractNotificationStrategy):
             self._log_error(request, error_msg)
             return False
 
-    async def _create_email_message(self, request: NotificationRequest,
-                                   username: str, from_name: str,
-                                   to_addresses: List[str]) -> MIMEMultipart:
+    async def _create_email_message(
+        self, request: NotificationRequest, username: str, from_name: str, to_addresses: List[str]
+    ) -> MIMEMultipart:
         """Create email message"""
         # Create message
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = request.subject
-        msg['From'] = formataddr((from_name, username))
-        msg['To'] = ', '.join(to_addresses)
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = request.subject
+        msg["From"] = formataddr((from_name, username))
+        msg["To"] = ", ".join(to_addresses)
 
         # Add message ID for tracking
-        msg['Message-ID'] = f"<{request.request_id}@janua-alerts>"
+        msg["Message-ID"] = f"<{request.request_id}@janua-alerts>"
 
         # Add custom headers
-        msg['X-Alert-ID'] = request.alert.alert_id
-        msg['X-Alert-Severity'] = request.alert.severity.value
-        msg['X-Alert-Rule-ID'] = request.alert.rule_id
+        msg["X-Alert-ID"] = request.alert.alert_id
+        msg["X-Alert-Severity"] = request.alert.severity.value
+        msg["X-Alert-Rule-ID"] = request.alert.rule_id
 
         # Create HTML and text content
         html_content = await self._create_html_content(request)
         text_content = self._create_text_content(request)
 
         # Attach both versions
-        text_part = MIMEText(text_content, 'plain', 'utf-8')
-        html_part = MIMEText(html_content, 'html', 'utf-8')
+        text_part = MIMEText(text_content, "plain", "utf-8")
+        html_part = MIMEText(html_content, "html", "utf-8")
 
         msg.attach(text_part)
         msg.attach(html_part)
@@ -144,18 +141,20 @@ class EmailNotificationStrategy(AbstractNotificationStrategy):
             "",
             f"Description: {request.alert.description}",
             f"Triggered: {request.alert.triggered_at.strftime('%Y-%m-%d %H:%M:%S UTC')}",
-            ""
+            "",
         ]
 
         # Add metrics if available
         if request.alert.metrics:
-            lines.extend([
-                "Metrics:",
-                f"  Metric: {request.alert.metrics.metric_name}",
-                f"  Current Value: {request.alert.metrics.current_value}",
-                f"  Threshold: {request.alert.metrics.comparison_operator} {request.alert.metrics.threshold_value}",
-                ""
-            ])
+            lines.extend(
+                [
+                    "Metrics:",
+                    f"  Metric: {request.alert.metrics.metric_name}",
+                    f"  Current Value: {request.alert.metrics.current_value}",
+                    f"  Threshold: {request.alert.metrics.comparison_operator} {request.alert.metrics.threshold_value}",
+                    "",
+                ]
+            )
 
         # Add context if available
         if request.alert.context:
@@ -166,15 +165,17 @@ class EmailNotificationStrategy(AbstractNotificationStrategy):
             lines.append("")
 
         # Add alert details
-        lines.extend([
-            "Alert Details:",
-            f"  Alert ID: {request.alert.alert_id}",
-            f"  Rule ID: {request.alert.rule_id}",
-            f"  Status: {request.alert.status.value}",
-            "",
-            "--",
-            "Janua Alert System"
-        ])
+        lines.extend(
+            [
+                "Alert Details:",
+                f"  Alert ID: {request.alert.alert_id}",
+                f"  Rule ID: {request.alert.rule_id}",
+                f"  Status: {request.alert.status.value}",
+                "",
+                "--",
+                "Janua Alert System",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -182,10 +183,10 @@ class EmailNotificationStrategy(AbstractNotificationStrategy):
         """Render default HTML template"""
         # Severity color mapping
         severity_colors = {
-            "low": "#4CAF50",      # Green
-            "medium": "#FF9800",   # Orange
-            "high": "#FF5722",     # Red
-            "critical": "#F44336"  # Dark Red
+            "low": "#4CAF50",  # Green
+            "medium": "#FF9800",  # Orange
+            "high": "#FF5722",  # Red
+            "critical": "#F44336",  # Dark Red
         }
 
         severity_color = severity_colors.get(request.alert.severity.value, "#666")
@@ -195,14 +196,20 @@ class EmailNotificationStrategy(AbstractNotificationStrategy):
             "severity_color": severity_color,
             "severity_name": request.alert.severity.value.upper(),
             "triggered_at_formatted": request.alert.triggered_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
-            "channel_name": request.channel.name
+            "channel_name": request.channel.name,
         }
 
         return self._default_template.render(**context)
 
-    async def _send_smtp_email(self, msg: MIMEMultipart, smtp_server: str,
-                             smtp_port: int, username: str, password: str,
-                             use_tls: bool) -> None:
+    async def _send_smtp_email(
+        self,
+        msg: MIMEMultipart,
+        smtp_server: str,
+        smtp_port: int,
+        username: str,
+        password: str,
+        use_tls: bool,
+    ) -> None:
         """Send email via SMTP"""
         # Create SMTP connection
         if smtp_port == 465:  # SSL
@@ -421,7 +428,8 @@ class EmailConfigValidator:
     def _is_valid_email(email: str) -> bool:
         """Basic email validation"""
         import re
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+
+        pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         return re.match(pattern, email) is not None
 
     @staticmethod

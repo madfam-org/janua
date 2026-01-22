@@ -57,21 +57,17 @@ class ComplianceMonitor:
             "CC7.3": "System Operations - Environmental Protections",
             "CC7.4": "System Operations - System Capacity",
             "CC8.1": "Change Management - Authorization",
-
             # Availability (A)
             "A1.1": "Availability - System Processing",
             "A1.2": "Availability - System Monitoring",
             "A1.3": "Availability - System Recovery",
-
             # Processing Integrity (PI)
             "PI1.1": "Processing Integrity - Input Validation",
             "PI1.2": "Processing Integrity - Data Processing",
             "PI1.3": "Processing Integrity - Output Validation",
-
             # Confidentiality (C)
             "C1.1": "Confidentiality - Information Classification",
             "C1.2": "Confidentiality - Access Controls",
-
             # Privacy (P)
             "P1.1": "Privacy - Notice and Communication",
             "P2.1": "Privacy - Choice and Consent",
@@ -80,7 +76,7 @@ class ComplianceMonitor:
             "P5.1": "Privacy - Access",
             "P6.1": "Privacy - Disclosure to Third Parties",
             "P7.1": "Privacy - Quality",
-            "P8.1": "Privacy - Monitoring and Enforcement"
+            "P8.1": "Privacy - Monitoring and Enforcement",
         }
 
     async def run_daily_monitoring(self) -> Dict[str, Any]:
@@ -93,7 +89,7 @@ class ComplianceMonitor:
             "controls_tested": {},
             "evidence_collected": [],
             "exceptions_identified": [],
-            "recommendations": []
+            "recommendations": [],
         }
 
         try:
@@ -121,7 +117,9 @@ class ComplianceMonitor:
             summary = await self.generate_compliance_summary(results)
             results["summary"] = summary
 
-            logger.info(f"Daily monitoring completed. Controls tested: {len(results['controls_tested'])}")
+            logger.info(
+                f"Daily monitoring completed. Controls tested: {len(results['controls_tested'])}"
+            )
             return results
 
         except Exception as e:
@@ -149,7 +147,7 @@ class ComplianceMonitor:
                     deficiencies=[f"Test failed: {str(e)}"],
                     recommendations=["Retry test with proper configuration"],
                     testing_method="automated",
-                    tester="system"
+                    tester="system",
                 )
 
         return results
@@ -174,7 +172,7 @@ class ComplianceMonitor:
                     deficiencies=[f"Test failed: {str(e)}"],
                     recommendations=["Check system availability monitoring"],
                     testing_method="automated",
-                    tester="system"
+                    tester="system",
                 )
 
         return results
@@ -199,7 +197,7 @@ class ComplianceMonitor:
                     deficiencies=[f"Test failed: {str(e)}"],
                     recommendations=["Validate data processing integrity"],
                     testing_method="automated",
-                    tester="system"
+                    tester="system",
                 )
 
         return results
@@ -224,7 +222,7 @@ class ComplianceMonitor:
                     deficiencies=[f"Test failed: {str(e)}"],
                     recommendations=["Review access control implementation"],
                     testing_method="automated",
-                    tester="system"
+                    tester="system",
                 )
 
         return results
@@ -252,7 +250,9 @@ class ComplianceMonitor:
             logger.error(f"Failed to collect daily evidence: {str(e)}")
             return []
 
-    async def generate_compliance_summary(self, monitoring_results: Dict[str, Any]) -> Dict[str, Any]:
+    async def generate_compliance_summary(
+        self, monitoring_results: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Generate compliance monitoring summary"""
         try:
             total_controls = 0
@@ -261,10 +261,15 @@ class ComplianceMonitor:
             for category, controls in monitoring_results.get("controls_tested", {}).items():
                 for control_id, result in controls.items():
                     total_controls += 1
-                    if isinstance(result, ControlResult) and result.status == ControlStatus.EFFECTIVE:
+                    if (
+                        isinstance(result, ControlResult)
+                        and result.status == ControlStatus.EFFECTIVE
+                    ):
                         effective_controls += 1
 
-            effectiveness_percentage = (effective_controls / total_controls * 100) if total_controls > 0 else 0
+            effectiveness_percentage = (
+                (effective_controls / total_controls * 100) if total_controls > 0 else 0
+            )
 
             summary = {
                 "total_controls_tested": total_controls,
@@ -273,7 +278,7 @@ class ComplianceMonitor:
                 "evidence_items_collected": len(monitoring_results.get("evidence_collected", [])),
                 "exceptions_count": len(monitoring_results.get("exceptions_identified", [])),
                 "monitoring_status": "completed",
-                "next_monitoring": (datetime.utcnow() + timedelta(days=1)).isoformat()
+                "next_monitoring": (datetime.utcnow() + timedelta(days=1)).isoformat(),
             }
 
             return summary
@@ -290,7 +295,7 @@ class ComplianceMonitor:
                 "soc2_controls": {},
                 "overall_effectiveness": 0.0,
                 "last_monitoring": None,
-                "pending_reviews": 0
+                "pending_reviews": 0,
             }
 
             # Get latest control results
@@ -300,7 +305,7 @@ class ComplianceMonitor:
                     "description": self.soc2_controls[control_id],
                     "status": "not_tested",
                     "last_test_date": None,
-                    "effectiveness_score": 0.0
+                    "effectiveness_score": 0.0,
                 }
 
             return status
@@ -318,7 +323,9 @@ class ComplianceMonitor:
         try:
             if self.redis_client:
                 schedule_key = f"compliance:scheduled_tests:{control_id}"
-                await self.redis_client.setex(schedule_key, 86400 * 30, test_date.isoformat())  # 30 days TTL
+                await self.redis_client.setex(
+                    schedule_key, 86400 * 30, test_date.isoformat()
+                )  # 30 days TTL
 
             logger.info(f"Scheduled control test for {control_id} on {test_date}")
             return True

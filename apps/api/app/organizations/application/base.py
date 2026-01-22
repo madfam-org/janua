@@ -7,9 +7,9 @@ from abc import ABC, abstractmethod
 from typing import Generic, TypeVar, Optional
 
 # Type variables for commands, queries, and results
-TCommand = TypeVar('TCommand')
-TQuery = TypeVar('TQuery')
-TResult = TypeVar('TResult')
+TCommand = TypeVar("TCommand")
+TQuery = TypeVar("TQuery")
+TResult = TypeVar("TResult")
 
 
 class Command(ABC):

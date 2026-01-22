@@ -9,22 +9,18 @@ from datetime import datetime
 from app.core.redis import get_redis
 from app.core.redis_circuit_breaker import ResilientRedisClient
 
-router = APIRouter(
-    prefix="/health",
-    tags=["health"]
-)
+router = APIRouter(prefix="/health", tags=["health"])
 
 # This will be injected from main.py
 health_checker = None
 
+
 def get_health_checker():
     """Dependency to get health checker instance"""
     if health_checker is None:
-        raise HTTPException(
-            status_code=503, 
-            detail="Health checker not initialized"
-        )
+        raise HTTPException(status_code=503, detail="Health checker not initialized")
     return health_checker
+
 
 @router.get("")
 async def health_check():
@@ -33,47 +29,35 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
         "service": "janua-api",
-        "version": "1.0.0"
+        "version": "1.0.0",
     }
 
+
 @router.get("/detailed")
-async def detailed_health_check(
-    checker = Depends(get_health_checker)
-) -> Dict[str, Any]:
+async def detailed_health_check(checker=Depends(get_health_checker)) -> Dict[str, Any]:
     """Detailed health check with all registered checks"""
     return await checker.check_health()
 
+
 @router.get("/ready")
-async def readiness_check(
-    checker = Depends(get_health_checker)
-) -> Dict[str, Any]:
+async def readiness_check(checker=Depends(get_health_checker)) -> Dict[str, Any]:
     """Kubernetes readiness probe endpoint"""
     result = await checker.check_health()
-    
+
     if result["status"] != "healthy":
-        raise HTTPException(
-            status_code=503,
-            detail="Service not ready"
-        )
-    
-    return {
-        "status": "ready",
-        "timestamp": result["timestamp"]
-    }
+        raise HTTPException(status_code=503, detail="Service not ready")
+
+    return {"status": "ready", "timestamp": result["timestamp"]}
+
 
 @router.get("/live")
 async def liveness_check() -> Dict[str, Any]:
     """Kubernetes liveness probe endpoint"""
-    return {
-        "status": "alive",
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    return {"status": "alive", "timestamp": datetime.utcnow().isoformat()}
 
 
 @router.get("/redis")
-async def redis_health(
-    redis_client: ResilientRedisClient = Depends(get_redis)
-) -> Dict[str, Any]:
+async def redis_health(redis_client: ResilientRedisClient = Depends(get_redis)) -> Dict[str, Any]:
     """
     Get Redis health status including circuit breaker state.
 
@@ -87,7 +71,7 @@ async def redis_health(
 
 @router.get("/circuit-breaker")
 async def circuit_breaker_status(
-    redis_client: ResilientRedisClient = Depends(get_redis)
+    redis_client: ResilientRedisClient = Depends(get_redis),
 ) -> Dict[str, Any]:
     """
     Get detailed circuit breaker metrics.
@@ -99,8 +83,7 @@ async def circuit_breaker_status(
 
 @router.get("/metrics")
 async def system_metrics(
-    redis_client: ResilientRedisClient = Depends(get_redis),
-    checker = Depends(get_health_checker)
+    redis_client: ResilientRedisClient = Depends(get_redis), checker=Depends(get_health_checker)
 ) -> Dict[str, Any]:
     """
     Get combined system health metrics for dashboard display.
@@ -151,5 +134,5 @@ async def system_metrics(
             "total_calls": redis_stats.get("total_calls", 0),
             "successful_calls": redis_stats.get("successful_calls", 0),
             "failed_calls": redis_stats.get("failed_calls", 0),
-        }
+        },
     }

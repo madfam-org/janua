@@ -68,7 +68,8 @@ class CredentialRotationService:
                 and_(
                     OAuthClientSecret.client_id == client_id,
                     OAuthClientSecret.revoked_at.is_(None),
-                    (OAuthClientSecret.expires_at.is_(None)) | (OAuthClientSecret.expires_at > datetime.utcnow()),
+                    (OAuthClientSecret.expires_at.is_(None))
+                    | (OAuthClientSecret.expires_at > datetime.utcnow()),
                 )
             )
             .order_by(OAuthClientSecret.created_at.desc())
@@ -138,7 +139,7 @@ class CredentialRotationService:
         logger.info(
             "Legacy secret migration noted",
             client_id=str(client.id),
-            message="Client using legacy secret system"
+            message="Client using legacy secret system",
         )
 
     async def rotate_secret(
@@ -393,7 +394,8 @@ class CredentialRotationService:
             select(OAuthClientSecret).where(
                 and_(
                     OAuthClientSecret.created_at < cutoff,
-                    (OAuthClientSecret.expires_at < datetime.utcnow()) | (OAuthClientSecret.revoked_at.isnot(None)),
+                    (OAuthClientSecret.expires_at < datetime.utcnow())
+                    | (OAuthClientSecret.revoked_at.isnot(None)),
                 )
             )
         )

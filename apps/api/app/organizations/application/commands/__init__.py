@@ -5,7 +5,7 @@ from .invite_member import InviteMemberCommand, InviteMemberHandler
 
 __all__ = [
     "CreateOrganizationCommand",
-    "CreateOrganizationHandler", 
+    "CreateOrganizationHandler",
     "InviteMemberCommand",
-    "InviteMemberHandler"
+    "InviteMemberHandler",
 ]

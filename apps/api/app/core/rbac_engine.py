@@ -20,6 +20,7 @@ logger = structlog.get_logger()
 
 class ResourceType(Enum):
     """Resource types for permission checking"""
+
     ORGANIZATION = "organization"
     USER = "user"
     ROLE = "role"
@@ -33,6 +34,7 @@ class ResourceType(Enum):
 
 class Action(Enum):
     """Standard CRUD actions + admin"""
+
     CREATE = "create"
     READ = "read"
     UPDATE = "update"
@@ -56,7 +58,7 @@ class RBACEngine:
         resource_type: ResourceType,
         action: Action,
         resource_id: Optional[str] = None,
-        organization_id: Optional[str] = None
+        organization_id: Optional[str] = None,
     ) -> bool:
         """
         Check if a user has permission to perform an action on a resource
@@ -82,14 +84,14 @@ class RBACEngine:
             # Get user's membership and role
             membership = await self._get_user_membership(session, user_id, org_id)
             if not membership:
-                logger.debug("User not a member of organization",
-                           user_id=user_id, org_id=org_id)
+                logger.debug("User not a member of organization", user_id=user_id, org_id=org_id)
                 return False
 
             # Check if user is suspended or inactive
             if membership.status != "active":
-                logger.debug("User membership not active",
-                           user_id=user_id, status=membership.status)
+                logger.debug(
+                    "User membership not active", user_id=user_id, status=membership.status
+                )
                 return False
 
             # Get all permissions for user (role + custom)
@@ -123,10 +125,7 @@ class RBACEngine:
             return False
 
     async def get_user_permissions(
-        self,
-        session: AsyncSession,
-        user_id: str,
-        organization_id: Optional[str] = None
+        self, session: AsyncSession, user_id: str, organization_id: Optional[str] = None
     ) -> Set[str]:
         """Get all permissions for a user in an organization"""
 
@@ -145,13 +144,11 @@ class RBACEngine:
         session: AsyncSession,
         user_id: str,
         permissions: List[str],
-        organization_id: Optional[str] = None
+        organization_id: Optional[str] = None,
     ) -> bool:
         """Check if user has any of the specified permissions"""
 
-        user_permissions = await self.get_user_permissions(
-            session, user_id, organization_id
-        )
+        user_permissions = await self.get_user_permissions(session, user_id, organization_id)
 
         return any(perm in user_permissions for perm in permissions)
 
@@ -160,23 +157,18 @@ class RBACEngine:
         session: AsyncSession,
         user_id: str,
         permissions: List[str],
-        organization_id: Optional[str] = None
+        organization_id: Optional[str] = None,
     ) -> bool:
         """Check if user has all of the specified permissions"""
 
-        user_permissions = await self.get_user_permissions(
-            session, user_id, organization_id
-        )
+        user_permissions = await self.get_user_permissions(session, user_id, organization_id)
 
         return all(perm in user_permissions for perm in permissions)
 
     # Private helper methods
 
     async def _get_user_membership(
-        self,
-        session: AsyncSession,
-        user_id: str,
-        organization_id: str
+        self, session: AsyncSession, user_id: str, organization_id: str
     ) -> Optional[OrganizationMember]:
         """Get user's membership in organization"""
 
@@ -185,11 +177,10 @@ class RBACEngine:
         # In production, implement Redis cache
 
         result = await session.execute(
-            select(OrganizationMember)
-            .where(
+            select(OrganizationMember).where(
                 and_(
                     OrganizationMember.user_id == user_id,
-                    OrganizationMember.organization_id == organization_id
+                    OrganizationMember.organization_id == organization_id,
                 )
             )
         )
@@ -197,9 +188,7 @@ class RBACEngine:
         return result.scalar_one_or_none()
 
     async def _get_user_permissions(
-        self,
-        session: AsyncSession,
-        membership: OrganizationMember
+        self, session: AsyncSession, membership: OrganizationMember
     ) -> Set[str]:
         """Get all permissions for a membership (role + custom)"""
 
@@ -207,9 +196,7 @@ class RBACEngine:
 
         # Get role permissions
         if membership.role_id:
-            role_permissions = await self._get_role_permissions(
-                session, membership.role_id
-            )
+            role_permissions = await self._get_role_permissions(session, membership.role_id)
             permissions.update(role_permissions)
 
         # Add custom permissions
@@ -218,11 +205,7 @@ class RBACEngine:
 
         return permissions
 
-    async def _get_role_permissions(
-        self,
-        session: AsyncSession,
-        role_id: str
-    ) -> Set[str]:
+    async def _get_role_permissions(self, session: AsyncSession, role_id: str) -> Set[str]:
         """Get all permissions for a role (including inherited)"""
 
         # Check cache
@@ -246,9 +229,7 @@ class RBACEngine:
 
         # Get inherited permissions from parent role
         if role.parent_role_id:
-            parent_permissions = await self._get_role_permissions(
-                session, role.parent_role_id
-            )
+            parent_permissions = await self._get_role_permissions(session, role.parent_role_id)
             permissions.update(parent_permissions)
 
         # Cache the result
@@ -256,19 +237,11 @@ class RBACEngine:
 
         return permissions
 
-    def _build_permission_string(
-        self,
-        resource_type: ResourceType,
-        action: Action
-    ) -> str:
+    def _build_permission_string(self, resource_type: ResourceType, action: Action) -> str:
         """Build permission string like 'users:read'"""
         return f"{resource_type.value}:{action.value}"
 
-    def _check_wildcard_permission(
-        self,
-        permission: str,
-        user_permissions: Set[str]
-    ) -> bool:
+    def _check_wildcard_permission(self, permission: str, user_permissions: Set[str]) -> bool:
         """Check if permission matches any wildcard patterns"""
 
         resource, action = permission.split(":")
@@ -294,7 +267,7 @@ class RBACEngine:
         resource_type: ResourceType,
         action: Action,
         resource_id: str,
-        permissions: Set[str]
+        permissions: Set[str],
     ) -> bool:
         """Check resource-specific permissions"""
 
@@ -312,11 +285,7 @@ class RBACEngine:
         return False
 
     async def _check_resource_ownership(
-        self,
-        session: AsyncSession,
-        user_id: str,
-        resource_type: ResourceType,
-        resource_id: str
+        self, session: AsyncSession, user_id: str, resource_type: ResourceType, resource_id: str
     ) -> bool:
         """Check if user owns the resource"""
 
@@ -338,10 +307,7 @@ class PermissionManager:
         self.rbac_engine = rbac_engine
 
     def require_permission(
-        self,
-        resource_type: ResourceType,
-        action: Action,
-        resource_id: Optional[str] = None
+        self, resource_type: ResourceType, action: Action, resource_id: Optional[str] = None
     ):
         """Decorator to require permission for endpoint"""
 
@@ -349,13 +315,12 @@ class PermissionManager:
             @wraps(func)
             async def wrapper(*args, **kwargs):
                 # Extract session and user from kwargs
-                session = kwargs.get('db')
-                user_id = kwargs.get('current_user_id')
+                session = kwargs.get("db")
+                user_id = kwargs.get("current_user_id")
 
                 if not session or not user_id:
                     raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Authentication required"
+                        status_code=status.HTTP_403_FORBIDDEN, detail="Authentication required"
                     )
 
                 # Check permission
@@ -364,7 +329,7 @@ class PermissionManager:
                     user_id=user_id,
                     resource_type=resource_type,
                     action=action,
-                    resource_id=resource_id
+                    resource_id=resource_id,
                 )
 
                 if not has_permission:
@@ -372,16 +337,17 @@ class PermissionManager:
                         "Permission denied",
                         user_id=user_id,
                         resource=resource_type.value,
-                        action=action.value
+                        action=action.value,
                     )
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Permission denied: {resource_type.value}:{action.value}"
+                        detail=f"Permission denied: {resource_type.value}:{action.value}",
                     )
 
                 return await func(*args, **kwargs)
 
             return wrapper
+
         return decorator
 
     def require_any_permission(self, permissions: List[str]):
@@ -390,30 +356,28 @@ class PermissionManager:
         def decorator(func):
             @wraps(func)
             async def wrapper(*args, **kwargs):
-                session = kwargs.get('db')
-                user_id = kwargs.get('current_user_id')
+                session = kwargs.get("db")
+                user_id = kwargs.get("current_user_id")
 
                 if not session or not user_id:
                     raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Authentication required"
+                        status_code=status.HTTP_403_FORBIDDEN, detail="Authentication required"
                     )
 
                 has_permission = await self.rbac_engine.has_any_permission(
-                    session=session,
-                    user_id=user_id,
-                    permissions=permissions
+                    session=session, user_id=user_id, permissions=permissions
                 )
 
                 if not has_permission:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"Permission denied: requires one of {permissions}"
+                        detail=f"Permission denied: requires one of {permissions}",
                     )
 
                 return await func(*args, **kwargs)
 
             return wrapper
+
         return decorator
 
 
@@ -425,7 +389,7 @@ class DefaultRoles:
         "description": "Full control over the organization",
         "permissions": ["*:*"],  # All permissions
         "type": RoleType.SYSTEM,
-        "priority": 100
+        "priority": 100,
     }
 
     ADMIN = {
@@ -438,10 +402,10 @@ class DefaultRoles:
             "project:*",
             "settings:*",
             "webhook:*",
-            "api_key:*"
+            "api_key:*",
         ],
         "type": RoleType.SYSTEM,
-        "priority": 90
+        "priority": 90,
     }
 
     MEMBER = {
@@ -456,20 +420,15 @@ class DefaultRoles:
             "project:own:*",  # Full control over own projects
         ],
         "type": RoleType.SYSTEM,
-        "priority": 50
+        "priority": 50,
     }
 
     VIEWER = {
         "name": "Viewer",
         "description": "Read-only access",
-        "permissions": [
-            "organization:read",
-            "user:read",
-            "project:read",
-            "settings:read"
-        ],
+        "permissions": ["organization:read", "user:read", "project:read", "settings:read"],
         "type": RoleType.SYSTEM,
-        "priority": 10
+        "priority": 10,
     }
 
 
@@ -491,14 +450,14 @@ async def initialize_default_roles(session: AsyncSession, organization_id: str):
         DefaultRoles.OWNER,
         DefaultRoles.ADMIN,
         DefaultRoles.MEMBER,
-        DefaultRoles.VIEWER
+        DefaultRoles.VIEWER,
     ]
 
     for role_data in default_roles:
         role = OrganizationCustomRole(
             organization_id=organization_id,
             name=role_data["name"],
-            permissions=role_data["permissions"]
+            permissions=role_data["permissions"],
         )
         session.add(role)
 

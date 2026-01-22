@@ -17,13 +17,13 @@ class TestConfiguration:
 
     def test_settings_initialization(self):
         """Test that settings are properly initialized."""
-        assert hasattr(settings, 'DEBUG')
-        assert hasattr(settings, 'DATABASE_URL')
-        assert hasattr(settings, 'SECRET_KEY')
+        assert hasattr(settings, "DEBUG")
+        assert hasattr(settings, "DATABASE_URL")
+        assert hasattr(settings, "SECRET_KEY")
 
     def test_cors_origins_property(self):
         """Test CORS origins property handling."""
-        with patch.object(settings, 'CORS_ORIGINS', "http://localhost:3000,https://app.janua.dev"):
+        with patch.object(settings, "CORS_ORIGINS", "http://localhost:3000,https://app.janua.dev"):
             origins = settings.cors_origins_list
             assert isinstance(origins, list)
             assert len(origins) >= 1
@@ -67,8 +67,9 @@ class TestErrorHandling:
     def test_validation_error_handling(self):
         """Test validation error handling."""
         # Send invalid JSON to login endpoint
-        response = self.client.post("/api/v1/auth/login",
-                                  json={"email": "invalid-email", "password": ""})
+        response = self.client.post(
+            "/api/v1/auth/login", json={"email": "invalid-email", "password": ""}
+        )
         assert response.status_code in [400, 422]
 
         data = response.json()
@@ -77,11 +78,13 @@ class TestErrorHandling:
     def test_internal_server_error_handling(self):
         """Test internal server error handling."""
         # This will exercise error handling middleware
-        with patch('app.services.auth_service.AuthService.authenticate_user',
-                   side_effect=Exception("Database connection failed")):
-
-            response = self.client.post("/api/v1/auth/login",
-                                      json={"email": "test@example.com", "password": "test"})
+        with patch(
+            "app.services.auth_service.AuthService.authenticate_user",
+            side_effect=Exception("Database connection failed"),
+        ):
+            response = self.client.post(
+                "/api/v1/auth/login", json={"email": "test@example.com", "password": "test"}
+            )
 
             # Should get proper error response, not crash
             assert response.status_code in [500, 400, 401]
@@ -93,8 +96,9 @@ class TestErrorHandling:
         assert response.status_code in [401, 403]
 
         # Request with invalid token
-        response = self.client.get("/api/v1/users/me",
-                                 headers={"Authorization": "Bearer invalid-token"})
+        response = self.client.get(
+            "/api/v1/users/me", headers={"Authorization": "Bearer invalid-token"}
+        )
         assert response.status_code in [401, 403]
 
 
@@ -110,7 +114,7 @@ class TestMiddleware:
         headers = {
             "Origin": "http://localhost:3000",
             "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": "content-type,authorization"
+            "Access-Control-Request-Headers": "content-type,authorization",
         }
 
         # Preflight request
@@ -126,7 +130,7 @@ class TestMiddleware:
 
     def test_request_logging_middleware(self):
         """Test request logging middleware."""
-        with patch('structlog.get_logger') as mock_logger:
+        with patch("structlog.get_logger") as mock_logger:
             mock_log = MagicMock()
             mock_logger.return_value = mock_log
 
@@ -137,21 +141,22 @@ class TestMiddleware:
 
     def test_rate_limiting_middleware(self):
         """Test rate limiting middleware."""
-        with patch('app.core.redis.get_redis') as mock_redis:
+        with patch("app.core.redis.get_redis") as mock_redis:
             mock_redis_client = AsyncMock()
             mock_redis_client.pipeline = MagicMock()
             mock_redis.return_value = mock_redis_client
 
             # Make request that would trigger rate limiting logic
-            response = self.client.post("/api/v1/auth/login",
-                                      json={"email": "test@example.com", "password": "test"})
+            response = self.client.post(
+                "/api/v1/auth/login", json={"email": "test@example.com", "password": "test"}
+            )
 
             # Rate limiting middleware should execute
             assert response.status_code in [200, 400, 401, 422, 429]
 
     def test_performance_monitoring_middleware(self):
         """Test performance monitoring middleware."""
-        with patch('app.services.monitoring.metrics_collector') as mock_metrics:
+        with patch("app.services.monitoring.metrics_collector") as mock_metrics:
             mock_metrics.timing = AsyncMock()
             mock_metrics.increment = AsyncMock()
 
@@ -178,10 +183,12 @@ class TestJWTManager:
         jwt_manager = JWTManager()
 
         # Mock token creation
-        with patch.object(jwt_manager, 'create_access_token') as mock_create:
+        with patch.object(jwt_manager, "create_access_token") as mock_create:
             mock_create.return_value = ("mock_jwt_token", "mock_jti", None)
 
-            token, jti, expires = jwt_manager.create_access_token(user_id="user_123", email="test@example.com")
+            token, jti, expires = jwt_manager.create_access_token(
+                user_id="user_123", email="test@example.com"
+            )
             assert token == "mock_jwt_token"
 
     def test_token_validation(self):
@@ -191,7 +198,7 @@ class TestJWTManager:
         jwt_manager = JWTManager()
 
         # Mock token validation
-        with patch.object(jwt_manager, 'verify_token') as mock_verify:
+        with patch.object(jwt_manager, "verify_token") as mock_verify:
             mock_verify.return_value = {"sub": "user_123", "exp": 1234567890}
 
             payload = jwt_manager.verify_token("valid_token")
@@ -204,7 +211,7 @@ class TestJWTManager:
         jwt_manager = JWTManager()
 
         # Mock expired token
-        with patch.object(jwt_manager, 'verify_token', side_effect=Exception("Token expired")):
+        with patch.object(jwt_manager, "verify_token", side_effect=Exception("Token expired")):
             try:
                 jwt_manager.verify_token("expired_token")
                 assert False, "Should have raised exception"
@@ -222,7 +229,7 @@ class TestDatabaseManager:
         db_manager = DatabaseManager()
 
         # Mock health check
-        with patch.object(db_manager, 'check_health') as mock_health:
+        with patch.object(db_manager, "check_health") as mock_health:
             mock_health.return_value = {"status": "healthy", "latency_ms": 5}
 
             health = db_manager.check_health()
@@ -235,7 +242,7 @@ class TestDatabaseManager:
         db_manager = DatabaseManager()
 
         # Mock connection methods
-        with patch.object(db_manager, 'get_connection') as mock_conn:
+        with patch.object(db_manager, "get_connection") as mock_conn:
             mock_conn.return_value = MagicMock()
 
             connection = db_manager.get_connection()
@@ -248,11 +255,11 @@ class TestDatabaseManager:
         db_manager = DatabaseManager()
 
         # Mock migration status
-        with patch.object(db_manager, 'get_migration_status') as mock_status:
+        with patch.object(db_manager, "get_migration_status") as mock_status:
             mock_status.return_value = {
                 "current_revision": "abc123",
                 "pending_migrations": 0,
-                "status": "up_to_date"
+                "status": "up_to_date",
             }
 
             status = db_manager.get_migration_status()
@@ -267,7 +274,7 @@ class TestRedisManager:
         from app.core.redis import get_redis
 
         # Mock Redis connection
-        with patch('app.core.redis.get_redis') as mock_redis:
+        with patch("app.core.redis.get_redis") as mock_redis:
             mock_redis_client = AsyncMock()
             mock_redis.return_value = mock_redis_client
 
@@ -279,7 +286,7 @@ class TestRedisManager:
         from app.core.redis import get_redis
 
         # Mock Redis operations
-        with patch('app.core.redis.get_redis') as mock_redis:
+        with patch("app.core.redis.get_redis") as mock_redis:
             mock_redis_client = AsyncMock()
             mock_redis_client.get = AsyncMock(return_value=b'{"key": "value"}')
             mock_redis_client.set = AsyncMock(return_value=True)
@@ -295,7 +302,7 @@ class TestRedisManager:
         from app.core.redis import get_redis
 
         # Mock Redis connection failure
-        with patch('app.core.redis.get_redis', side_effect=Exception("Redis unavailable")):
+        with patch("app.core.redis.get_redis", side_effect=Exception("Redis unavailable")):
             try:
                 get_redis()
                 # Should handle Redis unavailability gracefully in production
@@ -318,7 +325,7 @@ class TestLoggingConfiguration:
         """Test structured logging functionality."""
         import structlog
 
-        with patch('structlog.get_logger') as mock_get_logger:
+        with patch("structlog.get_logger") as mock_get_logger:
             mock_logger = MagicMock()
             mock_get_logger.return_value = mock_logger
 
@@ -335,7 +342,7 @@ class TestLoggingConfiguration:
         audit_logger = AuditLogger()
 
         # Mock audit logging
-        with patch.object(audit_logger, 'log_event') as mock_log:
+        with patch.object(audit_logger, "log_event") as mock_log:
             mock_log.return_value = True
 
             # Note: Actual log_event is async and takes different params,
@@ -345,7 +352,7 @@ class TestLoggingConfiguration:
                 event_type="user_login",
                 event_name="user.login",
                 user_id="user_123",
-                event_data={"ip": "192.168.1.1"}
+                event_data={"ip": "192.168.1.1"},
             )
             assert result is True
 
@@ -356,14 +363,14 @@ class TestLoggingConfiguration:
         audit_logger = AuditLogger()
 
         # Mock security logging
-        with patch.object(audit_logger, 'log_security_event') as mock_log:
+        with patch.object(audit_logger, "log_security_event") as mock_log:
             mock_log.return_value = True
 
             result = audit_logger.log_security_event(
                 event_type="failed_login_attempt",
                 user_id="user_123",
                 severity="medium",
-                details={"attempts": 3}
+                details={"attempts": 3},
             )
             assert result is True
 
@@ -378,14 +385,11 @@ class TestPerformanceMonitoring:
         monitor = PerformanceMonitor()
 
         # Mock metrics collection
-        with patch.object(monitor, 'record_request_time') as mock_record:
+        with patch.object(monitor, "record_request_time") as mock_record:
             mock_record.return_value = True
 
             result = monitor.record_request_time(
-                endpoint="/api/v1/health",
-                method="GET",
-                duration_ms=25,
-                status_code=200
+                endpoint="/api/v1/health", method="GET", duration_ms=25, status_code=200
             )
             assert result is True
 
@@ -396,13 +400,10 @@ class TestPerformanceMonitoring:
         cache_monitor = CacheMonitor()
 
         # Mock cache metrics
-        with patch.object(cache_monitor, 'record_cache_hit') as mock_hit:
+        with patch.object(cache_monitor, "record_cache_hit") as mock_hit:
             mock_hit.return_value = True
 
-            result = cache_monitor.record_cache_hit(
-                cache_key="user_123_profile",
-                hit_time_ms=2
-            )
+            result = cache_monitor.record_cache_hit(cache_key="user_123_profile", hit_time_ms=2)
             assert result is True
 
     def test_database_performance_monitoring(self):
@@ -412,13 +413,11 @@ class TestPerformanceMonitoring:
         db_monitor = DatabaseMonitor()
 
         # Mock database metrics
-        with patch.object(db_monitor, 'record_query_time') as mock_query:
+        with patch.object(db_monitor, "record_query_time") as mock_query:
             mock_query.return_value = True
 
             result = db_monitor.record_query_time(
-                query_type="SELECT",
-                table="users",
-                duration_ms=15
+                query_type="SELECT", table="users", duration_ms=15
             )
             assert result is True
 
@@ -440,12 +439,11 @@ class TestWebhookDispatcher:
         dispatcher = WebhookDispatcher()
 
         # Mock webhook dispatch
-        with patch.object(dispatcher, 'dispatch_event') as mock_dispatch:
+        with patch.object(dispatcher, "dispatch_event") as mock_dispatch:
             mock_dispatch.return_value = {"dispatched": True, "webhook_count": 2}
 
             result = dispatcher.dispatch_event(
-                event_type="user.created",
-                data={"user_id": "user_123", "email": "test@example.com"}
+                event_type="user.created", data={"user_id": "user_123", "email": "test@example.com"}
             )
             assert result["dispatched"] is True
 
@@ -456,12 +454,10 @@ class TestWebhookDispatcher:
         dispatcher = WebhookDispatcher()
 
         # Mock webhook retry
-        with patch.object(dispatcher, 'retry_failed_webhook') as mock_retry:
+        with patch.object(dispatcher, "retry_failed_webhook") as mock_retry:
             mock_retry.return_value = {"retried": True, "attempt": 2}
 
-            result = dispatcher.retry_failed_webhook(
-                webhook_id="webhook_123"
-            )
+            result = dispatcher.retry_failed_webhook(webhook_id="webhook_123")
             assert result["retried"] is True
 
     def test_webhook_failure_handling(self):
@@ -471,11 +467,10 @@ class TestWebhookDispatcher:
         dispatcher = WebhookDispatcher()
 
         # Mock webhook failure
-        with patch.object(dispatcher, 'handle_webhook_failure') as mock_failure:
+        with patch.object(dispatcher, "handle_webhook_failure") as mock_failure:
             mock_failure.return_value = {"handled": True, "will_retry": True}
 
             result = dispatcher.handle_webhook_failure(
-                webhook_id="webhook_123",
-                error="Connection timeout"
+                webhook_id="webhook_123", error="Connection timeout"
             )
             assert result["handled"] is True

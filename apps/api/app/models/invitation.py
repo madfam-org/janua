@@ -13,6 +13,7 @@ from . import Invitation as InvitationModel
 
 class InvitationStatus(str, enum.Enum):
     """Invitation status enumeration."""
+
     PENDING = "pending"
     ACCEPTED = "accepted"
     EXPIRED = "expired"
@@ -21,8 +22,10 @@ class InvitationStatus(str, enum.Enum):
 
 # Pydantic Schemas
 
+
 class InvitationCreate(BaseModel):
     """Schema for creating an invitation."""
+
     organization_id: str
     email: EmailStr
     role: str = Field(default="member", pattern="^(owner|admin|member|viewer)$")
@@ -32,6 +35,7 @@ class InvitationCreate(BaseModel):
 
 class InvitationUpdate(BaseModel):
     """Schema for updating an invitation."""
+
     role: Optional[str] = Field(None, pattern="^(owner|admin|member|viewer)$")
     message: Optional[str] = Field(None, max_length=500)
     expires_at: Optional[datetime] = None
@@ -39,6 +43,7 @@ class InvitationUpdate(BaseModel):
 
 class InvitationResponse(BaseModel):
     """Schema for invitation response."""
+
     id: str
     organization_id: str
     email: str
@@ -58,6 +63,7 @@ class InvitationResponse(BaseModel):
 
 class InvitationAcceptRequest(BaseModel):
     """Schema for accepting an invitation."""
+
     token: str
     user_id: Optional[str] = None  # If user already exists
     # For new user registration
@@ -67,6 +73,7 @@ class InvitationAcceptRequest(BaseModel):
 
 class InvitationAcceptResponse(BaseModel):
     """Schema for invitation acceptance response."""
+
     success: bool
     user_id: str
     organization_id: str
@@ -76,6 +83,7 @@ class InvitationAcceptResponse(BaseModel):
 
 class InvitationListResponse(BaseModel):
     """Schema for paginated invitation list."""
+
     invitations: List[InvitationResponse]
     total: int
     pending_count: int = 0
@@ -85,6 +93,7 @@ class InvitationListResponse(BaseModel):
 
 class BulkInvitationCreate(BaseModel):
     """Schema for creating multiple invitations."""
+
     organization_id: str
     emails: List[EmailStr] = Field(..., min_items=1, max_items=100)
     role: str = Field(default="member", pattern="^(owner|admin|member|viewer)$")
@@ -94,6 +103,7 @@ class BulkInvitationCreate(BaseModel):
 
 class BulkInvitationResponse(BaseModel):
     """Schema for bulk invitation response."""
+
     successful: List[InvitationResponse]
     failed: List[Dict[str, str]]  # email -> error message
     total_sent: int

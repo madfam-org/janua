@@ -13,24 +13,25 @@ from app.models import User, Organization, organization_members
 from app.routers.v1.auth import get_current_user
 
 
-async def get_user_organization_role(db: Session, user_id: uuid.UUID, org_id: uuid.UUID) -> Optional[str]:
+async def get_user_organization_role(
+    db: Session, user_id: uuid.UUID, org_id: uuid.UUID
+) -> Optional[str]:
     """Get user's role in an organization"""
-    result = await db.execute(select(organization_members).where(
-        and_(
-            organization_members.c.user_id == user_id,
-            organization_members.c.organization_id == org_id
+    result = await db.execute(
+        select(organization_members).where(
+            and_(
+                organization_members.c.user_id == user_id,
+                organization_members.c.organization_id == org_id,
+            )
         )
-    ))
+    )
     member = result.first()
 
     return member.role if member else None
 
 
 async def check_organization_permission(
-    db: Session,
-    user: User,
-    org_id: uuid.UUID,
-    required_role: str = "member"
+    db: Session, user: User, org_id: uuid.UUID, required_role: str = "member"
 ) -> Organization:
     """Check if user has required permission in organization"""
     result = await db.execute(select(Organization).where(Organization.id == org_id))
@@ -48,12 +49,7 @@ async def check_organization_permission(
         raise HTTPException(status_code=403, detail="Not a member of this organization")
 
     # Role hierarchy: owner > admin > member > guest
-    role_hierarchy = {
-        "guest": 0,
-        "member": 1,
-        "admin": 2,
-        "owner": 3
-    }
+    role_hierarchy = {"guest": 0, "member": 1, "admin": 2, "owner": 3}
 
     if role_hierarchy.get(user_role, 0) < role_hierarchy.get(required_role, 0):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -62,31 +58,21 @@ async def check_organization_permission(
 
 
 async def check_organization_admin_permission(
-    org_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    org_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> Organization:
     """Dependency to check admin permission for organization"""
-    return await check_organization_permission(
-        db, current_user, uuid.UUID(org_id), "admin"
-    )
+    return await check_organization_permission(db, current_user, uuid.UUID(org_id), "admin")
 
 
 async def check_organization_member_permission(
-    org_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    org_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> Organization:
     """Dependency to check member permission for organization"""
-    return await check_organization_permission(
-        db, current_user, uuid.UUID(org_id), "member"
-    )
+    return await check_organization_permission(db, current_user, uuid.UUID(org_id), "member")
 
 
 async def check_organization_owner_permission(
-    org_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    org_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ) -> Organization:
     """Dependency to check owner permission for organization"""
     result = await db.execute(select(Organization).where(Organization.id == uuid.UUID(org_id)))
@@ -95,12 +81,16 @@ async def check_organization_owner_permission(
         raise HTTPException(status_code=404, detail="Organization not found")
 
     if org.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only organization owner can perform this action")
+        raise HTTPException(
+            status_code=403, detail="Only organization owner can perform this action"
+        )
 
     return org
 
 
-async def validate_unique_slug(db: Session, slug: str, exclude_org_id: Optional[uuid.UUID] = None) -> bool:
+async def validate_unique_slug(
+    db: Session, slug: str, exclude_org_id: Optional[uuid.UUID] = None
+) -> bool:
     """Validate that organization slug is unique"""
     stmt = select(Organization).where(Organization.slug == slug)
 
@@ -123,29 +113,37 @@ async def validate_invitation_email(db: Session, org_id: uuid.UUID, email: str) 
     user_result = await db.execute(select(User).where(User.email == email))
     user_query = user_result.scalar_one_or_none()
     if user_query:
-        member_result = await db.execute(select(organization_members).where(
-            and_(
-                organization_members.c.user_id == user_query.id,
-                organization_members.c.organization_id == org_id
+        member_result = await db.execute(
+            select(organization_members).where(
+                and_(
+                    organization_members.c.user_id == user_query.id,
+                    organization_members.c.organization_id == org_id,
+                )
             )
-        ))
+        )
         member_exists = member_result.first()
 
         if member_exists:
-            raise HTTPException(status_code=400, detail="User is already a member of this organization")
+            raise HTTPException(
+                status_code=400, detail="User is already a member of this organization"
+            )
 
     # Check if there's already a pending invitation
-    invitation_result = await db.execute(select(OrganizationInvitation).where(
-        and_(
-            OrganizationInvitation.organization_id == org_id,
-            OrganizationInvitation.email == email,
-            OrganizationInvitation.status == "pending"
+    invitation_result = await db.execute(
+        select(OrganizationInvitation).where(
+            and_(
+                OrganizationInvitation.organization_id == org_id,
+                OrganizationInvitation.email == email,
+                OrganizationInvitation.status == "pending",
+            )
         )
-    ))
+    )
     pending_invitation = invitation_result.scalar_one_or_none()
 
     if pending_invitation:
-        raise HTTPException(status_code=400, detail="There is already a pending invitation for this email")
+        raise HTTPException(
+            status_code=400, detail="There is already a pending invitation for this email"
+        )
 
     return True
 
@@ -156,7 +154,14 @@ def get_organization_permissions(role: str, custom_permissions: Optional[list] =
         "guest": ["view_organization"],
         "member": ["view_organization", "view_members"],
         "admin": ["view_organization", "view_members", "manage_members", "manage_settings"],
-        "owner": ["view_organization", "view_members", "manage_members", "manage_settings", "manage_billing", "delete_organization"]
+        "owner": [
+            "view_organization",
+            "view_members",
+            "manage_members",
+            "manage_settings",
+            "manage_billing",
+            "delete_organization",
+        ],
     }
 
     permissions = base_permissions.get(role, [])

@@ -1,4 +1,5 @@
 import pytest
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -24,24 +25,24 @@ class TestRiskAssessmentServiceInitialization:
         """Test risk assessment service initializes correctly."""
         service = RiskAssessmentService()
 
-        assert hasattr(service, 'redis_client')
-        assert hasattr(service, 'ml_model')
-        assert hasattr(service, 'risk_thresholds')
-        assert hasattr(service, 'fraud_patterns')
+        assert hasattr(service, "redis_client")
+        assert hasattr(service, "ml_model")
+        assert hasattr(service, "risk_thresholds")
+        assert hasattr(service, "fraud_patterns")
 
     def test_risk_thresholds_configuration(self):
         """Test risk threshold configuration."""
         service = RiskAssessmentService()
 
-        assert 'low' in service.risk_thresholds
-        assert 'medium' in service.risk_thresholds
-        assert 'high' in service.risk_thresholds
-        assert 'critical' in service.risk_thresholds
+        assert "low" in service.risk_thresholds
+        assert "medium" in service.risk_thresholds
+        assert "high" in service.risk_thresholds
+        assert "critical" in service.risk_thresholds
 
         # Verify threshold values are properly ordered
-        assert service.risk_thresholds['low'] < service.risk_thresholds['medium']
-        assert service.risk_thresholds['medium'] < service.risk_thresholds['high']
-        assert service.risk_thresholds['high'] < service.risk_thresholds['critical']
+        assert service.risk_thresholds["low"] < service.risk_thresholds["medium"]
+        assert service.risk_thresholds["medium"] < service.risk_thresholds["high"]
+        assert service.risk_thresholds["high"] < service.risk_thresholds["critical"]
 
 
 class TestUserRiskAssessment:
@@ -62,13 +63,12 @@ class TestUserRiskAssessment:
             "failed_login_attempts": 1,
             "ip_address": "192.168.1.100",
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "country": "US"
+            "country": "US",
         }
 
-        with patch.object(self.service, '_check_ip_reputation') as mock_ip, \
-             patch.object(self.service, '_analyze_behavior_patterns') as mock_behavior, \
-             patch.object(self.service, '_check_device_fingerprint') as mock_device:
-
+        with patch.object(self.service, "_check_ip_reputation") as mock_ip, patch.object(
+            self.service, "_analyze_behavior_patterns"
+        ) as mock_behavior, patch.object(self.service, "_check_device_fingerprint") as mock_device:
             mock_ip.return_value = {"score": 10, "reputation": "good"}
             mock_behavior.return_value = {"score": 15, "patterns": []}
             mock_device.return_value = {"score": 5, "risk_level": "low"}
@@ -90,15 +90,17 @@ class TestUserRiskAssessment:
             "failed_login_attempts": 25,
             "ip_address": "tor-exit-node.com",
             "user_agent": "Suspicious Bot/1.0",
-            "country": "XX"
+            "country": "XX",
         }
 
-        with patch.object(self.service, '_check_ip_reputation') as mock_ip, \
-             patch.object(self.service, '_analyze_behavior_patterns') as mock_behavior, \
-             patch.object(self.service, '_check_device_fingerprint') as mock_device:
-
+        with patch.object(self.service, "_check_ip_reputation") as mock_ip, patch.object(
+            self.service, "_analyze_behavior_patterns"
+        ) as mock_behavior, patch.object(self.service, "_check_device_fingerprint") as mock_device:
             mock_ip.return_value = {"score": 80, "reputation": "malicious"}
-            mock_behavior.return_value = {"score": 90, "patterns": ["rapid_registration", "bot_behavior"]}
+            mock_behavior.return_value = {
+                "score": 90,
+                "patterns": ["rapid_registration", "bot_behavior"],
+            }
             mock_device.return_value = {"score": 85, "risk_level": "high"}
 
             result = await self.service.assess_user_risk(user_data)
@@ -118,13 +120,12 @@ class TestUserRiskAssessment:
             "failed_login_attempts": 0,
             "ip_address": "192.168.1.200",
             "user_agent": "Mozilla/5.0 (Mac OS X)",
-            "country": "CA"
+            "country": "CA",
         }
 
-        with patch.object(self.service, '_check_ip_reputation') as mock_ip, \
-             patch.object(self.service, '_analyze_behavior_patterns') as mock_behavior, \
-             patch.object(self.service, '_check_device_fingerprint') as mock_device:
-
+        with patch.object(self.service, "_check_ip_reputation") as mock_ip, patch.object(
+            self.service, "_analyze_behavior_patterns"
+        ) as mock_behavior, patch.object(self.service, "_check_device_fingerprint") as mock_device:
             mock_ip.return_value = {"score": 20, "reputation": "unknown"}
             mock_behavior.return_value = {"score": 25, "patterns": ["new_user"]}
             mock_device.return_value = {"score": 30, "risk_level": "medium"}
@@ -145,13 +146,13 @@ class TestIPReputationChecking:
     @pytest.mark.asyncio
     async def test_check_ip_reputation_clean_ip(self):
         """Test IP reputation check for clean IP address."""
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.return_value.json.return_value = {
                 "ip": "192.168.1.100",
                 "reputation": "good",
                 "threat_score": 5,
                 "categories": [],
-                "country": "US"
+                "country": "US",
             }
             mock_get.return_value.status_code = 200
 
@@ -164,13 +165,13 @@ class TestIPReputationChecking:
     @pytest.mark.asyncio
     async def test_check_ip_reputation_malicious_ip(self):
         """Test IP reputation check for malicious IP address."""
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.return_value.json.return_value = {
                 "ip": "malicious.tor-node.com",
                 "reputation": "malicious",
                 "threat_score": 95,
                 "categories": ["tor_exit_node", "known_attacker"],
-                "country": "XX"
+                "country": "XX",
             }
             mock_get.return_value.status_code = 200
 
@@ -183,7 +184,7 @@ class TestIPReputationChecking:
     @pytest.mark.asyncio
     async def test_check_ip_reputation_api_failure(self):
         """Test IP reputation check when API fails."""
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.side_effect = Exception("API unavailable")
 
             result = await self.service._check_ip_reputation("192.168.1.100")
@@ -223,7 +224,7 @@ class TestBehaviorPatternAnalysis:
             "login_frequency": "regular",
             "session_duration_avg": 1800,  # 30 minutes
             "countries_accessed": ["US"],
-            "devices_used": 2
+            "devices_used": 2,
         }
 
         result = await self.service._analyze_behavior_patterns(user_data)
@@ -243,7 +244,7 @@ class TestBehaviorPatternAnalysis:
             "login_frequency": "rapid",
             "session_duration_avg": 30,  # 30 seconds
             "countries_accessed": ["US", "RU", "CN", "KP", "IR"],
-            "devices_used": 50
+            "devices_used": 50,
         }
 
         result = await self.service._analyze_behavior_patterns(user_data)
@@ -267,7 +268,7 @@ class TestBehaviorPatternAnalysis:
             "countries_accessed": ["US"],
             "devices_used": 1,
             "user_agent": "Bot/1.0",
-            "request_interval_consistency": 0.99  # Highly consistent timing
+            "request_interval_consistency": 0.99,  # Highly consistent timing
         }
 
         result = await self.service._analyze_behavior_patterns(user_data)
@@ -295,7 +296,7 @@ class TestDeviceFingerprintAnalysis:
             "platform": "Win32",
             "plugins": ["PDF Viewer", "Chrome PDF Viewer"],
             "canvas_fingerprint": "abc123def456",
-            "webgl_fingerprint": "webgl789xyz"
+            "webgl_fingerprint": "webgl789xyz",
         }
 
         result = await self.service._check_device_fingerprint(device_data)
@@ -315,7 +316,7 @@ class TestDeviceFingerprintAnalysis:
             "platform": "Linux",
             "plugins": [],
             "canvas_fingerprint": "",
-            "webgl_fingerprint": ""
+            "webgl_fingerprint": "",
         }
 
         result = await self.service._check_device_fingerprint(device_data)
@@ -332,15 +333,15 @@ class TestDeviceFingerprintAnalysis:
             "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0)",
             "screen_resolution": "414x896",
             "timezone": "America/Los_Angeles",
-            "language": "en-US"
+            "language": "en-US",
         }
 
-        with patch.object(self.service, '_check_device_history') as mock_history:
+        with patch.object(self.service, "_check_device_history") as mock_history:
             mock_history.return_value = {
                 "is_known": True,
                 "first_seen": datetime.now() - timedelta(days=30),
                 "login_count": 25,
-                "trust_score": 85
+                "trust_score": 85,
             }
 
             result = await self.service._check_device_fingerprint(device_data)
@@ -363,11 +364,27 @@ class TestFraudDetection:
         activity_data = {
             "user_id": str(uuid4()),
             "recent_activities": [
-                {"action": "login", "ip": "192.168.1.100", "timestamp": datetime.now() - timedelta(hours=2)},
-                {"action": "password_change", "ip": "suspicious.ip.com", "timestamp": datetime.now() - timedelta(hours=1)},
-                {"action": "login", "ip": "suspicious.ip.com", "timestamp": datetime.now() - timedelta(minutes=30)},
-                {"action": "profile_update", "ip": "suspicious.ip.com", "timestamp": datetime.now()}
-            ]
+                {
+                    "action": "login",
+                    "ip": "192.168.1.100",
+                    "timestamp": datetime.now() - timedelta(hours=2),
+                },
+                {
+                    "action": "password_change",
+                    "ip": "suspicious.ip.com",
+                    "timestamp": datetime.now() - timedelta(hours=1),
+                },
+                {
+                    "action": "login",
+                    "ip": "suspicious.ip.com",
+                    "timestamp": datetime.now() - timedelta(minutes=30),
+                },
+                {
+                    "action": "profile_update",
+                    "ip": "suspicious.ip.com",
+                    "timestamp": datetime.now(),
+                },
+            ],
         }
 
         result = await self.service.detect_fraud_patterns(activity_data)
@@ -382,12 +399,32 @@ class TestFraudDetection:
         activity_data = {
             "ip_address": "attacker.ip.com",
             "recent_activities": [
-                {"action": "failed_login", "username": "user1@example.com", "timestamp": datetime.now() - timedelta(minutes=10)},
-                {"action": "failed_login", "username": "user2@example.com", "timestamp": datetime.now() - timedelta(minutes=9)},
-                {"action": "failed_login", "username": "user3@example.com", "timestamp": datetime.now() - timedelta(minutes=8)},
-                {"action": "failed_login", "username": "user4@example.com", "timestamp": datetime.now() - timedelta(minutes=7)},
-                {"action": "failed_login", "username": "user5@example.com", "timestamp": datetime.now() - timedelta(minutes=6)}
-            ]
+                {
+                    "action": "failed_login",
+                    "username": "user1@example.com",
+                    "timestamp": datetime.now() - timedelta(minutes=10),
+                },
+                {
+                    "action": "failed_login",
+                    "username": "user2@example.com",
+                    "timestamp": datetime.now() - timedelta(minutes=9),
+                },
+                {
+                    "action": "failed_login",
+                    "username": "user3@example.com",
+                    "timestamp": datetime.now() - timedelta(minutes=8),
+                },
+                {
+                    "action": "failed_login",
+                    "username": "user4@example.com",
+                    "timestamp": datetime.now() - timedelta(minutes=7),
+                },
+                {
+                    "action": "failed_login",
+                    "username": "user5@example.com",
+                    "timestamp": datetime.now() - timedelta(minutes=6),
+                },
+            ],
         }
 
         result = await self.service.detect_fraud_patterns(activity_data)
@@ -402,9 +439,13 @@ class TestFraudDetection:
         activity_data = {
             "user_id": str(uuid4()),
             "recent_activities": [
-                {"action": "api_call", "endpoint": "/api/create", "timestamp": datetime.now() - timedelta(seconds=i)}
+                {
+                    "action": "api_call",
+                    "endpoint": "/api/create",
+                    "timestamp": datetime.now() - timedelta(seconds=i),
+                }
                 for i in range(100)  # 100 API calls in 100 seconds
-            ]
+            ],
         }
 
         result = await self.service.detect_fraud_patterns(activity_data)
@@ -428,7 +469,7 @@ class TestRiskMitigation:
             "risk_level": "low",
             "risk_score": 15,
             "risk_factors": ["new_user"],
-            "detected_patterns": []
+            "detected_patterns": [],
         }
 
         result = await self.service.suggest_mitigation_strategies(risk_assessment)
@@ -444,7 +485,7 @@ class TestRiskMitigation:
             "risk_level": "high",
             "risk_score": 85,
             "risk_factors": ["malicious_ip", "bot_behavior", "rapid_attempts"],
-            "detected_patterns": ["credential_stuffing", "account_takeover"]
+            "detected_patterns": ["credential_stuffing", "account_takeover"],
         }
 
         result = await self.service.suggest_mitigation_strategies(risk_assessment)
@@ -461,7 +502,7 @@ class TestRiskMitigation:
             "risk_level": "medium",
             "risk_score": 45,
             "risk_factors": ["unknown_device", "multiple_countries"],
-            "detected_patterns": ["unusual_activity"]
+            "detected_patterns": ["unusual_activity"],
         }
 
         result = await self.service.suggest_mitigation_strategies(risk_assessment)
@@ -481,11 +522,11 @@ class TestRealtimeMonitoring:
     @pytest.mark.asyncio
     async def test_realtime_risk_monitor_normal_activity(self):
         """Test real-time monitoring for normal activity."""
-        with patch.object(self.service, '_get_activity_stream') as mock_stream:
+        with patch.object(self.service, "_get_activity_stream") as mock_stream:
             mock_stream.return_value = [
                 {"user_id": "user1", "action": "login", "timestamp": datetime.now()},
                 {"user_id": "user2", "action": "logout", "timestamp": datetime.now()},
-                {"user_id": "user3", "action": "view_page", "timestamp": datetime.now()}
+                {"user_id": "user3", "action": "view_page", "timestamp": datetime.now()},
             ]
 
             result = await self.service.monitor_realtime_risk()
@@ -497,19 +538,34 @@ class TestRealtimeMonitoring:
     @pytest.mark.asyncio
     async def test_realtime_risk_monitor_detected_threats(self):
         """Test real-time monitoring when threats are detected."""
-        with patch.object(self.service, '_get_activity_stream') as mock_stream, \
-             patch.object(self.service, 'detect_fraud_patterns') as mock_fraud:
-
+        with patch.object(self.service, "_get_activity_stream") as mock_stream, patch.object(
+            self.service, "detect_fraud_patterns"
+        ) as mock_fraud:
             mock_stream.return_value = [
-                {"user_id": "attacker1", "action": "failed_login", "ip": "malicious.ip", "timestamp": datetime.now()},
-                {"user_id": "attacker1", "action": "failed_login", "ip": "malicious.ip", "timestamp": datetime.now()},
-                {"user_id": "attacker1", "action": "failed_login", "ip": "malicious.ip", "timestamp": datetime.now()}
+                {
+                    "user_id": "attacker1",
+                    "action": "failed_login",
+                    "ip": "malicious.ip",
+                    "timestamp": datetime.now(),
+                },
+                {
+                    "user_id": "attacker1",
+                    "action": "failed_login",
+                    "ip": "malicious.ip",
+                    "timestamp": datetime.now(),
+                },
+                {
+                    "user_id": "attacker1",
+                    "action": "failed_login",
+                    "ip": "malicious.ip",
+                    "timestamp": datetime.now(),
+                },
             ]
 
             mock_fraud.return_value = {
                 "detected_patterns": ["brute_force"],
                 "fraud_score": 90,
-                "recommendation": "immediate_action"
+                "recommendation": "immediate_action",
             }
 
             result = await self.service.monitor_realtime_risk()
@@ -531,7 +587,7 @@ class TestErrorHandling:
         """Test handling of ML model failures."""
         user_data = {"id": str(uuid4()), "email": "test@example.com"}
 
-        with patch.object(self.service, 'ml_model') as mock_model:
+        with patch.object(self.service, "ml_model") as mock_model:
             mock_model.predict.side_effect = Exception("Model inference failed")
 
             result = await self.service.assess_user_risk(user_data)
@@ -543,7 +599,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_handle_redis_connection_failure(self):
         """Test handling of Redis connection failures."""
-        with patch.object(self.service, 'redis_client') as mock_redis:
+        with patch.object(self.service, "redis_client") as mock_redis:
             mock_redis.get.side_effect = Exception("Redis connection failed")
 
             result = await self.service._check_device_history("device_123")
@@ -554,7 +610,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_handle_external_api_timeout(self):
         """Test handling of external API timeouts."""
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_get.side_effect = asyncio.TimeoutError("API timeout")
 
             result = await self.service._check_ip_reputation("192.168.1.1")

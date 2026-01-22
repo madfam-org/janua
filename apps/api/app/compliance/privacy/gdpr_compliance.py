@@ -25,7 +25,7 @@ class GDPRCompliance:
     async def validate_gdpr_compliance(
         self,
         organization_id: Optional[str] = None,
-        scope: str = "full"  # "full", "user", "data_processing"
+        scope: str = "full",  # "full", "user", "data_processing"
     ) -> Dict[str, Any]:
         """Comprehensive GDPR compliance validation"""
 
@@ -41,11 +41,11 @@ class GDPRCompliance:
                 "consent_management": {"status": "compliant", "score": 100, "issues": []},
                 "data_retention": {"status": "compliant", "score": 100, "issues": []},
                 "data_protection": {"status": "compliant", "score": 100, "issues": []},
-                "audit_trail": {"status": "compliant", "score": 100, "issues": []}
+                "audit_trail": {"status": "compliant", "score": 100, "issues": []},
             },
             "recommendations": [],
             "critical_issues": [],
-            "next_review_date": (datetime.utcnow() + timedelta(days=90)).isoformat()
+            "next_review_date": (datetime.utcnow() + timedelta(days=90)).isoformat(),
         }
 
         try:
@@ -62,7 +62,9 @@ class GDPRCompliance:
             compliance_report["validation_results"]["data_retention"] = retention_validation
 
             # Calculate overall compliance score
-            scores = [result["score"] for result in compliance_report["validation_results"].values()]
+            scores = [
+                result["score"] for result in compliance_report["validation_results"].values()
+            ]
             compliance_report["compliance_score"] = sum(scores) / len(scores)
 
             # Determine overall status
@@ -88,7 +90,7 @@ class GDPRCompliance:
                 organization_id=organization_id,
                 control_id="GDPR-VALIDATION",
                 compliance_frameworks=[ComplianceFramework.GDPR],
-                raw_data=compliance_report
+                raw_data=compliance_report,
             )
 
         except Exception as e:
@@ -109,25 +111,33 @@ class GDPRCompliance:
                 "access_request_processing",
                 "erasure_request_processing",
                 "portability_request_processing",
-                "automated_response_capability"
-            ]
+                "automated_response_capability",
+            ],
         }
 
         # Check if data subject request handlers are implemented
         try:
             # Validate access request capability (Article 15)
-            if not hasattr(self.privacy_manager.data_subject_handler, 'process_access_request'):
-                validation["issues"].append("Article 15 - Access request processing not implemented")
+            if not hasattr(self.privacy_manager.data_subject_handler, "process_access_request"):
+                validation["issues"].append(
+                    "Article 15 - Access request processing not implemented"
+                )
                 validation["score"] -= 25
 
             # Validate erasure request capability (Article 17)
-            if not hasattr(self.privacy_manager.data_subject_handler, 'process_erasure_request'):
-                validation["issues"].append("Article 17 - Erasure request processing not implemented")
+            if not hasattr(self.privacy_manager.data_subject_handler, "process_erasure_request"):
+                validation["issues"].append(
+                    "Article 17 - Erasure request processing not implemented"
+                )
                 validation["score"] -= 25
 
             # Validate portability request capability (Article 20)
-            if not hasattr(self.privacy_manager.data_subject_handler, 'process_portability_request'):
-                validation["issues"].append("Article 20 - Portability request processing not implemented")
+            if not hasattr(
+                self.privacy_manager.data_subject_handler, "process_portability_request"
+            ):
+                validation["issues"].append(
+                    "Article 20 - Portability request processing not implemented"
+                )
                 validation["score"] -= 25
 
         except Exception as e:
@@ -152,28 +162,28 @@ class GDPRCompliance:
                 "consent_collection_capability",
                 "consent_withdrawal_capability",
                 "consent_audit_trail",
-                "granular_consent_support"
-            ]
+                "granular_consent_support",
+            ],
         }
 
         try:
             # Check consent granting capability
-            if not hasattr(self.privacy_manager.consent_manager, 'grant_consent'):
+            if not hasattr(self.privacy_manager.consent_manager, "grant_consent"):
                 validation["issues"].append("Consent granting capability not implemented")
                 validation["score"] -= 30
 
             # Check consent withdrawal capability
-            if not hasattr(self.privacy_manager.consent_manager, 'withdraw_consent'):
+            if not hasattr(self.privacy_manager.consent_manager, "withdraw_consent"):
                 validation["issues"].append("Consent withdrawal capability not implemented")
                 validation["score"] -= 30
 
             # Check consent status checking
-            if not hasattr(self.privacy_manager.consent_manager, 'check_consent_status'):
+            if not hasattr(self.privacy_manager.consent_manager, "check_consent_status"):
                 validation["issues"].append("Consent status checking not implemented")
                 validation["score"] -= 20
 
             # Check bulk consent validation
-            if not hasattr(self.privacy_manager.consent_manager, 'bulk_consent_check'):
+            if not hasattr(self.privacy_manager.consent_manager, "bulk_consent_check"):
                 validation["issues"].append("Bulk consent checking not implemented")
                 validation["score"] -= 20
 
@@ -199,8 +209,8 @@ class GDPRCompliance:
                 "retention_policies_exist",
                 "automated_retention_capability",
                 "policy_enforcement",
-                "retention_audit_trail"
-            ]
+                "retention_audit_trail",
+            ],
         }
 
         try:
@@ -211,12 +221,12 @@ class GDPRCompliance:
                 validation["score"] -= 40
 
             # Check automated retention capability
-            if not hasattr(self.privacy_manager.retention_manager, 'execute_retention_policies'):
+            if not hasattr(self.privacy_manager.retention_manager, "execute_retention_policies"):
                 validation["issues"].append("Automated retention execution not implemented")
                 validation["score"] -= 30
 
             # Check policy creation capability
-            if not hasattr(self.privacy_manager.retention_manager, 'create_retention_policy'):
+            if not hasattr(self.privacy_manager.retention_manager, "create_retention_policy"):
                 validation["issues"].append("Retention policy creation not implemented")
                 validation["score"] -= 30
 
@@ -232,8 +242,7 @@ class GDPRCompliance:
         return validation
 
     async def gdpr_readiness_assessment(
-        self,
-        organization_id: Optional[str] = None
+        self, organization_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Comprehensive GDPR readiness assessment for new implementations"""
 
@@ -245,7 +254,7 @@ class GDPRCompliance:
             "required_implementations": [],
             "recommended_implementations": [],
             "timeline_estimate_days": 0,
-            "priority_actions": []
+            "priority_actions": [],
         }
 
         # Check core GDPR requirements
@@ -256,7 +265,7 @@ class GDPRCompliance:
             {"name": "Audit Trail System", "implemented": True, "critical": True},
             {"name": "Privacy Impact Assessment", "implemented": True, "critical": False},
             {"name": "Data Protection Officer Contact", "implemented": False, "critical": True},
-            {"name": "Cross-border Transfer Controls", "implemented": False, "critical": False}
+            {"name": "Cross-border Transfer Controls", "implemented": False, "critical": False},
         ]
 
         missing_critical = []
@@ -269,7 +278,7 @@ class GDPRCompliance:
                     assessment["timeline_estimate_days"] += 14  # 2 weeks per critical item
                 else:
                     missing_recommended.append(requirement["name"])
-                    assessment["timeline_estimate_days"] += 7   # 1 week per recommended item
+                    assessment["timeline_estimate_days"] += 7  # 1 week per recommended item
 
         assessment["required_implementations"] = missing_critical
         assessment["recommended_implementations"] = missing_recommended
@@ -292,9 +301,7 @@ class GDPRCompliance:
         return assessment
 
     async def generate_gdpr_compliance_report(
-        self,
-        organization_id: Optional[str] = None,
-        include_user_data: bool = False
+        self, organization_id: Optional[str] = None, include_user_data: bool = False
     ) -> Dict[str, Any]:
         """Generate comprehensive GDPR compliance report"""
 
@@ -306,7 +313,7 @@ class GDPRCompliance:
             "detailed_findings": {},
             "recommendations": [],
             "compliance_roadmap": [],
-            "next_review_date": (datetime.utcnow() + timedelta(days=90)).isoformat()
+            "next_review_date": (datetime.utcnow() + timedelta(days=90)).isoformat(),
         }
 
         # Get comprehensive compliance validation
@@ -319,9 +326,10 @@ class GDPRCompliance:
             "compliance_score": validation_results["compliance_score"],
             "critical_issues_count": len(validation_results["critical_issues"]),
             "areas_of_concern": [
-                area for area, result in validation_results["validation_results"].items()
+                area
+                for area, result in validation_results["validation_results"].items()
                 if result["score"] < 90
-            ]
+            ],
         }
 
         # Generate recommendations
@@ -330,7 +338,7 @@ class GDPRCompliance:
                 "Implement missing data subject rights capabilities",
                 "Enhance consent management audit trails",
                 "Review and update data retention policies",
-                "Strengthen privacy impact assessment processes"
+                "Strengthen privacy impact assessment processes",
             ]
 
         return report

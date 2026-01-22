@@ -27,16 +27,9 @@ class TestUserLogin:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.auth
-    async def test_login_success(
-        self,
-        client: AsyncClient,
-        test_user: User
-    ):
+    async def test_login_success(self, client: AsyncClient, test_user: User):
         """Test successful login with valid credentials"""
-        login_data = {
-            "email": test_user.email,
-            "password": "TestPassword123!"
-        }
+        login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
         response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -49,16 +42,9 @@ class TestUserLogin:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.auth
-    async def test_login_invalid_password(
-        self,
-        client: AsyncClient,
-        test_user: User
-    ):
+    async def test_login_invalid_password(self, client: AsyncClient, test_user: User):
         """Test login failure with wrong password"""
-        login_data = {
-            "email": test_user.email,
-            "password": "WrongPassword123!"
-        }
+        login_data = {"email": test_user.email, "password": "WrongPassword123!"}
 
         response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -70,15 +56,9 @@ class TestUserLogin:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.auth
-    async def test_login_nonexistent_email(
-        self,
-        client: AsyncClient
-    ):
+    async def test_login_nonexistent_email(self, client: AsyncClient):
         """Test login with non-existent email - should not leak info"""
-        login_data = {
-            "email": "nonexistent@example.com",
-            "password": "SomePassword123!"
-        }
+        login_data = {"email": "nonexistent@example.com", "password": "SomePassword123!"}
 
         response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -91,16 +71,9 @@ class TestUserLogin:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.auth
-    async def test_login_locked_account(
-        self,
-        client: AsyncClient,
-        test_user_suspended: User
-    ):
+    async def test_login_locked_account(self, client: AsyncClient, test_user_suspended: User):
         """Test login rejection for locked/suspended account"""
-        login_data = {
-            "email": test_user_suspended.email,
-            "password": "TestPassword123!"
-        }
+        login_data = {"email": test_user_suspended.email, "password": "TestPassword123!"}
 
         response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -112,16 +85,9 @@ class TestUserLogin:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.auth
-    async def test_login_unverified_email(
-        self,
-        client: AsyncClient,
-        test_user_unverified: User
-    ):
+    async def test_login_unverified_email(self, client: AsyncClient, test_user_unverified: User):
         """Test login with unverified email address"""
-        login_data = {
-            "email": test_user_unverified.email,
-            "password": "TestPassword123!"
-        }
+        login_data = {"email": test_user_unverified.email, "password": "TestPassword123!"}
 
         response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -136,11 +102,7 @@ class TestUserLogin:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.auth
-    async def test_login_case_insensitive_email(
-        self,
-        client: AsyncClient,
-        test_user: User
-    ):
+    async def test_login_case_insensitive_email(self, client: AsyncClient, test_user: User):
         """Test email case handling during login"""
         # Login with different case variations
         test_cases = [
@@ -150,10 +112,7 @@ class TestUserLogin:
         ]
 
         for email_variant in test_cases:
-            login_data = {
-                "email": email_variant,
-                "password": "TestPassword123!"
-            }
+            login_data = {"email": email_variant, "password": "TestPassword123!"}
 
             response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -163,20 +122,20 @@ class TestUserLogin:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.auth
-    @pytest.mark.parametrize("whitespace_email", [
-        "  test@example.com  ",  # Leading/trailing
-        "\ttest@example.com\t",  # Tabs
-    ])
+    @pytest.mark.parametrize(
+        "whitespace_email",
+        [
+            "  test@example.com  ",  # Leading/trailing
+            "\ttest@example.com\t",  # Tabs
+        ],
+    )
     async def test_login_whitespace_handling(
-        self,
-        client: AsyncClient,
-        test_user: User,
-        whitespace_email: str
+        self, client: AsyncClient, test_user: User, whitespace_email: str
     ):
         """Test whitespace trimming in email field"""
         login_data = {
             "email": whitespace_email.replace("test@example.com", test_user.email),
-            "password": "TestPassword123!"
+            "password": "TestPassword123!",
         }
 
         response = await client.post("/api/v1/auth/login", json=login_data)
@@ -187,17 +146,15 @@ class TestUserLogin:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.auth
-    @pytest.mark.parametrize("missing_field,data", [
-        ("email", {"password": "TestPassword123!"}),
-        ("password", {"email": "test@example.com"}),
-        ("both", {}),
-    ])
-    async def test_login_missing_fields(
-        self,
-        client: AsyncClient,
-        missing_field: str,
-        data: dict
-    ):
+    @pytest.mark.parametrize(
+        "missing_field,data",
+        [
+            ("email", {"password": "TestPassword123!"}),
+            ("password", {"email": "test@example.com"}),
+            ("both", {}),
+        ],
+    )
+    async def test_login_missing_fields(self, client: AsyncClient, missing_field: str, data: dict):
         """Test validation for missing required fields"""
         response = await client.post("/api/v1/auth/login", json=data)
 
@@ -208,17 +165,14 @@ class TestUserLogin:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.auth
-    async def test_login_password_whitespace_preserved(
-        self,
-        client: AsyncClient
-    ):
+    async def test_login_password_whitespace_preserved(self, client: AsyncClient):
         """Test that password whitespace is NOT trimmed (important!)"""
         # Create user with password that has spaces
         signup_data = {
             "email": "password_spaces@example.com",
             "password": " Password With Spaces123! ",  # Spaces are part of password
             "first_name": "Test",
-            "last_name": "User"
+            "last_name": "User",
         }
 
         signup_response = await client.post("/api/v1/auth/signup", json=signup_data)
@@ -227,7 +181,7 @@ class TestUserLogin:
             # Try to login with trimmed password - should FAIL
             login_data_trimmed = {
                 "email": "password_spaces@example.com",
-                "password": "Password With Spaces123!"  # Trimmed
+                "password": "Password With Spaces123!",  # Trimmed
             }
 
             response_trimmed = await client.post("/api/v1/auth/login", json=login_data_trimmed)
@@ -237,7 +191,7 @@ class TestUserLogin:
             # Login with exact password including spaces - should SUCCEED
             login_data_exact = {
                 "email": "password_spaces@example.com",
-                "password": " Password With Spaces123! "  # Exact match
+                "password": " Password With Spaces123! ",  # Exact match
             }
 
             response_exact = await client.post("/api/v1/auth/login", json=login_data_exact)
@@ -257,10 +211,7 @@ class TestSessionManagement:
         test_user: User,
     ):
         """Verify session record created on successful login"""
-        login_data = {
-            "email": test_user.email,
-            "password": "TestPassword123!"
-        }
+        login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
         response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -275,16 +226,9 @@ class TestSessionManagement:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.auth
-    async def test_concurrent_sessions_allowed(
-        self,
-        client: AsyncClient,
-        test_user: User
-    ):
+    async def test_concurrent_sessions_allowed(self, client: AsyncClient, test_user: User):
         """Test multiple active sessions for same user"""
-        login_data = {
-            "email": test_user.email,
-            "password": "TestPassword123!"
-        }
+        login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
         # Login twice
         response1 = await client.post("/api/v1/auth/login", json=login_data)
@@ -304,17 +248,10 @@ class TestSessionManagement:
     @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.auth
-    async def test_logout_session_revocation(
-        self,
-        client: AsyncClient,
-        test_user: User
-    ):
+    async def test_logout_session_revocation(self, client: AsyncClient, test_user: User):
         """Test session revocation on logout"""
         # Login first
-        login_data = {
-            "email": test_user.email,
-            "password": "TestPassword123!"
-        }
+        login_data = {"email": test_user.email, "password": "TestPassword123!"}
 
         login_response = await client.post("/api/v1/auth/login", json=login_data)
 
@@ -324,8 +261,7 @@ class TestSessionManagement:
 
             # Logout
             logout_response = await client.post(
-                "/api/v1/auth/logout",
-                headers={"Authorization": f"Bearer {access_token}"}
+                "/api/v1/auth/logout", headers={"Authorization": f"Bearer {access_token}"}
             )
 
             # Should succeed (200 or 204)
@@ -339,11 +275,7 @@ class TestLoginSecurity:
     @pytest.mark.integration
     @pytest.mark.auth
     @pytest.mark.skip(reason="Rate limiting mocked in test environment")
-    async def test_login_rate_limiting(
-        self,
-        client: AsyncClient,
-        test_user: User
-    ):
+    async def test_login_rate_limiting(self, client: AsyncClient, test_user: User):
         """Test brute force protection via rate limiting"""
         # NOTE: Rate limiting is mocked in conftest.py
         # This documents expected behavior for manual/E2E testing

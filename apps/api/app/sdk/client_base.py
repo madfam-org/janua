@@ -13,11 +13,12 @@ from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, Field, HttpUrl
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class AuthenticationMethod(str, Enum):
     """Authentication methods supported by the SDK."""
+
     API_KEY = "api_key"
     JWT_TOKEN = "jwt_token"
     OAUTH2 = "oauth2"
@@ -26,6 +27,7 @@ class AuthenticationMethod(str, Enum):
 
 class Environment(str, Enum):
     """API environment configurations."""
+
     PRODUCTION = "production"
     STAGING = "staging"
     DEVELOPMENT = "development"
@@ -39,6 +41,7 @@ class RetryConfig:
 
     Platform-specific SDKs will translate this to appropriate retry logic.
     """
+
     max_retries: int = 3
     backoff_multiplier: float = 2.0
     max_backoff: float = 60.0
@@ -59,6 +62,7 @@ class RequestOptions:
 
     Allows SDK consumers to override default behavior on a per-request basis.
     """
+
     timeout: Optional[float] = None
     retries: Optional[RetryConfig] = None
     headers: Optional[Dict[str, str]] = None
@@ -71,6 +75,7 @@ class ClientConfig(BaseModel):
 
     This will be the primary configuration class for all platform SDKs.
     """
+
     # API Configuration
     base_url: HttpUrl = Field(default="https://api.janua.dev", description="API base URL")
     api_version: str = Field(default="v1", description="API version to use")
@@ -80,11 +85,15 @@ class ClientConfig(BaseModel):
     api_key: Optional[str] = Field(None, description="API key for authentication")
     access_token: Optional[str] = Field(None, description="JWT access token")
     refresh_token: Optional[str] = Field(None, description="JWT refresh token")
-    auth_method: AuthenticationMethod = Field(default=AuthenticationMethod.API_KEY, description="Authentication method")
+    auth_method: AuthenticationMethod = Field(
+        default=AuthenticationMethod.API_KEY, description="Authentication method"
+    )
 
     # Request Configuration
     timeout: float = Field(default=30.0, description="Default request timeout in seconds")
-    retry_config: RetryConfig = Field(default_factory=RetryConfig, description="Default retry configuration")
+    retry_config: RetryConfig = Field(
+        default_factory=RetryConfig, description="Default retry configuration"
+    )
 
     # Rate Limiting
     rate_limit_per_second: Optional[float] = Field(None, description="Client-side rate limiting")
@@ -96,7 +105,9 @@ class ClientConfig(BaseModel):
 
     # User Agent and Headers
     user_agent: Optional[str] = Field(None, description="Custom User-Agent header")
-    default_headers: Dict[str, str] = Field(default_factory=dict, description="Default headers for all requests")
+    default_headers: Dict[str, str] = Field(
+        default_factory=dict, description="Default headers for all requests"
+    )
 
     class Config:
         arbitrary_types_allowed = True
@@ -130,7 +141,7 @@ class BaseAPIClient(ABC):
         data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
-        options: Optional[RequestOptions] = None
+        options: Optional[RequestOptions] = None,
     ) -> Dict[str, Any]:
         """
         Make an HTTP request to the API.
@@ -162,9 +173,7 @@ class BaseAPIClient(ABC):
         """
 
     async def _apply_retry_logic(
-        self,
-        request_func,
-        retry_config: Optional[RetryConfig] = None
+        self, request_func, retry_config: Optional[RetryConfig] = None
     ) -> Any:
         """
         Apply retry logic to a request function.
@@ -189,10 +198,7 @@ class BaseAPIClient(ABC):
                     raise e
 
                 # Calculate backoff delay
-                delay = min(
-                    config.backoff_multiplier ** attempt,
-                    config.max_backoff
-                )
+                delay = min(config.backoff_multiplier**attempt, config.max_backoff)
 
                 await asyncio.sleep(delay)
 
@@ -232,15 +238,11 @@ class ResourceClient(ABC):
         endpoint: str,
         data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
-        options: Optional[RequestOptions] = None
+        options: Optional[RequestOptions] = None,
     ) -> Dict[str, Any]:
         """Make a request through the API client."""
         return await self.api_client._make_request(
-            method=method,
-            endpoint=endpoint,
-            data=data,
-            params=params,
-            options=options
+            method=method, endpoint=endpoint, data=data, params=params, options=options
         )
 
 
@@ -252,10 +254,7 @@ class PaginatedResourceClient(ResourceClient):
     """
 
     async def _paginated_request(
-        self,
-        endpoint: str,
-        params: Optional[Dict[str, Any]] = None,
-        page_size: int = 20
+        self, endpoint: str, params: Optional[Dict[str, Any]] = None, page_size: int = 20
     ) -> "PaginatedResult[T]":
         """
         Make a paginated request and return a paginated result object.
@@ -267,10 +266,7 @@ class PaginatedResourceClient(ResourceClient):
         - Java: Stream or Iterator
         """
         params = params or {}
-        params.update({
-            "page": 1,
-            "per_page": page_size
-        })
+        params.update({"page": 1, "per_page": page_size})
 
         response = await self._request("GET", endpoint, params=params)
         return PaginatedResult(self, endpoint, params, response)
@@ -292,7 +288,7 @@ class PaginatedResult(Generic[T]):
         client: PaginatedResourceClient,
         endpoint: str,
         params: Dict[str, Any],
-        initial_response: Dict[str, Any]
+        initial_response: Dict[str, Any],
     ):
         self.client = client
         self.endpoint = endpoint

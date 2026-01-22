@@ -31,6 +31,7 @@ router = APIRouter(prefix="/integrations", tags=["Integrations"])
 
 class IntegrationTokenResponse(BaseModel):
     """Response containing a third-party integration token"""
+
     provider: str
     access_token: str
     refresh_token: Optional[str] = None
@@ -42,6 +43,7 @@ class IntegrationTokenResponse(BaseModel):
 
 class IntegrationStatusResponse(BaseModel):
     """Response containing integration status for a provider"""
+
     provider: str
     linked: bool
     provider_email: Optional[str] = None
@@ -51,6 +53,7 @@ class IntegrationStatusResponse(BaseModel):
 
 class IntegrationsListResponse(BaseModel):
     """Response listing all available integrations"""
+
     integrations: list[IntegrationStatusResponse]
 
 
@@ -86,14 +89,13 @@ async def get_integration_token(
         except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid provider: {provider}. Valid providers: {[p.value for p in OAuthProvider]}"
+                detail=f"Invalid provider: {provider}. Valid providers: {[p.value for p in OAuthProvider]}",
             )
 
         # Find OAuth account for this user and provider
         result = await db.execute(
             select(OAuthAccount).where(
-                OAuthAccount.user_id == current_user.id,
-                OAuthAccount.provider == oauth_provider
+                OAuthAccount.user_id == current_user.id, OAuthAccount.provider == oauth_provider
             )
         )
         oauth_account = result.scalar_one_or_none()
@@ -101,13 +103,13 @@ async def get_integration_token(
         if not oauth_account:
             raise HTTPException(
                 status_code=404,
-                detail=f"{provider.capitalize()} account is not linked. Please connect your {provider.capitalize()} account first."
+                detail=f"{provider.capitalize()} account is not linked. Please connect your {provider.capitalize()} account first.",
             )
 
         if not oauth_account.access_token:
             raise HTTPException(
                 status_code=404,
-                detail=f"No access token available for {provider.capitalize()}. Please re-link your account."
+                detail=f"No access token available for {provider.capitalize()}. Please re-link your account.",
             )
 
         # Log the token access for audit purposes
@@ -119,7 +121,7 @@ async def get_integration_token(
             activity_metadata={
                 "provider": provider,
                 "provider_user_id": oauth_account.provider_user_id,
-            }
+            },
         )
         db.add(activity)
         await db.commit()
@@ -146,10 +148,7 @@ async def get_integration_token(
     except Exception as e:
         # SECURITY: Use parameterized logging to prevent log injection
         logger.error("Error retrieving integration token", error=str(e))
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve integration token"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve integration token")
 
 
 @router.get("/{provider}/status", response_model=IntegrationStatusResponse)
@@ -175,16 +174,12 @@ async def get_integration_status(
         try:
             oauth_provider = OAuthProvider(provider.lower())
         except ValueError:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid provider: {provider}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid provider: {provider}")
 
         # Find OAuth account
         result = await db.execute(
             select(OAuthAccount).where(
-                OAuthAccount.user_id == current_user.id,
-                OAuthAccount.provider == oauth_provider
+                OAuthAccount.user_id == current_user.id, OAuthAccount.provider == oauth_provider
             )
         )
         oauth_account = result.scalar_one_or_none()
@@ -214,10 +209,7 @@ async def get_integration_status(
         raise
     except Exception as e:
         logger.error(f"Error checking integration status: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to check integration status"
-        )
+        raise HTTPException(status_code=500, detail="Failed to check integration status")
 
 
 @router.get("/", response_model=IntegrationsListResponse)
@@ -264,7 +256,4 @@ async def list_integrations(
 
     except Exception as e:
         logger.error(f"Error listing integrations: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to list integrations"
-        )
+        raise HTTPException(status_code=500, detail="Failed to list integrations")

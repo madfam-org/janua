@@ -11,6 +11,7 @@ from datetime import datetime
 
 class AlertSeverity(Enum):
     """Alert severity levels"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -19,6 +20,7 @@ class AlertSeverity(Enum):
 
 class AlertStatus(Enum):
     """Alert status states"""
+
     TRIGGERED = "triggered"
     ACKNOWLEDGED = "acknowledged"
     RESOLVED = "resolved"
@@ -27,6 +29,7 @@ class AlertStatus(Enum):
 
 class AlertChannel(Enum):
     """Alert delivery channels"""
+
     EMAIL = "email"
     SLACK = "slack"
     WEBHOOK = "webhook"
@@ -37,6 +40,7 @@ class AlertChannel(Enum):
 @dataclass
 class AlertRule:
     """Alert rule configuration"""
+
     rule_id: str
     name: str
     description: str
@@ -56,6 +60,7 @@ class AlertRule:
 @dataclass
 class Alert:
     """Alert instance"""
+
     alert_id: str
     rule_id: str
     severity: AlertSeverity
@@ -75,6 +80,7 @@ class Alert:
 @dataclass
 class NotificationChannel:
     """Notification channel configuration"""
+
     channel_id: str
     channel_type: AlertChannel
     name: str
@@ -86,6 +92,7 @@ class NotificationChannel:
 @dataclass
 class EvaluationResult:
     """Result of alert rule evaluation"""
+
     rule_id: str
     metric_value: float
     threshold_value: float

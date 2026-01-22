@@ -52,7 +52,7 @@ class WebhookDispatcher:
         event_type: str,
         data: Dict[str, Any],
         user_id: Optional[str] = None,
-        organization_id: Optional[str] = None
+        organization_id: Optional[str] = None,
     ) -> WebhookEvent:
         """
         Create a webhook event and queue deliveries
@@ -78,7 +78,7 @@ class WebhookDispatcher:
                 type=event_type,
                 data=data,
                 user_id=UUID(user_id) if user_id else None,
-                organization_id=UUID(organization_id) if organization_id else None
+                organization_id=UUID(organization_id) if organization_id else None,
             )
             session.add(event)
             await session.flush()
@@ -94,17 +94,19 @@ class WebhookDispatcher:
                     webhook_endpoint_id=endpoint.id,
                     webhook_event_id=event.id,
                     status=WebhookStatus.PENDING,
-                    scheduled_at=datetime.utcnow()
+                    scheduled_at=datetime.utcnow(),
                 )
                 session.add(delivery)
                 await session.flush()
 
                 # Queue for delivery
-                await self._delivery_queue.put({
-                    "delivery_id": str(delivery.id),
-                    "endpoint_id": str(endpoint.id),
-                    "event_id": str(event.id)
-                })
+                await self._delivery_queue.put(
+                    {
+                        "delivery_id": str(delivery.id),
+                        "endpoint_id": str(endpoint.id),
+                        "event_id": str(event.id),
+                    }
+                )
 
             await session.commit()
 
@@ -112,7 +114,7 @@ class WebhookDispatcher:
                 "Webhook event created",
                 event_type=event_type,
                 event_id=str(event.id),
-                endpoint_count=len(endpoints)
+                endpoint_count=len(endpoints),
             )
 
             return event
@@ -122,11 +124,7 @@ class WebhookDispatcher:
             await session.rollback()
             raise
 
-    async def deliver_webhook(
-        self,
-        session: AsyncSession,
-        delivery_id: str
-    ) -> bool:
+    async def deliver_webhook(self, session: AsyncSession, delivery_id: str) -> bool:
         """
         Deliver a specific webhook
 
@@ -165,10 +163,7 @@ class WebhookDispatcher:
             payload = self._prepare_payload(event, endpoint)
 
             # Calculate signature
-            signature = self._calculate_signature(
-                json.dumps(payload).encode(),
-                endpoint.secret
-            )
+            signature = self._calculate_signature(json.dumps(payload).encode(), endpoint.secret)
 
             # Prepare headers
             headers = {
@@ -176,7 +171,7 @@ class WebhookDispatcher:
                 "X-Webhook-Event": event.type,
                 "X-Webhook-Signature": signature,
                 "X-Webhook-ID": str(event.id),
-                "X-Webhook-Timestamp": str(int(datetime.utcnow().timestamp()))
+                "X-Webhook-Timestamp": str(int(datetime.utcnow().timestamp())),
             }
 
             # Add custom headers
@@ -190,11 +185,7 @@ class WebhookDispatcher:
 
             # Make the request
             try:
-                response = await self._client.post(
-                    endpoint.url,
-                    json=payload,
-                    headers=headers
-                )
+                response = await self._client.post(endpoint.url, json=payload, headers=headers)
 
                 # Record response
                 delivery.response_status = response.status_code
@@ -216,16 +207,14 @@ class WebhookDispatcher:
                         "Webhook delivered successfully",
                         delivery_id=delivery_id,
                         endpoint_url=endpoint.url,
-                        status_code=response.status_code
+                        status_code=response.status_code,
                     )
 
                     return True
                 else:
                     # HTTP error
                     raise httpx.HTTPStatusError(
-                        f"HTTP {response.status_code}",
-                        request=response.request,
-                        response=response
+                        f"HTTP {response.status_code}", request=response.request, response=response
                     )
 
             except (httpx.RequestError, httpx.HTTPStatusError) as e:
@@ -236,23 +225,24 @@ class WebhookDispatcher:
                 if delivery.attempts < endpoint.max_retries:
                     delivery.status = WebhookStatus.RETRYING
                     delivery.next_retry_at = self._calculate_next_retry(
-                        delivery.attempts,
-                        endpoint.retry_delay
+                        delivery.attempts, endpoint.retry_delay
                     )
 
                     # Re-queue for retry
-                    await self._delivery_queue.put({
-                        "delivery_id": str(delivery.id),
-                        "endpoint_id": str(endpoint.id),
-                        "event_id": str(event.id),
-                        "retry_at": delivery.next_retry_at.isoformat()
-                    })
+                    await self._delivery_queue.put(
+                        {
+                            "delivery_id": str(delivery.id),
+                            "endpoint_id": str(endpoint.id),
+                            "event_id": str(event.id),
+                            "retry_at": delivery.next_retry_at.isoformat(),
+                        }
+                    )
 
                     logger.warning(
                         "Webhook delivery failed, will retry",
                         delivery_id=delivery_id,
                         attempt=delivery.attempts,
-                        next_retry=delivery.next_retry_at.isoformat()
+                        next_retry=delivery.next_retry_at.isoformat(),
                     )
                 else:
                     # Max retries exceeded
@@ -266,7 +256,7 @@ class WebhookDispatcher:
                         "Webhook delivery failed permanently",
                         delivery_id=delivery_id,
                         attempts=delivery.attempts,
-                        error=str(e)
+                        error=str(e),
                     )
 
                 await session.commit()
@@ -278,9 +268,7 @@ class WebhookDispatcher:
             return False
 
     async def retry_failed_deliveries(
-        self,
-        session: AsyncSession,
-        organization_id: Optional[str] = None
+        self, session: AsyncSession, organization_id: Optional[str] = None
     ):
         """Retry failed webhook deliveries"""
 
@@ -289,7 +277,7 @@ class WebhookDispatcher:
             query = select(WebhookDelivery).where(
                 and_(
                     WebhookDelivery.status == WebhookStatus.RETRYING,
-                    WebhookDelivery.next_retry_at <= datetime.utcnow()
+                    WebhookDelivery.next_retry_at <= datetime.utcnow(),
                 )
             )
 
@@ -302,11 +290,13 @@ class WebhookDispatcher:
             deliveries = result.scalars().all()
 
             for delivery in deliveries:
-                await self._delivery_queue.put({
-                    "delivery_id": str(delivery.id),
-                    "endpoint_id": str(delivery.webhook_endpoint_id),
-                    "event_id": str(delivery.webhook_event_id)
-                })
+                await self._delivery_queue.put(
+                    {
+                        "delivery_id": str(delivery.id),
+                        "endpoint_id": str(delivery.webhook_endpoint_id),
+                        "event_id": str(delivery.webhook_event_id),
+                    }
+                )
 
             logger.info(f"Queued {len(deliveries)} deliveries for retry")
 
@@ -332,11 +322,9 @@ class WebhookDispatcher:
 
                 # Create a new session for delivery
                 from app.core.database_manager import db_manager
+
                 async with db_manager.get_session() as session:
-                    await self.deliver_webhook(
-                        session,
-                        delivery_info["delivery_id"]
-                    )
+                    await self.deliver_webhook(session, delivery_info["delivery_id"])
 
             except asyncio.CancelledError:
                 break
@@ -349,13 +337,13 @@ class WebhookDispatcher:
         session: AsyncSession,
         event_type: str,
         organization_id: Optional[str],
-        user_id: Optional[str]
+        user_id: Optional[str],
     ) -> List[WebhookEndpoint]:
         """Find endpoints that should receive this event"""
 
         conditions = [
             WebhookEndpoint.is_active == True,
-            WebhookEndpoint.events.contains([event_type])
+            WebhookEndpoint.events.contains([event_type]),
         ]
 
         if organization_id:
@@ -365,23 +353,14 @@ class WebhookDispatcher:
             # Also check user-specific webhooks
             conditions = [
                 and_(*conditions),
-                or_(
-                    WebhookEndpoint.user_id == user_id,
-                    WebhookEndpoint.user_id.is_(None)
-                )
+                or_(WebhookEndpoint.user_id == user_id, WebhookEndpoint.user_id.is_(None)),
             ]
 
-        result = await session.execute(
-            select(WebhookEndpoint).where(and_(*conditions))
-        )
+        result = await session.execute(select(WebhookEndpoint).where(and_(*conditions)))
 
         return result.scalars().all()
 
-    def _prepare_payload(
-        self,
-        event: WebhookEvent,
-        endpoint: WebhookEndpoint
-    ) -> Dict[str, Any]:
+    def _prepare_payload(self, event: WebhookEvent, endpoint: WebhookEndpoint) -> Dict[str, Any]:
         """Prepare the webhook payload"""
 
         return {
@@ -390,26 +369,19 @@ class WebhookDispatcher:
             "created_at": event.created_at.isoformat(),
             "data": event.data,
             "user_id": str(event.user_id) if event.user_id else None,
-            "organization_id": str(event.organization_id) if event.organization_id else None
+            "organization_id": str(event.organization_id) if event.organization_id else None,
         }
 
     def _calculate_signature(self, payload: bytes, secret: str) -> str:
         """Calculate HMAC-SHA256 signature"""
 
-        return hmac.new(
-            secret.encode(),
-            payload,
-            hashlib.sha256
-        ).hexdigest()
+        return hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
     def _calculate_next_retry(self, attempts: int, base_delay: int) -> datetime:
         """Calculate next retry time with exponential backoff"""
 
         # Exponential backoff: delay * 2^(attempt-1)
-        delay_seconds = min(
-            base_delay * (2 ** (attempts - 1)),
-            3600  # Max 1 hour
-        )
+        delay_seconds = min(base_delay * (2 ** (attempts - 1)), 3600)  # Max 1 hour
 
         return datetime.utcnow() + timedelta(seconds=delay_seconds)
 
@@ -467,12 +439,13 @@ class WebhookEventTypes:
 
 # Webhook verification utilities
 
+
 def verify_webhook_signature(
     payload: bytes,
     signature: str,
     secret: str,
     timestamp: Optional[str] = None,
-    max_age_seconds: int = 300
+    max_age_seconds: int = 300,
 ) -> bool:
     """
     Verify webhook signature from Janua
@@ -502,11 +475,7 @@ def verify_webhook_signature(
             return False
 
     # Calculate expected signature
-    expected_signature = hmac.new(
-        secret.encode(),
-        payload,
-        hashlib.sha256
-    ).hexdigest()
+    expected_signature = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
     # Compare signatures (timing-safe)
     return hmac.compare_digest(signature, expected_signature)
@@ -522,7 +491,7 @@ async def emit_webhook_event(
     data: Dict[str, Any],
     session: AsyncSession,
     user_id: Optional[str] = None,
-    organization_id: Optional[str] = None
+    organization_id: Optional[str] = None,
 ):
     """Convenience function to emit webhook events"""
 
@@ -531,5 +500,5 @@ async def emit_webhook_event(
         event_type=event_type,
         data=data,
         user_id=user_id,
-        organization_id=organization_id
+        organization_id=organization_id,
     )

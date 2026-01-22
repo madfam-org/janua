@@ -30,13 +30,13 @@ class TestPasskeyRegistrationEndpoints:
     def test_registration_options_authenticator_attachment_validation(self):
         """Test authenticator attachment validation"""
         # Test invalid authenticator attachment
-        response = self.client.post("/api/v1/passkeys/register/options", json={
-            "authenticator_attachment": "invalid_type"
-        })
+        response = self.client.post(
+            "/api/v1/passkeys/register/options", json={"authenticator_attachment": "invalid_type"}
+        )
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_registration_options_success(self, mock_get_db, mock_get_current_user):
         """Test successful registration options generation"""
         # Mock current user
@@ -55,7 +55,7 @@ class TestPasskeyRegistrationEndpoints:
         response = self.client.post(
             "/api/v1/passkeys/register/options",
             json={"authenticator_attachment": "platform"},
-            headers={"Authorization": "Bearer valid_token"}
+            headers={"Authorization": "Bearer valid_token"},
         )
 
         # Should return options or proper error
@@ -68,14 +68,14 @@ class TestPasskeyRegistrationEndpoints:
         assert 200 <= response.status_code < 600
 
         # Test without authentication
-        response = self.client.post("/api/v1/passkeys/register/verify", json={
-            "credential": {"id": "test", "type": "public-key"},
-            "name": "Test Passkey"
-        })
+        response = self.client.post(
+            "/api/v1/passkeys/register/verify",
+            json={"credential": {"id": "test", "type": "public-key"}, "name": "Test Passkey"},
+        )
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_registration_verify_no_challenge(self, mock_get_db, mock_get_current_user):
         """Test registration verification without stored challenge"""
         # Mock current user without challenge
@@ -89,11 +89,8 @@ class TestPasskeyRegistrationEndpoints:
 
         response = self.client.post(
             "/api/v1/passkeys/register/verify",
-            json={
-                "credential": {"id": "test", "type": "public-key"},
-                "name": "Test Passkey"
-            },
-            headers={"Authorization": "Bearer valid_token"}
+            json={"credential": {"id": "test", "type": "public-key"}, "name": "Test Passkey"},
+            headers={"Authorization": "Bearer valid_token"},
         )
 
         assert 200 <= response.status_code < 600
@@ -111,12 +108,12 @@ class TestPasskeyAuthenticationEndpoints:
     def test_authentication_options_validation(self):
         """Test authentication options endpoint validation"""
         # Test invalid email format
-        response = self.client.post("/api/v1/passkeys/authenticate/options", json={
-            "email": "invalid-email"
-        })
+        response = self.client.post(
+            "/api/v1/passkeys/authenticate/options", json={"email": "invalid-email"}
+        )
         assert 200 <= response.status_code < 600
 
-    @patch('app.database.get_db')
+    @patch("app.database.get_db")
     def test_authentication_options_user_not_found(self, mock_get_db):
         """Test authentication options with non-existent user"""
         # Mock database session
@@ -126,14 +123,14 @@ class TestPasskeyAuthenticationEndpoints:
         # Mock that user is not found
         mock_db.query.return_value.filter.return_value.first.return_value = None
 
-        response = self.client.post("/api/v1/passkeys/authenticate/options", json={
-            "email": "nonexistent@example.com"
-        })
+        response = self.client.post(
+            "/api/v1/passkeys/authenticate/options", json={"email": "nonexistent@example.com"}
+        )
 
         # Should still return options (security best practice)
         assert 200 <= response.status_code < 600
 
-    @patch('app.database.get_db')
+    @patch("app.database.get_db")
     def test_authentication_options_success(self, mock_get_db):
         """Test successful authentication options generation"""
         # Mock database session and user
@@ -149,9 +146,9 @@ class TestPasskeyAuthenticationEndpoints:
         mock_passkeys[0].credential_id = base64.b64encode(b"test_credential").decode()
         mock_db.query.return_value.filter.return_value.all.return_value = mock_passkeys
 
-        response = self.client.post("/api/v1/passkeys/authenticate/options", json={
-            "email": "test@example.com"
-        })
+        response = self.client.post(
+            "/api/v1/passkeys/authenticate/options", json={"email": "test@example.com"}
+        )
 
         assert 200 <= response.status_code < 600
         data = response.json()
@@ -161,12 +158,12 @@ class TestPasskeyAuthenticationEndpoints:
     def test_authentication_verify_validation(self):
         """Test authentication verification endpoint validation"""
         # Test missing credential
-        response = self.client.post("/api/v1/passkeys/authenticate/verify", json={
-            "challenge": "test_challenge"
-        })
+        response = self.client.post(
+            "/api/v1/passkeys/authenticate/verify", json={"challenge": "test_challenge"}
+        )
         assert 200 <= response.status_code < 600
 
-    @patch('app.database.get_db')
+    @patch("app.database.get_db")
     def test_authentication_verify_passkey_not_found(self, mock_get_db):
         """Test authentication verification with non-existent passkey"""
         mock_db = MagicMock()
@@ -175,10 +172,10 @@ class TestPasskeyAuthenticationEndpoints:
         # Mock that passkey is not found
         mock_db.query.return_value.filter.return_value.first.return_value = None
 
-        response = self.client.post("/api/v1/passkeys/authenticate/verify", json={
-            "credential": {"id": "nonexistent_credential"},
-            "challenge": "test_challenge"
-        })
+        response = self.client.post(
+            "/api/v1/passkeys/authenticate/verify",
+            json={"credential": {"id": "nonexistent_credential"}, "challenge": "test_challenge"},
+        )
 
         assert 200 <= response.status_code < 600
         # Passkey not found response
@@ -197,8 +194,8 @@ class TestPasskeyManagementEndpoints:
         response = self.client.get("/api/v1/passkeys/")
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_list_passkeys_success(self, mock_get_db, mock_get_current_user):
         """Test successful passkey listing"""
         # Mock current user
@@ -218,11 +215,12 @@ class TestPasskeyManagementEndpoints:
         mock_passkey.last_used_at = None
         mock_passkey.sign_count = 0
 
-        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_passkey]
+        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
+            mock_passkey
+        ]
 
         response = self.client.get(
-            "/api/v1/passkeys/",
-            headers={"Authorization": "Bearer valid_token"}
+            "/api/v1/passkeys/", headers={"Authorization": "Bearer valid_token"}
         )
 
         assert 200 <= response.status_code < 600
@@ -232,9 +230,7 @@ class TestPasskeyManagementEndpoints:
     def test_update_passkey_validation(self):
         """Test passkey update validation"""
         # Test invalid UUID
-        response = self.client.patch("/api/v1/passkeys/invalid_uuid", json={
-            "name": "New Name"
-        })
+        response = self.client.patch("/api/v1/passkeys/invalid_uuid", json={"name": "New Name"})
         assert 200 <= response.status_code < 600
 
         # Test missing name
@@ -245,13 +241,11 @@ class TestPasskeyManagementEndpoints:
     def test_update_passkey_requires_auth(self):
         """Test passkey update requires authentication"""
         passkey_id = str(uuid.uuid4())
-        response = self.client.patch(f"/api/v1/passkeys/{passkey_id}", json={
-            "name": "New Name"
-        })
+        response = self.client.patch(f"/api/v1/passkeys/{passkey_id}", json={"name": "New Name"})
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_update_passkey_not_found(self, mock_get_db, mock_get_current_user):
         """Test updating non-existent passkey"""
         # Mock current user
@@ -268,7 +262,7 @@ class TestPasskeyManagementEndpoints:
         response = self.client.patch(
             f"/api/v1/passkeys/{passkey_id}",
             json={"name": "New Name"},
-            headers={"Authorization": "Bearer valid_token"}
+            headers={"Authorization": "Bearer valid_token"},
         )
 
         assert 200 <= response.status_code < 600
@@ -289,13 +283,13 @@ class TestPasskeyManagementEndpoints:
     def test_delete_passkey_requires_auth(self):
         """Test passkey deletion requires authentication"""
         passkey_id = str(uuid.uuid4())
-        response = self.client.delete(f"/api/v1/passkeys/{passkey_id}", json={
-            "password": "test_password"
-        })
+        response = self.client.delete(
+            f"/api/v1/passkeys/{passkey_id}", json={"password": "test_password"}
+        )
         assert 200 <= response.status_code < 600
 
-    @patch('app.dependencies.get_current_user')
-    @patch('app.database.get_db')
+    @patch("app.dependencies.get_current_user")
+    @patch("app.database.get_db")
     def test_delete_passkey_not_found(self, mock_get_db, mock_get_current_user):
         """Test deleting non-existent passkey"""
         # Mock current user
@@ -312,7 +306,7 @@ class TestPasskeyManagementEndpoints:
         response = self.client.delete(
             f"/api/v1/passkeys/{passkey_id}",
             json={"password": "test_password"},
-            headers={"Authorization": "Bearer valid_token"}
+            headers={"Authorization": "Bearer valid_token"},
         )
 
         assert 200 <= response.status_code < 600
@@ -331,7 +325,7 @@ class TestWebAuthnAvailability:
         """Test WebAuthn availability check"""
         response = self.client.get("/api/v1/passkeys/availability")
         assert 200 <= response.status_code < 600
-        
+
         data = response.json()
         assert "available" in data
         assert "platform_authenticator" in data
@@ -365,19 +359,13 @@ class TestPasskeyRequestValidation:
         from app.routers.v1.passkeys import PasskeyRegisterRequest
 
         # Test valid data
-        valid_data = {
-            "credential": {"id": "test", "type": "public-key"},
-            "name": "Test Passkey"
-        }
+        valid_data = {"credential": {"id": "test", "type": "public-key"}, "name": "Test Passkey"}
         request = PasskeyRegisterRequest(**valid_data)
         assert request.name == "Test Passkey"
 
         # Test name too long
         with pytest.raises(ValueError):
-            PasskeyRegisterRequest(
-                credential={"id": "test"},
-                name="a" * 101  # Max length is 100
-            )
+            PasskeyRegisterRequest(credential={"id": "test"}, name="a" * 101)  # Max length is 100
 
     def test_passkey_auth_options_request_validation(self):
         """Test PasskeyAuthOptionsRequest model validation"""
@@ -398,7 +386,7 @@ class TestPasskeyRequestValidation:
         # Test valid data
         valid_data = {
             "email": "test@example.com",
-            "credential": {"id": "test", "type": "public-key"}
+            "credential": {"id": "test", "type": "public-key"},
         }
         request = PasskeyAuthRequest(**valid_data)
         assert request.email == "test@example.com"
@@ -426,6 +414,7 @@ class TestPasskeyRouterConfiguration:
     def test_router_prefix_and_tags(self):
         """Test router configuration"""
         from app.routers.v1.passkeys import router
+
         assert router.prefix == "/passkeys"
         assert "passkeys" in router.tags
 
@@ -459,9 +448,9 @@ class TestPasskeyResponseModel:
             "authenticator_attachment": "platform",
             "created_at": datetime.utcnow(),
             "last_used_at": None,
-            "sign_count": 0
+            "sign_count": 0,
         }
-        
+
         response = PasskeyResponse(**response_data)
         assert response.name == "Test Passkey"
         assert response.sign_count == 0
@@ -478,9 +467,9 @@ class TestPasskeySecurityConfiguration:
             generate_registration_options,
             verify_registration_response,
             generate_authentication_options,
-            verify_authentication_response
+            verify_authentication_response,
         )
-        
+
         # These should be callable
         assert callable(generate_registration_options)
         assert callable(verify_registration_response)
@@ -490,7 +479,7 @@ class TestPasskeySecurityConfiguration:
     def test_webauthn_helpers(self):
         """Test WebAuthn helper functions"""
         from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
-        
+
         # Test round-trip encoding
         test_data = b"test_data_123"
         encoded = bytes_to_base64url(test_data)
