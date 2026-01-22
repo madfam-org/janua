@@ -28,10 +28,10 @@ func NewManager(apiKey string) *Manager {
 func (m *Manager) SetTokens(accessToken, refreshToken string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	m.accessToken = accessToken
 	m.refreshToken = refreshToken
-	
+
 	// Parse expiration from JWT
 	if exp := extractExpiration(accessToken); exp != nil {
 		m.expiresAt = *exp
@@ -42,12 +42,12 @@ func (m *Manager) SetTokens(accessToken, refreshToken string) {
 func (m *Manager) GetAccessToken() string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	// Check if token is expired
 	if !m.expiresAt.IsZero() && time.Now().After(m.expiresAt) {
 		return ""
 	}
-	
+
 	return m.accessToken
 }
 
@@ -62,7 +62,7 @@ func (m *Manager) GetRefreshToken() string {
 func (m *Manager) ClearTokens() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	m.accessToken = ""
 	m.refreshToken = ""
 	m.expiresAt = time.Time{}
@@ -77,11 +77,11 @@ func (m *Manager) IsAuthenticated() bool {
 func (m *Manager) NeedsRefresh() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	if m.accessToken == "" || m.expiresAt.IsZero() {
 		return false
 	}
-	
+
 	// Refresh if token expires in less than 5 minutes
 	return time.Until(m.expiresAt) < 5*time.Minute
 }
@@ -92,23 +92,23 @@ func extractExpiration(token string) *time.Time {
 	if len(parts) != 3 {
 		return nil
 	}
-	
+
 	// Decode the payload
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return nil
 	}
-	
+
 	var claims map[string]interface{}
 	if err := json.Unmarshal(payload, &claims); err != nil {
 		return nil
 	}
-	
+
 	// Extract exp claim
 	if exp, ok := claims["exp"].(float64); ok {
 		t := time.Unix(int64(exp), 0)
 		return &t
 	}
-	
+
 	return nil
 }

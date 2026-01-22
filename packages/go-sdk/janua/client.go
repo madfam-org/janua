@@ -27,7 +27,7 @@ type Client struct {
 	httpClient *http.Client
 	apiKey     string
 	tenantID   string
-	
+
 	// Services
 	Auth          *AuthService
 	Users         *UsersService
@@ -169,15 +169,15 @@ type Organization struct {
 
 // Session represents a user session
 type Session struct {
-	ID           string    `json:"id"`
-	UserID       string    `json:"user_id"`
-	TenantID     string    `json:"tenant_id"`
+	ID           string     `json:"id"`
+	UserID       string     `json:"user_id"`
+	TenantID     string     `json:"tenant_id"`
 	DeviceInfo   DeviceInfo `json:"device_info"`
-	IP           string    `json:"ip"`
-	UserAgent    string    `json:"user_agent"`
-	LastActivity time.Time `json:"last_activity"`
-	ExpiresAt    time.Time `json:"expires_at"`
-	CreatedAt    time.Time `json:"created_at"`
+	IP           string     `json:"ip"`
+	UserAgent    string     `json:"user_agent"`
+	LastActivity time.Time  `json:"last_activity"`
+	ExpiresAt    time.Time  `json:"expires_at"`
+	CreatedAt    time.Time  `json:"created_at"`
 }
 
 // DeviceInfo contains device information for a session

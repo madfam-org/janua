@@ -31,9 +31,9 @@ type SignInRequest struct {
 
 // AuthResponse represents an authentication response
 type AuthResponse struct {
-	User   *User  `json:"user"`
-	Token  *Token `json:"token"`
-	MFA    *MFAChallenge `json:"mfa,omitempty"`
+	User  *User         `json:"user"`
+	Token *Token        `json:"token"`
+	MFA   *MFAChallenge `json:"mfa,omitempty"`
 }
 
 // MFAChallenge represents an MFA challenge
@@ -206,9 +206,9 @@ func (s *AuthService) EnableMFA(ctx context.Context, method string) (*MFASetupRe
 
 // MFASetupResponse represents MFA setup information
 type MFASetupResponse struct {
-	Secret       string   `json:"secret"`
-	QRCode       string   `json:"qr_code"`
-	BackupCodes  []string `json:"backup_codes"`
+	Secret      string   `json:"secret"`
+	QRCode      string   `json:"qr_code"`
+	BackupCodes []string `json:"backup_codes"`
 }
 
 // DisableMFA disables MFA for the current user
@@ -227,9 +227,9 @@ func (s *AuthService) DisableMFA(ctx context.Context, password string) error {
 
 // OAuthRequest represents an OAuth authorization request
 type OAuthRequest struct {
-	Provider    string `json:"provider"`
-	RedirectURI string `json:"redirect_uri"`
-	State       string `json:"state,omitempty"`
+	Provider    string   `json:"provider"`
+	RedirectURI string   `json:"redirect_uri"`
+	State       string   `json:"state,omitempty"`
 	Scopes      []string `json:"scopes,omitempty"`
 }
 
@@ -278,11 +278,11 @@ type PasskeyRegistrationRequest struct {
 
 // PasskeyCredential represents a passkey credential
 type PasskeyCredential struct {
-	ID            string    `json:"id"`
-	PublicKey     string    `json:"public_key"`
-	UserID        string    `json:"user_id"`
-	DisplayName   string    `json:"display_name"`
-	CreatedAt     string    `json:"created_at"`
+	ID          string `json:"id"`
+	PublicKey   string `json:"public_key"`
+	UserID      string `json:"user_id"`
+	DisplayName string `json:"display_name"`
+	CreatedAt   string `json:"created_at"`
 }
 
 // StartPasskeyRegistration starts the passkey registration process

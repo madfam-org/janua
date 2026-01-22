@@ -69,7 +69,7 @@ func (c *Client) SignIn(ctx context.Context, email, password string) (*models.Au
 
 	// Store the tokens in the auth manager
 	c.auth.SetTokens(response.AccessToken, response.RefreshToken)
-	
+
 	return &response, nil
 }
 
@@ -82,7 +82,7 @@ func (c *Client) SignUp(ctx context.Context, req *models.SignUpRequest) (*models
 	}
 
 	c.auth.SetTokens(response.AccessToken, response.RefreshToken)
-	
+
 	return &response, nil
 }
 
@@ -186,7 +186,7 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	
+
 	// Add API key if available
 	if c.apiKey != "" {
 		req.Header.Set("X-API-Key", c.apiKey)
