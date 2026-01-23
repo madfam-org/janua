@@ -18,18 +18,17 @@ on:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    name: Database Backup - ${{ github.event.inputs.environment || 'production' }}
-    
+    name: Backup Database
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Check if backup is configured
+        id: check-config
         run: |
-          if [ -z "${{ secrets.DB_HOST }}" ]; then
-            echo "⚠️ Database backup not configured - skipping"
-            echo "Please configure DB_HOST, DB_NAME, DB_USER, DB_PASSWORD secrets to enable backups"
-            exit 0
-          fi
+          echo "Checking backup configuration..."
+          echo "configured=${{ secrets.DB_HOST != '' && secrets.DB_NAME != '' }}" >> $GITHUB_OUTPUT
+        continue-on-error: true
       
       - name: Setup AWS CLI
         uses: aws-actions/configure-aws-credentials@v4
@@ -75,5 +74,5 @@ jobs:
         continue-on-error: true
         with:
           status: ${{ job.status }}
-          text: 'Database backup failed for ${{ github.event.inputs.environment || "production" }}'
+          text: Database backup failed
           webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}

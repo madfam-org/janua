@@ -213,22 +213,28 @@ jobs:
     steps:
       - name: Create summary
         uses: actions/github-script@v7
+        env:
+          CODE_QUALITY_RESULT: ${{ needs.code-quality.result }}
+          DOCUMENTATION_RESULT: ${{ needs.documentation.result }}
+          DEPENDENCY_AUDIT_RESULT: ${{ needs.dependency-audit.result }}
+          BUILD_VERIFICATION_RESULT: ${{ needs.build-verification.result }}
+          TEST_SUITE_RESULT: ${{ needs.test-suite.result }}
         with:
           script: |
-            const summary = `
-            ## 🔧 Maintenance Check Summary
+            const getStatus = (result) => result === 'success' ? 'PASS' : 'FAIL';
+            const summary = `## Maintenance Check Summary
 
             **Date**: ${new Date().toISOString().split('T')[0]}
 
             | Check | Status |
             |-------|--------|
-            | Code Quality | ${{ needs.code-quality.result == 'success' ? '✅' : '❌' }} |
-            | Documentation | ${{ needs.documentation.result == 'success' ? '✅' : '❌' }} |
-            | Dependencies | ${{ needs.dependency-audit.result == 'success' ? '✅' : '❌' }} |
-            | Build System | ${{ needs.build-verification.result == 'success' ? '✅' : '❌' }} |
-            | Test Suite | ${{ needs.test-suite.result == 'success' ? '✅' : '❌' }} |
+            | Code Quality | ${getStatus(process.env.CODE_QUALITY_RESULT)} |
+            | Documentation | ${getStatus(process.env.DOCUMENTATION_RESULT)} |
+            | Dependencies | ${getStatus(process.env.DEPENDENCY_AUDIT_RESULT)} |
+            | Build System | ${getStatus(process.env.BUILD_VERIFICATION_RESULT)} |
+            | Test Suite | ${getStatus(process.env.TEST_SUITE_RESULT)} |
 
-            [View detailed results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            [View detailed results](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
             `;
 
             core.summary.addRaw(summary).write();
