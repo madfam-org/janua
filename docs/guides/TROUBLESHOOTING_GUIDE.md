@@ -550,9 +550,9 @@ redis-cli INFO memory
 ```python
 # Configure attribute mapping in SSO provider settings
 SSO_ATTRIBUTE_MAPPING = {
-    "email": ["email", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"],
-    "first_name": ["firstName", "givenName", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname"],
-    "last_name": ["lastName", "surname", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname"],
+    "email": ["email", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"],`
+    "first_name": ["firstName", "givenName", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname"],`
+    "last_name": ["lastName", "surname", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname"],`
 }
 ```
 

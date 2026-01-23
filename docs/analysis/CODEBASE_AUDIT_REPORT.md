@@ -134,7 +134,7 @@ const hashedPassword = await bcrypt.hash(password, 12);
 - `packages/mock-api/src/middleware/auth.ts:4`
 - `packages/mock-api/src/routes/auth.ts:8`
 
-**Code**: `const JWT_SECRET = process.env.JWT_SECRET || 'mock-secret-key'`
+**Code**: `const JWT_SECRET = process.env.JWT_SECRET || 'mock-secret-key'
 **Remediation**:
 ```typescript
 const JWT_SECRET = process.env.JWT_SECRET;

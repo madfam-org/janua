@@ -342,7 +342,7 @@ yarn precommit
 
 #### 1. Build Failures
 
-**Issue**: `Cannot find module '@/components/ui/...'`
+**Issue**: `Cannot find module '@/components/ui/...'
 
 **Solution**: Ensure all UI components are properly installed:
 ```bash

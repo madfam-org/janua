@@ -185,7 +185,7 @@ POST /auth/magic-link
 ```json
 {
   "email": "user@example.com",
-  "redirect_url": "https://yourapp.com/auth/callback"
+  "redirect_url": "https://app.example.com/auth/callback"
 }
 ```
 
@@ -538,7 +538,7 @@ POST /webhooks
 **Request Body:**
 ```json
 {
-  "url": "https://yourapp.com/webhook",
+  "url": "https://app.example.com/webhook",
   "events": [
     "user.created",
     "user.updated",
@@ -589,7 +589,7 @@ POST /webhooks/{webhook_id}/test
 
 1. **Initialize OAuth:**
 ```http
-GET /auth/oauth/{provider}?redirect_url=https://yourapp.com/callback
+GET /auth/oauth/{provider}?redirect_url=https://app.example.com/callback
 ```
 
 2. **Handle Callback:**

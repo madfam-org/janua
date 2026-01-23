@@ -81,8 +81,8 @@ await janua.admin.sso.create({
 // Okta SAML Configuration
 const oktaConfig = {
   provider: 'okta_saml',
-  saml_sso_url: 'https://company.okta.com/app/company_janua_1/exk123456789/sso/saml',
-  saml_entity_id: 'http://www.okta.com/exk123456789',
+  saml_sso_url: 'https://idp.example.com/app/company_janua_1/exk123456789/sso/saml',
+  saml_entity_id: 'https://idp.example.com/app',
   saml_certificate: '-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----',
   attribute_mapping: {
     email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',

@@ -80,7 +80,7 @@ const { accessToken, refreshToken } = signInResult;
 // Initiate OAuth flow
 const oauthUrl = await janua.auth.oauth.getAuthUrl({
   provider: 'google', // google, github, microsoft, apple
-  redirectUri: 'https://yourapp.com/callback',
+  redirectUri: 'https://app.example.com/callback',
   scopes: ['email', 'profile']
 });
 
@@ -96,7 +96,7 @@ const tokens = await janua.auth.oauth.handleCallback({
 // Send magic link
 await janua.auth.magicLink.send({
   email: 'user@company.com',
-  redirectUri: 'https://yourapp.com/dashboard'
+  redirectUri: 'https://app.example.com/dashboard'
 });
 
 // Verify magic link
@@ -507,7 +507,7 @@ await janua.organizations.assignRole(organizationId, userId, customRole.id);
 ```typescript
 // Create webhook endpoint
 const webhook = await janua.webhooks.create({
-  url: 'https://yourapp.com/webhooks/janua',
+  url: 'https://app.example.com/webhooks/janua',
   events: [
     'user.created',
     'user.updated',

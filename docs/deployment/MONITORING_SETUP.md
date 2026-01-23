@@ -258,7 +258,7 @@ Add these to Railway:
 SENTRY_DSN=https://your-key@sentry.io/project-id
 
 # Optional: Webhook for alerts
-ALERT_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+ALERT_WEBHOOK_URL=https://hooks.example.com/webhook
 
 # Optional: Status page
 STATUS_PAGE_URL=https://status.janua.dev

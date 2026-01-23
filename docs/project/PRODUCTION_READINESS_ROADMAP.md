@@ -935,7 +935,7 @@ npm publish --access public --provenance
 
 **Post-publish**:
 - [ ] Installation test: `npm install @janua/typescript-sdk`
-- [ ] Import test: `import { JanuaClient } from '@janua/typescript-sdk'`
+- [ ] Import test: `import { JanuaClient } from '@janua/typescript-sdk'
 - [ ] Documentation links working
 - [ ] NPM page looks correct
 

@@ -160,8 +160,8 @@ POST /api/v1/sso/config/providers
 {
   "name": "Azure AD",
   "protocol": "saml",
-  "saml_entity_id": "https://sts.windows.net/tenant-id/",
-  "saml_sso_url": "https://login.microsoftonline.com/tenant-id/saml2",
+  "saml_entity_id": "https://sts.example.com/tenant/",
+  "saml_sso_url": "https://login.example.com/tenant/saml2",
   "saml_certificate": "-----BEGIN CERTIFICATE-----...",
   "enabled": true
 }
@@ -312,9 +312,9 @@ curl https://api.janua.dev/api/v1/sso/saml/login?provider_id=PROVIDER_ID
 3. Configure Single sign-on → SAML
 4. Upload SP metadata XML
 5. Configure attributes:
-   - `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress` → `user.mail`
-   - `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname` → `user.givenname`
-   - `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname` → `user.surname`
+   - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress` → `user.mail``
+   - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname` → `user.givenname``
+   - http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname` → `user.surname``
 6. Download Federation Metadata XML
 
 **Step 4-6**: Same as Okta (upload metadata, create provider, test)
@@ -475,7 +475,7 @@ curl -X POST https://api.janua.dev/api/v1/sso/oidc/setup \
 ```bash
 curl -X POST https://api.janua.dev/api/v1/sso/oidc/setup \
   -d '{
-    "issuer": "https://login.microsoftonline.com/common/v2.0",
+    "issuer": "https://login.example.com/common/v2.0",
     "client_id": "YOUR_CLIENT_ID",
     "client_secret": "YOUR_SECRET",
     "redirect_uri": "https://your-app.com/callback"

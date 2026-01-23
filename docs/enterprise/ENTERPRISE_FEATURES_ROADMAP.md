@@ -113,7 +113,7 @@ steps:
 // Configure SAML provider
 const samlProvider = janua.sso.configureSAML({
   entityId: 'https://your-org.janua.dev',
-  ssoUrl: 'https://idp.yourcompany.com/saml/sso',
+  ssoUrl: 'https://idp.example.com/saml/sso',
   certificate: fs.readFileSync('./saml-cert.pem'),
   attributeMapping: {
     email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',

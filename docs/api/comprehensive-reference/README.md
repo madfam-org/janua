@@ -92,7 +92,7 @@ Content-Type: application/json
 
 #### Get OAuth URL
 ```http
-GET /v1/auth/oauth/{provider}/url?redirect_uri=https://yourapp.com/callback&state=csrf_token
+GET /v1/auth/oauth/{provider}/url?redirect_uri=https://app.example.com/callback&state=csrf_token
 ```
 
 **Supported Providers**: `google`, `github`, `microsoft`, `apple`, `discord`, `twitter`, `linkedin`
@@ -163,7 +163,7 @@ Content-Type: application/json
 
 {
   "email": "user@company.com",
-  "redirectUri": "https://yourapp.com/dashboard"
+  "redirectUri": "https://app.example.com/dashboard"
 }
 ```
 
@@ -382,9 +382,9 @@ Content-Type: application/json
   "jitProvisioning": true,
   "defaultRole": "member",
   "attributeMapping": {
-    "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name",
-    "firstName": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",
-    "lastName": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname",
+    "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name",`
+    "firstName": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",`
+    "lastName": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname",`
     "groups": "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
   },
   "allowedDomains": ["company.com"]
@@ -479,7 +479,7 @@ Authorization: Bearer ACCESS_TOKEN
 Content-Type: application/json
 
 {
-  "url": "https://yourapp.com/webhooks/janua",
+  "url": "https://app.example.com/webhooks/janua",
   "events": [
     "user.created",
     "user.updated",

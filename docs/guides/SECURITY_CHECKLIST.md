@@ -69,7 +69,7 @@ openssl rsa -in private.pem -text -noout | head -1
 # Core settings
 ENVIRONMENT=production
 DEBUG=false
-BASE_URL=https://auth.yourcompany.com
+BASE_URL=https://auth.example.com
 API_BASE_URL=https://api.yourcompany.com
 
 # Security

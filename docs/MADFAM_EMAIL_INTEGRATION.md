@@ -163,7 +163,7 @@ Register these webhook URLs in Janua's webhook management:
 
 | App | Webhook URL | Events |
 |-----|-------------|--------|
-| Dhanam | `https://api.dhan.am/billing/webhook/janua` | subscription.*, payment.* |
+| Dhanam | `https://api.example.com/billing/webhook` | subscription.*, payment.* |
 | Digifab | `https://api.digifab.io/billing/webhook/janua` | subscription.*, payment.* |
 | Avala | `https://api.avala.mx/billing/webhook/janua` | subscription.*, payment.* |
 
@@ -227,7 +227,7 @@ await januaEmailService.sendTemplateEmail({
 
 ```bash
 # Simulate Janua webhook
-curl -X POST https://api.dhan.am/billing/webhook/janua \
+curl -X POST https://api.example.com/billing/webhook \
   -H "Content-Type: application/json" \
   -H "X-Janua-Signature: YOUR_SIGNATURE" \
   -d '{

@@ -104,8 +104,8 @@ test('Configuration: SSO integration setup works', async ({ page }) => {
   await page.selectOption('[data-testid="sso-type"]', 'saml');
   
   // SAML configuration
-  await page.fill('[data-testid="saml-entity-id"]', 'https://example.okta.com/app/abcd1234');
-  await page.fill('[data-testid="saml-sso-url"]', 'https://example.okta.com/app/abcd1234/sso/saml');
+  await page.fill('[data-testid="saml-entity-id"]', 'https://idp.example.com/app/abcd1234');
+  await page.fill('[data-testid="saml-sso-url"]', 'https://idp.example.com/app/abcd1234/sso/saml');
   await page.fill('[data-testid="saml-certificate"]', '-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----');
   
   // Save configuration

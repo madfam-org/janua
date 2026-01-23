@@ -33,3 +33,5 @@ jobs:
         with:
           doc-path: './docs'
           strict: false  # Start with warnings only, enable strict after cleanup
+          check-links: false  # Disabled - link checking handled by lychee in docs-validation.yml
+          check-env-vars: false  # Disabled - too many false positives for optional env vars

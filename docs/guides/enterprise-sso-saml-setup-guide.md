@@ -42,12 +42,12 @@ curl -X POST "https://api.janua.dev/api/v1/sso/configurations" \
   -d '{
     "organization_id": "org_123",
     "provider": "SAML",
-    "saml_metadata_url": "https://dev-12345.okta.com/app/abc123def456/sso/saml/metadata",
+    "saml_metadata_url": "https://idp.example.com/app/abc123def456/sso/saml/metadata",
     "jit_provisioning": true,
     "default_role": "member",
     "attribute_mapping": {
-      "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
-      "first_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",
+      "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",`
+      "first_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",`
       "last_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname"
     },
     "allowed_domains": ["yourcompany.com"]
@@ -100,7 +100,7 @@ groups: user.groups (optional)
 
 #### 4. Get Okta Metadata
 ```
-https://dev-12345.okta.com/app/abc123def456/sso/saml/metadata
+https://idp.example.com/app/abc123def456/sso/saml/metadata
 ```
 
 ### Azure AD Setup
@@ -121,10 +121,10 @@ Logout URL: https://api.janua.dev/api/v1/sso/saml/slo
 
 #### 3. User Attributes & Claims
 ```yaml
-http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress: user.mail
-http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname: user.givenname
-http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname: user.surname
-http://schemas.microsoft.com/ws/2008/06/identity/claims/groups: user.groups
+`http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress: user.mail`
+`http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname: user.givenname`
+`http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname: user.surname`
+`http://schemas.microsoft.com/ws/2008/06/identity/claims/groups: user.groups`
 ```
 
 #### 4. Download Metadata
@@ -408,19 +408,19 @@ class CustomSSOHandler:
         # Advanced attribute mapping
         attribute_mapping = {
             # Standard attributes
-            "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
-            "first_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",
-            "last_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname",
+            "email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",`
+            "first_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname",`
+            "last_name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname",`
 
             # Custom attributes
-            "employee_id": "http://yourcompany.com/claims/employeeid",
-            "department": "http://yourcompany.com/claims/department",
-            "manager_email": "http://yourcompany.com/claims/manager",
-            "cost_center": "http://yourcompany.com/claims/costcenter",
+            "employee_id": "https://example.com/claims/employeeid",
+            "department": "https://example.com/claims/department",
+            "manager_email": "https://example.com/claims/manager",
+            "cost_center": "https://example.com/claims/costcenter",
 
             # Role mapping
-            "groups": "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups",
-            "roles": "http://yourcompany.com/claims/roles"
+            "groups": "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups",`
+            "roles": "https://example.com/claims/roles"
         }
 
         # Role mapping rules
@@ -880,14 +880,14 @@ class MultiProviderSSOManager:
             {
                 "provider": "SAML",
                 "name": "Okta",
-                "saml_metadata_url": "https://dev-12345.okta.com/app/abc/sso/saml/metadata",
+                "saml_metadata_url": "https://idp.example.com/app/abc/sso/saml/metadata",
                 "priority": 1,
                 "domains": ["company.com", "subsidiary.com"]
             },
             {
                 "provider": "OIDC",
                 "name": "Azure AD",
-                "oidc_issuer": "https://login.microsoftonline.com/tenant-id/v2.0",
+                "oidc_issuer": "https://login.example.com/tenant/v2.0",
                 "oidc_client_id": "client-id",
                 "priority": 2,
                 "domains": ["partner.com"]

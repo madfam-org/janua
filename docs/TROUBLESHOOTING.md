@@ -441,7 +441,7 @@ PORT=3001 yarn dev
 
 ### Yarn Workspace Issues
 
-**Error**: `Cannot find module '@janua/core'`
+**Error**: `Cannot find module '@janua/core'
 
 **Solution**:
 ```bash

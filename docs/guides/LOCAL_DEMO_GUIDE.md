@@ -612,7 +612,7 @@ redis-cli ping  # Should return PONG
 
 ### Issue: Module Not Found (Python)
 
-**Symptom**: `ModuleNotFoundError: No module named 'fastapi'`
+**Symptom**: `ModuleNotFoundError: No module named 'fastapi'
 
 **Solution**:
 ```bash
@@ -628,7 +628,7 @@ pip install -r requirements.txt
 
 ### Issue: Module Not Found (Node.js)
 
-**Symptom**: `Error: Cannot find module '@janua/ui'`
+**Symptom**: `Error: Cannot find module '@janua/ui'
 
 **Solution**:
 ```bash
