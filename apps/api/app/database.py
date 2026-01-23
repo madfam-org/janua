@@ -43,12 +43,14 @@ if hasattr(settings, "DATABASE_URL") and settings.DATABASE_URL:
         # Use NullPool for SQLite to avoid connection sharing issues
         engine_kwargs["poolclass"] = NullPool
 
-    # Override poolclass for test environment and remove PostgreSQL-specific params
+    # Override poolclass for test environment and remove pool-specific params
     if hasattr(settings, "ENVIRONMENT") and settings.ENVIRONMENT == "test":
         engine_kwargs["poolclass"] = NullPool
-        # Remove PostgreSQL-specific pool parameters for SQLite
+        # Remove all pool parameters when using NullPool (incompatible)
         engine_kwargs.pop("pool_size", None)
         engine_kwargs.pop("max_overflow", None)
+        engine_kwargs.pop("pool_recycle", None)
+        engine_kwargs.pop("pool_timeout", None)
 
     engine = create_async_engine(async_database_url, **engine_kwargs)
 
