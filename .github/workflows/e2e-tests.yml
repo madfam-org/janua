@@ -75,13 +75,22 @@ jobs:
       - name: Start API server
         run: |
           cd apps/api
+          # Start API server with logging to file for debugging
           ENVIRONMENT=test \
           DATABASE_URL="postgresql://test_user:test_pass@localhost:5432/janua_test" \
           REDIS_URL="redis://localhost:6379/0" \
           JWT_SECRET_KEY="test_jwt_secret_github_actions" \
-          python -m uvicorn app.main:app --host 0.0.0.0 --port 4100 &
+          python -m uvicorn app.main:app --host 0.0.0.0 --port 4100 > /tmp/api.log 2>&1 &
           echo $! > /tmp/api.pid
-          echo "API server started in background"
+          # Give API time to start
+          sleep 5
+          # Check if process is still running
+          if ! kill -0 $(cat /tmp/api.pid) 2>/dev/null; then
+            echo "API server failed to start. Logs:"
+            cat /tmp/api.log
+            exit 1
+          fi
+          echo "API server started successfully (PID: $(cat /tmp/api.pid))"
 
       - name: Wait for API to be ready
         run: |
@@ -96,13 +105,26 @@ jobs:
           docker logs janua-postgres-test --tail=50 || true
           echo "=== Redis Logs ==="
           docker logs janua-redis-test --tail=50 || true
-          echo "=== API Logs (if available) ==="
-          cat apps/api/api.log 2>/dev/null || echo "API logs not found"
+          echo "=== API Server Logs ==="
+          cat /tmp/api.log 2>/dev/null || echo "API logs not found"
+          echo ""
+          echo "=== API Server Process Status ==="
+          if [ -f /tmp/api.pid ]; then
+            if kill -0 $(cat /tmp/api.pid) 2>/dev/null; then
+              echo "API server running (PID: $(cat /tmp/api.pid))"
+            else
+              echo "API server NOT running"
+            fi
+          else
+            echo "No API PID file found"
+          fi
 
-      - name: Run Playwright E2E tests
-        # E2E tests require full infrastructure; non-blocking in CI
-        run: pnpm exec playwright test
-        continue-on-error: true
+      - name: Run API Integration E2E tests
+        # Run only API integration tests (11 tests) - these work with API-only infrastructure
+        # Frontend E2E tests require dashboard/admin apps which aren't started in CI
+        run: pnpm exec playwright test tests-e2e/api-integration.spec.ts
+        env:
+          API_URL: http://localhost:4100
 
       - name: Upload test results
         if: always()
