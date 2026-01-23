@@ -73,6 +73,16 @@ jobs:
         run: mypy app
         continue-on-error: true
 
+      - name: Verify Python environment
+        working-directory: ./apps/api
+        run: |
+          echo "=== Python path ==="
+          python -c "import sys; print('\n'.join(sys.path))"
+          echo "=== Verifying app package ==="
+          python -c "import app; print(f'app package found at: {app.__file__}')"
+          echo "=== Installed packages ==="
+          pip list | grep -i janua || echo "janua not in pip list"
+
       - name: Run tests with coverage
         working-directory: ./apps/api
         env:
