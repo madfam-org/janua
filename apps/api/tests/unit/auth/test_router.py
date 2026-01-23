@@ -1,8 +1,3 @@
-import pytest
-
-pytestmark = pytest.mark.asyncio
-
-
 """
 Unit tests for authentication router
 """
@@ -21,6 +16,8 @@ from app.auth.router import (
     UserResponse,
     TokenResponse,
 )
+
+pytestmark = pytest.mark.asyncio
 
 
 class TestRequestModels:
@@ -131,8 +128,6 @@ class TestResponseModels:
 class TestAuthEndpoints:
     """Test authentication endpoints."""
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_auth_status_endpoint(self, test_client: AsyncClient):
         """Test auth status endpoint."""
         response = await test_client.get("/api/v1/auth/status")
@@ -146,8 +141,6 @@ class TestAuthEndpoints:
         assert "signup" in data["endpoints"]
         assert "signin" in data["endpoints"]
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_signup_endpoint_success(self, test_client: AsyncClient, mock_redis):
         """Test successful user signup."""
         # Mock rate limiting
@@ -171,8 +164,6 @@ class TestAuthEndpoints:
         assert data["email_verified"] is False
         assert "id" in data
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_signup_rate_limited(self, test_client: AsyncClient, mock_redis):
         """Test signup with rate limiting."""
         # Mock rate limit exceeded
@@ -186,8 +177,6 @@ class TestAuthEndpoints:
         data = response.json()
         assert "Too many signup attempts" in data["detail"]
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_signin_endpoint_success(self, test_client: AsyncClient, mock_redis):
         """Test successful user signin."""
         # Mock rate limiting
@@ -207,8 +196,6 @@ class TestAuthEndpoints:
         assert data["token_type"] == "bearer"
         assert data["expires_in"] > 0
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_signin_invalid_password(self, test_client: AsyncClient, mock_redis):
         """Test signin with invalid password."""
         # Mock rate limiting
@@ -224,8 +211,6 @@ class TestAuthEndpoints:
         data = response.json()
         assert "Invalid email or password" in data["detail"]
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_signin_rate_limited(self, test_client: AsyncClient, mock_redis):
         """Test signin with rate limiting."""
         # Mock rate limit exceeded
@@ -239,8 +224,6 @@ class TestAuthEndpoints:
         data = response.json()
         assert "Too many signin attempts" in data["detail"]
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_signout_endpoint(self, test_client: AsyncClient, auth_headers):
         """Test user signout."""
         response = await test_client.post("/api/v1/auth/signout", headers=auth_headers)
@@ -249,8 +232,6 @@ class TestAuthEndpoints:
         data = response.json()
         assert "Successfully signed out" in data["message"]
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_refresh_token_endpoint(self, test_client: AsyncClient, mock_redis):
         """Test token refresh."""
         refresh_data = {"refresh_token": "mock_refresh_token"}
@@ -264,8 +245,6 @@ class TestAuthEndpoints:
         assert "refresh_token" in data
         assert data["token_type"] == "bearer"
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_get_current_user_endpoint(self, test_client: AsyncClient, auth_headers):
         """Test get current user."""
         response = await test_client.get("/api/v1/auth/me", headers=auth_headers)
@@ -278,8 +257,6 @@ class TestAuthEndpoints:
         assert "name" in data
         assert "email_verified" in data
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_verify_email_endpoint(self, test_client: AsyncClient):
         """Test email verification."""
         verify_data = {"token": "verification_token_123"}
@@ -290,8 +267,6 @@ class TestAuthEndpoints:
         data = response.json()
         assert "Email verified successfully" in data["message"]
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_forgot_password_endpoint(self, test_client: AsyncClient, mock_redis):
         """Test forgot password."""
         # Mock rate limiting
@@ -307,8 +282,6 @@ class TestAuthEndpoints:
         data = response.json()
         assert "Password reset email sent" in data["message"]
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_forgot_password_rate_limited(self, test_client: AsyncClient, mock_redis):
         """Test forgot password with rate limiting."""
         # Mock rate limit exceeded
@@ -322,8 +295,6 @@ class TestAuthEndpoints:
         data = response.json()
         assert "Too many password reset requests" in data["detail"]
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_reset_password_endpoint(self, test_client: AsyncClient):
         """Test password reset."""
         reset_data = {"token": "reset_token_123", "new_password": "NewSecurePassword123!"}
@@ -338,8 +309,6 @@ class TestAuthEndpoints:
 class TestPasskeyEndpoints:
     """Test WebAuthn/Passkey endpoints."""
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_passkey_register_options(self, test_client: AsyncClient, auth_headers):
         """Test passkey registration options."""
         response = await test_client.post(
@@ -354,8 +323,6 @@ class TestPasskeyEndpoints:
         assert "user" in data
         assert "timeout" in data
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_passkey_register(self, test_client: AsyncClient, auth_headers):
         """Test passkey registration."""
         credential_data = {
@@ -379,8 +346,6 @@ class TestPasskeyEndpoints:
 class TestAuthValidation:
     """Test authentication validation logic."""
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_missing_authorization_header(self, test_client: AsyncClient):
         """Test endpoint access without authorization header."""
         response = await test_client.get("/api/v1/auth/me")
@@ -389,8 +354,6 @@ class TestAuthValidation:
         data = response.json()
         assert "Not authenticated" in data["detail"]
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_invalid_json_payload(self, test_client: AsyncClient):
         """Test endpoint with invalid JSON."""
         response = await test_client.post(
@@ -401,8 +364,6 @@ class TestAuthValidation:
 
         assert response.status_code == 422
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_missing_required_fields(self, test_client: AsyncClient):
         """Test endpoint with missing required fields."""
         # Missing password field

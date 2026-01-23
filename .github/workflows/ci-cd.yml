@@ -121,7 +121,7 @@ jobs:
         run: |
           cd apps/api
           pip install -r requirements.txt
-          pip install pytest pytest-cov pytest-asyncio
+          pip install -r requirements-test.txt
 
       - name: Run backend tests
         run: |

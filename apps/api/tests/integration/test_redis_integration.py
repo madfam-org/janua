@@ -1,25 +1,20 @@
-import pytest
-
-pytestmark = pytest.mark.asyncio
-
 """
 Integration tests for Redis operations
 """
 
 import pytest
-import pytest_asyncio
 from unittest.mock import AsyncMock, patch
 import json
 from datetime import datetime
 
 from app.core.redis import init_redis, get_redis, RateLimiter, SessionStore
 
+pytestmark = pytest.mark.asyncio
+
 
 class TestRedisIntegration:
     """Test Redis integration scenarios."""
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_redis_connection_lifecycle(self):
         """Test complete Redis connection lifecycle."""
         mock_redis = AsyncMock()
@@ -42,16 +37,13 @@ class TestRedisIntegration:
             )
             mock_redis.ping.assert_called_once()
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
-    async def test_redis_dependency_injection(self, mock_redis):
+    async def test_redis_dependency_injection(self):
         """Test Redis dependency injection."""
+        mock_redis = AsyncMock()
         with patch("app.core.redis.redis_client", mock_redis):
             redis = await get_redis()
             assert redis == mock_redis
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_redis_connection_error_handling(self):
         """Test Redis connection error handling."""
         mock_redis = AsyncMock()
@@ -74,8 +66,6 @@ class TestRateLimiterIntegration:
         self.mock_redis = AsyncMock()
         self.rate_limiter = RateLimiter(self.mock_redis)
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_rate_limiter_full_workflow(self):
         """Test complete rate limiter workflow."""
         # Scenario: New user making requests
@@ -123,8 +113,6 @@ class TestRateLimiterIntegration:
         assert allowed is False
         assert remaining == 0
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_rate_limiter_reset_workflow(self):
         """Test rate limiter reset functionality."""
         key = "rate_limit:user123:signin"
@@ -150,8 +138,6 @@ class TestRateLimiterIntegration:
         assert allowed is True
         assert remaining == 9
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_rate_limiter_multiple_users(self):
         """Test rate limiter with multiple users."""
         user1_key = "rate_limit:user1:api"
@@ -183,8 +169,6 @@ class TestSessionStoreIntegration:
         self.mock_redis = AsyncMock()
         self.session_store = SessionStore(self.mock_redis)
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_session_lifecycle(self):
         """Test complete session lifecycle."""
         session_id = "session_123"
@@ -229,8 +213,6 @@ class TestSessionStoreIntegration:
         assert result is True
         self.mock_redis.delete.assert_called_with(f"session:{session_id}")
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_session_expiration_handling(self):
         """Test session expiration scenarios."""
         session_id = "expired_session"
@@ -253,8 +235,6 @@ class TestSessionStoreIntegration:
         result = await self.session_store.delete_session(session_id)
         assert result is False
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_multi_user_session_management(self):
         """Test session management for multiple users."""
         user1_sessions = ["session_1a", "session_1b"]
@@ -291,8 +271,6 @@ class TestSessionStoreIntegration:
             assert session["user_id"] == "user1"
             assert session["email"] == "user1@example.com"
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_session_cleanup(self):
         """Test session cleanup functionality."""
         expired_keys = ["session:expired1", "session:expired2", "session:expired3"]
@@ -316,8 +294,6 @@ class TestRedisPerformanceIntegration:
         self.rate_limiter = RateLimiter(self.mock_redis)
         self.session_store = SessionStore(self.mock_redis)
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_concurrent_rate_limit_checks(self):
         """Test concurrent rate limit checking."""
         import asyncio
@@ -347,8 +323,6 @@ class TestRedisPerformanceIntegration:
             assert allowed is True
             assert remaining == 10 - (i + 1)
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_concurrent_session_operations(self):
         """Test concurrent session operations."""
         import asyncio
@@ -382,8 +356,6 @@ class TestRedisPerformanceIntegration:
             assert result is not None
             assert result["user_id"] == f"session_{i}"
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_high_frequency_operations(self):
         """Test high-frequency Redis operations."""
         import time
@@ -418,8 +390,6 @@ class TestRedisErrorRecovery:
         self.rate_limiter = RateLimiter(self.mock_redis)
         self.session_store = SessionStore(self.mock_redis)
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_redis_operation_failure_recovery(self):
         """Test recovery from Redis operation failures."""
         # Test rate limiter with Redis error
@@ -435,8 +405,6 @@ class TestRedisErrorRecovery:
         with pytest.raises(Exception, match="Redis error"):
             await self.session_store.store_session("test_session", {"data": "test"}, 3600)
 
-    @pytest_asyncio.fixture
-    @pytest.mark.asyncio
     async def test_partial_operation_failure(self):
         """Test handling of partial operation failures."""
         # Scenario: get succeeds but incr fails
