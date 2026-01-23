@@ -64,13 +64,27 @@ jobs:
 
       - name: Wait for databases to be healthy
         run: |
-          echo "Waiting for PostgreSQL..."
+          echo "Waiting for PostgreSQL container health..."
           timeout 120s bash -c 'until docker compose -f config/docker-compose.test.yml exec -T postgres pg_isready -U test_user -d janua_test 2>/dev/null; do sleep 2; done' || true
-          echo "PostgreSQL is healthy"
+          echo "PostgreSQL container is healthy"
 
-          echo "Waiting for Redis..."
+          echo "Waiting for PostgreSQL to be accessible on localhost:5432..."
+          # Wait for the port to be accessible from the host using bash TCP check
+          timeout 60s bash -c 'until (echo > /dev/tcp/localhost/5432) 2>/dev/null; do echo "Waiting for PostgreSQL port..."; sleep 2; done'
+          echo "PostgreSQL is accessible on localhost:5432"
+
+          echo "Waiting for Redis container..."
           timeout 60s bash -c 'until docker compose -f config/docker-compose.test.yml exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; do sleep 2; done' || true
-          echo "Redis is healthy"
+          echo "Redis container is healthy"
+
+          echo "Waiting for Redis to be accessible on localhost:6379..."
+          # Wait for the port to be accessible from the host using bash TCP check
+          timeout 30s bash -c 'until (echo > /dev/tcp/localhost/6379) 2>/dev/null; do echo "Waiting for Redis port..."; sleep 2; done'
+          echo "Redis is accessible on localhost:6379"
+
+          # Extra safety delay to ensure services are fully ready
+          sleep 5
+          echo "All database services are ready"
 
       - name: Start API server
         run: |
