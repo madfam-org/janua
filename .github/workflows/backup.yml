@@ -32,44 +32,45 @@ jobs:
           fi
       
       - name: Setup AWS CLI
-        if: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         continue-on-error: true
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      
+
       - name: Install PostgreSQL client
-        if: ${{ secrets.DB_HOST != '' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
         continue-on-error: true
-      
+
       - name: Run backup script
-        if: ${{ secrets.DB_HOST != '' }}
         env:
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_HOST: ${{ secrets.DB_HOST }}
-          DB_PORT: ${{ secrets.DB_PORT || '5432' }}
+          DB_PORT: ${{ secrets.DB_PORT }}
           S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
           ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
           METRICS_ENDPOINT: ${{ secrets.METRICS_ENDPOINT }}
           VERIFY_RESTORE: false
         run: |
+          if [ -z "$DB_HOST" ]; then
+            echo "⚠️ Database backup not configured (DB_HOST not set) - skipping"
+            exit 0
+          fi
           if [ -f scripts/backup-database.sh ]; then
             bash scripts/backup-database.sh
           else
             echo "⚠️ Backup script not found - skipping"
           fi
         continue-on-error: true
-      
+
       - name: Notify on failure
-        if: failure() && ${{ secrets.SLACK_WEBHOOK_URL != '' }}
+        if: failure()
         uses: 8398a7/action-slack@v3
         continue-on-error: true
         with:

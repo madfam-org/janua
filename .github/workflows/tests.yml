@@ -118,8 +118,46 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: janua
+          POSTGRES_PASSWORD: janua_test
+          POSTGRES_DB: janua_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        working-directory: ./apps/api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -138,7 +176,33 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
+      - name: Start API server
+        working-directory: ./apps/api
+        env:
+          ENVIRONMENT: test
+          DATABASE_URL: postgresql+asyncpg://janua:janua_test@localhost:5432/janua_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key-do-not-use-in-production
+          JWT_SECRET_KEY: test-jwt-secret-key-for-testing-only
+          API_PORT: 4100
+        run: |
+          # Run database migrations
+          alembic upgrade head || true
+          # Start API server in background
+          uvicorn app.main:app --host 0.0.0.0 --port 4100 &
+          # Wait for server to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:4100/health > /dev/null; then
+              echo "API server is ready"
+              break
+            fi
+            echo "Waiting for API server... ($i/30)"
+            sleep 2
+          done
+
       - name: Run Playwright tests
+        env:
+          API_URL: http://localhost:4100
         run: pnpm exec playwright test
 
       - name: Upload Playwright report
