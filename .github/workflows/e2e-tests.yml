@@ -20,6 +20,33 @@ jobs:
       contents: read
       pull-requests: write
 
+    # Use GitHub Actions services for database (same as ci.yml)
+    # This properly exposes ports to localhost unlike docker-compose
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: janua
+          POSTGRES_PASSWORD: janua
+          POSTGRES_DB: janua_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -57,49 +84,20 @@ jobs:
           cd apps/api
           pip install -r requirements.txt
 
-      - name: Start database services only
-        run: |
-          docker compose -f config/docker-compose.test.yml up -d postgres redis
-          echo "Database services starting..."
-
-      - name: Wait for databases to be healthy
-        run: |
-          echo "Waiting for PostgreSQL container health..."
-          timeout 120s bash -c 'until docker compose -f config/docker-compose.test.yml exec -T postgres pg_isready -U test_user -d janua_test 2>/dev/null; do sleep 2; done' || true
-          echo "PostgreSQL container is healthy"
-
-          echo "Waiting for PostgreSQL to be accessible on localhost:5432..."
-          # Wait for the port to be accessible from the host using bash TCP check
-          timeout 60s bash -c 'until (echo > /dev/tcp/localhost/5432) 2>/dev/null; do echo "Waiting for PostgreSQL port..."; sleep 2; done'
-          echo "PostgreSQL is accessible on localhost:5432"
-
-          echo "Waiting for Redis container..."
-          timeout 60s bash -c 'until docker compose -f config/docker-compose.test.yml exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; do sleep 2; done' || true
-          echo "Redis container is healthy"
-
-          echo "Waiting for Redis to be accessible on localhost:6379..."
-          # Wait for the port to be accessible from the host using bash TCP check
-          timeout 30s bash -c 'until (echo > /dev/tcp/localhost/6379) 2>/dev/null; do echo "Waiting for Redis port..."; sleep 2; done'
-          echo "Redis is accessible on localhost:6379"
-
-          # Extra safety delay to ensure services are fully ready
-          sleep 5
-          echo "All database services are ready"
-
       - name: Start API server
         run: |
           cd apps/api
           # Start API server with logging to file for debugging
           # Use ENVIRONMENT=development to use PostgreSQL (ENVIRONMENT=test forces SQLite)
           ENVIRONMENT=development \
-          DATABASE_URL="postgresql://test_user:test_pass@localhost:5432/janua_test" \
+          DATABASE_URL="postgresql://janua:janua@localhost:5432/janua_test" \
           REDIS_URL="redis://localhost:6379/0" \
           JWT_SECRET_KEY="test_jwt_secret_github_actions" \
           AUTO_MIGRATE=true \
           python -m uvicorn app.main:app --host 0.0.0.0 --port 4100 > /tmp/api.log 2>&1 &
           echo $! > /tmp/api.pid
           # Give API time to start
-          sleep 5
+          sleep 10
           # Check if process is still running
           if ! kill -0 $(cat /tmp/api.pid) 2>/dev/null; then
             echo "API server failed to start. Logs:"
@@ -117,10 +115,6 @@ jobs:
       - name: Show service logs (debug)
         if: failure()
         run: |
-          echo "=== PostgreSQL Logs ==="
-          docker logs janua-postgres-test --tail=50 || true
-          echo "=== Redis Logs ==="
-          docker logs janua-redis-test --tail=50 || true
           echo "=== API Server Logs ==="
           cat /tmp/api.log 2>/dev/null || echo "API logs not found"
           echo ""
@@ -165,10 +159,6 @@ jobs:
             kill $(cat /tmp/api.pid) 2>/dev/null || true
           fi
           pkill -f "uvicorn app.main:app" || true
-
-      - name: Stop database services
-        if: always()
-        run: docker compose -f config/docker-compose.test.yml down -v
 
       - name: Comment PR with test results
         if: github.event_name == 'pull_request' && always()
