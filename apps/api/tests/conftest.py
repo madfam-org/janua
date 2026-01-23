@@ -865,6 +865,40 @@ def sample_compliance_data():
     }
 
 
+# HTTP Client fixtures for integration testing
+@pytest_asyncio.fixture
+async def test_client():
+    """Async HTTP client for testing FastAPI endpoints"""
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+
+@pytest.fixture
+def auth_headers():
+    """Mock authorization headers for authenticated requests"""
+    return {"Authorization": "Bearer mock_test_token_123"}
+
+
+@pytest.fixture
+def mock_redis():
+    """Mock Redis client for testing - alias for mock_redis_client"""
+    mock_redis = AsyncMock()
+    mock_redis.get.return_value = None
+    mock_redis.set.return_value = True
+    mock_redis.setex.return_value = True
+    mock_redis.delete.return_value = 1
+    mock_redis.exists.return_value = False
+    mock_redis.incr.return_value = 1
+    mock_redis.expire.return_value = True
+    mock_redis.keys.return_value = []
+    mock_redis.ping.return_value = True
+    return mock_redis
+
+
 # Export all utilities
 __all__ = [
     "TestConfig",
