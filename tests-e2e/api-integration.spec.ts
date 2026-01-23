@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('API Integration Tests', () => {
-  const apiBaseUrl = 'http://localhost:8000';
+  const apiBaseUrl = process.env.API_URL || 'http://localhost:4100';
 
   test('Health endpoint returns success', async ({ request }) => {
     const response = await request.get(`${apiBaseUrl}/health`);
@@ -90,7 +90,7 @@ test.describe('API Integration Tests', () => {
 });
 
 test.describe('API Error Handling', () => {
-  const apiBaseUrl = 'http://localhost:8000';
+  const apiBaseUrl = process.env.API_URL || 'http://localhost:4100';
 
   test('Returns 404 for non-existent endpoint', async ({ request }) => {
     const response = await request.get(`${apiBaseUrl}/non-existent-endpoint-12345`);
@@ -120,7 +120,7 @@ test.describe('API Error Handling', () => {
 });
 
 test.describe('API Performance', () => {
-  const apiBaseUrl = 'http://localhost:8000';
+  const apiBaseUrl = process.env.API_URL || 'http://localhost:4100';
 
   test('Health endpoint responds quickly', async ({ request }) => {
     const startTime = Date.now();

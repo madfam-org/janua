@@ -23,7 +23,7 @@ except Exception as e:
     AUTH_SERVICE_AVAILABLE = False
 
 try:
-    from app.services.resend_email_service import get_resend_email_service
+    from app.services.resend_email_service import get_resend_email_service as get_email_service
 
     EMAIL_SERVICE_AVAILABLE = True
 except Exception as e:
@@ -147,7 +147,7 @@ async def signup(
         # Send verification email (optional for beta)
         if EMAIL_SERVICE_AVAILABLE:
             try:
-                email_service = get_resend_email_service(redis)
+                email_service = get_email_service(redis)
                 verification_url = (
                     f"{settings.BASE_URL}/auth/verify-email?token=temp-token-{user.id}"
                 )
@@ -431,7 +431,7 @@ async def verify_email(request: VerifyEmailRequest, db=Depends(get_db), redis=De
 
         # Send welcome email after verification
         try:
-            email_service = get_resend_email_service(redis)
+            email_service = get_email_service(redis)
             await email_service.send_welcome_email(
                 to_email=token_info["email"], user_name=token_info.get("user_name")
             )
@@ -471,7 +471,7 @@ async def forgot_password(request: ForgotPasswordRequest, redis=Depends(get_redi
         )
 
     # Send password reset email (regardless of user existence for security)
-    email_service = get_resend_email_service(redis)
+    email_service = get_email_service(redis)
     try:
         reset_url = f"{settings.BASE_URL}/auth/reset-password?token=temp-reset-token"
         await email_service.send_password_reset_email(

@@ -4,6 +4,7 @@ Complete implementation of remaining production-ready features
 """
 
 import json
+import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 

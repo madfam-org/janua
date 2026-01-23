@@ -14,7 +14,11 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+import structlog
+
 from app.core.auth import get_current_user
+
+logger = structlog.get_logger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession

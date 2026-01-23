@@ -172,15 +172,9 @@ class StructuredLogger:
                 span_context = span.get_span_context()
                 context["otel_trace_id"] = format(span_context.trace_id, "032x")
                 context["otel_span_id"] = format(span_context.span_id, "016x")
-        except Exception as e:
+        except Exception:
             # OpenTelemetry might not be configured, skip trace context
-            # Only log if it's an unexpected error (not ImportError or AttributeError)
-            if not isinstance(e, (ImportError, AttributeError)):
-                logger.debug(
-                    "Failed to get OpenTelemetry trace context",
-                    error=str(e),
-                    error_type=type(e).__name__,
-                )
+            pass
 
         # Add any additional context
         context.update(LogContext.get_all())

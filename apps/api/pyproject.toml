@@ -194,6 +194,8 @@ ignore = [
     "B007",  # loop control variable not used - minor style issue
     "W291",  # trailing whitespace - handled by formatter
     "W293",  # blank line contains whitespace - handled by formatter
+    "B024",  # abstract class without abstract methods - by design
+    "B019",  # lru_cache on methods - intentional for caching
 ]
 
 [tool.ruff.per-file-ignores]

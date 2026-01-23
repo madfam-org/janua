@@ -15,6 +15,7 @@ from app.models.policy import (
     PolicyCreate,
     PolicyEvaluateRequest,
     PolicyEvaluateResponse,
+    PolicyEvaluation,
     PolicyResponse,
     PolicyUpdate,
     Role,

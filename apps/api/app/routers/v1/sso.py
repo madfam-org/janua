@@ -141,6 +141,7 @@ async def create_sso_configuration(
     config: SSOConfigurationCreate,
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
+    sso_service: SSOService = Depends(get_sso_service),
 ):
     """
     Create SSO configuration for an organization
@@ -207,6 +208,7 @@ async def get_sso_configuration(
     organization_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    sso_service: SSOService = Depends(get_sso_service),
 ):
     """
     Get SSO configuration for an organization
@@ -245,6 +247,7 @@ async def update_sso_configuration(
     update: SSOConfigurationUpdate,
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
+    sso_service: SSOService = Depends(get_sso_service),
 ):
     """
     Update SSO configuration for an organization
@@ -270,6 +273,7 @@ async def delete_sso_configuration(
     organization_id: str,
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
+    sso_service: SSOService = Depends(get_sso_service),
 ):
     """
     Delete SSO configuration for an organization
@@ -289,7 +293,11 @@ async def delete_sso_configuration(
 
 
 @router.post("/initiate")
-async def initiate_sso(request: SSOInitiateRequest, db: AsyncSession = Depends(get_db)):
+async def initiate_sso(
+    request: SSOInitiateRequest,
+    db: AsyncSession = Depends(get_db),
+    sso_service: SSOService = Depends(get_sso_service),
+):
     """
     Initiate SSO login flow
 
@@ -327,7 +335,11 @@ async def initiate_sso(request: SSOInitiateRequest, db: AsyncSession = Depends(g
 
 
 @router.post("/saml/acs")
-async def saml_acs(request: Request, db: AsyncSession = Depends(get_db)):
+async def saml_acs(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    sso_service: SSOService = Depends(get_sso_service),
+):
     """
     SAML Assertion Consumer Service (ACS) endpoint
 
@@ -401,7 +413,11 @@ async def saml_acs(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/saml/slo")
-async def saml_slo(request: Request, db: AsyncSession = Depends(get_db)):
+async def saml_slo(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    sso_service: SSOService = Depends(get_sso_service),
+):
     """
     SAML Single Logout (SLO) endpoint
 
@@ -441,6 +457,7 @@ async def oidc_callback(
     error: Optional[str] = None,
     error_description: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
+    sso_service: SSOService = Depends(get_sso_service),
 ):
     """
     OIDC callback endpoint
@@ -484,6 +501,7 @@ async def test_sso_configuration(
     test_request: SSOTestRequest,
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
+    sso_service: SSOService = Depends(get_sso_service),
 ):
     """
     Test SSO configuration
@@ -500,7 +518,11 @@ async def test_sso_configuration(
 
 
 @router.get("/metadata/{organization_id}")
-async def get_sp_metadata(organization_id: str, db: AsyncSession = Depends(get_db)):
+async def get_sp_metadata(
+    organization_id: str,
+    db: AsyncSession = Depends(get_db),
+    sso_service: SSOService = Depends(get_sso_service),
+):
     """
     Get Service Provider (SP) metadata for SAML configuration
 

@@ -12,8 +12,7 @@ const nextConfig = {
   pageExtensions: ['ts', 'tsx', 'js', 'jsx', 'md', 'mdx'],
   reactStrictMode: true,
   transpilePackages: ['@janua/ui'],
-  // Enable Turbopack with empty config (Next.js 16 default)
-  turbopack: {},
+  // Turbopack disabled for MDX compatibility
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'janua.dev' },

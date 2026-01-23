@@ -10,8 +10,11 @@ from datetime import datetime
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
+import structlog
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
+
+logger = structlog.get_logger(__name__)
 
 from app.models.policy import (
     Policy,

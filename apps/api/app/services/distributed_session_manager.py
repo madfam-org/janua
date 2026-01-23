@@ -18,7 +18,6 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.logging import logger
 from app.models import Session as DBSession
 
 logger = logging.getLogger(__name__)

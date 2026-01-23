@@ -10,7 +10,11 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, Optional, Protocol
 
+import structlog
+
 from .error_handling import AuthenticationError, ConfigurationError
+
+logger = structlog.get_logger(__name__)
 
 
 class TokenType(str, Enum):

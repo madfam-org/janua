@@ -3,6 +3,7 @@ Alerting System API Routes
 Endpoints for managing alerts, rules, and notification channels
 """
 
+import json
 from typing import Any, Dict, List, Optional
 
 import structlog
@@ -438,8 +439,6 @@ async def create_notification_channel(
 
         # Persist to Redis if available
         if alert_manager.redis_client:
-            import json
-
             channel_data_dict = {
                 "channel_id": channel.channel_id,
                 "channel_type": channel.channel_type.value,
@@ -488,8 +487,6 @@ async def update_notification_channel(
 
         # Persist changes to Redis if available
         if alert_manager.redis_client:
-            import json
-
             channel_data_dict = {
                 "channel_id": channel.channel_id,
                 "channel_type": channel.channel_type.value,

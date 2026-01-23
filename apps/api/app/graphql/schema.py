@@ -4,7 +4,7 @@ GraphQL schema definition for Janua API.
 
 import json
 from datetime import datetime
-from typing import List, Optional
+from typing import AsyncGenerator, List, Optional
 
 import strawberry
 from app.models.organization import Organization as OrgModel

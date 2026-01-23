@@ -56,7 +56,6 @@ from .sdk import (
     BaseAPIClient,
     ClientConfig,
     NetworkError,
-    RateLimitError,
     RequestOptions,
     RetryConfig,
     SDKError,
@@ -65,6 +64,9 @@ from .sdk import (
 )
 from .sdk import (
     AuthenticationError as SDKAuthenticationError,
+)
+from .sdk import (
+    RateLimitError as SDKRateLimitError,
 )
 from .sdk import (
     ValidationError as SDKValidationError,
@@ -113,7 +115,7 @@ __all__ = [
     "APIError",
     "SDKValidationError",
     "SDKAuthenticationError",
-    "RateLimitError",
+    "SDKRateLimitError",
     "ServerError",
     "NetworkError",
     # SDK response models
