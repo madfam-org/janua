@@ -71,6 +71,16 @@ dependencies = [
     # Templating
     "jinja2>=3.1.5,<4.0.0",
 
+    # Security & Sanitization
+    "bleach>=6.1.0,<7.0.0",
+    "defusedxml>=0.7.1,<1.0.0",
+
+    # Async Utilities
+    "aiofiles>=24.1.0,<25.0.0",
+
+    # Observability
+    "prometheus-client>=0.20.0,<1.0.0",
+
     # Utilities
     "python-decouple>=3.8,<4.0.0",
     "structlog>=24.1.0,<25.0.0",
