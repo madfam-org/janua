@@ -35,10 +35,11 @@ jobs:
         with:
           version: 'v1.29.0'
 
-      - name: Setup yq for YAML parsing
-        uses: mikefarah/yq@v4
-        with:
-          cmd: echo "yq installed"
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
 
       - name: Configure kubeconfig
         run: |
@@ -119,8 +120,11 @@ jobs:
             echo "$DEPLOY: $RUNNING" >> $GITHUB_STEP_SUMMARY
 
             # Check if this image is in our kustomization
+            # Extract base image name (without tag) for comparison since kustomization.yaml
+            # uses separate 'name' and 'newTag' fields rather than full image:tag strings
             if [[ -f "k8s/overlays/prod/kustomization.yaml" ]]; then
-              if ! grep -q "$RUNNING" k8s/overlays/prod/kustomization.yaml 2>/dev/null; then
+              BASE_IMAGE=$(echo "$RUNNING" | cut -d: -f1)
+              if ! grep -q "$BASE_IMAGE" k8s/overlays/prod/kustomization.yaml 2>/dev/null; then
                 echo "  ⚠️ Image not found in kustomization.yaml" >> $GITHUB_STEP_SUMMARY
                 DRIFT_FOUND=true
               fi

@@ -83,6 +83,8 @@ for DEPLOY in janua-api janua-dashboard janua-admin janua-docs janua-website; do
 
     # Handle cases where deployment might not exist
     if [[ -z "$EXPECTED_IMAGE" ]] && [[ -z "$CURRENT_IMAGE" ]]; then
+        # Log for debugging when extraction fails or deployment truly doesn't exist
+        echo "DEBUG: No image found for $DEPLOY in either manifest (may not exist or extraction failed)" >&2
         continue  # Deployment doesn't exist in either
     fi
 
