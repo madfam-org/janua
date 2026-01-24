@@ -36,6 +36,10 @@ COPY apps/admin ./apps/admin
 # Set working directory to admin
 WORKDIR /app/apps/admin
 
+# Build arguments for Next.js public env vars (baked in at build time)
+ARG NEXT_PUBLIC_API_URL=https://api.janua.dev
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 # Enable Next.js standalone output for minimal image size
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build

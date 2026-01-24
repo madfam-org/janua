@@ -5,6 +5,9 @@ const nextConfig = {
   transpilePackages: ['@janua/ui', '@janua/react-sdk'],
   // Enable Turbopack with empty config (Next.js 16 default)
   turbopack: {},
+  env: {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev',
+  },
   async headers() {
     return [
       {

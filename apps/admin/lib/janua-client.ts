@@ -4,7 +4,7 @@
 
 import { JanuaClient } from '@janua/typescript-sdk'
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 const apiBasePath = process.env.NEXT_PUBLIC_API_BASE_PATH || '/api/v1'
 
 // Construct the full base URL for the SDK
