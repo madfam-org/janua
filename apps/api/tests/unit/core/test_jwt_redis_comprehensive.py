@@ -3,11 +3,9 @@ Comprehensive JWT Manager and Redis Module Test Suite
 Tests for token lifecycle, circuit breaker patterns, and Redis service operations
 """
 
-import json
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import jwt
 import pytest

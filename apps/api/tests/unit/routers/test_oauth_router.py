@@ -5,8 +5,7 @@ Tests OAuth provider integration, authorization flow, and account linking.
 Target: 15% → 60% coverage.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException

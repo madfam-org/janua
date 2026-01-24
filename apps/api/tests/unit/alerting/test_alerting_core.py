@@ -15,7 +15,7 @@ which calls asyncio.create_task() at module level. To avoid this, we:
 
 import sys
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

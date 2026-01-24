@@ -6,7 +6,6 @@ Target: 27% → 80% coverage.
 """
 
 import json
-import pickle
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -298,7 +297,7 @@ class TestDelete:
         """Test deleting with namespace."""
         service._redis_client = mock_client
 
-        result = await service.delete("key", namespace="session")
+        _result = await service.delete("key", namespace="session")
 
         mock_client.delete.assert_called_once_with("session:key")
 

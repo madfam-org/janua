@@ -3,12 +3,10 @@ Comprehensive Session Management Test Suite
 Tests for distributed session manager and WebSocket connection manager
 """
 
-import asyncio
 import hashlib
 import json
 from datetime import datetime, timedelta
-from typing import Any, Dict, Set
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

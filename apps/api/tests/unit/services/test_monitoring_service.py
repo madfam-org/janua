@@ -4,7 +4,6 @@ Tests the basic functionality of the monitoring module
 """
 
 import pytest
-from unittest.mock import Mock, patch, AsyncMock
 
 from app.services.monitoring import MonitoringService, MetricsCollector, MetricType, AlertSeverity
 

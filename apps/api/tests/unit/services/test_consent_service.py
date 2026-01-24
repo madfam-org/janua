@@ -7,7 +7,7 @@ Target: 34% → 90% coverage.
 
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
@@ -299,7 +299,7 @@ class TestGrantConsent:
                 mock_consent_instance.scopes = ["openid", "profile"]
                 MockConsent.return_value = mock_consent_instance
 
-                result = await ConsentService.grant_consent(
+                _result = await ConsentService.grant_consent(
                     mock_db,
                     user_id,
                     client_id,
@@ -320,7 +320,7 @@ class TestGrantConsent:
         mock_result.scalar_one_or_none.return_value = mock_consent
         mock_db.execute.return_value = mock_result
 
-        result = await ConsentService.grant_consent(
+        _result = await ConsentService.grant_consent(
             mock_db,
             user_id,
             client_id,

@@ -7,8 +7,7 @@ import hashlib
 import hmac
 import sys
 from datetime import datetime
-from typing import Any, Dict
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

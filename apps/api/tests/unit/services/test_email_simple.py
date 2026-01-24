@@ -5,9 +5,6 @@ This tests the email module's public API and initialization.
 Tests what's actually accessible via the email package.
 """
 
-import logging
-from unittest.mock import patch
-
 import pytest
 
 from app.services.email import EmailService, get_resend_service

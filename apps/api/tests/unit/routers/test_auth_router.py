@@ -3,9 +3,7 @@ Comprehensive Auth Router Test Suite
 Tests for authentication endpoints, request models, and validation
 """
 
-from datetime import datetime, timedelta
-from typing import Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime
 
 import pytest
 from pydantic import ValidationError
