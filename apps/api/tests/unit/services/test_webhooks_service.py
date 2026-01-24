@@ -6,7 +6,6 @@ Tests for webhook event notifications and delivery
 import hashlib
 import hmac
 from datetime import datetime
-from unittest.mock import AsyncMock
 
 import pytest
 

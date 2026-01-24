@@ -4,7 +4,7 @@ Tests for API exceptions, error responses, and exception handlers
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from fastapi import status
 from fastapi.exceptions import RequestValidationError
 

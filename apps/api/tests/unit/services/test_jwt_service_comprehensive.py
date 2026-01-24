@@ -3,7 +3,6 @@ Enhanced JWT Service Test Suite
 Comprehensive coverage for JWT token management
 """
 
-from datetime import timedelta
 from unittest.mock import AsyncMock
 
 import pytest
