@@ -65,6 +65,8 @@ jobs:
 
   # Python API tests
   api-test:
+    # Disabled - consolidated into tests.yml workflow
+    if: false
     name: API Tests
     runs-on: ubuntu-latest
     services:

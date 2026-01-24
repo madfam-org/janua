@@ -4,7 +4,7 @@ Tests OAuth provider configuration, authorization URL generation,
 token exchange, user info normalization, and user creation flows.
 """
 
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import urlparse
 from uuid import uuid4
 

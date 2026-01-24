@@ -4,7 +4,7 @@ Tests for security validation, sanitization, and malicious input detection
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from fastapi import Request
 
 from app.middleware.input_validation import (

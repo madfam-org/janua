@@ -37,6 +37,9 @@ resend>=2.5.0  # Updated
 boto3>=1.35.0  # Updated for security fixes
 aiofiles>=24.1.0  # Updated
 
+# Image Processing
+Pillow>=10.0.0  # Required for avatar image optimization in storage service
+
 # Payment Processing
 stripe>=11.0.0  # Updated for security fixes
 
