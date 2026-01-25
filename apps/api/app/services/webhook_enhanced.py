@@ -16,7 +16,7 @@ import httpx
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.models import WebhookDelivery, WebhookEndpoint, WebhookEvent
+from app.models import WebhookDelivery, WebhookEndpoint, LegacyWebhookEvent as WebhookEvent
 from app.services.audit_logger import AuditAction, AuditLogger
 from app.services.cache import CacheService
 
