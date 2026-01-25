@@ -32,9 +32,8 @@ Object.defineProperty(window, 'location', {
 })
 
 const mockConfig = {
+  baseURL: 'https://api.janua.dev',
   apiKey: 'test-key',
-  tenantId: 'test-tenant',
-  baseUrl: 'https://api.janua.dev'
 }
 
 describe('SignUp Component', () => {
@@ -50,8 +49,9 @@ describe('SignUp Component', () => {
 
   const renderSignUp = (props = {}) => {
     return render(
-      React.createElement(JanuaProvider, { config: mockConfig },
-        React.createElement(SignUp, props)
+      React.createElement(
+        JanuaProvider,
+        { config: mockConfig, children: React.createElement(SignUp, props) }
       )
     )
   }

@@ -9,7 +9,22 @@ interface UserProfileProps {
   allowEdit?: boolean
 }
 
-export function UserProfile({ 
+/**
+ * Parse a full name into first and last name components
+ */
+function parseFullName(name: string | null): { firstName: string; lastName: string } {
+  if (!name) return { firstName: '', lastName: '' }
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: '' }
+  }
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(' ')
+  }
+}
+
+export function UserProfile({
   className = '',
   onSignOut,
   showOrganization = true,
@@ -18,9 +33,13 @@ export function UserProfile({
 }: UserProfileProps) {
   const { user, session, signOut, isLoading, client } = useJanua()
   const [isEditing, setIsEditing] = useState(false)
+
+  // Parse the name from the user object
+  const { firstName: initialFirstName, lastName: initialLastName } = parseFullName(user?.name || null)
+
   const [formData, setFormData] = useState({
-    firstName: user?.given_name || '',
-    lastName: user?.family_name || '',
+    firstName: initialFirstName,
+    lastName: initialLastName,
     email: user?.email || ''
   })
 
@@ -35,20 +54,26 @@ export function UserProfile({
     try {
       // Update user profile using the Janua SDK
       await client.updateUser({
-        given_name: formData.firstName,
-        family_name: formData.lastName
+        first_name: formData.firstName,
+        last_name: formData.lastName
       })
-      
+
       // Refresh user data
       const updatedUser = await client.getCurrentUser()
       if (updatedUser) {
+        const { firstName, lastName } = parseFullName(
+          updatedUser.name ||
+          (updatedUser.first_name && updatedUser.last_name
+            ? `${updatedUser.first_name} ${updatedUser.last_name}`
+            : updatedUser.first_name || updatedUser.last_name || null)
+        )
         setFormData({
-          firstName: updatedUser.given_name || '',
-          lastName: updatedUser.family_name || '',
+          firstName,
+          lastName,
           email: updatedUser.email || ''
         })
       }
-      
+
       setIsEditing(false)
     } catch (error) {
       // Error handled silently in production
@@ -130,7 +155,7 @@ export function UserProfile({
               <div>
                 <h3 className="text-sm font-medium text-gray-500">Name</h3>
                 <p className="mt-1 text-sm text-gray-900">
-                  {user.given_name || user.name} {user.family_name || ''}
+                  {user.display_name || user.name || 'Not set'}
                 </p>
               </div>
               <div>
@@ -141,10 +166,10 @@ export function UserProfile({
                 <h3 className="text-sm font-medium text-gray-500">User ID</h3>
                 <p className="mt-1 text-sm text-gray-900 font-mono">{user.id}</p>
               </div>
-              {showOrganization && session?.organization_id && (
+              {showOrganization && user.organization_id && (
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Organization</h3>
-                  <p className="mt-1 text-sm text-gray-900">{session.organization_id}</p>
+                  <p className="mt-1 text-sm text-gray-900">{user.organization_id}</p>
                 </div>
               )}
               {showSessions && session && (

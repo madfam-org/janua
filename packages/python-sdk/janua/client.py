@@ -20,17 +20,17 @@ from .exceptions import ConfigurationError
 class JanuaClient:
     """
     Main client for interacting with the Janua API.
-    
+
     This client provides access to all Janua services including authentication,
     user management, organizations, sessions, MFA, passkeys, and webhooks.
-    
+
     Example:
         ```python
         from janua import JanuaClient
-        
+
         # Initialize with API key
         client = JanuaClient(api_key="your_api_key")
-        
+
         # Or with custom configuration
         client = JanuaClient(
             api_key="your_api_key",
@@ -38,15 +38,23 @@ class JanuaClient:
             timeout=30.0,
             max_retries=3
         )
-        
+
         # Use the client
-        user = client.auth.sign_in(
+        result = client.auth.sign_in(
             email="user@example.com",
             password="secure_password"
         )
+
+        # Access tokens after authentication
+        access_token = client.get_access_token()
+        id_token = client.get_id_token()
+
+        # Check authentication status
+        if client.is_authenticated():
+            user = client.auth.get_current_user()
         ```
     """
-    
+
     DEFAULT_BASE_URL = "https://api.janua.dev"
     DEFAULT_TIMEOUT = 30.0
     DEFAULT_MAX_RETRIES = 3
@@ -120,13 +128,80 @@ class JanuaClient:
     
     def _init_service_clients(self) -> None:
         """Initialize all service clients."""
-        self.auth = AuthClient(self.http, self.config)
+        self.auth = AuthClient(self.http, self.config, self)
         self.users = UsersClient(self.http, self.config)
         self.organizations = OrganizationsClient(self.http, self.config)
         self.sessions = SessionsClient(self.http, self.config)
         self.webhooks = WebhooksClient(self.http, self.config)
         self.mfa = MFAClient(self.http, self.config)
         self.passkeys = PasskeysClient(self.http, self.config)
+
+        # Token storage
+        self._access_token: Optional[str] = None
+        self._refresh_token: Optional[str] = None
+        self._id_token: Optional[str] = None
+
+    def get_access_token(self) -> Optional[str]:
+        """
+        Get the current access token.
+
+        Returns:
+            The access token if authenticated, None otherwise
+        """
+        return self._access_token
+
+    def get_id_token(self) -> Optional[str]:
+        """
+        Get the current ID token.
+
+        Returns:
+            The ID token if available, None otherwise
+        """
+        return self._id_token
+
+    def get_refresh_token(self) -> Optional[str]:
+        """
+        Get the current refresh token.
+
+        Returns:
+            The refresh token if authenticated, None otherwise
+        """
+        return self._refresh_token
+
+    def set_tokens(
+        self,
+        access_token: str,
+        refresh_token: Optional[str] = None,
+        id_token: Optional[str] = None,
+    ) -> None:
+        """
+        Store authentication tokens and update the HTTP client authorization header.
+
+        Args:
+            access_token: The access token
+            refresh_token: The refresh token (optional)
+            id_token: The ID token (optional)
+        """
+        self._access_token = access_token
+        self._refresh_token = refresh_token
+        self._id_token = id_token
+        self.http.headers['Authorization'] = f'Bearer {access_token}'
+
+    def clear_tokens(self) -> None:
+        """Clear all stored tokens and remove the authorization header."""
+        self._access_token = None
+        self._refresh_token = None
+        self._id_token = None
+        self.http.headers.pop('Authorization', None)
+
+    def is_authenticated(self) -> bool:
+        """
+        Check if the client has a valid access token.
+
+        Returns:
+            True if an access token is stored, False otherwise
+        """
+        return self._access_token is not None
     
     def set_api_key(self, api_key: str) -> None:
         """

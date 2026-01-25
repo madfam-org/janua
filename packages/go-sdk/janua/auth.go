@@ -54,6 +54,11 @@ func (s *AuthService) SignUp(ctx context.Context, req *SignUpRequest) (*AuthResp
 		return nil, err
 	}
 
+	// Auto-store tokens
+	if authResp.Token != nil {
+		s.client.SetTokens(authResp.Token)
+	}
+
 	return &authResp, nil
 }
 
@@ -69,6 +74,11 @@ func (s *AuthService) SignIn(ctx context.Context, req *SignInRequest) (*AuthResp
 		return nil, err
 	}
 
+	// Auto-store tokens
+	if authResp.Token != nil {
+		s.client.SetTokens(authResp.Token)
+	}
+
 	return &authResp, nil
 }
 
@@ -82,6 +92,9 @@ func (s *AuthService) SignOut(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return err
 	}
+
+	// Clear stored tokens
+	s.client.ClearTokens()
 
 	return decodeResponse(resp, nil)
 }
@@ -101,6 +114,9 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 	if err := decodeResponse(resp, &token); err != nil {
 		return nil, err
 	}
+
+	// Auto-store new tokens
+	s.client.SetTokens(&token)
 
 	return &token, nil
 }
@@ -267,6 +283,11 @@ func (s *AuthService) HandleOAuthCallback(ctx context.Context, code, state strin
 		return nil, err
 	}
 
+	// Auto-store tokens
+	if authResp.Token != nil {
+		s.client.SetTokens(authResp.Token)
+	}
+
 	return &authResp, nil
 }
 
@@ -340,6 +361,11 @@ func (s *AuthService) CompletePasskeyAuthentication(ctx context.Context, asserti
 	var authResp AuthResponse
 	if err := decodeResponse(resp, &authResp); err != nil {
 		return nil, err
+	}
+
+	// Auto-store tokens
+	if authResp.Token != nil {
+		s.client.SetTokens(authResp.Token)
 	}
 
 	return &authResp, nil

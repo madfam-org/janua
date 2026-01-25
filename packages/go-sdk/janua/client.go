@@ -28,6 +28,11 @@ type Client struct {
 	apiKey     string
 	tenantID   string
 
+	// Token storage
+	accessToken  string
+	refreshToken string
+	idToken      string
+
 	// Services
 	Auth          *AuthService
 	Users         *UsersService
@@ -74,6 +79,43 @@ func NewClient(config *Config) *Client {
 	return c
 }
 
+// GetAccessToken returns the current access token
+func (c *Client) GetAccessToken() string {
+	return c.accessToken
+}
+
+// GetRefreshToken returns the current refresh token
+func (c *Client) GetRefreshToken() string {
+	return c.refreshToken
+}
+
+// GetIDToken returns the current ID token
+func (c *Client) GetIDToken() string {
+	return c.idToken
+}
+
+// SetTokens stores authentication tokens
+func (c *Client) SetTokens(token *Token) {
+	if token == nil {
+		return
+	}
+	c.accessToken = token.AccessToken
+	c.refreshToken = token.RefreshToken
+	c.idToken = token.IDToken
+}
+
+// ClearTokens clears all stored tokens
+func (c *Client) ClearTokens() {
+	c.accessToken = ""
+	c.refreshToken = ""
+	c.idToken = ""
+}
+
+// IsAuthenticated checks if the client has a valid access token
+func (c *Client) IsAuthenticated() bool {
+	return c.accessToken != ""
+}
+
 // request performs an HTTP request
 func (c *Client) request(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
 	u, err := url.Parse(c.baseURL)
@@ -102,7 +144,10 @@ func (c *Client) request(ctx context.Context, method, path string, body interfac
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", fmt.Sprintf("janua-go/%s", Version))
 
-	if c.apiKey != "" {
+	// Use access token if available, otherwise fall back to API key
+	if c.accessToken != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.accessToken))
+	} else if c.apiKey != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
 	}
 	if c.tenantID != "" {
@@ -193,6 +238,7 @@ type DeviceInfo struct {
 type Token struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	IDToken      string `json:"id_token,omitempty"`
 	TokenType    string `json:"token_type"`
 	ExpiresIn    int    `json:"expires_in"`
 }

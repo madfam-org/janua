@@ -30,10 +30,9 @@ describe('SignIn Component', () => {
 
   const renderSignIn = (props = {}) => {
     return render(
-      <JanuaProvider config={{ 
+      <JanuaProvider config={{
+        baseURL: 'https://api.janua.dev',
         apiKey: 'test-key',
-        tenantId: 'test-tenant',
-        baseUrl: 'https://api.janua.dev' 
       }}>
         <SignIn {...props} />
       </JanuaProvider>

@@ -1,6 +1,6 @@
 """Authentication module for the Janua SDK."""
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 
 from .http_client import HTTPClient
 from .types import (
@@ -15,20 +15,30 @@ from .types import (
     JanuaConfig,
 )
 
+if TYPE_CHECKING:
+    from .client import JanuaClient
+
 
 class AuthClient:
     """Client for authentication operations."""
-    
-    def __init__(self, http: HTTPClient, config: JanuaConfig):
+
+    def __init__(
+        self,
+        http: HTTPClient,
+        config: JanuaConfig,
+        client: Optional["JanuaClient"] = None,
+    ):
         """
         Initialize the auth client.
-        
+
         Args:
             http: HTTP client instance
             config: Janua configuration
+            client: Parent JanuaClient instance for token storage
         """
         self.http = http
         self.config = config
+        self._client = client
     
     def sign_up(
         self,
@@ -81,16 +91,16 @@ class AuthClient:
     ) -> Dict[str, Any]:
         """
         Sign in a user with email and password.
-        
+
         Args:
             email: User's email address
             password: User's password
             remember_me: Create a long-lived session
             session_duration: Custom session duration in seconds
-            
+
         Returns:
             Dictionary containing user, session, and tokens
-            
+
         Raises:
             AuthenticationError: If credentials are invalid
             JanuaError: If sign in fails
@@ -99,36 +109,50 @@ class AuthClient:
             email=email,
             password=password,
         ).model_dump()
-        
+
         if remember_me:
             payload['remember_me'] = remember_me
         if session_duration:
             payload['session_duration'] = session_duration
-        
+
         response = self.http.post('/auth/signin', json=payload)
         data = response.json()
-        
+
+        tokens = AuthTokens(**data['tokens'])
+
+        # Auto-store tokens in parent client
+        if self._client is not None:
+            self._client.set_tokens(
+                access_token=tokens.access_token,
+                refresh_token=tokens.refresh_token,
+                id_token=getattr(tokens, 'id_token', None),
+            )
+
         return {
             'user': User(**data['user']),
             'session': Session(**data['session']),
-            'tokens': AuthTokens(**data['tokens']),
+            'tokens': tokens,
         }
     
     def sign_out(self, session_id: Optional[str] = None) -> None:
         """
         Sign out the current user or a specific session.
-        
+
         Args:
             session_id: Optional specific session to sign out
-            
+
         Raises:
             JanuaError: If sign out fails
         """
         payload = {}
         if session_id:
             payload['session_id'] = session_id
-        
+
         self.http.post('/auth/signout', json=payload)
+
+        # Clear tokens from parent client
+        if self._client is not None:
+            self._client.clear_tokens()
     
     def sign_out_all(self, user_id: str) -> None:
         """
@@ -160,13 +184,13 @@ class AuthClient:
     def refresh_token(self, refresh_token: str) -> AuthTokens:
         """
         Refresh authentication tokens.
-        
+
         Args:
             refresh_token: The refresh token
-            
+
         Returns:
             New AuthTokens object
-            
+
         Raises:
             AuthenticationError: If refresh token is invalid
             JanuaError: If refresh fails
@@ -176,7 +200,17 @@ class AuthClient:
             json={'refresh_token': refresh_token}
         )
         data = response.json()
-        return AuthTokens(**data)
+        tokens = AuthTokens(**data)
+
+        # Auto-store new tokens in parent client
+        if self._client is not None:
+            self._client.set_tokens(
+                access_token=tokens.access_token,
+                refresh_token=tokens.refresh_token,
+                id_token=getattr(tokens, 'id_token', None),
+            )
+
+        return tokens
     
     def request_password_reset(self, email: str) -> None:
         """
@@ -320,15 +354,15 @@ class AuthClient:
     ) -> Dict[str, Any]:
         """
         Handle OAuth callback and authenticate user.
-        
+
         Args:
             provider: OAuth provider
             code: OAuth authorization code
             state: OAuth state parameter
-            
+
         Returns:
             Dictionary containing user, session, and tokens
-            
+
         Raises:
             AuthenticationError: If OAuth authentication fails
             JanuaError: If callback handling fails
@@ -339,14 +373,24 @@ class AuthClient:
         }
         if state:
             payload['state'] = state
-        
+
         response = self.http.post('/auth/oauth/callback', json=payload)
         data = response.json()
-        
+
+        tokens = AuthTokens(**data['tokens'])
+
+        # Auto-store tokens in parent client
+        if self._client is not None:
+            self._client.set_tokens(
+                access_token=tokens.access_token,
+                refresh_token=tokens.refresh_token,
+                id_token=getattr(tokens, 'id_token', None),
+            )
+
         return {
             'user': User(**data['user']),
             'session': Session(**data['session']),
-            'tokens': AuthTokens(**data['tokens']),
+            'tokens': tokens,
         }
     
     def link_oauth_account(

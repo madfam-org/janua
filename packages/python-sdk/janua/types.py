@@ -167,6 +167,10 @@ class TokenResponse(BaseResponse):
     scope: Optional[str] = None
 
 
+# Alias for compatibility
+AuthTokens = TokenResponse
+
+
 class AuthResponse(BaseResponse):
     """Authentication response."""
     user: User

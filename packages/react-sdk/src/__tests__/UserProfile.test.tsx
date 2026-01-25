@@ -30,9 +30,8 @@ const localStorageMock = {
 Object.defineProperty(window, 'localStorage', { value: localStorageMock })
 
 const mockConfig = {
+  baseURL: 'https://api.janua.dev',
   apiKey: 'test-key',
-  tenantId: 'test-tenant',
-  baseUrl: 'https://api.janua.dev'
 }
 
 const mockUser = {
@@ -68,8 +67,9 @@ describe('UserProfile Component', () => {
 
   const _renderUserProfile = (props = {}) => {
     return render(
-      React.createElement(JanuaProvider, { config: mockConfig },
-        React.createElement(UserProfile, props)
+      React.createElement(
+        JanuaProvider,
+        { config: mockConfig, children: React.createElement(UserProfile, props) }
       )
     )
   }
@@ -256,8 +256,7 @@ describe('UserProfile Component', () => {
   describe('Save Operations', () => {
     it('should successfully save profile changes', async () => {
       const user = userEvent.setup()
-      const onSuccess = jest.fn()
-      
+
       mockUpdateUser.mockResolvedValueOnce({
         sub: 'user123',
         email: 'jane.smith@example.com',
@@ -273,7 +272,7 @@ describe('UserProfile Component', () => {
 
       render(
         React.createElement(MockProvider, null,
-          React.createElement(UserProfile, { onSuccess })
+          React.createElement(UserProfile)
         )
       )
 
@@ -300,10 +299,6 @@ describe('UserProfile Component', () => {
           family_name: 'Smith',
           email: 'jane.smith@example.com',
         })
-      })
-
-      await waitFor(() => {
-        expect(onSuccess).toHaveBeenCalled()
       })
 
       expect(screen.getByRole('button', { name: /edit profile/i })).toBeInTheDocument()
@@ -392,7 +387,7 @@ describe('UserProfile Component', () => {
 
       render(
         React.createElement(MockProvider, null,
-          React.createElement(UserProfile, { onError })
+          React.createElement(UserProfile)
         )
       )
 
@@ -422,7 +417,7 @@ describe('UserProfile Component', () => {
 
       render(
         React.createElement(MockProvider, null,
-          React.createElement(UserProfile, { onError })
+          React.createElement(UserProfile)
         )
       )
 
