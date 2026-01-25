@@ -346,9 +346,15 @@ def monitor_external_api(service_name: str):
 
                     result = await func(*args, **kwargs)
                     return result
-                except Exception:
-                    # Record external API error
+                except Exception as e:
+                    # Record external API error with details
                     apm_collector.record_error("external_api_error", service_name)
+                    logger.warning(
+                        "External API call failed (async)",
+                        service=service_name,
+                        error_type=type(e).__name__,
+                        error=str(e),
+                    )
                     raise
                 finally:
                     duration = time.time() - start_time
@@ -370,9 +376,15 @@ def monitor_external_api(service_name: str):
 
                     result = func(*args, **kwargs)
                     return result
-                except Exception:
-                    # Record external API error
+                except Exception as e:
+                    # Record external API error with details
                     apm_collector.record_error("external_api_error", service_name)
+                    logger.warning(
+                        "External API call failed (sync)",
+                        service=service_name,
+                        error_type=type(e).__name__,
+                        error=str(e),
+                    )
                     raise
                 finally:
                     duration = time.time() - start_time

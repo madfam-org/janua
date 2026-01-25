@@ -5,6 +5,7 @@ Standardized error responses with monitoring integration
 
 import time
 import traceback
+import uuid
 from typing import Any, Dict, Optional
 
 import structlog
@@ -118,8 +119,8 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
 
-        # Generate request ID for tracing
-        request_id = id(request)
+        # Generate or retrieve request ID for tracing (UUID for distributed tracing)
+        request_id = getattr(request.state, "request_id", None) or str(uuid.uuid4())
 
         # Add request context
         logger_context = {
@@ -270,6 +271,12 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
         return request.client.host if request.client else "unknown"
 
 
+# Helper function to get request ID
+def _get_request_id(request: Request) -> str:
+    """Get or generate a request ID for tracing"""
+    return getattr(request.state, "request_id", None) or str(uuid.uuid4())
+
+
 # Custom exception handlers for FastAPI
 async def api_exception_handler(request: Request, exc: APIException) -> JSONResponse:
     """Handler for custom API exceptions"""
@@ -278,7 +285,7 @@ async def api_exception_handler(request: Request, exc: APIException) -> JSONResp
             "code": exc.error_code,
             "message": exc.message,
             "details": exc.details,
-            "request_id": id(request),
+            "request_id": _get_request_id(request),
             "timestamp": time.time(),
         }
     }
@@ -304,7 +311,7 @@ async def validation_exception_handler(
             "code": "VALIDATION_ERROR",
             "message": "Request validation failed",
             "details": {"validation_errors": validation_errors},
-            "request_id": id(request),
+            "request_id": _get_request_id(request),
             "timestamp": time.time(),
         }
     }
@@ -317,7 +324,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
         "error": {
             "code": "HTTP_ERROR",
             "message": exc.detail,
-            "request_id": id(request),
+            "request_id": _get_request_id(request),
             "timestamp": time.time(),
         }
     }
@@ -326,12 +333,13 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 async def janua_exception_handler(request: Request, exc: JanuaAPIException) -> JSONResponse:
     """Handler for unified Janua exceptions"""
+    request_id = _get_request_id(request)
     error_data = {
         "error": {
             "code": exc.error_code,
             "message": exc.message,
             "details": exc.details,
-            "request_id": id(request),
+            "request_id": request_id,
             "timestamp": time.time(),
         }
     }
@@ -343,7 +351,7 @@ async def janua_exception_handler(request: Request, exc: JanuaAPIException) -> J
         message=exc.message,
         details=exc.details,
         status_code=exc.status_code,
-        request_id=id(request),
+        request_id=request_id,
         path=str(request.url),
     )
 

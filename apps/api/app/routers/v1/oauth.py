@@ -2,6 +2,7 @@
 OAuth authentication endpoints
 """
 
+import json
 import logging
 from typing import Optional
 from urllib.parse import urlparse
@@ -175,8 +176,19 @@ async def oauth_authorize(
 
     except HTTPException:
         raise
+    except (ValueError, KeyError, TypeError, RuntimeError) as e:
+        logger.warning(
+            "OAuth authorization error",
+            error_type=type(e).__name__,
+            error=str(e),
+            provider=provider,
+        )
+        raise HTTPException(status_code=400, detail=f"OAuth initialization failed: {str(e)}")
     except Exception as e:
-        logger.error(f"OAuth authorization error: {e}")
+        logger.exception(
+            "Unexpected error in OAuth authorization",
+            provider=provider,
+        )
         raise HTTPException(status_code=500, detail="OAuth initialization failed")
 
 
@@ -300,8 +312,19 @@ async def oauth_callback(
 
     except HTTPException:
         raise
+    except (ValueError, KeyError, TypeError) as e:
+        logger.warning(
+            "OAuth callback error",
+            error_type=type(e).__name__,
+            error=str(e),
+            provider=provider,
+        )
+        raise HTTPException(status_code=400, detail=f"OAuth callback failed: {str(e)}")
     except Exception as e:
-        logger.error(f"OAuth callback error: {e}")
+        logger.exception(
+            "Unexpected error in OAuth callback",
+            provider=provider,
+        )
         raise HTTPException(status_code=500, detail="OAuth callback processing failed")
 
 
@@ -390,8 +413,19 @@ async def link_oauth_account(
 
     except HTTPException:
         raise
+    except (ValueError, KeyError, TypeError) as e:
+        logger.warning(
+            "OAuth link error",
+            error_type=type(e).__name__,
+            error=str(e),
+            provider=provider,
+        )
+        raise HTTPException(status_code=400, detail=f"OAuth link failed: {str(e)}")
     except Exception as e:
-        logger.error(f"OAuth link error: {e}")
+        logger.exception(
+            "Unexpected error in OAuth link",
+            provider=provider,
+        )
         raise HTTPException(status_code=500, detail="OAuth link initialization failed")
 
 
@@ -564,8 +598,19 @@ async def link_oauth_callback(
 
     except HTTPException:
         raise
+    except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
+        logger.warning(
+            "OAuth link callback error",
+            error_type=type(e).__name__,
+            error=str(e),
+            provider=provider,
+        )
+        raise HTTPException(status_code=400, detail=f"OAuth link callback failed: {str(e)}")
     except Exception as e:
-        logger.error(f"OAuth link callback error: {e}")
+        logger.exception(
+            "Unexpected error in OAuth link callback",
+            provider=provider,
+        )
         raise HTTPException(status_code=500, detail="OAuth link callback processing failed")
 
 
@@ -628,8 +673,19 @@ async def unlink_oauth_account(
 
     except HTTPException:
         raise
+    except (ValueError, KeyError, TypeError) as e:
+        logger.warning(
+            "OAuth unlink error",
+            error_type=type(e).__name__,
+            error=str(e),
+            provider=provider,
+        )
+        raise HTTPException(status_code=400, detail=f"OAuth unlink failed: {str(e)}")
     except Exception as e:
-        logger.error(f"OAuth unlink error: {e}")
+        logger.exception(
+            "Unexpected error in OAuth unlink",
+            provider=provider,
+        )
         raise HTTPException(status_code=500, detail="Failed to unlink OAuth account")
 
 

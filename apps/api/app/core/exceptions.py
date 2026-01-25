@@ -153,6 +153,121 @@ class ExternalServiceError(JanuaAPIException):
 
 
 # ============================================================================
+# Domain-Specific Authentication Exceptions
+# ============================================================================
+
+
+class EmailNotVerifiedError(JanuaAPIException):
+    """Raised when user needs to verify their email (401)"""
+
+    def __init__(
+        self,
+        message: str = "Email address not verified",
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        super().__init__(
+            message=message, status_code=401, error_code="EMAIL_NOT_VERIFIED", details=details
+        )
+
+
+class MFARequiredError(JanuaAPIException):
+    """Raised when multi-factor authentication challenge is required (401)"""
+
+    def __init__(
+        self,
+        message: str = "Multi-factor authentication required",
+        mfa_token: Optional[str] = None,
+        available_methods: Optional[list] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        details = details or {}
+        if mfa_token:
+            details["mfa_token"] = mfa_token
+        if available_methods:
+            details["available_methods"] = available_methods
+        super().__init__(
+            message=message, status_code=401, error_code="MFA_REQUIRED", details=details
+        )
+
+
+class PasswordExpiredError(JanuaAPIException):
+    """Raised when user's password has expired and must be changed (401)"""
+
+    def __init__(
+        self,
+        message: str = "Password has expired",
+        expired_at: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        details = details or {}
+        if expired_at:
+            details["expired_at"] = expired_at
+        super().__init__(
+            message=message, status_code=401, error_code="PASSWORD_EXPIRED", details=details
+        )
+
+
+class AccountLockedError(JanuaAPIException):
+    """Raised when account is locked due to too many failed attempts (423)"""
+
+    def __init__(
+        self,
+        message: str = "Account is temporarily locked",
+        locked_until: Optional[str] = None,
+        reason: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        details = details or {}
+        if locked_until:
+            details["locked_until"] = locked_until
+        if reason:
+            details["reason"] = reason
+        super().__init__(
+            message=message, status_code=423, error_code="ACCOUNT_LOCKED", details=details
+        )
+
+
+class SessionExpiredError(JanuaAPIException):
+    """Raised when the user's session has expired (401)"""
+
+    def __init__(
+        self,
+        message: str = "Session has expired",
+        expired_at: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        details = details or {}
+        if expired_at:
+            details["expired_at"] = expired_at
+        super().__init__(
+            message=message, status_code=401, error_code="SESSION_EXPIRED", details=details
+        )
+
+
+class InsufficientPermissionsError(JanuaAPIException):
+    """Raised when user lacks specific permissions for an action (403)"""
+
+    def __init__(
+        self,
+        message: str = "Insufficient permissions",
+        required_permissions: Optional[list] = None,
+        resource: Optional[str] = None,
+        action: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        details = details or {}
+        if required_permissions:
+            details["required_permissions"] = required_permissions
+        if resource:
+            details["resource"] = resource
+        if action:
+            details["action"] = action
+        super().__init__(
+            message=message, status_code=403, error_code="INSUFFICIENT_PERMISSIONS", details=details
+        )
+
+
+# ============================================================================
 # SSO-Specific Exceptions
 # ============================================================================
 
@@ -349,6 +464,13 @@ __all__ = [
     "ConflictError",
     "RateLimitError",
     "ExternalServiceError",
+    # Domain-Specific Authentication Exceptions
+    "EmailNotVerifiedError",
+    "MFARequiredError",
+    "PasswordExpiredError",
+    "AccountLockedError",
+    "SessionExpiredError",
+    "InsufficientPermissionsError",
     # SSO Exceptions
     "SSOAuthenticationError",
     "SSOValidationError",
