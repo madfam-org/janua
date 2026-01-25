@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 
-from ..models import WebhookDelivery, WebhookEndpoint, WebhookEvent
+from ..models import WebhookDelivery, WebhookEndpoint, LegacyWebhookEvent as WebhookEvent
 
 logger = logging.getLogger(__name__)
 
