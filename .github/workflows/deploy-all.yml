@@ -52,6 +52,25 @@ jobs:
         with:
           kustomize-version: '5.3.0'
 
+      - name: Migrate deployments with bad selectors (one-time fix)
+        run: |
+          echo "=== Checking for deployments with immutable selector labels ==="
+
+          # List of deployments that may have bad selector labels from old commonLabels
+          DEPLOYMENTS="janua-admin janua-dashboard janua-docs janua-website"
+
+          for DEPLOY in $DEPLOYMENTS; do
+            if kubectl get deployment $DEPLOY -n $NAMESPACE -o jsonpath='{.spec.selector.matchLabels}' 2>/dev/null | grep -q 'app.kubernetes.io'; then
+              echo "Found bad selector labels in $DEPLOY - deleting for recreation..."
+              kubectl delete deployment $DEPLOY -n $NAMESPACE --ignore-not-found
+              echo "Deleted $DEPLOY (will be recreated with correct selectors)"
+            else
+              echo "OK: $DEPLOY has clean selectors (or doesn't exist yet)"
+            fi
+          done
+
+          echo "Migration check complete"
+
       - name: Validate manifests (dry-run)
         run: |
           echo "=== Server-side dry-run validation ==="
