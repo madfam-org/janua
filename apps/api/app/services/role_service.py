@@ -13,7 +13,7 @@ from typing import List, Optional, Tuple
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import AuditLog, OrganizationMember, Permission, Role, User
+from app.models import AuditLog, OrganizationMember, Role, User
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +218,14 @@ class RoleService:
         await self.db.commit()
         await self.db.refresh(role)
 
-        logger.info(f"Role created: {role.id} ({name}) in org {organization_id}")
+        logger.info(
+            "Role created",
+            extra={
+                "role_id": str(role.id),
+                "role_name": name,
+                "organization_id": str(organization_id),
+            },
+        )
 
         return role
 
@@ -421,7 +428,12 @@ class RoleService:
         await self.db.refresh(member)
 
         logger.info(
-            f"Role assigned: {role_name} to user {user_id} in org {organization_id}"
+            "Role assigned",
+            extra={
+                "role_name": role_name,
+                "user_id": str(user_id),
+                "organization_id": str(organization_id),
+            },
         )
 
         return member

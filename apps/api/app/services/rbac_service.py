@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..core.events import EventEmitter
 from ..core.redis import ResilientRedisClient
-from ..models import OrganizationMember, Permission, RBACPolicy, Role, User
+from ..models import OrganizationMember, RBACPolicy, User
 
 
 class RBACService:

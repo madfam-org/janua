@@ -7,6 +7,7 @@ import logging
 import os
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -376,6 +377,29 @@ MAX_LOGO_SIZE = 5 * 1024 * 1024  # 5MB
 MAX_FAVICON_SIZE = 1 * 1024 * 1024  # 1MB
 
 
+def _validate_safe_path_component(component: str) -> str:
+    """
+    Validate path component doesn't contain traversal sequences.
+
+    Args:
+        component: Path component to validate (e.g., organization_id)
+
+    Returns:
+        The validated component
+
+    Raises:
+        HTTPException: If the component contains path traversal sequences
+    """
+    if not component:
+        raise HTTPException(status_code=400, detail="Invalid path component: empty value")
+    if ".." in component or component.startswith("/") or "\\" in component:
+        raise HTTPException(status_code=400, detail="Invalid path component: traversal sequences not allowed")
+    # Only allow alphanumeric, hyphens, and underscores
+    if not all(c.isalnum() or c in "-_" for c in component):
+        raise HTTPException(status_code=400, detail="Invalid path component: only alphanumeric, hyphens, and underscores allowed")
+    return component
+
+
 async def _upload_branding_image(
     file: UploadFile,
     organization_id: str,
@@ -409,22 +433,33 @@ async def _upload_branding_image(
             detail=f"File too large. Maximum size: {max_size // (1024 * 1024)}MB",
         )
 
+    # Validate organization_id to prevent path traversal
+    safe_org_id = _validate_safe_path_component(organization_id)
+
     # Generate unique filename
     file_extension = file.filename.split(".")[-1] if file.filename else "png"
     content_hash = hashlib.md5(contents).hexdigest()[:12]
-    unique_filename = f"{organization_id}_{image_type}_{content_hash}.{file_extension}"
+    unique_filename = f"{safe_org_id}_{image_type}_{content_hash}.{file_extension}"
 
-    # Create upload directory
-    upload_dir = os.path.join(settings.UPLOAD_DIR, "branding", organization_id)
-    os.makedirs(upload_dir, exist_ok=True)
+    # Create upload directory using pathlib for safety
+    base_dir = Path(settings.UPLOAD_DIR).resolve()
+    upload_dir = (base_dir / "branding" / safe_org_id).resolve()
+
+    # Verify path is within base directory (defense in depth)
+    try:
+        upload_dir.relative_to(base_dir)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid organization path")
+
+    upload_dir.mkdir(parents=True, exist_ok=True)
 
     # Save file
-    file_path = os.path.join(upload_dir, unique_filename)
+    file_path = upload_dir / unique_filename
     with open(file_path, "wb") as f:
         f.write(contents)
 
     # Return URL path
-    return f"/uploads/branding/{organization_id}/{unique_filename}"
+    return f"/uploads/branding/{safe_org_id}/{unique_filename}"
 
 
 @router.post("/branding/{organization_id}/logo")
@@ -592,21 +627,32 @@ async def upload_favicon(
                 detail=f"File too large. Maximum size: {MAX_FAVICON_SIZE // (1024 * 1024)}MB",
             )
 
+        # Validate organization_id to prevent path traversal
+        safe_org_id = _validate_safe_path_component(organization_id)
+
         # Generate unique filename
         file_extension = file.filename.split(".")[-1] if file.filename else "png"
         content_hash = hashlib.md5(contents).hexdigest()[:12]
-        unique_filename = f"{organization_id}_favicon_{content_hash}.{file_extension}"
+        unique_filename = f"{safe_org_id}_favicon_{content_hash}.{file_extension}"
 
-        # Create upload directory
-        upload_dir = os.path.join(settings.UPLOAD_DIR, "branding", organization_id)
-        os.makedirs(upload_dir, exist_ok=True)
+        # Create upload directory using pathlib for safety
+        base_dir = Path(settings.UPLOAD_DIR).resolve()
+        upload_dir = (base_dir / "branding" / safe_org_id).resolve()
+
+        # Verify path is within base directory (defense in depth)
+        try:
+            upload_dir.relative_to(base_dir)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid organization path")
+
+        upload_dir.mkdir(parents=True, exist_ok=True)
 
         # Save file
-        file_path = os.path.join(upload_dir, unique_filename)
+        file_path = upload_dir / unique_filename
         with open(file_path, "wb") as f:
             f.write(contents)
 
-        favicon_url = f"/uploads/branding/{organization_id}/{unique_filename}"
+        favicon_url = f"/uploads/branding/{safe_org_id}/{unique_filename}"
 
         # Update branding configuration
         config.company_favicon_url = favicon_url
