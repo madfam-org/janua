@@ -16,15 +16,39 @@ from typing import Any, Callable, Dict, List, Optional
 import psutil
 import redis.asyncio as aioredis
 import structlog
-from opentelemetry import metrics, trace
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, generate_latest
 
 from app.config import settings
+
+# Optional OpenTelemetry imports - gracefully handle missing dependencies
+HAS_OPENTELEMETRY = False
+HAS_JAEGER = False
+HAS_PROMETHEUS_OTEL = False
+
+try:
+    from opentelemetry import metrics, trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    HAS_OPENTELEMETRY = True
+except ImportError:
+    metrics = None
+    trace = None
+    TracerProvider = None
+    MeterProvider = None
+    BatchSpanProcessor = None
+
+try:
+    from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+    HAS_JAEGER = True
+except ImportError:
+    JaegerExporter = None
+
+try:
+    from opentelemetry.exporter.prometheus import PrometheusMetricReader
+    HAS_PROMETHEUS_OTEL = True
+except ImportError:
+    PrometheusMetricReader = None
 
 logger = structlog.get_logger()
 
@@ -166,43 +190,65 @@ class APMCollector:
 
     def _setup_tracing(self):
         """Initialize distributed tracing"""
+        if not HAS_OPENTELEMETRY:
+            logger.info("OpenTelemetry not available, tracing disabled")
+            self.tracer = None
+            return
+
         try:
-            # Set up Jaeger exporter
-            jaeger_exporter = JaegerExporter(
-                agent_host_name=getattr(settings, "JAEGER_HOST", "localhost"),
-                agent_port=getattr(settings, "JAEGER_PORT", 6831),
-            )
+            if HAS_JAEGER and JaegerExporter is not None:
+                # Set up Jaeger exporter
+                jaeger_exporter = JaegerExporter(
+                    agent_host_name=getattr(settings, "JAEGER_HOST", "localhost"),
+                    agent_port=getattr(settings, "JAEGER_PORT", 6831),
+                )
 
-            # Set up tracer provider
-            trace.set_tracer_provider(TracerProvider())
-            tracer = trace.get_tracer(__name__)
+                # Set up tracer provider
+                trace.set_tracer_provider(TracerProvider())
+                tracer = trace.get_tracer(__name__)
 
-            # Add span processor
-            span_processor = BatchSpanProcessor(jaeger_exporter)
-            trace.get_tracer_provider().add_span_processor(span_processor)
+                # Add span processor
+                span_processor = BatchSpanProcessor(jaeger_exporter)
+                trace.get_tracer_provider().add_span_processor(span_processor)
 
-            self.tracer = tracer
-            logger.info("Distributed tracing initialized with Jaeger")
+                self.tracer = tracer
+                logger.info("Distributed tracing initialized with Jaeger")
+            else:
+                # Basic tracing without Jaeger export
+                trace.set_tracer_provider(TracerProvider())
+                self.tracer = trace.get_tracer(__name__)
+                logger.info("Distributed tracing initialized (no Jaeger exporter)")
 
         except Exception as e:
-            logger.warning("Failed to initialize Jaeger tracing", error=str(e))
-            self.tracer = trace.get_tracer(__name__)
+            logger.warning("Failed to initialize tracing", error=str(e))
+            self.tracer = None
 
     def _setup_metrics(self):
         """Initialize metrics collection"""
+        if not HAS_OPENTELEMETRY:
+            logger.info("OpenTelemetry not available, OTEL metrics disabled")
+            self.meter = None
+            return
+
         try:
-            # Prometheus metrics reader
-            prometheus_reader = PrometheusMetricReader()
+            if HAS_PROMETHEUS_OTEL and PrometheusMetricReader is not None:
+                # Prometheus metrics reader
+                prometheus_reader = PrometheusMetricReader()
 
-            # Set up meter provider
-            meter_provider = MeterProvider(metric_readers=[prometheus_reader])
-            metrics.set_meter_provider(meter_provider)
+                # Set up meter provider
+                meter_provider = MeterProvider(metric_readers=[prometheus_reader])
+                metrics.set_meter_provider(meter_provider)
 
-            self.meter = metrics.get_meter(__name__)
-            logger.info("Metrics collection initialized with Prometheus")
+                self.meter = metrics.get_meter(__name__)
+                logger.info("Metrics collection initialized with Prometheus OTEL exporter")
+            else:
+                # Basic meter without Prometheus OTEL export
+                self.meter = metrics.get_meter(__name__) if metrics else None
+                logger.info("Metrics collection initialized (no Prometheus OTEL exporter)")
 
         except Exception as e:
-            logger.warning("Failed to initialize metrics", error=str(e))
+            logger.warning("Failed to initialize OTEL metrics", error=str(e))
+            self.meter = None
 
     async def start_background_tasks(self):
         """Start background metrics collection tasks. Call this after event loop is running."""
