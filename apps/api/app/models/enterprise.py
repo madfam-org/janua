@@ -76,6 +76,7 @@ class SubscriptionStatus(str, enum.Enum):
 
 class EnterpriseAuditLog(Base):
     __tablename__ = "enterprise_audit_logs"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
@@ -114,10 +115,11 @@ class EnterpriseSubscription(Base):
 
 class BillingUsage(Base):
     __tablename__ = "billing_usage"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    subscription_id = Column(UUID(as_uuid=True), ForeignKey("subscriptions.id"), nullable=False)
+    subscription_id = Column(UUID(as_uuid=True), nullable=False)  # No FK - reference billing.Subscription if needed
     metric_name = Column(String(255), nullable=False)
     quantity = Column(Integer, default=0)
     period_start = Column(DateTime, nullable=False)
@@ -128,6 +130,7 @@ class BillingUsage(Base):
 
 class EnterpriseFeature(Base):
     __tablename__ = "enterprise_features"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
@@ -140,6 +143,7 @@ class EnterpriseFeature(Base):
 
 class SSOConfiguration(Base):
     __tablename__ = "sso_configurations"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
@@ -156,6 +160,7 @@ class SCIMConfiguration(Base):
     """SCIM provisioning configuration for an organization"""
 
     __tablename__ = "scim_configurations"
+    __table_args__ = {"extend_existing": True}
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(
