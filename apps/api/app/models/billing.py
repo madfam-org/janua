@@ -173,7 +173,7 @@ class Subscription(Base):
     usage_data = Column(JSON, default=dict)  # {"api_calls": 5000, "storage_gb": 10}
 
     # Provider-specific metadata
-    metadata = Column(JSON, default=dict)
+    provider_metadata = Column(JSON, default=dict)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -328,7 +328,7 @@ class Invoice(Base):
     line_items = Column(JSON, default=list)
 
     # Metadata
-    metadata = Column(JSON, default=dict)
+    invoice_metadata = Column(JSON, default=dict)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
