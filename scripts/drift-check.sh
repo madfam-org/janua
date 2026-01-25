@@ -34,6 +34,9 @@ echo ""
 # ============================================================================
 # Helper function to extract container image for a deployment
 # Uses yq if available, falls back to awk-based parsing
+# Handles both formats:
+#   - Multi-document YAML (kustomize output): kind: Deployment at root level
+#   - List-wrapped YAML (kubectl get output): kind: List with .items[] array
 # ============================================================================
 extract_deployment_image() {
     local file="$1"
@@ -41,25 +44,42 @@ extract_deployment_image() {
 
     # Try yq first (proper YAML parsing)
     if command -v yq &>/dev/null; then
-        yq eval "select(.kind == \"Deployment\" and .metadata.name == \"$deploy_name\") | .spec.template.spec.containers[0].image" "$file" 2>/dev/null | grep -v "^null$" | head -1
-        return
+        local result=""
+
+        # Check if this is a List-wrapped document (kubectl get output)
+        local file_kind=$(yq eval '.kind' "$file" 2>/dev/null | head -1)
+
+        if [[ "$file_kind" == "List" ]]; then
+            # List-wrapped format: kubectl get -o yaml output
+            # Deployments are nested under .items[]
+            result=$(yq eval '.items[] | select(.kind == "Deployment" and .metadata.name == "'"$deploy_name"'") | .spec.template.spec.containers[0].image' "$file" 2>/dev/null | grep -v "^null$" | head -1)
+        else
+            # Multi-document format: kustomize output
+            # Each document has kind: Deployment at root level
+            result=$(yq eval 'select(.kind == "Deployment" and .metadata.name == "'"$deploy_name"'") | .spec.template.spec.containers[0].image' "$file" 2>/dev/null | grep -v "^null$" | head -1)
+        fi
+
+        if [[ -n "$result" ]]; then
+            echo "$result"
+            return
+        fi
     fi
 
-    # Fallback: Use awk to properly parse within document boundaries
-    # This handles multi-document YAML by tracking document boundaries (---)
+    # Fallback: awk-based parsing for both formats
+    # Handles multi-document YAML and List-wrapped YAML
     awk -v deploy="$deploy_name" '
-    BEGIN { in_deploy=0; in_containers=0; found_image="" }
-    /^---/ { in_deploy=0; in_containers=0 }
+    BEGIN { in_deploy=0; in_containers=0; found_image=""; is_deployment=0 }
+    /^---/ { in_deploy=0; in_containers=0; is_deployment=0 }
     /kind: Deployment/ { is_deployment=1 }
-    /^  name: / && is_deployment {
-        gsub(/^  name: /, "");
+    /name: / && is_deployment {
+        gsub(/^[[:space:]]*name:[[:space:]]*/, "");
         gsub(/[[:space:]]*$/, "");
         if ($0 == deploy) { in_deploy=1 }
         is_deployment=0
     }
     in_deploy && /containers:/ { in_containers=1 }
     in_deploy && in_containers && /image:/ {
-        gsub(/.*image: */, "");
+        gsub(/.*image:[[:space:]]*/, "");
         gsub(/[[:space:]]*$/, "");
         gsub(/"/, "");
         if ($0 != "" && found_image == "") { found_image=$0 }
@@ -83,8 +103,14 @@ for DEPLOY in janua-api janua-dashboard janua-admin janua-docs janua-website; do
 
     # Handle cases where deployment might not exist
     if [[ -z "$EXPECTED_IMAGE" ]] && [[ -z "$CURRENT_IMAGE" ]]; then
-        # Log for debugging when extraction fails or deployment truly doesn't exist
-        echo "DEBUG: No image found for $DEPLOY in either manifest (may not exist or extraction failed)" >&2
+        # Log format info for debugging extraction failures
+        if command -v yq &>/dev/null; then
+            EXPECTED_KIND=$(yq eval '.kind' "$EXPECTED" 2>/dev/null | head -1 || echo "unknown")
+            CURRENT_KIND=$(yq eval '.kind' "$CURRENT" 2>/dev/null | head -1 || echo "unknown")
+            echo "DEBUG: $DEPLOY - extraction failed (expected format: $EXPECTED_KIND, current format: $CURRENT_KIND)" >&2
+        else
+            echo "DEBUG: $DEPLOY - no image found in either manifest (yq not available)" >&2
+        fi
         continue  # Deployment doesn't exist in either
     fi
 
