@@ -227,7 +227,7 @@ func (r *Retryer) calculateDelay(attempt int, err error) time.Duration {
 	if r.config.Jitter {
 		// Add random jitter of ±25%
 		jitterRange := float64(delay) * 0.25
-		jitter := (rand.Float64()*2 - 1) * jitterRange
+		jitter := (rand.Float64()*2 - 1) * jitterRange //nolint:gosec // G404: Jitter doesn't need cryptographic randomness
 		delay = time.Duration(float64(delay) + jitter)
 	}
 
@@ -308,11 +308,11 @@ type CircuitBreaker struct {
 	state       CircuitState
 
 	// Configuration
-	failureThreshold  int
-	successThreshold  int
-	timeout           time.Duration
-	halfOpenMaxCalls  int
-	halfOpenCalls     int
+	failureThreshold int
+	successThreshold int
+	timeout          time.Duration
+	halfOpenMaxCalls int
+	halfOpenCalls    int
 }
 
 // CircuitState represents the state of the circuit breaker

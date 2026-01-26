@@ -12,14 +12,14 @@ import (
 // Error codes matching the Janua API
 const (
 	// Authentication errors
-	ErrCodeAuthentication       = "AUTHENTICATION_ERROR"
-	ErrCodeTokenError           = "TOKEN_ERROR"
-	ErrCodeEmailNotVerified     = "EMAIL_NOT_VERIFIED"
-	ErrCodeMFARequired          = "MFA_REQUIRED"
-	ErrCodePasswordExpired      = "PASSWORD_EXPIRED"
-	ErrCodeAccountLocked        = "ACCOUNT_LOCKED"
-	ErrCodeSessionExpired       = "SESSION_EXPIRED"
-	ErrCodeInvalidCredentials   = "INVALID_CREDENTIALS"
+	ErrCodeAuthentication     = "AUTHENTICATION_ERROR"
+	ErrCodeTokenError         = "TOKEN_ERROR"
+	ErrCodeEmailNotVerified   = "EMAIL_NOT_VERIFIED"
+	ErrCodeMFARequired        = "MFA_REQUIRED"
+	ErrCodePasswordExpired    = "PASSWORD_EXPIRED"
+	ErrCodeAccountLocked      = "ACCOUNT_LOCKED"
+	ErrCodeSessionExpired     = "SESSION_EXPIRED"
+	ErrCodeInvalidCredentials = "INVALID_CREDENTIALS" //nolint:gosec // G101: This is an error code constant, not a credential
 
 	// Authorization errors
 	ErrCodeAuthorization           = "AUTHORIZATION_ERROR"
@@ -37,8 +37,8 @@ const (
 	ErrCodeRateLimit = "RATE_LIMIT_ERROR"
 
 	// Server errors
-	ErrCodeInternal        = "INTERNAL_ERROR"
-	ErrCodeExternalService = "EXTERNAL_SERVICE_ERROR"
+	ErrCodeInternal           = "INTERNAL_ERROR"
+	ErrCodeExternalService    = "EXTERNAL_SERVICE_ERROR"
 	ErrCodeServiceUnavailable = "SERVICE_UNAVAILABLE"
 
 	// SSO errors
@@ -51,6 +51,8 @@ const (
 )
 
 // JanuaError is the base error type for all Janua SDK errors
+//
+//nolint:revive // stutters: Renaming to Error would be a breaking API change
 type JanuaError struct {
 	// Code is the error code from the API
 	Code string `json:"code"`
@@ -395,10 +397,14 @@ func ParseAPIError(resp *http.Response, body []byte) error {
 			}
 		}
 		if limit := resp.Header.Get("X-RateLimit-Limit"); limit != "" {
-			rateLimitErr.Limit, _ = strconv.Atoi(limit)
+			if val, err := strconv.Atoi(limit); err == nil {
+				rateLimitErr.Limit = val
+			}
 		}
 		if remaining := resp.Header.Get("X-RateLimit-Remaining"); remaining != "" {
-			rateLimitErr.Remaining, _ = strconv.Atoi(remaining)
+			if val, err := strconv.Atoi(remaining); err == nil {
+				rateLimitErr.Remaining = val
+			}
 		}
 		if reset := resp.Header.Get("X-RateLimit-Reset"); reset != "" {
 			if ts, err := strconv.ParseInt(reset, 10, 64); err == nil {
@@ -469,19 +475,21 @@ func ParseAPIError(resp *http.Response, body []byte) error {
 		if base.Details != nil {
 			if errors, ok := base.Details["validation_errors"].([]interface{}); ok {
 				for _, e := range errors {
-					if m, ok := e.(map[string]interface{}); ok {
-						fe := FieldError{}
-						if field, ok := m["field"].(string); ok {
-							fe.Field = field
-						}
-						if msg, ok := m["message"].(string); ok {
-							fe.Message = msg
-						}
-						if t, ok := m["type"].(string); ok {
-							fe.Type = t
-						}
-						valErr.FieldErrors = append(valErr.FieldErrors, fe)
+					m, ok := e.(map[string]interface{})
+					if !ok {
+						continue
 					}
+					fe := FieldError{}
+					if field, ok := m["field"].(string); ok {
+						fe.Field = field
+					}
+					if msg, ok := m["message"].(string); ok {
+						fe.Message = msg
+					}
+					if t, ok := m["type"].(string); ok {
+						fe.Type = t
+					}
+					valErr.FieldErrors = append(valErr.FieldErrors, fe)
 				}
 			}
 		}
@@ -572,21 +580,21 @@ func IsRetryable(err error) bool {
 // GetUserMessage returns a user-friendly error message
 func GetUserMessage(err error) string {
 	messages := map[string]string{
-		ErrCodeAuthentication:         "Invalid email or password. Please try again.",
-		ErrCodeTokenError:             "Your session is invalid. Please sign in again.",
-		ErrCodeEmailNotVerified:       "Please verify your email address to continue.",
-		ErrCodeMFARequired:            "Please complete two-factor authentication.",
-		ErrCodePasswordExpired:        "Your password has expired. Please reset it.",
-		ErrCodeAccountLocked:          "Your account is temporarily locked. Please try again later.",
-		ErrCodeSessionExpired:         "Your session has expired. Please sign in again.",
-		ErrCodeAuthorization:          "You don't have permission to perform this action.",
+		ErrCodeAuthentication:          "Invalid email or password. Please try again.",
+		ErrCodeTokenError:              "Your session is invalid. Please sign in again.",
+		ErrCodeEmailNotVerified:        "Please verify your email address to continue.",
+		ErrCodeMFARequired:             "Please complete two-factor authentication.",
+		ErrCodePasswordExpired:         "Your password has expired. Please reset it.",
+		ErrCodeAccountLocked:           "Your account is temporarily locked. Please try again later.",
+		ErrCodeSessionExpired:          "Your session has expired. Please sign in again.",
+		ErrCodeAuthorization:           "You don't have permission to perform this action.",
 		ErrCodeInsufficientPermissions: "You need additional permissions for this action.",
-		ErrCodeValidation:             "Please check your input and try again.",
-		ErrCodeNotFound:               "The requested resource was not found.",
-		ErrCodeConflict:               "This action conflicts with existing data.",
-		ErrCodeRateLimit:              "Too many requests. Please wait a moment and try again.",
-		ErrCodeInternal:               "An unexpected error occurred. Please try again later.",
-		"NETWORK_ERROR":               "Unable to connect. Please check your internet connection.",
+		ErrCodeValidation:              "Please check your input and try again.",
+		ErrCodeNotFound:                "The requested resource was not found.",
+		ErrCodeConflict:                "This action conflicts with existing data.",
+		ErrCodeRateLimit:               "Too many requests. Please wait a moment and try again.",
+		ErrCodeInternal:                "An unexpected error occurred. Please try again later.",
+		"NETWORK_ERROR":                "Unable to connect. Please check your internet connection.",
 	}
 
 	if e, ok := err.(*JanuaError); ok {
