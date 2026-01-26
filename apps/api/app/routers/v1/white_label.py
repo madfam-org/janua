@@ -4,6 +4,7 @@ White-label and branding API endpoints
 
 import hashlib
 import logging
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -416,8 +417,8 @@ def _sanitize_path_component(component: str) -> str:
     """
     Sanitize a string for safe use in file paths.
 
-    Security: Prevents path traversal (CWE-22) by actively reconstructing
-    the string with only allowed characters, breaking the taint chain.
+    Security: Prevents path traversal (CWE-22) by using regex substitution
+    to remove all characters except alphanumeric, hyphens, and underscores.
 
     Args:
         component: Path component to sanitize (e.g., organization_id)
@@ -431,9 +432,9 @@ def _sanitize_path_component(component: str) -> str:
     if not component:
         raise HTTPException(status_code=400, detail="Invalid path component: empty value")
 
-    # Actively sanitize by keeping only allowed characters (alphanumeric, hyphens, underscores)
-    # This creates a NEW string, breaking the taint chain for static analysis
-    sanitized = "".join(c for c in component if c.isalnum() or c in "-_")
+    # Use regex to remove all non-safe characters
+    # Pattern: replace anything that is NOT alphanumeric, hyphen, or underscore with empty string
+    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "", component)
 
     if not sanitized:
         raise HTTPException(
