@@ -57,7 +57,7 @@ jobs:
 
       - name: Comment PR with quality results
         if: github.event_name == 'pull_request' && steps.quality.outcome != 'success'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
@@ -87,7 +87,7 @@ jobs:
 
       - name: Comment PR with documentation results
         if: github.event_name == 'pull_request' && steps.docs.outcome != 'success'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
@@ -126,7 +126,7 @@ jobs:
 
       - name: Create issue for vulnerabilities
         if: steps.audit.outcome != 'success' && github.event_name == 'schedule'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const date = new Date().toISOString().split('T')[0];
@@ -212,7 +212,7 @@ jobs:
 
     steps:
       - name: Create summary
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           CODE_QUALITY_RESULT: ${{ needs.code-quality.result }}
           DOCUMENTATION_RESULT: ${{ needs.documentation.result }}
