@@ -40,7 +40,7 @@ jobs:
 
       - name: Upload coverage
         if: always()
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         continue-on-error: true
         with:
           files: ./coverage/lcov.info
@@ -162,7 +162,7 @@ jobs:
 
       - name: Upload coverage
         if: always()
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         continue-on-error: true
         with:
           files: ./apps/api/coverage.xml
