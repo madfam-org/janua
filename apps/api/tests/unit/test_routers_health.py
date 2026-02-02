@@ -182,3 +182,31 @@ def test_health_dependencies(mock_env):
 
     except ImportError as e:
         pytest.skip(f"Health dependencies test failed: {e}")
+
+
+@pytest.mark.asyncio
+async def test_check_encryption_key_health_non_production(mock_env):
+    """Test encryption key health check passes in non-production."""
+    try:
+        from app.routers.v1.health import check_encryption_key_health
+
+        result = await check_encryption_key_health()
+        assert result is True
+    except ImportError as e:
+        pytest.skip(f"Import failed: {e}")
+
+
+@pytest.mark.asyncio
+async def test_check_encryption_key_health_production_missing():
+    """Test encryption key health check fails in production without key."""
+    try:
+        from app.routers.v1.health import check_encryption_key_health
+
+        with patch("app.config.settings") as mock_settings:
+            mock_settings.ENVIRONMENT = "production"
+            mock_settings.FIELD_ENCRYPTION_KEY = None
+
+            result = await check_encryption_key_health()
+            assert result is False
+    except ImportError as e:
+        pytest.skip(f"Import failed: {e}")

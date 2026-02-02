@@ -798,3 +798,35 @@ class TestServiceMethodExistence:
         assert hasattr(logger, "_flush_buffer")
         import asyncio
         assert asyncio.iscoroutinefunction(logger._flush_buffer)
+
+
+class TestAuditLogEncryption:
+    """Test audit log details encryption (SOC 2 CF-11)."""
+
+    @pytest.fixture
+    def mock_db(self):
+        db = MagicMock()
+        db.add = MagicMock()
+        db.commit = AsyncMock()
+        db.flush = AsyncMock()
+        return db
+
+    @pytest.fixture
+    def logger(self, mock_db):
+        return AuditLogger(mock_db)
+
+    def test_store_entry_has_encryption_logic(self):
+        """Test _store_entry method references encryption for CF-11."""
+        import inspect
+
+        source = inspect.getsource(AuditLogger._store_entry)
+        assert "AUDIT_LOG_ENCRYPTION" in source
+        assert "FieldEncryptor" in source
+        assert "encrypt_field" in source
+
+    def test_store_entry_checks_encryption_key(self):
+        """Test _store_entry checks FIELD_ENCRYPTION_KEY before encrypting."""
+        import inspect
+
+        source = inspect.getsource(AuditLogger._store_entry)
+        assert "FIELD_ENCRYPTION_KEY" in source

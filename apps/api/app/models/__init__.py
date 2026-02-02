@@ -10,7 +10,7 @@ from sqlalchemy.orm import DeclarativeBase, relationship
 
 from app.models.types import GUID as UUID
 from app.models.types import JSON as JSONB
-from app.models.types import InetAddress
+from app.models.types import EncryptedString, InetAddress
 
 
 class Base(DeclarativeBase):
@@ -51,8 +51,8 @@ class User(Base):
 
     # MFA fields
     mfa_enabled = Column(Boolean, default=False)
-    mfa_secret = Column(String(255))
-    mfa_backup_codes = Column(JSONB, default=[])
+    mfa_secret = Column(EncryptedString())
+    mfa_backup_codes = Column(EncryptedString())
 
     # Account lockout fields
     failed_login_attempts = Column(Integer, default=0)
@@ -276,8 +276,8 @@ class OAuthAccount(Base):
     provider = Column(SQLEnum(OAuthProvider), nullable=False)
     provider_user_id = Column(String(255), nullable=False)
     provider_email = Column(String(255))
-    access_token = Column(Text)
-    refresh_token = Column(Text)
+    access_token = Column(EncryptedString())
+    refresh_token = Column(EncryptedString())
     token_expires_at = Column(DateTime)
     provider_data = Column(JSONB, default={})
     created_at = Column(DateTime, default=datetime.utcnow)

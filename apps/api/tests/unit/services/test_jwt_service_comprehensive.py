@@ -3,7 +3,7 @@ Enhanced JWT Service Test Suite
 Comprehensive coverage for JWT token management
 """
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -197,6 +197,77 @@ class TestTokenClaims:
         claims = {"user_id": "123", "role": "admin"}
         await jwt_service.store_token_claims("jti-123", claims, ttl=3600)
         mock_redis.setex.assert_called_once()
+
+
+class TestKeyRotationInterval:
+    """Test JWT key rotation interval (SOC 2 CF-07)."""
+
+    def test_key_rotation_interval_defined(self):
+        """Test KEY_ROTATION_INTERVAL_DAYS is defined."""
+        assert hasattr(JWTService, "KEY_ROTATION_INTERVAL_DAYS")
+        assert JWTService.KEY_ROTATION_INTERVAL_DAYS == 90
+
+    def test_check_key_age_method_exists(self):
+        """Test _check_key_age method exists."""
+        service = JWTService(AsyncMock(), AsyncMock())
+        assert hasattr(service, "_check_key_age")
+        assert callable(service._check_key_age)
+
+    async def test_check_key_age_no_key(self):
+        """Test _check_key_age handles no active key gracefully."""
+        db = AsyncMock()
+        db.fetchrow = AsyncMock(return_value=None)
+        service = JWTService(db, AsyncMock())
+        # Should not raise
+        await service._check_key_age()
+
+    async def test_check_key_age_fresh_key(self):
+        """Test _check_key_age does not rotate a fresh key."""
+        from datetime import datetime
+
+        db = AsyncMock()
+        db.fetchrow = AsyncMock(return_value={
+            "kid": "test-kid",
+            "created_at": datetime.utcnow(),
+        })
+        service = JWTService(db, AsyncMock())
+        with patch.object(service, "rotate_keys", new_callable=AsyncMock) as mock_rotate:
+            await service._check_key_age()
+            mock_rotate.assert_not_called()
+
+    async def test_check_key_age_old_key_triggers_rotation(self):
+        """Test _check_key_age triggers rotation for old keys."""
+        from datetime import datetime, timedelta
+
+        db = AsyncMock()
+        db.fetchrow = AsyncMock(return_value={
+            "kid": "old-kid",
+            "created_at": datetime.utcnow() - timedelta(days=100),
+        })
+        db.execute = AsyncMock()
+        service = JWTService(db, AsyncMock())
+        with patch.object(service, "rotate_keys", new_callable=AsyncMock) as mock_rotate:
+            await service._check_key_age()
+            mock_rotate.assert_called_once()
+
+
+class TestTokenClaimsRetrieval:
+    """Test token claims retrieval."""
+
+    @pytest.fixture
+    def mock_db(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def mock_redis(self):
+        redis = AsyncMock()
+        redis.get = AsyncMock(return_value=None)
+        redis.setex = AsyncMock()
+        return redis
+
+    @pytest.fixture
+    def jwt_service(self, mock_db, mock_redis):
+        return JWTService(mock_db, mock_redis)
 
     async def test_get_token_claims_not_found(self, jwt_service, mock_redis):
         """Test getting non-existent claims"""

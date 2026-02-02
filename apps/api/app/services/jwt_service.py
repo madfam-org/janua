@@ -51,12 +51,18 @@ class JWTService:
         """Get algorithm for testing compatibility"""
         return settings.JWT_ALGORITHM
 
+    # SOC 2 CF-07: Key rotation interval
+    KEY_ROTATION_INTERVAL_DAYS = 90
+
     async def initialize(self):
         """
         Initialize JWT service with keys
         """
         # Load or generate keys
         await self._load_or_generate_keys()
+
+        # SOC 2 CF-07: Check key age and rotate if needed
+        await self._check_key_age()
 
     async def _load_or_generate_keys(self):
         """
@@ -487,6 +493,45 @@ class JWTService:
 
         # Encode as base64url
         return base64.urlsafe_b64encode(num_bytes).decode("ascii").rstrip("=")
+
+    async def _check_key_age(self):
+        """
+        SOC 2 CF-07: Check if the current signing key exceeds the rotation interval.
+        If so, trigger automatic rotation at startup.
+        """
+        try:
+            key_data = await self.db.fetchrow(
+                """
+                SELECT kid, created_at
+                FROM jwk_keys
+                WHERE status = 'active'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            )
+            if not key_data:
+                return
+
+            key_age = datetime.utcnow() - key_data["created_at"]
+            age_days = key_age.days
+            if age_days >= self.KEY_ROTATION_INTERVAL_DAYS:
+                logger.warning(
+                    "JWT signing key exceeds rotation interval, rotating",
+                    kid=key_data["kid"],
+                    age_days=age_days,
+                    max_days=self.KEY_ROTATION_INTERVAL_DAYS,
+                )
+                await self.rotate_keys()
+                logger.info("Automatic key rotation completed (SOC 2 CF-07)")
+            else:
+                logger.info(
+                    "JWT key age within rotation interval",
+                    kid=key_data["kid"],
+                    age_days=age_days,
+                    max_days=self.KEY_ROTATION_INTERVAL_DAYS,
+                )
+        except Exception as e:
+            logger.error("Failed to check key age", error=str(e))
 
     async def rotate_keys(self):
         """

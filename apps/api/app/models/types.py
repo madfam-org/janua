@@ -87,6 +87,44 @@ class JSON(TypeDecorator):
         return value
 
 
+class EncryptedString(TypeDecorator):
+    """
+    SQLAlchemy type that transparently encrypts/decrypts field values at rest.
+
+    Uses Fernet encryption (AES-128-CBC + HMAC-SHA256).
+    Gracefully handles unencrypted legacy data on read.
+    If FIELD_ENCRYPTION_KEY is not configured (non-production), stores plaintext.
+    """
+
+    impl = Text
+    cache_ok = True
+
+    def __init__(self, length=None):
+        super().__init__()
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        try:
+            from app.core.encryption import FieldEncryptor
+
+            encryptor = FieldEncryptor.get_instance()
+            return encryptor.encrypt_field(str(value))
+        except Exception:
+            return str(value)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        try:
+            from app.core.encryption import FieldEncryptor
+
+            encryptor = FieldEncryptor.get_instance()
+            return encryptor.decrypt_field(value)
+        except Exception:
+            return value
+
+
 class InetAddress(TypeDecorator):
     """
     Platform-independent INET/IP address type.

@@ -23,6 +23,15 @@ def get_health_checker():
     return health_checker
 
 
+async def check_encryption_key_health():
+    """Health check: verify FIELD_ENCRYPTION_KEY is set in production (SOC 2 CF-09)."""
+    from app.config import settings
+
+    if settings.ENVIRONMENT == "production" and not settings.FIELD_ENCRYPTION_KEY:
+        return False
+    return True
+
+
 @router.get("")
 async def health_check():
     """Basic health check endpoint"""

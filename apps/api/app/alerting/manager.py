@@ -301,6 +301,59 @@ class AlertManager:
                 cooldown_period=300,
                 channels=[AlertChannel.EMAIL, AlertChannel.SLACK, AlertChannel.WEBHOOK],
             ),
+            # SOC 2 CF-10: Security alert rules
+            AlertRule(
+                rule_id="failed_login_spike",
+                name="Failed Login Spike",
+                description="High rate of failed login attempts detected — possible brute force attack",
+                severity=AlertSeverity.CRITICAL,
+                metric_name="failed_login_count",
+                threshold_value=10.0,
+                comparison_operator=">",
+                evaluation_window=300,  # 5 minutes
+                trigger_count=1,
+                cooldown_period=600,
+                channels=[AlertChannel.EMAIL, AlertChannel.SLACK, AlertChannel.WEBHOOK],
+            ),
+            AlertRule(
+                rule_id="privilege_escalation",
+                name="Privilege Escalation",
+                description="User role elevation detected — verify authorization",
+                severity=AlertSeverity.HIGH,
+                metric_name="privilege_escalation_count",
+                threshold_value=0.0,  # Any occurrence
+                comparison_operator=">",
+                evaluation_window=60,
+                trigger_count=1,
+                cooldown_period=300,
+                channels=[AlertChannel.EMAIL, AlertChannel.SLACK],
+            ),
+            AlertRule(
+                rule_id="unauthorized_access",
+                name="High Unauthorized Access Rate",
+                description="403 response rate exceeds threshold — possible unauthorized access pattern",
+                severity=AlertSeverity.HIGH,
+                metric_name="forbidden_rate",
+                threshold_value=0.02,  # 2%
+                comparison_operator=">",
+                evaluation_window=300,
+                trigger_count=2,
+                cooldown_period=600,
+                channels=[AlertChannel.EMAIL, AlertChannel.SLACK],
+            ),
+            AlertRule(
+                rule_id="backup_failure",
+                name="Backup Failure",
+                description="Database backup job failed — data recovery capability at risk",
+                severity=AlertSeverity.CRITICAL,
+                metric_name="backup_failure_count",
+                threshold_value=0.0,  # Any failure
+                comparison_operator=">",
+                evaluation_window=86400,  # 24 hours
+                trigger_count=1,
+                cooldown_period=3600,
+                channels=[AlertChannel.EMAIL, AlertChannel.SLACK, AlertChannel.WEBHOOK],
+            ),
         ]
 
         for rule in default_rules:
@@ -318,9 +371,27 @@ class AlertManager:
             for key in rule_keys:
                 rule_data = await self.redis_client.hgetall(key)
                 if rule_data:
-                    # Reconstruct rule object
-                    # Implementation would depend on serialization format
-                    pass
+                    try:
+                        rule = AlertRule(
+                            rule_id=rule_data["rule_id"],
+                            name=rule_data["name"],
+                            description=rule_data.get("description", ""),
+                            severity=AlertSeverity(rule_data["severity"]),
+                            metric_name=rule_data["metric_name"],
+                            threshold_value=float(rule_data["threshold_value"]),
+                            comparison_operator=rule_data["comparison_operator"],
+                            evaluation_window=int(rule_data["evaluation_window"]),
+                            trigger_count=int(rule_data.get("trigger_count", "1")),
+                            cooldown_period=int(rule_data.get("cooldown_period", "300")),
+                            channels=[
+                                AlertChannel(ch)
+                                for ch in json.loads(rule_data.get("channels", "[]"))
+                            ],
+                            enabled=rule_data.get("enabled", "1") == "1",
+                        )
+                        self.alert_rules[rule.rule_id] = rule
+                    except Exception as e:
+                        logger.warning("Failed to load persisted rule", key=key, error=str(e))
 
             # Load notification channels
             channels_pattern = "notification_channel:*"
@@ -328,9 +399,14 @@ class AlertManager:
             for key in channel_keys:
                 channel_data = await self.redis_client.hgetall(key)
                 if channel_data:
-                    # Reconstruct channel object
-                    # Implementation would depend on serialization format
+                    # Channel deserialization — structure depends on NotificationChannel model
                     pass
+
+            logger.info(
+                "Loaded persisted data",
+                rules_count=len(rule_keys),
+                channels_count=len(channel_keys),
+            )
 
         except Exception as e:
             logger.error("Failed to load persisted data", error=str(e))
@@ -341,10 +417,23 @@ class AlertManager:
 
         # Persist to Redis
         if self.redis_client:
-            # TODO: Implement Redis persistence for alert rules
-            # Key format: f"alert_rule:{rule.rule_id}"
-            # Store rule data - implementation depends on serialization needs
-            pass
+            rule_key = f"alert_rule:{rule.rule_id}"
+            rule_data = {
+                "rule_id": rule.rule_id,
+                "name": rule.name,
+                "description": rule.description,
+                "severity": rule.severity.value,
+                "metric_name": rule.metric_name,
+                "threshold_value": str(rule.threshold_value),
+                "comparison_operator": rule.comparison_operator,
+                "evaluation_window": str(rule.evaluation_window),
+                "trigger_count": str(rule.trigger_count),
+                "cooldown_period": str(rule.cooldown_period),
+                "channels": json.dumps([ch.value for ch in rule.channels]),
+                "enabled": "1" if rule.enabled else "0",
+            }
+            await self.redis_client.hset(rule_key, mapping=rule_data)
+            logger.info("Alert rule persisted to Redis", rule_id=rule.rule_id)
 
     async def add_notification_channel(self, channel: NotificationChannel):
         """Add new notification channel"""

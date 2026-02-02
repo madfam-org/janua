@@ -20,6 +20,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.services.account_lockout_service import AccountLockoutService
 from app.services.auth_service import AuthService
+from app.services.audit_logger import AuditEventType, AuditLogger
 from app.services.email import EmailService
 
 from ...models import ActivityLog, EmailVerification, MagicLink, PasswordReset, User, UserStatus
@@ -141,6 +142,40 @@ async def log_activity(
     await db.commit()
 
 
+# SOC 2 CF-08: Audit event type mapping for auth actions
+_AUDIT_EVENT_MAP = {
+    "signup": AuditEventType.AUTH_SIGNUP,
+    "signin": AuditEventType.AUTH_SIGNIN,
+    "signout": AuditEventType.AUTH_SIGNOUT,
+    "password_change": AuditEventType.AUTH_PASSWORD_CHANGE,
+    "password_reset": AuditEventType.AUTH_PASSWORD_RESET,
+    "email_verified": AuditEventType.USER_UPDATE,
+}
+
+
+async def log_audit_event(
+    db: Session, user_id: str, action: str, details: Dict = None, request: Request = None
+):
+    """Log to SOC 2 audit trail (CF-08) alongside activity log."""
+    event_type = _AUDIT_EVENT_MAP.get(action)
+    if not event_type:
+        return
+    try:
+        audit_logger = AuditLogger(db)
+        await audit_logger.log(
+            event_type=event_type,
+            tenant_id="default",
+            identity_id=user_id,
+            details=details or {},
+            ip_address=request.client.host if request and request.client else None,
+            user_agent=request.headers.get("user-agent") if request else None,
+            severity="info",
+        )
+    except Exception:
+        # Audit logging failure should not break auth flow
+        pass
+
+
 # Authentication endpoints
 @router.post("/signup", response_model=SignInResponse)
 @limiter.limit("3/minute")  # Strict rate limiting for signup
@@ -192,6 +227,7 @@ async def sign_up(
 
     # Log activity
     await log_activity(db, str(user.id), "signup", {"method": "email"}, request)
+    await log_audit_event(db, str(user.id), "signup", {"method": "email"}, request)
 
     # Send verification email in background
     if settings.EMAIL_ENABLED:
@@ -289,6 +325,7 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
 
     # Log activity
     await log_activity(db, str(user.id), "signin", {"method": "password"}, request)
+    await log_audit_event(db, str(user.id), "signin", {"method": "password"}, request)
 
     return SignInResponse(
         user=UserResponse(
@@ -799,6 +836,7 @@ async def sign_out(
 
     # Log activity
     await log_activity(db, str(current_user.id), "signout", {})
+    await log_audit_event(db, str(current_user.id), "signout", {})
 
     return {"message": "Successfully signed out"}
 
@@ -884,6 +922,7 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
 
     # Log activity
     await log_activity(db, str(user.id), "password_reset", {})
+    await log_audit_event(db, str(user.id), "password_reset", {})
 
     return {"message": "Password successfully reset"}
 
@@ -910,6 +949,7 @@ async def change_password(
 
     # Log activity
     await log_activity(db, str(current_user.id), "password_change", {})
+    await log_audit_event(db, str(current_user.id), "password_change", {})
 
     return {"message": "Password successfully changed"}
 
@@ -950,6 +990,7 @@ async def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db
 
     # Log activity
     await log_activity(db, str(user.id), "email_verified", {})
+    await log_audit_event(db, str(user.id), "email_verified", {})
 
     return {"message": "Email successfully verified"}
 

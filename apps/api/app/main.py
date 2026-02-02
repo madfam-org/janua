@@ -1106,6 +1106,11 @@ async def startup_event():
         # Inject health checker into health router
         health_v1.health_checker = health_checker
 
+        # SOC 2 CF-09: Register encryption key health check
+        health_checker.register_check(
+            "encryption_key", health_v1.check_encryption_key_health, critical=False
+        )
+
         # Initialize enterprise scalability features
         await initialize_scalability_features()
         logger.info("Enterprise scalability features initialized")

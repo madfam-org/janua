@@ -229,7 +229,19 @@ class AuditLogger:
         return event_id
 
     async def _store_entry(self, entry: Dict[str, Any]) -> None:
-        """Store audit entry in database"""
+        """Store audit entry in database, optionally encrypting details (CF-11)."""
+
+        details = entry.get("details", {})
+
+        # SOC 2 CF-11: Encrypt audit log details payload if configured
+        if settings.AUDIT_LOG_ENCRYPTION and getattr(settings, "FIELD_ENCRYPTION_KEY", None):
+            try:
+                from app.core.encryption import FieldEncryptor
+
+                encryptor = FieldEncryptor.get_instance()
+                details = encryptor.encrypt_field(json.dumps(details))
+            except Exception as e:
+                logger.warning(f"Failed to encrypt audit details, storing plaintext: {e}")
 
         audit_log = AuditLog(
             id=entry["event_id"],
@@ -238,7 +250,7 @@ class AuditLogger:
             user_id=entry.get("identity_id"),
             resource_type=entry.get("resource_type"),
             resource_id=entry.get("resource_id"),
-            details=entry.get("details", {}),
+            details=details,
             ip_address=entry.get("ip_address"),
             user_agent=entry.get("user_agent"),
             current_hash=entry["hash"],

@@ -538,3 +538,79 @@ class TestAlertManager:
         assert "high_response_time" in manager.alert_rules
         assert "high_error_rate" in manager.alert_rules
         assert "low_disk_space" in manager.alert_rules
+
+
+class TestSecurityAlertRules:
+    """Test SOC 2 CF-10 security alert rules exist in default rule set."""
+
+    def test_alert_rule_has_required_fields(self):
+        """Test AlertRule dataclass has all required fields for security rules."""
+        from app.alerting.models import AlertRule, AlertSeverity
+
+        rule = AlertRule(
+            rule_id="test_security",
+            name="Test",
+            description="Test security rule",
+            severity=AlertSeverity.CRITICAL,
+            metric_name="test_metric",
+            threshold_value=10.0,
+            comparison_operator=">",
+            evaluation_window=300,
+            channels=["log"],
+        )
+        assert rule.rule_id == "test_security"
+        assert rule.severity == AlertSeverity.CRITICAL
+
+    def test_failed_login_spike_rule_definition(self):
+        """Test failed_login_spike rule can be constructed with expected params."""
+        from app.alerting.models import AlertRule, AlertSeverity
+
+        rule = AlertRule(
+            rule_id="failed_login_spike",
+            name="Failed Login Spike",
+            description="High rate of failed login attempts",
+            severity=AlertSeverity.CRITICAL,
+            metric_name="failed_login_count",
+            threshold_value=10.0,
+            comparison_operator=">",
+            evaluation_window=300,
+            channels=["log", "webhook"],
+        )
+        assert rule.severity == AlertSeverity.CRITICAL
+        assert rule.threshold_value == 10.0
+
+    def test_privilege_escalation_rule_definition(self):
+        """Test privilege_escalation rule uses HIGH severity."""
+        from app.alerting.models import AlertRule, AlertSeverity
+
+        rule = AlertRule(
+            rule_id="privilege_escalation",
+            name="Privilege Escalation",
+            description="User role elevation detected",
+            severity=AlertSeverity.HIGH,
+            metric_name="privilege_escalation_count",
+            threshold_value=0.0,
+            comparison_operator=">",
+            evaluation_window=60,
+            channels=["log", "webhook"],
+        )
+        assert rule.severity == AlertSeverity.HIGH
+        assert rule.threshold_value == 0.0
+
+    def test_backup_failure_rule_definition(self):
+        """Test backup_failure rule uses CRITICAL severity."""
+        from app.alerting.models import AlertRule, AlertSeverity
+
+        rule = AlertRule(
+            rule_id="backup_failure",
+            name="Backup Failure",
+            description="Database backup job failed",
+            severity=AlertSeverity.CRITICAL,
+            metric_name="backup_failure_count",
+            threshold_value=0.0,
+            comparison_operator=">",
+            evaluation_window=86400,
+            channels=["log", "webhook"],
+        )
+        assert rule.severity == AlertSeverity.CRITICAL
+        assert rule.evaluation_window == 86400

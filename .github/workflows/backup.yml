@@ -28,11 +28,9 @@ jobs:
         run: |
           echo "Checking backup configuration..."
           echo "configured=${{ secrets.DB_HOST != '' && secrets.DB_NAME != '' }}" >> $GITHUB_OUTPUT
-        continue-on-error: true
-      
+
       - name: Setup AWS CLI
         uses: aws-actions/configure-aws-credentials@v4
-        continue-on-error: true
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -42,7 +40,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y postgresql-client
-        continue-on-error: true
 
       - name: Run backup script
         env:
@@ -55,18 +52,18 @@ jobs:
           ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
           METRICS_ENDPOINT: ${{ secrets.METRICS_ENDPOINT }}
-          VERIFY_RESTORE: false
+          VERIFY_RESTORE: true
         run: |
           if [ -z "$DB_HOST" ]; then
-            echo "⚠️ Database backup not configured (DB_HOST not set) - skipping"
-            exit 0
+            echo "❌ Database backup not configured (DB_HOST not set)"
+            exit 1
           fi
           if [ -f scripts/backup-database.sh ]; then
             bash scripts/backup-database.sh
           else
-            echo "⚠️ Backup script not found - skipping"
+            echo "❌ Backup script not found"
+            exit 1
           fi
-        continue-on-error: true
 
       - name: Notify on failure
         if: failure()

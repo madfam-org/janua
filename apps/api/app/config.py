@@ -98,8 +98,15 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
     ALGORITHM: str = Field(default="RS256")
 
+    # Field-level encryption (SOC 2 CF-01)
+    FIELD_ENCRYPTION_KEY: Optional[str] = Field(
+        default=None,
+        description="Fernet encryption key for sensitive fields at rest. "
+        "Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'",
+    )
+
     # Security
-    SECRET_KEY: str = Field(default="development-secret-key-change-in-production")
+    SECRET_KEY: Optional[str] = Field(default="development-secret-key-change-in-production")
     BCRYPT_ROUNDS: int = Field(default=12)
 
     # Cookie Configuration (for cross-subdomain SSO)
@@ -558,6 +565,21 @@ class Settings(BaseSettings):
         otherwise falls back to public BASE_URL
         """
         return self.INTERNAL_BASE_URL or self.BASE_URL
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        """Enforce that critical secrets are set in production."""
+        if self.ENVIRONMENT == "production":
+            if not self.FIELD_ENCRYPTION_KEY:
+                raise ValueError(
+                    "FIELD_ENCRYPTION_KEY must be set in production for SOC 2 compliance. "
+                    "Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+                )
+            if not self.SECRET_KEY or self.SECRET_KEY == "development-secret-key-change-in-production":
+                raise ValueError(
+                    "SECRET_KEY must be set to a strong, unique value in production."
+                )
+        return self
 
     @model_validator(mode="after")
     def compute_jwt_issuer_from_custom_domain(self) -> "Settings":

@@ -247,6 +247,10 @@ JWT_PUBLIC_KEY_PATH=./keys/public.pem
 ACCESS_TOKEN_EXPIRE_MINUTES=15       # Default: 15min
 REFRESH_TOKEN_EXPIRE_DAYS=7          # Default: 7 days
 
+# Field Encryption (required in production — SOC 2 CF-01)
+# Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+FIELD_ENCRYPTION_KEY=your-fernet-base64-key
+
 # Admin Bootstrap (optional - creates admin@madfam.io on first run)
 ADMIN_BOOTSTRAP_PASSWORD=your-secure-password
 

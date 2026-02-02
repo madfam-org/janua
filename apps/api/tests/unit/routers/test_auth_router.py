@@ -843,3 +843,35 @@ class TestActivityLoggingStructure:
         for action in valid_actions:
             assert action == action.lower()
             assert isinstance(action, str)
+
+
+class TestAuditEventMap:
+    """Test SOC 2 CF-08 audit logger integration in auth router."""
+
+    def test_audit_event_map_exists(self):
+        """Test _AUDIT_EVENT_MAP is defined in auth router."""
+        from app.routers.v1.auth import _AUDIT_EVENT_MAP
+
+        assert isinstance(_AUDIT_EVENT_MAP, dict)
+
+    def test_audit_event_map_covers_all_actions(self):
+        """Test _AUDIT_EVENT_MAP covers all auth actions."""
+        from app.routers.v1.auth import _AUDIT_EVENT_MAP
+
+        expected_actions = ["signup", "signin", "signout", "password_change", "password_reset", "email_verified"]
+        for action in expected_actions:
+            assert action in _AUDIT_EVENT_MAP, f"Missing audit event mapping for '{action}'"
+
+    def test_audit_event_map_values_are_enum(self):
+        """Test _AUDIT_EVENT_MAP values are AuditEventType enums."""
+        from app.routers.v1.auth import _AUDIT_EVENT_MAP
+
+        for action, event_type in _AUDIT_EVENT_MAP.items():
+            assert hasattr(event_type, "value"), f"{action} maps to non-enum value"
+
+    def test_log_audit_event_function_exists(self):
+        """Test log_audit_event function is importable."""
+        from app.routers.v1.auth import log_audit_event
+        import asyncio
+
+        assert asyncio.iscoroutinefunction(log_audit_event)

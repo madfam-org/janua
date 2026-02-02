@@ -113,7 +113,7 @@ else
 fi
 
 # Verify backup if requested
-if [ "${VERIFY_RESTORE:-false}" = "true" ]; then
+if [ "${VERIFY_RESTORE:-true}" = "true" ]; then
     log_info "Verifying backup integrity..."
     pg_restore --list "${BACKUP_DIR}/${BACKUP_FILE}" > /dev/null
     log_info "Backup verification passed"
