@@ -21,7 +21,7 @@ jobs:
     name: Backup Database
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Check if backup is configured
         id: check-config
