@@ -216,7 +216,7 @@ jobs:
         env:
           DATABASE_URL: postgresql://test:test@postgres:5432/test
           REDIS_URL: redis://redis:6379
-          ENVIRONMENT: test
+          ENVIRONMENT: staging
           SECRET_KEY: zap-testing-secret-key-not-for-production-use
         options: >-
           --health-cmd "curl -f http://localhost:8080/health || exit 1"
