@@ -29,7 +29,7 @@
     "@tanstack/react-table": "^8.11.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
-    "date-fns": "^3.0.0",
+    "date-fns": "^4.1.0",
     "lucide-react": "^0.303.0",
     "next": "15.2.4",
     "react": "18.3.1",
