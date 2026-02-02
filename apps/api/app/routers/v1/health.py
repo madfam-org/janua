@@ -32,6 +32,14 @@ async def check_encryption_key_health():
     return True
 
 
+async def check_kms_health() -> bool:
+    """Health check: verify KMS/secrets provider is accessible (SOC 2 CF-06)."""
+    from app.core.secrets_provider import get_secrets_provider
+
+    provider = get_secrets_provider()
+    return await provider.health_check()
+
+
 @router.get("")
 async def health_check():
     """Basic health check endpoint"""
@@ -46,7 +54,19 @@ async def health_check():
 @router.get("/detailed")
 async def detailed_health_check(checker=Depends(get_health_checker)) -> Dict[str, Any]:
     """Detailed health check with all registered checks"""
-    return await checker.check_health()
+    result = await checker.check_health()
+
+    # Add KMS health check
+    from app.core.secrets_provider import get_secrets_provider
+
+    provider = get_secrets_provider()
+    kms_healthy = await provider.health_check()
+    result.setdefault("checks", {})["kms"] = {
+        "status": "healthy" if kms_healthy else "unhealthy",
+        "provider": provider.provider_name,
+    }
+
+    return result
 
 
 @router.get("/ready")

@@ -6,11 +6,12 @@ Ensures proper module structure for Railway deployment and dependency injection
 
 from typing import Optional
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, Header, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.redis import ResilientRedisClient, get_redis
 from app.database import get_db
 
@@ -146,6 +147,24 @@ async def get_sso_service(db: AsyncSession = Depends(get_db)):
     from app.services.sso_service import SSOService
 
     return SSOService(db)
+
+
+# ============================================================================
+# Internal Service-to-Service Authentication
+# ============================================================================
+
+
+async def verify_internal_api_key(
+    x_internal_api_key: str = Header(..., alias="X-Internal-API-Key"),
+) -> bool:
+    """Verify internal API key for service-to-service communication."""
+    if not settings.INTERNAL_API_KEY:
+        raise HTTPException(
+            status_code=503, detail="Internal API not configured"
+        )
+    if x_internal_api_key != settings.INTERNAL_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return True
 
 
 # ============================================================================

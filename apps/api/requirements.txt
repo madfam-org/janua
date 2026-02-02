@@ -67,6 +67,9 @@ locust>=2.32.0  # Updated
 # Phone Number Validation
 phonenumbers>=8.13.51  # Updated
 
+# KMS / Secrets Management (optional - SOC 2 CF-06)
+hvac>=2.1.0  # HashiCorp Vault client (import guarded, optional dependency)
+
 # Utilities
 bleach>=6.2.0  # Updated for security
 structlog>=24.4.0  # Updated

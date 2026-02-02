@@ -31,10 +31,22 @@ spec:
         prometheus.io/port: "8000"
         prometheus.io/path: "/metrics"
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       imagePullSecrets:
         - name: ghcr-credentials
       containers:
         - name: janua-api
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
           image: ghcr.io/madfam-org/janua-api:latest
           imagePullPolicy: Always
           ports:
@@ -73,6 +85,11 @@ spec:
                 secretKeyRef:
                   name: janua-secrets
                   key: secret-key
+            - name: FIELD_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: janua-secrets
+                  key: field-encryption-key
             # Configuration
             - name: PORT
               value: "8080"

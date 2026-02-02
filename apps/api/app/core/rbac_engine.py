@@ -382,6 +382,41 @@ class PermissionManager:
         return decorator
 
 
+# Subscription tier definitions (synced from Dhanam)
+# These are PARALLEL to org roles — a user is "admin" AND "pro_tier" simultaneously.
+# Org role = what they can do. Tier = what features/limits the org has access to.
+# Stored on Organization.subscription_tier, not as a user-level role.
+TIER_ROLES = {
+    "free_tier": {
+        "features": ["basic_auth", "email_password"],
+        "mau_limit": 2000,
+    },
+    "pro_tier": {
+        "features": ["basic_auth", "email_password", "sso", "mfa", "webhooks", "custom_roles"],
+        "mau_limit": 10000,
+    },
+    "scale_tier": {
+        "features": [
+            "basic_auth",
+            "email_password",
+            "sso",
+            "mfa",
+            "webhooks",
+            "custom_roles",
+            "scim",
+            "audit_log",
+        ],
+        "mau_limit": 50000,
+    },
+    "enterprise_tier": {
+        "features": ["*"],
+        "mau_limit": None,
+    },
+}
+
+VALID_TIERS = set(TIER_ROLES.keys())
+
+
 class DefaultRoles:
     """Default system roles and their permissions"""
 

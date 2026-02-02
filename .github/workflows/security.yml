@@ -176,44 +176,68 @@ jobs:
           sarif_file: 'trivy-results.sarif'
 
   # Dynamic Application Security Testing (DAST)
-  # NOTE: Disabled until API Docker image is published to container registry
-  # Requires: janua/api:latest image available in Docker Hub or GHCR
-  # Re-enable when API is deployed and image publishing is configured
-  # dast-zap:
-  #   name: OWASP ZAP Scan
-  #   runs-on: ubuntu-latest
-  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-  #
-  #   services:
-  #     api:
-  #       image: janua/api:latest
-  #       ports:
-  #         - 8000:8000
-  #       env:
-  #         DATABASE_URL: postgresql://test:test@postgres:5432/test
-  #         REDIS_URL: redis://redis:6379
-  #       options: >-
-  #         --health-cmd "curl -f http://localhost:8000/health || exit 1"
-  #         --health-interval 10s
-  #         --health-timeout 5s
-  #         --health-retries 5
-  #
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #
-  #     - name: ZAP Baseline Scan
-  #       uses: zaproxy/action-baseline@v0.10.0
-  #       with:
-  #         target: 'http://localhost:8000'
-  #         rules_file_name: '.zap/rules.tsv'
-  #         cmd_options: '-a'
-  #
-  #     - name: ZAP API Scan
-  #       uses: zaproxy/action-api-scan@v0.6.0
-  #       with:
-  #         target: 'http://localhost:8000/openapi.json'
-  #         format: openapi
-  #         rules_file_name: '.zap/rules.tsv'
+  dast-zap:
+    name: OWASP ZAP Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    services:
+      postgres:
+        image: postgres:15
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      api:
+        image: ghcr.io/madfam-org/janua-api:latest
+        credentials:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+        ports:
+          - 8080:8080
+        env:
+          DATABASE_URL: postgresql://test:test@postgres:5432/test
+          REDIS_URL: redis://redis:6379
+          ENVIRONMENT: test
+          SECRET_KEY: zap-testing-secret-key-not-for-production-use
+        options: >-
+          --health-cmd "curl -f http://localhost:8080/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.10.0
+        with:
+          target: 'http://localhost:8080'
+          cmd_options: '-a'
+
+      - name: ZAP API Scan
+        uses: zaproxy/action-api-scan@v0.6.0
+        with:
+          target: 'http://localhost:8080/docs/openapi.json'
+          format: openapi
 
   # Security Dashboard
   security-summary:
@@ -223,7 +247,7 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
-    needs: [sast-codeql, python-security, javascript-security, secrets-scan, container-scan]
+    needs: [sast-codeql, python-security, javascript-security, secrets-scan, container-scan, dast-zap]
     if: always()
 
     steps:
@@ -245,6 +269,7 @@ jobs:
           echo "- JavaScript Security: ${{ needs.javascript-security.result }}" >> security-summary.md
           echo "- Secrets Scan: ${{ needs.secrets-scan.result }}" >> security-summary.md
           echo "- Container Scan: ${{ needs.container-scan.result }}" >> security-summary.md
+          echo "- DAST ZAP: ${{ needs.dast-zap.result }}" >> security-summary.md
 
       - name: Upload Security Summary
         uses: actions/upload-artifact@v6

@@ -48,7 +48,8 @@ COPY . /app
 RUN chmod +x /app/entrypoint.sh
 
 # Create non-root user and set ownership
-RUN useradd -m -u 1001 janua && \
+RUN groupadd -g 1000 janua && \
+    useradd -m -u 1000 -g 1000 janua && \
     chown -R janua:janua /app
 
 USER janua

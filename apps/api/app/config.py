@@ -17,6 +17,17 @@ class Settings(BaseSettings):
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False
     )
 
+    # KMS / Vault Configuration (SOC 2 CF-06)
+    VAULT_ADDR: Optional[str] = Field(
+        default=None, description="HashiCorp Vault address (e.g., https://vault:8200)"
+    )
+    VAULT_TOKEN: Optional[str] = Field(
+        default=None, description="HashiCorp Vault authentication token"
+    )
+    VAULT_SECRET_PATH: Optional[str] = Field(
+        default="secret/data/janua", description="Vault KV v2 secret path"
+    )
+
     # Application
     VERSION: str = "0.1.0"
     APP_NAME: str = Field(default="Janua")
@@ -579,6 +590,51 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "SECRET_KEY must be set to a strong, unique value in production."
                 )
+        return self
+
+    @model_validator(mode="after")
+    def load_secrets_from_kms(self) -> "Settings":
+        """Load secrets from KMS provider when configured (SOC 2 CF-06).
+        Falls back to env vars (current behavior) when Vault is not configured."""
+        if not self.VAULT_ADDR or not self.VAULT_TOKEN:
+            return self
+
+        import asyncio
+
+        from app.core.secrets_provider import create_secrets_provider, reset_secrets_provider
+
+        reset_secrets_provider()
+        provider = create_secrets_provider()
+
+        # Fields that can be overridden from Vault
+        secret_fields = [
+            "FIELD_ENCRYPTION_KEY", "JWT_PRIVATE_KEY", "JWT_SECRET_KEY", "SECRET_KEY",
+            "INTERNAL_API_KEY", "RESEND_API_KEY", "SENDGRID_API_KEY",
+            "OAUTH_GOOGLE_CLIENT_SECRET", "OAUTH_GITHUB_CLIENT_SECRET",
+            "OAUTH_MICROSOFT_CLIENT_SECRET", "OAUTH_APPLE_PRIVATE_KEY",
+            "OAUTH_DISCORD_CLIENT_SECRET", "OAUTH_TWITTER_CLIENT_SECRET",
+            "OAUTH_LINKEDIN_CLIENT_SECRET", "OAUTH_SLACK_CLIENT_SECRET",
+            "CONEKTA_WEBHOOK_SECRET", "STRIPE_WEBHOOK_SECRET", "DHANAM_WEBHOOK_SECRET",
+            "CLOUDFLARE_TURNSTILE_SECRET", "CLOUDFLARE_R2_SECRET_KEY", "R2_SECRET_ACCESS_KEY",
+            "MONITORING_API_KEY", "SMTP_PASSWORD",
+        ]
+
+        async def _load():
+            for field in secret_fields:
+                value = await provider.get_secret(field)
+                if value is not None:
+                    object.__setattr__(self, field, value)
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If already in async context, skip (will be loaded lazily)
+                pass
+            else:
+                loop.run_until_complete(_load())
+        except RuntimeError:
+            asyncio.run(_load())
+
         return self
 
     @model_validator(mode="after")

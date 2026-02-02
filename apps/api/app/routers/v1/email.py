@@ -6,17 +6,18 @@ Centralized email service for all MADFAM applications via Resend
 from typing import Any, Dict, List, Optional
 
 import structlog
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 
 from app.config import settings
+from app.dependencies import verify_internal_api_key
 from app.services.resend_email_service import ResendEmailService as ResendService
 
 logger = structlog.get_logger()
 
 router = APIRouter(prefix="/email", tags=["email"])
 
-# Internal API key for service-to-service communication
+# Internal API key reference kept for health check endpoint
 INTERNAL_API_KEY = settings.INTERNAL_API_KEY
 
 
@@ -209,24 +210,6 @@ TEMPLATE_FILENAMES: Dict[str, str] = {
     "invitation/creator-invite": "invitation_creator-invite.html",
     "onboarding/complete": "onboarding_complete.html",
 }
-
-
-# ==========================================
-# Authentication
-# ==========================================
-
-
-async def verify_internal_api_key(
-    x_internal_api_key: str = Header(..., alias="X-Internal-API-Key"),
-) -> bool:
-    """Verify internal API key for service-to-service communication."""
-    if not INTERNAL_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Email service not configured"
-        )
-    if x_internal_api_key != INTERNAL_API_KEY:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
-    return True
 
 
 # ==========================================

@@ -1035,6 +1035,15 @@ try:
 except Exception as e:
     logger.warning(f"Email router not available: {e}")
 
+# Internal role/tier sync router (Dhanam → Janua hub-and-spoke)
+try:
+    from app.routers.internal import roles as internal_roles
+
+    app.include_router(internal_roles.router, prefix="/internal")
+    logger.info("Registered internal roles router successfully")
+except Exception as e:
+    logger.warning(f"Internal roles router not available: {e}")
+
 # Register additional feature routers if available
 for router_name, router_module in additional_routers.items():
     try:

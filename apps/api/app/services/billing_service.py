@@ -487,6 +487,7 @@ class BillingService:
         else:  # stripe fallback
             # Stripe subscription creation would go here
             logger.info("Using Stripe fallback for subscription creation")
+            # DEPRECATED: Billing moved to Dhanam — Stripe subscription creation will not be implemented here.
             raise NotImplementedError("Stripe subscription creation not yet implemented")
 
     def get_pricing_for_country(self, country: str) -> Dict[str, Any]:

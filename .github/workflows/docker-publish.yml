@@ -23,8 +23,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: madfam-bot
+          password: ${{ secrets.MADFAM_BOT_PAT }}
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
@@ -74,7 +74,7 @@ jobs:
           # NOTE: If using private GHCR packages, create a PAT at:
           # https://github.com/settings/tokens/new?scopes=read:packages
           # Then add as GHCR_PAT repository secret
-          GHCR_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
+          GHCR_TOKEN: ${{ secrets.MADFAM_BOT_PAT }}
         run: |
           # Create docker-registry secret for pulling images
           # Uses GHCR_PAT if available (recommended), otherwise GITHUB_TOKEN
@@ -82,7 +82,7 @@ jobs:
           kubectl create secret docker-registry ghcr-credentials \
             --namespace=janua \
             --docker-server=ghcr.io \
-            --docker-username=${{ github.actor }} \
+            --docker-username=madfam-bot \
             --docker-password=$GHCR_TOKEN \
             --docker-email=ci@janua.dev
           echo "✅ GHCR credentials updated in K8s"
@@ -137,6 +137,25 @@ jobs:
 
           # 6. Wait for rollout with increased timeout
           kubectl rollout status deployment/janua-api -n janua --timeout=300s
+
+      - name: Deployment failure diagnostics
+        if: failure()
+        run: |
+          echo "=== Deployment Description ==="
+          kubectl describe deployment janua-api -n janua
+          echo "=== ReplicaSets ==="
+          kubectl get rs -n janua -l app=janua-api
+          echo "=== Recent Events ==="
+          kubectl get events -n janua --sort-by='.lastTimestamp' | tail -30
+          echo "=== Pod Status ==="
+          kubectl get pods -n janua -l app=janua-api -o wide
+          echo "=== Pod Descriptions ==="
+          for pod in $(kubectl get pods -n janua -l app=janua-api --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
+            echo "--- $pod ---"
+            kubectl describe pod "$pod" -n janua | tail -30
+          done
+          echo "=== Admission Webhooks ==="
+          kubectl get mutatingwebhookconfigurations,validatingwebhookconfigurations -o name
 
       - name: Verify deployment
         run: |
