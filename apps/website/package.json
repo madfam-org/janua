@@ -25,7 +25,7 @@
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-navigation-menu": "^1.1.4",
     "@radix-ui/react-tabs": "^1.0.4",
-    "@react-three/drei": "^9.92.0",
+    "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^8.15.0",
     "@vercel/analytics": "^1.1.0",
     "class-variance-authority": "^0.7.0",
