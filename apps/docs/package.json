@@ -20,7 +20,7 @@
     "@mdx-js/loader": "^3.0.0",
     "@mdx-js/react": "^3.0.0",
     "@next/mdx": "^14.0.0",
-    "algoliasearch": "^4.20.0",
+    "algoliasearch": "^5.47.0",
     "clsx": "^2.0.0",
     "framer-motion": "^12.29.0",
     "gray-matter": "^4.0.3",
