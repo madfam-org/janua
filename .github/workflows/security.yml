@@ -212,14 +212,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
         ports:
-          - 8080:8080
+          - 8080:4100
         env:
           DATABASE_URL: postgresql://test:test@postgres:5432/test
           REDIS_URL: redis://redis:6379
           ENVIRONMENT: staging
           SECRET_KEY: zap-testing-secret-key-not-for-production-use
         options: >-
-          --health-cmd "curl -f http://localhost:8080/health || exit 1"
+          --health-cmd "curl -f http://localhost:4100/health || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
