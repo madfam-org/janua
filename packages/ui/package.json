@@ -63,7 +63,7 @@
   },
   "devDependencies": {
     "@asamuzakjp/css-color": "^4.1.1",
-    "@csstools/css-syntax-patches-for-csstree": "^1.0.25",
+    "@csstools/css-syntax-patches-for-csstree": "^1.0.26",
     "@storybook/addon-essentials": "^8.6.14",
     "@storybook/addon-interactions": "^8.6.14",
     "@storybook/addon-links": "^8.6.14",
