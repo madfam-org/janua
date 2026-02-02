@@ -151,7 +151,7 @@ jobs:
           MINIMUM_ORANGE: 50
 
       - name: Archive coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: api-coverage-report
           path: apps/api/htmlcov/
@@ -253,7 +253,7 @@ jobs:
         run: pnpm exec playwright test
 
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: playwright-report

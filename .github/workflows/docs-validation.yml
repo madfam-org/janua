@@ -65,7 +65,7 @@ jobs:
 
       - name: Upload validation report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: docs-validation-report
           path: docs-validation-report.json
@@ -182,7 +182,7 @@ jobs:
           fail: false
 
       - name: Upload link check results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: link-check-results
