@@ -219,6 +219,10 @@ jobs:
   security-summary:
     name: Security Summary
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     needs: [sast-codeql, python-security, javascript-security, secrets-scan, container-scan]
     if: always()
 

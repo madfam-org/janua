@@ -33,7 +33,7 @@ fi
 # 2. Check for console.log in production code
 echo ""
 echo "🖨️  Checking for console statements in production code..."
-CONSOLE_COUNT=$(grep -r "console\.log\|console\.debug" apps packages --include="*.ts" --include="*.tsx" --include="*.js" --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.next 2>/dev/null | grep -v "\.test\." | grep -v "\.spec\." | grep -v "showcase" | grep -v "demo" | wc -l | tr -d ' ')
+CONSOLE_COUNT=$(grep -r "console\.log\|console\.debug" apps packages --include="*.ts" --include="*.tsx" --include="*.js" --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.next --exclude-dir=scripts 2>/dev/null | grep -v "\.test\." | grep -v "\.spec\." | grep -v "\.stories\." | grep -v "showcase" | grep -v "demo" | wc -l | tr -d ' ')
 
 if [ "$CONSOLE_COUNT" -gt 100 ]; then
     echo -e "${RED}❌ Found $CONSOLE_COUNT console statements in production code (threshold: 100)${NC}"
