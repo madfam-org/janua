@@ -372,7 +372,7 @@ class AuditLogger:
             sort_keys=True,
         )
 
-        return hashlib.sha256(hash_input.encode()).hexdigest()
+        return hashlib.sha256(hash_input.encode()).hexdigest()  # CodeQL[py/weak-sensitive-data-hashing] - SHA-256 used for audit log hash chain integrity, not password hashing
 
     async def verify_integrity(
         self,

@@ -26,18 +26,18 @@ class SecretsProvider(ABC):
     @abstractmethod
     async def get_secret(self, key: str) -> Optional[str]:
         """Retrieve a secret by key."""
-        ...
+        pass
 
     @abstractmethod
     async def health_check(self) -> bool:
         """Check if the secrets provider is healthy."""
-        ...
+        pass
 
     @property
     @abstractmethod
     def provider_name(self) -> str:
         """Return the provider name for health check reporting."""
-        ...
+        pass
 
 
 class EnvSecretsProvider(SecretsProvider):
