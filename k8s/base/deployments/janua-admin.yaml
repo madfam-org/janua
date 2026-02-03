@@ -36,7 +36,7 @@ spec:
             capabilities:
               drop:
                 - ALL
-          image: ghcr.io/madfam-org/janua-admin:latest
+          image: ghcr.io/madfam-org/janua-admin:main
           imagePullPolicy: Always
           ports:
             - containerPort: 4102

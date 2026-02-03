@@ -49,7 +49,7 @@ spec:
             capabilities:
               drop:
                 - ALL
-          image: ghcr.io/madfam-org/janua-api:latest
+          image: ghcr.io/madfam-org/janua-api:main
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
