@@ -154,6 +154,13 @@ jobs:
             echo "--- $pod ---"
             kubectl describe pod "$pod" -n janua | tail -30
           done
+          echo "=== Pod Logs ==="
+          for pod in $(kubectl get pods -n janua -l app=janua-api --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
+            echo "--- $pod logs ---"
+            kubectl logs "$pod" -n janua --tail=50 2>/dev/null || echo "No logs available"
+            echo "--- $pod previous logs ---"
+            kubectl logs "$pod" -n janua --previous --tail=30 2>/dev/null || echo "No previous logs"
+          done
           echo "=== Admission Webhooks ==="
           kubectl get mutatingwebhookconfigurations,validatingwebhookconfigurations -o name
 
