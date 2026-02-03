@@ -68,7 +68,7 @@ jobs:
           file: ./Dockerfile.api
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}-api:latest
+            ${{ env.IMAGE_PREFIX }}-api:main
             ${{ env.IMAGE_PREFIX }}-api:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -101,7 +101,7 @@ jobs:
           file: ./Dockerfile.dashboard
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}-dashboard:latest
+            ${{ env.IMAGE_PREFIX }}-dashboard:main
             ${{ env.IMAGE_PREFIX }}-dashboard:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -137,7 +137,7 @@ jobs:
           file: ./Dockerfile.website
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}-website:latest
+            ${{ env.IMAGE_PREFIX }}-website:main
             ${{ env.IMAGE_PREFIX }}-website:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -173,7 +173,7 @@ jobs:
           file: ./Dockerfile.docs
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}-docs:latest
+            ${{ env.IMAGE_PREFIX }}-docs:main
             ${{ env.IMAGE_PREFIX }}-docs:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -206,7 +206,7 @@ jobs:
           file: ./Dockerfile.admin
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}-admin:latest
+            ${{ env.IMAGE_PREFIX }}-admin:main
             ${{ env.IMAGE_PREFIX }}-admin:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
