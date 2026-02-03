@@ -1087,6 +1087,8 @@ async def startup_event():
             raise RuntimeError("JWT_SECRET_KEY must be at least 32 characters in production")
         logger.info("✅ JWT_SECRET_KEY validation passed")
 
+    # Database and Redis initialization — non-fatal so the app can start
+    # and serve /health (degraded) even if DB/Redis are temporarily unavailable.
     try:
         await init_database()
         logger.info("Database manager initialized successfully")
@@ -1095,11 +1097,17 @@ async def startup_event():
         from app.core.database import bootstrap_admin_user
 
         await bootstrap_admin_user()
+    except Exception as e:
+        logger.error(f"Database initialization failed (app will start degraded): {e}")
 
+    try:
         # Initialize performance cache manager
         await cache_manager.init_redis()
         logger.info("Performance cache manager initialized")
+    except Exception as e:
+        logger.error(f"Redis initialization failed (app will start degraded): {e}")
 
+    try:
         # Initialize monitoring services
         await metrics_collector.initialize()
         await health_checker.initialize()
@@ -1128,8 +1136,7 @@ async def startup_event():
         await webhook_dispatcher.start()
         logger.info("Webhook dispatcher started successfully")
     except Exception as e:
-        logger.error(f"Failed to initialize: {e}")
-        raise
+        logger.error(f"Service initialization failed (app will start degraded): {e}")
     logger.info("Janua API started successfully")
 
 
