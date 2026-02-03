@@ -131,11 +131,25 @@ for DEPLOY in janua-api janua-dashboard janua-admin janua-docs janua-website; do
         continue
     fi
 
-    if [[ "$EXPECTED_IMAGE" != "$CURRENT_IMAGE" ]]; then
+    EXPECTED_BASE=$(echo "$EXPECTED_IMAGE" | cut -d: -f1)
+    CURRENT_BASE=$(echo "$CURRENT_IMAGE" | cut -d: -f1)
+    EXPECTED_TAG=$(echo "$EXPECTED_IMAGE" | cut -d: -f2)
+    CURRENT_TAG=$(echo "$CURRENT_IMAGE" | cut -d: -f2)
+
+    if [[ "$EXPECTED_BASE" != "$CURRENT_BASE" ]]; then
         echo "DRIFT: $DEPLOY image mismatch"
         echo "   Expected: $EXPECTED_IMAGE"
         echo "   Actual:   $CURRENT_IMAGE"
         DRIFT_FOUND=1
+    elif [[ "$EXPECTED_TAG" != "$CURRENT_TAG" ]]; then
+        if [[ "$CURRENT_TAG" =~ ^main-[0-9a-f]{7}$ ]]; then
+            echo "OK: $DEPLOY - $CURRENT_IMAGE (CI/CD tag, manifest has :$EXPECTED_TAG)"
+        else
+            echo "DRIFT: $DEPLOY tag mismatch (not a CI/CD tag)"
+            echo "   Expected: $EXPECTED_IMAGE"
+            echo "   Actual:   $CURRENT_IMAGE"
+            DRIFT_FOUND=1
+        fi
     else
         echo "OK: $DEPLOY - $CURRENT_IMAGE"
     fi
