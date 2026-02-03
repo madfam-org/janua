@@ -232,12 +232,18 @@ jobs:
         with:
           target: 'http://localhost:8080'
           cmd_options: '-a'
+          issue_title: 'ZAP Baseline Scan Report'
+          fail_action: false
+          allow_issue_writing: false
 
       - name: ZAP API Scan
         uses: zaproxy/action-api-scan@v0.6.0
         with:
           target: 'http://localhost:8080/docs/openapi.json'
           format: openapi
+          issue_title: 'ZAP API Scan Report'
+          fail_action: false
+          allow_issue_writing: false
 
   # Security Dashboard
   security-summary:
