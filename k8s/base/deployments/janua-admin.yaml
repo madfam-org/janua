@@ -18,10 +18,24 @@ spec:
       labels:
         app: janua-admin
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       imagePullSecrets:
         - name: ghcr-credentials
       containers:
         - name: janua-admin
+          securityContext:
+            privileged: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
           image: ghcr.io/madfam-org/janua-admin:latest
           imagePullPolicy: Always
           ports:
