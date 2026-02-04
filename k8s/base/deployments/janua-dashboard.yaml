@@ -36,7 +36,7 @@ spec:
             capabilities:
               drop:
                 - ALL
-          image: ghcr.io/madfam-org/janua-dashboard:main@sha256:9211f3847490c21a9f9930e65cfcaa8df080fb15832c6b35d836dde185c06548
+          image: ghcr.io/madfam-org/janua-dashboard:main
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 4101
