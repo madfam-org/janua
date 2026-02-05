@@ -19,7 +19,6 @@ on:
 
 env:
   NODE_VERSION: '20'
-  PNPM_VERSION: '9'
   PYTHON_VERSION: '3.11'
   MIN_ALPHA_SCORE: 60
   MIN_BETA_SCORE: 80
@@ -34,8 +33,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
