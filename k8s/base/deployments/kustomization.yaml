@@ -8,12 +8,12 @@ resources:
 - janua-website.yaml
 images:
 - name: ghcr.io/madfam-org/janua-admin
-  digest: sha256:4e0f42e0ace989e1e6aff0b6d4e26589854c7f44616ba5e8451c73f8676d72b0
+  digest: sha256:1bfa43ea07da1340ccc681eb141c8ddf09cc0f72ee637a6d4f2e77145886272c
 - name: ghcr.io/madfam-org/janua-api
   digest: sha256:0740f74a91325dc9a2f4ac56e56fa37f25ea22cf39c2916965ca4cf0a6341906
 - name: ghcr.io/madfam-org/janua-dashboard
-  digest: sha256:04a77eed9b9daeba4b5eef2233a0c9c9deeb301b5bd38109e458fc4d98978b55
+  digest: sha256:89c7eb1337be1320bc66a27cb7450f23037b119e1563a10b048523deaed356aa
 - name: ghcr.io/madfam-org/janua-docs
-  digest: sha256:0f03828f866d05c2ce9f5ee8686e6dd56d6dd0254cfdf781faf1ba388f8ec754
+  digest: sha256:f55e963b9111a73976b8ba585c43e36039729153ad5577a01ef0c620524faf7e
 - name: ghcr.io/madfam-org/janua-website
-  digest: sha256:04059a060b6cf885c28b0f2e106e7c58c73b6924b94a620ecd3e0e996a9da49b
+  digest: sha256:b57aab6383a052b4b0922a96816995d235e1630ce53592c02c1a6190f8a6f186
