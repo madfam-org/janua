@@ -15,12 +15,12 @@ resources:
 # Override tags here for specific deployments if needed
 images:
   - name: ghcr.io/madfam-org/janua-api
-    newTag: latest
+    newTag: main
   - name: ghcr.io/madfam-org/janua-dashboard
-    newTag: latest
+    newTag: main
   - name: ghcr.io/madfam-org/janua-admin
-    newTag: latest
+    newTag: main
   - name: ghcr.io/madfam-org/janua-docs
-    newTag: latest
+    newTag: main
   - name: ghcr.io/madfam-org/janua-website
-    newTag: latest
+    newTag: main
