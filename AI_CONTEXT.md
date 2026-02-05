@@ -1,5 +1,7 @@
 # AI_CONTEXT.md - Janua Identity Provider
 
+> See also: [llms.txt](llms.txt) for complete documentation navigation | [llms-full.txt](llms-full.txt) for comprehensive reference
+
 ## Architecture
 - **Stack**: FastAPI (Python 3.11+) + Next.js 15.1.6 + PostgreSQL + Redis
 - **Pattern**: Hexagonal architecture, edge-native event-driven

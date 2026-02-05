@@ -1,0 +1,67 @@
+# Janua Documentation
+
+> Self-hosted OAuth2/OIDC authentication platform. Open-source Auth0/Clerk alternative. 318+ API endpoints, 8 SDKs, SAML SSO, WebAuthn/Passkeys, enterprise RBAC. AGPL v3.
+
+Janua is a self-hosted authentication platform built with FastAPI (Python 3.11+). All features are free and open source. Production APIs at api.janua.dev, user dashboard at app.janua.dev, admin at admin.janua.dev.
+
+## Getting Started
+
+- [Quick Start](https://docs.janua.dev/guides/quick-start): Get Janua running in 5 minutes
+- [Installation Guide](https://docs.janua.dev/developers/getting-started): Complete installation instructions
+- [Development Guide](https://docs.janua.dev/development): Local development setup
+- [llms-full.txt](https://docs.janua.dev/llms-full.txt): Comprehensive technical reference
+
+## API Documentation
+
+- [API Reference](https://docs.janua.dev/api/reference): Complete REST API documentation (318+ endpoints)
+- [Swagger UI](https://api.janua.dev/docs): Interactive OpenAPI documentation
+- [Authentication Guide](https://docs.janua.dev/api/authentication): Auth flows — email/password, OAuth, SSO, magic links
+- [Error Codes](https://docs.janua.dev/api/errors): HTTP status codes and error response format
+
+## SDK Integration
+
+- [TypeScript SDK](https://docs.janua.dev/sdks/typescript): Core API client with full type safety
+- [React SDK](https://docs.janua.dev/sdks/react): Hooks (useAuth, useUser, useOrganization) and components
+- [Next.js SDK](https://docs.janua.dev/sdks/nextjs): App Router middleware, server components, route protection
+- [Vue SDK](https://docs.janua.dev/sdks/vue): Vue 3 composables and components
+- [Python SDK](https://docs.janua.dev/sdks/python): Async/sync clients with type hints
+- [Go SDK](https://docs.janua.dev/sdks/go): Go service integration with context support
+- [Flutter SDK](https://docs.janua.dev/sdks/flutter): iOS/Android/Web with biometric auth
+- [React Native SDK](https://docs.janua.dev/sdks/react-native): Cross-platform mobile SDK
+
+## Enterprise Features
+
+- [SAML SSO](https://docs.janua.dev/enterprise/sso): Enterprise single sign-on setup (Okta, Azure AD, etc.)
+- [RBAC](https://docs.janua.dev/enterprise/rbac): Role-based access control with custom roles and permissions
+- [SCIM Provisioning](https://docs.janua.dev/guides/scim): Automated user/group provisioning (SCIM 2.0)
+- [Multi-Tenancy](https://docs.janua.dev/enterprise/organizations): Organization hierarchy with member management
+- [Webhooks](https://docs.janua.dev/guides/webhooks): Event notifications with retry and signature verification
+- [Audit & Compliance](https://docs.janua.dev/enterprise/compliance): GDPR, SOC2, HIPAA, CCPA compliance features
+
+## Authentication Methods
+
+- [Email/Password](https://docs.janua.dev/guides/email-auth): Traditional email authentication with verification
+- [OAuth Social Login](https://docs.janua.dev/guides/oauth): Google, GitHub, Microsoft, Apple, Discord, Twitter, LinkedIn, Slack
+- [WebAuthn/Passkeys](https://docs.janua.dev/guides/passkeys): FIDO2 biometric and hardware key authentication
+- [Multi-Factor Auth](https://docs.janua.dev/guides/mfa): TOTP, backup codes, device trust
+- [Magic Links](https://docs.janua.dev/guides/magic-links): Passwordless email authentication
+- [OIDC Provider](https://docs.janua.dev/guides/oidc): Full OpenID Connect provider implementation
+
+## Migration & Deployment
+
+- [Auth0 Migration](https://docs.janua.dev/migration/auth0): Automated migration tool — $24k-58k/year savings
+- [Cloud to Self-Hosted](https://docs.janua.dev/migration/cloud-to-self-hosted): Migration from managed auth services
+- [Docker Deployment](https://docs.janua.dev/deployment/docker): Docker Compose production setup
+- [Kubernetes](https://docs.janua.dev/deployment/kubernetes): K8s/K3s deployment with Helm charts
+- [Architecture](https://docs.janua.dev/architecture): System design and infrastructure topology
+
+## Optional
+
+- [Troubleshooting](https://docs.janua.dev/guides/troubleshooting): Common issues and solutions
+- [Security Checklist](https://docs.janua.dev/guides/security): Security hardening guide
+- [Performance Tuning](https://docs.janua.dev/guides/performance): Optimization strategies
+- [White Labeling](https://docs.janua.dev/guides/white-label): Custom branding, domains, and email templates
+- [GraphQL API](https://docs.janua.dev/api/graphql): Optional GraphQL endpoint
+- [Roadmap](https://docs.janua.dev/roadmap): Future development plans
+- [Changelog](https://docs.janua.dev/changelog): Version history
+- [GitHub](https://github.com/madfam-org/janua): Source code and issue tracker

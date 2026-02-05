@@ -497,6 +497,14 @@ See [LICENSE](LICENSE) for details.
 
 ---
 
+## LLM-Friendly
+
+Janua provides [llmstxt.org](https://llmstxt.org) standardized documentation for AI agents:
+- [llms.txt](llms.txt) — Quick navigation
+- [llms-full.txt](llms-full.txt) — Complete reference
+
+---
+
 ## Current Status
 
 - **Stars:** Just getting started (star us if you find this useful!)

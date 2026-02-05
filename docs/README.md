@@ -77,6 +77,13 @@ Complete documentation for the Janua self-hosted authentication platform.
 - [Comparison to Alternatives](../README.md#comparison-to-alternatives)
 - [Pricing Strategy](../README.md#is-this-production-ready)
 
+## LLM-Friendly Documentation
+
+Janua follows the [llmstxt.org](https://llmstxt.org) specification for AI-readable documentation:
+- **[llms.txt](../llms.txt)** - Concise documentation index
+- **[llms-full.txt](../llms-full.txt)** - Complete technical reference
+- **[Online](https://janua.dev/llms.txt)** - Web-accessible version
+
 ## 📖 Documentation Standards
 
 This documentation follows these principles:

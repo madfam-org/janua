@@ -1,0 +1,52 @@
+# Janua
+
+> Self-hosted authentication platform. The open-source Auth0/Clerk alternative you run on your own infrastructure. All features free. AGPL v3.
+
+Janua provides complete identity management — email/password, OAuth social login (8 providers), SAML 2.0 SSO, WebAuthn/Passkeys, MFA, multi-tenancy with RBAC, SCIM provisioning, and webhooks. Built with FastAPI (Python 3.11+), deployed on Kubernetes. 318+ API endpoints, 8 official SDKs. Migrate from Auth0 and save $24,000-58,000/year.
+
+## Product Information
+
+- [Features](https://janua.dev/#features): Complete feature overview — authentication, SSO, MFA, passkeys, multi-tenancy, RBAC
+- [Comparison](https://janua.dev/#comparison): Janua vs Auth0, Clerk, Keycloak, Better-Auth
+- [Architecture](https://janua.dev/#architecture): System design — FastAPI, PostgreSQL, Redis, RS256 JWT
+- [Pricing](https://janua.dev/#pricing): Free and open source, self-hosted — no per-user pricing
+
+## Getting Started
+
+- [Quick Start](https://docs.janua.dev/guides/quick-start): Get Janua running in 5 minutes
+- [Documentation](https://docs.janua.dev): Complete developer documentation
+- [GitHub](https://github.com/madfam-org/janua): Source code, issues, contributions
+- [Demo](https://demo.janua.dev): Live demo application
+- [API Reference](https://api.janua.dev/docs): Interactive OpenAPI documentation
+
+## SDKs
+
+- [React SDK](https://docs.janua.dev/sdks/react): Hooks and components for React apps
+- [Next.js SDK](https://docs.janua.dev/sdks/nextjs): App Router middleware and server components
+- [Vue SDK](https://docs.janua.dev/sdks/vue): Vue 3 composables
+- [TypeScript SDK](https://docs.janua.dev/sdks/typescript): Core type-safe API client
+- [Python SDK](https://docs.janua.dev/sdks/python): Async/sync Python clients
+- [Go SDK](https://docs.janua.dev/sdks/go): Go service integration
+- [Flutter SDK](https://docs.janua.dev/sdks/flutter): iOS/Android/Web mobile SDK
+- [React Native SDK](https://docs.janua.dev/sdks/react-native): Cross-platform mobile SDK
+
+## Migration
+
+- [Auth0 Migration Tool](https://docs.janua.dev/migration/auth0): Automated user export/import with zero-downtime strategy
+- [Cloud to Self-Hosted](https://docs.janua.dev/migration/cloud-to-self-hosted): Migration from managed auth services
+- [Cost Savings Calculator](https://janua.dev/#pricing): Compare costs vs Auth0/Okta
+
+## Support
+
+- [Documentation](https://docs.janua.dev): Comprehensive guides and reference
+- [GitHub Issues](https://github.com/madfam-org/janua/issues): Bug reports and feature requests
+- [Security](mailto:security@janua.dev): Responsible disclosure for security issues
+- [Contributing](https://github.com/madfam-org/janua/blob/main/CONTRIBUTING.md): Contribution guide
+
+## Optional
+
+- [Enterprise SSO](https://docs.janua.dev/enterprise/sso): SAML 2.0 integration guide
+- [SCIM Provisioning](https://docs.janua.dev/guides/scim): Automated user provisioning
+- [Compliance](https://docs.janua.dev/guides/compliance): GDPR, SOC2, HIPAA, CCPA features
+- [White Labeling](https://docs.janua.dev/guides/white-label): Custom branding and domains
+- [Roadmap](https://docs.janua.dev/roadmap): Future development plans

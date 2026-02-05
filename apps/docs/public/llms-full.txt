@@ -1,446 +1,525 @@
-JANUA API DOCUMENTATION - LLM-FRIENDLY COMPENDIUM
-=====================================================
+# Janua API Documentation — Complete Reference
 
-OVERVIEW
---------
-Janua is a secure identity platform API that provides authentication, user management, and session handling capabilities for developers. This document contains the complete API reference in a format optimized for LLMs and easy integration.
+> Self-hosted OAuth2/OIDC authentication platform. Open-source Auth0/Clerk alternative built with FastAPI. 318+ API endpoints, 8 SDKs, SAML SSO, WebAuthn/Passkeys, enterprise RBAC. AGPL v3.
 
-VERSION: 0.1.0 (Beta)
-BASE URL: https://api.janua.dev
-DOCUMENTATION: https://docs.janua.dev
-SUPPORT: api-support@janua.dev
+Janua is a self-hosted authentication platform providing complete identity management. The FastAPI backend exposes 318+ REST endpoints across 38 router modules. Authentication supports email/password, OAuth (8 providers), SAML 2.0 SSO, WebAuthn/Passkeys, magic links, and TOTP MFA. Enterprise features include multi-tenancy, RBAC, SCIM 2.0, webhooks, and compliance tooling (GDPR, SOC2, HIPAA, CCPA).
 
-AUTHENTICATION
---------------
-All API endpoints require HTTPS. Authentication is handled via Bearer tokens in the Authorization header:
-
-Authorization: Bearer <your_access_token>
-
-Token Types:
-- Access tokens: Short-lived (1 hour), used for API requests
-- Refresh tokens: Longer-lived (24 hours), used to obtain new access tokens
-- JWT format with secure signing
-
-Password Requirements:
-- Minimum 8 characters (Beta), recommended 12+ for production
-- Case-sensitive
-- Special characters allowed and recommended
-
-BETA AUTHENTICATION ENDPOINTS
-------------------------------
-
-POST /beta/signup
------------------
-Create a new beta user account.
-
-URL: https://api.janua.dev/beta/signup
-Method: POST
-Content-Type: application/json
-
-Request Body:
-{
-  "email": "string (required, valid email format)",
-  "password": "string (required, min 8 characters)",
-  "name": "string (optional, defaults to 'Beta User')"
-}
-
-Success Response (200):
-{
-  "id": "string (32-character hex user ID)",
-  "email": "string (user email)",
-  "name": "string (user display name)",
-  "message": "string (success message)",
-  "storage": "string ('redis' or 'memory')"
-}
-
-Error Responses:
-400 Bad Request:
-{
-  "detail": "User already exists"
-}
-{
-  "detail": "Password must be at least 8 characters"
-}
-
-500 Internal Server Error:
-{
-  "detail": "Signup failed: <error_details>"
-}
-
-Example cURL:
-curl -X POST https://api.janua.dev/beta/signup \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "developer@example.com",
-    "password": "securepass123",
-    "name": "Developer Name"
-  }'
-
-POST /beta/signin
------------------
-Authenticate user and obtain access token.
-
-URL: https://api.janua.dev/beta/signin
-Method: POST
-Content-Type: application/json
-
-Request Body:
-{
-  "email": "string (required, registered email)",
-  "password": "string (required, user password)"
-}
-
-Success Response (200):
-{
-  "access_token": "string (64-character hex token)",
-  "token_type": "string ('bearer')",
-  "user": {
-    "id": "string (32-character hex user ID)",
-    "email": "string (user email)",
-    "name": "string (user display name)"
-  },
-  "storage": "string ('redis' or 'memory')"
-}
-
-Error Responses:
-401 Unauthorized:
-{
-  "detail": "Invalid email or password"
-}
-
-500 Internal Server Error:
-{
-  "detail": "Signin failed: <error_details>"
-}
-
-Example cURL:
-curl -X POST https://api.janua.dev/beta/signin \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "developer@example.com",
-    "password": "securepass123"
-  }'
-
-GET /beta/users
----------------
-List all beta users (admin endpoint).
-
-URL: https://api.janua.dev/beta/users
-Method: GET
-
-Request Headers: None required
-
-Success Response (200):
-{
-  "users": [
-    {
-      "id": "string (32-character hex user ID)",
-      "email": "string (user email)",
-      "name": "string (user display name)",
-      "created_at": "string (ISO 8601 datetime)",
-      "storage": "string ('redis' or 'memory')"
-    }
-  ],
-  "total": "integer (total user count)",
-  "redis_count": "integer (users in Redis)",
-  "memory_count": "integer (users in memory)",
-  "infrastructure": "string ('Railway')"
-}
-
-Error Response:
-500 Internal Server Error:
-{
-  "error": "Failed to list users: <error_details>",
-  "users": [],
-  "total": 0
-}
-
-Example cURL:
-curl -X GET https://api.janua.dev/beta/users
-
-HEALTH CHECK ENDPOINTS
------------------------
-
-GET /
------
-Root endpoint with basic API information.
-
-URL: https://api.janua.dev/
-Method: GET
-
-Success Response (200):
-{
-  "status": "string ('ok')",
-  "message": "string ('Ultra-minimal beta API')",
-  "version": "string ('0.1.0')"
-}
-
-GET /health
------------
-Basic health check endpoint.
-
-URL: https://api.janua.dev/health
-Method: GET
-
-Success Response (200):
-{
-  "status": "string ('healthy')"
-}
-
-GET /ready
-----------
-Comprehensive infrastructure readiness check.
-
-URL: https://api.janua.dev/ready
-Method: GET
-
-Success Response (200):
-{
-  "status": "string ('ready')",
-  "database": "boolean (PostgreSQL connectivity)",
-  "redis": "boolean (Redis connectivity)"
-}
-
-GET /api/status
----------------
-Detailed API status and capabilities.
-
-URL: https://api.janua.dev/api/status
-Method: GET
-
-Success Response (200):
-{
-  "status": "string ('Ultra-minimal beta API operational')",
-  "authentication": "string ('Direct Redis + Memory fallback')",
-  "infrastructure": "string ('Railway PostgreSQL + Redis')",
-  "endpoints": "array (['beta/signup', '/beta/signin', '/beta/users'])",
-  "storage": "string ('Redis primary, memory fallback')"
-}
-
-ERROR HANDLING
---------------
-The API returns consistent error responses with appropriate HTTP status codes:
-
-Common HTTP Status Codes:
-- 200: Success
-- 400: Bad Request (validation errors, missing fields)
-- 401: Unauthorized (invalid credentials)
-- 404: Not Found (endpoint does not exist)
-- 405: Method Not Allowed (wrong HTTP method)
-- 500: Internal Server Error (server-side issues)
-
-Error Response Format:
-{
-  "detail": "string (human-readable error message)"
-}
-
-INFRASTRUCTURE
---------------
-Janua API runs on Railway infrastructure with:
-- PostgreSQL database for persistent storage
-- Redis for session management and caching
-- Automatic failover to in-memory storage if Redis unavailable
-- SSL/TLS encryption for all connections
-- Global CDN for optimal performance
-
-Data Storage:
-- Primary: Railway Redis (30-day user retention)
-- Fallback: In-memory storage (session-based)
-- Sessions: 24-hour expiry with automatic cleanup
-
-INTEGRATION EXAMPLES
---------------------
-
-JavaScript/Node.js Example:
-```javascript
-// Sign up a new user
-const signupResponse = await fetch('https://api.janua.dev/beta/signup', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    email: 'developer@example.com',
-    password: 'securepass123',
-    name: 'Developer Name'
-  })
-});
-
-const signupData = await signupResponse.json();
-console.log('User created:', signupData.id);
-
-// Sign in to get access token
-const signinResponse = await fetch('https://api.janua.dev/beta/signin', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    email: 'developer@example.com',
-    password: 'securepass123'
-  })
-});
-
-const signinData = await signinResponse.json();
-const accessToken = signinData.access_token;
-console.log('Access token:', accessToken);
-
-// Use access token for authenticated requests (when available)
-// Note: Current beta API doesn't require tokens for user listing
-const usersResponse = await fetch('https://api.janua.dev/beta/users');
-const usersData = await usersResponse.json();
-console.log('Total users:', usersData.total);
-```
-
-Python Example:
-```python
-import requests
-import json
-
-# Sign up a new user
-signup_data = {
-    "email": "developer@example.com",
-    "password": "securepass123",
-    "name": "Developer Name"
-}
-
-signup_response = requests.post(
-    'https://api.janua.dev/beta/signup',
-    headers={'Content-Type': 'application/json'},
-    data=json.dumps(signup_data)
-)
-
-signup_result = signup_response.json()
-print(f"User created: {signup_result['id']}")
-
-# Sign in to get access token
-signin_data = {
-    "email": "developer@example.com",
-    "password": "securepass123"
-}
-
-signin_response = requests.post(
-    'https://api.janua.dev/beta/signin',
-    headers={'Content-Type': 'application/json'},
-    data=json.dumps(signin_data)
-)
-
-signin_result = signin_response.json()
-access_token = signin_result['access_token']
-print(f"Access token: {access_token}")
-
-# List users
-users_response = requests.get('https://api.janua.dev/beta/users')
-users_result = users_response.json()
-print(f"Total users: {users_result['total']}")
-```
-
-cURL Example Workflow:
-```bash
-# 1. Sign up a new user
-curl -X POST https://api.janua.dev/beta/signup \
-  -H "Content-Type: application/json" \
-  -d '{"email":"developer@example.com","password":"securepass123","name":"Developer Name"}'
-
-# 2. Sign in to get access token
-curl -X POST https://api.janua.dev/beta/signin \
-  -H "Content-Type: application/json" \
-  -d '{"email":"developer@example.com","password":"securepass123"}'
-
-# 3. List all users
-curl -X GET https://api.janua.dev/beta/users
-
-# 4. Check API health
-curl -X GET https://api.janua.dev/ready
-```
-
-RATE LIMITING
--------------
-The API implements basic rate limiting:
-- No strict rate limits during beta phase
-- Infrastructure auto-scaling handles high load
-- Monitor response times and implement client-side retry logic
-- Recommended: Implement exponential backoff for failed requests
-
-SECURITY CONSIDERATIONS
------------------------
-1. Always use HTTPS in production
-2. Store access tokens securely (not in localStorage for web apps)
-3. Implement proper session management
-4. Use strong passwords (8+ characters minimum, 12+ recommended)
-5. Validate all user inputs on client and server side
-6. Implement proper error handling to avoid information disclosure
-
-DEVELOPMENT WORKFLOW
---------------------
-1. Development Environment:
-   - Use provided beta endpoints for testing
-   - No API key required during beta phase
-   - Test with real email addresses (verification not enforced)
-
-2. Integration Steps:
-   - Implement user registration flow
-   - Add authentication handling
-   - Store and manage access tokens
-   - Implement error handling and retry logic
-   - Test complete user journey
-
-3. Production Considerations:
-   - Monitor API response times and error rates
-   - Implement proper logging and error tracking
-   - Set up health check monitoring
-   - Plan for user data migration if needed
-
-CHANGELOG
----------
-v0.1.0 (Beta) - September 11, 2025:
-- Initial beta release
-- Ultra-minimal authentication system
-- Railway infrastructure integration
-- Direct Redis storage with memory fallback
-- Basic user management endpoints
-- Health check and status endpoints
-- LLM-friendly documentation
-
-SUPPORT AND RESOURCES
----------------------
+Base URL: https://api.janua.dev
+OpenAPI Docs: https://api.janua.dev/docs
 Documentation: https://docs.janua.dev
-API Status: https://api.janua.dev/api/status
-Health Check: https://api.janua.dev/health
-Support Email: api-support@janua.dev
-GitHub Issues: Contact support for repository access
-
-FUTURE ROADMAP
---------------
-Planned features for upcoming releases:
-- OAuth 2.0 / OpenID Connect compliance
-- Multi-tenant support
-- Advanced user profile management
-- Session management and device tracking
-- Password reset and email verification
-- Webhook notifications
-- Rate limiting and API quotas
-- Administrative dashboard APIs
-- Audit logging and security features
-
-API TESTING CHECKLIST
-----------------------
-Before integrating Janua API into your application:
-
-□ Test user registration with valid email/password
-□ Test user authentication and token retrieval
-□ Test error handling for invalid credentials
-□ Test error handling for duplicate user registration
-□ Verify user data persistence across requests
-□ Test API health endpoints for monitoring
-□ Implement proper error handling in your application
-□ Test with different user names and email formats
-□ Verify password validation requirements
-□ Test infrastructure connectivity endpoints
-
-For additional support or questions about integration, contact api-support@janua.dev
+GitHub: https://github.com/madfam-org/janua
 
 ---
-Generated: September 11, 2025
-Version: 0.1.0 Beta
-Last Updated: September 11, 2025 00:22 UTC
+
+## Authentication
+
+All API endpoints require HTTPS. Authentication uses RS256-signed JWT tokens.
+
+```
+Authorization: Bearer <access_token>
+```
+
+Token Types:
+- Access tokens: RS256 JWT, default 480 minutes (configurable via JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+- Refresh tokens: 7 days (configurable via JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+- JWKS endpoint: GET /.well-known/jwks.json
+
+Password Requirements (default):
+- Minimum 12 characters
+- Uppercase, lowercase, numbers, and special characters required
+
+---
+
+## Core Authentication Endpoints
+
+### POST /api/v1/auth/signup
+Create a new user account.
+
+```bash
+curl -X POST https://api.janua.dev/api/v1/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePass123!",
+    "first_name": "Jane",
+    "last_name": "Developer"
+  }'
+```
+
+Response (201):
+```json
+{
+  "id": "uuid",
+  "email": "user@example.com",
+  "first_name": "Jane",
+  "last_name": "Developer",
+  "email_verified": false,
+  "message": "Verification email sent"
+}
+```
+
+### POST /api/v1/auth/signin
+Authenticate and receive JWT tokens.
+
+```bash
+curl -X POST https://api.janua.dev/api/v1/auth/signin \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePass123!"
+  }'
+```
+
+Response (200):
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIs...",
+  "refresh_token": "eyJhbGciOiJSUzI1NiIs...",
+  "token_type": "bearer",
+  "expires_in": 28800,
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "first_name": "Jane"
+  }
+}
+```
+
+If MFA is enabled:
+```json
+{
+  "mfa_required": true,
+  "mfa_token": "temporary-mfa-token",
+  "mfa_methods": ["totp"]
+}
+```
+
+### POST /api/v1/auth/token/refresh
+Refresh an expired access token.
+
+```bash
+curl -X POST https://api.janua.dev/api/v1/auth/token/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "eyJhbGciOiJSUzI1NiIs..."}'
+```
+
+### GET /api/v1/auth/me
+Get current authenticated user.
+
+```bash
+curl https://api.janua.dev/api/v1/auth/me \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### POST /api/v1/auth/password/reset
+Request password reset email.
+
+```bash
+curl -X POST https://api.janua.dev/api/v1/auth/password/reset \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+```
+
+### POST /api/v1/auth/magic-link
+Send passwordless magic link.
+
+```bash
+curl -X POST https://api.janua.dev/api/v1/auth/magic-link \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+```
+
+---
+
+## OAuth Social Login
+
+### GET /api/v1/auth/oauth/{provider}/authorize
+Redirect user to OAuth provider. Supported providers: google, github, microsoft, apple, discord, twitter, linkedin, slack.
+
+```bash
+curl https://api.janua.dev/api/v1/auth/oauth/google/authorize?redirect_uri=https://myapp.com/callback
+```
+
+### GET /api/v1/auth/oauth/{provider}/callback
+Handle OAuth callback with authorization code.
+
+---
+
+## Multi-Factor Authentication
+
+### POST /api/v1/mfa/totp/enable
+Enable TOTP MFA for authenticated user. Returns QR code and secret.
+
+```bash
+curl -X POST https://api.janua.dev/api/v1/mfa/totp/enable \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### POST /api/v1/mfa/verify
+Verify TOTP code during login.
+
+```bash
+curl -X POST https://api.janua.dev/api/v1/mfa/verify \
+  -H "Content-Type: application/json" \
+  -d '{"mfa_token": "temporary-mfa-token", "code": "123456"}'
+```
+
+### GET /api/v1/mfa/backup-codes
+Generate backup recovery codes.
+
+---
+
+## WebAuthn/Passkeys
+
+### POST /api/v1/passkeys/register/begin
+Start passkey registration (returns challenge and options).
+
+### POST /api/v1/passkeys/register/complete
+Complete registration with authenticator response.
+
+### POST /api/v1/passkeys/authenticate/begin
+Start passkey authentication.
+
+### POST /api/v1/passkeys/authenticate/complete
+Complete authentication and receive JWT.
+
+---
+
+## User Management
+
+### GET /api/v1/users
+List users (admin only). Supports pagination, search, filtering.
+
+```bash
+curl https://api.janua.dev/api/v1/users?page=1&per_page=20&search=jane \
+  -H "Authorization: Bearer <admin_token>"
+```
+
+### GET /api/v1/users/{user_id}
+Get user details.
+
+### PATCH /api/v1/users/{user_id}
+Update user profile.
+
+### DELETE /api/v1/users/{user_id}
+Delete/deactivate user.
+
+---
+
+## Organizations (Multi-Tenancy)
+
+### POST /api/v1/organizations
+Create organization.
+
+```bash
+curl -X POST https://api.janua.dev/api/v1/organizations \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Acme Corp", "slug": "acme-corp"}'
+```
+
+### GET /api/v1/organizations
+List user's organizations.
+
+### POST /api/v1/organizations/{org_id}/members
+Add member to organization.
+
+### PUT /api/v1/organizations/{org_id}/members/{user_id}/role
+Update member role.
+
+---
+
+## SAML SSO
+
+### POST /api/v1/sso/configurations
+Create SSO configuration for an organization.
+
+```bash
+curl -X POST https://api.janua.dev/api/v1/sso/configurations \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organization_id": "org-uuid",
+    "provider": "okta",
+    "idp_metadata_url": "https://dev-123456.okta.com/app/abc/sso/saml/metadata"
+  }'
+```
+
+### GET /api/v1/sso/initiate
+Initiate SSO login for organization.
+
+### POST /api/v1/sso/acs
+SAML Assertion Consumer Service endpoint.
+
+---
+
+## SCIM 2.0 Provisioning
+
+### GET /scim/v2/Users
+List provisioned users (SCIM format).
+
+### POST /scim/v2/Users
+Create user via SCIM.
+
+### PATCH /scim/v2/Users/{id}
+Update user attributes via SCIM PATCH.
+
+### GET /scim/v2/Groups
+List groups.
+
+### POST /scim/v2/Groups
+Create group.
+
+### GET /scim/v2/ServiceProviderConfig
+SCIM service provider configuration.
+
+---
+
+## RBAC & Permissions
+
+### GET /api/v1/rbac/check
+Check if user has permission.
+
+```bash
+curl "https://api.janua.dev/api/v1/rbac/check?permission=users:write&resource_id=org-uuid" \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### GET /api/v1/roles
+List available roles.
+
+### POST /api/v1/roles
+Create custom role.
+
+---
+
+## Webhooks
+
+### POST /api/v1/webhooks
+Create webhook subscription.
+
+```bash
+curl -X POST https://api.janua.dev/api/v1/webhooks \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://myapp.com/webhooks/janua",
+    "events": ["user.created", "user.updated", "session.created"]
+  }'
+```
+
+### GET /api/v1/webhooks/{id}/deliveries
+List webhook delivery history.
+
+---
+
+## Compliance
+
+### POST /api/v1/compliance/data-export
+Export user data (GDPR data portability).
+
+### POST /api/v1/compliance/data-deletion
+Request data deletion (GDPR right to erasure).
+
+### GET /api/v1/compliance/consent
+Get user consent records.
+
+---
+
+## Health Endpoints
+
+### GET /health
+Basic health check.
+```bash
+curl https://api.janua.dev/health
+# → {"status": "healthy"}
+```
+
+### GET /health/detailed
+Detailed health with dependency status.
+```bash
+curl https://api.janua.dev/health/detailed
+# → {"status": "healthy", "database": true, "redis": true, "kms": true}
+```
+
+### GET /health/ready
+Kubernetes readiness probe.
+
+### GET /health/live
+Kubernetes liveness probe.
+
+---
+
+## Admin Endpoints (23 Endpoints)
+
+### GET /api/v1/admin/stats
+Platform statistics (users, organizations, sessions).
+
+### GET /api/v1/admin/activity
+Recent platform activity.
+
+### POST /api/v1/admin/maintenance
+Toggle maintenance mode.
+
+### GET /api/v1/admin/system/config
+Get system configuration.
+
+---
+
+## Error Handling
+
+All errors follow a consistent format:
+```json
+{
+  "detail": "Human-readable error message",
+  "error_code": "AUTHENTICATION_ERROR",
+  "status_code": 401
+}
+```
+
+| HTTP | Code | Meaning |
+|------|------|---------|
+| 400 | BAD_REQUEST | Invalid request |
+| 401 | AUTHENTICATION_ERROR | Invalid credentials |
+| 401 | TOKEN_ERROR | Invalid/expired JWT |
+| 403 | AUTHORIZATION_ERROR | Permission denied |
+| 404 | NOT_FOUND_ERROR | Resource not found |
+| 409 | CONFLICT_ERROR | Duplicate resource |
+| 422 | VALIDATION_ERROR | Validation failed |
+| 429 | RATE_LIMIT_ERROR | Rate limited |
+| 500 | INTERNAL_ERROR | Server error |
+
+---
+
+## SDK Quick Start
+
+### React
+```tsx
+import { JanuaProvider, useAuth } from '@janua/react-sdk';
+
+function App() {
+  return (
+    <JanuaProvider baseURL="https://api.janua.dev">
+      <YourApp />
+    </JanuaProvider>
+  );
+}
+
+function Profile() {
+  const { user, signOut, isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <div>Please sign in</div>;
+  return <div>Welcome, {user?.email} <button onClick={signOut}>Sign Out</button></div>;
+}
+```
+
+### Next.js (App Router)
+```typescript
+// middleware.ts
+import { withJanuaAuth } from '@janua/nextjs-sdk';
+export default withJanuaAuth({ publicRoutes: ['/'] });
+
+// app/api/auth/[...janua]/route.ts
+import { JanuaNextAuth } from '@janua/nextjs-sdk';
+export const { GET, POST } = JanuaNextAuth({
+  baseURL: process.env.JANUA_API_URL!,
+});
+```
+
+### Python
+```python
+from janua import JanuaClient
+
+client = JanuaClient(base_url="https://api.janua.dev")
+result = await client.auth.sign_in(email="user@example.com", password="SecurePass123!")
+user = await client.users.get_current_user()
+```
+
+### Go
+```go
+import "github.com/madfam-org/janua/packages/go-sdk/janua"
+
+client := janua.NewClient("https://api.janua.dev")
+result, err := client.Auth.SignIn(ctx, "user@example.com", "SecurePass123!")
+```
+
+### Vue 3
+```vue
+<script setup>
+import { useAuth } from '@janua/vue-sdk';
+const { user, signIn, signOut, isAuthenticated } = useAuth();
+</script>
+```
+
+### Install Commands
+```bash
+npm install @janua/react-sdk       # React
+npm install @janua/nextjs-sdk      # Next.js
+npm install @janua/vue-sdk         # Vue 3
+npm install @janua/typescript-sdk  # TypeScript (core)
+pip install janua-sdk              # Python
+go get github.com/madfam-org/janua/packages/go-sdk  # Go
+```
+
+NPM Registry (for @janua/* packages):
+```
+@janua:registry=https://npm.madfam.io
+//npm.madfam.io/:_authToken=${NPM_MADFAM_TOKEN}
+```
+
+---
+
+## Rate Limiting
+
+Default limits (configurable via environment variables):
+- 60 requests per minute per IP
+- 1,000 requests per hour per IP
+- Whitelist: configurable via RATE_LIMIT_WHITELIST
+
+Rate limit headers returned:
+```
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 55
+X-RateLimit-Reset: 1706745600
+```
+
+---
+
+## Security Features
+
+- RS256 JWT with automatic key rotation
+- Field-level Fernet encryption for sensitive data (MFA secrets, backup codes)
+- bcrypt password hashing (12 rounds)
+- Account lockout after 5 failed attempts (15-minute lockout)
+- CORS with configurable origins
+- Rate limiting per IP
+- CSRF protection
+- Cloudflare Turnstile integration (optional)
+- Audit logging for all security events
+- WebAuthn/FIDO2 passkey support
+- SAML 2.0 assertion validation
+
+---
+
+## Migration from Auth0
+
+Automated migration tool saves $24,000-58,000/year:
+
+```bash
+cd scripts/migration
+pip install -r requirements.txt
+python auth0_migrate.py --config config.json
+```
+
+Features:
+- Export all users from Auth0 Management API
+- Automatic data mapping to Janua schema
+- Preserves email, name, phone, metadata
+- Migration progress tracking and reporting
+- Zero-downtime migration strategy guide
+
+Note: Password hashes cannot be exported from Auth0. Users reset passwords on first login.
+
+---
+
+*Generated: February 2026 | Janua v1.0 | Production at api.janua.dev*
+*See llms.txt for concise navigation index*

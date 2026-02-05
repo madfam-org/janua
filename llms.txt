@@ -1,0 +1,92 @@
+# Janua
+
+> Self-hosted OAuth2/OIDC authentication platform. Open-source Auth0/Clerk alternative built with FastAPI. 318+ API endpoints, 8 SDKs, SAML SSO, WebAuthn/Passkeys, enterprise RBAC. AGPL v3.
+
+Janua is a monorepo authentication platform deployed on Kubernetes (K3s/Hetzner) via Cloudflare Tunnel. The FastAPI backend (Python 3.11+) provides 38 router modules and 36 services. Frontend apps include Dashboard, Admin, Docs, Website, and Demo. Official SDKs: TypeScript, React, Next.js, Vue, Python, Go, Flutter, React Native.
+
+Production URLs: api.janua.dev (API), app.janua.dev (Dashboard), admin.janua.dev (Admin), docs.janua.dev (Docs), janua.dev (Website). PostgreSQL + Redis infrastructure with RS256 JWT, field-level Fernet encryption, and rate limiting.
+
+## Documentation
+
+- [CLAUDE.md](CLAUDE.md): Complete AI agent instructions, development commands, debugging guide, key file locations
+- [AI_CONTEXT.md](AI_CONTEXT.md): Quick reference — critical paths, ports, architecture summary, agent directives
+- [docs/README.md](docs/README.md): Full documentation index with guides for developers, DevOps, and product teams
+- [llms-full.txt](llms-full.txt): Comprehensive technical reference with inline API details
+
+## Architecture
+
+- [Architecture Overview](docs/architecture/ARCHITECTURE.md): System design, patterns, and infrastructure topology
+- [API Entry Point](apps/api/app/main.py): FastAPI application with all router registrations
+- [Configuration](apps/api/app/config.py): All environment variables, feature flags, and security settings
+- [OpenAPI Spec](apps/api/openapi.yaml): Complete API schema definition
+
+## API Reference
+
+- [Auth Router](apps/api/app/routers/v1/auth.py): Authentication — signup, signin, email verification, password reset, magic links (18 endpoints)
+- [Users Router](apps/api/app/routers/v1/users.py): User CRUD, profiles, avatar, search (12 endpoints)
+- [Organizations Router](apps/api/app/routers/v1/organizations.py): Multi-tenancy, member management, roles, settings (18 endpoints)
+- [MFA Router](apps/api/app/routers/v1/mfa.py): TOTP enable/disable, verify, backup codes, recovery (9 endpoints)
+- [Passkeys Router](apps/api/app/routers/v1/passkeys.py): WebAuthn/FIDO2 credential management (8 endpoints)
+- [OAuth Router](apps/api/app/routers/v1/oauth.py): OAuth provider authorization and token exchange (7 endpoints)
+- [OAuth Clients Router](apps/api/app/routers/v1/oauth_clients.py): OAuth2 client CRUD, secret rotation (10 endpoints)
+- [OAuth Provider Router](apps/api/app/routers/v1/oauth_provider.py): Full OAuth 2.0/OIDC Authorization Server — authorize, consent, token, userinfo, introspect, revoke (7+ endpoints)
+- [SSO Router](apps/api/app/routers/v1/sso.py): SAML 2.0 enterprise single sign-on (10 endpoints)
+- [SCIM Router](apps/api/app/routers/v1/scim.py): SCIM 2.0 user and group provisioning (14 endpoints)
+- [RBAC Router](apps/api/app/routers/v1/rbac.py): Role-based access control and permissions (9 endpoints)
+- [Roles Router](apps/api/app/routers/v1/roles.py): Custom role management and permission assignments (9 endpoints)
+- [Policies Router](apps/api/app/routers/v1/policies.py): Policy management, evaluation, role management (10 endpoints)
+- [Admin Router](apps/api/app/routers/v1/admin.py): Platform administration, stats, health, maintenance mode (23 endpoints)
+- [Webhooks Router](apps/api/app/routers/v1/webhooks.py): Event subscriptions and delivery (12 endpoints)
+- [Compliance Router](apps/api/app/routers/v1/compliance.py): GDPR, data export, consent management (11 endpoints)
+- [Audit Logs Router](apps/api/app/routers/v1/audit_logs.py): Security audit logging with cursor-based pagination (6 endpoints)
+- [Sessions Router](apps/api/app/routers/v1/sessions.py): Session management, activity tracking, revocation (7 endpoints)
+- [Devices Router](apps/api/app/routers/v1/devices.py): Trusted device management (7 endpoints)
+- [API Keys Router](apps/api/app/routers/v1/api_keys.py): API key CRUD, rotation, scoped permissions (6 endpoints)
+- [White Label Router](apps/api/app/routers/v1/white_label.py): Custom branding, domains, email templates, themes (14 endpoints)
+- [Migration Router](apps/api/app/routers/v1/migration.py): Auth0 migration, data portability (10 endpoints)
+- [Health Router](apps/api/app/routers/v1/health.py): Health checks, readiness, liveness, circuit breaker status (6 endpoints)
+- [Alerts Router](apps/api/app/routers/v1/alerts.py): Alerting rules, notification channels (15 endpoints)
+
+## Services
+
+- [Auth Service](apps/api/app/services/auth_service.py): Core authentication logic
+- [JWT Service](apps/api/app/services/jwt_service.py): RS256/HS256 token issuance and validation
+- [OAuth Service](apps/api/app/services/oauth.py): OAuth provider integration (Google, GitHub, Microsoft, etc.)
+- [SSO Service](apps/api/app/services/sso_service.py): SAML assertion handling
+- [Email Service](apps/api/app/services/email_service.py): Transactional email delivery
+- [RBAC Service](apps/api/app/services/rbac_service.py): Permission evaluation engine
+- [Audit Service](apps/api/app/services/audit_service.py): Security event logging
+- [Compliance Service](apps/api/app/services/compliance_service.py): GDPR/SOC2 compliance operations
+- [Webhook Service](apps/api/app/services/webhooks.py): Event dispatch and delivery
+- [Risk Assessment Service](apps/api/app/services/risk_assessment_service.py): Login risk scoring
+
+## SDKs
+
+- [TypeScript SDK](packages/typescript-sdk/README.md): Core API client with full type safety
+- [React SDK](packages/react-sdk/README.md): Hooks (useAuth, useUser, useOrganization) and components
+- [Next.js SDK](packages/nextjs-sdk/README.md): App Router middleware, server components, route protection
+- [Vue SDK](packages/vue-sdk/README.md): Vue 3 composables and components
+- [Python SDK](packages/python-sdk/README.md): Async/sync clients with type hints
+- [Go SDK](packages/go-sdk/README.md): Go service integration with context support
+- [Flutter SDK](packages/flutter-sdk/README.md): iOS/Android/Web with biometric auth
+- [React Native SDK](packages/react-native-sdk/README.md): Cross-platform mobile SDK
+
+## Guides
+
+- [Quick Start](docs/guides/QUICK_START.md): Get Janua running in 5 minutes
+- [SSO Integration](docs/enterprise/sso-integration-guide.md): SAML 2.0 enterprise SSO setup
+- [SCIM Provisioning](docs/guides/SCIM_PROVISIONING_GUIDE.md): Automated user provisioning
+- [MFA Implementation](docs/guides/mfa-2fa-implementation-guide.md): Multi-factor authentication setup
+- [Auth0 Migration](scripts/migration/README.md): Automated migration tool ($24k-58k/year savings)
+- [Deployment](docs/deployment/DEPLOYMENT_DETAILS.md): Docker, Kubernetes, and production setup
+
+## Optional
+
+- [Troubleshooting](docs/guides/TROUBLESHOOTING_GUIDE.md): Common issues and solutions
+- [Security Checklist](docs/guides/SECURITY_CHECKLIST.md): Security hardening guide
+- [Performance Tuning](docs/guides/PERFORMANCE_TUNING_GUIDE.md): Optimization strategies
+- [Compliance Features](docs/guides/COMPLIANCE_FEATURES_GUIDE.md): GDPR, SOC2, HIPAA, CCPA
+- [White Label](apps/api/app/routers/v1/white_label.py): Custom branding and domain configuration
+- [GraphQL API](docs/GRAPHQL_API_REFERENCE.md): Optional GraphQL endpoint
+- [Roadmap](docs/ROADMAP.md): Future development plans
+- [Changelog](docs/CHANGELOG.md): Version history

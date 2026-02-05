@@ -781,6 +781,17 @@ pg_restore --list janua_backup_*.sql | head
 - **Performance**: `docs/guides/PERFORMANCE_TUNING_GUIDE.md`
 - **License**: AGPL v3
 
+## LLM-Friendly Documentation (llmstxt.org)
+
+This project provides standardized AI-readable documentation:
+
+| File | URL | Purpose |
+|------|-----|---------|
+| [llms.txt](llms.txt) | janua.dev/llms.txt | Concise navigation index |
+| [llms-full.txt](llms-full.txt) | janua.dev/llms-full.txt | Comprehensive technical reference |
+
+These follow the [llmstxt.org](https://llmstxt.org/) specification for LLM-friendly content.
+
 ---
 
 ## Agent Session Protocol (Level 5 Autonomy)

@@ -1,0 +1,601 @@
+# Janua
+
+> Self-hosted OAuth2/OIDC authentication platform. Open-source Auth0/Clerk alternative built with FastAPI. 318+ API endpoints, 8 SDKs, SAML SSO, WebAuthn/Passkeys, enterprise RBAC. AGPL v3.
+
+Janua is a monorepo authentication platform deployed on Kubernetes (K3s/Hetzner) via Cloudflare Tunnel. The FastAPI backend (Python 3.11+) provides 38 router modules and 36 services. Frontend apps include Dashboard, Admin, Docs, Website, and Demo. Official SDKs: TypeScript, React, Next.js, Vue, Python, Go, Flutter, React Native.
+
+Production URLs: api.janua.dev (API), app.janua.dev (Dashboard), admin.janua.dev (Admin), docs.janua.dev (Docs), janua.dev (Website). PostgreSQL + Redis infrastructure with RS256 JWT, field-level Fernet encryption, and rate limiting.
+
+---
+
+## Project Structure
+
+```
+janua/
+├── apps/
+│   ├── api/              # FastAPI backend (Python 3.11+) — 38 routers, 36 services
+│   ├── admin/            # Admin dashboard (Next.js) — platform operator management
+│   ├── dashboard/        # User management UI (Next.js) — end-user self-service
+│   ├── demo/             # Demo application — integration showcase
+│   ├── docs/             # Documentation site (Next.js) — docs.janua.dev
+│   ├── edge-verify/      # Edge token verification — Cloudflare Workers JWT validation
+│   ├── landing/          # Marketing landing page
+│   ├── marketing/        # Marketing site assets
+│   └── website/          # Public website (Next.js) — janua.dev
+├── packages/
+│   ├── core/             # Shared TypeScript utilities
+│   ├── database/         # Prisma schema and migrations
+│   ├── ui/               # Shared React components (@janua/ui)
+│   ├── config/           # Shared configuration
+│   ├── jwt-utils/        # JWT utilities
+│   ├── monitoring/       # Observability utilities
+│   ├── feature-flags/    # Feature flag system
+│   ├── mock-api/         # Testing mock API
+│   ├── typescript-sdk/   # TypeScript SDK — core API client
+│   ├── react-sdk/        # React SDK — hooks and components
+│   ├── nextjs-sdk/       # Next.js SDK — App Router middleware
+│   ├── vue-sdk/          # Vue 3 SDK — composables
+│   ├── python-sdk/       # Python SDK — async/sync clients
+│   ├── go-sdk/           # Go SDK — service integration
+│   ├── flutter-sdk/      # Flutter SDK — mobile (iOS/Android/Web)
+│   └── react-native-sdk/ # React Native SDK — cross-platform mobile
+├── scripts/
+│   └── migration/        # Auth0 migration tools
+├── docs/                 # 200+ markdown documentation files
+├── k8s/                  # Kubernetes manifests
+├── llms.txt              # LLM-friendly index (this file's concise version)
+└── llms-full.txt         # This file — comprehensive reference
+```
+
+---
+
+## API Endpoints by Category (38 Router Modules, 318+ Endpoints)
+
+### Authentication & Identity
+| Router | Prefix | Endpoints | Description |
+|--------|--------|-----------|-------------|
+| auth.py | /auth | 18 | Email/password signup, signin, email verification, password reset, magic links, token refresh, change password |
+| oauth.py | /auth/oauth | 7 | OAuth provider authorization (Google, GitHub, Microsoft, Apple, Discord, Twitter, LinkedIn, Slack), callback, link/unlink |
+| oauth_provider.py | /oauth | 7+ | Full OAuth 2.0/OIDC Authorization Server — authorize, consent, token, userinfo, introspect, revoke |
+| passkeys.py | /passkeys | 8 | WebAuthn/FIDO2 registration, authentication, credential management |
+| mfa.py | /mfa | 9 | TOTP enable/disable, verify, backup codes, recovery |
+| sso.py | /sso | 10 | SAML 2.0 SSO configuration, initiation, ACS, SLO, OIDC, metadata |
+
+### User & Organization Management
+| Router | Prefix | Endpoints | Description |
+|--------|--------|-----------|-------------|
+| users.py | /users | 12 | User CRUD, profiles, avatar upload/delete, suspension, consent, search |
+| organizations.py | /organizations | 18 | Organization CRUD, member management, invitations, custom roles, ownership transfer, settings |
+| organization_members.py | /organizations/{id}/members | 7 | Member lifecycle, add/remove, role updates, invitations |
+| invitations.py | /v1/invitations | 10 | Invitation management, CRUD, bulk operations, resend, revoke, accept |
+
+### Access Control & Security
+| Router | Prefix | Endpoints | Description |
+|--------|--------|-----------|-------------|
+| rbac.py | /rbac | 9 | Role-based access control, permission checking, policy management |
+| roles.py | /roles | 9 | Custom role management, CRUD, system roles, permission assignments |
+| policies.py | /v1/policies | 10 | Policy management, CRUD, evaluation, role management |
+| sessions.py | /sessions | 7 | Session management, activity tracking, security alerts, revocation |
+| devices.py | /devices | 7 | Trusted device management, session tracking, device trust/revoke |
+| api_keys.py | /api-keys | 6 | API key CRUD, rotation, scoped permissions |
+| audit_logs.py | /v1/audit-logs | 6 | Compliance/security audit logging, cursor-based pagination |
+
+### Enterprise Features
+| Router | Prefix | Endpoints | Description |
+|--------|--------|-----------|-------------|
+| scim.py | /scim/v2 | 14 | Full SCIM 2.0 server — Users/Groups CRUD, PATCH, ServiceProviderConfig, Schemas |
+| scim_config.py | /organizations/{id}/scim | 7 | SCIM setup per organization |
+| oauth_clients.py | /oauth/clients | 10 | OAuth2 client management, CRUD, secret rotation with grace periods |
+| compliance.py | /compliance | 11 | GDPR/SOC2/HIPAA, consent management, data subject rights, retention |
+| webhooks.py | /webhooks | 12 | Webhook endpoint management, CRUD, stats, deliveries, signature verification |
+| white_label.py | /white-label | 14 | Custom branding, domains, email templates, logos, theme presets, CSS |
+| migration.py | /migration | 10 | Auth0 migration, data portability, migration jobs |
+
+### Platform Operations
+| Router | Prefix | Endpoints | Description |
+|--------|--------|-----------|-------------|
+| admin.py | /admin | 23 | System administration, stats, health, user/org management, maintenance mode, CORS, system config |
+| health.py | /health | 6 | Health checks (basic, detailed, ready, live), Redis health, circuit breaker, KMS |
+| alerts.py | /alerts | 15 | Alerting rules, notification channels, statistics, acknowledgment |
+| billing.py | /billing | 3 | Plans listing, subscription status |
+| checkout_dhanam.py | /checkout | 3 | Dhanam billing integration (MADFAM ecosystem) |
+| webhooks_dhanam.py | /webhooks/dhanam | 1 | Dhanam subscription webhooks |
+
+### Communication & Integration
+| Router | Prefix | Endpoints | Description |
+|--------|--------|-----------|-------------|
+| email.py | /email | 4 | Internal email API, Resend integration, templates |
+| websocket.py | /ws | 6 | WebSocket real-time communication, stats, broadcast |
+| graphql.py | /graphql | 3 | GraphQL endpoint, playground, health check |
+| integrations.py | /integrations | 3 | Third-party OAuth token access |
+| localization.py | /localization | 3 | i18n/l10n, locale listing, translations |
+| iot.py | /iot | 2 | IoT device registration and listing |
+
+---
+
+## Database Models (14 Model Files)
+
+### Core Models (apps/api/app/models/)
+| Model File | Key Tables/Entities |
+|------------|---------------------|
+| user.py | User (id, email, password_hash, status, mfa_enabled, mfa_secret, tenant_id, is_admin, failed_login_attempts, locked_until) |
+| token.py | RefreshToken, OAuthAccount, Passkey |
+| enterprise.py | Organization, OrganizationMember, Role, RolePermission, AuditLog, SSOConfiguration, SCIMConfiguration |
+| billing.py | BillingPlan, Subscription |
+| subscription.py | SubscriptionPlan, OrganizationSubscription |
+| compliance.py | ConsentRecord, DataSubjectRequest, PrivacySettings, DataBreachRecord, ComplianceEvidence |
+| policy.py | Policy, PolicyAttachment |
+| invitation.py | Invitation |
+| migration.py | MigrationJob, MigrationMapping |
+| white_label.py | WhiteLabelConfig |
+| localization.py | Translation, SupportedLocale |
+| system_settings.py | SystemSettings |
+| types.py | Enums — UserStatus (ACTIVE, INACTIVE, SUSPENDED, PENDING, DELETED), etc. |
+
+### User Model Fields (Primary)
+- `id` (UUID, PK), `email` (unique, indexed), `password_hash`, `email_verified` (bool)
+- `status` (enum: ACTIVE/INACTIVE/SUSPENDED/PENDING/DELETED)
+- `first_name`, `last_name`, `username` (unique), `display_name`, `bio`
+- `phone`, `phone_number`, `avatar_url`, `profile_image_url`
+- `tenant_id` (UUID, indexed), `is_admin` (bool), `is_active` (bool)
+- `mfa_enabled` (bool), `mfa_secret` (encrypted), `mfa_backup_codes` (encrypted)
+- `failed_login_attempts` (int), `locked_until` (datetime), `last_failed_login` (datetime)
+- `user_metadata` (JSONB), `timezone`, `locale`
+- `created_at`, `updated_at`, `last_login`, `last_sign_in_at`
+- Relationships: oauth_accounts, passkeys, consent_records, data_subject_requests, privacy_settings
+
+---
+
+## Authentication Flows
+
+### Email/Password Flow
+1. POST /api/v1/auth/signup — Register with email, password, name
+2. Email verification link sent (if REQUIRE_EMAIL_VERIFICATION=true)
+3. POST /api/v1/auth/signin — Login with email + password
+4. Returns RS256 JWT access_token (default 480min) + refresh_token (7 days)
+5. If MFA enabled: returns mfa_required=true, client sends TOTP to POST /api/v1/mfa/verify
+6. POST /api/v1/auth/token/refresh — Refresh access token using refresh_token
+
+### OAuth Flow
+1. GET /api/v1/auth/oauth/{provider}/authorize — Redirect user to provider (Google, GitHub, etc.)
+2. Provider redirects to callback URL with authorization code
+3. GET /api/v1/auth/oauth/{provider}/callback — Exchange code for tokens, create/link user
+4. Returns JWT access_token + refresh_token
+
+### SAML SSO Flow
+1. Admin configures SSO via POST /api/v1/sso/configurations
+2. User initiates SSO: GET /api/v1/sso/initiate?org={org_id}
+3. Redirect to IdP (Okta, Azure AD, etc.)
+4. IdP posts SAML assertion to POST /api/v1/sso/acs (Assertion Consumer Service)
+5. Janua validates assertion, creates/updates user (JIT provisioning), returns JWT
+
+### WebAuthn/Passkey Flow
+1. POST /api/v1/passkeys/register/begin — Get registration options (challenge)
+2. Client creates credential via navigator.credentials.create()
+3. POST /api/v1/passkeys/register/complete — Verify and store credential
+4. POST /api/v1/passkeys/authenticate/begin — Get authentication options
+5. Client signs challenge via navigator.credentials.get()
+6. POST /api/v1/passkeys/authenticate/complete — Verify signature, return JWT
+
+### Magic Link Flow
+1. POST /api/v1/auth/magic-link — Send magic link to email
+2. User clicks link with token
+3. GET /api/v1/auth/magic-link/verify?token={token} — Verify and return JWT
+
+---
+
+## Environment Variables (Complete Reference)
+
+### Core Application
+| Variable | Default | Description |
+|----------|---------|-------------|
+| APP_NAME | "Janua" | Application name |
+| ENVIRONMENT | "development" | Environment (development/staging/production) |
+| DEBUG | false | Debug mode |
+| BASE_URL | "https://janua.dev" | Base URL for the platform |
+| API_BASE_URL | "https://api.janua.dev" | API base URL |
+| FRONTEND_URL | "http://localhost:3000" | Frontend URL for CORS/redirects |
+
+### Database
+| Variable | Default | Description |
+|----------|---------|-------------|
+| DATABASE_URL | postgresql://...localhost:5432/janua | PostgreSQL connection string |
+| DATABASE_POOL_SIZE | 20 | Connection pool size |
+| DATABASE_MAX_OVERFLOW | 10 | Max overflow connections |
+| DATABASE_SSL_MODE | "disable" | SSL mode (disable/require/verify-ca/verify-full) |
+
+### Redis
+| Variable | Default | Description |
+|----------|---------|-------------|
+| REDIS_URL | redis://localhost:6379/0 | Redis connection string |
+| REDIS_POOL_SIZE | 10 | Connection pool size |
+| REDIS_MAX_CONNECTIONS | 100 | Max connections |
+
+### JWT & Authentication
+| Variable | Default | Description |
+|----------|---------|-------------|
+| JWT_ALGORITHM | "RS256" | JWT signing algorithm |
+| JWT_SECRET_KEY | None | HS256 secret (fallback) |
+| JWT_PRIVATE_KEY | None | RS256 private key (PEM) |
+| JWT_PUBLIC_KEY | None | RS256 public key (PEM) |
+| JWT_KID | "janua-primary-key" | Key ID for JWKS |
+| JWT_ISSUER | "https://api.janua.dev" | JWT issuer claim |
+| JWT_AUDIENCE | "janua.dev" | JWT audience claim |
+| JWT_ACCESS_TOKEN_EXPIRE_MINUTES | 480 | Access token lifetime |
+| JWT_REFRESH_TOKEN_EXPIRE_DAYS | 7 | Refresh token lifetime |
+
+### Security
+| Variable | Default | Description |
+|----------|---------|-------------|
+| SECRET_KEY | (dev default) | Application secret key |
+| FIELD_ENCRYPTION_KEY | None | Fernet key for field-level encryption (required in production) |
+| BCRYPT_ROUNDS | 12 | Password hashing rounds |
+| PASSWORD_MIN_LENGTH | 12 | Minimum password length |
+| CORS_ORIGINS | "http://localhost:3000,https://janua.dev" | Allowed CORS origins |
+| RATE_LIMIT_PER_MINUTE | 60 | Rate limit per IP per minute |
+| RATE_LIMIT_PER_HOUR | 1000 | Rate limit per IP per hour |
+| ACCOUNT_LOCKOUT_THRESHOLD | 5 | Failed login attempts before lockout |
+| ACCOUNT_LOCKOUT_DURATION_MINUTES | 15 | Lockout duration |
+
+### Email
+| Variable | Default | Description |
+|----------|---------|-------------|
+| EMAIL_ENABLED | false | Enable email sending |
+| EMAIL_PROVIDER | "resend" | Email provider (resend/smtp/sendgrid) |
+| RESEND_API_KEY | None | Resend API key |
+| SMTP_HOST | None | SMTP server host |
+| SMTP_PORT | 587 | SMTP server port |
+
+### OAuth Providers
+| Variable | Default | Description |
+|----------|---------|-------------|
+| OAUTH_GOOGLE_CLIENT_ID | None | Google OAuth client ID |
+| OAUTH_GOOGLE_CLIENT_SECRET | None | Google OAuth client secret |
+| OAUTH_GITHUB_CLIENT_ID | None | GitHub OAuth client ID |
+| OAUTH_GITHUB_CLIENT_SECRET | None | GitHub OAuth client secret |
+| OAUTH_MICROSOFT_CLIENT_ID | None | Microsoft OAuth client ID |
+| OAUTH_MICROSOFT_CLIENT_SECRET | None | Microsoft OAuth client secret |
+| OAUTH_APPLE_CLIENT_ID | None | Apple Sign-In client ID |
+| OAUTH_DISCORD_CLIENT_ID | None | Discord OAuth client ID |
+| OAUTH_TWITTER_CLIENT_ID | None | Twitter/X OAuth client ID |
+| OAUTH_LINKEDIN_CLIENT_ID | None | LinkedIn OAuth client ID |
+| OAUTH_SLACK_CLIENT_ID | None | Slack OAuth client ID |
+
+### WebAuthn
+| Variable | Default | Description |
+|----------|---------|-------------|
+| WEBAUTHN_RP_ID | "janua.dev" | Relying Party ID |
+| WEBAUTHN_RP_NAME | "Janua" | Relying Party display name |
+| WEBAUTHN_ORIGIN | "https://janua.dev" | Expected origin |
+
+### Feature Flags
+| Variable | Default | Description |
+|----------|---------|-------------|
+| ENABLE_SIGNUPS | true | Allow new user registration |
+| ENABLE_MAGIC_LINKS | true | Enable passwordless magic links |
+| ENABLE_OAUTH | true | Enable OAuth social login |
+| ENABLE_MFA | true | Enable multi-factor authentication |
+| ENABLE_ORGANIZATIONS | true | Enable multi-tenancy |
+| ENABLE_SSO | false | Enable SAML SSO |
+| ENABLE_SCIM | false | Enable SCIM provisioning |
+| ENABLE_WEBHOOKS | true | Enable webhook system |
+| ENABLE_AUDIT | true | Enable audit logging |
+| ENABLE_DOCS | true | Enable OpenAPI docs at /docs |
+
+### Compliance
+| Variable | Default | Description |
+|----------|---------|-------------|
+| COMPLIANCE_GDPR_ENABLED | true | GDPR compliance features |
+| COMPLIANCE_SOC2_ENABLED | false | SOC 2 compliance features |
+| COMPLIANCE_HIPAA_ENABLED | false | HIPAA compliance features |
+| COMPLIANCE_CCPA_ENABLED | true | CCPA compliance features |
+| DEFAULT_RETENTION_PERIOD_DAYS | 2555 | Default data retention (~7 years) |
+| AUDIT_LOG_ENCRYPTION | true | Encrypt audit logs |
+
+### Limits
+| Variable | Default | Description |
+|----------|---------|-------------|
+| MAX_ORGANIZATIONS_PER_IDENTITY | 10 | Max orgs per user |
+| MAX_SESSIONS_PER_IDENTITY | 5 | Max concurrent sessions |
+| MAX_PASSKEYS_PER_IDENTITY | 10 | Max passkeys per user |
+| MAX_WEBHOOKS_PER_TENANT | 10 | Max webhooks per organization |
+
+---
+
+## SDK Installation
+
+### TypeScript (Core Client)
+```bash
+npm install @janua/typescript-sdk
+# Registry: @janua:registry=https://npm.madfam.io
+```
+
+### React
+```bash
+npm install @janua/react-sdk
+# Hooks: useAuth, useUser, useOrganization, useSession
+# Components: JanuaProvider, SignIn, SignUp, UserProfile
+```
+
+### Next.js
+```bash
+npm install @janua/nextjs-sdk
+# Features: App Router middleware, server components, route protection
+```
+
+### Vue 3
+```bash
+npm install @janua/vue-sdk
+# Composables: useAuth, useUser, useOrganization
+```
+
+### Python
+```bash
+pip install janua-sdk
+# Features: Async/sync clients, type hints, all endpoints covered
+```
+
+### Go
+```bash
+go get github.com/madfam-org/janua/packages/go-sdk
+# Features: Context support, automatic token refresh
+```
+
+### Flutter
+```bash
+# pubspec.yaml
+dependencies:
+  janua_flutter_sdk: ^1.0.0
+# Features: iOS/Android/Web, biometric auth, secure storage
+```
+
+### React Native
+```bash
+npm install @janua/react-native-sdk
+# Features: Cross-platform mobile, secure storage, biometric
+```
+
+---
+
+## Port Allocation (4100-4199 Block)
+
+| Service | Port | Domain | Description |
+|---------|------|--------|-------------|
+| API | 4100 | api.janua.dev / auth.madfam.io | FastAPI backend |
+| Dashboard | 4101 | app.janua.dev | User management UI |
+| Admin | 4102 | admin.janua.dev | Platform operator admin |
+| Docs | 4103 | docs.janua.dev | Documentation site |
+| Website | 4104 | janua.dev | Public website |
+| Demo | 4105 | demo.janua.dev | Demo application |
+| Email Worker | 4110 | — | Background email processing |
+| WebSocket | 4120 | — | Real-time WebSocket server |
+| Metrics | 4190 | — | Prometheus metrics endpoint |
+
+---
+
+## Deployment Topology
+
+### Infrastructure
+- **Server**: Hetzner AX41-NVMe ("The Sanctuary") — 2-node cluster
+- **Orchestration**: K3s (lightweight Kubernetes)
+- **Ingress**: Cloudflare Tunnel (zero-trust, no open ports)
+- **Namespace**: janua
+- **PaaS**: Enclii (MADFAM's deployment platform)
+
+### Cloudflare Tunnel Routing
+| Public Domain | K8s Service | Port |
+|---------------|-------------|------|
+| api.janua.dev / auth.madfam.io | janua-api.janua.svc.cluster.local:80 | 4100 |
+| app.janua.dev | janua-dashboard.janua.svc.cluster.local:80 | 4101 |
+| admin.janua.dev | janua-admin.janua.svc.cluster.local:80 | 4102 |
+| docs.janua.dev | janua-docs.janua.svc.cluster.local:80 | 4103 |
+| janua.dev / www.janua.dev | janua-website.janua.svc.cluster.local:80 | 4104 |
+
+### Active SSO Integrations
+- Enclii Dashboard (app.enclii.dev) — `enclii-web`
+- Enclii Admin/Dispatch (admin.enclii.dev) — `dispatch-admin`
+- Dhanam Ledger (dhanam.com) — `dhanam-ledger`
+- Dhanam Admin (admin.dhanam.com) — `dhanam-admin`
+
+---
+
+## Error Codes
+
+| HTTP | Code | Meaning |
+|------|------|---------|
+| 400 | BAD_REQUEST | Invalid request body or parameters |
+| 401 | AUTHENTICATION_ERROR | Authentication failed (invalid credentials) |
+| 401 | TOKEN_ERROR | Invalid, expired, or malformed JWT |
+| 403 | AUTHORIZATION_ERROR | Permission denied (insufficient role/scope) |
+| 404 | NOT_FOUND_ERROR | Resource not found |
+| 409 | CONFLICT_ERROR | Duplicate resource (e.g., email already registered) |
+| 422 | VALIDATION_ERROR | Request validation failed (Pydantic) |
+| 429 | RATE_LIMIT_ERROR | Rate limit exceeded |
+| 500 | INTERNAL_ERROR | Server error |
+
+### SSO-Specific Error Codes
+| Code | Meaning |
+|------|---------|
+| SSO_AUTHENTICATION_ERROR | SAML authentication failed |
+| SSO_VALIDATION_ERROR | SSO configuration invalid |
+| SSO_CONFIGURATION_ERROR | Provider setup incomplete |
+| SSO_METADATA_ERROR | SAML metadata parsing failed |
+| SSO_CERTIFICATE_ERROR | Certificate validation failed |
+| SSO_PROVISIONING_ERROR | User provisioning failed |
+
+---
+
+## Health Endpoints
+
+```bash
+# Basic health check
+curl https://api.janua.dev/health
+# → {"status": "healthy"}
+
+# Detailed health (dependencies)
+curl https://api.janua.dev/health/detailed
+# → {"status": "healthy", "database": true, "redis": true, ...}
+
+# Readiness probe (K8s)
+curl https://api.janua.dev/health/ready
+# → {"status": "ready"}
+
+# Liveness probe (K8s)
+curl https://api.janua.dev/health/live
+# → {"status": "alive"}
+```
+
+---
+
+## Development Commands
+
+```bash
+# Backend setup
+cd apps/api
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+docker-compose up -d postgres redis
+alembic upgrade head
+uvicorn app.main:app --reload --port 4100
+
+# Run tests
+cd apps/api && pytest
+pytest --cov=app tests/
+pytest tests/unit/
+pytest tests/integration/
+
+# Frontend (any app)
+cd apps/<app-name>
+pnpm install && pnpm dev
+
+# Monorepo
+pnpm install          # Install all
+pnpm build            # Build all
+pnpm dev              # Dev all
+pnpm test             # Test all
+pnpm lint             # Lint all
+pnpm typecheck        # Type check all
+
+# Database migration
+cd apps/api
+alembic revision --autogenerate -m "description"
+alembic upgrade head
+alembic downgrade -1
+
+# Debug mode
+DEBUG=true LOG_LEVEL=DEBUG uvicorn app.main:app --reload --port 4100
+```
+
+---
+
+## Key File Locations
+
+### API Backend
+| Purpose | Path |
+|---------|------|
+| Entry point | apps/api/app/main.py |
+| Configuration | apps/api/app/config.py |
+| Routes (all) | apps/api/app/routers/v1/ |
+| Services (all) | apps/api/app/services/ |
+| Models (all) | apps/api/app/models/ |
+| Schemas | apps/api/app/schemas/ |
+| Middleware | apps/api/app/middleware/ |
+| Dependencies | apps/api/app/dependencies.py |
+| Exceptions | apps/api/app/core/exceptions.py |
+| Error handling | apps/api/app/core/errors.py |
+| Caching | apps/api/app/core/caching.py |
+| Performance | apps/api/app/core/performance.py |
+| DB migrations | apps/api/alembic/versions/ |
+| OpenAPI spec | apps/api/openapi.yaml |
+
+### Authentication
+| Purpose | Path |
+|---------|------|
+| Auth router | apps/api/app/routers/v1/auth.py |
+| Auth service | apps/api/app/services/auth_service.py |
+| JWT service | apps/api/app/services/jwt_service.py |
+| MFA service | apps/api/app/routers/v1/mfa.py |
+| OAuth service | apps/api/app/services/oauth.py |
+| SSO service | apps/api/app/services/sso_service.py |
+| Passkeys | apps/api/app/routers/v1/passkeys.py |
+
+### SDKs
+| SDK | Entry | Types |
+|-----|-------|-------|
+| TypeScript | packages/typescript-sdk/src/client.ts | packages/typescript-sdk/src/types.ts |
+| React | packages/react-sdk/src/index.ts | packages/react-sdk/src/types.ts |
+| Next.js | packages/nextjs-sdk/src/index.ts | packages/nextjs-sdk/src/middleware.ts |
+| Vue | packages/vue-sdk/src/index.ts | packages/vue-sdk/src/composables.ts |
+| Python | packages/python-sdk/src/janua/client.py | packages/python-sdk/src/janua/types.py |
+| Go | packages/go-sdk/janua/client.go | packages/go-sdk/janua/auth.go |
+
+### Frontend Apps
+| App | Entry | Config |
+|-----|-------|--------|
+| Dashboard | apps/dashboard/app/page.tsx | apps/dashboard/lib/janua-client.ts |
+| Admin | apps/admin/app/page.tsx | apps/admin/lib/janua-client.ts |
+| Demo | apps/demo/README.md | — |
+
+### Documentation
+| Doc Type | Path |
+|----------|------|
+| Full index | docs/README.md |
+| Architecture | docs/architecture/ARCHITECTURE.md |
+| Quick start | docs/guides/QUICK_START.md |
+| API reference | docs/api/API_REFERENCE.md |
+| Troubleshooting | docs/guides/TROUBLESHOOTING_GUIDE.md |
+| Security | docs/guides/SECURITY_CHECKLIST.md |
+| Performance | docs/guides/PERFORMANCE_TUNING_GUIDE.md |
+| Compliance | docs/guides/COMPLIANCE_FEATURES_GUIDE.md |
+| SSO guide | docs/enterprise/sso-integration-guide.md |
+| SCIM guide | docs/guides/SCIM_PROVISIONING_GUIDE.md |
+| MFA guide | docs/guides/mfa-2fa-implementation-guide.md |
+| Migration | scripts/migration/README.md |
+| Deployment | docs/deployment/DEPLOYMENT_DETAILS.md |
+
+---
+
+## Services (36 Service Modules)
+
+| Service | File | Description |
+|---------|------|-------------|
+| Auth | auth_service.py | Core authentication (signup, signin, password reset, email verify, magic links) |
+| JWT | jwt_service.py | RS256/HS256 token issuance, validation, refresh, JWKS |
+| OAuth | oauth.py | OAuth provider integration (Google, GitHub, Microsoft, Apple, Discord, Twitter, LinkedIn, Slack) |
+| OAuth Client | oauth_client_service.py | OAuth2 client management, secret rotation with grace periods |
+| SSO | sso_service.py | SAML assertion parsing, validation, JIT provisioning |
+| RBAC | rbac_service.py | Permission evaluation, role hierarchy, scope checking |
+| Role | role_service.py | Role CRUD, permission assignment, system role initialization |
+| Policy Engine | policy_engine.py | Policy evaluation, attachment, enforcement |
+| Audit | audit_service.py | Security event logging, compliance audit trail |
+| Audit Logger | audit_logger.py | Structured audit log writing |
+| Email | email_service.py | Email delivery abstraction (Resend, SMTP, SendGrid) |
+| Enhanced Email | enhanced_email_service.py | Template-based email with i18n |
+| Resend Email | resend_email_service.py | Resend-specific email implementation |
+| Compliance | compliance_service.py | GDPR/SOC2 compliance operations |
+| Compliance (Full) | compliance_service_complete.py | Extended compliance with HIPAA/CCPA |
+| Consent | consent_service.py | User consent management, records |
+| Webhooks | webhooks.py | Event dispatch, delivery, retry logic |
+| Webhook Enhanced | webhook_enhanced.py | Advanced webhook features, signature verification |
+| Billing | billing_service.py | Plan management, subscription status |
+| Billing Webhooks | billing_webhooks.py | Dhanam/Stripe/Conekta payment webhook handling |
+| Migration | migration_service.py | Auth0 data import, user mapping |
+| Invitation | invitation_service.py | Organization invitation lifecycle |
+| Organization Member | organization_member_service.py | Member management, role updates |
+| Device Verification | device_verification_service.py | Trusted device management |
+| Account Lockout | account_lockout_service.py | Login attempt tracking, lockout enforcement |
+| Risk Assessment | risk_assessment_service.py | Login risk scoring, anomaly detection |
+| Credential Rotation | credential_rotation_service.py | API key and secret rotation |
+| Session Manager | distributed_session_manager.py | Distributed Redis session management |
+| Cache | cache.py | Redis caching abstraction |
+| Storage | storage.py | File storage (local, S3, R2) |
+| Admin Notifications | admin_notifications.py | Platform operator notification system |
+| System Settings | system_settings_service.py | Dynamic system configuration |
+| Monitoring | monitoring.py | Health checks, metrics collection |
+| WebSocket Manager | websocket_manager.py | Real-time WebSocket connection management |
+| API Key | api_key_service.py | API key generation, validation, scoping |
+
+---
+
+*Generated: February 2026 | Janua v1.0 | Production on K3s/Hetzner via Cloudflare Tunnel*
+*See llms.txt for concise navigation index*
