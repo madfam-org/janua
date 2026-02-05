@@ -6,6 +6,8 @@ on:
     - cron: '0 6 * * *'
   push:
     branches: [main]
+    paths-ignore:
+      - 'k8s/**'
   pull_request:
     branches: [main]
   workflow_dispatch: # Allow manual triggering

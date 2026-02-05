@@ -3,6 +3,8 @@ name: E2E Tests
 on:
   push:
     branches: [main, develop]
+    paths-ignore:
+      - 'k8s/**'
   pull_request:
     branches: [main, develop]
   workflow_dispatch:  # Allow manual trigger

@@ -3,6 +3,8 @@ name: Build and Deploy
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'k8s/**'
   pull_request:
     branches: [main]
   workflow_dispatch:
