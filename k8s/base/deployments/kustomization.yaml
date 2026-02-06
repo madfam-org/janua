@@ -7,13 +7,18 @@ resources:
 - janua-docs.yaml
 - janua-website.yaml
 images:
-- name: ghcr.io/madfam-org/janua-admin
-  newTag: main
-- name: ghcr.io/madfam-org/janua-api
-  newTag: main
-- name: ghcr.io/madfam-org/janua-dashboard
-  newTag: main
-- name: ghcr.io/madfam-org/janua-docs
-  newTag: main
-- name: ghcr.io/madfam-org/janua-website
-  newTag: main
+- digest: sha256:9dc6970758f20351fd9225c4294afbb3e180fdfc460e7357a5412e1d6ee0ebde
+  name: ghcr.io/madfam-org/janua-admin
+  newName: ghcr.io/madfam-org/janua-admin
+- digest: sha256:077021b245540f59bc4e2cd22a3648c4a0b8a34ec50ae68b2eb8eb23656f1823
+  name: ghcr.io/madfam-org/janua-api
+  newName: ghcr.io/madfam-org/janua-api
+- digest: sha256:5897ab2819c67cd4ae71293f83d37bf4bca0de82680cf1e0044f15305e329432
+  name: ghcr.io/madfam-org/janua-dashboard
+  newName: ghcr.io/madfam-org/janua-dashboard
+- digest: sha256:9c63786a5e6a74e7dd7f6527f86c48308906eae86d00010ac98dbfc54354861e
+  name: ghcr.io/madfam-org/janua-docs
+  newName: ghcr.io/madfam-org/janua-docs
+- digest: sha256:76a155958a5b12234616db2917ca1451ac1fb5ad9aec313c2699ec5bc79bb1fb
+  name: ghcr.io/madfam-org/janua-website
+  newName: ghcr.io/madfam-org/janua-website
