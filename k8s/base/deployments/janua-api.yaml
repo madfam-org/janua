@@ -46,7 +46,7 @@ spec:
           securityContext:
             privileged: false
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -167,5 +167,11 @@ spec:
             periodSeconds: 5
             failureThreshold: 30
             timeoutSeconds: 5
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
