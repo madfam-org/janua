@@ -348,6 +348,7 @@ pnpm test:e2e                    # Playwright E2E
 | Migration Guide | `scripts/migration/README.md` |
 | Architecture | `docs/architecture/` |
 | Deployment | `docs/deployment/` |
+| Domain manifest | `enclii.yaml` |
 
 ---
 
@@ -391,6 +392,20 @@ kubectl apply -f k8s/
 ```bash
 enclii deploy --service janua
 ```
+
+### Domain Auto-Provisioning
+
+`enclii.yaml` at the repo root declares domains for Enclii's self-service auto-provisioning.
+On push to main, Enclii's webhook fetches this file and provisions:
+- `CustomDomain` record in the platform DB
+- Cloudflare tunnel route (via API)
+- DNS CNAME record (→ `tunnel.enclii.dev`)
+
+Only janua-website domains are listed due to the single-service-per-file format.
+Other service domains (api, dashboard, admin, docs) are managed via static tunnel config in
+`enclii/infra/k8s/production/cloudflared-unified.yaml`.
+
+See [Enclii Service Spec Reference](https://docs.enclii.dev/reference/service-spec) for the full schema.
 
 ### Production Infrastructure
 **Server**: foundry-core (95.217.198.239) via Cloudflare Tunnel

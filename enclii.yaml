@@ -1,0 +1,21 @@
+apiVersion: enclii.dev/v1
+kind: Service
+metadata:
+  name: janua-website
+  project: janua
+spec:
+  build:
+    type: dockerfile
+  runtime:
+    port: 4104
+    replicas: 1
+    healthCheck: /
+  domains:
+    - name: janua.dev
+      environment: production
+    - name: www.janua.dev
+      environment: production
+    - name: madfam.io
+      environment: production
+    - name: www.madfam.io
+      environment: production
