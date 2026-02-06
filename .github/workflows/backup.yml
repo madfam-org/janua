@@ -1,9 +1,11 @@
 name: Database Backup
 
 on:
-  schedule:
-    # Run daily at 2 AM UTC
-    - cron: '0 2 * * *'
+  # Schedule DISABLED — production backups handled by in-cluster CronJob
+  # (postgres-backup in data namespace, daily 3 AM UTC, dumps to R2).
+  # Keep workflow_dispatch for manual/ad-hoc backups if needed.
+  # schedule:
+  #   - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       environment:

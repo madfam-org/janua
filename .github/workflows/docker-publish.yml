@@ -25,6 +25,7 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write  # Required for cosign keyless signing via OIDC
 
 env:
   REGISTRY: ghcr.io
@@ -100,6 +101,11 @@ jobs:
           username: madfam-bot
           password: ${{ secrets.MADFAM_BOT_PAT }}
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+
       - name: Build and push
         id: build
         uses: docker/build-push-action@v6
@@ -114,6 +120,13 @@ jobs:
           cache-to: type=gha,scope=janua-api,mode=max
           provenance: false
           sbom: false
+
+      - name: Sign image with cosign
+        if: steps.build.outcome == 'success'
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          cosign sign --yes ${{ env.IMAGE_PREFIX }}/janua-api@${{ steps.build.outputs.digest }}
 
   build-admin:
     name: Build Admin
@@ -135,6 +148,11 @@ jobs:
           username: madfam-bot
           password: ${{ secrets.MADFAM_BOT_PAT }}
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+
       - name: Build and push
         id: build
         uses: docker/build-push-action@v6
@@ -151,6 +169,13 @@ jobs:
           cache-to: type=gha,scope=janua-admin,mode=max
           provenance: false
           sbom: false
+
+      - name: Sign image with cosign
+        if: steps.build.outcome == 'success'
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          cosign sign --yes ${{ env.IMAGE_PREFIX }}/janua-admin@${{ steps.build.outputs.digest }}
 
   build-dashboard:
     name: Build Dashboard
@@ -172,6 +197,11 @@ jobs:
           username: madfam-bot
           password: ${{ secrets.MADFAM_BOT_PAT }}
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+
       - name: Build and push
         id: build
         uses: docker/build-push-action@v6
@@ -189,6 +219,13 @@ jobs:
           cache-to: type=gha,scope=janua-dashboard,mode=max
           provenance: false
           sbom: false
+
+      - name: Sign image with cosign
+        if: steps.build.outcome == 'success'
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          cosign sign --yes ${{ env.IMAGE_PREFIX }}/janua-dashboard@${{ steps.build.outputs.digest }}
 
   build-docs:
     name: Build Docs
@@ -210,6 +247,11 @@ jobs:
           username: madfam-bot
           password: ${{ secrets.MADFAM_BOT_PAT }}
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+
       - name: Build and push
         id: build
         uses: docker/build-push-action@v6
@@ -224,6 +266,13 @@ jobs:
           cache-to: type=gha,scope=janua-docs,mode=max
           provenance: false
           sbom: false
+
+      - name: Sign image with cosign
+        if: steps.build.outcome == 'success'
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          cosign sign --yes ${{ env.IMAGE_PREFIX }}/janua-docs@${{ steps.build.outputs.digest }}
 
   build-website:
     name: Build Website
@@ -245,6 +294,11 @@ jobs:
           username: madfam-bot
           password: ${{ secrets.MADFAM_BOT_PAT }}
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+
       - name: Build and push
         id: build
         uses: docker/build-push-action@v6
@@ -262,6 +316,13 @@ jobs:
           cache-to: type=gha,scope=janua-website,mode=max
           provenance: false
           sbom: false
+
+      - name: Sign image with cosign
+        if: steps.build.outcome == 'success'
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          cosign sign --yes ${{ env.IMAGE_PREFIX }}/janua-website@${{ steps.build.outputs.digest }}
 
   commit-digests:
     name: Commit Digests to Kustomization
