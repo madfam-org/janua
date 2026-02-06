@@ -1,13 +1,8 @@
-name: Docker Build
+name: Docker Build (Legacy - use docker-publish.yml)
 
+# DISABLED: Push trigger removed. All builds consolidated into docker-publish.yml.
+# Kept for manual workflow_dispatch only.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/**'
-      - 'packages/**'
-      - 'Dockerfile.*'
-      - 'pnpm-lock.yaml'
   workflow_dispatch:
 
 env:

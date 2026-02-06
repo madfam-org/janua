@@ -1,10 +1,8 @@
-name: Build and Deploy
+name: Build and Deploy (Legacy - use docker-publish.yml)
 
+# DISABLED: Push trigger removed. All builds consolidated into docker-publish.yml.
+# Kept for PR checks and manual workflow_dispatch only.
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'k8s/**'
   pull_request:
     branches: [main]
   workflow_dispatch:

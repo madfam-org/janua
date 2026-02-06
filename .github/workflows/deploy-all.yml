@@ -4,11 +4,8 @@ name: Deploy All Services
 # Fixes 502 errors by ensuring all services are deployed with fresh credentials
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'k8s/**'
-      - '.github/workflows/deploy-all.yml'
+  # DISABLED: Push trigger removed. Deployment now via GitOps (ArgoCD + docker-publish.yml digest commits).
+  # Kept for manual emergency deployment only.
   workflow_dispatch:
     inputs:
       force_restart:

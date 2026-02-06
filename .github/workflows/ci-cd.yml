@@ -1,10 +1,8 @@
-name: CI/CD Pipeline
+name: CI/CD Pipeline (Legacy - builds moved to docker-publish.yml)
 
+# DISABLED: Push trigger removed. Docker builds consolidated into docker-publish.yml.
+# Kept for PR checks only (code quality, security scanning).
 on:
-  push:
-    branches: [main, develop]
-    paths-ignore:
-      - 'k8s/**'
   pull_request:
     branches: [main, develop]
 

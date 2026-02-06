@@ -37,7 +37,7 @@ spec:
               drop:
                 - ALL
           image: ghcr.io/madfam-org/janua-admin:main
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 4102
               protocol: TCP
