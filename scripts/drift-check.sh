@@ -131,6 +131,22 @@ for DEPLOY in janua-api janua-dashboard janua-admin janua-docs janua-website; do
         continue
     fi
 
+    # Handle digest-based images (e.g., image@sha256:abc123)
+    # CI/CD pins images by digest for immutability — this is expected, not drift
+    if [[ "$CURRENT_IMAGE" == *"@sha256:"* ]]; then
+        CURRENT_NAME=$(echo "$CURRENT_IMAGE" | cut -d@ -f1)
+        EXPECTED_NAME=$(echo "$EXPECTED_IMAGE" | cut -d: -f1)
+        if [[ "$CURRENT_NAME" == "$EXPECTED_NAME" ]]; then
+            echo "OK: $DEPLOY - digest-pinned (expected by CI/CD)"
+        else
+            echo "DRIFT: $DEPLOY image name mismatch"
+            echo "   Expected: $EXPECTED_IMAGE"
+            echo "   Actual:   $CURRENT_IMAGE"
+            DRIFT_FOUND=1
+        fi
+        continue
+    fi
+
     EXPECTED_BASE=$(echo "$EXPECTED_IMAGE" | cut -d: -f1)
     CURRENT_BASE=$(echo "$CURRENT_IMAGE" | cut -d: -f1)
     EXPECTED_TAG=$(echo "$EXPECTED_IMAGE" | cut -d: -f2)
