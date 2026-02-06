@@ -130,9 +130,10 @@ janua/
 │   ├── deployment/        # Deployment guides
 │   └── development/       # Development guides
 │
-└── infrastructure/         # Infrastructure as Code
-    ├── terraform/         # Terraform configurations
-    └── k8s/              # Kubernetes manifests
+└── infra/                  # Infrastructure
+    ├── monitoring/        # Alerts and dashboards
+    ├── secrets/           # Secrets registry
+    └── postgres/          # Database init scripts
 ```
 
 ## Development Workflow

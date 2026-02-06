@@ -45,7 +45,7 @@ npm run docs:pipeline health         # Health check
 - Archive management
 - Interactive workflow
 
-### 2. Automated Validation (`scripts/validate-docs.js`)
+### 2. Automated Validation (`scripts/maintenance/check-docs.sh`)
 
 Comprehensive validation suite:
 

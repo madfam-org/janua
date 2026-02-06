@@ -52,9 +52,9 @@ janua/
 │   ├── sdk-js/           # JavaScript SDK
 │   └── react/            # React SDK
 │
-└── infrastructure/
-    ├── vercel.json       # Vercel configs
-    └── railway.toml      # Railway configs
+└── infra/
+    ├── monitoring/       # Alerts and dashboards
+    └── postgres/         # Database init scripts
 ```
 
 ## Application Responsibilities

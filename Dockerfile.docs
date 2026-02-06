@@ -1,3 +1,4 @@
+# CI/CD build — used by .github/workflows/docker-publish.yml
 # Janua Docs - Multi-stage Dockerfile for Next.js with MDX
 FROM node:20-alpine AS builder
 

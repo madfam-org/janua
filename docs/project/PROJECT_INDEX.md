@@ -238,9 +238,8 @@
 - **Status:** Placeholder
 
 #### @janua/database
-- **README:** [Database README](../packages/database/README.md) - *To be created*
-- **Purpose:** Database utilities
-- **Status:** Placeholder
+- **Purpose:** Database utilities (removed — was docs-only placeholder)
+- **Status:** Removed
 
 #### @janua/monitoring
 - **README:** [Monitoring README](../packages/monitoring/README.md) - *To be created*

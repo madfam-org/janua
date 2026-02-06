@@ -43,16 +43,11 @@ janua/
 │   ├── deployment/     # Deployment guides
 │   ├── architecture/   # Architecture documents
 │   └── ...
-├── claudedocs/          # Claude-generated documentation
-│   ├── gap analysis reports
-│   ├── implementation reports
-│   └── ...
 ├── tests/               # Test files and configurations
+│   └── e2e/             # End-to-end tests (Playwright)
 ├── scripts/             # Utility scripts
-├── deployment/          # Deployment configurations
-├── infrastructure/      # Infrastructure as code
-├── monitoring/          # Monitoring configurations
-├── config/              # Configuration files (docker-compose, railway, vercel)
+├── infra/               # Infrastructure (monitoring, secrets, postgres)
+├── config/              # Configuration files (docker-compose, agent manifest)
 ├── assets/              # Static assets
 ├── .github/             # GitHub configurations
 ├── .claude/             # Claude configuration

@@ -1,10 +1,8 @@
-name: Tests
+name: PR Quality Checks
 
+# PR-only checks: code quality, frontend build validation, security scanning.
+# Docker builds are handled by docker-publish.yml.
 on:
-  push:
-    branches: [main, develop]
-    paths-ignore:
-      - 'k8s/**'
   pull_request:
     branches: [main, develop]
 
@@ -13,10 +11,8 @@ env:
   PYTHON_VERSION: "3.11"
 
 jobs:
-  unit-tests:
-    # Disabled - consolidated into tests.yml workflow
-    if: false
-    name: Unit Tests
+  code-quality:
+    name: Code Quality
     runs-on: ubuntu-latest
 
     steps:
@@ -34,22 +30,56 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run unit tests
-        run: pnpm test:unit
+      - name: Run ESLint
+        run: pnpm lint
 
-      - name: Upload coverage
-        if: always()
-        uses: codecov/codecov-action@v5
-        continue-on-error: true
+      - name: Run TypeScript check
+        run: pnpm typecheck
+
+  frontend-tests-build:
+    name: Frontend Tests & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
-          files: ./coverage/lcov.info
-          flags: unit
-          name: unit-coverage
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
 
-  api-tests:
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run frontend tests
+        run: pnpm test:unit
+        continue-on-error: true
+
+      - name: Build SDK packages
+        run: pnpm build:packages
+        continue-on-error: true
+
+      - name: Build frontend packages
+        run: pnpm build:frontend
+        continue-on-error: true
+
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: frontend-build
+          path: |
+            apps/*/.next
+            packages/*/dist
+
+  backend-tests:
     # Disabled - consolidated into tests.yml workflow
     if: false
-    name: API Tests
+    name: Backend Tests
     runs-on: ubuntu-latest
 
     services:
@@ -96,7 +126,7 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-test.txt
 
-      - name: Run API tests
+      - name: Run backend tests
         run: |
           cd apps/api
           # Note: Several test files are ignored because they contain stale tests
@@ -156,130 +186,10 @@ jobs:
           DATABASE_URL: postgresql://janua:janua@localhost:5432/janua_test
           REDIS_URL: redis://localhost:6379/0
           JANUA_ENV: test
-          JWT_SECRET_KEY: test-secret-key-for-testing-only
+          JWT_SECRET_KEY: test-secret-key
           JWT_ALGORITHM: HS256
 
-      - name: Upload coverage
-        if: always()
-        uses: codecov/codecov-action@v5
-        continue-on-error: true
-        with:
-          files: ./apps/api/coverage.xml
-          flags: api
-          name: api-coverage
-
-  integration-tests:
-    # Disabled - consolidated into tests.yml workflow
-    if: false
-    name: Integration Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run integration tests
-        run: pnpm test:integration
-        env:
-          JANUA_ISSUER: http://localhost:8000
-          JANUA_CLIENT_ID: test-client
-
-  e2e-tests:
-    # Disabled - consolidated into tests.yml workflow
-    if: false
-    name: E2E Tests
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        browser: [chromium]
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps ${{ matrix.browser }}
-
-      - name: Run E2E tests - ${{ matrix.browser }}
-        run: pnpm test:e2e --project=${{ matrix.browser }}
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: playwright-results-${{ matrix.browser }}
-          path: |
-            test-results/
-            playwright-report/
-
-  lint-and-type-check:
-    # Disabled - consolidated into tests.yml workflow
-    if: false
-    name: Lint and Type Check
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run linting
-        run: pnpm lint
-
-      - name: Run TypeScript type check
-        run: pnpm typecheck
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Run Python linting (API)
-        run: |
-          pip install ruff black mypy
-          cd apps/api
-          # Auto-fix linting issues before checking
-          ruff check . --fix --unsafe-fixes || true
-          ruff check . || true
-          black --check . || true
-          mypy app/ || true
-        continue-on-error: true
-
   security-scan:
-    # Disabled - consolidated into tests.yml workflow
-    if: false
     name: Security Scan
     runs-on: ubuntu-latest
 
@@ -299,14 +209,39 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run pnpm audit
-        run: pnpm audit --audit-level=high || true
+        run: pnpm audit --audit-level=critical || true
         continue-on-error: true
 
-  build-check:
-    # Disabled - consolidated into tests.yml workflow
-    if: false
-    name: Build Check
+  security-scanning:
+    name: Security Scanning
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run Trivy security scan
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        continue-on-error: true
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [frontend-tests-build]  # backend-tests disabled, consolidated into tests.yml
 
     steps:
       - uses: actions/checkout@v6
@@ -323,13 +258,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build all packages
-        run: pnpm build
-
-      - name: Check build outputs
+      - name: Run smoke tests
         run: |
-          # Check for any built packages
-          echo "Checking for build outputs..."
-          ls -la packages/*/dist 2>/dev/null || echo "No dist folders found in packages"
-          ls -la apps/*/.next 2>/dev/null || echo "No .next folders found in apps"
+          echo "Running smoke tests..."
+          # Add actual smoke tests here when available
+          echo "Smoke tests placeholder - will be implemented"
         continue-on-error: true

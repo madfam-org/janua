@@ -55,7 +55,7 @@ Docs are never perfect. Help us fix them:
 **Where to start:**
 - [Quick Start Guide](docs/guides/QUICK_START.md) - does it actually work in 5 minutes?
 - [Deployment Guide](docs/DEPLOYMENT.md) - missing steps?
-- [SDK Guides](docs/developers/) - need more examples?
+- [SDK Guides](docs/development/) - need more examples?
 
 ### 🎨 Improve UI/UX
 Make the components better:
@@ -186,8 +186,8 @@ pytest
 pytest --cov=app --cov-report=html
 
 # Frontend tests
-cd apps/demo
-npm test
+cd apps/dashboard
+pnpm test
 
 # E2E tests
 npm run e2e

@@ -377,9 +377,9 @@ VACUUM ANALYZE;
 
 ## 📚 Additional Resources
 
-- [Infrastructure as Code Templates](../infrastructure/)
+- [Infrastructure](../../infra/)
 - [Security Configuration Guide](../security/)
-- [Monitoring Setup Guide](../monitoring/)
+- [Monitoring Setup](../../infra/monitoring/)
 - [Performance Optimization](../performance/)
 - [Troubleshooting Runbook](../troubleshooting/)
 

@@ -20,9 +20,9 @@ Successfully validated E2E test infrastructure by starting required services loc
 3. **API Server**: Started locally on `localhost:8000`
 
 ### ✅ Test Discovery & Configuration
-1. **Located E2E Tests**: Found in `tests-e2e/` directory (not missing!)
+1. **Located E2E Tests**: Found in `tests/e2e/` directory (not missing!)
 2. **Fixed Port Configuration**: Changed `localhost:3003` → `localhost:3002`
-3. **Validated Playwright Config**: Configuration correct, points to `./tests-e2e`
+3. **Validated Playwright Config**: Configuration correct, points to `./tests/e2e`
 
 ### ✅ Test Execution Results
 
@@ -76,7 +76,7 @@ Received: false
 ## Key Discoveries
 
 ### 1. Tests Exist Locally (NOT Missing!)
-Initial assumption was wrong - E2E tests exist in `tests-e2e/` directory. I was initially in the wrong directory (`apps/api/`).
+Initial assumption was wrong - E2E tests exist in `tests/e2e/` directory. I was initially in the wrong directory (`apps/api/`).
 
 ### 2. Services Work Without Docker-Compose
 Don't need full `docker-compose.test.yml` - can run:
@@ -149,7 +149,7 @@ npx playwright test  # All 27 tests
 
 ### Fixed Configuration
 ```bash
-tests-e2e/simple-functionality-test.spec.ts
+tests/e2e/simple-functionality-test.spec.ts
 # Changed: localhost:3003 → localhost:3002
 ```
 
@@ -185,7 +185,7 @@ tests/fixtures/db-init.sql  # Minimal init script for PostgreSQL
 
 3. **Commit Changes**
    ```bash
-   git add tests-e2e/simple-functionality-test.spec.ts
+   git add tests/e2e/simple-functionality-test.spec.ts
    git add docs/*.md tests/fixtures/
    git commit -m "fix(e2e): validate E2E infrastructure and fix port configuration
 
@@ -280,7 +280,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 npx playwright test
 
 # Specific suite
-npx playwright test tests-e2e/api-integration.spec.ts
+npx playwright test tests/e2e/api-integration.spec.ts
 
 # With UI
 npx playwright test --ui

@@ -59,7 +59,7 @@ This document establishes clear guidelines for maintaining Janua's dual document
 - SDK docs → `/apps/docs/content/sdks/`
 - API docs → `/apps/docs/content/api/`
 - Architecture → `/docs/architecture/`
-- Reports → `/docs/reports/` or `/docs/claudedocs/`
+- Reports → `/docs/reports/` or `/docs/internal/`
 
 ### Rule 3: Content Pipeline
 ```
@@ -77,11 +77,9 @@ This document establishes clear guidelines for maintaining Janua's dual document
 ├── internal/              # Team-only documentation
 │   ├── architecture/      # System design docs
 │   ├── reports/          # Analysis and assessments
-│   ├── claudedocs/       # AI-generated reports
 │   └── operations/       # Deployment and ops guides
-├── drafts/               # Content being prepared for public
-│   └── [temporary files that will move to /apps/docs]
-└── archive/              # Deprecated or historical docs
+└── drafts/               # Content being prepared for public
+    └── [temporary files that will move to /apps/docs]
     └── [old content for reference only]
 ```
 

@@ -20,7 +20,7 @@ graph LR
 
 ### Touchpoints
 - Marketing landing page (`apps/landing`)
-- Developer documentation (`docs/developers/`)
+- Developer documentation (`docs/development/`)
 - GitHub repository
 - Search engine results
 - Developer community forums

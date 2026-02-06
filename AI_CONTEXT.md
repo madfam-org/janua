@@ -16,7 +16,7 @@
 | JWT Service | `apps/api/app/services/jwt_service.py` |
 | OAuth Service | `apps/api/app/services/oauth_service.py` |
 | K8s Manifests | `k8s/base/deployments/` |
-| Enclii Config | `.enclii.yml` |
+| Enclii Config | `enclii.yaml` |
 | CI/CD | `.github/workflows/` |
 
 ## Port Allocation

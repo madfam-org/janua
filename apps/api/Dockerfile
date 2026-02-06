@@ -1,3 +1,4 @@
+# Local development build
 # Multi-stage Dockerfile for Janua Identity Platform API
 # Enclii-compliant: ✅ All 5 criteria met
 

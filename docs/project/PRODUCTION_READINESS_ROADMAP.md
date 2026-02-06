@@ -261,29 +261,29 @@ Week 5-6: Production Launch Sprint
 #### Day 8-10: E2E User Journey Testing
 **Goal**: Validate complete user workflows
 
-**User Journeys to Test** (`tests-e2e/`):
+**User Journeys to Test** (`tests/e2e/`):
 
-1. **New User Onboarding** (`tests-e2e/journey-onboarding.spec.ts`)
+1. **New User Onboarding** (`tests/e2e/journey-onboarding.spec.ts`)
    ```typescript
    - Signup → Email verification → Login
    - Profile setup → MFA enablement
    - First API key generation
    ```
 
-2. **Organization Setup** (`tests-e2e/journey-organization.spec.ts`)
+2. **Organization Setup** (`tests/e2e/journey-organization.spec.ts`)
    ```typescript
    - Create organization → Invite members
    - Assign roles → Manage permissions
    - Configure SSO
    ```
 
-3. **Developer Workflow** (`tests-e2e/journey-developer.spec.ts`)
+3. **Developer Workflow** (`tests/e2e/journey-developer.spec.ts`)
    ```typescript
    - API key generation → SDK integration
    - Test authentication → Production deployment
    ```
 
-4. **Security Incident** (`tests-e2e/journey-security.spec.ts`)
+4. **Security Incident** (`tests/e2e/journey-security.spec.ts`)
    ```typescript
    - Suspicious activity → Account lock
    - Password reset → MFA re-setup

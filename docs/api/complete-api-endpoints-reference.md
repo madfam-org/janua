@@ -533,8 +533,8 @@ const webhook = await client.webhooks.create({
 ## 🔗 Related Documentation
 
 - **[Authentication Guide](authentication.md)** - Detailed auth flows
-- **[MFA Implementation](../claudedocs/mfa-2fa-implementation-guide.md)** - Multi-factor setup
-- **[Magic Links](../claudedocs/magic-link-authentication-guide.md)** - Passwordless auth
+- **[MFA Implementation](../guides/mfa-2fa-implementation-guide.md)** - Multi-factor setup
+- **[Magic Links](../guides/magic-link-authentication-guide.md)** - Passwordless auth
 - **[WebAuthn Guide](webauthn.md)** - Passkey implementation
 - **[Enterprise Features](enterprise.md)** - SSO, SCIM, RBAC
 - **[Webhook Integration](webhooks.md)** - Real-time events

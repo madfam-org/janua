@@ -14,7 +14,7 @@ module.exports = {
     '!**/*.d.ts',
     '!**/node_modules/**',
     '!**/.next/**',
-    '!**/tests-e2e/**', // Exclude Playwright tests
+    '!**/tests/e2e/**', // Exclude Playwright tests
   ],
   testMatch: [
     '**/__tests__/**/*.[jt]s?(x)',
@@ -23,7 +23,7 @@ module.exports = {
   testPathIgnorePatterns: [
     '<rootDir>/.next/',
     '<rootDir>/node_modules/',
-    '<rootDir>/tests-e2e/', // Ignore Playwright test directory
+    '<rootDir>/tests/e2e/', // Ignore Playwright test directory
   ],
   transform: {
     '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { presets: ['next/babel'] }],

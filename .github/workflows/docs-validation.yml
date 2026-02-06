@@ -1,15 +1,22 @@
 name: Documentation Validation
 
+# Consolidated: includes checks from former doc-guard.yml workflow
 on:
   push:
+    branches: [main]
     paths:
       - 'docs/**'
       - 'apps/docs/**'
+      - '*.md'
+      - '.env.example'
       - '!**/node_modules/**'
   pull_request:
+    branches: [main]
     paths:
       - 'docs/**'
       - 'apps/docs/**'
+      - '*.md'
+      - '.env.example'
       - '!**/node_modules/**'
   schedule:
     # Run weekly on Monday at 9am UTC
@@ -50,22 +57,29 @@ jobs:
           fi
 
           echo "Checking for required directories..."
-          for dir in "docs/internal" "docs/drafts" "docs/archive" "apps/docs/content"; do
+          for dir in "docs/internal" "docs/drafts" "apps/docs/content"; do
             if [ ! -d "$dir" ]; then
               echo "::warning::Required directory '$dir' is missing"
             fi
           done
 
       - name: Run documentation validation
-        run: node scripts/validate-docs.js
+        run: bash scripts/maintenance/check-docs.sh
         continue-on-error: true
 
-      - name: Upload validation report
-        if: failure()
-        uses: actions/upload-artifact@v6
+  doc-guard:
+    name: DocGuard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run DocGuard
+        uses: madfam-org/solarpunk-foundry/.github/actions/doc-guard@main
         with:
-          name: docs-validation-report
-          path: docs-validation-report.json
+          doc-path: './docs'
+          strict: false
+          check-links: false
+          check-env-vars: false
 
   check-duplicates:
     name: Check for Duplicate Content

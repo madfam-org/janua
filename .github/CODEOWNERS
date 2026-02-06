@@ -52,14 +52,14 @@ CONTRIBUTING.md @madfam-io/developers
 
 # Infrastructure and deployment
 /deployment/ @madfam-io/devops
-/infrastructure/ @madfam-io/devops
+/infra/ @madfam-io/devops
 /scripts/ @madfam-io/devops
 **/*deploy*.yml @madfam-io/devops
 **/*ci*.yml @madfam-io/devops
 
 # Testing
 /tests/ @madfam-io/qa-team @madfam-io/developers
-/tests-e2e/ @madfam-io/qa-team @madfam-io/developers
+/tests/e2e/ @madfam-io/qa-team @madfam-io/developers
 **/*.test.* @madfam-io/qa-team @madfam-io/developers
 **/*.spec.* @madfam-io/qa-team @madfam-io/developers
 playwright.config.ts @madfam-io/qa-team

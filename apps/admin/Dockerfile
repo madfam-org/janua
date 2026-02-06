@@ -1,3 +1,4 @@
+# Local development build
 # Multi-stage Next.js Dockerfile for Janua Admin
 # Enclii-compliant: ✅ All 5 criteria met
 

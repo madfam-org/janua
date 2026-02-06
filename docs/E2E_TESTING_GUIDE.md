@@ -40,7 +40,7 @@ npm run test:journeys:teardown
 ## Test Organization
 
 ```
-tests-e2e/
+tests/e2e/
 ├── api-integration.spec.ts       # API endpoint tests (11 tests)
 ├── auth-flows.spec.ts            # Authentication flows (2 tests)
 └── simple-functionality-test.spec.ts  # Marketing site (3 tests)
@@ -182,7 +182,7 @@ npx playwright test --ui
 
 ```typescript
 {
-  testDir: './tests-e2e',
+  testDir: './tests/e2e',
   baseURL: 'http://localhost:3000',
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined

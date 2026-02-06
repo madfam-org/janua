@@ -89,9 +89,9 @@ Successfully implemented a comprehensive enterprise compliance infrastructure fo
 - ✅ `/apps/api/app/config.py` - Added compliance configuration
 
 ### Documentation Created
-- ✅ `/claudedocs/enterprise_compliance_integration.md` - Comprehensive integration guide
-- ✅ `/claudedocs/compliance_quick_start.md` - Quick deployment guide
-- ✅ `/claudedocs/compliance_implementation_summary.md` - This summary
+- `/docs/internal/enterprise_compliance_integration.md` - Comprehensive integration guide (not yet created)
+- `/docs/internal/compliance_quick_start.md` - Quick deployment guide (not yet created)
+- `/docs/enterprise/compliance_implementation_summary.md` - This summary
 
 ### Validation Scripts
 - ✅ `/scripts/validate_compliance_implementation.py` - Full validation

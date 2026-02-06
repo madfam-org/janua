@@ -131,7 +131,7 @@ jobs:
       - name: Run API Integration E2E tests
         # Run only API integration tests (11 tests) - these work with API-only infrastructure
         # Frontend E2E tests require dashboard/admin apps which aren't started in CI
-        run: pnpm exec playwright test tests-e2e/api-integration.spec.ts
+        run: pnpm exec playwright test tests/e2e/api-integration.spec.ts
         env:
           API_URL: http://localhost:4100
 

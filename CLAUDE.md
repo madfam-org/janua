@@ -25,10 +25,10 @@ docker-compose up -d postgres redis
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 4100
 
-# Start demo app (separate terminal)
-cd apps/demo
-npm install
-npm run dev
+# Start dashboard (separate terminal)
+cd apps/dashboard
+pnpm install
+pnpm dev
 
 # Open http://localhost:4101
 ```
@@ -43,16 +43,13 @@ janua/
 │   ├── api/              # FastAPI backend (Python 3.11+)
 │   ├── admin/            # Admin dashboard
 │   ├── dashboard/        # User management UI
-│   ├── demo/             # Demo application
 │   ├── docs/             # Documentation site
 │   ├── edge-verify/      # Edge token verification
 │   ├── landing/          # Marketing landing page
 │   └── marketing/        # Marketing site
 ├── packages/
 │   ├── core/             # Shared TypeScript utilities
-│   ├── database/         # Prisma schema and migrations
 │   ├── ui/               # Shared React components
-│   ├── config/           # Shared configuration
 │   ├── jwt-utils/        # JWT utilities
 │   ├── monitoring/       # Observability utilities
 │   ├── feature-flags/    # Feature flag system
@@ -68,7 +65,11 @@ janua/
 │   └── react-native-sdk/ # React Native SDK
 ├── scripts/
 │   └── migration/        # Auth0 migration tools
-└── docs/                 # 204 markdown documentation files
+├── infra/                # Infrastructure (monitoring, secrets, postgres)
+├── config/               # Shared config (docker-compose, agent manifest)
+├── tests/
+│   └── e2e/              # End-to-end tests (Playwright)
+└── docs/                 # Documentation files
 ```
 
 ---
@@ -509,7 +510,6 @@ cd packages/react-sdk && pnpm build
 cd packages/nextjs-sdk && pnpm build
 
 # Update frontend apps
-cd apps/demo && pnpm build
 cd apps/dashboard && pnpm build
 ```
 
@@ -688,7 +688,6 @@ EOF
 |-----|------------|--------|
 | Dashboard | `apps/dashboard/app/page.tsx` | `apps/dashboard/lib/janua-client.ts` |
 | Admin | `apps/admin/app/page.tsx` | `apps/admin/lib/janua-client.ts` |
-| Demo | `apps/demo/app/page.tsx` | `apps/demo/lib/janua-client.ts` |
 
 ### Documentation
 

@@ -167,7 +167,7 @@ exclude = [
     "**/__pycache__",
     "**/*.pyc",
     "/.env*",
-    "/claudedocs",
+    "/docs/internal",
 ]
 
 [tool.hatch.build.targets.wheel]

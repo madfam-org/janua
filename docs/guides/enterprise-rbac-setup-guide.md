@@ -1317,4 +1317,4 @@ class ExternalSystemIntegration:
 
 ---
 
-**🏢 [Enterprise SSO Guide](../claudedocs/enterprise-sso-saml-setup-guide.md)** • **👨‍💼 [SCIM Documentation](../api/scim.md)** • **🔐 [Security Framework](../security/README.md)**
+**🏢 [Enterprise SSO Guide](enterprise-sso-saml-setup-guide.md)** • **👨‍💼 [SCIM Documentation](../api/scim.md)** • **🔐 [Security Framework](../security/README.md)**

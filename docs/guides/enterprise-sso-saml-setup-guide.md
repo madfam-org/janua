@@ -945,4 +945,4 @@ For complete API documentation, see:
 
 ---
 
-**🏢 [Enterprise RBAC Guide](../claudedocs/enterprise-rbac-setup-guide.md)** • **👨‍💼 [SCIM Documentation](../api/scim.md)** • **🔐 [Security Best Practices](../security/README.md)**
+**🏢 [Enterprise RBAC Guide](enterprise-rbac-setup-guide.md)** • **👨‍💼 [SCIM Documentation](../api/scim.md)** • **🔐 [Security Best Practices](../security/README.md)**
