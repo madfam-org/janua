@@ -4,11 +4,9 @@
 
 import { JanuaClient } from '@janua/typescript-sdk'
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
-const apiBasePath = process.env.NEXT_PUBLIC_API_BASE_PATH || '/api/v1'
-
-// Construct the full base URL for the SDK
-const baseURL = `${apiUrl}${apiBasePath}`
+// SDK methods already include /api/v1 prefix in their paths,
+// so baseURL should be the API root without the base path
+const baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
 export const januaClient = new JanuaClient({
   baseURL,
