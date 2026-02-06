@@ -8,15 +8,20 @@ on:
       - 'k8s/**'
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
   publish-docker:
     runs-on: ubuntu-latest
+    outputs:
+      image_digest: ${{ steps.build.outputs.digest }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -38,6 +43,7 @@ jobs:
             type=sha,prefix=main-,format=short
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ./apps/api
@@ -48,11 +54,58 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Commit digest to kustomization.yaml
+        if: github.ref == 'refs/heads/main'
+        run: |
+          DIGEST="${{ steps.build.outputs.digest }}"
+          echo "Updating kustomization.yaml with digest: $DIGEST"
+
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+          cd k8s/base/deployments
+          kustomize edit set image ghcr.io/madfam-org/janua-api=ghcr.io/madfam-org/janua-api@${DIGEST}
+
+          cd ${{ github.workspace }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/base/deployments/kustomization.yaml
+          git diff --staged --quiet || git commit -m "chore(deploy): update janua-api image digest to ${DIGEST:0:19}"
+          git push
+
+      - name: Report lifecycle event
+        if: always()
+        continue-on-error: true
+        run: |
+          EVENT_TYPE="image_pushed"
+          if [ "${{ steps.build.outcome }}" != "success" ]; then
+            EVENT_TYPE="build_failed"
+          fi
+
+          curl -sf -X POST "https://api.enclii.dev/v1/callbacks/lifecycle-event" \
+            -H "Authorization: Bearer ${{ secrets.ENCLII_CALLBACK_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "repo_full_name": "madfam-org/janua",
+              "commit_sha": "${{ github.sha }}",
+              "branch": "${{ github.ref_name }}",
+              "ref": "${{ github.ref }}",
+              "event_type": "'"$EVENT_TYPE"'",
+              "source": "ci_callback",
+              "message": "janua-api build '"$EVENT_TYPE"'",
+              "metadata": {
+                "image": "ghcr.io/madfam-org/janua-api",
+                "digest": "${{ steps.build.outputs.digest }}",
+                "workflow": "docker-publish",
+                "service": "janua-api"
+              }
+            }'
+
   deploy-api:
     name: Deploy API to Production
     runs-on: ubuntu-latest
     needs: publish-docker
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && secrets.KUBECONFIG_PRODUCTION != ''
     steps:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
@@ -69,127 +122,29 @@ jobs:
         id: sha
         run: echo "short=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
-      - name: Update GHCR credentials in K8s (prevents 502 on deploy)
-        env:
-          # Prefer GHCR_PAT (Personal Access Token with read:packages scope) for external K8s pulls
-          # Fall back to GITHUB_TOKEN which works within GitHub Actions context
-          # NOTE: If using private GHCR packages, create a PAT at:
-          # https://github.com/settings/tokens/new?scopes=read:packages
-          # Then add as GHCR_PAT repository secret
-          GHCR_TOKEN: ${{ secrets.MADFAM_BOT_PAT }}
+      - name: Update GHCR credentials in K8s
         run: |
-          # Create docker-registry secret for pulling images
-          # Uses GHCR_PAT if available (recommended), otherwise GITHUB_TOKEN
           kubectl delete secret ghcr-credentials -n janua --ignore-not-found
           kubectl create secret docker-registry ghcr-credentials \
             --namespace=janua \
             --docker-server=ghcr.io \
             --docker-username=madfam-bot \
-            --docker-password=$GHCR_TOKEN \
+            --docker-password=${{ secrets.MADFAM_BOT_PAT }} \
             --docker-email=ci@janua.dev
-          echo "✅ GHCR credentials updated in K8s"
 
-      - name: Deploy to Kubernetes (comprehensive deployment fix)
+      - name: Deploy to Kubernetes
         run: |
-          IMAGE="ghcr.io/madfam-org/janua-api:main-${{ steps.sha.outputs.short }}"
+          IMAGE="ghcr.io/madfam-org/janua-api@${{ needs.publish-docker.outputs.image_digest }}"
           echo "Deploying: $IMAGE"
 
-          # 1. Remove Switchyard management labels that cause corrupted image paths
-          kubectl label deployment janua-api -n janua \
-            enclii.dev/managed-by- \
-            enclii.dev/project- \
-            enclii.dev/release- \
-            enclii.dev/deployment- \
-            --overwrite 2>/dev/null || true
+          kubectl set image deployment/janua-api \
+            janua-api=$IMAGE \
+            -n janua
 
-          # 2. Patch deployment with correct image and env vars
-          # TRUST_ALL_HOSTS=true is required for K8s health probes
-          kubectl patch deployment janua-api -n janua --type='strategic' -p='
-          spec:
-            template:
-              spec:
-                containers:
-                  - name: janua-api
-                    image: '$IMAGE'
-                    ports:
-                      - containerPort: 8080
-                    env:
-                      - name: TRUST_ALL_HOSTS
-                        value: "true"
-          '
-
-          # 3. Ensure imagePullSecrets is set (add if missing)
-          kubectl patch deployment janua-api -n janua --type='strategic' -p='
-          spec:
-            template:
-              spec:
-                imagePullSecrets:
-                  - name: ghcr-credentials
-          ' 2>/dev/null || echo "imagePullSecrets already configured"
-
-          # 4. Ensure Service targetPort is 8080 (matches container port)
-          kubectl patch svc janua-api -n janua --type='json' \
-            -p='[{"op": "replace", "path": "/spec/ports/0/targetPort", "value": 8080}]' \
-            2>/dev/null || echo "Service targetPort already set to 8080"
-
-          # 5. Ensure NetworkPolicy allows port 8080 traffic
-          kubectl patch networkpolicy janua-api-ingress -n janua --type='json' \
-            -p='[{"op": "replace", "path": "/spec/ingress/0/ports/0/port", "value": 8080}]' \
-            2>/dev/null || echo "NetworkPolicy already allows port 8080 (or policy doesn't exist)"
-
-          # 6. Wait for rollout with increased timeout
           kubectl rollout status deployment/janua-api -n janua --timeout=300s
-
-      - name: Deployment failure diagnostics
-        if: failure()
-        run: |
-          echo "=== Deployment Description ==="
-          kubectl describe deployment janua-api -n janua
-          echo "=== ReplicaSets ==="
-          kubectl get rs -n janua -l app=janua-api
-          echo "=== Recent Events ==="
-          kubectl get events -n janua --sort-by='.lastTimestamp' | tail -30
-          echo "=== Pod Status ==="
-          kubectl get pods -n janua -l app=janua-api -o wide
-          echo "=== Pod Descriptions ==="
-          for pod in $(kubectl get pods -n janua -l app=janua-api --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
-            echo "--- $pod ---"
-            kubectl describe pod "$pod" -n janua | tail -30
-          done
-          echo "=== Pod Logs ==="
-          for pod in $(kubectl get pods -n janua -l app=janua-api --no-headers -o custom-columns=":metadata.name" 2>/dev/null); do
-            echo "--- $pod logs ---"
-            kubectl logs "$pod" -n janua --tail=50 2>/dev/null || echo "No logs available"
-            echo "--- $pod previous logs ---"
-            kubectl logs "$pod" -n janua --previous --tail=30 2>/dev/null || echo "No previous logs"
-          done
-          echo "=== Admission Webhooks ==="
-          kubectl get mutatingwebhookconfigurations,validatingwebhookconfigurations -o name
 
       - name: Verify deployment
         run: |
           echo "=== Pod Status ==="
           kubectl get pods -n janua -l app=janua-api -o wide
-
-          echo ""
-          echo "=== Deployment Port Verification ==="
-          CONTAINER_PORT=$(kubectl get deployment janua-api -n janua -o jsonpath='{.spec.template.spec.containers[0].ports[0].containerPort}')
-          echo "Container Port: $CONTAINER_PORT (expected: 8080)"
-
-          echo ""
-          echo "=== Service Verification ==="
-          TARGET_PORT=$(kubectl get svc janua-api -n janua -o jsonpath='{.spec.ports[0].targetPort}')
-          echo "Service targetPort: $TARGET_PORT (expected: 8080)"
-
-          echo ""
-          echo "=== NetworkPolicy Verification ==="
-          NP_PORT=$(kubectl get networkpolicy janua-api-ingress -n janua -o jsonpath='{.spec.ingress[0].ports[0].port}' 2>/dev/null || echo "N/A")
-          echo "NetworkPolicy port: $NP_PORT (expected: 8080)"
-
-          echo ""
-          echo "=== Switchyard Labels Check ==="
-          SWITCHYARD_LABELS=$(kubectl get deployment janua-api -n janua -o jsonpath='{.metadata.labels}' | grep -o 'enclii.dev' || echo "None found (correct)")
-          echo "Switchyard labels: $SWITCHYARD_LABELS"
-
-          echo ""
-          echo "✅ Deployed: ghcr.io/madfam-org/janua-api:main-${{ steps.sha.outputs.short }}"
+          echo "Deployed successfully"
