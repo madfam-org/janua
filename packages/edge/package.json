@@ -39,8 +39,8 @@
     "directory": "packages/edge"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260131.0",
-    "@types/node": "^25.2.0",
+    "@cloudflare/workers-types": "^4.20260207.0",
+    "@types/node": "^25.2.2",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2",
     "vitest": "^1.0.0"
