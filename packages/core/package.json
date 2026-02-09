@@ -46,7 +46,7 @@
   "optionalDependencies": {
     "aws-sdk": "^2.1500.0",
     "messagebird": "^4.0.1",
-    "twilio": "^5.12.0"
+    "twilio": "^5.12.1"
   },
   "peerDependencies": {
     "redis": "^4.6.0"
