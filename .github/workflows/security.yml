@@ -236,7 +236,7 @@ jobs:
           artifact_name: 'zap_baseline_scan'
 
       - name: ZAP API Scan
-        uses: zaproxy/action-api-scan@v0.6.0
+        uses: zaproxy/action-api-scan@v0.10.0
         continue-on-error: true
         with:
           target: 'http://localhost:8080/docs/openapi.json'
