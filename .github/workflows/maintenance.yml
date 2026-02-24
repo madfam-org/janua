@@ -126,19 +126,35 @@ jobs:
       - name: Check for outdated dependencies
         run: pnpm outdated || true
 
-      - name: Create issue for vulnerabilities
+      - name: Create or update issue for vulnerabilities
         if: steps.audit.outcome != 'success' && github.event_name == 'schedule'
         uses: actions/github-script@v8
         with:
           script: |
             const date = new Date().toISOString().split('T')[0];
-            github.rest.issues.create({
+            const { data: issues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `🔒 Security vulnerabilities detected - ${date}`,
-              body: 'Automated pnpm audit found security vulnerabilities. Please review and update dependencies.',
-              labels: ['security', 'dependencies', 'automated']
-            })
+              state: 'open',
+              labels: 'security,dependencies,automated',
+            });
+            const existing = issues.find(i => i.title.includes('Security vulnerabilities detected'));
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `## Audit Update (${date})\n\npnpm audit still reports vulnerabilities. Review and update dependencies.`
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `🔒 Security vulnerabilities detected - ${date}`,
+                body: `Automated pnpm audit found security vulnerabilities. Please review and update dependencies.\n\n_This issue updates daily until resolved._`,
+                labels: ['security', 'dependencies', 'automated']
+              });
+            }
 
   build-verification:
     name: Build System Verification
