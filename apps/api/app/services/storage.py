@@ -69,7 +69,7 @@ def _is_r2_endpoint(endpoint_host: str) -> bool:
 
 class StorageService:
     """
-    File storage service with support for local and S3 storage
+    File storage service with support for local and Cloudflare R2 storage
     """
 
     def __init__(self):
@@ -165,7 +165,7 @@ class StorageService:
         content_type: str,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Upload file to S3/R2"""
+        """Upload file to Cloudflare R2"""
         try:
             # Prepare metadata
             s3_metadata = metadata or {}
@@ -183,11 +183,9 @@ class StorageService:
             # Generate URL using secure endpoint validation
             # Use proper URL parsing to prevent subdomain bypass attacks
             endpoint_host = self.s3_client._endpoint.host
-            if _is_r2_endpoint(endpoint_host):
-                url = f"https://{self.bucket_name}.{settings.CLOUDFLARE_ACCOUNT_ID}.r2.dev/{file_path}"
-            else:
-                # Regular S3 URL
-                url = f"https://{self.bucket_name}.s3.amazonaws.com/{file_path}"
+            if not _is_r2_endpoint(endpoint_host):
+                raise ValueError(f"Storage endpoint is not a valid Cloudflare R2 endpoint: {endpoint_host}")
+            url = f"https://{self.bucket_name}.{settings.CLOUDFLARE_ACCOUNT_ID}.r2.dev/{file_path}"
 
             return url
 
@@ -227,7 +225,7 @@ class StorageService:
             return False
 
     async def _delete_from_s3(self, file_path: str) -> bool:
-        """Delete file from S3"""
+        """Delete file from R2"""
         try:
             self.s3_client.delete_object(Bucket=self.bucket_name, Key=file_path)
             return True
@@ -258,7 +256,7 @@ class StorageService:
             return None
 
     async def _get_from_s3(self, file_path: str) -> Optional[bytes]:
-        """Get file from S3"""
+        """Get file from R2"""
         try:
             response = self.s3_client.get_object(Bucket=self.bucket_name, Key=file_path)
             return response["Body"].read()

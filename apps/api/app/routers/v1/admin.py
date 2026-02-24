@@ -238,7 +238,7 @@ async def get_system_health(
         if not settings.STORAGE_ENABLED or not settings.STORAGE_BUCKET_NAME:
             storage_status = "not_configured"
         else:
-            # Basic configuration check - actual S3/R2 health check would require boto3
+            # Basic configuration check - actual R2 health check would require boto3
             # For now, validate that required settings are present
             if settings.STORAGE_ACCESS_KEY_ID and settings.STORAGE_SECRET_ACCESS_KEY:
                 storage_status = "configured"  # Assume healthy if properly configured

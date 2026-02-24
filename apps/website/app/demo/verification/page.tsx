@@ -229,7 +229,7 @@ export default function VerifyPhonePage() {
   return (
     <PhoneVerification
       onSendCode={async (phone) => {
-        // Use Twilio, AWS SNS, or similar service
+        // Use Twilio or similar service
         const response = await fetch('/api/auth/phone/send-code', {
           method: 'POST',
           body: JSON.stringify({ phone }),
@@ -362,7 +362,7 @@ export async function POST(request: Request) {
             <h4 className="font-medium text-gray-900 dark:text-white mb-2">Delivery Methods</h4>
             <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
               <li>• Email: Use transactional email service</li>
-              <li>• SMS: Use Twilio, AWS SNS, or similar</li>
+              <li>• SMS: Use Twilio or similar</li>
               <li>• Consider voice calls as fallback</li>
               <li>• Log all delivery attempts</li>
             </ul>

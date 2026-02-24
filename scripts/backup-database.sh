@@ -10,7 +10,6 @@
 #   DB_PORT     - Database port (default: 5432)
 #
 # Optional environment variables:
-#   S3_BUCKET           - S3 bucket for backup storage
 #   ENVIRONMENT         - Environment name (default: production)
 #   ALERT_WEBHOOK_URL   - Slack webhook for alerts
 #   METRICS_ENDPOINT    - Metrics endpoint URL
@@ -86,31 +85,8 @@ fi
 BACKUP_SIZE=$(du -h "${BACKUP_DIR}/${BACKUP_FILE}" | cut -f1)
 log_info "Backup created: ${BACKUP_FILE} (${BACKUP_SIZE})"
 
-# Upload to S3 if configured
-if [ -n "${S3_BUCKET:-}" ]; then
-    log_info "Uploading to S3: s3://${S3_BUCKET}/backups/${BACKUP_FILE}"
-
-    if command -v aws &> /dev/null; then
-        aws s3 cp "${BACKUP_DIR}/${BACKUP_FILE}" "s3://${S3_BUCKET}/backups/${BACKUP_FILE}"
-        log_info "Upload complete"
-
-        # Cleanup old backups (keep last 30 days)
-        log_info "Cleaning up old backups..."
-        CUTOFF_DATE=$(date -d "30 days ago" +%Y-%m-%d 2>/dev/null || date -v-30d +%Y-%m-%d)
-        aws s3 ls "s3://${S3_BUCKET}/backups/" | while read -r line; do
-            FILE_DATE=$(echo "$line" | awk '{print $1}')
-            FILE_NAME=$(echo "$line" | awk '{print $4}')
-            if [[ "${FILE_DATE}" < "${CUTOFF_DATE}" ]]; then
-                log_info "Deleting old backup: ${FILE_NAME}"
-                aws s3 rm "s3://${S3_BUCKET}/backups/${FILE_NAME}"
-            fi
-        done
-    else
-        log_warn "AWS CLI not installed - skipping S3 upload"
-    fi
-else
-    log_warn "S3_BUCKET not configured - backup stored locally only"
-fi
+# Note: Production backups are handled by in-cluster CronJob (dumps to Cloudflare R2).
+# This script stores backups locally only for ad-hoc/manual use.
 
 # Verify backup if requested
 if [ "${VERIFY_RESTORE:-true}" = "true" ]; then

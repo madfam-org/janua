@@ -17,7 +17,7 @@ interface SMSResult {
 }
 
 interface SMSConfig {
-  provider: 'twilio' | 'aws-sns' | 'messagebird' | 'nexmo' | 'mock';
+  provider: 'twilio' | 'messagebird' | 'nexmo' | 'mock';
   apiKey?: string;
   apiSecret?: string;
   accountSid?: string;
@@ -84,57 +84,6 @@ class TwilioProvider implements SMSProvider {
       return !!lookup.phoneNumber;
     } catch {
       return false;
-    }
-  }
-}
-
-// AWS SNS Provider
-class AWSSNSProvider implements SMSProvider {
-  name = 'aws-sns';
-  private region: string;
-  private accessKeyId?: string;
-  private secretAccessKey?: string;
-  
-  constructor(config: SMSConfig) {
-    this.region = config.region || 'us-east-1';
-    this.accessKeyId = config.apiKey;
-    this.secretAccessKey = config.apiSecret;
-  }
-  
-  async sendSMS(to: string, message: string): Promise<SMSResult> {
-    try {
-      // Dynamic import
-      const AWS = await import('aws-sdk');
-      
-      const sns = new AWS.SNS({
-        region: this.region,
-        ...(this.accessKeyId && {
-          accessKeyId: this.accessKeyId,
-          secretAccessKey: this.secretAccessKey
-        })
-      });
-      
-      const result = await sns.publish({
-        Message: message,
-        PhoneNumber: to,
-        MessageAttributes: {
-          'AWS.SNS.SMS.SMSType': {
-            DataType: 'String',
-            StringValue: 'Transactional'
-          }
-        }
-      }).promise();
-      
-      return {
-        success: true,
-        messageId: result.MessageId,
-        status: 'sent'
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message
-      };
     }
   }
 }
@@ -247,9 +196,6 @@ export class SMSService extends EventEmitter {
     switch (config.provider) {
       case 'twilio':
         this.provider = new TwilioProvider(config);
-        break;
-      case 'aws-sns':
-        this.provider = new AWSSNSProvider(config);
         break;
       case 'messagebird':
         this.provider = new MessageBirdProvider(config);

@@ -49,31 +49,8 @@ spec:
                   
                   echo "Backup created: $BACKUP_FILE"
                   
-                  # Upload to S3
-                  if [ -n "$S3_BUCKET" ]; then
-                    echo "Uploading to S3..."
-                    aws s3 cp $BACKUP_FILE s3://$S3_BUCKET/backups/
-                    echo "Upload complete"
-                  fi
-                  
-                  # Clean up old backups
-                  if [ -n "$RETENTION_DAYS" ]; then
-                    echo "Cleaning up backups older than $RETENTION_DAYS days..."
-                    aws s3 ls s3://$S3_BUCKET/backups/ | \
-                      awk '{print $4}' | \
-                      while read file; do
-                        FILE_DATE=$(echo $file | grep -oE '[0-9]{8}')
-                        if [ -n "$FILE_DATE" ]; then
-                          FILE_AGE=$(($(date +%s) - $(date -d $FILE_DATE +%s)))
-                          MAX_AGE=$((RETENTION_DAYS * 86400))
-                          if [ $FILE_AGE -gt $MAX_AGE ]; then
-                            aws s3 rm s3://$S3_BUCKET/backups/$file
-                            echo "Deleted old backup: $file"
-                          fi
-                        fi
-                      done
-                  fi
-                  
+                  # Note: Cloud upload handled by in-cluster CronJob to Cloudflare R2
+
                   echo "Backup completed at $(date)"
               env:
                 - name: POSTGRES_PASSWORD
@@ -81,20 +58,6 @@ spec:
                     secretKeyRef:
                       name: {{ include "janua.fullname" . }}-secret
                       key: database-password
-                - name: S3_BUCKET
-                  value: {{ .Values.backup.storage.bucket }}
-                - name: AWS_REGION
-                  value: {{ .Values.backup.storage.region }}
-                - name: AWS_ACCESS_KEY_ID
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ include "janua.fullname" . }}-secret
-                      key: backup-access-key
-                - name: AWS_SECRET_ACCESS_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ include "janua.fullname" . }}-secret
-                      key: backup-secret-key
                 - name: RETENTION_DAYS
                   value: {{ .Values.backup.retention | quote }}
               resources:

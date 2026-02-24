@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 /**
  * Key Management Service (KMS) Integration
- * Supports AWS KMS, Google Cloud KMS, Azure Key Vault, and HashiCorp Vault
+ * Supports Google Cloud KMS and HashiCorp Vault
  */
 
 import crypto from 'crypto';
@@ -17,81 +17,6 @@ interface KMSProvider {
   rotateKey(keyId: string): Promise<void>;
   listKeys(): Promise<string[]>;
   getKeyMetadata(keyId: string): Promise<any>;
-}
-
-// AWS KMS Provider
-class AWSKMSProvider implements KMSProvider {
-  name = 'aws-kms';
-  private kmsClient: any;
-
-  constructor(config: any) {
-    // AWS SDK v3 integration
-    const { KMSClient } = require('@aws-sdk/client-kms');
-    this.kmsClient = new KMSClient(config);
-  }
-
-  async encrypt(data: Buffer, keyId: string): Promise<Buffer> {
-    const { EncryptCommand } = require('@aws-sdk/client-kms');
-    const command = new EncryptCommand({
-      KeyId: keyId,
-      Plaintext: data
-    });
-    const response = await this.kmsClient.send(command);
-    return Buffer.from(response.CiphertextBlob);
-  }
-
-  async decrypt(data: Buffer, keyId: string): Promise<Buffer> {
-    const { DecryptCommand } = require('@aws-sdk/client-kms');
-    const command = new DecryptCommand({
-      CiphertextBlob: data,
-      KeyId: keyId
-    });
-    const response = await this.kmsClient.send(command);
-    return Buffer.from(response.Plaintext);
-  }
-
-  async generateDataKey(keyId: string, keySpec: string): Promise<{ plaintext: Buffer; ciphertext: Buffer }> {
-    const { GenerateDataKeyCommand } = require('@aws-sdk/client-kms');
-    const command = new GenerateDataKeyCommand({
-      KeyId: keyId,
-      KeySpec: keySpec
-    });
-    const response = await this.kmsClient.send(command);
-    return {
-      plaintext: Buffer.from(response.Plaintext),
-      ciphertext: Buffer.from(response.CiphertextBlob)
-    };
-  }
-
-  async createKey(params: any): Promise<{ keyId: string; arn: string }> {
-    const { CreateKeyCommand } = require('@aws-sdk/client-kms');
-    const command = new CreateKeyCommand(params);
-    const response = await this.kmsClient.send(command);
-    return {
-      keyId: response.KeyMetadata.KeyId,
-      arn: response.KeyMetadata.Arn
-    };
-  }
-
-  async rotateKey(keyId: string): Promise<void> {
-    const { EnableKeyRotationCommand } = require('@aws-sdk/client-kms');
-    const command = new EnableKeyRotationCommand({ KeyId: keyId });
-    await this.kmsClient.send(command);
-  }
-
-  async listKeys(): Promise<string[]> {
-    const { ListKeysCommand } = require('@aws-sdk/client-kms');
-    const command = new ListKeysCommand({});
-    const response = await this.kmsClient.send(command);
-    return response.Keys.map((key: any) => key.KeyId);
-  }
-
-  async getKeyMetadata(keyId: string): Promise<any> {
-    const { DescribeKeyCommand } = require('@aws-sdk/client-kms');
-    const command = new DescribeKeyCommand({ KeyId: keyId });
-    const response = await this.kmsClient.send(command);
-    return response.KeyMetadata;
-  }
 }
 
 // Google Cloud KMS Provider
@@ -224,7 +149,7 @@ export class KeyManagementService extends EventEmitter {
   private localCache: Map<string, { data: Buffer; expiry: Date }> = new Map();
   private masterKeyId?: string;
 
-  constructor(providerType: 'aws' | 'gcp' | 'azure' | 'vault', config: any) {
+  constructor(providerType: 'gcp' | 'vault', config: any) {
     super();
     this.provider = this.initializeProvider(providerType, config);
     this.masterKeyId = config.masterKeyId;
@@ -232,8 +157,6 @@ export class KeyManagementService extends EventEmitter {
 
   private initializeProvider(type: string, config: any): KMSProvider {
     switch (type) {
-      case 'aws':
-        return new AWSKMSProvider(config);
       case 'gcp':
         return new GCPKMSProvider(config);
       case 'vault':
