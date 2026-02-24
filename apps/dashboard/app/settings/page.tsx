@@ -17,6 +17,10 @@ import {
   Code,
   Bell,
   UserCog,
+  Globe,
+  CreditCard,
+  Mail,
+  Server,
 } from 'lucide-react'
 
 interface SettingsSection {
@@ -72,6 +76,12 @@ const settingsSections: SettingsSection[] = [
     icon: <Code className="size-5" />,
   },
   {
+    title: 'OAuth Clients',
+    description: 'Manage OAuth 2.0 client applications for third-party integrations',
+    href: '/settings/oauth-clients',
+    icon: <Globe className="size-5" />,
+  },
+  {
     title: 'Security Alerts',
     description: 'Configure security notifications and alert rules',
     href: '/settings/alerts',
@@ -82,6 +92,32 @@ const settingsSections: SettingsSection[] = [
     description: 'Manage custom roles and fine-grained access control',
     href: '/settings/roles',
     icon: <UserCog className="size-5" />,
+  },
+  {
+    title: 'Policies',
+    description: 'Manage authorization policies for fine-grained access control',
+    href: '/settings/policies',
+    icon: <Lock className="size-5" />,
+  },
+  {
+    title: 'Billing & Plans',
+    description: 'Manage your subscription, payment methods, and invoices',
+    href: '/settings/billing',
+    icon: <CreditCard className="size-5" />,
+  },
+  {
+    title: 'Email Templates',
+    description: 'Customize transactional emails sent to your users',
+    href: '/settings/email-templates',
+    icon: <Mail className="size-5" />,
+  },
+  {
+    title: 'System Settings',
+    description: 'Configure CORS, sessions, password policies, and rate limiting',
+    href: '/settings/system',
+    icon: <Server className="size-5" />,
+    badge: 'Admin',
+    badgeVariant: 'outline',
   },
 ]
 

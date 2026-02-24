@@ -19,6 +19,18 @@ import {
   ChevronRight,
   LogOut,
   User,
+  Activity,
+  Globe,
+  Code,
+  Bell,
+  UserCog,
+  CreditCard,
+  Mail,
+  Server,
+  Palette,
+  Fingerprint,
+  Monitor,
+  ShieldCheck,
 } from 'lucide-react'
 
 interface NavItem {
@@ -39,25 +51,46 @@ const navSections: NavSection[] = [
     title: 'Dashboard',
     items: [
       { title: 'Overview', href: '/', icon: <BarChart3 className="size-4" /> },
-      { title: 'Identities', href: '/?tab=identities', icon: <Users className="size-4" /> },
-      { title: 'Sessions', href: '/?tab=sessions', icon: <Key className="size-4" /> },
-      { title: 'Organizations', href: '/?tab=organizations', icon: <Building2 className="size-4" /> },
+      { title: 'Users', href: '/users', icon: <Users className="size-4" /> },
+      { title: 'Sessions', href: '/?tab=sessions', icon: <Monitor className="size-4" /> },
+      { title: 'Organizations', href: '/organizations', icon: <Building2 className="size-4" /> },
+    ],
+  },
+  {
+    title: 'Authentication',
+    items: [
+      { title: 'SSO / SAML', href: '/settings/sso', icon: <Key className="size-4" />, badge: 'Enterprise', badgeVariant: 'secondary' },
+      { title: 'MFA Settings', href: '/profile?tab=security', icon: <ShieldCheck className="size-4" /> },
+      { title: 'Passkeys', href: '/profile?tab=security', icon: <Fingerprint className="size-4" /> },
+      { title: 'OAuth Clients', href: '/settings/oauth-clients', icon: <Globe className="size-4" /> },
+    ],
+  },
+  {
+    title: 'Integrations',
+    items: [
       { title: 'Webhooks', href: '/?tab=webhooks', icon: <Webhook className="size-4" /> },
-    ],
-  },
-  {
-    title: 'Enterprise',
-    items: [
-      { title: 'SSO', href: '/settings/sso', icon: <Key className="size-4" />, badge: 'Enterprise', badgeVariant: 'secondary' },
+      { title: 'API Keys', href: '/settings/api-keys', icon: <Code className="size-4" /> },
       { title: 'SCIM', href: '/settings/scim', icon: <Users className="size-4" />, badge: 'Enterprise', badgeVariant: 'secondary' },
-      { title: 'Invitations', href: '/settings/invitations', icon: <UserPlus className="size-4" /> },
     ],
   },
   {
-    title: 'Compliance',
+    title: 'Security & Compliance',
     items: [
+      { title: 'Audit Logs', href: '/audit-logs', icon: <Activity className="size-4" /> },
+      { title: 'Security Alerts', href: '/settings/alerts', icon: <Bell className="size-4" /> },
       { title: 'Privacy', href: '/compliance', icon: <FileCheck className="size-4" /> },
-      { title: 'Audit Logs', href: '/audit-logs', icon: <Lock className="size-4" />, badge: 'Admin', badgeVariant: 'outline' },
+    ],
+  },
+  {
+    title: 'Settings',
+    items: [
+      { title: 'Invitations', href: '/settings/invitations', icon: <UserPlus className="size-4" /> },
+      { title: 'Roles & Permissions', href: '/settings/roles', icon: <UserCog className="size-4" /> },
+      { title: 'Policies', href: '/settings/policies', icon: <Lock className="size-4" /> },
+      { title: 'Branding', href: '/settings/branding', icon: <Palette className="size-4" />, badge: 'Enterprise', badgeVariant: 'secondary' },
+      { title: 'Billing', href: '/settings/billing', icon: <CreditCard className="size-4" /> },
+      { title: 'Email Templates', href: '/settings/email-templates', icon: <Mail className="size-4" /> },
+      { title: 'System', href: '/settings/system', icon: <Server className="size-4" />, badge: 'Admin', badgeVariant: 'outline' },
     ],
   },
 ]
@@ -75,10 +108,19 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   const isActive = (href: string) => {
-    if (href === '/') return pathname === '/'
+    if (href === '/') return pathname === '/' && typeof window !== 'undefined' && !window.location.search.includes('tab=')
+    if (href.startsWith('/') && !href.includes('?')) {
+      if (href === '/users') return pathname.startsWith('/users')
+      if (href === '/organizations') return pathname.startsWith('/organizations')
+      if (href === '/audit-logs') return pathname.startsWith('/audit-logs')
+      return pathname === href || pathname.startsWith(href + '/')
+    }
     if (href.includes('?tab=')) {
       const tab = href.split('?tab=')[1]
       return pathname === '/' && typeof window !== 'undefined' && window.location.search.includes(`tab=${tab}`)
+    }
+    if (href.includes('?')) {
+      return pathname === href.split('?')[0]
     }
     return pathname.startsWith(href)
   }
@@ -161,12 +203,13 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
           href="/settings"
           className={cn(
             'text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+            isActive('/settings') && pathname === '/settings' && 'bg-primary/10 text-primary font-medium',
             collapsed && 'justify-center px-2'
           )}
-          title={collapsed ? 'Settings' : undefined}
+          title={collapsed ? 'All Settings' : undefined}
         >
           <Settings className="size-4" />
-          {!collapsed && <span>Settings</span>}
+          {!collapsed && <span>All Settings</span>}
         </Link>
         <Link
           href="/profile"

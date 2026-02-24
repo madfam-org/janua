@@ -11,6 +11,10 @@ import {
   UserCog,
   CheckCircle2,
   Shield,
+  Unlock,
+  Pause,
+  Play,
+  ExternalLink,
 } from 'lucide-react'
 import { Button } from '@janua/ui'
 import { Checkbox } from '@janua/ui'
@@ -62,15 +66,19 @@ export const columns: ColumnDef<User>[] = [
         </Button>
       )
     },
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const user = row.original
+      const meta = table.options.meta as { onAction: (action: UserAction) => void }
       return (
-        <div className="flex flex-col">
+        <button
+          className="flex flex-col text-left hover:underline"
+          onClick={() => meta.onAction({ type: 'view_detail', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
+        >
           <span className="font-medium">
             {user.firstName} {user.lastName}
           </span>
           <span className="text-muted-foreground text-sm">{user.email}</span>
-        </div>
+        </button>
       )
     },
   },
@@ -151,6 +159,12 @@ export const columns: ColumnDef<User>[] = [
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
+              onClick={() => meta.onAction({ type: 'view_detail', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
+            >
+              <ExternalLink className="mr-2 size-4" />
+              View Details
+            </DropdownMenuItem>
+            <DropdownMenuItem
               onClick={() => meta.onAction({ type: 'reset_password', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
             >
               <KeyRound className="mr-2 size-4" />
@@ -169,14 +183,39 @@ export const columns: ColumnDef<User>[] = [
               Change Role
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            {user.status === 'banned' ? (
+            {user.lockedOut && (
+              <DropdownMenuItem
+                onClick={() => meta.onAction({ type: 'unlock', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
+              >
+                <Unlock className="mr-2 size-4" />
+                Unlock Account
+              </DropdownMenuItem>
+            )}
+            {user.status === 'suspended' ? (
+              <DropdownMenuItem
+                onClick={() => meta.onAction({ type: 'reactivate', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
+              >
+                <Play className="mr-2 size-4" />
+                Reactivate User
+              </DropdownMenuItem>
+            ) : user.status === 'active' ? (
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => meta.onAction({ type: 'suspend', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
+              >
+                <Pause className="mr-2 size-4" />
+                Suspend User
+              </DropdownMenuItem>
+            ) : null}
+            {user.status === 'banned' && (
               <DropdownMenuItem
                 onClick={() => meta.onAction({ type: 'unban', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}
               >
                 <CheckCircle2 className="mr-2 size-4" />
                 Unban User
               </DropdownMenuItem>
-            ) : (
+            )}
+            {user.status !== 'banned' && (
               <DropdownMenuItem
                 className="text-destructive"
                 onClick={() => meta.onAction({ type: 'ban', userId: user.id, userName: `${user.firstName} ${user.lastName}` })}

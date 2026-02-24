@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import {
   ColumnFiltersState,
   SortingState,
@@ -36,6 +37,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 const STATUS_OPTIONS = [
   { label: 'Active', value: 'active' },
   { label: 'Inactive', value: 'inactive' },
+  { label: 'Suspended', value: 'suspended' },
   { label: 'Banned', value: 'banned' },
   { label: 'Pending', value: 'pending' },
 ]
@@ -47,10 +49,19 @@ const ROLE_OPTIONS = [
   { label: 'Viewer', value: 'viewer' },
 ]
 
-export function UsersDataTable() {
+interface UsersDataTableProps {
+  initialPage?: number
+  pageSize?: number
+}
+
+export function UsersDataTable({ initialPage = 1, pageSize = 20 }: UsersDataTableProps) {
+  const router = useRouter()
   const [data, setData] = React.useState<User[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
+  const [totalUsers, setTotalUsers] = React.useState(0)
+  const [currentPage, setCurrentPage] = React.useState(initialPage)
+  const [totalPages, setTotalPages] = React.useState(1)
 
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -67,78 +78,81 @@ export function UsersDataTable() {
     loading: boolean
   }>({ open: false, action: null, loading: false })
 
-  // Fetch users from activity logs
-  const fetchUsers = React.useCallback(async () => {
+  // Fetch users from admin API
+  const fetchUsers = React.useCallback(async (page = currentPage) => {
     try {
       setLoading(true)
       setError(null)
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/admin/activity-logs?per_page=100`)
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: pageSize.toString(),
+      })
+
+      if (statusFilter.length === 1) {
+        params.set('status', statusFilter[0])
+      }
+
+      const response = await apiCall(`${API_BASE_URL}/api/v1/admin/users?${params}`)
 
       if (!response.ok) {
         throw new Error('Failed to fetch users')
       }
 
-      const activityLogs = await response.json()
+      const result = await response.json()
 
-      // Transform activity logs to users
-      const userMap = new Map<string, User>()
+      // Handle both paginated response and array response
+      const users: User[] = (result.items || result || []).map((u: any) => ({
+        id: u.id,
+        email: u.email,
+        firstName: u.first_name || u.firstName || u.email?.split('@')[0] || 'Unknown',
+        lastName: u.last_name || u.lastName || '',
+        status: u.status || 'active',
+        role: u.role || (u.is_admin ? 'admin' : 'member'),
+        mfaEnabled: u.mfa_enabled || u.mfaEnabled || false,
+        lastSignIn: u.last_sign_in || u.lastSignIn || u.last_login || null,
+        createdAt: u.created_at || u.createdAt,
+        sessionsCount: u.sessions_count || u.sessionsCount || 0,
+        authMethods: u.auth_methods || u.authMethods || ['password'],
+        emailVerified: u.email_verified || u.emailVerified || false,
+        isAdmin: u.is_admin || u.isAdmin || false,
+        lockedOut: u.locked_out || u.lockedOut || false,
+        organizations: u.organizations_count || u.organizations || 0,
+      }))
 
-      for (const log of activityLogs) {
-        if (!userMap.has(log.user_id)) {
-          const authMethods: string[] = []
-          if (log.details?.method) {
-            authMethods.push(log.details.method)
-          }
-
-          const nameParts = log.user_email.split('@')[0].split('.')
-          const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : ''
-          const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : ''
-
-          userMap.set(log.user_id, {
-            id: log.user_id,
-            email: log.user_email,
-            firstName: firstName || 'Unknown',
-            lastName: lastName || '',
-            status: 'active',
-            role: 'member',
-            mfaEnabled: false,
-            lastSignIn: log.created_at,
-            createdAt: log.created_at,
-            sessionsCount: 1,
-            authMethods: authMethods.length > 0 ? authMethods : ['password'],
-          })
-        } else {
-          const existing = userMap.get(log.user_id)!
-          if (log.action === 'signin') {
-            existing.sessionsCount++
-            if (new Date(log.created_at) > new Date(existing.lastSignIn || 0)) {
-              existing.lastSignIn = log.created_at
-            }
-          }
-          if (log.details?.method && !existing.authMethods.includes(log.details.method)) {
-            existing.authMethods.push(log.details.method)
-          }
-        }
-      }
-
-      setData(Array.from(userMap.values()))
+      setData(users)
+      setTotalUsers(result.total || users.length)
+      setTotalPages(result.pages || Math.ceil((result.total || users.length) / pageSize))
+      setCurrentPage(page)
     } catch (err) {
       console.error('Failed to fetch users:', err)
       setError(err instanceof Error ? err.message : 'Failed to load users')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [currentPage, pageSize, statusFilter])
+
+  React.useEffect(() => {
+    fetchUsers(1)
+  }, [statusFilter])
 
   React.useEffect(() => {
     fetchUsers()
-  }, [fetchUsers])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Handle single user actions
   const handleAction = React.useCallback((action: UserAction) => {
+    if (action.type === 'view_detail') {
+      router.push(`/users/${action.userId}`)
+      return
+    }
+    if (action.type === 'view_sessions') {
+      router.push(`/users/${action.userId}?tab=sessions`)
+      return
+    }
     setActionDialog({ open: true, action, loading: false })
-  }, [])
+  }, [router])
 
   const executeAction = async () => {
     if (!actionDialog.action) return
@@ -154,6 +168,16 @@ export function UsersDataTable() {
             method: 'POST',
           })
           break
+        case 'suspend':
+          await apiCall(`${API_BASE_URL}/api/v1/users/${userId}/suspend`, {
+            method: 'POST',
+          })
+          break
+        case 'reactivate':
+          await apiCall(`${API_BASE_URL}/api/v1/users/${userId}/reactivate`, {
+            method: 'POST',
+          })
+          break
         case 'ban':
           await apiCall(`${API_BASE_URL}/api/v1/users/${userId}/ban`, {
             method: 'POST',
@@ -164,15 +188,18 @@ export function UsersDataTable() {
             method: 'POST',
           })
           break
+        case 'unlock':
+          await apiCall(`${API_BASE_URL}/api/v1/admin/users/${userId}/unlock`, {
+            method: 'POST',
+          })
+          break
         case 'delete':
-          await apiCall(`${API_BASE_URL}/api/v1/users/${userId}`, {
+          await apiCall(`${API_BASE_URL}/api/v1/admin/users/${userId}`, {
             method: 'DELETE',
           })
           break
-        case 'view_sessions':
-          window.location.href = `/?tab=sessions&userId=${userId}`
-          return
         case 'change_role':
+          // TODO: Open role selection dialog
           console.log('Change role for:', userId)
           break
       }
@@ -186,24 +213,33 @@ export function UsersDataTable() {
   }
 
   // Handle bulk actions
-  const handleBulkAction = (actionType: UserActionType) => {
+  const handleBulkAction = async (actionType: UserActionType) => {
     const selectedRows = table.getFilteredSelectedRowModel().rows
     const userIds = selectedRows.map((row) => row.original.id)
-    console.log('Bulk action:', actionType, 'on users:', userIds)
+
+    for (const userId of userIds) {
+      try {
+        switch (actionType) {
+          case 'ban':
+            await apiCall(`${API_BASE_URL}/api/v1/users/${userId}/ban`, { method: 'POST' })
+            break
+          case 'delete':
+            await apiCall(`${API_BASE_URL}/api/v1/admin/users/${userId}`, { method: 'DELETE' })
+            break
+          case 'reset_password':
+            await apiCall(`${API_BASE_URL}/api/v1/users/${userId}/reset-password`, { method: 'POST' })
+            break
+        }
+      } catch (err) {
+        console.error(`Bulk action ${actionType} failed for user ${userId}:`, err)
+      }
+    }
+
+    table.resetRowSelection()
+    await fetchUsers()
   }
 
   // Apply filters
-  React.useEffect(() => {
-    if (statusFilter.length > 0) {
-      setColumnFilters((prev) => [
-        ...prev.filter((f) => f.id !== 'status'),
-        { id: 'status', value: statusFilter },
-      ])
-    } else {
-      setColumnFilters((prev) => prev.filter((f) => f.id !== 'status'))
-    }
-  }, [statusFilter])
-
   React.useEffect(() => {
     if (roleFilter.length > 0) {
       setColumnFilters((prev) => [
@@ -240,7 +276,7 @@ export function UsersDataTable() {
   const selectedCount = table.getFilteredSelectedRowModel().rows.length
 
   // Loading state
-  if (loading) {
+  if (loading && data.length === 0) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="text-muted-foreground size-8 animate-spin" />
@@ -250,13 +286,13 @@ export function UsersDataTable() {
   }
 
   // Error state
-  if (error) {
+  if (error && data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <AlertCircle className="text-destructive mb-4 size-12" />
         <h3 className="mb-2 text-lg font-semibold">Failed to Load Users</h3>
         <p className="text-muted-foreground mb-4">{error}</p>
-        <Button onClick={fetchUsers} variant="outline">
+        <Button onClick={() => fetchUsers()} variant="outline">
           <RefreshCw className="mr-2 size-4" />
           Try Again
         </Button>
@@ -313,7 +349,8 @@ export function UsersDataTable() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchUsers}>
+          {loading && <Loader2 className="text-muted-foreground size-4 animate-spin" />}
+          <Button variant="outline" size="sm" onClick={() => fetchUsers()}>
             <RefreshCw className="mr-2 size-4" />
             Refresh
           </Button>
@@ -387,23 +424,23 @@ export function UsersDataTable() {
       <div className="flex items-center justify-between px-2">
         <div className="text-muted-foreground text-sm">
           {selectedCount > 0
-            ? `${selectedCount} of ${table.getFilteredRowModel().rows.length} row(s) selected`
-            : `${table.getFilteredRowModel().rows.length} user(s)`}
+            ? `${selectedCount} of ${totalUsers} row(s) selected`
+            : `${totalUsers} user(s) total - Page ${currentPage} of ${totalPages}`}
         </div>
         <div className="flex items-center space-x-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            onClick={() => fetchUsers(currentPage - 1)}
+            disabled={currentPage <= 1 || loading}
           >
             Previous
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            onClick={() => fetchUsers(currentPage + 1)}
+            disabled={currentPage >= totalPages || loading}
           >
             Next
           </Button>

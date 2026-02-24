@@ -17,13 +17,13 @@ import {
 } from 'lucide-react'
 import { DashboardStats } from '@/components/dashboard/stats'
 import { RecentActivity } from '@/components/dashboard/recent-activity'
-import { IdentityList } from '@/components/identities/identity-list'
+import { UsersDataTable } from '@/components/users/users-data-table'
 import { SessionList } from '@/components/sessions/session-list'
 import { OrganizationList } from '@/components/organizations/organization-list'
 import { WebhookList } from '@/components/webhooks/webhook-list'
 import { AuditList } from '@/components/audit/audit-list'
 
-const VALID_TABS = ['overview', 'identities', 'sessions', 'organizations', 'webhooks', 'audit'] as const
+const VALID_TABS = ['overview', 'users', 'sessions', 'organizations', 'webhooks', 'audit'] as const
 type TabValue = typeof VALID_TABS[number]
 
 // Wrapper component to handle Suspense for useSearchParams
@@ -51,8 +51,10 @@ function DashboardContent() {
   const searchParams = useSearchParams()
 
   // Get tab from URL, default to 'overview'
-  const tabFromUrl = searchParams.get('tab') as TabValue | null
-  const activeTab = tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'overview'
+  // Support legacy 'identities' tab by mapping to 'users'
+  const tabFromUrl = searchParams.get('tab') as string | null
+  const mappedTab = tabFromUrl === 'identities' ? 'users' : tabFromUrl
+  const activeTab = mappedTab && VALID_TABS.includes(mappedTab as TabValue) ? mappedTab as TabValue : 'overview'
 
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
@@ -82,7 +84,7 @@ function DashboardContent() {
         if (storedUser) {
           setUser(JSON.parse(storedUser))
         }
-        
+
         setIsLoading(false)
       } catch (error) {
         console.error('Failed to initialize dashboard:', error)
@@ -104,7 +106,7 @@ function DashboardContent() {
   // Helper function to get cookie value
   const getCookie = (name: string): string | null => {
     if (typeof document === 'undefined') return null
-    
+
     const value = `; ${document.cookie}`
     const parts = value.split(`; ${name}=`)
     if (parts.length === 2) {
@@ -162,9 +164,9 @@ function DashboardContent() {
               <BarChart3 className="mr-2 size-4" />
               Overview
             </TabsTrigger>
-            <TabsTrigger value="identities">
+            <TabsTrigger value="users">
               <Users className="mr-2 size-4" />
-              Identities
+              Users
             </TabsTrigger>
             <TabsTrigger value="sessions">
               <Key className="mr-2 size-4" />
@@ -200,16 +202,23 @@ function DashboardContent() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="identities">
+          <TabsContent value="users">
             <Card>
               <CardHeader>
-                <CardTitle>Identities</CardTitle>
-                <CardDescription>
-                  Manage user identities and authentication methods
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Users</CardTitle>
+                    <CardDescription>
+                      Manage user accounts, authentication status, and permissions.
+                    </CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <a href="/users">Open full view</a>
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <IdentityList />
+                <UsersDataTable />
               </CardContent>
             </Card>
           </TabsContent>

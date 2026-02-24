@@ -33,6 +33,9 @@ export function ActionDialog({
       case 'delete': return 'Delete User'
       case 'ban': return 'Ban User'
       case 'unban': return 'Unban User'
+      case 'suspend': return 'Suspend User'
+      case 'reactivate': return 'Reactivate User'
+      case 'unlock': return 'Unlock Account'
       case 'reset_password': return 'Reset Password'
       default: return 'Confirm Action'
     }
@@ -46,6 +49,12 @@ export function ActionDialog({
         return `Are you sure you want to ban ${action.userName}? They will no longer be able to access the platform.`
       case 'unban':
         return `Are you sure you want to unban ${action.userName}? They will regain access to the platform.`
+      case 'suspend':
+        return `Are you sure you want to suspend ${action.userName}? Their account will be temporarily disabled.`
+      case 'reactivate':
+        return `Are you sure you want to reactivate ${action.userName}? Their account will be re-enabled.`
+      case 'unlock':
+        return `Are you sure you want to unlock ${action.userName}'s account? This will reset their failed login attempts.`
       case 'reset_password':
         return `A password reset email will be sent to ${action.userName}.`
       default:
@@ -53,7 +62,7 @@ export function ActionDialog({
     }
   }
 
-  const isDestructive = action?.type === 'delete' || action?.type === 'ban'
+  const isDestructive = action?.type === 'delete' || action?.type === 'ban' || action?.type === 'suspend'
 
   return (
     <AlertDialog

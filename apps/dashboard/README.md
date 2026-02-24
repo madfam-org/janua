@@ -2,34 +2,34 @@
 
 > **Customer tenant management portal** for the Janua platform
 
-**Status:** Active Development · **Domain:** `app.janua.dev` · **Port:** 3001
+**Status:** Active Development · **Domain:** `app.janua.dev` · **Port:** 4101
 
-## 📋 Overview
+## Overview
 
-The Janua Dashboard is the primary customer-facing application where users manage their accounts, organizations, team members, and platform settings. Built with Next.js 14 and modern React patterns for optimal performance and user experience.
+The Janua Dashboard is the primary customer-facing application where users manage their accounts, organizations, team members, and platform settings. Built with Next.js and modern React patterns for optimal performance and user experience.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
 - Node.js 18+
-- Yarn (workspace management)
+- pnpm (workspace management)
 - Access to Janua API (local or remote)
 
 ### Installation
 
 ```bash
 # From monorepo root
-yarn install
+pnpm install
 
 # Navigate to dashboard
 cd apps/dashboard
 
 # Start development server
-yarn dev
+pnpm dev
 ```
 
-The dashboard will be available at [http://localhost:3001](http://localhost:3001)
+The dashboard will be available at [http://localhost:4101](http://localhost:4101)
 
 ### Environment Setup
 
@@ -37,332 +37,150 @@ Create a `.env.local` file in the dashboard directory:
 
 ```env
 # API Configuration
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_APP_URL=http://localhost:3001
-
-# Authentication
-NEXT_PUBLIC_AUTH_DOMAIN=janua.dev
-NEXT_PUBLIC_JWT_ISSUER=https://janua.dev
-
-# Features
-NEXT_PUBLIC_ENABLE_ANALYTICS=true
-NEXT_PUBLIC_ENABLE_BILLING=true
-NEXT_PUBLIC_ENABLE_SUPPORT=true
-
-# External Services
-NEXT_PUBLIC_POSTHOG_KEY=your-posthog-key
-NEXT_PUBLIC_STRIPE_PUBLIC_KEY=your-stripe-key
+NEXT_PUBLIC_API_URL=http://localhost:4100
+NEXT_PUBLIC_APP_URL=http://localhost:4101
 ```
 
-## 🏗️ Architecture
+## Architecture
 
 ### Project Structure
 
 ```
 apps/dashboard/
-├── app/                    # Next.js 14 App Router
-│   ├── (auth)/            # Authentication routes
-│   │   ├── login/         # Login page
-│   │   ├── signup/        # Registration
-│   │   └── forgot/        # Password recovery
-│   ├── (dashboard)/       # Authenticated routes
-│   │   ├── page.tsx       # Dashboard home
-│   │   ├── settings/      # Account settings
-│   │   ├── team/          # Team management
-│   │   ├── billing/       # Subscription & billing
-│   │   └── analytics/     # Usage analytics
-│   ├── api/              # API routes (if needed)
-│   ├── layout.tsx        # Root layout
-│   └── globals.css       # Global styles
-├── components/           # React components
-│   ├── ui/              # UI components (local overrides)
-│   ├── dashboard/       # Dashboard-specific components
-│   ├── forms/           # Form components
-│   └── charts/          # Data visualization
-├── lib/                 # Utilities
-│   ├── api/            # API client
-│   ├── auth/           # Auth utilities
-│   ├── hooks/          # Custom React hooks
-│   └── utils/          # Helper functions
-├── public/             # Static assets
-└── styles/            # Additional styles
+├── app/                          # Next.js App Router
+│   ├── page.tsx                  # Dashboard home (tabbed overview)
+│   ├── login/                    # Login page
+│   ├── profile/                  # Profile with MFA, passkeys, devices, sessions
+│   ├── users/
+│   │   ├── page.tsx              # User list (search, filter, pagination)
+│   │   └── [id]/page.tsx         # User detail (profile, sessions, orgs, security, audit)
+│   ├── organizations/
+│   │   ├── page.tsx              # Organization list
+│   │   └── [id]/page.tsx         # Org detail (members, roles, settings, danger zone)
+│   ├── audit-logs/               # Audit log viewer
+│   ├── compliance/               # Privacy & compliance tools
+│   ├── settings/
+│   │   ├── page.tsx              # Settings hub (card navigation)
+│   │   ├── sso/                  # SAML/OIDC SSO configuration
+│   │   ├── scim/                 # SCIM provisioning
+│   │   ├── invitations/          # Team invitations
+│   │   ├── api-keys/             # API key management
+│   │   ├── oauth-clients/        # OAuth 2.0 client CRUD + secret rotation
+│   │   ├── roles/                # Roles & permissions
+│   │   ├── policies/             # Authorization policy CRUD + evaluation
+│   │   ├── alerts/               # Security alert configuration
+│   │   ├── branding/             # White-label branding
+│   │   ├── billing/              # Plans, invoices, payment methods
+│   │   ├── email-templates/      # Email template editor with live preview
+│   │   └── system/               # CORS, sessions, password policy, rate limits
+│   └── (dashboard)/              # Layout wrapper with sidebar
+├── components/
+│   ├── layout/
+│   │   ├── sidebar.tsx           # Collapsible sidebar navigation
+│   │   └── dashboard-layout.tsx  # Auth-gated layout wrapper
+│   ├── dashboard/                # Overview stats & recent activity
+│   ├── users/                    # User data table, columns, filters, badges
+│   ├── sessions/                 # Session list with revoke
+│   ├── organizations/            # Organization list
+│   ├── webhooks/
+│   │   ├── webhook-list.tsx      # Webhook endpoint table
+│   │   ├── webhook-form.tsx      # Create/edit dialog
+│   │   └── webhook-deliveries.tsx # Delivery history viewer
+│   └── audit/                    # Audit log list
+├── lib/
+│   ├── auth.tsx                  # apiCall() with token refresh
+│   ├── janua-client.ts           # SDK client config
+│   └── utils.ts                  # Helpers
+└── public/                       # Static assets
 ```
 
 ### Technology Stack
 
-- **Framework:** Next.js 14 (App Router)
+- **Framework:** Next.js (App Router)
 - **UI Library:** @janua/ui (shared design system)
-- **State Management:** TanStack Query v5
-- **Forms:** React Hook Form + Zod validation
 - **Tables:** TanStack Table v8
-- **Charts:** Recharts
 - **Styling:** Tailwind CSS + Radix UI
+- **Icons:** lucide-react
 
-## 🎨 Features
+## Features
 
-### Core Functionality
+### User Management
+- Full user list with search, status filter, and server-side pagination
+- User detail page with profile, sessions, organizations, security, and audit tabs
+- Suspend, reactivate, unlock, delete actions
+- Bulk operations support
 
-#### 🔐 Authentication
-- Email/password login
-- Social authentication (Google, GitHub)
-- Passkey/WebAuthn support
-- Session management
-- MFA/2FA support
+### Session Management
+- Active session list with device/browser/location info
+- Individual session revocation
+- Bulk revoke all sessions
 
-#### 👥 Team Management
-- Invite team members
-- Role-based permissions
-- Team activity logs
-- Member provisioning/deprovisioning
+### Organization Management
+- Organization list and detail pages
+- Member management (invite, role change, remove)
+- Custom role creation
+- Transfer ownership, delete org
 
-#### 💳 Billing & Subscriptions
-- Subscription management
-- Payment method updates
-- Invoice history
-- Usage-based billing
-- Plan upgrades/downgrades
+### OAuth Client Management
+- Create, edit, delete OAuth 2.0 clients
+- Secret rotation with confirmation
+- Client detail view with redirect URIs and grant types
 
-#### 📊 Analytics Dashboard
-- User activity metrics
-- API usage statistics
-- Performance monitoring
-- Custom report generation
+### Webhook Management
+- Endpoint list with status, events, and secret management
+- Create/edit form with event type multi-select
+- Delivery history with retry capability
+- Test webhook delivery
 
-#### ⚙️ Settings
-- Profile management
-- Security settings
+### Profile & Security
+- Profile info editing
+- TOTP MFA setup with QR code and backup codes
+- WebAuthn passkey registration and management
+- Device trust management
+- Password change
+
+### Settings
+- SSO/SAML configuration
+- SCIM provisioning
+- Team invitations
 - API key management
-- Webhook configuration
-- Notification preferences
+- Roles & permissions
+- Authorization policies with evaluation testing
+- Branding & white-label
+- Billing & plans
+- Email template editor with live preview
+- System settings (CORS, sessions, password policy, rate limiting)
 
-## 🧩 Components
-
-### Shared Components from @janua/ui
-
-The dashboard leverages the shared design system:
-
-```tsx
-import { Button, Card, Input, Select } from '@janua/ui';
-import { useAuth } from '@janua/react-sdk';
-```
-
-### Dashboard-Specific Components
-
-```tsx
-// components/dashboard/StatsCard.tsx
-import { Card } from '@janua/ui';
-
-export function StatsCard({ title, value, change }) {
-  return (
-    <Card>
-      <Card.Header>{title}</Card.Header>
-      <Card.Content>
-        <div className="text-3xl font-bold">{value}</div>
-        <div className="text-sm text-muted">{change}% from last month</div>
-      </Card.Content>
-    </Card>
-  );
-}
-```
-
-## 🔌 API Integration
-
-### Using TanStack Query
-
-```tsx
-// lib/api/queries.ts
-import { useQuery } from '@tanstack/react-query';
-
-export function useUserData() {
-  return useQuery({
-    queryKey: ['user'],
-    queryFn: async () => {
-      const response = await fetch('/api/v1/auth/me');
-      return response.json();
-    },
-  });
-}
-```
-
-### API Client Configuration
-
-```tsx
-// lib/api/client.ts
-import { JanuaClient } from '@janua/sdk';
-
-export const janua = new JanuaClient({
-  apiUrl: process.env.NEXT_PUBLIC_API_URL,
-  authDomain: process.env.NEXT_PUBLIC_AUTH_DOMAIN,
-});
-```
-
-## 🧪 Testing
-
-### Running Tests
+## Testing
 
 ```bash
 # Unit tests
-yarn test
-
-# E2E tests
-yarn test:e2e
-
-# Coverage report
-yarn test:coverage
-```
-
-### Test Structure
-
-```
-tests/
-├── unit/              # Component tests
-├── integration/       # API integration tests
-└── e2e/              # End-to-end tests
-```
-
-## 🚢 Deployment
-
-### Build for Production
-
-```bash
-# Build the application
-yarn build
-
-# Start production server
-yarn start
-```
-
-### Vercel Deployment
-
-The dashboard is configured for automatic deployment on Vercel:
-
-1. Push to `main` branch triggers production deployment
-2. Pull requests create preview deployments
-3. Environment variables configured in Vercel dashboard
-
-### Docker Support
-
-```bash
-# Build Docker image
-docker build -t janua-dashboard .
-
-# Run container
-docker run -p 3001:3001 janua-dashboard
-```
-
-## 🔧 Configuration
-
-### Tailwind Configuration
-
-The dashboard extends the base Tailwind config from @janua/ui:
-
-```js
-// tailwind.config.js
-module.exports = {
-  presets: [require('@janua/ui/tailwind.config')],
-  content: [
-    './app/**/*.{js,ts,jsx,tsx}',
-    './components/**/*.{js,ts,jsx,tsx}',
-  ],
-};
-```
-
-### TypeScript Configuration
-
-```json
-// tsconfig.json
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "paths": {
-      "@/*": ["./app/*"],
-      "@/components/*": ["./components/*"],
-      "@/lib/*": ["./lib/*"]
-    }
-  }
-}
-```
-
-## 📊 Performance
-
-### Optimization Strategies
-
-- **Code Splitting:** Automatic with Next.js App Router
-- **Image Optimization:** Next.js Image component
-- **Font Optimization:** Next.js Font optimization
-- **Bundle Analysis:** `yarn analyze`
-- **Lighthouse Score:** Target 95+ on all metrics
-
-### Monitoring
-
-- Real User Monitoring (RUM) via PostHog
-- Error tracking with Sentry
-- Performance monitoring with Vercel Analytics
-
-## 🔒 Security
-
-### Security Features
-
-- **CSRF Protection:** Built into Next.js
-- **XSS Prevention:** React's built-in protections
-- **Content Security Policy:** Configured headers
-- **Secure Cookies:** httpOnly, secure, sameSite
-- **Rate Limiting:** API-level protection
-
-### Authentication Flow
-
-1. User enters credentials
-2. API validates and returns JWT tokens
-3. Tokens stored in secure cookies
-4. Automatic token refresh
-5. Session validation on each request
-
-## 🛠️ Development
-
-### Code Style
-
-```bash
-# Format code
-yarn format
-
-# Lint code
-yarn lint
+pnpm test
 
 # Type checking
-yarn typecheck
+pnpm typecheck
+
+# Lint
+pnpm lint
 ```
 
-### Git Hooks
+## Deployment
 
-Pre-commit hooks ensure code quality:
-- ESLint validation
-- TypeScript checking
-- Prettier formatting
+```bash
+# Build for production
+pnpm build
 
-## 🎯 Roadmap
+# Start production server
+pnpm start
+```
 
-### Current Sprint
-- [ ] Complete team invitation flow
-- [ ] Implement usage analytics
-- [ ] Add export functionality
+### Docker
 
-### Next Quarter
-- [ ] Advanced filtering and search
-- [ ] Bulk operations support
-- [ ] API playground integration
-- [ ] Custom dashboard widgets
+```bash
+docker build -t janua-dashboard .
+docker run -p 4101:4101 janua-dashboard
+```
 
-## 📚 Resources
+## License
 
-- [Next.js Documentation](https://nextjs.org/docs)
-- [TanStack Query](https://tanstack.com/query)
-- [Radix UI](https://radix-ui.com)
-- [Tailwind CSS](https://tailwindcss.com)
-
-## 🤝 Contributing
-
-See the [Contributing Guide](../../CONTRIBUTING.md) for development guidelines.
-
-## 📄 License
-
-Part of the Janua platform. See [LICENSE](../../LICENSE) in the root directory.
+Part of the Janua platform. See [LICENSE](../../LICENSE) for details.

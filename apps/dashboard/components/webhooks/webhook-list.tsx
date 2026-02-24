@@ -10,14 +10,17 @@ import {
   RefreshCw,
   CheckCircle2,
   XCircle,
-  MoreHorizontal as _MoreHorizontal,
   Send,
   Trash2,
   Copy,
   Eye,
-  EyeOff
+  EyeOff,
+  Pencil,
+  History,
 } from 'lucide-react'
 import { apiCall } from '../../lib/auth'
+import { WebhookForm } from './webhook-form'
+import { WebhookDeliveries } from './webhook-deliveries'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
@@ -33,15 +36,6 @@ interface WebhookEndpoint {
   updated_at: string
 }
 
-interface WebhookStats {
-  total_deliveries: number
-  successful: number
-  failed: number
-  success_rate: number
-  average_delivery_time: number
-  period_days: number
-}
-
 export function WebhookList() {
   const [searchTerm, setSearchTerm] = useState('')
   const [webhooks, setWebhooks] = useState<WebhookEndpoint[]>([])
@@ -49,6 +43,12 @@ export function WebhookList() {
   const [error, setError] = useState<string | null>(null)
   const [showSecret, setShowSecret] = useState<Record<string, boolean>>({})
   const [eventTypes, setEventTypes] = useState<string[]>([])
+
+  // Dialog states
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingWebhook, setEditingWebhook] = useState<WebhookEndpoint | undefined>()
+  const [deliveriesOpen, setDeliveriesOpen] = useState(false)
+  const [deliveriesEndpointId, setDeliveriesEndpointId] = useState('')
 
   useEffect(() => {
     fetchWebhooks()
@@ -70,7 +70,7 @@ export function WebhookList() {
       }
 
       const data = await response.json()
-      setWebhooks(data.endpoints || [])
+      setWebhooks(data.endpoints || data.items || data || [])
     } catch (err) {
       console.error('Failed to fetch webhooks:', err)
       setError(err instanceof Error ? err.message : 'Failed to load webhooks')
@@ -130,7 +130,6 @@ export function WebhookList() {
   const copySecret = async (secret: string) => {
     try {
       await navigator.clipboard.writeText(secret)
-      alert('Secret copied to clipboard!')
     } catch (err) {
       console.error('Failed to copy secret:', err)
     }
@@ -138,6 +137,21 @@ export function WebhookList() {
 
   const toggleSecretVisibility = (id: string) => {
     setShowSecret(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  const handleCreateWebhook = () => {
+    setEditingWebhook(undefined)
+    setFormOpen(true)
+  }
+
+  const handleEditWebhook = (webhook: WebhookEndpoint) => {
+    setEditingWebhook(webhook)
+    setFormOpen(true)
+  }
+
+  const handleViewDeliveries = (endpointId: string) => {
+    setDeliveriesEndpointId(endpointId)
+    setDeliveriesOpen(true)
   }
 
   const formatDateTime = (dateString: string): string => {
@@ -214,7 +228,7 @@ export function WebhookList() {
             <RefreshCw className="mr-2 size-4" />
             Refresh
           </Button>
-          <Button size="sm" disabled title="Create webhook endpoint">
+          <Button size="sm" onClick={handleCreateWebhook}>
             <Plus className="mr-2 size-4" />
             Add Webhook
           </Button>
@@ -238,7 +252,7 @@ export function WebhookList() {
             {filteredWebhooks.length === 0 ? (
               <tr>
                 <td colSpan={6} className="text-muted-foreground p-8 text-center">
-                  {searchTerm ? 'No webhooks match your search' : 'No webhooks configured yet'}
+                  {searchTerm ? 'No webhooks match your search' : 'No webhooks configured yet. Click "Add Webhook" to create one.'}
                 </td>
               </tr>
             ) : (
@@ -282,7 +296,7 @@ export function WebhookList() {
                         variant="ghost"
                         size="sm"
                         onClick={() => toggleSecretVisibility(webhook.id)}
-                        title={showSecret[webhook.id] ? 'Hide secret' : 'Show secret'}
+                        aria-label={showSecret[webhook.id] ? 'Hide secret' : 'Show secret'}
                       >
                         {showSecret[webhook.id] ? (
                           <EyeOff className="size-3" />
@@ -294,7 +308,7 @@ export function WebhookList() {
                         variant="ghost"
                         size="sm"
                         onClick={() => copySecret(webhook.secret)}
-                        title="Copy secret"
+                        aria-label="Copy secret"
                       >
                         <Copy className="size-3" />
                       </Button>
@@ -321,8 +335,24 @@ export function WebhookList() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => handleEditWebhook(webhook)}
+                        aria-label="Edit webhook"
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewDeliveries(webhook.id)}
+                        aria-label="View deliveries"
+                      >
+                        <History className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => testWebhook(webhook.id)}
-                        title="Send test webhook"
+                        aria-label="Send test webhook"
                       >
                         <Send className="size-4" />
                       </Button>
@@ -330,7 +360,7 @@ export function WebhookList() {
                         variant="ghost"
                         size="sm"
                         onClick={() => deleteWebhook(webhook.id)}
-                        title="Delete webhook"
+                        aria-label="Delete webhook"
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="size-4" />
@@ -367,6 +397,21 @@ export function WebhookList() {
           Showing {filteredWebhooks.length} of {webhooks.length} webhooks
         </div>
       </div>
+
+      {/* Webhook Create/Edit Form Dialog */}
+      <WebhookForm
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        webhook={editingWebhook}
+        onSuccess={fetchWebhooks}
+      />
+
+      {/* Webhook Deliveries Dialog */}
+      <WebhookDeliveries
+        endpointId={deliveriesEndpointId}
+        open={deliveriesOpen}
+        onOpenChange={setDeliveriesOpen}
+      />
     </div>
   )
 }

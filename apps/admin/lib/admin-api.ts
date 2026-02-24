@@ -109,7 +109,7 @@ class AdminAPI {
     return response.json()
   }
 
-  async getUsers(page: number = 1, limit: number = 20): Promise<AdminUser[]> {
+  async getUsers(page: number = 1, limit: number = 20): Promise<AdminUser[] | { items: AdminUser[]; total: number; page: number; pages: number }> {
     const response = await fetch(`${API_URL}/api/v1/admin/users?page=${page}&limit=${limit}`, {
       headers: this.getAuthHeaders(),
     })
