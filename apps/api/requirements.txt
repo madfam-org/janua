@@ -34,7 +34,7 @@ aioredis>=2.0.1
 resend>=2.5.0  # Updated
 
 # Cloud & Storage
-boto3>=1.35.0  # Updated for security fixes
+boto3>=1.35.0  # S3-compatible client for Cloudflare R2 (not used with AWS)
 aiofiles>=24.1.0  # Updated
 
 # Image Processing

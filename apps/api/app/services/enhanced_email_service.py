@@ -26,7 +26,6 @@ logger = structlog.get_logger()
 class EmailProvider(Enum):
     SENDGRID = "sendgrid"
     SMTP = "smtp"
-    AWS_SES = "ses"
     CONSOLE = "console"
 
 
@@ -77,10 +76,6 @@ class EnhancedEmailService:
         # Primary provider: SendGrid (if configured)
         if settings.EMAIL_PROVIDER == "sendgrid" and settings.SENDGRID_API_KEY:
             providers.append(EmailProvider.SENDGRID)
-
-        # Secondary provider: AWS SES (if configured)
-        if hasattr(settings, "AWS_SES_REGION") and settings.AWS_SES_REGION:
-            providers.append(EmailProvider.AWS_SES)
 
         # Fallback provider: SMTP (if configured)
         if settings.SMTP_HOST:
@@ -192,10 +187,6 @@ class EnhancedEmailService:
             return await self._send_with_sendgrid(
                 to_email, subject, html_content, text_content, message_id, metadata
             )
-        elif provider == EmailProvider.AWS_SES:
-            return await self._send_with_ses(
-                to_email, subject, html_content, text_content, message_id, metadata
-            )
         elif provider == EmailProvider.SMTP:
             return await self._send_with_smtp(
                 to_email, subject, html_content, text_content, message_id, metadata
@@ -245,21 +236,6 @@ class EnhancedEmailService:
         except Exception as e:
             logger.error(f"SendGrid error: {e}")
             return False
-
-    async def _send_with_ses(
-        self,
-        to_email: str,
-        subject: str,
-        html_content: str,
-        text_content: Optional[str],
-        message_id: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> bool:
-        """Send email using AWS SES (placeholder implementation)"""
-        # Note: This would require boto3 and AWS SES configuration
-        # For now, return False to fall back to next provider
-        logger.info("AWS SES provider not yet implemented, falling back")
-        return False
 
     async def _send_with_smtp(
         self,

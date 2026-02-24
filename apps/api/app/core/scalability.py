@@ -223,7 +223,7 @@ class HorizontalScalingManager:
         # In production, this would register with:
         # - Kubernetes service discovery
         # - Consul/etcd
-        # - AWS ECS Service Discovery
+        # - Cloud service discovery
         # - Load balancer health checks
 
         registration_data = {

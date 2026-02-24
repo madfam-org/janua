@@ -220,7 +220,7 @@ class EmailService:
         """Send email via SMTP or email service"""
 
         # For alpha launch, we'll use a simple implementation
-        # In production, integrate with SendGrid, AWS SES, or similar
+        # In production, integrate with SendGrid, Resend, or similar
 
         try:
             # Check if email configuration is available

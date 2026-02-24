@@ -49,15 +49,14 @@ class TestMigrationServiceInitialization:
         assert "auth0" in migration_service.providers
         assert "okta" in migration_service.providers
         assert "firebase" in migration_service.providers
-        assert "cognito" in migration_service.providers
-        assert len(migration_service.providers) == 4
+        assert len(migration_service.providers) == 3
 
     def test_provider_methods_exist(self, migration_service):
         """Test all provider migration methods are registered"""
         assert callable(migration_service.providers["auth0"])
         assert callable(migration_service.providers["okta"])
         assert callable(migration_service.providers["firebase"])
-        assert callable(migration_service.providers["cognito"])
+        assert len(migration_service.providers) == 3
 
 
 class TestStartMigration:
@@ -89,16 +88,6 @@ class TestStartMigration:
         """Test starting Firebase migration"""
         result = await migration_service.start_migration(
             organization_id="org_789", provider="firebase", config=sample_config
-        )
-
-        assert result["status"] == "pending"
-        assert result["id"] == "migration_job_id"
-
-    @pytest.mark.asyncio
-    async def test_start_migration_cognito(self, migration_service, sample_config):
-        """Test starting AWS Cognito migration"""
-        result = await migration_service.start_migration(
-            organization_id="org_abc", provider="cognito", config=sample_config
         )
 
         assert result["status"] == "pending"
@@ -375,13 +364,6 @@ class TestProviderSpecificMigrations:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_migrate_cognito(self, migration_service, sample_config):
-        """Test AWS Cognito migration method directly"""
-        result = await migration_service._migrate_cognito(sample_config)
-
-        assert result is None
-
-    @pytest.mark.asyncio
     async def test_provider_methods_accept_config(self, migration_service):
         """Test all provider methods accept configuration"""
         config = {"test": "config"}
@@ -389,13 +371,11 @@ class TestProviderSpecificMigrations:
         auth0_result = await migration_service._migrate_auth0(config)
         okta_result = await migration_service._migrate_okta(config)
         firebase_result = await migration_service._migrate_firebase(config)
-        cognito_result = await migration_service._migrate_cognito(config)
 
         # Placeholder methods return None
         assert auth0_result is None
         assert okta_result is None
         assert firebase_result is None
-        assert cognito_result is None
 
 
 class TestMigrationWorkflows:
@@ -497,7 +477,7 @@ class TestServiceIntegration:
     @pytest.mark.asyncio
     async def test_provider_registry_is_complete(self, migration_service):
         """Test that all supported providers are registered"""
-        expected_providers = ["auth0", "okta", "firebase", "cognito"]
+        expected_providers = ["auth0", "okta", "firebase"]
 
         for provider in expected_providers:
             assert provider in migration_service.providers

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Database Backup Script for Janua
-# Supports PostgreSQL backup to local storage and cloud (S3/R2)
+# Supports PostgreSQL backup to local storage
 
 set -euo pipefail
 
@@ -11,7 +11,6 @@ DB_USER="${DB_USER:-postgres}"
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/janua}"
-S3_BUCKET="${S3_BUCKET:-janua-backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 ENVIRONMENT="${ENVIRONMENT:-production}"
 
@@ -74,35 +73,7 @@ perform_backup() {
     fi
 }
 
-# Function to upload to S3/R2
-upload_to_cloud() {
-    if [ -z "${AWS_ACCESS_KEY_ID:-}" ] || [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
-        log "Cloud storage credentials not configured, skipping upload"
-        return 0
-    fi
-    
-    log "Uploading backup to cloud storage..."
-    
-    # Upload to S3/R2
-    if aws s3 cp "$BACKUP_PATH" "s3://${S3_BUCKET}/${ENVIRONMENT}/${BACKUP_FILE}" \
-        --storage-class STANDARD_IA \
-        --metadata "environment=${ENVIRONMENT},timestamp=${TIMESTAMP}"; then
-        
-        log "Backup uploaded to s3://${S3_BUCKET}/${ENVIRONMENT}/${BACKUP_FILE}"
-        
-        # Set lifecycle policy for automatic deletion after retention period
-        aws s3api put-object-tagging \
-            --bucket "$S3_BUCKET" \
-            --key "${ENVIRONMENT}/${BACKUP_FILE}" \
-            --tagging "TagSet=[{Key=AutoDelete,Value=true},{Key=RetentionDays,Value=${RETENTION_DAYS}}]" \
-            2>/dev/null || true
-        
-        return 0
-    else
-        send_alert "Failed to upload backup to cloud storage" "warning"
-        return 1
-    fi
-}
+# Note: Production cloud backups are handled by in-cluster CronJob (dumps to Cloudflare R2).
 
 # Function to clean up old local backups
 cleanup_old_backups() {
@@ -204,9 +175,6 @@ main() {
     if perform_backup; then
         # Verify backup
         if verify_backup; then
-            # Upload to cloud
-            upload_to_cloud
-            
             # Clean up old backups
             cleanup_old_backups
             

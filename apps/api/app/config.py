@@ -189,7 +189,7 @@ class Settings(BaseSettings):
 
     # Email
     EMAIL_ENABLED: bool = Field(default=False)
-    EMAIL_PROVIDER: str = Field(default="resend", pattern="^(resend|ses|smtp|sendgrid)$")
+    EMAIL_PROVIDER: str = Field(default="resend", pattern="^(resend|smtp|sendgrid)$")
     EMAIL_FROM_ADDRESS: str = Field(default="noreply@janua.dev")
     EMAIL_FROM_NAME: str = Field(default="Janua")
     RESEND_API_KEY: Optional[str] = Field(default=None)

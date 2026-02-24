@@ -13,7 +13,6 @@ class MigrationService:
             "auth0": self._migrate_auth0,
             "okta": self._migrate_okta,
             "firebase": self._migrate_firebase,
-            "cognito": self._migrate_cognito,
         }
 
     async def start_migration(
@@ -81,9 +80,6 @@ class MigrationService:
 
     async def _migrate_firebase(self, config: Dict[str, Any]) -> None:
         """Firebase migration handler"""
-
-    async def _migrate_cognito(self, config: Dict[str, Any]) -> None:
-        """AWS Cognito migration handler"""
 
     async def export_users(self, organization_id: str, format: str = "json") -> bytes:
         """Export users for migration"""
