@@ -32,6 +32,9 @@ yarn-error.log*
 *.swo
 *~
 
+# Serena MCP (local developer tool config)
+.serena/
+
 # OS generated files
 .DS_Store
 .DS_Store?
