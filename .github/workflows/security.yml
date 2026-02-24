@@ -227,7 +227,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.10.0
+        uses: zaproxy/action-baseline@v0.15.0
         continue-on-error: true
         with:
           target: 'http://localhost:8080'
