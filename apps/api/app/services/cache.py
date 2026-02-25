@@ -4,7 +4,6 @@ Redis cache service for session management and caching
 
 import json
 import logging
-import pickle
 from typing import Any, Dict, List, Optional
 
 import redis.asyncio as redis
@@ -69,8 +68,7 @@ class CacheService:
             elif isinstance(value, (str, int, float, bool)):
                 serialized = str(value)
             else:
-                # Use pickle for complex objects
-                serialized = pickle.dumps(value)
+                raise TypeError(f"Cannot cache non-serializable type: {type(value).__name__}")
 
             # Set with optional expiration
             if expire:
@@ -114,11 +112,7 @@ class CacheService:
                     # Try as string
                     return value.decode("utf-8")
                 except Exception:
-                    # Try pickle for complex objects
-                    try:
-                        return pickle.loads(value)
-                    except Exception:
-                        return value
+                    return value
 
         except Exception as e:
             logger.error(f"Cache get error for key {key}: {e}")

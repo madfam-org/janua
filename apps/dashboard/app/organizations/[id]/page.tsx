@@ -30,7 +30,6 @@ import {
   UserPlus,
   Crown,
   ArrowRightLeft,
-  Settings,
   AlertTriangle,
   Mail,
   ChevronDown,

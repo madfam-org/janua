@@ -483,7 +483,7 @@ async def _upload_branding_image(
 
     # Generate unique filename
     file_extension = file.filename.split(".")[-1] if file.filename else "png"
-    content_hash = hashlib.md5(contents).hexdigest()[:12]
+    content_hash = hashlib.sha256(contents).hexdigest()[:12]
     unique_filename = f"{safe_org_id}_{image_type}_{content_hash}.{file_extension}"
 
     # Create upload directory using pathlib for safety
@@ -662,7 +662,7 @@ async def upload_favicon(
 
         # Generate unique filename
         file_extension = file.filename.split(".")[-1] if file.filename else "png"
-        content_hash = hashlib.md5(contents).hexdigest()[:12]
+        content_hash = hashlib.sha256(contents).hexdigest()[:12]
         unique_filename = f"{safe_org_id}_favicon_{content_hash}.{file_extension}"
 
         # Create upload directory using pathlib for safety

@@ -27,7 +27,6 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
-  Ban,
   Play,
   Pause,
   Trash2,

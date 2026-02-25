@@ -11,12 +11,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@janua/ui'
 import Link from 'next/link'
 import {
   Plus,
-  Key,
   Copy,
   RefreshCw,
   Trash2,

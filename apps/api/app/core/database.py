@@ -52,11 +52,11 @@ def create_ssl_context() -> Optional[ssl.SSLContext]:
         ctx.verify_mode = ssl.CERT_NONE
         return ctx
 
-    # For 'require', we need SSL but don't verify certificate
+    # For 'require', we need SSL and verify certificate but don't check hostname
     if ssl_mode == "require":
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx.verify_mode = ssl.CERT_REQUIRED
         return ctx
 
     # For 'verify-ca' and 'verify-full', we need proper certificates

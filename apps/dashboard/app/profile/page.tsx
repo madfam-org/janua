@@ -41,7 +41,6 @@ import {
   Clock,
   Eye,
   EyeOff,
-  QrCode,
 } from 'lucide-react'
 import { januaClient } from '@/lib/janua-client'
 import {

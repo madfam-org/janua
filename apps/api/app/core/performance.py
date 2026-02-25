@@ -340,7 +340,7 @@ def performance_cache(
             else:
                 # Generate key from function name and arguments
                 key_data = f"{func.__name__}:{str(args)}:{str(sorted(kwargs.items()))}"
-                key = hashlib.md5(key_data.encode()).hexdigest()
+                key = hashlib.sha256(key_data.encode()).hexdigest()
 
             # Try to get from cache
             cached_result = await cache_manager.get(namespace, key)

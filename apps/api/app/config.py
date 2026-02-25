@@ -117,7 +117,7 @@ class Settings(BaseSettings):
     )
 
     # Security
-    SECRET_KEY: Optional[str] = Field(default="development-secret-key-change-in-production")
+    SECRET_KEY: Optional[str] = Field(default=None)
     BCRYPT_ROUNDS: int = Field(default=12)
 
     # Cookie Configuration (for cross-subdomain SSO)

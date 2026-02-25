@@ -9,7 +9,6 @@ Comprehensive tests for app.services.cache module
 
 import pytest
 import json
-import pickle
 from unittest.mock import AsyncMock, patch
 from datetime import timedelta
 
@@ -136,8 +135,8 @@ class TestCacheService:
         assert json.loads(stored_value) == test_dict
 
     @pytest.mark.asyncio
-    async def test_set_complex_object_pickle_serialization(self, cache_service, mock_redis_client):
-        """Test setting complex object (pickle serialization)"""
+    async def test_set_complex_object_raises_type_error(self, cache_service, mock_redis_client):
+        """Test setting complex object raises TypeError (pickle removed for security)"""
         cache_service._redis_client = mock_redis_client
 
         class TestObject:
@@ -145,16 +144,9 @@ class TestCacheService:
                 self.value = value
 
         test_obj = TestObject("test")
-        await cache_service.set("test_key", test_obj)
-
-        mock_redis_client.set.assert_called_once()
-        call_args = mock_redis_client.set.call_args
-        stored_value = call_args[0][1]
-
-        # Should be pickled bytes
-        assert isinstance(stored_value, bytes)
-        unpickled = pickle.loads(stored_value)
-        assert unpickled.value == "test"
+        # Should raise TypeError for non-serializable objects
+        result = await cache_service.set("test_key", test_obj)
+        assert result is False  # Returns False on error
 
     @pytest.mark.asyncio
     async def test_get_string_value(self, cache_service, mock_redis_client):
@@ -180,21 +172,17 @@ class TestCacheService:
         mock_redis_client.get.assert_called_once_with("test_key")
 
     @pytest.mark.asyncio
-    async def test_get_pickled_value(self, cache_service, mock_redis_client):
-        """Test getting pickled value from cache"""
+    async def test_get_binary_value_returns_raw(self, cache_service, mock_redis_client):
+        """Test getting binary value returns raw data (pickle deserialization removed)"""
         cache_service._redis_client = mock_redis_client
 
-        class TestObject:
-            def __init__(self, value):
-                self.value = value
-
-        test_obj = TestObject("test")
-        pickled_data = pickle.dumps(test_obj)
-        mock_redis_client.get.return_value = pickled_data
+        binary_data = b"\x80\x04\x95\x0f\x00\x00\x00"  # arbitrary binary
+        mock_redis_client.get.return_value = binary_data
 
         result = await cache_service.get("test_key")
 
-        assert result.value == "test"
+        # Should return raw bytes since it's not valid JSON or UTF-8
+        assert result == binary_data
         mock_redis_client.get.assert_called_once_with("test_key")
 
     @pytest.mark.asyncio
@@ -450,27 +438,26 @@ class TestCacheService:
         """Test serialization error handling"""
         cache_service._redis_client = mock_redis_client
 
-        # Create object that can't be pickled
-        class UnpicklableObject:
-            def __reduce__(self):
-                raise TypeError("Cannot pickle this object")
+        # Non-JSON-serializable objects should raise TypeError internally
+        class NonSerializable:
+            pass
 
-        obj = UnpicklableObject()
+        obj = NonSerializable()
 
         # Should handle serialization errors gracefully
         result = await cache_service.set("test_key", obj)
-        assert result is None  # Should return None on serialization error
+        assert result is False  # Should return False on serialization error
 
     @pytest.mark.asyncio
     async def test_deserialization_error_handling(self, cache_service, mock_redis_client):
         """Test deserialization error handling"""
         cache_service._redis_client = mock_redis_client
-        # Return corrupted data that can't be deserialized
-        mock_redis_client.get.return_value = b"corrupted_pickle_data"
+        # Return binary data that can't be JSON-decoded
+        mock_redis_client.get.return_value = b"corrupted_data"
 
-        # Should handle deserialization errors gracefully
+        # Should handle deserialization errors gracefully and return raw data
         result = await cache_service.get("test_key")
-        assert result == b"corrupted_pickle_data"  # Should return raw data if can't deserialize
+        assert result == "corrupted_data"  # Should return decoded string as fallback
 
     def test_cache_key_generation(self, cache_service):
         """Test cache key generation utility"""

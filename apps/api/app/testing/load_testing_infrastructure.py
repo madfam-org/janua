@@ -97,7 +97,7 @@ class AuthenticationUser(HttpUser):
 
     def on_start(self):
         """Initialize user session"""
-        self.client.verify = False
+        self.client.verify = os.getenv("LOAD_TEST_SKIP_SSL", "false").lower() != "true"
         self.username = f"testuser_{random.randint(1000, 9999)}@example.com"
         self.password = "Test123!@#"
         self.token = None
@@ -180,7 +180,7 @@ class APIUser(HttpUser):
 
     def on_start(self):
         """Initialize API user"""
-        self.client.verify = False
+        self.client.verify = os.getenv("LOAD_TEST_SKIP_SSL", "false").lower() != "true"
         # Authenticate and get token
         self._authenticate()
 

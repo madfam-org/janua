@@ -9,7 +9,7 @@ import { registerAppCommands } from "./commands/apps/index.js";
 import { registerWebhookCommands } from "./commands/webhooks/index.js";
 import { registerLogCommands } from "./commands/logs/index.js";
 import { registerConfigCommands } from "./commands/config/index.js";
-import { setConfig, getApiUrl } from "./config.js";
+import { setConfig } from "./config.js";
 
 const program = new Command();
 

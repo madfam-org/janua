@@ -6,11 +6,9 @@ import {
   Search,
   RefreshCw,
   MoreHorizontal,
-  Ban,
   Play,
   Pause,
   Trash2,
-  Unlock,
   AlertCircle,
   Shield,
   ChevronLeft,
@@ -27,7 +25,6 @@ export function UsersSection() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalUsers, setTotalUsers] = useState(0)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null)
   const pageSize = 20
 
   const fetchUsers = useCallback(async (page = currentPage) => {

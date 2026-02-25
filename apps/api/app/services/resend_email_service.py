@@ -3,6 +3,7 @@ Resend email service for enterprise-grade email delivery
 Replaces SendGrid with Resend for better developer experience and reliability
 """
 
+import json
 import secrets
 from dataclasses import dataclass
 from datetime import datetime
@@ -259,7 +260,7 @@ class ResendEmailService:
                     data.get("timestamp", datetime.utcnow().isoformat())
                 ),
                 error_message=data.get("error_message") if data.get("error_message") else None,
-                metadata=eval(data.get("metadata")) if data.get("metadata") else None,
+                metadata=json.loads(data.get("metadata")) if data.get("metadata") else None,
             )
 
         except Exception as e:

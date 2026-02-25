@@ -55,7 +55,7 @@ interface CustomDomain {
 }
 
 export default function BrandingSettingsPage() {
-  const [config, setConfig] = useState<BrandingConfiguration | null>(null)
+  const [_config, setConfig] = useState<BrandingConfiguration | null>(null)
   const [domains, setDomains] = useState<CustomDomain[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

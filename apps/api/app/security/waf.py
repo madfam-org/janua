@@ -373,7 +373,7 @@ class WAFMiddleware:
     def _generate_request_id(self, request: Request) -> str:
         """Generate unique request ID for tracking"""
         content = f"{request.method}{request.url}{datetime.now().isoformat()}"
-        return hashlib.md5(content.encode()).hexdigest()[:8]
+        return hashlib.sha256(content.encode()).hexdigest()[:8]
 
     def _add_security_headers(self, response):
         """Add security headers to response"""

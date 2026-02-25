@@ -434,18 +434,38 @@ class AlertManager:
             return float(value) if value else 0
 
     def _evaluate_condition(self, condition: str, value: float) -> bool:
-        """Evaluate alert condition"""
+        """Evaluate alert condition using safe expression parsing"""
+        import operator
+        import re
 
-        # Simple evaluation (in production, use a proper expression evaluator)
+        ops = {
+            ">": operator.gt,
+            "<": operator.lt,
+            ">=": operator.ge,
+            "<=": operator.le,
+            "==": operator.eq,
+            "!=": operator.ne,
+        }
+
         try:
-            # Replace 'value' with actual value
+            # Replace metric placeholders with the actual value
             condition = condition.replace("value", str(value))
             condition = condition.replace("rate", str(value))
             condition = condition.replace("p95", str(value))
             condition = condition.replace("p99", str(value))
 
-            # Evaluate
-            return eval(condition)
+            # Parse pattern: <number> <op> <number>
+            match = re.match(
+                r"^\s*(-?\d+(?:\.\d+)?)\s*(>=|<=|!=|==|>|<)\s*(-?\d+(?:\.\d+)?)\s*$",
+                condition,
+            )
+            if not match:
+                return False
+
+            left = float(match.group(1))
+            op = ops[match.group(2)]
+            right = float(match.group(3))
+            return op(left, right)
         except Exception:
             return False
 

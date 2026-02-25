@@ -2,6 +2,7 @@
 Enhanced email service with failover, tracking, and advanced features
 """
 
+import json
 import secrets
 from dataclasses import dataclass
 from datetime import datetime
@@ -350,7 +351,7 @@ class EnhancedEmailService:
                 provider=EmailProvider(data.get("provider")),
                 timestamp=datetime.fromisoformat(data.get("timestamp")),
                 error_message=data.get("error_message"),
-                metadata=eval(data.get("metadata")) if data.get("metadata") else None,
+                metadata=json.loads(data.get("metadata")) if data.get("metadata") else None,
             )
 
         except Exception as e:

@@ -47,7 +47,7 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
     ):
         super().__init__(app)
         self.allow_credentials = allow_credentials
-        self.allow_methods = allow_methods or ["*"]
+        self.allow_methods = allow_methods or ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
         self.allow_headers = allow_headers or ["*"]
         self.expose_headers = expose_headers or []
         self.max_age = max_age

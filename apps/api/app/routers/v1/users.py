@@ -164,7 +164,7 @@ async def upload_avatar(
 
     # Generate unique filename
     file_extension = file.filename.split(".")[-1]
-    unique_filename = f"{current_user.id}_{hashlib.md5(contents).hexdigest()}.{file_extension}"
+    unique_filename = f"{current_user.id}_{hashlib.sha256(contents).hexdigest()}.{file_extension}"
 
     # Create upload directory if it doesn't exist
     upload_dir = os.path.join(settings.UPLOAD_DIR, "avatars")

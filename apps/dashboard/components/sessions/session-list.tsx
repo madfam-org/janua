@@ -5,7 +5,6 @@ import { Button, Badge } from '@janua/ui'
 import {
   MoreHorizontal,
   Search,
-  Shield,
   Globe,
   Smartphone,
   Tablet,
@@ -14,7 +13,6 @@ import {
   AlertCircle,
   RefreshCw,
   Trash2,
-  AlertTriangle,
 } from 'lucide-react'
 import {
   DropdownMenu,

@@ -14,7 +14,6 @@ import {
   Ban,
   TrendingUp,
   TrendingDown,
-  Clock,
   XCircle,
   Activity,
 } from 'lucide-react'

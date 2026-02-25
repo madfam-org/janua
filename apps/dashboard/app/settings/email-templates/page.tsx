@@ -549,7 +549,7 @@ export default function EmailTemplatesPage() {
                         <iframe
                           ref={previewIframeRef}
                           title="Email template preview"
-                          sandbox="allow-same-origin"
+                          sandbox=""
                           className="h-[400px] w-full bg-white"
                         />
                       </div>
