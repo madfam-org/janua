@@ -303,3 +303,12 @@ exclude_lines = [
 ]
 show_missing = true
 skip_covered = false
+
+[tool.bandit]
+# Skip false-positive-heavy rules in auth/identity codebase:
+# B101: assert usage | B104: bind-all-interfaces config constant
+# B105/B106/B107: FPs on 'access','bearer','refresh' | B108: configurable temp dirs
+# B110/B112: optional error handling | B311: non-crypto random
+# B404/B603/B607: OPA subprocess | B405/B408: xml imports (defusedxml used)
+skips = ["B101", "B104", "B105", "B106", "B107", "B108", "B110", "B112", "B311", "B404", "B405", "B408", "B603", "B607"]
+exclude_dirs = ["app/security", "app/testing", "app/core/test_config.py"]

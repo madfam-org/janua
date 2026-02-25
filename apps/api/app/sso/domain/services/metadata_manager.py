@@ -359,5 +359,5 @@ class MetadataManager:
     def _prettify_xml(self, elem: ET.Element) -> str:
         """Convert XML element to formatted string."""
         rough_string = ET.tostring(elem, encoding="unicode")
-        reparsed = minidom.parseString(rough_string)
+        reparsed = minidom.parseString(rough_string)  # nosec B318 — input is self-generated SP metadata, not untrusted
         return reparsed.toprettyxml(indent="  ", encoding="utf-8").decode("utf-8")

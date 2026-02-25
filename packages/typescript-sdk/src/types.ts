@@ -465,6 +465,8 @@ export interface JanuaConfig {
   // Existing configuration
   baseURL: string;
   apiKey?: string;
+  audience?: string;
+  issuer?: string;
   timeout?: number;
   retryAttempts?: number;
   retryDelay?: number;
