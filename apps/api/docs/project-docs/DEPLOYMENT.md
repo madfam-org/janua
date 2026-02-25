@@ -87,8 +87,8 @@ ENABLE_DOCS=false
 SECRET_KEY=your-application-secret-key
 BCRYPT_ROUNDS=12
 
-# CORS
-CORS_ORIGINS=https://janua.dev,https://app.janua.dev
+# CORS (include all MADFAM ecosystem app origins)
+CORS_ORIGINS=https://janua.dev,https://app.janua.dev,https://admin.janua.dev,https://enclii.dev,https://admin.enclii.dev,https://tezca.dev,https://admin.tezca.dev,https://dhan.am,https://yantra4d.dev,https://stratum-tcg.dev
 
 # Rate Limiting
 RATE_LIMIT_ENABLED=true

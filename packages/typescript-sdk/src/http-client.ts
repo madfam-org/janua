@@ -24,6 +24,7 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
   private config: Required<Pick<JanuaConfig, 'baseURL' | 'timeout' | 'retryAttempts' | 'retryDelay'>>;
   private tokenManager: TokenManager;
   private refreshPromise: Promise<void> | null = null;
+  private proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(config: JanuaConfig, tokenManager: TokenManager) {
     super();
@@ -36,6 +37,48 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
     };
 
     this.tokenManager = tokenManager;
+  }
+
+  /**
+   * Start proactive token refresh, scheduling a refresh 60 seconds before expiry.
+   * After each successful refresh the next cycle is automatically scheduled.
+   */
+  startProactiveRefresh(): void {
+    this.stopProactiveRefresh();
+
+    this.tokenManager.getTokenData().then((tokenData) => {
+      if (!tokenData || !tokenData.expires_at) {
+        return;
+      }
+
+      const delay = tokenData.expires_at - Date.now() - 60_000;
+
+      if (delay <= 0) {
+        // Token is already near expiry or expired — refresh immediately
+        this.refreshTokens().catch(() => {
+          // Errors are handled inside refreshTokens (events emitted, tokens cleared)
+        });
+        return;
+      }
+
+      this.proactiveRefreshTimer = setTimeout(() => {
+        this.refreshTokens().catch(() => {
+          // Errors are handled inside refreshTokens (events emitted, tokens cleared)
+        });
+      }, delay);
+    }).catch(() => {
+      // Token storage read failed — no proactive refresh possible
+    });
+  }
+
+  /**
+   * Stop the proactive token refresh timer.
+   */
+  stopProactiveRefresh(): void {
+    if (this.proactiveRefreshTimer !== null) {
+      clearTimeout(this.proactiveRefreshTimer);
+      this.proactiveRefreshTimer = null;
+    }
   }
 
   /**
@@ -216,11 +259,15 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
       });
 
       this.emit('token:refreshed', { tokens: { ...response.data, token_type: 'bearer' as const } });
+
+      // Schedule the next proactive refresh cycle
+      this.startProactiveRefresh();
     } catch (error) {
       // Clear tokens on refresh failure
       await this.tokenManager.clearTokens();
       this.emit('token:expired', {});
       this.emit('auth:signedOut', {});
+      this.stopProactiveRefresh();
       throw error;
     }
   }

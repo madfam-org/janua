@@ -67,6 +67,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "/api/v1/identities": 50,
             "/api/v1/organizations": 30,
             "/api/v1/webhooks": 20,
+            "/api/v1/oauth/token": 20,
+            "/api/v1/oauth/authorize": 30,
+            "/api/v1/oauth/consent": 10,
         }
 
         # Tenant tier limits (requests per minute)

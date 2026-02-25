@@ -5,6 +5,7 @@ Pydantic models for OAuth2 client registration and management.
 These schemas support Janua acting as an OAuth2 Provider (IdP).
 """
 
+import re
 from datetime import datetime
 from typing import List, Optional
 from urllib.parse import urlparse
@@ -27,6 +28,11 @@ class OAuthClientCreate(BaseModel):
     grant_types: Optional[List[str]] = Field(
         default=["authorization_code", "refresh_token"],
         description="Allowed OAuth grant types",
+    )
+    audience: Optional[str] = Field(
+        None,
+        max_length=255,
+        description="Per-client JWT audience claim. Falls back to global JWT_AUDIENCE if not set.",
     )
     logo_url: Optional[str] = Field(None, max_length=500, description="Client logo URL")
     website_url: Optional[str] = Field(None, max_length=500, description="Client website URL")
@@ -57,13 +63,23 @@ class OAuthClientCreate(BaseModel):
     @field_validator("allowed_scopes")
     @classmethod
     def validate_scopes(cls, v: Optional[List[str]]) -> List[str]:
-        """Validate OAuth scopes"""
-        valid_scopes = {"openid", "profile", "email", "offline_access", "api", "admin"}
+        """Validate OAuth scopes.
+
+        Accepts standard OIDC/Janua scopes plus namespaced scopes in
+        ``namespace:action`` format (e.g. ``billing:read``, ``cards:write``).
+        """
+        base_scopes = {"openid", "profile", "email", "offline_access", "api", "admin"}
         if v is None:
             return ["openid", "profile", "email"]
         for scope in v:
-            if scope not in valid_scopes:
-                raise ValueError(f"Invalid scope: {scope}. Valid: {', '.join(valid_scopes)}")
+            if scope in base_scopes:
+                continue
+            if not re.match(r"^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$", scope):
+                raise ValueError(
+                    f"Invalid scope: {scope}. "
+                    f"Use base scopes ({', '.join(sorted(base_scopes))}) "
+                    f"or namespace:action format (e.g. billing:read)"
+                )
         return v
 
     @field_validator("grant_types")
@@ -92,6 +108,7 @@ class OAuthClientUpdate(BaseModel):
     redirect_uris: Optional[List[str]] = None
     allowed_scopes: Optional[List[str]] = None
     grant_types: Optional[List[str]] = None
+    audience: Optional[str] = Field(None, max_length=255)
     logo_url: Optional[str] = Field(None, max_length=500)
     website_url: Optional[str] = Field(None, max_length=500)
     is_active: Optional[bool] = None
@@ -141,6 +158,7 @@ class OAuthClientDetailResponse(OAuthClientResponse):
     redirect_uris: List[str]
     allowed_scopes: List[str]
     grant_types: List[str]
+    audience: Optional[str] = None
     logo_url: Optional[str] = None
     website_url: Optional[str] = None
     last_used_at: Optional[datetime] = None

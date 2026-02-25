@@ -171,7 +171,10 @@ class JWTManager:
         return token, jti, expires_at
 
     def create_refresh_token(
-        self, user_id: str, family: Optional[str] = None
+        self,
+        user_id: str,
+        family: Optional[str] = None,
+        additional_claims: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, str, str, datetime]:
         """Create a new refresh token with rotation family tracking"""
         jti = secrets.token_urlsafe(32)
@@ -189,6 +192,10 @@ class JWTManager:
             "iss": self.issuer,
             "aud": self.audience,
         }
+
+        # Add additional claims if provided (e.g., client_id, per-client audience)
+        if additional_claims:
+            payload.update(additional_claims)
 
         token = jwt.encode(
             payload,
@@ -464,10 +471,12 @@ def create_access_token(
 
 
 def create_refresh_token(
-    user_id: str, family: Optional[str] = None
+    user_id: str,
+    family: Optional[str] = None,
+    additional_claims: Optional[Dict] = None,
 ) -> Tuple[str, str, str, datetime]:
     """Create refresh token - convenience function"""
-    return jwt_manager.create_refresh_token(user_id, family)
+    return jwt_manager.create_refresh_token(user_id, family, additional_claims)
 
 
 def verify_access_token(token: str) -> Optional[Dict[str, Any]]:

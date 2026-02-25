@@ -318,6 +318,9 @@ class OAuthClient(Base):
     logo_url = Column(String(500))
     website_url = Column(String(500))
 
+    # Token Configuration
+    audience = Column(String(255), nullable=True)  # Per-client JWT audience claim
+
     # Status & Activity
     is_active = Column(Boolean, default=True)
     is_confidential = Column(Boolean, default=True)  # True = requires secret

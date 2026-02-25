@@ -1104,6 +1104,9 @@ async def _handle_authorization_code_grant(
     # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status)
     entitlements = await _get_user_entitlements(user, db)
 
+    # Resolve per-client audience (falls back to global JWT_AUDIENCE)
+    client_audience = client.audience or settings.JWT_AUDIENCE
+
     # Generate tokens with enriched claims
     scope = code_data["scope"]
     access_token, _, _ = jwt_manager.create_access_token(
@@ -1111,6 +1114,7 @@ async def _handle_authorization_code_grant(
         email=user.email,
         additional_claims={
             "client_id": client.client_id,
+            "aud": client_audience,
             "scope": scope,
             # Galaxy membership claims
             "tier": entitlements["tier"],
@@ -1122,6 +1126,10 @@ async def _handle_authorization_code_grant(
 
     refresh_token, _, _, _ = jwt_manager.create_refresh_token(
         user_id=str(user.id),
+        additional_claims={
+            "client_id": client.client_id,
+            "aud": client_audience,
+        },
     )
 
     # Generate ID token if openid scope requested
@@ -1190,6 +1198,9 @@ async def _handle_refresh_token_grant(
     # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status)
     entitlements = await _get_user_entitlements(user, db)
 
+    # Resolve per-client audience (falls back to global JWT_AUDIENCE)
+    client_audience = client.audience or settings.JWT_AUDIENCE
+
     # Generate new access token with enriched claims
     scope = payload.get("scope", "openid")
     access_token, _, _ = jwt_manager.create_access_token(
@@ -1197,12 +1208,24 @@ async def _handle_refresh_token_grant(
         email=user.email,
         additional_claims={
             "client_id": client.client_id,
+            "aud": client_audience,
             "scope": scope,
             # Galaxy membership claims
             "tier": entitlements["tier"],
             "roles": entitlements["roles"],
             "sub_status": entitlements["sub_status"],
             "is_admin": entitlements["is_admin"],
+        },
+    )
+
+    # Issue new refresh token with client binding (rotation)
+    new_refresh_token, _, _, _ = jwt_manager.create_refresh_token(
+        user_id=str(user.id),
+        family=payload.get("family"),
+        additional_claims={
+            "client_id": client.client_id,
+            "aud": client_audience,
+            "scope": scope,
         },
     )
 
@@ -1214,7 +1237,7 @@ async def _handle_refresh_token_grant(
         access_token=access_token,
         token_type="Bearer",
         expires_in=3600,
-        refresh_token=refresh_token,  # Return same refresh token
+        refresh_token=new_refresh_token,
         scope=scope,
     )
 
