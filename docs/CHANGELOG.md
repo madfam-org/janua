@@ -12,6 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive CLI interface with `janua` command
 - Middleware stack for easy FastAPI integration
 - Complete package documentation and examples
+- MFA challenge verify endpoint (`POST /mfa/challenge/verify`) for completing MFA during sign-in
+
+### Security
+- **MFA before token issuance**: Sign-in now requires MFA verification before issuing session tokens for MFA-enabled users
+- **Session invalidation on password change**: All active sessions (except current) are revoked when a user changes their password
+- **Security headers for website and docs**: Full CSP, HSTS, Referrer-Policy, Permissions-Policy, X-Frame-Options, X-Content-Type-Options for all public-facing Next.js apps
+- **Admin CSP hardened**: Removed `unsafe-eval` from production CSP in admin panel (kept for dev HMR only)
+- **Admin next.config.js headers**: Added defense-in-depth security headers alongside middleware headers
+- **CI security gates**: Removed `continue-on-error: true` from security-critical CI steps (Bandit, Safety, pip-audit, pnpm audit, Snyk, Trivy) so vulnerabilities block PRs
+- **Explicit bcrypt rounds**: Wired `settings.BCRYPT_ROUNDS` into `pwd_context` for auditability
+- **RS256 production guard**: RS256→HS256 silent fallback now raises `ValueError` in production; dev-only fallback logs a warning
+- **Email verification grace period**: Reduced default from 24 hours to 1 hour to limit unverified email abuse window
+
+### Fixed
+- `reset_password` endpoint used non-existent `AuthService.validate_password()` — corrected to `validate_password_strength()`
+- `X-XSS-Protection` header updated from deprecated `1; mode=block` to `0` across admin middleware and docs config (CSP replaces the legacy filter)
+- Quarantine config test `test_default_settings` now disables `.env` file loading to test true defaults
 
 ## [0.1.0] - 2025-01-19
 

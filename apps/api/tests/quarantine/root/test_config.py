@@ -15,9 +15,9 @@ class TestSettings:
 
     def test_default_settings(self):
         """Test default configuration values."""
-        # Clear environment to ensure defaults
+        # Clear environment AND disable .env file loading to ensure pure defaults
         with patch.dict(os.environ, {}, clear=True):
-            settings = Settings()
+            settings = Settings(_env_file=None)
 
             assert settings.VERSION == "0.1.0"
             assert settings.DEBUG is False
@@ -29,10 +29,16 @@ class TestSettings:
 
     def test_environment_validation(self):
         """Test environment field validation."""
-        # Valid environments
-        for env in ["development", "staging", "production", "test"]:
+        # Valid environments (production requires extra secrets, so test separately)
+        for env in ["development", "staging", "test"]:
             settings = Settings(ENVIRONMENT=env)
             assert settings.ENVIRONMENT == env
+
+        # Production requires FIELD_ENCRYPTION_KEY and SECRET_KEY
+        settings = Settings(
+            **self._production_settings_kwargs()
+        )
+        assert settings.ENVIRONMENT == "production"
 
         # Invalid environment should raise validation error
         with pytest.raises(ValidationError):
@@ -43,11 +49,15 @@ class TestSettings:
         """Test SECRET_KEY validation."""
         # Should not accept default value in production
         with pytest.raises(ValidationError):
-            Settings(ENVIRONMENT="production", SECRET_KEY="change-this-in-production")
+            Settings(**self._production_settings_kwargs(SECRET_KEY="change-this-in-production"))
 
-        # Should accept custom value in production
-        settings = Settings(ENVIRONMENT="production", SECRET_KEY="secure-production-key")
-        assert settings.SECRET_KEY == "secure-production-key"
+        # Should not accept too-short SECRET_KEY in production
+        with pytest.raises(ValidationError):
+            Settings(**self._production_settings_kwargs(SECRET_KEY="too-short"))
+
+        # Should accept a valid (32+ chars) SECRET_KEY in production
+        settings = Settings(**self._production_settings_kwargs())
+        assert len(settings.SECRET_KEY) >= 32
 
         # Should accept default in development
         with patch.dict(os.environ, {"ENVIRONMENT": "development"}):

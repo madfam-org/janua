@@ -124,8 +124,8 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     // Prevent MIME type sniffing
     'X-Content-Type-Options': 'nosniff',
 
-    // Enable XSS protection
-    'X-XSS-Protection': '1; mode=block',
+    // Disable legacy XSS filter (modern CSP is preferred; the filter can introduce vulnerabilities)
+    'X-XSS-Protection': '0',
 
     // Control referrer information
     'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -133,7 +133,7 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     // Strict Content Security Policy
     'Content-Security-Policy': [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+      `script-src 'self'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} 'unsafe-inline'`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",
       "img-src 'self' data: https:",

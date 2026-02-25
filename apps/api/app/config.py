@@ -173,7 +173,7 @@ class Settings(BaseSettings):
         default=True, description="Require email verification for sensitive operations"
     )
     EMAIL_VERIFICATION_GRACE_PERIOD_HOURS: int = Field(
-        default=24, description="Hours to allow unverified users to access system before blocking"
+        default=1, description="Hours to allow unverified users to access system before blocking"
     )
 
     # OAuth Client Credential Rotation

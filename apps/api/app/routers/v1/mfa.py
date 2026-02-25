@@ -8,22 +8,31 @@ import secrets
 import string
 from datetime import datetime, timedelta
 from typing import List, Optional
+from uuid import UUID
 
+import jwt as pyjwt
 import pyotp
 import qrcode
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.routers.v1.auth import get_current_user
+from app.routers.v1.auth import get_current_user, SignInResponse, UserResponse, TokenResponse
 from app.services.auth_service import AuthService
 
 from ...models import ActivityLog, User, UserStatus
 
 router = APIRouter(prefix="/mfa", tags=["mfa"])
+
+
+class MFAChallengeVerifyRequest(BaseModel):
+    """MFA challenge verification request (during sign-in)"""
+
+    mfa_token: str
+    code: str = Field(..., min_length=6, max_length=8)  # TOTP (6) or backup code (9 with dash)
 
 
 class MFAEnableRequest(BaseModel):
@@ -511,3 +520,110 @@ async def get_supported_mfa_methods():
             },
         ]
     }
+
+
+@router.post("/challenge/verify", response_model=SignInResponse)
+async def verify_mfa_challenge(
+    request_data: MFAChallengeVerifyRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Verify MFA code during sign-in and issue session tokens.
+
+    SECURITY: This endpoint completes the second factor of authentication.
+    The mfa_token is a short-lived (5min) challenge token issued after
+    successful password verification. It cannot be used as an access token.
+    """
+    # Decode and validate the MFA challenge token
+    try:
+        payload = pyjwt.decode(
+            request_data.mfa_token,
+            settings.JWT_SECRET_KEY or "development-secret-key",
+            algorithms=["HS256"],
+            options={"require": ["sub", "type", "exp"]},
+        )
+    except pyjwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="MFA challenge expired. Please sign in again.")
+    except pyjwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid MFA challenge token")
+
+    # Verify this is an MFA challenge token, not a session token
+    if payload.get("type") != "mfa_challenge":
+        raise HTTPException(status_code=401, detail="Invalid token type")
+
+    # Get the user
+    user_id = payload.get("sub")
+    result = await db.execute(
+        select(User).where(User.id == UUID(user_id), User.status == UserStatus.ACTIVE)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user or not user.mfa_enabled or not user.mfa_secret:
+        raise HTTPException(status_code=401, detail="Invalid MFA challenge")
+
+    # Verify TOTP code
+    totp = pyotp.TOTP(user.mfa_secret)
+    code_valid = totp.verify(request_data.code, valid_window=1)
+
+    # If TOTP failed, try backup codes
+    if not code_valid and user.mfa_backup_codes:
+        for i, backup_data in enumerate(user.mfa_backup_codes):
+            if isinstance(backup_data, dict):
+                stored_code = backup_data.get("code", "")
+                is_used = backup_data.get("used", False)
+            else:
+                stored_code = backup_data
+                is_used = False
+
+            if not is_used and stored_code.replace("-", "") == request_data.code.replace("-", ""):
+                # Mark backup code as used
+                if isinstance(backup_data, dict):
+                    user.mfa_backup_codes[i]["used"] = True
+                    user.mfa_backup_codes[i]["used_at"] = datetime.utcnow().isoformat()
+
+                # Log backup code usage
+                activity = ActivityLog(
+                    user_id=user.id,
+                    action="mfa_backup_code_used",
+                    details={"code_index": i, "context": "signin"},
+                )
+                db.add(activity)
+                code_valid = True
+                break
+
+    if not code_valid:
+        raise HTTPException(status_code=401, detail="Invalid MFA code")
+
+    # MFA verified — issue real session tokens
+    access_token, refresh_token, session = await AuthService.create_session(
+        db, user, ip_address=request.client.host, user_agent=request.headers.get("user-agent")
+    )
+
+    # Log successful MFA sign-in
+    activity = ActivityLog(
+        user_id=user.id, action="mfa_verify", details={"method": "totp", "context": "signin"}
+    )
+    db.add(activity)
+    await db.commit()
+
+    return SignInResponse(
+        user=UserResponse(
+            id=str(user.id),
+            email=user.email,
+            email_verified=user.email_verified,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            profile_image_url=user.profile_image_url,
+            is_admin=getattr(user, "is_admin", False),
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+            last_sign_in_at=user.last_sign_in_at,
+        ),
+        tokens=TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        ),
+    )

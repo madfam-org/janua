@@ -121,7 +121,9 @@ class TokenResponse(BaseModel):
 
 class SignInResponse(BaseModel):
     user: UserResponse
-    tokens: TokenResponse
+    tokens: Optional[TokenResponse] = None
+    mfa_required: bool = False
+    mfa_token: Optional[str] = None
 
 
 # Helper functions (get_current_user moved to app.dependencies)
@@ -318,7 +320,46 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
     # Reset failed attempts on successful login
     await AccountLockoutService.reset_failed_attempts(db, user)
 
-    # Create session
+    # SECURITY: Check if MFA is required before issuing session tokens
+    if getattr(user, 'mfa_enabled', False) and getattr(user, 'mfa_secret', None):
+        # Issue a short-lived MFA challenge token (not a session token)
+        import jwt as pyjwt
+
+        mfa_challenge_payload = {
+            "sub": str(user.id),
+            "type": "mfa_challenge",
+            "exp": datetime.utcnow() + timedelta(minutes=5),
+            "iat": datetime.utcnow(),
+            "iss": settings.JWT_ISSUER,
+        }
+        mfa_token = pyjwt.encode(
+            mfa_challenge_payload,
+            settings.JWT_SECRET_KEY or "development-secret-key",
+            algorithm="HS256",
+        )
+
+        await log_activity(db, str(user.id), "signin", {"method": "password", "mfa_required": True}, request)
+
+        return SignInResponse(
+            user=UserResponse(
+                id=str(user.id),
+                email=user.email,
+                email_verified=user.email_verified,
+                username=user.username,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                profile_image_url=user.profile_image_url,
+                is_admin=getattr(user, "is_admin", False),
+                created_at=user.created_at,
+                updated_at=user.updated_at,
+                last_sign_in_at=user.last_sign_in_at,
+            ),
+            tokens=None,
+            mfa_required=True,
+            mfa_token=mfa_token,
+        )
+
+    # Create session (no MFA required)
     access_token, refresh_token, session = await AuthService.create_session(
         db, user, ip_address=request.client.host, user_agent=request.headers.get("user-agent")
     )
@@ -906,7 +947,7 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
     # Validate new password
-    valid, message = AuthService.validate_password(request.new_password)
+    valid, message = AuthService.validate_password_strength(request.new_password)
     if not valid:
         raise HTTPException(status_code=400, detail=message)
 
@@ -930,7 +971,9 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
 @router.post("/password/change")
 async def change_password(
     request: ChangePasswordRequest,
+    req: Request,
     current_user: User = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ):
     """Change password for authenticated user"""
@@ -939,7 +982,7 @@ async def change_password(
         raise HTTPException(status_code=400, detail="Current password is incorrect")
 
     # Validate new password
-    valid, message = AuthService.validate_password(request.new_password)
+    valid, message = AuthService.validate_password_strength(request.new_password)
     if not valid:
         raise HTTPException(status_code=400, detail=message)
 
@@ -947,9 +990,30 @@ async def change_password(
     current_user.password_hash = AuthService.hash_password(request.new_password)
     await db.commit()
 
+    # SECURITY: Revoke all sessions except current one to prevent stolen session reuse
+    # Extract current session ID from the JWT claims
+    current_session_id = None
+    try:
+        token = credentials.credentials
+        payload = await AuthService.verify_token(token, token_type="access")
+        if payload:
+            # Find current session by access token JTI
+            result = await db.execute(
+                select(UserSession).where(UserSession.access_token_jti == payload.get("jti"))
+            )
+            current_session = result.scalar_one_or_none()
+            if current_session:
+                current_session_id = current_session.id
+    except Exception:
+        pass  # If we can't determine current session, revoke all
+
+    await AuthService.invalidate_user_sessions(
+        db, current_user.id, exclude_session_id=current_session_id
+    )
+
     # Log activity
-    await log_activity(db, str(current_user.id), "password_change", {})
-    await log_audit_event(db, str(current_user.id), "password_change", {})
+    await log_activity(db, str(current_user.id), "password_change", {}, req)
+    await log_audit_event(db, str(current_user.id), "password_change", {}, req)
 
     return {"message": "Password successfully changed"}
 

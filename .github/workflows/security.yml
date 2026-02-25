@@ -70,17 +70,14 @@ jobs:
       - name: Run Bandit Security Scan
         run: |
           bandit -r apps/api/app -f json -o bandit-report.json
-        continue-on-error: true
 
       - name: Run Safety Check
         run: |
           cd apps/api && safety check --json > safety-report.json
-        continue-on-error: true
 
       - name: Run pip-audit
         run: |
           cd apps/api && pip-audit --format json --output pip-audit-report.json
-        continue-on-error: true
 
       - name: Upload Security Reports
         uses: actions/upload-artifact@v6
@@ -113,11 +110,9 @@ jobs:
 
       - name: Run pnpm audit
         run: pnpm audit --json > pnpm-audit-report.json
-        continue-on-error: true
 
       - name: Run Snyk Security Scan
         uses: snyk/actions/node@master
-        continue-on-error: true
         with:
           args: --all-projects --json-file-output=snyk-report.json
         env:

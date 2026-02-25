@@ -209,8 +209,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run pnpm audit
-        run: pnpm audit --audit-level=critical || true
-        continue-on-error: true
+        run: pnpm audit --audit-level=critical
 
   security-scanning:
     name: Security Scanning
@@ -225,7 +224,6 @@ jobs:
 
       - name: Run Trivy security scan
         uses: aquasecurity/trivy-action@master
-        continue-on-error: true
         with:
           scan-type: "fs"
           scan-ref: "."
@@ -234,7 +232,7 @@ jobs:
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
-        continue-on-error: true
+        continue-on-error: true  # Code Scanning must be enabled in repo settings
         with:
           sarif_file: "trivy-results.sarif"
 

@@ -18,7 +18,12 @@ from app.models import AuditLog, Session, User
 logger = structlog.get_logger()
 
 # Password hashing - using bcrypt 2b to avoid passlib wrap bug detection issue
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__ident="2b")
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__ident="2b",
+    bcrypt__rounds=settings.BCRYPT_ROUNDS,
+)
 
 
 class AuthService:
@@ -193,7 +198,13 @@ class AuthService:
             # Use PEM private key for RS256
             signing_key = settings.JWT_PRIVATE_KEY.replace("\\n", "\n")
         elif algorithm == "RS256":
-            # RS256 requested but no private key available, fall back to HS256
+            # RS256 requested but no private key available
+            if settings.ENVIRONMENT == "production":
+                raise ValueError(
+                    "RS256 algorithm configured but no private key available. "
+                    "Set JWT_PRIVATE_KEY or JWT_PRIVATE_KEY_PATH in production."
+                )
+            logger.warning("RS256 requested but no private key — falling back to HS256 (development only)")
             algorithm = "HS256"
 
         # Always use HS256 in test environment
@@ -234,7 +245,13 @@ class AuthService:
             # Use PEM private key for RS256
             signing_key = settings.JWT_PRIVATE_KEY.replace("\\n", "\n")
         elif algorithm == "RS256":
-            # RS256 requested but no private key available, fall back to HS256
+            # RS256 requested but no private key available
+            if settings.ENVIRONMENT == "production":
+                raise ValueError(
+                    "RS256 algorithm configured but no private key available. "
+                    "Set JWT_PRIVATE_KEY or JWT_PRIVATE_KEY_PATH in production."
+                )
+            logger.warning("RS256 requested but no private key — falling back to HS256 (development only)")
             algorithm = "HS256"
 
         # Always use HS256 in test environment
