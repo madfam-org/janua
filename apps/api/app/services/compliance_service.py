@@ -275,7 +275,14 @@ class DataSubjectRightsService:
 
         # Log request creation
         await self.audit_logger.log(
-            event_type=getattr(AuditEventType, f"GDPR_DATA_{request_type.value.upper()}"),
+            event_type={
+                "access": AuditEventType.GDPR_DATA_EXPORT,
+                "rectification": AuditEventType.GDPR_DATA_RECTIFICATION,
+                "erasure": AuditEventType.GDPR_DATA_DELETION,
+                "portability": AuditEventType.GDPR_DATA_PORTABILITY,
+                "restriction": AuditEventType.GDPR_PROCESSING_RESTRICTION,
+                "objection": AuditEventType.GDPR_OBJECTION_PROCESSING,
+            }.get(request_type.value, AuditEventType.GDPR_DATA_EXPORT),
             tenant_id=str(tenant_id) if tenant_id else "default",
             identity_id=str(user_id),
             data_subject_id=str(user_id),
@@ -619,9 +626,13 @@ class DataRetentionService:
 
         return {
             "policy_id": str(policy_id),
+            "policy_name": policy.name,
             "dry_run": dry_run,
             "deleted": deleted_count,
             "anonymized": anonymized_count,
+            "expired_items_count": sum(
+                1 for item in expired_items if item["policy_id"] == str(policy_id)
+            ),
             "errors": errors,
             "execution_time": datetime.utcnow().isoformat(),
         }

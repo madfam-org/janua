@@ -1,10 +1,10 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { stats as Stats } from './stats'
+import { DashboardStats } from './stats'
 
-describe('stats', () => {
+describe('DashboardStats', () => {
   it('should render without crashing', () => {
-    render(<Stats />)
+    render(<DashboardStats />)
     expect(screen.getByTestId('stats')).toBeInTheDocument()
   })
 })

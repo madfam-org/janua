@@ -4,7 +4,7 @@ Tests complex workflows and cross-module interactions
 """
 
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
 from httpx import AsyncClient
 
@@ -99,33 +99,44 @@ class TestBillingIntegrationFlows:
         try:
             from app.services.billing_service import BillingService
 
-            # BillingService __init__ takes no arguments
             billing_service = BillingService()
 
-            # Test subscription creation, updates, and cancellation
-            # Note: subscription_data is defined for documentation purposes
-            _subscription_data = {
-                "user_id": "user123",
-                "plan": "premium",
-                "billing_cycle": "monthly",
+            # Mock httpx.AsyncClient so no real API calls hit Polar/Stripe
+            mock_response = AsyncMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "id": "sub_test_123",
+                "status": "active",
             }
 
-            # Test each step of lifecycle if methods exist
-            if hasattr(billing_service, "create_subscription"):
-                # create_subscription expects (customer_id, tier, country, ...)
-                result = await billing_service.create_subscription(
-                    customer_id="cust_123", tier="pro", country="US"
+            mock_client = AsyncMock()
+            mock_client.post.return_value = mock_response
+            mock_client.put.return_value = mock_response
+            mock_client.get.return_value = mock_response
+            mock_client.delete.return_value = mock_response
+
+            with patch("httpx.AsyncClient") as mock_client_cls:
+                mock_client_cls.return_value.__aenter__ = AsyncMock(
+                    return_value=mock_client
                 )
-                assert result is not None or result is None
+                mock_client_cls.return_value.__aexit__ = AsyncMock(
+                    return_value=False
+                )
+                if hasattr(billing_service, "create_subscription"):
+                    result = await billing_service.create_subscription(
+                        customer_id="cust_123", tier="pro", country="US"
+                    )
+                    assert result is not None
 
-            if hasattr(billing_service, "update_subscription"):
-                update_data = {"plan": "enterprise"}
-                result = await billing_service.update_subscription("sub123", update_data)
-                assert result is not None or result is None
+                if hasattr(billing_service, "update_subscription"):
+                    result = await billing_service.update_subscription(
+                        "sub123", {"plan": "enterprise"}
+                    )
+                    assert result is not None or result is None
 
-            if hasattr(billing_service, "cancel_subscription"):
-                result = await billing_service.cancel_subscription("sub123")
-                assert result is not None or result is None
+                if hasattr(billing_service, "cancel_subscription"):
+                    result = await billing_service.cancel_subscription("sub123")
+                    assert result is not None or result is None
 
         except ImportError:
             pytest.skip("BillingService not available")
