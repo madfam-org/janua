@@ -590,6 +590,13 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "SECRET_KEY must be set to a strong, unique value in production."
                 )
+            if self.DATABASE_SSL_MODE in ("disable", "allow"):
+                import warnings
+                warnings.warn(
+                    f"DATABASE_SSL_MODE is '{self.DATABASE_SSL_MODE}' in production. "
+                    "Set to 'require', 'verify-ca', or 'verify-full' for encrypted connections.",
+                    stacklevel=2,
+                )
         return self
 
     @model_validator(mode="after")

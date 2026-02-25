@@ -94,7 +94,7 @@ services:
       - "127.0.0.1:5432:5432"
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=GdI1iDHCyTSQIRv84+tIRAqQKhJRU4Fo
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       - POSTGRES_DB=postgres
       - POSTGRES_INITDB_ARGS=--encoding=UTF8 --data-checksums
       - POSTGRES_HOST_AUTH_METHOD=md5

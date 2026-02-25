@@ -32,12 +32,21 @@ function clearAuthStateOnLoad(reason: string | null): void {
   document.cookie = `${STORAGE_KEYS.COOKIE}=; path=/; domain=.janua.dev; expires=Thu, 01 Jan 1970 00:00:01 GMT`
 }
 
+function isSafeRedirectPath(path: string): boolean {
+  if (!path || !path.startsWith('/')) return false
+  if (path.startsWith('//')) return false
+  if (path.includes('\\')) return false
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(path)) return false
+  return true
+}
+
 function LoginForm() {
   const [sessionMessage, setSessionMessage] = useState('')
 
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirect') || '/'
+  const rawRedirect = searchParams.get('redirect') || '/'
+  const redirectTo = isSafeRedirectPath(rawRedirect) ? rawRedirect : '/'
   const reason = searchParams.get('reason')
 
   useEffect(() => {

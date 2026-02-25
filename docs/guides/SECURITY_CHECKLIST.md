@@ -300,7 +300,7 @@ SECURITY_HEADERS = {
     "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
-    "X-XSS-Protection": "1; mode=block",
+    "X-XSS-Protection": "0",  # Disabled — CSP is the modern replacement
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     "Content-Security-Policy": (
@@ -344,6 +344,11 @@ SECURITY_HEADERS = {
 ```bash
 # Enable SSL in connection string
 DATABASE_URL=postgresql://user:pass@host:5432/janua?sslmode=verify-full&sslrootcert=/path/to/ca.crt
+
+# Environment variable (used by Janua's config.py)
+# In production, 'disable' or 'allow' emits a startup warning.
+# Recommended: 'require', 'verify-ca', or 'verify-full'
+DATABASE_SSL_MODE=require
 
 # PostgreSQL server configuration
 ssl = on

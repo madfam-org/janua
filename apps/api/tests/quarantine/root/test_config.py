@@ -120,3 +120,53 @@ class TestSettings:
         assert "description" in schema["properties"]["INTERNAL_BASE_URL"]
         assert "description" in schema["properties"]["CORS_ORIGINS"]
         assert "description" in schema["properties"]["DATABASE_URL"]
+
+    def _production_settings_kwargs(self, **overrides):
+        """Base kwargs needed to create a valid production Settings instance."""
+        defaults = {
+            "ENVIRONMENT": "production",
+            "SECRET_KEY": "a-secure-production-key-that-is-at-least-32-chars-long",
+            "FIELD_ENCRYPTION_KEY": "dGVzdC1lbmNyeXB0aW9uLWtleS1mb3ItdW5pdC10ZXN0cw==",
+        }
+        defaults.update(overrides)
+        return defaults
+
+    def test_database_ssl_mode_warning_in_production(self):
+        """Test that insecure DATABASE_SSL_MODE emits a warning in production."""
+        import warnings
+
+        for ssl_mode in ("disable", "allow"):
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                Settings(**self._production_settings_kwargs(DATABASE_SSL_MODE=ssl_mode))
+                ssl_warnings = [x for x in w if "DATABASE_SSL_MODE" in str(x.message)]
+                assert len(ssl_warnings) == 1, (
+                    f"Expected warning for DATABASE_SSL_MODE='{ssl_mode}'"
+                )
+                assert ssl_mode in str(ssl_warnings[0].message)
+
+    def test_database_ssl_mode_no_warning_when_secure(self):
+        """Test that secure DATABASE_SSL_MODE values do not emit warnings in production."""
+        import warnings
+
+        for ssl_mode in ("require", "verify-ca", "verify-full"):
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                Settings(**self._production_settings_kwargs(DATABASE_SSL_MODE=ssl_mode))
+                ssl_warnings = [x for x in w if "DATABASE_SSL_MODE" in str(x.message)]
+                assert len(ssl_warnings) == 0, (
+                    f"Unexpected warning for DATABASE_SSL_MODE='{ssl_mode}'"
+                )
+
+    def test_database_ssl_mode_no_warning_in_development(self):
+        """Test that DATABASE_SSL_MODE does not warn in non-production environments."""
+        import warnings
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            Settings(
+                ENVIRONMENT="development",
+                DATABASE_SSL_MODE="disable",
+            )
+            ssl_warnings = [x for x in w if "DATABASE_SSL_MODE" in str(x.message)]
+            assert len(ssl_warnings) == 0
