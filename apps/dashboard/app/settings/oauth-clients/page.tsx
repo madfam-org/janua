@@ -18,8 +18,6 @@ import {
   Copy,
   RefreshCw,
   Trash2,
-  Eye,
-  EyeOff,
   Loader2,
   AlertCircle,
   Globe,
@@ -75,49 +73,6 @@ const PER_PAGE = 20
 // ---------------------------------------------------------------------------
 // Helper Components
 // ---------------------------------------------------------------------------
-
-function SecretDisplay({
-  secret,
-  masked,
-  onCopy,
-}: {
-  secret?: string
-  masked: string
-  onCopy?: () => void
-}) {
-  const [visible, setVisible] = useState(false)
-  const displayValue = secret ? (visible ? secret : masked) : masked
-
-  return (
-    <div className="flex items-center gap-2">
-      <code className="bg-muted flex-1 truncate rounded px-2 py-1 font-mono text-sm">
-        {displayValue}
-      </code>
-      {secret && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          onClick={() => setVisible(!visible)}
-          aria-label={visible ? 'Hide secret' : 'Show secret'}
-        >
-          {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-        </Button>
-      )}
-      {onCopy && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          onClick={onCopy}
-          aria-label="Copy to clipboard"
-        >
-          <Copy className="size-4" />
-        </Button>
-      )}
-    </div>
-  )
-}
 
 function RedirectUriInput({
   uris,

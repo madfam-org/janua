@@ -3,7 +3,6 @@ Tests for middleware modules
 """
 
 from unittest.mock import patch
-from starlette.testclient import TestClient
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
 from starlette.routing import Route
