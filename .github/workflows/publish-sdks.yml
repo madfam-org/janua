@@ -2,7 +2,7 @@ name: Publish SDKs
 
 # Canonical SDK publishing workflow for all Janua SDKs
 # Triggered by tags following the pattern: <sdk-name>-v<version>
-# Example: flutter-sdk-v1.0.0, react-native-sdk-v1.0.0
+# Example: react-sdk-v0.1.0, core-v0.1.0, ui-v0.1.0
 
 on:
   push:
@@ -11,25 +11,42 @@ on:
       - "react-sdk-v*"
       - "nextjs-sdk-v*"
       - "vue-sdk-v*"
+      - "react-native-sdk-v*"
+      - "core-v*"
+      - "ui-v*"
+      - "jwt-utils-v*"
+      - "edge-v*"
+      - "cli-v*"
+      - "feature-flags-v*"
       - "python-sdk-v*"
       - "go-sdk/v*"
       - "flutter-sdk-v*"
-      - "react-native-sdk-v*"
 
 jobs:
   publish-npm:
     name: Publish NPM SDK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: |
       startsWith(github.ref, 'refs/tags/typescript-sdk-v') ||
       startsWith(github.ref, 'refs/tags/react-sdk-v') ||
       startsWith(github.ref, 'refs/tags/nextjs-sdk-v') ||
       startsWith(github.ref, 'refs/tags/vue-sdk-v') ||
-      startsWith(github.ref, 'refs/tags/react-native-sdk-v')
+      startsWith(github.ref, 'refs/tags/react-native-sdk-v') ||
+      startsWith(github.ref, 'refs/tags/core-v') ||
+      startsWith(github.ref, 'refs/tags/ui-v') ||
+      startsWith(github.ref, 'refs/tags/jwt-utils-v') ||
+      startsWith(github.ref, 'refs/tags/edge-v') ||
+      startsWith(github.ref, 'refs/tags/cli-v') ||
+      startsWith(github.ref, 'refs/tags/feature-flags-v')
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -47,17 +64,25 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Build SDK
         run: |
           cd packages/${{ steps.extract.outputs.sdk_name }}
-          npm run build
+          if jq -e '.scripts.build' package.json > /dev/null 2>&1; then
+            pnpm run build
+          else
+            echo "No build script found, skipping build"
+          fi
 
       - name: Run tests
         run: |
           cd packages/${{ steps.extract.outputs.sdk_name }}
-          npm test || true
+          if jq -e '.scripts.test' package.json > /dev/null 2>&1; then
+            pnpm test || true
+          else
+            echo "No test script found, skipping tests"
+          fi
 
       - name: Publish to npm.madfam.io
         env:
@@ -67,12 +92,9 @@ jobs:
           npm publish --access restricted
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: ${{ steps.extract.outputs.sdk_name }} v${{ steps.extract.outputs.version }}
+          name: ${{ steps.extract.outputs.sdk_name }} v${{ steps.extract.outputs.version }}
           body: |
             Release ${{ steps.extract.outputs.version }} of ${{ steps.extract.outputs.sdk_name }}
 
@@ -92,6 +114,8 @@ jobs:
   publish-python:
     name: Publish Python SDK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: startsWith(github.ref, 'refs/tags/python-sdk-v')
 
     steps:
@@ -134,12 +158,9 @@ jobs:
           twine upload --repository pypi dist/*
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Python SDK v${{ steps.extract.outputs.version }}
+          name: Python SDK v${{ steps.extract.outputs.version }}
           body: |
             Release ${{ steps.extract.outputs.version }} of Python SDK
 
@@ -155,6 +176,8 @@ jobs:
   publish-go:
     name: Publish Go SDK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: startsWith(github.ref, 'refs/tags/go-sdk/v')
 
     steps:
@@ -185,12 +208,9 @@ jobs:
           go test -v -race ./...
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Go SDK ${{ steps.extract.outputs.version }}
+          name: Go SDK ${{ steps.extract.outputs.version }}
           body: |
             Release ${{ steps.extract.outputs.version }} of Go SDK
 
@@ -206,6 +226,8 @@ jobs:
   publish-flutter:
     name: Publish Flutter SDK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: startsWith(github.ref, 'refs/tags/flutter-sdk-v')
 
     steps:
@@ -250,7 +272,6 @@ jobs:
           PUB_CREDENTIALS: ${{ secrets.PUB_CREDENTIALS }}
         run: |
           cd packages/flutter-sdk
-          # Create credentials file if provided
           if [ -n "$PUB_CREDENTIALS" ]; then
             mkdir -p ~/.config/dart
             echo "$PUB_CREDENTIALS" > ~/.config/dart/pub-credentials.json
@@ -260,12 +281,9 @@ jobs:
           fi
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Flutter SDK v${{ steps.extract.outputs.version }}
+          name: Flutter SDK v${{ steps.extract.outputs.version }}
           body: |
             Release ${{ steps.extract.outputs.version }} of Flutter SDK
 
