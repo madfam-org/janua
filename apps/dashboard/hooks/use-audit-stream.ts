@@ -29,7 +29,7 @@ export function useAuditStream(options: UseAuditStreamOptions = {}): UseAuditStr
   const [events, setEvents] = useState<AuditLog[]>([])
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const [isPaused, setIsPaused] = useState(false)
-  const pollTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const lastEventIdRef = useRef<string | null>(null)
   const wsConnectedRef = useRef(false)
 
