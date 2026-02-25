@@ -7,7 +7,7 @@ resources:
 - janua-docs.yaml
 - janua-website.yaml
 images:
-- digest: sha256:66eeccf8dbd804393cad61c9da08674ace6259751149c64ab7e8a876b725f9d3
+- digest: sha256:d23f07b9acbe7b70091b8718b020aaf352cd92f2ff9867c9e64ab86fd64c05a8
   name: ghcr.io/madfam-org/janua-admin
   newName: ghcr.io/madfam-org/janua-admin
 - digest: sha256:10a549142ce9a101b9ecfc178f3c04733385d7e26ac75302dabfcaf92b43e648
