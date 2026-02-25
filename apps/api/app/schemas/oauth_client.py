@@ -149,6 +149,17 @@ class OAuthClientResponse(BaseModel):
         from_attributes = True
 
 
+class OAuthClientListItemResponse(OAuthClientResponse):
+    """Enriched OAuth2 client for list views (no secret, no last_used_at)"""
+
+    redirect_uris: List[str] = Field(default_factory=list)
+    allowed_scopes: List[str] = Field(default_factory=list)
+    grant_types: List[str] = Field(default_factory=list)
+    audience: Optional[str] = None
+    logo_url: Optional[str] = None
+    website_url: Optional[str] = None
+
+
 class OAuthClientDetailResponse(OAuthClientResponse):
     """Detailed OAuth2 client response"""
 
@@ -168,7 +179,7 @@ class OAuthClientDetailResponse(OAuthClientResponse):
 class OAuthClientListResponse(BaseModel):
     """Paginated list of OAuth2 clients"""
 
-    clients: List[OAuthClientResponse]
+    clients: List[OAuthClientListItemResponse]
     total: int
     page: int
     per_page: int

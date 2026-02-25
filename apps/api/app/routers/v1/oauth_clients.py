@@ -20,6 +20,7 @@ from app.models import User
 from app.schemas.oauth_client import (
     OAuthClientCreate,
     OAuthClientDetailResponse,
+    OAuthClientListItemResponse,
     OAuthClientListResponse,
     OAuthClientResponse,
     OAuthClientSecretInfo,
@@ -120,11 +121,17 @@ async def list_oauth_clients(
 
     return OAuthClientListResponse(
         clients=[
-            OAuthClientResponse(
+            OAuthClientListItemResponse(
                 id=str(c.id),
                 client_id=c.client_id,
                 name=c.name,
                 description=c.description,
+                redirect_uris=c.redirect_uris or [],
+                allowed_scopes=c.allowed_scopes or [],
+                grant_types=c.grant_types or [],
+                audience=getattr(c, "audience", None),
+                logo_url=c.logo_url,
+                website_url=getattr(c, "website_url", None),
                 is_active=c.is_active,
                 is_confidential=c.is_confidential,
                 created_at=c.created_at,
@@ -483,11 +490,17 @@ async def admin_list_all_oauth_clients(
 
     return OAuthClientListResponse(
         clients=[
-            OAuthClientResponse(
+            OAuthClientListItemResponse(
                 id=str(c.id),
                 client_id=c.client_id,
                 name=c.name,
                 description=c.description,
+                redirect_uris=c.redirect_uris or [],
+                allowed_scopes=c.allowed_scopes or [],
+                grant_types=c.grant_types or [],
+                audience=getattr(c, "audience", None),
+                logo_url=c.logo_url,
+                website_url=getattr(c, "website_url", None),
                 is_active=c.is_active,
                 is_confidential=c.is_confidential,
                 created_at=c.created_at,

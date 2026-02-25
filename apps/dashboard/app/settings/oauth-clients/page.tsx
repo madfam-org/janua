@@ -28,30 +28,28 @@ import {
   CheckCircle2,
   X,
   Pencil,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react'
-import { listOAuthClients, createOAuthClient, updateOAuthClient, deleteOAuthClient, rotateClientSecret } from '@/lib/api'
+import {
+  listOAuthClients,
+  createOAuthClient,
+  updateOAuthClient,
+  deleteOAuthClient,
+  rotateClientSecret,
+  getOAuthClientSecretStatus,
+  revokeClientSecret,
+  revokeAllOldSecrets,
+  type OAuthClient,
+  type OAuthClientDetailResponse,
+  type OAuthClientRotateResponse,
+  type OAuthClientSecretStatusResponse,
+  type OAuthClientSecretInfo,
+} from '@/lib/api'
 import { CodeSnippets } from '@/components/oauth/code-snippets'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface OAuthClient {
-  client_id: string
-  client_secret_masked: string
-  name: string
-  redirect_uris: string[]
-  grant_types: string[]
-  scopes: string[]
-  logo_url: string | null
-  created_at: string
-  updated_at: string | null
-  is_active: boolean
-}
-
-interface OAuthClientCreateResponse extends OAuthClient {
-  client_secret: string // Full secret, shown only once on create / rotate
-}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -69,11 +67,11 @@ const SCOPE_OPTIONS = [
   { id: 'profile', label: 'Profile', description: 'User profile information' },
   { id: 'email', label: 'Email', description: 'User email address' },
   { id: 'offline_access', label: 'Offline Access', description: 'Refresh token for offline access' },
-  { id: 'read:users', label: 'Read Users', description: 'View user information' },
-  { id: 'write:users', label: 'Write Users', description: 'Create and update users' },
-  { id: 'read:organizations', label: 'Read Organizations', description: 'View organization data' },
-  { id: 'write:organizations', label: 'Write Organizations', description: 'Manage organizations' },
+  { id: 'api', label: 'API', description: 'General API access' },
+  { id: 'admin', label: 'Admin', description: 'Administrative operations' },
 ]
+
+const PER_PAGE = 20
 
 // ---------------------------------------------------------------------------
 // Helper Components
@@ -134,11 +132,10 @@ function RedirectUriInput({
   const addUri = () => {
     const trimmed = draft.trim()
     if (!trimmed) return
-    // Basic URL validation
     try {
       new URL(trimmed)
     } catch {
-      return // silently reject invalid URLs
+      return
     }
     if (!uris.includes(trimmed)) {
       onChange([...uris, trimmed])
@@ -262,10 +259,14 @@ function CreateEditDialog({
   const isEdit = !!editClient
 
   const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
   const [redirectUris, setRedirectUris] = useState<string[]>([])
   const [grantTypes, setGrantTypes] = useState<string[]>(['authorization_code', 'refresh_token'])
   const [scopes, setScopes] = useState<string[]>(['openid', 'profile', 'email'])
+  const [audience, setAudience] = useState('')
   const [logoUrl, setLogoUrl] = useState('')
+  const [websiteUrl, setWebsiteUrl] = useState('')
+  const [isConfidential, setIsConfidential] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -279,16 +280,24 @@ function CreateEditDialog({
     if (open) {
       if (editClient) {
         setName(editClient.name)
+        setDescription(editClient.description || '')
         setRedirectUris(editClient.redirect_uris)
         setGrantTypes(editClient.grant_types)
-        setScopes(editClient.scopes)
+        setScopes(editClient.allowed_scopes)
+        setAudience(editClient.audience || '')
         setLogoUrl(editClient.logo_url || '')
+        setWebsiteUrl(editClient.website_url || '')
+        setIsConfidential(editClient.is_confidential)
       } else {
         setName('')
+        setDescription('')
         setRedirectUris([])
         setGrantTypes(['authorization_code', 'refresh_token'])
         setScopes(['openid', 'profile', 'email'])
+        setAudience('')
         setLogoUrl('')
+        setWebsiteUrl('')
+        setIsConfidential(true)
       }
       setCreatedSecret(null)
       setSecretCopied(false)
@@ -314,21 +323,32 @@ function CreateEditDialog({
     setError(null)
 
     try {
-      const body = {
-        name: name.trim(),
-        redirect_uris: redirectUris,
-        grant_types: grantTypes,
-        scopes,
-        logo_url: logoUrl.trim() || null,
-      }
-
       if (isEdit) {
-        await updateOAuthClient(editClient.client_id, body as unknown as Parameters<typeof updateOAuthClient>[1])
+        await updateOAuthClient(editClient.id, {
+          name: name.trim(),
+          redirect_uris: redirectUris,
+          grant_types: grantTypes,
+          allowed_scopes: scopes,
+          audience: audience.trim() || undefined,
+          description: description.trim() || undefined,
+          logo_url: logoUrl.trim() || null,
+          website_url: websiteUrl.trim() || null,
+        })
         onSuccess()
         onOpenChange(false)
       } else {
-        const result = await createOAuthClient(body as unknown as Parameters<typeof createOAuthClient>[0]) as unknown as OAuthClientCreateResponse
-        setCreatedSecret(result.client_secret)
+        const result = await createOAuthClient({
+          name: name.trim(),
+          redirect_uris: redirectUris,
+          grant_types: grantTypes,
+          allowed_scopes: scopes,
+          audience: audience.trim() || undefined,
+          description: description.trim() || undefined,
+          logo_url: logoUrl.trim() || null,
+          website_url: websiteUrl.trim() || null,
+          is_confidential: isConfidential,
+        })
+        setCreatedSecret(result.client_secret || null)
         setCreatedClientId(result.client_id)
         onSuccess()
       }
@@ -426,6 +446,65 @@ function CreateEditDialog({
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="client_description">Description (optional)</Label>
+              <textarea
+                id="client_description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Brief description of this client application"
+                maxLength={1000}
+                rows={2}
+                className="border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              />
+            </div>
+
+            {!isEdit && (
+              <div className="space-y-2">
+                <Label>Client Type</Label>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                  <label
+                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                      isConfidential ? 'border-primary bg-primary/5' : 'hover:bg-muted'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="client_type"
+                      checked={isConfidential}
+                      onChange={() => setIsConfidential(true)}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="font-medium">Confidential</div>
+                      <div className="text-muted-foreground text-sm">
+                        Server-side app that can securely store a client secret
+                      </div>
+                    </div>
+                  </label>
+                  <label
+                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                      !isConfidential ? 'border-primary bg-primary/5' : 'hover:bg-muted'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="client_type"
+                      checked={!isConfidential}
+                      onChange={() => setIsConfidential(false)}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="font-medium">Public</div>
+                      <div className="text-muted-foreground text-sm">
+                        SPA or mobile app — uses PKCE only, no client secret
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <RedirectUriInput uris={redirectUris} onChange={setRedirectUris} />
 
             <CheckboxGroup
@@ -443,13 +522,37 @@ function CreateEditDialog({
             />
 
             <div className="space-y-2">
-              <Label htmlFor="logo_url">Logo URL (optional)</Label>
+              <Label htmlFor="audience">Audience (optional)</Label>
               <Input
-                id="logo_url"
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                placeholder="https://example.com/logo.png"
+                id="audience"
+                value={audience}
+                onChange={(e) => setAudience(e.target.value)}
+                placeholder="your-app-api"
               />
+              <p className="text-muted-foreground text-xs">
+                JWT audience claim for per-client token validation. Falls back to global audience if not set.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="logo_url">Logo URL (optional)</Label>
+                <Input
+                  id="logo_url"
+                  value={logoUrl}
+                  onChange={(e) => setLogoUrl(e.target.value)}
+                  placeholder="https://example.com/logo.png"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="website_url">Website URL (optional)</Label>
+                <Input
+                  id="website_url"
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                  placeholder="https://example.com"
+                />
+              </div>
             </div>
 
             <div className="flex justify-end gap-2">
@@ -465,6 +568,183 @@ function CreateEditDialog({
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Secret Status Panel (used inside ClientDetailDialog)
+// ---------------------------------------------------------------------------
+
+function SecretStatusPanel({
+  clientId,
+  onRefresh,
+}: {
+  clientId: string
+  onRefresh: () => void
+}) {
+  const [status, setStatus] = useState<OAuthClientSecretStatusResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [revoking, setRevoking] = useState<string | null>(null)
+  const [revokingAll, setRevokingAll] = useState(false)
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await getOAuthClientSecretStatus(clientId)
+      setStatus(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load secret status')
+    } finally {
+      setLoading(false)
+    }
+  }, [clientId])
+
+  useEffect(() => {
+    fetchStatus()
+  }, [fetchStatus])
+
+  const handleRevoke = async (secretId: string) => {
+    setRevoking(secretId)
+    try {
+      await revokeClientSecret(clientId, secretId)
+      await fetchStatus()
+      onRefresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to revoke secret')
+    } finally {
+      setRevoking(null)
+    }
+  }
+
+  const handleRevokeAllOld = async () => {
+    setRevokingAll(true)
+    try {
+      await revokeAllOldSecrets(clientId)
+      await fetchStatus()
+      onRefresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to revoke old secrets')
+    } finally {
+      setRevokingAll(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 py-4 text-sm">
+        <Loader2 className="size-4 animate-spin" />
+        <span className="text-muted-foreground">Loading secret status...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="text-destructive flex items-center gap-2 py-2 text-sm">
+        <AlertCircle className="size-4" />
+        <span>{error}</span>
+        <Button variant="ghost" size="sm" onClick={fetchStatus} className="ml-auto">
+          Retry
+        </Button>
+      </div>
+    )
+  }
+
+  if (!status) return null
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-muted-foreground text-xs uppercase">Secrets</Label>
+        <div className="flex items-center gap-2">
+          {status.rotation_recommended && (
+            <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:text-yellow-400">
+              <AlertTriangle className="mr-1 size-3" />
+              Rotation recommended
+            </Badge>
+          )}
+          {status.active_count > 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRevokeAllOld}
+              disabled={revokingAll}
+              className="text-xs"
+            >
+              {revokingAll && <Loader2 className="mr-1 size-3 animate-spin" />}
+              Revoke All Old
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {status.primary_age_days !== null && (
+        <p className="text-muted-foreground text-xs">
+          Primary secret: {status.primary_age_days} day{status.primary_age_days !== 1 ? 's' : ''} old
+          (max recommended: {status.max_age_days} days)
+        </p>
+      )}
+
+      <div className="rounded-md border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b">
+              <th className="px-3 py-2 text-left text-xs font-medium">Prefix</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">Status</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">Created</th>
+              <th className="px-3 py-2 text-left text-xs font-medium">Expires</th>
+              <th className="px-3 py-2 text-right text-xs font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {status.secrets.filter((s) => s.is_valid).map((secret) => (
+              <tr key={secret.id} className="border-b last:border-0">
+                <td className="px-3 py-2">
+                  <code className="text-xs">{secret.prefix}</code>
+                </td>
+                <td className="px-3 py-2">
+                  {secret.is_primary ? (
+                    <Badge variant="default" className="text-xs">Primary</Badge>
+                  ) : secret.expires_at ? (
+                    <Badge variant="outline" className="text-xs">
+                      <Clock className="mr-1 size-3" />
+                      Grace period
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-xs">Active</Badge>
+                  )}
+                </td>
+                <td className="text-muted-foreground px-3 py-2 text-xs">
+                  {new Date(secret.created_at).toLocaleDateString()}
+                </td>
+                <td className="text-muted-foreground px-3 py-2 text-xs">
+                  {secret.expires_at ? new Date(secret.expires_at).toLocaleString() : '—'}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {!secret.is_primary && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive h-7 text-xs"
+                      onClick={() => handleRevoke(secret.id)}
+                      disabled={revoking === secret.id}
+                    >
+                      {revoking === secret.id ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        'Revoke'
+                      )}
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
@@ -502,6 +782,11 @@ function ClientDetailDialog({
           <DialogTitle className="flex items-center gap-2">
             <Globe className="size-5" />
             {client.name}
+            {client.description && (
+              <span className="text-muted-foreground ml-2 text-sm font-normal">
+                — {client.description}
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -525,11 +810,23 @@ function ClientDetailDialog({
             </div>
           </div>
 
-          {/* Client Secret (masked) */}
+          {/* Client Type */}
           <div className="space-y-1">
-            <Label className="text-muted-foreground text-xs uppercase">Client Secret</Label>
-            <SecretDisplay masked={client.client_secret_masked} />
+            <Label className="text-muted-foreground text-xs uppercase">Client Type</Label>
+            <Badge variant={client.is_confidential ? 'default' : 'outline'}>
+              {client.is_confidential ? 'Confidential' : 'Public (PKCE)'}
+            </Badge>
           </div>
+
+          {/* Audience */}
+          {client.audience && (
+            <div className="space-y-1">
+              <Label className="text-muted-foreground text-xs uppercase">Audience</Label>
+              <code className="bg-muted block rounded px-2 py-1 font-mono text-sm">
+                {client.audience}
+              </code>
+            </div>
+          )}
 
           {/* Redirect URIs */}
           <div className="space-y-1">
@@ -551,11 +848,13 @@ function ClientDetailDialog({
           <div className="space-y-1">
             <Label className="text-muted-foreground text-xs uppercase">Grant Types</Label>
             <div className="flex flex-wrap gap-1">
-              {client.grant_types.map((gt) => (
-                <Badge key={gt} variant="outline">
-                  {gt}
-                </Badge>
-              ))}
+              {client.grant_types.length > 0 ? (
+                client.grant_types.map((gt) => (
+                  <Badge key={gt} variant="outline">{gt}</Badge>
+                ))
+              ) : (
+                <span className="text-muted-foreground text-sm">None</span>
+              )}
             </div>
           </div>
 
@@ -563,13 +862,30 @@ function ClientDetailDialog({
           <div className="space-y-1">
             <Label className="text-muted-foreground text-xs uppercase">Scopes</Label>
             <div className="flex flex-wrap gap-1">
-              {client.scopes.map((scope) => (
-                <Badge key={scope} variant="secondary">
-                  {scope}
-                </Badge>
-              ))}
+              {client.allowed_scopes.length > 0 ? (
+                client.allowed_scopes.map((scope) => (
+                  <Badge key={scope} variant="secondary">{scope}</Badge>
+                ))
+              ) : (
+                <span className="text-muted-foreground text-sm">None</span>
+              )}
             </div>
           </div>
+
+          {/* Website */}
+          {client.website_url && (
+            <div className="space-y-1">
+              <Label className="text-muted-foreground text-xs uppercase">Website</Label>
+              <a
+                href={client.website_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary text-sm hover:underline"
+              >
+                {client.website_url}
+              </a>
+            </div>
+          )}
 
           {/* Timestamps */}
           <div className="text-muted-foreground grid grid-cols-2 gap-4 text-sm">
@@ -583,6 +899,11 @@ function ClientDetailDialog({
                 {new Date(client.updated_at).toLocaleString()}
               </div>
             )}
+          </div>
+
+          {/* Secret Status Panel */}
+          <div className="border-t pt-4">
+            <SecretStatusPanel clientId={client.id} onRefresh={() => {}} />
           </div>
 
           {/* Actions */}
@@ -611,7 +932,7 @@ function ClientDetailDialog({
 }
 
 // ---------------------------------------------------------------------------
-// Confirm Dialog (generic)
+// Confirm Dialog (generic — used for delete)
 // ---------------------------------------------------------------------------
 
 function ConfirmDialog({
@@ -659,23 +980,101 @@ function ConfirmDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Rotate Secret Dialog (with grace period control)
+// ---------------------------------------------------------------------------
+
+function RotateSecretDialog({
+  open,
+  onOpenChange,
+  clientName,
+  loading,
+  onConfirm,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  clientName: string
+  loading: boolean
+  onConfirm: (gracePeriodHours: number) => void
+}) {
+  const [gracePeriod, setGracePeriod] = useState(24)
+
+  useEffect(() => {
+    if (open) setGracePeriod(24)
+  }, [open])
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Rotate Client Secret</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <p className="text-muted-foreground text-sm">
+            This will generate a new secret for &ldquo;{clientName}&rdquo;. A grace period
+            allows old secrets to continue working, enabling zero-downtime updates.
+          </p>
+
+          <div className="space-y-2">
+            <Label htmlFor="grace_period">Grace Period (hours)</Label>
+            <Input
+              id="grace_period"
+              type="number"
+              min={0}
+              max={168}
+              value={gracePeriod}
+              onChange={(e) => setGracePeriod(Math.max(0, Math.min(168, Number(e.target.value) || 0)))}
+            />
+            <p className="text-muted-foreground text-xs">
+              {gracePeriod === 0
+                ? 'Old secrets will be invalidated immediately.'
+                : `Old secrets will continue working for ${gracePeriod} hour${gracePeriod !== 1 ? 's' : ''}, allowing time to update your application.`}
+            </p>
+          </div>
+
+          {gracePeriod === 0 && (
+            <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-3 dark:border-yellow-700 dark:bg-yellow-950">
+              <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                <AlertTriangle className="mr-1 inline size-4" />
+                Setting grace period to 0 will immediately invalidate old secrets. Applications
+                using the current secret will break until updated.
+              </p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+              Cancel
+            </Button>
+            <Button onClick={() => onConfirm(gracePeriod)} disabled={loading}>
+              {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Rotate Secret
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Rotate Secret Result Dialog
 // ---------------------------------------------------------------------------
 
 function RotateResultDialog({
   open,
   onOpenChange,
-  newSecret,
+  result,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  newSecret: string
+  result: OAuthClientRotateResponse
 }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(newSecret)
+      await navigator.clipboard.writeText(result.client_secret)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
@@ -697,8 +1096,16 @@ function RotateResultDialog({
               <span className="font-medium">Save this secret now!</span>
             </div>
             <p className="text-sm text-yellow-700 dark:text-yellow-300">
-              The previous secret has been invalidated. Copy the new secret before closing
-              this dialog.
+              Copy the new secret before closing this dialog.
+              {result.grace_period_hours > 0 && (
+                <> Old secrets will remain valid until{' '}
+                  <strong>{new Date(result.old_secrets_expire_at).toLocaleString()}</strong>
+                  {' '}({result.grace_period_hours}h grace period).
+                </>
+              )}
+              {result.grace_period_hours === 0 && (
+                <> Old secrets have been invalidated immediately.</>
+              )}
             </p>
           </div>
 
@@ -706,7 +1113,7 @@ function RotateResultDialog({
             <Label>New Client Secret</Label>
             <div className="flex gap-2">
               <code className="bg-muted flex-1 break-all rounded-lg border p-3 font-mono text-sm">
-                {newSecret}
+                {result.client_secret}
               </code>
               <Button variant="outline" size="icon" onClick={handleCopy}>
                 {copied ? (
@@ -717,6 +1124,13 @@ function RotateResultDialog({
               </Button>
             </div>
           </div>
+
+          {result.grace_period_hours > 0 && (
+            <div className="text-muted-foreground flex items-center gap-2 text-sm">
+              <Clock className="size-4" />
+              Grace period expires: {new Date(result.old_secrets_expire_at).toLocaleString()}
+            </div>
+          )}
 
           <div className="flex justify-end">
             <Button onClick={() => onOpenChange(false)}>Done</Button>
@@ -737,28 +1151,36 @@ export default function OAuthClientsPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // Pagination
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+
+  // Search (client-side)
+  const [searchQuery, setSearchQuery] = useState('')
+
   // Dialogs
   const [createOpen, setCreateOpen] = useState(false)
   const [editClient, setEditClient] = useState<OAuthClient | null>(null)
   const [detailClient, setDetailClient] = useState<OAuthClient | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<OAuthClient | null>(null)
   const [rotateTarget, setRotateTarget] = useState<OAuthClient | null>(null)
-  const [rotatedSecret, setRotatedSecret] = useState<string | null>(null)
+  const [rotateResult, setRotateResult] = useState<OAuthClientRotateResponse | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
 
   const fetchClients = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      const data = await listOAuthClients()
-      setClients(Array.isArray(data) ? data as unknown as OAuthClient[] : (data as unknown as { items?: OAuthClient[] }).items || [])
+      const data = await listOAuthClients({ page, per_page: PER_PAGE })
+      setClients(data.clients)
+      setTotal(data.total)
     } catch (err) {
       console.error('Failed to fetch OAuth clients:', err)
       setError(err instanceof Error ? err.message : 'Failed to load OAuth clients')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [page])
 
   useEffect(() => {
     fetchClients()
@@ -772,12 +1194,26 @@ export default function OAuthClientsPage() {
     }
   }, [success])
 
+  // Client-side filtered list
+  const filteredClients = searchQuery.trim()
+    ? clients.filter((c) => {
+        const q = searchQuery.toLowerCase()
+        return (
+          c.name.toLowerCase().includes(q) ||
+          c.client_id.toLowerCase().includes(q) ||
+          (c.description && c.description.toLowerCase().includes(q))
+        )
+      })
+    : clients
+
+  const totalPages = Math.ceil(total / PER_PAGE)
+
   // ---- Delete ----
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return
     setActionLoading(true)
     try {
-      await deleteOAuthClient(deleteTarget.client_id)
+      await deleteOAuthClient(deleteTarget.id)
       setSuccess(`OAuth client "${deleteTarget.name}" has been deleted.`)
       setDeleteTarget(null)
       setDetailClient(null)
@@ -791,14 +1227,14 @@ export default function OAuthClientsPage() {
   }
 
   // ---- Rotate Secret ----
-  const handleRotateConfirm = async () => {
+  const handleRotateConfirm = async (gracePeriodHours: number) => {
     if (!rotateTarget) return
     setActionLoading(true)
     try {
-      const result = await rotateClientSecret(rotateTarget.client_id)
+      const result = await rotateClientSecret(rotateTarget.id, gracePeriodHours)
       setRotateTarget(null)
       setDetailClient(null)
-      setRotatedSecret(result.client_secret)
+      setRotateResult(result)
       fetchClients()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to rotate secret')
@@ -820,7 +1256,7 @@ export default function OAuthClientsPage() {
   // Render
   // ---------------------------------------------------------------------------
 
-  if (loading) {
+  if (loading && clients.length === 0) {
     return (
       <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -904,6 +1340,7 @@ export default function OAuthClientsPage() {
                 <CardTitle>Registered Clients</CardTitle>
                 <CardDescription>
                   OAuth 2.0 clients that can authenticate against your Janua instance
+                  {total > 0 && ` (${total} total)`}
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={fetchClients}>
@@ -911,9 +1348,22 @@ export default function OAuthClientsPage() {
                 Refresh
               </Button>
             </div>
+            {/* Search */}
+            {clients.length > 0 && (
+              <div className="relative mt-4">
+                <Search className="text-muted-foreground pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by name or client ID..."
+                  className="pl-9"
+                  aria-label="Search clients"
+                />
+              </div>
+            )}
           </CardHeader>
           <CardContent>
-            {clients.length === 0 ? (
+            {filteredClients.length === 0 && clients.length === 0 ? (
               <div className="py-8 text-center">
                 <Globe className="text-muted-foreground mx-auto size-12" />
                 <h3 className="mt-4 text-lg font-medium">No OAuth clients yet</h3>
@@ -931,11 +1381,18 @@ export default function OAuthClientsPage() {
                   Create Client
                 </Button>
               </div>
+            ) : filteredClients.length === 0 ? (
+              <div className="py-8 text-center">
+                <Search className="text-muted-foreground mx-auto size-8" />
+                <p className="text-muted-foreground mt-2 text-sm">
+                  No clients match &ldquo;{searchQuery}&rdquo;
+                </p>
+              </div>
             ) : (
               <div className="space-y-3">
-                {clients.map((client) => (
+                {filteredClients.map((client) => (
                   <div
-                    key={client.client_id}
+                    key={client.id}
                     className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent/50 cursor-pointer"
                     role="button"
                     tabIndex={0}
@@ -967,15 +1424,20 @@ export default function OAuthClientsPage() {
                           <Badge variant={client.is_active ? 'default' : 'secondary'}>
                             {client.is_active ? 'Active' : 'Inactive'}
                           </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {client.is_confidential ? 'Confidential' : 'Public'}
+                          </Badge>
                         </div>
                         <div className="text-muted-foreground mt-1 text-sm">
                           <code className="bg-muted rounded px-1 text-xs">
                             {client.client_id}
                           </code>
-                          <span className="mx-2">&middot;</span>
-                          <span>
-                            Secret: {client.client_secret_masked}
-                          </span>
+                          {client.description && (
+                            <>
+                              <span className="mx-2">&middot;</span>
+                              <span className="truncate">{client.description}</span>
+                            </>
+                          )}
                           <span className="mx-2">&middot;</span>
                           Created {new Date(client.created_at).toLocaleDateString()}
                         </div>
@@ -985,14 +1447,14 @@ export default function OAuthClientsPage() {
                               {gt}
                             </Badge>
                           ))}
-                          {client.scopes.slice(0, 4).map((scope) => (
+                          {client.allowed_scopes.slice(0, 4).map((scope) => (
                             <Badge key={scope} variant="secondary" className="text-xs">
                               {scope}
                             </Badge>
                           ))}
-                          {client.scopes.length > 4 && (
+                          {client.allowed_scopes.length > 4 && (
                             <Badge variant="secondary" className="text-xs">
-                              +{client.scopes.length - 4} more
+                              +{client.allowed_scopes.length - 4} more
                             </Badge>
                           )}
                         </div>
@@ -1035,6 +1497,35 @@ export default function OAuthClientsPage() {
                     </div>
                   </div>
                 ))}
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <p className="text-muted-foreground text-sm">
+                      Page {page} of {totalPages} ({total} clients)
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={page <= 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      >
+                        <ChevronLeft className="mr-1 size-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={page >= totalPages}
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      >
+                        Next
+                        <ChevronRight className="ml-1 size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -1063,7 +1554,7 @@ export default function OAuthClientsPage() {
             </p>
             <p>
               <strong>Rotate secrets regularly:</strong> Periodically rotate client secrets
-              and update your application configuration.
+              and use the grace period for zero-downtime updates.
             </p>
             <p>
               <strong>Prefer authorization code flow:</strong> Use the authorization code
@@ -1121,27 +1612,25 @@ export default function OAuthClientsPage() {
         onConfirm={handleDeleteConfirm}
       />
 
-      {/* Rotate Secret Confirmation */}
-      <ConfirmDialog
+      {/* Rotate Secret Dialog (with grace period) */}
+      <RotateSecretDialog
         open={!!rotateTarget}
         onOpenChange={(open) => {
           if (!open) setRotateTarget(null)
         }}
-        title="Rotate Client Secret"
-        description={`This will invalidate the current secret for "${rotateTarget?.name}" and generate a new one. All applications using the current secret will need to be updated immediately.`}
-        confirmLabel="Rotate Secret"
+        clientName={rotateTarget?.name || ''}
         loading={actionLoading}
         onConfirm={handleRotateConfirm}
       />
 
       {/* Rotated Secret Result */}
-      {rotatedSecret && (
+      {rotateResult && (
         <RotateResultDialog
-          open={!!rotatedSecret}
+          open={!!rotateResult}
           onOpenChange={(open) => {
-            if (!open) setRotatedSecret(null)
+            if (!open) setRotateResult(null)
           }}
-          newSecret={rotatedSecret}
+          result={rotateResult}
         />
       )}
     </div>

@@ -66,55 +66,125 @@ export async function evaluatePolicy(data: PolicyEvaluateRequest): Promise<{ all
 // ─── OAuth Clients ──────────────────────────────────────────────────────────
 
 export interface OAuthClient {
+  id: string
   client_id: string
-  client_name: string
-  client_secret?: string
+  name: string
+  description: string | null
   redirect_uris: string[]
+  allowed_scopes: string[]
   grant_types: string[]
-  response_types: string[]
-  scope: string
-  token_endpoint_auth_method: string
+  audience: string | null
+  logo_url: string | null
+  website_url: string | null
   is_active: boolean
+  is_confidential: boolean
   created_at: string
   updated_at: string
 }
 
+export interface OAuthClientDetailResponse extends OAuthClient {
+  client_secret?: string | null
+  last_used_at?: string | null
+  organization_id?: string | null
+}
+
+export interface OAuthClientListResponse {
+  clients: OAuthClient[]
+  total: number
+  page: number
+  per_page: number
+}
+
 export interface OAuthClientCreateRequest {
-  client_name: string
+  name: string
   redirect_uris: string[]
   grant_types?: string[]
-  response_types?: string[]
-  scope?: string
-  token_endpoint_auth_method?: string
+  allowed_scopes?: string[]
+  audience?: string
+  description?: string
+  logo_url?: string | null
+  website_url?: string | null
+  is_confidential?: boolean
 }
 
-export async function listOAuthClients(): Promise<OAuthClient[]> {
-  const response = await januaClient.http.get<OAuthClient[]>('/api/v1/oauth/clients')
+export interface OAuthClientRotateResponse {
+  client_id: string
+  client_secret: string
+  rotated_at: string
+  grace_period_hours: number
+  old_secrets_expire_at: string
+  message: string
+}
+
+export interface OAuthClientSecretInfo {
+  id: string
+  prefix: string
+  is_primary: boolean
+  created_at: string
+  expires_at: string | null
+  revoked_at: string | null
+  last_used_at: string | null
+  is_valid: boolean
+}
+
+export interface OAuthClientSecretStatusResponse {
+  client_id: string
+  active_count: number
+  total_count: number
+  has_primary: boolean
+  primary_created_at: string | null
+  primary_age_days: number | null
+  rotation_recommended: boolean
+  max_age_days: number
+  secrets: OAuthClientSecretInfo[]
+}
+
+export async function listOAuthClients(params?: { page?: number; per_page?: number }): Promise<OAuthClientListResponse> {
+  const query = new URLSearchParams()
+  if (params?.page) query.set('page', String(params.page))
+  if (params?.per_page) query.set('per_page', String(params.per_page))
+  const qs = query.toString() ? `?${query.toString()}` : ''
+  const response = await januaClient.http.get<OAuthClientListResponse>(`/api/v1/oauth/clients${qs}`)
   return response.data
 }
 
-export async function getOAuthClient(clientId: string): Promise<OAuthClient> {
-  const response = await januaClient.http.get<OAuthClient>(`/api/v1/oauth/clients/${clientId}`)
+export async function getOAuthClient(id: string): Promise<OAuthClientDetailResponse> {
+  const response = await januaClient.http.get<OAuthClientDetailResponse>(`/api/v1/oauth/clients/${id}`)
   return response.data
 }
 
-export async function createOAuthClient(data: OAuthClientCreateRequest): Promise<OAuthClient> {
-  const response = await januaClient.http.post<OAuthClient>('/api/v1/oauth/clients', data)
+export async function createOAuthClient(data: OAuthClientCreateRequest): Promise<OAuthClientDetailResponse> {
+  const response = await januaClient.http.post<OAuthClientDetailResponse>('/api/v1/oauth/clients', data)
   return response.data
 }
 
-export async function updateOAuthClient(clientId: string, data: Partial<OAuthClientCreateRequest>): Promise<OAuthClient> {
-  const response = await januaClient.http.patch<OAuthClient>(`/api/v1/oauth/clients/${clientId}`, data)
+export async function updateOAuthClient(id: string, data: Partial<OAuthClientCreateRequest> & { is_active?: boolean }): Promise<OAuthClientDetailResponse> {
+  const response = await januaClient.http.patch<OAuthClientDetailResponse>(`/api/v1/oauth/clients/${id}`, data)
   return response.data
 }
 
-export async function deleteOAuthClient(clientId: string): Promise<{ message: string }> {
-  const response = await januaClient.http.delete<{ message: string }>(`/api/v1/oauth/clients/${clientId}`)
+export async function deleteOAuthClient(id: string): Promise<void> {
+  await januaClient.http.delete(`/api/v1/oauth/clients/${id}`)
+}
+
+export async function rotateClientSecret(id: string, gracePeriodHours?: number): Promise<OAuthClientRotateResponse> {
+  const body = gracePeriodHours !== undefined ? { grace_period_hours: gracePeriodHours } : undefined
+  const response = await januaClient.http.post<OAuthClientRotateResponse>(`/api/v1/oauth/clients/${id}/rotate`, body)
   return response.data
 }
 
-export async function rotateClientSecret(clientId: string): Promise<{ client_secret: string }> {
-  const response = await januaClient.http.post<{ client_secret: string }>(`/api/v1/oauth/clients/${clientId}/rotate`)
+export async function getOAuthClientSecretStatus(id: string): Promise<OAuthClientSecretStatusResponse> {
+  const response = await januaClient.http.get<OAuthClientSecretStatusResponse>(`/api/v1/oauth/clients/${id}/secrets`)
+  return response.data
+}
+
+export async function revokeClientSecret(id: string, secretId: string): Promise<{ message: string }> {
+  const response = await januaClient.http.post<{ message: string }>(`/api/v1/oauth/clients/${id}/secrets/revoke`, { secret_id: secretId })
+  return response.data
+}
+
+export async function revokeAllOldSecrets(id: string): Promise<{ message: string; revoked_count: number }> {
+  const response = await januaClient.http.post<{ message: string; revoked_count: number }>(`/api/v1/oauth/clients/${id}/secrets/revoke-all-old`)
   return response.data
 }
 
