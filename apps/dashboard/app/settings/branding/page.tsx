@@ -18,9 +18,8 @@ import {
   Eye,
   Save,
 } from 'lucide-react'
-import { apiCall } from '../../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { getBranding, updateBranding, getDomains, addDomain, verifyDomain } from '@/lib/api'
+import { januaClient } from '@/lib/janua-client'
 
 interface BrandingConfiguration {
   id: string
@@ -94,11 +93,10 @@ export default function BrandingSettingsPage() {
       setError(null)
 
       // Get current user's organization
-      const meResponse = await apiCall(`${API_BASE_URL}/api/v1/auth/me`)
-      if (!meResponse.ok) throw new Error('Failed to fetch user info')
-      const userData = await meResponse.json()
+      const userData = await januaClient.auth.getCurrentUser() as unknown as Record<string, unknown>
 
-      const orgId = userData.current_organization_id || userData.organization_id
+      const orgId = (userData.current_organization_id as string)
+        || (userData.organization_id as string)
       if (!orgId) {
         setError('No organization found. Please join or create an organization first.')
         setLoading(false)
@@ -107,39 +105,36 @@ export default function BrandingSettingsPage() {
       setOrganizationId(orgId)
 
       // Fetch branding configuration
-      const response = await apiCall(`${API_BASE_URL}/api/v1/white-label/branding/${orgId}`)
-
-      if (response.status === 404) {
-        // No config exists yet, use defaults
-        setConfig(null)
-      } else if (!response.ok) {
-        throw new Error('Failed to fetch branding configuration')
-      } else {
-        const data = await response.json()
-        setConfig(data)
+      try {
+        const data = await getBranding(orgId)
+        setConfig(data as unknown as BrandingConfiguration)
         setFormData({
-          company_name: data.company_name || '',
-          company_logo_url: data.company_logo_url || '',
-          company_logo_dark_url: data.company_logo_dark_url || '',
-          company_favicon_url: data.company_favicon_url || '',
-          company_website: data.company_website || '',
+          company_name: (data as Record<string, string>).company_name || '',
+          company_logo_url: (data as Record<string, string>).company_logo_url || '',
+          company_logo_dark_url: (data as Record<string, string>).company_logo_dark_url || '',
+          company_favicon_url: (data as Record<string, string>).company_favicon_url || '',
+          company_website: (data as Record<string, string>).company_website || '',
           primary_color: data.primary_color || '#1a73e8',
-          secondary_color: data.secondary_color || '#ea4335',
+          secondary_color: (data as Record<string, string>).secondary_color || '#ea4335',
           accent_color: data.accent_color || '#34a853',
-          background_color: data.background_color || '#ffffff',
-          surface_color: data.surface_color || '#f8f9fa',
-          text_color: data.text_color || '#202124',
-          font_family: data.font_family || 'Inter, system-ui, sans-serif',
-          border_radius: data.border_radius || '8px',
+          background_color: (data as Record<string, string>).background_color || '#ffffff',
+          surface_color: (data as Record<string, string>).surface_color || '#f8f9fa',
+          text_color: (data as Record<string, string>).text_color || '#202124',
+          font_family: (data as Record<string, string>).font_family || 'Inter, system-ui, sans-serif',
+          border_radius: (data as Record<string, string>).border_radius || '8px',
           custom_css: data.custom_css || '',
         })
+      } catch {
+        // No config exists yet, use defaults
+        setConfig(null)
       }
 
       // Fetch custom domains
-      const domainsResponse = await apiCall(`${API_BASE_URL}/api/v1/white-label/domains/${orgId}`)
-      if (domainsResponse.ok) {
-        const domainsData = await domainsResponse.json()
-        setDomains(Array.isArray(domainsData) ? domainsData : [])
+      try {
+        const domainsData = await getDomains(orgId)
+        setDomains(Array.isArray(domainsData) ? domainsData as unknown as CustomDomain[] : [])
+      } catch {
+        setDomains([])
       }
     } catch (err) {
       console.error('Failed to fetch branding config:', err)
@@ -157,19 +152,8 @@ export default function BrandingSettingsPage() {
     setSuccess(null)
 
     try {
-      const method = config ? 'PUT' : 'POST'
-      const response = await apiCall(`${API_BASE_URL}/api/v1/white-label/branding/${organizationId}`, {
-        method,
-        body: JSON.stringify(formData),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to save branding configuration')
-      }
-
-      const data = await response.json()
-      setConfig(data)
+      const data = await updateBranding(organizationId, formData)
+      setConfig(data as unknown as BrandingConfiguration)
       setSuccess('Branding configuration saved successfully!')
       setTimeout(() => setSuccess(null), 3000)
     } catch (err) {
@@ -183,19 +167,10 @@ export default function BrandingSettingsPage() {
     if (!organizationId || !newDomain.trim()) return
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/white-label/domains`, {
-        method: 'POST',
-        body: JSON.stringify({
-          organization_id: organizationId,
-          domain: newDomain.trim(),
-        }),
+      await addDomain({
+        organization_id: organizationId,
+        domain: newDomain.trim(),
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to add domain')
-      }
-
       setNewDomain('')
       fetchBrandingConfig()
     } catch (err) {
@@ -205,15 +180,7 @@ export default function BrandingSettingsPage() {
 
   const handleVerifyDomain = async (domainId: string) => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/white-label/domains/${domainId}/verify`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Domain verification failed')
-      }
-
+      await verifyDomain(domainId)
       fetchBrandingConfig()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to verify domain')

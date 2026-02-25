@@ -18,11 +18,9 @@ import {
   Pencil,
   History,
 } from 'lucide-react'
-import { apiCall } from '../../lib/auth'
+import { januaClient } from '@/lib/janua-client'
 import { WebhookForm } from './webhook-form'
 import { WebhookDeliveries } from './webhook-deliveries'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
 interface WebhookEndpoint {
   id: string
@@ -30,8 +28,8 @@ interface WebhookEndpoint {
   secret: string
   events: string[]
   is_active: boolean
-  description: string | null
-  headers: Record<string, string> | null
+  description?: string | null
+  headers?: Record<string, string> | null
   created_at: string
   updated_at: string
 }
@@ -60,17 +58,8 @@ export function WebhookList() {
       setLoading(true)
       setError(null)
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/webhooks/`)
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Authentication required')
-        }
-        throw new Error('Failed to fetch webhooks')
-      }
-
-      const data = await response.json()
-      setWebhooks(data.endpoints || data.items || data || [])
+      const data = await januaClient.webhooks.listEndpoints()
+      setWebhooks(data.endpoints || (data as any).items || [])
     } catch (err) {
       console.error('Failed to fetch webhooks:', err)
       setError(err instanceof Error ? err.message : 'Failed to load webhooks')
@@ -81,11 +70,8 @@ export function WebhookList() {
 
   const fetchEventTypes = async () => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/webhooks/events/types`)
-      if (response.ok) {
-        const types = await response.json()
-        setEventTypes(types)
-      }
+      const types = await januaClient.webhooks.getEventTypes()
+      setEventTypes(types)
     } catch (err) {
       console.error('Failed to fetch event types:', err)
     }
@@ -93,15 +79,8 @@ export function WebhookList() {
 
   const testWebhook = async (id: string) => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/webhooks/${id}/test`, {
-        method: 'POST'
-      })
-
-      if (response.ok) {
-        alert('Test webhook sent successfully!')
-      } else {
-        alert('Failed to send test webhook')
-      }
+      await januaClient.webhooks.testEndpoint(id)
+      alert('Test webhook sent successfully!')
     } catch (err) {
       console.error('Failed to test webhook:', err)
       alert('Failed to send test webhook')
@@ -112,15 +91,8 @@ export function WebhookList() {
     if (!confirm('Are you sure you want to delete this webhook?')) return
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/webhooks/${id}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
-        setWebhooks(webhooks.filter(w => w.id !== id))
-      } else {
-        alert('Failed to delete webhook')
-      }
+      await januaClient.webhooks.deleteEndpoint(id)
+      setWebhooks(webhooks.filter(w => w.id !== id))
     } catch (err) {
       console.error('Failed to delete webhook:', err)
       alert('Failed to delete webhook')

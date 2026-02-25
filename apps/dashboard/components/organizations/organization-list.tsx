@@ -3,10 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@janua/ui'
 import { MoreHorizontal, Search, Plus, Building2, Users, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
-import { apiCall } from '../../lib/auth'
-
-// API base URL for production
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { januaClient } from '@/lib/janua-client'
 
 interface Organization {
   id: string
@@ -51,21 +48,17 @@ export function OrganizationList() {
       setError(null)
 
       // Try admin endpoint first (for admin users), fall back to regular endpoint
-      let response = await apiCall(`${API_BASE_URL}/api/v1/admin/organizations`)
-
-      if (!response.ok) {
+      let orgList: ApiOrganization[]
+      try {
+        const adminData = await januaClient.admin.listAllOrganizations()
+        // Admin endpoint returns paginated response { data: [...], total, ... }
+        orgList = Array.isArray(adminData) ? adminData : ((adminData as any).data || (adminData as any).organizations || (adminData as any).items || [])
+      } catch {
         // Fall back to regular endpoint for non-admin users
-        response = await apiCall(`${API_BASE_URL}/api/v1/organizations/`)
+        const userData = await januaClient.organizations.listOrganizations()
+        // Regular endpoint returns direct array
+        orgList = Array.isArray(userData) ? userData : ((userData as any).organizations || (userData as any).items || [])
       }
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch organizations')
-      }
-
-      const data = await response.json()
-
-      // Handle both array and paginated response formats
-      const orgList: ApiOrganization[] = Array.isArray(data) ? data : (data.organizations || data.items || [])
 
       // Transform API response to match our interface
       const transformedOrgs: Organization[] = orgList.map((org: ApiOrganization) => ({

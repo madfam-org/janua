@@ -30,9 +30,7 @@ import {
   ShieldCheck,
   ShieldOff,
 } from 'lucide-react'
-import { apiCall } from '../../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { listPolicies, createPolicy, updatePolicy, deletePolicy, evaluatePolicy } from '@/lib/api'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -263,19 +261,10 @@ function PolicyFormDialog({
           .filter(Boolean),
       }
 
-      const url = isEdit
-        ? `${API_BASE_URL}/api/v1/policies/${editPolicy.id}`
-        : `${API_BASE_URL}/api/v1/policies`
-      const method = isEdit ? 'PATCH' : 'POST'
-
-      const response = await apiCall(url, {
-        method,
-        body: JSON.stringify(body),
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.detail || `Failed to ${isEdit ? 'update' : 'create'} policy`)
+      if (isEdit) {
+        await updatePolicy(editPolicy.id, body as unknown as Parameters<typeof updatePolicy>[1])
+      } else {
+        await createPolicy(body as unknown as Parameters<typeof createPolicy>[0])
       }
 
       onSuccess()
@@ -461,20 +450,10 @@ function EvaluationDialog({
     setResult(null)
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/policies/evaluate`, {
-        method: 'POST',
-        body: JSON.stringify({
-          policy_id: selectedPolicyId,
-          context,
-        }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.detail || 'Failed to evaluate policy')
-      }
-
-      const data: EvaluationResult = await response.json()
+      const data = await evaluatePolicy({
+        policy_id: selectedPolicyId,
+        context,
+      } as unknown as Parameters<typeof evaluatePolicy>[0]) as unknown as EvaluationResult
       setResult(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Evaluation failed')
@@ -620,16 +599,8 @@ export default function PoliciesPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await apiCall(`${API_BASE_URL}/api/v1/policies`)
-
-      if (response.status === 404) {
-        setPolicies([])
-      } else if (!response.ok) {
-        throw new Error('Failed to fetch policies')
-      } else {
-        const data = await response.json()
-        setPolicies(Array.isArray(data) ? data : data.items || [])
-      }
+      const data = await listPolicies() as unknown as Policy[] | { items?: Policy[] }
+      setPolicies(Array.isArray(data) ? data : data.items || [])
     } catch (err) {
       console.error('Failed to fetch policies:', err)
       setError(err instanceof Error ? err.message : 'Failed to load policies')
@@ -655,14 +626,7 @@ export default function PoliciesPage() {
     if (!deleteTarget) return
     setActionLoading(true)
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/policies/${deleteTarget.id}`,
-        { method: 'DELETE' }
-      )
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.detail || 'Failed to delete policy')
-      }
+      await deletePolicy(deleteTarget.id)
       setSuccess(`Policy "${deleteTarget.name}" has been deleted.`)
       setDeleteTarget(null)
       fetchPolicies()

@@ -6,7 +6,8 @@ import { Badge } from '@janua/ui'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@janua/ui'
 import Link from 'next/link'
 import { FileCheck, ArrowLeft, Shield, Settings, FileText, Loader2, AlertCircle } from 'lucide-react'
-import { apiCall } from '../../lib/auth'
+import { getDataSubjectRequests, getConsents, createDataSubjectRequest, getPrivacySettings, updatePrivacySettings, withdrawConsent } from '@/lib/api'
+import { januaClient } from '@/lib/janua-client'
 
 import type { DataSubjectRequest, ConsentRecord, PrivacyPreferences, UserData, DataSubjectRightType } from './types'
 import { DEFAULT_PRIVACY_PREFERENCES } from './constants'
@@ -17,8 +18,6 @@ import {
   ConsentRecords,
   PrivacyRightsInfo,
 } from './components'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
 export default function CompliancePage() {
   const [loading, setLoading] = useState(true)
@@ -62,43 +61,20 @@ export default function CompliancePage() {
       setError(null)
 
       // Fetch current user
-      const meResponse = await apiCall(`${API_BASE_URL}/api/v1/auth/me`)
-      if (!meResponse.ok) throw new Error('Failed to fetch user info')
-      const userData = await meResponse.json()
-      setUser(userData)
+      const userData = await januaClient.auth.getCurrentUser()
+      setUser(userData as unknown as UserData)
 
-      // Fetch DSR requests
-      try {
-        const requestsResponse = await apiCall(`${API_BASE_URL}/api/v1/compliance/data-subject-requests`)
-        if (requestsResponse.ok) {
-          const requestsData = await requestsResponse.json()
-          setRequests(Array.isArray(requestsData) ? requestsData : requestsData.requests || [])
-        }
-      } catch {
-        setRequests([])
-      }
+      // Fetch DSR requests, consent records, and privacy preferences in parallel
+      const [requestsData, consentsData, prefsData] = await Promise.all([
+        getDataSubjectRequests().catch(() => []),
+        getConsents().catch(() => []),
+        getPrivacySettings().catch(() => ({})),
+      ])
 
-      // Fetch consent records
-      try {
-        const consentsResponse = await apiCall(`${API_BASE_URL}/api/v1/compliance/consent`)
-        if (consentsResponse.ok) {
-          const consentsData = await consentsResponse.json()
-          setConsents(Array.isArray(consentsData) ? consentsData : consentsData.consents || [])
-        }
-      } catch {
-        setConsents([])
-      }
-
-      // Fetch privacy preferences
-      try {
-        const prefsResponse = await apiCall(`${API_BASE_URL}/api/v1/compliance/privacy-settings`)
-        if (prefsResponse.ok) {
-          const prefsData = await prefsResponse.json()
-          setPreferences(prefsData.preferences || prefsData || {})
-        }
-      } catch {
-        setPreferences({})
-      }
+      setRequests(Array.isArray(requestsData) ? requestsData as unknown as DataSubjectRequest[] : [])
+      setConsents(Array.isArray(consentsData) ? consentsData as unknown as ConsentRecord[] : [])
+      const prefs = (prefsData as Record<string, unknown>).preferences || prefsData || {}
+      setPreferences(prefs as Partial<PrivacyPreferences>)
     } catch (err) {
       console.error('Failed to fetch compliance data:', err)
       setError(err instanceof Error ? err.message : 'Failed to load compliance data')
@@ -113,21 +89,10 @@ export default function CompliancePage() {
 
     setSubmitting(true)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/compliance/data-subject-requests`, {
-        method: 'POST',
-        body: JSON.stringify({
-          user_id: user.id,
-          request_type: dsrType,
-          reason: dsrReason || undefined,
-          email: user.email,
-          verification_method: 'email',
-        }),
+      await createDataSubjectRequest({
+        type: dsrType,
+        reason: dsrReason || undefined,
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to submit request')
-      }
 
       setDsrReason('')
       fetchData()
@@ -144,18 +109,10 @@ export default function CompliancePage() {
 
     setSubmitting(true)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/compliance/privacy-settings`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          user_id: user.id,
-          preferences: localPrefs,
-        }),
+      await updatePrivacySettings({
+        user_id: user.id,
+        preferences: localPrefs,
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to save settings')
-      }
 
       setPreferences(localPrefs)
       alert('Privacy settings saved successfully')
@@ -168,11 +125,7 @@ export default function CompliancePage() {
 
   const handleWithdrawConsent = async (consent: ConsentRecord) => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/compliance/consent/${consent.purpose}`, {
-        method: 'DELETE',
-        body: JSON.stringify({ user_id: user?.id }),
-      })
-      if (!response.ok) throw new Error('Failed to withdraw consent')
+      await withdrawConsent(consent.purpose, { user_id: user?.id })
       fetchData()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to withdraw consent')

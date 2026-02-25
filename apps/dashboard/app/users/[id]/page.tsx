@@ -35,12 +35,11 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react'
-import { apiCall } from '@/lib/auth'
+import { januaClient } from '@/lib/janua-client'
+import { getUserDetail, getUserSessions, getUserOrganizations, suspendUser, reactivateUser, unlockUser, resetPassword, deleteUser } from '@/lib/api'
 import { StatusBadge } from '@/components/users/status-badge'
 import { RoleBadge } from '@/components/users/role-badge'
 import type { UserStatus, UserRole } from '@/components/users/types'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
 interface UserDetail {
   id: string
@@ -120,11 +119,7 @@ function UserDetailContent() {
       setLoading(true)
       setError(null)
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/users/${userId}`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch user details')
-      }
-      const userData = await response.json()
+      const userData = await getUserDetail(userId) as unknown as UserDetail
       setUser(userData)
     } catch (err) {
       console.error('Failed to fetch user:', err)
@@ -136,11 +131,9 @@ function UserDetailContent() {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/admin/users/${userId}/sessions`)
-      if (response.ok) {
-        const data = await response.json()
-        setSessions(data.items || data || [])
-      }
+      const data = await getUserSessions(userId) as unknown as SessionInfo[] | { items: SessionInfo[] }
+      const items = Array.isArray(data) ? data : (data as { items: SessionInfo[] }).items || []
+      setSessions(items)
     } catch {
       // Sessions fetch is optional
     }
@@ -148,11 +141,9 @@ function UserDetailContent() {
 
   const fetchOrganizations = useCallback(async () => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/admin/users/${userId}/organizations`)
-      if (response.ok) {
-        const data = await response.json()
-        setOrganizations(data.items || data || [])
-      }
+      const data = await getUserOrganizations(userId) as unknown as OrgMembership[] | { items: OrgMembership[] }
+      const items = Array.isArray(data) ? data : (data as { items: OrgMembership[] }).items || []
+      setOrganizations(items)
     } catch {
       // Orgs fetch is optional
     }
@@ -167,31 +158,22 @@ function UserDetailContent() {
   const handleAction = async (action: string) => {
     setActionLoading(action)
     try {
-      let endpoint = ''
-      let method = 'POST'
-
       switch (action) {
         case 'suspend':
-          endpoint = `/api/v1/users/${userId}/suspend`
+          await suspendUser(userId)
           break
         case 'reactivate':
-          endpoint = `/api/v1/users/${userId}/reactivate`
+          await reactivateUser(userId)
           break
         case 'unlock':
-          endpoint = `/api/v1/admin/users/${userId}/unlock`
+          await unlockUser(userId)
           break
         case 'delete':
-          endpoint = `/api/v1/admin/users/${userId}`
-          method = 'DELETE'
+          await deleteUser(userId)
           break
         case 'reset_password':
-          endpoint = `/api/v1/users/${userId}/reset-password`
+          await resetPassword(userId)
           break
-      }
-
-      const response = await apiCall(`${API_BASE_URL}${endpoint}`, { method })
-      if (!response.ok) {
-        throw new Error(`Failed to ${action} user`)
       }
 
       if (action === 'delete') {
@@ -209,7 +191,7 @@ function UserDetailContent() {
 
   const revokeSession = async (sessionId: string) => {
     try {
-      await apiCall(`${API_BASE_URL}/api/v1/sessions/${sessionId}`, { method: 'DELETE' })
+      await januaClient.sessions.revokeSession(sessionId)
       await fetchSessions()
     } catch (err) {
       console.error('Failed to revoke session:', err)

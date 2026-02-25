@@ -21,7 +21,7 @@ import {
   Settings,
   RefreshCw,
 } from 'lucide-react'
-import { apiCall } from '../../../lib/auth'
+import { januaClient } from '@/lib/janua-client'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
@@ -89,12 +89,10 @@ export default function SSOSettingsPage() {
       setError(null)
 
       // First get the current user's organization
-      const meResponse = await apiCall(`${API_BASE_URL}/api/v1/auth/me`)
-      if (!meResponse.ok) throw new Error('Failed to fetch user info')
-      const userData = await meResponse.json()
+      const userData = await januaClient.auth.getCurrentUser()
 
       // Get organization ID from user data or memberships
-      const orgId = userData.current_organization_id || userData.organization_id
+      const orgId = (userData as any).current_organization_id || (userData as any).organization_id
       if (!orgId) {
         setError('No organization found. Please join or create an organization first.')
         setLoading(false)
@@ -103,15 +101,15 @@ export default function SSOSettingsPage() {
       setOrganizationId(orgId)
 
       // Fetch SSO configurations
-      const response = await apiCall(`${API_BASE_URL}/api/v1/sso/configurations/${orgId}`)
-
-      if (response.status === 404) {
-        setConfigurations([])
-      } else if (!response.ok) {
-        throw new Error('Failed to fetch SSO configurations')
-      } else {
-        const data = await response.json()
-        setConfigurations(Array.isArray(data) ? data : data ? [data] : [])
+      try {
+        const data = await januaClient.sso.getConfiguration(orgId)
+        setConfigurations(Array.isArray(data) ? data : data ? [data as unknown as SSOConfiguration] : [])
+      } catch (fetchErr: any) {
+        if (fetchErr?.status === 404 || fetchErr?.message?.includes('404')) {
+          setConfigurations([])
+        } else {
+          throw fetchErr
+        }
       }
     } catch (err) {
       console.error('Failed to fetch SSO configurations:', err)
@@ -124,15 +122,7 @@ export default function SSOSettingsPage() {
   const handleTest = async (configId: string) => {
     setTesting(configId)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/sso/test`, {
-        method: 'POST',
-        body: JSON.stringify({ configuration_id: configId }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Connection test failed')
-      }
+      await januaClient.sso.testConfiguration(configId)
 
       alert('Connection test successful!')
       fetchConfigurations()
@@ -145,13 +135,11 @@ export default function SSOSettingsPage() {
 
   const handleToggle = async (configId: string, enabled: boolean) => {
     try {
-      const endpoint = enabled
-        ? `${API_BASE_URL}/api/v1/sso/configurations/${organizationId}/enable`
-        : `${API_BASE_URL}/api/v1/sso/configurations/${organizationId}/disable`
-
-      const response = await apiCall(endpoint, { method: 'POST' })
-
-      if (!response.ok) throw new Error('Failed to update configuration')
+      if (enabled) {
+        await januaClient.sso.enableConfiguration(organizationId!)
+      } else {
+        await januaClient.sso.disableConfiguration(organizationId!)
+      }
 
       fetchConfigurations()
     } catch (err) {
@@ -163,11 +151,7 @@ export default function SSOSettingsPage() {
     if (!confirm('Are you sure you want to delete this SSO configuration?')) return
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/sso/configurations/${organizationId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) throw new Error('Failed to delete configuration')
+      await januaClient.sso.deleteConfiguration(organizationId!)
 
       fetchConfigurations()
     } catch (err) {
@@ -201,15 +185,7 @@ export default function SSOSettingsPage() {
         payload.oidc_client_secret = configFormData.oidc_client_secret
       }
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/sso/configurations/${organizationId}`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to configure SSO')
-      }
+      await januaClient.sso.createConfiguration(organizationId!, payload as any)
 
       setShowConfigForm(null)
       setConfigFormData({

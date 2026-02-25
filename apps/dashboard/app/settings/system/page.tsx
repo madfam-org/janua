@@ -22,9 +22,7 @@ import {
   ShieldAlert,
   RefreshCw,
 } from 'lucide-react'
-import { apiCall } from '../../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { getCorsOrigins, addCorsOrigin, deleteCorsOrigin, getSystemSettings, updateSystemSetting } from '@/lib/api'
 
 interface CorsOrigin {
   id: string
@@ -81,20 +79,20 @@ export default function SystemSettingsPage() {
       setLoading(true)
       setError(null)
 
-      const [corsResponse, settingsResponse] = await Promise.allSettled([
-        apiCall(`${API_BASE_URL}/api/v1/admin/settings/cors`),
-        apiCall(`${API_BASE_URL}/api/v1/admin/settings`),
+      const [corsResult, settingsResult] = await Promise.allSettled([
+        getCorsOrigins(),
+        getSystemSettings(),
       ])
 
-      if (corsResponse.status === 'fulfilled' && corsResponse.value.ok) {
-        const data = await corsResponse.value.json()
-        setCorsOrigins(Array.isArray(data) ? data : data.origins || [])
+      if (corsResult.status === 'fulfilled') {
+        const data = corsResult.value
+        setCorsOrigins(Array.isArray(data) ? data as unknown as CorsOrigin[] : (data as unknown as { origins?: CorsOrigin[] }).origins || [])
       }
 
-      if (settingsResponse.status === 'fulfilled' && settingsResponse.value.ok) {
-        const data = await settingsResponse.value.json()
+      if (settingsResult.status === 'fulfilled') {
+        const data = settingsResult.value
         // Merge with defaults so any missing keys are filled in
-        setSettings({ ...defaultSettings, ...data })
+        setSettings({ ...defaultSettings, ...data } as SystemSettings)
       }
     } catch (err) {
       console.error('Failed to fetch system settings:', err)
@@ -140,18 +138,8 @@ export default function SystemSettingsPage() {
       setAddingOrigin(true)
       setError(null)
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/admin/settings/cors`, {
-        method: 'POST',
-        body: JSON.stringify({ origin: trimmedOrigin }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to add CORS origin')
-      }
-
-      const added = await response.json()
-      setCorsOrigins((prev) => [...prev, added])
+      const added = await addCorsOrigin({ origin: trimmedOrigin })
+      setCorsOrigins((prev) => [...prev, added as unknown as CorsOrigin])
       setNewOrigin('')
       setSuccess('CORS origin added')
       setTimeout(() => setSuccess(null), 3000)
@@ -168,14 +156,7 @@ export default function SystemSettingsPage() {
     try {
       setError(null)
 
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/admin/settings/cors/${originId}`,
-        { method: 'DELETE' }
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to remove CORS origin')
-      }
+      await deleteCorsOrigin(originId)
 
       setCorsOrigins((prev) => prev.filter((o) => o.id !== originId))
       setSuccess('CORS origin removed')
@@ -191,10 +172,7 @@ export default function SystemSettingsPage() {
       setError(null)
 
       const updates = keys.map((key) =>
-        apiCall(`${API_BASE_URL}/api/v1/admin/settings/${key}`, {
-          method: 'PUT',
-          body: JSON.stringify({ value: settings[key] }),
-        })
+        updateSystemSetting(key, { value: settings[key] })
       )
 
       const results = await Promise.allSettled(updates)
@@ -202,14 +180,6 @@ export default function SystemSettingsPage() {
 
       if (failures.length > 0) {
         throw new Error(`Failed to save ${failures.length} setting(s)`)
-      }
-
-      // Check HTTP status
-      for (const result of results) {
-        if (result.status === 'fulfilled' && !result.value.ok) {
-          const errorData = await result.value.json().catch(() => ({}))
-          throw new Error(errorData.detail || 'Failed to save settings')
-        }
       }
 
       setDirtySection((prev) => {

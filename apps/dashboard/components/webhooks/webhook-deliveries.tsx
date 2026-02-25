@@ -21,9 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
-import { apiCall } from '../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { januaClient } from '@/lib/janua-client'
 
 interface WebhookDelivery {
   id: string
@@ -66,18 +64,10 @@ export function WebhookDeliveries({ endpointId, open, onOpenChange }: WebhookDel
     setLoading(true)
     setError(null)
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/webhooks/${endpointId}/deliveries?page=${page}&page_size=${pageSize}`
-      )
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Authentication required')
-        }
-        throw new Error('Failed to fetch delivery history')
-      }
-
-      const data: DeliveriesResponse = await response.json()
+      const data = await januaClient.webhooks.listDeliveries(endpointId, {
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }) as unknown as DeliveriesResponse
       setDeliveries(data.deliveries || [])
       setTotal(data.total || 0)
     } catch (err) {
@@ -103,15 +93,9 @@ export function WebhookDeliveries({ endpointId, open, onOpenChange }: WebhookDel
   const retryDelivery = async (deliveryId: string) => {
     setRetrying(deliveryId)
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/webhooks/${endpointId}/deliveries/${deliveryId}/retry`,
-        { method: 'POST' }
+      await januaClient.http.post(
+        `/api/v1/webhooks/${endpointId}/deliveries/${deliveryId}/retry`
       )
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => null)
-        throw new Error(data?.detail || 'Failed to retry delivery')
-      }
 
       await fetchDeliveries()
     } catch (err) {

@@ -21,9 +21,7 @@ import {
   EyeOff,
   RefreshCw,
 } from 'lucide-react'
-import { apiCall } from '../../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { listApiKeys, createApiKey, revokeApiKey } from '@/lib/api'
 
 interface ApiKey {
   id: string
@@ -81,16 +79,8 @@ export default function ApiKeysPage() {
       setLoading(true)
       setError(null)
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/api-keys`)
-
-      if (response.status === 404) {
-        setApiKeys([])
-      } else if (!response.ok) {
-        throw new Error('Failed to fetch API keys')
-      } else {
-        const data = await response.json()
-        setApiKeys(Array.isArray(data) ? data : data.items || [])
-      }
+      const data = await listApiKeys()
+      setApiKeys(Array.isArray(data) ? data as unknown as ApiKey[] : [])
     } catch (err) {
       console.error('Failed to fetch API keys:', err)
       setError(err instanceof Error ? err.message : 'Failed to load API keys')
@@ -114,21 +104,11 @@ export default function ApiKeysPage() {
     setError(null)
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/api-keys`, {
-        method: 'POST',
-        body: JSON.stringify({
-          name: newKeyName.trim(),
-          scopes: selectedScopes,
-        }),
+      const data = await createApiKey({
+        name: newKeyName.trim(),
+        permissions: selectedScopes,
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to create API key')
-      }
-
-      const data: NewApiKeyResponse = await response.json()
-      setNewKeyResponse(data)
+      setNewKeyResponse(data as unknown as NewApiKeyResponse)
       setSuccess('API key created successfully! Copy it now - you won\'t be able to see it again.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create API key')
@@ -155,13 +135,7 @@ export default function ApiKeysPage() {
     }
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/api-keys/${keyId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to revoke API key')
-      }
+      await revokeApiKey(keyId)
 
       setSuccess('API key revoked successfully')
       setTimeout(() => setSuccess(null), 3000)

@@ -23,9 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@janua/ui'
 import { Input } from '@janua/ui'
-import { apiCall } from '../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { januaClient } from '@/lib/janua-client'
 
 interface Session {
   id: string
@@ -60,14 +58,8 @@ export function SessionList() {
       setLoading(true)
       setError(null)
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/sessions`)
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch sessions')
-      }
-
-      const data = await response.json()
-      const sessionList = data.items || data || []
+      const data = await januaClient.sessions.listSessions()
+      const sessionList = (data as any).items || data || []
 
       // Normalize session data
       const normalized: Session[] = sessionList.map((s: any) => ({
@@ -103,12 +95,7 @@ export function SessionList() {
   const revokeSession = async (sessionId: string) => {
     try {
       setRevokingId(sessionId)
-      const response = await apiCall(`${API_BASE_URL}/api/v1/sessions/${sessionId}`, {
-        method: 'DELETE',
-      })
-      if (!response.ok) {
-        throw new Error('Failed to revoke session')
-      }
+      await januaClient.sessions.revokeSession(sessionId)
       await fetchSessions()
     } catch (err) {
       console.error('Failed to revoke session:', err)
@@ -120,12 +107,7 @@ export function SessionList() {
   const revokeAllSessions = async () => {
     try {
       setRevokingAll(true)
-      const response = await apiCall(`${API_BASE_URL}/api/v1/sessions`, {
-        method: 'DELETE',
-      })
-      if (!response.ok) {
-        throw new Error('Failed to revoke all sessions')
-      }
+      await januaClient.sessions.revokeAllSessions()
       await fetchSessions()
     } catch (err) {
       console.error('Failed to revoke all sessions:', err)

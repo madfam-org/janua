@@ -24,14 +24,13 @@ import {
   TableHeader,
   TableRow,
 } from '@janua/ui'
-import { apiCall } from '../../lib/auth'
+import { januaClient } from '@/lib/janua-client'
+import { suspendUser, reactivateUser, banUser, unbanUser, unlockUser, resetPassword, deleteUser } from '@/lib/api'
 import type { User, UserAction, UserActionType } from './types'
 import { columns } from './columns'
 import { FacetedFilter } from './faceted-filter'
 import { BulkActionsToolbar } from './bulk-actions-toolbar'
 import { ActionDialog } from './action-dialog'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
 // Filter options
 const STATUS_OPTIONS = [
@@ -84,25 +83,19 @@ export function UsersDataTable({ initialPage = 1, pageSize = 20 }: UsersDataTabl
       setLoading(true)
       setError(null)
 
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: pageSize.toString(),
-      })
+      const parsedParams: Record<string, any> = {
+        page,
+        per_page: pageSize,
+      }
 
       if (statusFilter.length === 1) {
-        params.set('status', statusFilter[0])
+        parsedParams.status = statusFilter[0]
       }
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/admin/users?${params}`)
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch users')
-      }
-
-      const result = await response.json()
+      const result = await januaClient.admin.listAllUsers(parsedParams as any)
 
       // Handle both paginated response and array response
-      const users: User[] = (result.items || result || []).map((u: any) => ({
+      const users: User[] = (result.data || []).map((u: any) => ({
         id: u.id,
         email: u.email,
         firstName: u.first_name || u.firstName || u.email?.split('@')[0] || 'Unknown',
@@ -122,7 +115,7 @@ export function UsersDataTable({ initialPage = 1, pageSize = 20 }: UsersDataTabl
 
       setData(users)
       setTotalUsers(result.total || users.length)
-      setTotalPages(result.pages || Math.ceil((result.total || users.length) / pageSize))
+      setTotalPages(result.total_pages || Math.ceil((result.total || users.length) / pageSize))
       setCurrentPage(page)
     } catch (err) {
       console.error('Failed to fetch users:', err)
@@ -164,39 +157,25 @@ export function UsersDataTable({ initialPage = 1, pageSize = 20 }: UsersDataTabl
 
       switch (type) {
         case 'reset_password':
-          await apiCall(`${API_BASE_URL}/api/v1/users/${userId}/reset-password`, {
-            method: 'POST',
-          })
+          await resetPassword(userId)
           break
         case 'suspend':
-          await apiCall(`${API_BASE_URL}/api/v1/users/${userId}/suspend`, {
-            method: 'POST',
-          })
+          await suspendUser(userId)
           break
         case 'reactivate':
-          await apiCall(`${API_BASE_URL}/api/v1/users/${userId}/reactivate`, {
-            method: 'POST',
-          })
+          await reactivateUser(userId)
           break
         case 'ban':
-          await apiCall(`${API_BASE_URL}/api/v1/users/${userId}/ban`, {
-            method: 'POST',
-          })
+          await banUser(userId)
           break
         case 'unban':
-          await apiCall(`${API_BASE_URL}/api/v1/users/${userId}/unban`, {
-            method: 'POST',
-          })
+          await unbanUser(userId)
           break
         case 'unlock':
-          await apiCall(`${API_BASE_URL}/api/v1/admin/users/${userId}/unlock`, {
-            method: 'POST',
-          })
+          await unlockUser(userId)
           break
         case 'delete':
-          await apiCall(`${API_BASE_URL}/api/v1/admin/users/${userId}`, {
-            method: 'DELETE',
-          })
+          await deleteUser(userId)
           break
         case 'change_role':
           // TODO: Open role selection dialog
@@ -221,13 +200,13 @@ export function UsersDataTable({ initialPage = 1, pageSize = 20 }: UsersDataTabl
       try {
         switch (actionType) {
           case 'ban':
-            await apiCall(`${API_BASE_URL}/api/v1/users/${userId}/ban`, { method: 'POST' })
+            await banUser(userId)
             break
           case 'delete':
-            await apiCall(`${API_BASE_URL}/api/v1/admin/users/${userId}`, { method: 'DELETE' })
+            await deleteUser(userId)
             break
           case 'reset_password':
-            await apiCall(`${API_BASE_URL}/api/v1/users/${userId}/reset-password`, { method: 'POST' })
+            await resetPassword(userId)
             break
         }
       } catch (err) {

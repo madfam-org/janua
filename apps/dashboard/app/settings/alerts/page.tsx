@@ -22,9 +22,18 @@ import {
   Settings,
   Trash2,
 } from 'lucide-react'
-import { apiCall } from '../../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import {
+  getActiveAlerts,
+  getAlertChannels,
+  getAlertRules,
+  acknowledgeAlert,
+  resolveAlert,
+  createChannel,
+  deleteChannel,
+  createRule,
+  deleteRule,
+  toggleRule,
+} from '@/lib/api'
 
 interface Alert {
   id: string
@@ -108,26 +117,15 @@ export default function AlertsPage() {
       setLoading(true)
       setError(null)
 
-      // Fetch active alerts
-      const alertsResponse = await apiCall(`${API_BASE_URL}/api/v1/alerts/active`)
-      if (alertsResponse.ok) {
-        const data = await alertsResponse.json()
-        setActiveAlerts(Array.isArray(data) ? data : data.alerts || [])
-      }
+      const [alertsData, channelsData, rulesData] = await Promise.all([
+        getActiveAlerts().catch(() => []),
+        getAlertChannels().catch(() => []),
+        getAlertRules().catch(() => []),
+      ])
 
-      // Fetch notification channels
-      const channelsResponse = await apiCall(`${API_BASE_URL}/api/v1/alerts/channels`)
-      if (channelsResponse.ok) {
-        const data = await channelsResponse.json()
-        setChannels(Array.isArray(data) ? data : data.channels || [])
-      }
-
-      // Fetch alert rules
-      const rulesResponse = await apiCall(`${API_BASE_URL}/api/v1/alerts/rules`)
-      if (rulesResponse.ok) {
-        const data = await rulesResponse.json()
-        setRules(Array.isArray(data) ? data : data.rules || [])
-      }
+      setActiveAlerts(Array.isArray(alertsData) ? alertsData as unknown as Alert[] : [])
+      setChannels(Array.isArray(channelsData) ? channelsData as unknown as AlertChannel[] : [])
+      setRules(Array.isArray(rulesData) ? rulesData as unknown as AlertRule[] : [])
     } catch (err) {
       console.error('Failed to fetch alert data:', err)
       setError(err instanceof Error ? err.message : 'Failed to load alert configuration')
@@ -138,12 +136,7 @@ export default function AlertsPage() {
 
   const handleAcknowledge = async (alertId: string) => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/alerts/${alertId}/acknowledge`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) throw new Error('Failed to acknowledge alert')
-
+      await acknowledgeAlert(alertId)
       setSuccess('Alert acknowledged')
       setTimeout(() => setSuccess(null), 3000)
       fetchAlertData()
@@ -154,12 +147,7 @@ export default function AlertsPage() {
 
   const handleResolve = async (alertId: string) => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/alerts/${alertId}/resolve`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) throw new Error('Failed to resolve alert')
-
+      await resolveAlert(alertId)
       setSuccess('Alert resolved')
       setTimeout(() => setSuccess(null), 3000)
       fetchAlertData()
@@ -175,16 +163,7 @@ export default function AlertsPage() {
     }
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/alerts/channels`, {
-        method: 'POST',
-        body: JSON.stringify(newChannel),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to create notification channel')
-      }
-
+      await createChannel(newChannel)
       setSuccess('Notification channel created')
       setTimeout(() => setSuccess(null), 3000)
       setShowChannelForm(false)
@@ -199,12 +178,7 @@ export default function AlertsPage() {
     if (!confirm('Are you sure you want to delete this notification channel?')) return
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/alerts/channels/${channelId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) throw new Error('Failed to delete channel')
-
+      await deleteChannel(channelId)
       setSuccess('Channel deleted')
       setTimeout(() => setSuccess(null), 3000)
       fetchAlertData()
@@ -215,13 +189,7 @@ export default function AlertsPage() {
 
   const handleToggleRule = async (ruleId: string, enabled: boolean) => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/alerts/rules/${ruleId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ enabled }),
-      })
-
-      if (!response.ok) throw new Error('Failed to update rule')
-
+      await toggleRule(ruleId, enabled)
       fetchAlertData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update rule')
@@ -238,22 +206,13 @@ export default function AlertsPage() {
     setError(null)
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/alerts/rules`, {
-        method: 'POST',
-        body: JSON.stringify({
-          name: newRule.name.trim(),
-          condition: newRule.condition,
-          threshold: newRule.threshold,
-          severity: newRule.severity,
-          channels: newRule.channels,
-          enabled: true,
-        }),
+      await createRule({
+        name: newRule.name.trim(),
+        condition: newRule.condition,
+        threshold: newRule.threshold,
+        channel_id: newRule.channels[0] || '',
+        is_active: true,
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to create alert rule')
-      }
 
       setSuccess('Alert rule created successfully')
       setTimeout(() => setSuccess(null), 3000)
@@ -277,12 +236,7 @@ export default function AlertsPage() {
     if (!confirm('Are you sure you want to delete this alert rule?')) return
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/alerts/rules/${ruleId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) throw new Error('Failed to delete rule')
-
+      await deleteRule(ruleId)
       setSuccess('Rule deleted successfully')
       setTimeout(() => setSuccess(null), 3000)
       fetchAlertData()

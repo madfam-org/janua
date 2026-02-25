@@ -40,9 +40,7 @@ import {
   Hash,
   FileText,
 } from 'lucide-react'
-import { apiCall } from '@/lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { januaClient } from '@/lib/janua-client'
 
 interface Organization {
   id: string
@@ -132,11 +130,7 @@ function OrganizationDetailContent() {
       setLoading(true)
       setError(null)
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/organizations/${orgId}`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch organization details')
-      }
-      const orgData = await response.json()
+      const orgData = await januaClient.organizations.getOrganization(orgId) as unknown as Organization
       setOrg(orgData)
 
       // Initialize settings form
@@ -154,11 +148,9 @@ function OrganizationDetailContent() {
 
   const fetchMembers = useCallback(async () => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/organizations/${orgId}/members`)
-      if (response.ok) {
-        const data = await response.json()
-        setMembers(data.items || data || [])
-      }
+      const data = await januaClient.organizations.listMembers(orgId) as unknown as Member[] | { items: Member[] }
+      const items = Array.isArray(data) ? data : (data as { items: Member[] }).items || []
+      setMembers(items)
     } catch {
       // Members fetch is optional
     }
@@ -166,11 +158,9 @@ function OrganizationDetailContent() {
 
   const fetchRoles = useCallback(async () => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/organizations/${orgId}/roles`)
-      if (response.ok) {
-        const data = await response.json()
-        setRoles(data.items || data || [])
-      }
+      const data = await januaClient.organizations.listRoles(orgId) as unknown as OrgRole[] | { items: OrgRole[] }
+      const items = Array.isArray(data) ? data : (data as { items: OrgRole[] }).items || []
+      setRoles(items)
     } catch {
       // Roles fetch is optional
     }
@@ -187,13 +177,7 @@ function OrganizationDetailContent() {
 
     setActionLoading('invite')
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/organizations/${orgId}/invite`, {
-        method: 'POST',
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
-      })
-      if (!response.ok) {
-        throw new Error('Failed to invite member')
-      }
+      await januaClient.organizations.inviteMember(orgId, { email: inviteEmail, role: inviteRole as any })
 
       setInviteEmail('')
       setInviteRole('member')
@@ -209,16 +193,7 @@ function OrganizationDetailContent() {
   const handleChangeRole = async (userId: string, newRole: string) => {
     setActionLoading(`role-${userId}`)
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/organizations/${orgId}/members/${userId}/role`,
-        {
-          method: 'PUT',
-          body: JSON.stringify({ role: newRole }),
-        }
-      )
-      if (!response.ok) {
-        throw new Error('Failed to change role')
-      }
+      await januaClient.organizations.updateMemberRole(orgId, userId, newRole as any)
 
       setRoleChangeUserId(null)
       setRoleChangeValue('')
@@ -233,13 +208,7 @@ function OrganizationDetailContent() {
   const handleRemoveMember = async (userId: string) => {
     setActionLoading(`remove-${userId}`)
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/organizations/${orgId}/members/${userId}`,
-        { method: 'DELETE' }
-      )
-      if (!response.ok) {
-        throw new Error('Failed to remove member')
-      }
+      await januaClient.organizations.removeMember(orgId, userId)
 
       await fetchMembers()
     } catch (err) {
@@ -252,17 +221,11 @@ function OrganizationDetailContent() {
   const handleUpdateSettings = async () => {
     setActionLoading('settings')
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/organizations/${orgId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          name: editName,
-          slug: editSlug,
-          description: editDescription,
-        }),
-      })
-      if (!response.ok) {
-        throw new Error('Failed to update organization')
-      }
+      await januaClient.organizations.updateOrganization(orgId, {
+        name: editName,
+        slug: editSlug,
+        description: editDescription,
+      } as any)
 
       setSettingsDirty(false)
       await fetchOrg()
@@ -278,12 +241,7 @@ function OrganizationDetailContent() {
 
     setActionLoading('delete')
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/organizations/${orgId}`, {
-        method: 'DELETE',
-      })
-      if (!response.ok) {
-        throw new Error('Failed to delete organization')
-      }
+      await januaClient.organizations.deleteOrganization(orgId)
 
       router.push('/organizations')
     } catch (err) {
@@ -298,16 +256,7 @@ function OrganizationDetailContent() {
 
     setActionLoading('transfer')
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/organizations/${orgId}/transfer-ownership`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ user_id: transferUserId }),
-        }
-      )
-      if (!response.ok) {
-        throw new Error('Failed to transfer ownership')
-      }
+      await januaClient.organizations.transferOwnership(orgId, transferUserId)
 
       setTransferUserId('')
       await fetchOrg()
@@ -322,13 +271,7 @@ function OrganizationDetailContent() {
   const handleCreateRole = async (roleName: string, roleDescription: string) => {
     setActionLoading('create-role')
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/organizations/${orgId}/roles`, {
-        method: 'POST',
-        body: JSON.stringify({ name: roleName, description: roleDescription, permissions: [] }),
-      })
-      if (!response.ok) {
-        throw new Error('Failed to create role')
-      }
+      await januaClient.organizations.createCustomRole(orgId, { name: roleName, description: roleDescription, permissions: [] })
 
       await fetchRoles()
     } catch (err) {

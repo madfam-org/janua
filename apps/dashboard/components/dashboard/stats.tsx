@@ -3,10 +3,7 @@
 import { Card, CardContent, CardDescription as _CardDescription, CardHeader, CardTitle } from '@janua/ui'
 import { Users, Shield, Key, Activity, TrendingUp, TrendingDown } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { apiCall } from '@/lib/auth'
-
-// API base URL for production
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { januaClient } from '@/lib/janua-client'
 
 interface StatCard {
   title: string
@@ -31,13 +28,7 @@ export function DashboardStats() {
       setError(null)
 
       // Use the real admin stats endpoint
-      const response = await apiCall(`${API_BASE_URL}/api/v1/admin/stats`)
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch stats')
-      }
-
-      const data = await response.json()
+      const data = await januaClient.admin.getStats()
 
       // Map API response to stat cards
       // API returns: total_users, active_users, suspended_users, total_sessions, active_sessions, total_organizations

@@ -3,10 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@janua/ui'
 import { MoreHorizontal, Search, Filter, Download, Loader2, AlertCircle } from 'lucide-react'
-import { apiCall } from '../../lib/auth'
-
-// API base URL for production - use public API URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { januaClient } from '@/lib/janua-client'
 
 interface Identity {
   id: string
@@ -26,8 +23,8 @@ interface ActivityLog {
   details: {
     method?: string
   }
-  ip_address: string
-  user_agent: string
+  ip_address?: string
+  user_agent?: string
   created_at: string
 }
 
@@ -53,13 +50,8 @@ export function IdentityList() {
       setError(null)
 
       // Fetch activity logs to derive user information
-      const activityResponse = await apiCall(`${API_BASE_URL}/api/v1/admin/activity-logs?per_page=100`)
-
-      if (!activityResponse.ok) {
-        throw new Error('Failed to fetch activity logs')
-      }
-
-      const activityLogs: ActivityLog[] = await activityResponse.json()
+      const response = await januaClient.admin.getActivityLogs({ per_page: 100 })
+      const activityLogs: ActivityLog[] = response.data
 
       // Extract unique users from activity logs
       const userMap = new Map<string, Identity>()

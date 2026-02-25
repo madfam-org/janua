@@ -23,9 +23,7 @@ import {
   ChevronRight,
   Star,
 } from 'lucide-react'
-import { apiCall } from '../../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { listRoles, listSystemRoles, listPermissions, createRole, updateRole, deleteRole } from '@/lib/api'
 
 interface Role {
   id: string
@@ -93,26 +91,16 @@ export default function RolesPage() {
       setError(null)
 
       // Fetch roles, system roles, and permissions in parallel
-      const [rolesRes, systemRolesRes, permissionsRes] = await Promise.all([
-        apiCall(`${API_BASE_URL}/api/v1/roles`),
-        apiCall(`${API_BASE_URL}/api/v1/roles/system`),
-        apiCall(`${API_BASE_URL}/api/v1/roles/permissions`),
+      const [rolesData, systemRolesData, permissionsData] = await Promise.all([
+        listRoles(),
+        listSystemRoles(),
+        listPermissions(),
       ])
 
-      if (rolesRes.ok) {
-        const data = await rolesRes.json()
-        setRoles(data.items || [])
-      }
-
-      if (systemRolesRes.ok) {
-        const data = await systemRolesRes.json()
-        setSystemRoles(data)
-      }
-
-      if (permissionsRes.ok) {
-        const data = await permissionsRes.json()
-        setAvailablePermissions(data)
-      }
+      const rolesResult = rolesData as unknown as Role[] | { items?: Role[] }
+      setRoles(Array.isArray(rolesResult) ? rolesResult : rolesResult.items || [])
+      setSystemRoles(systemRolesData as unknown as SystemRole[])
+      setAvailablePermissions(permissionsData as unknown as Permission[])
     } catch (err) {
       console.error('Failed to fetch roles data:', err)
       setError(err instanceof Error ? err.message : 'Failed to load roles')
@@ -131,19 +119,11 @@ export default function RolesPage() {
     setError(null)
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/roles`, {
-        method: 'POST',
-        body: JSON.stringify({
-          name: formName.trim(),
-          description: formDescription.trim() || null,
-          permissions: formPermissions,
-        }),
+      await createRole({
+        name: formName.trim(),
+        description: formDescription.trim() || undefined,
+        permissions: formPermissions,
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to create role')
-      }
 
       setSuccess('Role created successfully')
       setTimeout(() => setSuccess(null), 3000)
@@ -167,19 +147,11 @@ export default function RolesPage() {
     setError(null)
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/roles/${editingRole.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          name: formName.trim(),
-          description: formDescription.trim() || null,
-          permissions: formPermissions,
-        }),
+      await updateRole(editingRole.id, {
+        name: formName.trim(),
+        description: formDescription.trim() || undefined,
+        permissions: formPermissions,
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to update role')
-      }
 
       setSuccess('Role updated successfully')
       setTimeout(() => setSuccess(null), 3000)
@@ -198,14 +170,7 @@ export default function RolesPage() {
     }
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/roles/${roleId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to delete role')
-      }
+      await deleteRole(roleId)
 
       setSuccess('Role deleted successfully')
       setTimeout(() => setSuccess(null), 3000)

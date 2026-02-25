@@ -24,9 +24,8 @@ import {
   FileEdit,
   Download,
 } from 'lucide-react'
-import { apiCall } from '../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { listAuditLogs, exportAuditLogs } from '@/lib/api'
+import { AuditStream } from '@/components/audit/audit-stream'
 
 interface AuditLogEntry {
   id: string
@@ -88,6 +87,7 @@ export default function AuditLogsPage() {
   const [eventFilter, setEventFilter] = useState<string>('all')
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
+  const [showLiveFeed, setShowLiveFeed] = useState(false)
 
   useEffect(() => {
     fetchLogs()
@@ -98,31 +98,22 @@ export default function AuditLogsPage() {
       setLoading(true)
       setError(null)
 
-      const params = new URLSearchParams({
+      const params: Record<string, string> = {
         page: page.toString(),
         limit: '50',
-      })
+      }
 
       if (eventFilter !== 'all') {
-        params.append('event_type', eventFilter)
+        params.event_type = eventFilter
       }
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/audit-logs?${params}`)
-
-      if (!response.ok) {
-        if (response.status === 403) {
-          throw new Error('You do not have permission to view audit logs')
-        }
-        throw new Error('Failed to fetch audit logs')
-      }
-
-      const data = await response.json()
-      const logsList = Array.isArray(data) ? data : data.logs || data.items || []
+      const data = await listAuditLogs(params)
+      const logsList = Array.isArray(data) ? data : []
 
       if (page === 1) {
-        setLogs(logsList)
+        setLogs(logsList as unknown as AuditLogEntry[])
       } else {
-        setLogs((prev) => [...prev, ...logsList])
+        setLogs((prev) => [...prev, ...(logsList as unknown as AuditLogEntry[])])
       }
 
       setHasMore(logsList.length === 50)
@@ -168,10 +159,7 @@ export default function AuditLogsPage() {
 
   const handleExport = async () => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/audit-logs/export`)
-      if (!response.ok) throw new Error('Failed to export logs')
-
-      const blob = await response.blob()
+      const blob = await exportAuditLogs()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -203,12 +191,23 @@ export default function AuditLogsPage() {
                 </p>
               </div>
             </div>
-            <Badge variant="outline">Admin Only</Badge>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={showLiveFeed ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowLiveFeed(!showLiveFeed)}
+              >
+                {showLiveFeed ? 'Hide Live Feed' : 'Live Feed'}
+              </Button>
+              <Badge variant="outline">Admin Only</Badge>
+            </div>
           </div>
         </div>
       </header>
 
       <div className="container mx-auto space-y-6 px-4 py-8">
+        {showLiveFeed && <AuditStream />}
+
         {error && (
           <Card className="border-destructive">
             <CardContent className="pt-6">

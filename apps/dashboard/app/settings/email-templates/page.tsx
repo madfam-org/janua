@@ -25,9 +25,7 @@ import {
   MailCheck,
   Info,
 } from 'lucide-react'
-import { apiCall } from '../../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { listEmailTemplates, updateEmailTemplate, resetEmailTemplate } from '@/lib/api'
 
 interface EmailTemplate {
   id: string
@@ -137,18 +135,16 @@ export default function EmailTemplatesPage() {
       setLoading(true)
       setError(null)
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/email/templates`)
-
-      if (response.ok) {
-        const data = await response.json()
-        const templateList = Array.isArray(data) ? data : data.templates || []
+      try {
+        const data = await listEmailTemplates()
+        const templateList = Array.isArray(data) ? data as unknown as EmailTemplate[] : (data as unknown as { templates?: EmailTemplate[] }).templates || []
         setTemplates(templateList)
 
         // Auto-select the first template if none selected
         if (templateList.length > 0 && !selectedTemplate) {
           selectTemplate(templateList[0])
         }
-      } else {
+      } catch {
         // Use default placeholder templates if endpoint not available
         const defaultTemplates: EmailTemplate[] = [
           {
@@ -302,23 +298,10 @@ export default function EmailTemplatesPage() {
       setSaving(true)
       setError(null)
 
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/email/templates/${selectedTemplate.id}`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            subject: editedSubject,
-            html_body: editedBody,
-          }),
-        }
-      )
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to save template')
-      }
-
-      const updatedTemplate = await response.json()
+      const updatedTemplate = await updateEmailTemplate(selectedTemplate.id, {
+        subject: editedSubject,
+        body_html: editedBody,
+      }) as unknown as EmailTemplate
 
       setTemplates((prev) =>
         prev.map((t) => (t.id === selectedTemplate.id ? { ...t, ...updatedTemplate } : t))
@@ -346,15 +329,7 @@ export default function EmailTemplatesPage() {
       setResetting(true)
       setError(null)
 
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/email/templates/${selectedTemplate.id}/reset`,
-        { method: 'POST' }
-      )
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to reset template')
-      }
+      await resetEmailTemplate(selectedTemplate.id)
 
       setSuccess('Template reset to default')
       setTimeout(() => setSuccess(null), 3000)

@@ -20,7 +20,13 @@ import {
   Key as _Key,
   RotateCcw,
 } from 'lucide-react'
-import { apiCall } from '../../../lib/auth'
+import { januaClient } from '@/lib/janua-client'
+import {
+  getScimConfig,
+  updateScimConfig,
+  getScimStatus,
+  regenerateScimToken,
+} from '@/lib/api'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
@@ -95,12 +101,10 @@ export default function SCIMSettingsPage() {
       setError(null)
 
       // First get the current user's organization
-      const meResponse = await apiCall(`${API_BASE_URL}/api/v1/auth/me`)
-      if (!meResponse.ok) throw new Error('Failed to fetch user info')
-      const userData = await meResponse.json()
+      const userData = await januaClient.auth.getCurrentUser()
 
       // Get organization ID from user data or memberships
-      const orgId = userData.current_organization_id || userData.organization_id
+      const orgId = (userData as any).current_organization_id || (userData as any).organization_id
       if (!orgId) {
         setError('No organization found. Please join or create an organization first.')
         setLoading(false)
@@ -109,27 +113,24 @@ export default function SCIMSettingsPage() {
       setOrganizationId(orgId)
 
       // Fetch SCIM configuration
-      const configResponse = await apiCall(
-        `${API_BASE_URL}/api/v1/organizations/${orgId}/scim/config`
-      )
-
-      if (configResponse.status === 404) {
-        setConfig(null)
-      } else if (!configResponse.ok) {
-        throw new Error('Failed to fetch SCIM configuration')
-      } else {
-        const configData = await configResponse.json()
+      try {
+        const configData = await getScimConfig(orgId) as unknown as SCIMConfig
         setConfig(configData)
 
         // Fetch sync status if config exists
         if (configData) {
-          const statusResponse = await apiCall(
-            `${API_BASE_URL}/api/v1/organizations/${orgId}/scim/status`
-          )
-          if (statusResponse.ok) {
-            const statusData = await statusResponse.json()
+          try {
+            const statusData = await getScimStatus(orgId) as unknown as SCIMSyncStatusResponse
             setSyncStatus(statusData)
+          } catch {
+            // Sync status fetch is non-critical
           }
+        }
+      } catch (fetchErr: any) {
+        if (fetchErr?.status === 404 || fetchErr?.message?.includes('404')) {
+          setConfig(null)
+        } else {
+          throw fetchErr
         }
       }
     } catch (err) {
@@ -144,15 +145,7 @@ export default function SCIMSettingsPage() {
     if (!organizationId) return
 
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/organizations/${organizationId}/scim/config`,
-        {
-          method: 'PUT',
-          body: JSON.stringify({ enabled }),
-        }
-      )
-
-      if (!response.ok) throw new Error('Failed to update configuration')
+      await updateScimConfig(organizationId!, { enabled })
 
       fetchSCIMConfig()
     } catch (err) {
@@ -165,12 +158,7 @@ export default function SCIMSettingsPage() {
     if (!confirm('Are you sure you want to delete this SCIM configuration? This will disable all IdP provisioning.')) return
 
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/organizations/${organizationId}/scim/config`,
-        { method: 'DELETE' }
-      )
-
-      if (!response.ok) throw new Error('Failed to delete configuration')
+      await januaClient.http.delete(`/api/v1/organizations/${organizationId}/scim/config`)
 
       setConfig(null)
       setSyncStatus(null)
@@ -186,15 +174,8 @@ export default function SCIMSettingsPage() {
 
     try {
       setRotatingToken(true)
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/organizations/${organizationId}/scim/config/token`,
-        { method: 'POST' }
-      )
-
-      if (!response.ok) throw new Error('Failed to rotate token')
-
-      const data = await response.json()
-      setNewToken(data.bearer_token)
+      const data = await regenerateScimToken(organizationId!)
+      setNewToken((data as any).bearer_token || (data as any).token)
       fetchSCIMConfig()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to rotate token')

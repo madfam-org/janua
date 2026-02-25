@@ -5,9 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@janu
 import { Button } from '@janua/ui'
 import { Badge } from '@janua/ui'
 import { Lock, Sparkles, ArrowRight } from 'lucide-react'
-import { apiCall } from '@/lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { januaClient } from '@/lib/janua-client'
 
 // Feature definitions
 export type FeatureKey =
@@ -120,12 +118,13 @@ export function FeatureGateProvider({ children }: { children: ReactNode }) {
   const fetchPlan = async () => {
     try {
       // Get current user's organization
-      const meResponse = await apiCall(`${API_BASE_URL}/api/v1/auth/me`)
-      if (!meResponse.ok) {
+      let userData: any
+      try {
+        userData = await januaClient.auth.getCurrentUser()
+      } catch {
         setLoading(false)
         return
       }
-      const userData = await meResponse.json()
 
       const orgId = userData.current_organization_id || userData.organization_id
       if (!orgId) {
@@ -136,14 +135,13 @@ export function FeatureGateProvider({ children }: { children: ReactNode }) {
       }
 
       // Fetch organization details with plan info
-      const orgResponse = await apiCall(`${API_BASE_URL}/api/v1/organizations/${orgId}`)
-      if (orgResponse.ok) {
-        const orgData = await orgResponse.json()
+      try {
+        const orgData = await januaClient.organizations.getOrganization(orgId) as any
         setPlan({
           plan: orgData.billing_plan || 'free',
           features: orgData.enabled_features || [],
         })
-      } else {
+      } catch {
         // Default to free plan on error
         setPlan({ plan: 'free', features: [] })
       }

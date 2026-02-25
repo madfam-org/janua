@@ -15,9 +15,7 @@ import {
   Shield,
   Clock
 } from 'lucide-react'
-import { apiCall } from '../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { listAuditLogs, getAuditStats, listAuditActions, exportAuditLogs } from '@/lib/api'
 
 interface AuditLog {
   id: string
@@ -64,29 +62,24 @@ export function AuditList() {
       if (!append) setLoading(true)
       setError(null)
 
-      let url = `${API_BASE_URL}/api/v1/audit-logs/?limit=50`
-      if (selectedAction) url += `&action=${selectedAction}`
-      if (cursor && append) url += `&cursor=${cursor}`
+      const params: Record<string, string> = { limit: '50' }
+      if (selectedAction) params.action = selectedAction
+      if (cursor && append) params.cursor = cursor
 
-      const response = await apiCall(url)
+      const data = await listAuditLogs(params)
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Authentication required')
-        }
-        throw new Error('Failed to fetch audit logs')
-      }
-
-      const data = await response.json()
+      // The wrapper returns AuditLog[] directly; handle paginated response shape
+      const rawData = data as unknown as { logs?: AuditLog[]; has_more?: boolean; cursor?: string }
+      const logsList = Array.isArray(data) ? data as unknown as AuditLog[] : rawData.logs || []
 
       if (append) {
-        setLogs(prev => [...prev, ...(data.logs || [])])
+        setLogs(prev => [...prev, ...logsList])
       } else {
-        setLogs(data.logs || [])
+        setLogs(logsList)
       }
 
-      setHasMore(data.has_more || false)
-      setCursor(data.cursor || null)
+      setHasMore(rawData.has_more || false)
+      setCursor(rawData.cursor || null)
     } catch (err) {
       console.error('Failed to fetch audit logs:', err)
       setError(err instanceof Error ? err.message : 'Failed to load audit logs')
@@ -97,11 +90,8 @@ export function AuditList() {
 
   const fetchStats = async () => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/audit-logs/stats`)
-      if (response.ok) {
-        const data = await response.json()
-        setStats(data)
-      }
+      const data = await getAuditStats()
+      setStats(data as unknown as AuditStats)
     } catch (err) {
       console.error('Failed to fetch audit stats:', err)
     }
@@ -109,11 +99,8 @@ export function AuditList() {
 
   const fetchAvailableActions = async () => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/audit-logs/actions/list`)
-      if (response.ok) {
-        const data = await response.json()
-        setAvailableActions(data.actions || [])
-      }
+      const data = await listAuditActions()
+      setAvailableActions(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Failed to fetch available actions:', err)
     }
@@ -121,25 +108,15 @@ export function AuditList() {
 
   const exportLogs = async (format: 'json' | 'csv') => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/audit-logs/export`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format })
-      })
-
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `audit_logs.${format}`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        window.URL.revokeObjectURL(url)
-      } else {
-        alert('Failed to export audit logs')
-      }
+      const blob = await exportAuditLogs({ format })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `audit_logs.${format}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
     } catch (err) {
       console.error('Failed to export logs:', err)
       alert('Failed to export audit logs')

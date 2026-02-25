@@ -32,9 +32,8 @@ import {
   X,
   Pencil,
 } from 'lucide-react'
-import { apiCall } from '../../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { listOAuthClients, createOAuthClient, updateOAuthClient, deleteOAuthClient, rotateClientSecret } from '@/lib/api'
+import { CodeSnippets } from '@/components/oauth/code-snippets'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -273,8 +272,9 @@ function CreateEditDialog({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Secret shown only after create
+  // Secret + client ID shown only after create
   const [createdSecret, setCreatedSecret] = useState<string | null>(null)
+  const [createdClientId, setCreatedClientId] = useState<string | null>(null)
   const [secretCopied, setSecretCopied] = useState(false)
 
   // Reset form when dialog opens or editClient changes
@@ -326,27 +326,13 @@ function CreateEditDialog({
       }
 
       if (isEdit) {
-        const response = await apiCall(
-          `${API_BASE_URL}/api/v1/oauth/clients/${editClient.client_id}`,
-          { method: 'PATCH', body: JSON.stringify(body) }
-        )
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}))
-          throw new Error(data.detail || 'Failed to update client')
-        }
+        await updateOAuthClient(editClient.client_id, body as unknown as Parameters<typeof updateOAuthClient>[1])
         onSuccess()
         onOpenChange(false)
       } else {
-        const response = await apiCall(`${API_BASE_URL}/api/v1/oauth/clients`, {
-          method: 'POST',
-          body: JSON.stringify(body),
-        })
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}))
-          throw new Error(data.detail || 'Failed to create client')
-        }
-        const result: OAuthClientCreateResponse = await response.json()
+        const result = await createOAuthClient(body as unknown as Parameters<typeof createOAuthClient>[0]) as unknown as OAuthClientCreateResponse
         setCreatedSecret(result.client_secret)
+        setCreatedClientId(result.client_id)
         onSuccess()
       }
     } catch (err) {
@@ -408,6 +394,17 @@ function CreateEditDialog({
                 </Button>
               </div>
             </div>
+
+            {createdClientId && redirectUris.length > 0 && (
+              <details className="rounded-lg border">
+                <summary className="cursor-pointer px-4 py-2 text-sm font-medium">
+                  Integration Code
+                </summary>
+                <div className="border-t px-4 py-3">
+                  <CodeSnippets clientId={createdClientId} redirectUri={redirectUris[0]} />
+                </div>
+              </details>
+            )}
 
             <div className="flex justify-end">
               <Button onClick={() => onOpenChange(false)}>Done</Button>
@@ -756,16 +753,8 @@ export default function OAuthClientsPage() {
     try {
       setLoading(true)
       setError(null)
-      const response = await apiCall(`${API_BASE_URL}/api/v1/oauth/clients`)
-
-      if (response.status === 404) {
-        setClients([])
-      } else if (!response.ok) {
-        throw new Error('Failed to fetch OAuth clients')
-      } else {
-        const data = await response.json()
-        setClients(Array.isArray(data) ? data : data.items || [])
-      }
+      const data = await listOAuthClients()
+      setClients(Array.isArray(data) ? data as unknown as OAuthClient[] : (data as unknown as { items?: OAuthClient[] }).items || [])
     } catch (err) {
       console.error('Failed to fetch OAuth clients:', err)
       setError(err instanceof Error ? err.message : 'Failed to load OAuth clients')
@@ -791,14 +780,7 @@ export default function OAuthClientsPage() {
     if (!deleteTarget) return
     setActionLoading(true)
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/oauth/clients/${deleteTarget.client_id}`,
-        { method: 'DELETE' }
-      )
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.detail || 'Failed to delete client')
-      }
+      await deleteOAuthClient(deleteTarget.client_id)
       setSuccess(`OAuth client "${deleteTarget.name}" has been deleted.`)
       setDeleteTarget(null)
       setDetailClient(null)
@@ -816,15 +798,7 @@ export default function OAuthClientsPage() {
     if (!rotateTarget) return
     setActionLoading(true)
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/oauth/clients/${rotateTarget.client_id}/rotate`,
-        { method: 'POST' }
-      )
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        throw new Error(data.detail || 'Failed to rotate secret')
-      }
-      const result = await response.json()
+      const result = await rotateClientSecret(rotateTarget.client_id)
       setRotateTarget(null)
       setDetailClient(null)
       setRotatedSecret(result.client_secret)

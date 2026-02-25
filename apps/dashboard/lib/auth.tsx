@@ -338,6 +338,9 @@ export function useAuth() {
 }
 
 /**
+ * @deprecated Use `januaClient` methods from `lib/janua-client` or typed wrappers
+ * from `lib/api.ts` instead. This function will be removed in a future release.
+ *
  * API helper with automatic token handling and retry logic
  * Handles token refresh transparently and redirects to login on auth failures
  */

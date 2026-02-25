@@ -21,21 +21,9 @@ import {
   Upload,
   Trash2,
 } from 'lucide-react'
-import { apiCall } from '../../../lib/auth'
+import { fetchInvitations as apiFetchInvitations, sendInvitation, resendInvitation as apiResendInvitation, revokeInvitation as apiRevokeInvitation, type InvitationInfo } from '@/lib/api'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
-
-interface Invitation {
-  id: string
-  email: string
-  role: 'member' | 'admin' | 'owner'
-  status: 'pending' | 'accepted' | 'expired' | 'revoked'
-  invited_by: string
-  invited_by_email?: string
-  expires_at: string
-  created_at: string
-  accepted_at?: string
-}
+type Invitation = InvitationInfo
 
 interface InvitationStats {
   total: number
@@ -72,14 +60,8 @@ export default function InvitationsPage() {
       setLoading(true)
       setError(null)
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/invitations`)
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch invitations')
-      }
-
-      const data = await response.json()
-      const invitationList = data.invitations || data || []
+      const data = await apiFetchInvitations()
+      const invitationList = data.invitations || []
       setInvitations(invitationList)
 
       // Calculate stats
@@ -106,19 +88,11 @@ export default function InvitationsPage() {
 
     setSending(true)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/invitations`, {
-        method: 'POST',
-        body: JSON.stringify({
-          email: newInvite.email,
-          role: newInvite.role,
-          message: newInvite.message || undefined,
-        }),
+      await sendInvitation({
+        email: newInvite.email,
+        role: newInvite.role,
+        message: newInvite.message || undefined,
       })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to send invitation')
-      }
 
       setNewInvite({ email: '', role: 'member', message: '' })
       fetchInvitations()
@@ -131,11 +105,7 @@ export default function InvitationsPage() {
 
   const handleResend = async (id: string) => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/invitations/${id}/resend`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) throw new Error('Failed to resend invitation')
+      await apiResendInvitation(id)
 
       alert('Invitation resent successfully')
       fetchInvitations()
@@ -148,11 +118,7 @@ export default function InvitationsPage() {
     if (!confirm('Are you sure you want to revoke this invitation?')) return
 
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/invitations/${id}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) throw new Error('Failed to revoke invitation')
+      await apiRevokeInvitation(id)
 
       fetchInvitations()
     } catch (err) {
@@ -185,21 +151,11 @@ export default function InvitationsPage() {
       }
 
       try {
-        const response = await apiCall(`${API_BASE_URL}/api/v1/invitations`, {
-          method: 'POST',
-          body: JSON.stringify({ email, role }),
-        })
-
-        if (response.ok) {
-          results.success++
-        } else {
-          const errorData = await response.json().catch(() => ({}))
-          results.failed++
-          results.errors.push(`${email}: ${errorData.detail || 'Failed'}`)
-        }
-      } catch {
+        await sendInvitation({ email, role })
+        results.success++
+      } catch (err) {
         results.failed++
-        results.errors.push(`${email}: Network error`)
+        results.errors.push(`${email}: ${err instanceof Error ? err.message : 'Failed'}`)
       }
     }
 
@@ -467,7 +423,7 @@ export default function InvitationsPage() {
             ) : (
               <div className="space-y-2">
                 {filteredInvitations.map((invitation) => {
-                  const config = statusConfig[invitation.status]
+                  const config = statusConfig[invitation.status as keyof typeof statusConfig]
                   const StatusIcon = config.icon
 
                   return (

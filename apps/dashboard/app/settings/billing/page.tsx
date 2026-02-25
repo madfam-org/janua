@@ -20,9 +20,7 @@ import {
   Check,
   Star,
 } from 'lucide-react'
-import { apiCall } from '../../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { getBillingCurrent, getInvoices, getPaymentMethods, createCheckout } from '@/lib/api'
 
 interface Subscription {
   id: string
@@ -182,14 +180,13 @@ export default function BillingPage() {
       setLoading(true)
       setError(null)
 
-      const [subResponse, invResponse] = await Promise.allSettled([
-        apiCall(`${API_BASE_URL}/api/v1/billing/current`),
-        apiCall(`${API_BASE_URL}/api/v1/billing/invoices`),
+      const [subResult, invResult] = await Promise.allSettled([
+        getBillingCurrent(),
+        getInvoices(),
       ])
 
-      if (subResponse.status === 'fulfilled' && subResponse.value.ok) {
-        const data = await subResponse.value.json()
-        setSubscription(data)
+      if (subResult.status === 'fulfilled') {
+        setSubscription(subResult.value as unknown as Subscription)
       } else {
         // Default to community plan if no billing data
         setSubscription({
@@ -202,18 +199,15 @@ export default function BillingPage() {
         })
       }
 
-      if (invResponse.status === 'fulfilled' && invResponse.value.ok) {
-        const data = await invResponse.value.json()
-        setInvoices(Array.isArray(data) ? data : data.invoices || [])
+      if (invResult.status === 'fulfilled') {
+        const data = invResult.value
+        setInvoices(Array.isArray(data) ? data as unknown as Invoice[] : (data as unknown as { invoices?: Invoice[] }).invoices || [])
       }
 
       // Fetch payment methods
       try {
-        const pmResponse = await apiCall(`${API_BASE_URL}/api/v1/billing/payment-methods`)
-        if (pmResponse.ok) {
-          const data = await pmResponse.json()
-          setPaymentMethods(Array.isArray(data) ? data : data.payment_methods || [])
-        }
+        const data = await getPaymentMethods()
+        setPaymentMethods(Array.isArray(data) ? data as unknown as PaymentMethod[] : (data as unknown as { payment_methods?: PaymentMethod[] }).payment_methods || [])
       } catch {
         // Payment methods may not exist yet
       }
@@ -235,17 +229,7 @@ export default function BillingPage() {
       setUpgrading(planId)
       setError(null)
 
-      const response = await apiCall(`${API_BASE_URL}/api/v1/checkout/dhanam`, {
-        method: 'POST',
-        body: JSON.stringify({ plan: planId }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to start checkout')
-      }
-
-      const data = await response.json()
+      const data = await createCheckout({ plan_id: planId })
 
       if (data.checkout_url) {
         window.location.href = data.checkout_url

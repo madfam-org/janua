@@ -2,10 +2,7 @@
 
 import { Avatar as _Avatar } from '@radix-ui/react-avatar'
 import { useState, useEffect } from 'react'
-import { apiCall } from '@/lib/auth'
-
-// API base URL for production
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { januaClient } from '@/lib/janua-client'
 
 interface Activity {
   id: string
@@ -23,8 +20,8 @@ interface ActivityLog {
   details: {
     method?: string
   }
-  ip_address: string
-  user_agent: string
+  ip_address?: string
+  user_agent?: string
   created_at: string
 }
 
@@ -43,13 +40,8 @@ export function RecentActivity() {
       setError(null)
 
       // Use the real admin activity-logs endpoint
-      const response = await apiCall(`${API_BASE_URL}/api/v1/admin/activity-logs?per_page=10`)
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch recent activity')
-      }
-
-      const data: ActivityLog[] = await response.json()
+      const response = await januaClient.admin.getActivityLogs({ per_page: 10 })
+      const data: ActivityLog[] = response.data
 
       // Transform API response to Activity format
       const transformedActivities: Activity[] = data.map((log) => ({

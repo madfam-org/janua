@@ -43,9 +43,21 @@ import {
   EyeOff,
   QrCode,
 } from 'lucide-react'
-import { apiCall } from '../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { januaClient } from '@/lib/janua-client'
+import {
+  updateProfile,
+  changePassword,
+  enableMfa,
+  verifyMfa,
+  disableMfa,
+  listPasskeys,
+  deletePasskey,
+  registerPasskeyOptions,
+  verifyPasskeyRegistration,
+  listDevices,
+  trustDevice,
+  revokeDevice,
+} from '@/lib/api'
 
 // ---------------------------------------------------------------------------
 // Type definitions
@@ -262,9 +274,7 @@ export default function ProfilePage() {
 
   const fetchProfile = useCallback(async () => {
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/auth/me`)
-      if (!response.ok) throw new Error('Failed to fetch profile')
-      const data = await response.json()
+      const data = await januaClient.auth.getCurrentUser() as Record<string, any>
 
       const userProfile: UserProfile = {
         id: data.id || data.sub,
@@ -302,11 +312,8 @@ export default function ProfilePage() {
   const fetchSessions = useCallback(async () => {
     setSessionsLoading(true)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/sessions/`)
-      if (response.ok) {
-        const data: SessionsResponse = await response.json()
-        setSessions(data.sessions || [])
-      }
+      const data = await januaClient.sessions.listSessions() as unknown as SessionsResponse
+      setSessions(data.sessions || [])
     } catch (err) {
       console.error('Failed to fetch sessions:', err)
     } finally {
@@ -317,11 +324,8 @@ export default function ProfilePage() {
   const fetchPasskeys = useCallback(async () => {
     setPasskeysLoading(true)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/passkeys`)
-      if (response.ok) {
-        const data = await response.json()
-        setPasskeys(Array.isArray(data) ? data : data.passkeys || [])
-      }
+      const data = await listPasskeys()
+      setPasskeys(Array.isArray(data) ? data : (data as any).passkeys || [])
     } catch (err) {
       console.error('Failed to fetch passkeys:', err)
     } finally {
@@ -332,11 +336,8 @@ export default function ProfilePage() {
   const fetchDevices = useCallback(async () => {
     setDevicesLoading(true)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/devices`)
-      if (response.ok) {
-        const data = await response.json()
-        setDevices(Array.isArray(data) ? data : data.devices || [])
-      }
+      const data = await listDevices()
+      setDevices(Array.isArray(data) ? data : (data as any).devices || [])
     } catch (err) {
       console.error('Failed to fetch devices:', err)
     } finally {
@@ -362,22 +363,13 @@ export default function ProfilePage() {
     if (!profile) return
     setSaving(true)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/users/me`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          first_name: profileForm.first_name || null,
-          last_name: profileForm.last_name || null,
-          username: profileForm.username || null,
-          phone_number: profileForm.phone_number || null,
-        }),
-      })
+      const updated = await updateProfile({
+        first_name: profileForm.first_name || null,
+        last_name: profileForm.last_name || null,
+        username: profileForm.username || null,
+        phone_number: profileForm.phone_number || null,
+      }) as Record<string, any>
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to update profile')
-      }
-
-      const updated = await response.json()
       setProfile((prev) =>
         prev
           ? {
@@ -427,21 +419,10 @@ export default function ProfilePage() {
 
     setChangingPassword(true)
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/auth/change-password`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            current_password: passwordForm.current_password,
-            new_password: passwordForm.new_password,
-          }),
-        },
-      )
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to change password')
-      }
+      await changePassword({
+        current_password: passwordForm.current_password,
+        new_password: passwordForm.new_password,
+      })
 
       setPasswordForm({
         current_password: '',
@@ -470,16 +451,7 @@ export default function ProfilePage() {
     setMfaLoading(true)
     setMfaError(null)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/mfa/enable`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to start MFA setup')
-      }
-
-      const data: MfaSetupResponse = await response.json()
+      const data = await enableMfa({ password: '' }) as unknown as MfaSetupResponse
       setMfaSetup(data)
       setMfaStep('qr')
     } catch (err) {
@@ -500,17 +472,7 @@ export default function ProfilePage() {
     setMfaLoading(true)
     setMfaError(null)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/mfa/verify`, {
-        method: 'POST',
-        body: JSON.stringify({ code: mfaCode }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Invalid verification code')
-      }
-
-      const data: MfaVerifyResponse = await response.json()
+      const data = await verifyMfa({ code: mfaCode }) as unknown as MfaVerifyResponse
       setBackupCodes(data.backup_codes || [])
       setMfaStep('backup')
       setProfile((prev) => (prev ? { ...prev, mfa_enabled: true } : prev))
@@ -532,14 +494,7 @@ export default function ProfilePage() {
     setMfaLoading(true)
     setMfaError(null)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/mfa/disable`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to disable MFA')
-      }
+      await disableMfa({ password: '', code: '' })
 
       setProfile((prev) => (prev ? { ...prev, mfa_enabled: false } : prev))
       setMfaStep('idle')
@@ -603,17 +558,7 @@ export default function ProfilePage() {
     setRegisteringPasskey(true)
     try {
       // Step 1: Get registration options from server
-      const optionsResponse = await apiCall(
-        `${API_BASE_URL}/api/v1/passkeys/register/options`,
-        { method: 'POST' },
-      )
-
-      if (!optionsResponse.ok) {
-        const errorData = await optionsResponse.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to get registration options')
-      }
-
-      const options = await optionsResponse.json()
+      const options = await registerPasskeyOptions() as Record<string, any>
 
       // Step 2: Create credential with WebAuthn API
       const publicKeyOptions: PublicKeyCredentialCreationOptions = {
@@ -678,18 +623,7 @@ export default function ProfilePage() {
         name: passkeyName || 'My Passkey',
       }
 
-      const verifyResponse = await apiCall(
-        `${API_BASE_URL}/api/v1/passkeys/register/verify`,
-        {
-          method: 'POST',
-          body: JSON.stringify(verifyBody),
-        },
-      )
-
-      if (!verifyResponse.ok) {
-        const errorData = await verifyResponse.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to register passkey')
-      }
+      await verifyPasskeyRegistration(verifyBody)
 
       showNotification('success', 'Passkey registered successfully')
       setShowPasskeyNameInput(false)
@@ -709,14 +643,7 @@ export default function ProfilePage() {
     if (!confirm('Are you sure you want to remove this passkey?')) return
 
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/passkeys/${passkeyId}`,
-        { method: 'DELETE' },
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to remove passkey')
-      }
+      await deletePasskey(passkeyId)
 
       setPasskeys((prev) => prev.filter((p) => p.id !== passkeyId))
       showNotification('success', 'Passkey removed')
@@ -735,12 +662,7 @@ export default function ProfilePage() {
   const handleRevokeSession = async (sessionId: string) => {
     setRevokingSession(sessionId)
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/sessions/${sessionId}`,
-        { method: 'DELETE' },
-      )
-
-      if (!response.ok) throw new Error('Failed to revoke session')
+      await januaClient.sessions.revokeSession(sessionId)
       setSessions((prev) => prev.filter((s) => s.id !== sessionId))
       showNotification('success', 'Session revoked')
     } catch (err) {
@@ -760,11 +682,7 @@ export default function ProfilePage() {
 
     setRevokingAll(true)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/sessions/`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) throw new Error('Failed to revoke sessions')
+      await januaClient.sessions.revokeAllSessions()
       await fetchSessions()
       showNotification('success', 'All other sessions revoked')
     } catch (err) {
@@ -784,15 +702,7 @@ export default function ProfilePage() {
   const handleTrustDevice = async () => {
     setTrustingDevice(true)
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/devices/trust`,
-        { method: 'POST' },
-      )
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || 'Failed to trust device')
-      }
+      await trustDevice({})
 
       showNotification('success', 'Device trusted successfully')
       await fetchDevices()
@@ -813,12 +723,7 @@ export default function ProfilePage() {
 
     setRevokingDevice(deviceId)
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/devices/trusted/${deviceId}`,
-        { method: 'DELETE' },
-      )
-
-      if (!response.ok) throw new Error('Failed to revoke device trust')
+      await revokeDevice(deviceId)
       setDevices((prev) => prev.filter((d) => d.id !== deviceId))
       showNotification('success', 'Device trust revoked')
     } catch (err) {

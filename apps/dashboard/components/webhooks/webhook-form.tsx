@@ -22,9 +22,7 @@ import {
   EyeOff,
   Check,
 } from 'lucide-react'
-import { apiCall } from '../../lib/auth'
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+import { januaClient } from '@/lib/janua-client'
 
 interface WebhookEndpoint {
   id: string
@@ -32,8 +30,8 @@ interface WebhookEndpoint {
   secret: string
   events: string[]
   is_active: boolean
-  description: string | null
-  headers: Record<string, string> | null
+  description?: string | null
+  headers?: Record<string, string> | null
   created_at: string
   updated_at: string
 }
@@ -99,11 +97,8 @@ export function WebhookForm({ open, onOpenChange, webhook, onSuccess }: WebhookF
   const fetchEventTypes = async () => {
     setLoadingEventTypes(true)
     try {
-      const response = await apiCall(`${API_BASE_URL}/api/v1/webhooks/events/types`)
-      if (response.ok) {
-        const types = await response.json()
-        setAvailableEventTypes(types)
-      }
+      const types = await januaClient.webhooks.getEventTypes()
+      setAvailableEventTypes(types)
     } catch (err) {
       console.error('Failed to fetch event types:', err)
     } finally {
@@ -157,18 +152,8 @@ export function WebhookForm({ open, onOpenChange, webhook, onSuccess }: WebhookF
     setRegeneratingSecret(true)
     setError(null)
     try {
-      const response = await apiCall(
-        `${API_BASE_URL}/api/v1/webhooks/${webhook.id}/regenerate-secret`,
-        { method: 'POST' }
-      )
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => null)
-        throw new Error(data?.detail || 'Failed to regenerate secret')
-      }
-
-      const data = await response.json()
-      setSecret(data.secret || data.new_secret || generateSecret())
+      const data = await januaClient.webhooks.regenerateSecret(webhook.id)
+      setSecret(data.secret || (data as any).new_secret || generateSecret())
       setShowSecret(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to regenerate secret')
@@ -211,29 +196,16 @@ export function WebhookForm({ open, onOpenChange, webhook, onSuccess }: WebhookF
     const body = {
       url: url.trim(),
       description: description.trim() || null,
-      events: selectedEvents,
+      events: selectedEvents as any[],
       secret,
       active,
     }
 
     try {
-      let response: Response
-
       if (isEditMode && webhook) {
-        response = await apiCall(`${API_BASE_URL}/api/v1/webhooks/${webhook.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify(body),
-        })
+        await januaClient.webhooks.updateEndpoint(webhook.id, body as any)
       } else {
-        response = await apiCall(`${API_BASE_URL}/api/v1/webhooks`, {
-          method: 'POST',
-          body: JSON.stringify(body),
-        })
-      }
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => null)
-        throw new Error(data?.detail || `Failed to ${isEditMode ? 'update' : 'create'} webhook`)
+        await januaClient.webhooks.createEndpoint(body as any)
       }
 
       onSuccess()
