@@ -12,7 +12,7 @@ Covers:
 
 import os
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 from uuid import uuid4
 
 import jwt as pyjwt

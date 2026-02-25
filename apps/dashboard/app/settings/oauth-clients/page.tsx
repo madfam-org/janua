@@ -44,7 +44,6 @@ import {
   revokeClientSecret,
   revokeAllOldSecrets,
   type OAuthClient,
-  type OAuthClientDetailResponse,
   type OAuthClientRotateResponse,
   type OAuthClientSecretStatusResponse,
   type OAuthClientSecretInfo,

@@ -2,8 +2,7 @@
 Tests for middleware modules
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import patch
 from starlette.testclient import TestClient
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
