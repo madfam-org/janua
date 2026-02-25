@@ -43,42 +43,77 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
         "name": "janua-dashboard",
         "description": "Janua user management dashboard",
         "audience": "janua.dev",
-        "redirect_uris": ["https://app.janua.dev/api/auth/callback"],
+        "redirect_uris": [
+            "https://app.janua.dev/api/auth/callback",
+            "http://localhost:4101/api/auth/callback",
+        ],
         "allowed_scopes": ["openid", "profile", "email", "admin"],
     },
     {
         "name": "enclii-dispatch",
         "description": "Enclii platform administration console",
         "audience": "enclii-api",
-        "redirect_uris": ["https://admin.enclii.dev/api/auth/callback"],
+        "redirect_uris": [
+            "https://admin.enclii.dev/api/auth/callback",
+            "http://localhost:3001/api/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "enclii-switchyard",
+        "description": "Enclii Switchyard platform UI",
+        "audience": "enclii-api",
+        "redirect_uris": [
+            "https://enclii.dev/auth/callback",
+            "http://localhost:3000/auth/callback",
+        ],
         "allowed_scopes": ["openid", "profile", "email"],
     },
     {
         "name": "tezca-web",
         "description": "Tezca web application",
         "audience": "tezca-api",
-        "redirect_uris": ["https://tezca.dev/api/auth/callback/janua"],
+        "redirect_uris": [
+            "https://tezca.dev/api/auth/callback/janua",
+            "http://localhost:3000/api/auth/callback/janua",
+        ],
         "allowed_scopes": ["openid", "profile", "email"],
     },
     {
         "name": "dhanam-web",
         "description": "Dhanam web application",
         "audience": "dhanam-api",
-        "redirect_uris": ["https://dhan.am/api/auth/callback/janua"],
+        "redirect_uris": [
+            "https://dhan.am/api/auth/callback/janua",
+            "http://localhost:3000/api/auth/callback/janua",
+        ],
         "allowed_scopes": ["openid", "profile", "email"],
     },
     {
         "name": "yantra4d-studio",
         "description": "Yantra4D studio application",
         "audience": "yantra4d-api",
-        "redirect_uris": ["https://yantra4d.dev/api/auth/callback"],
+        "redirect_uris": [
+            "https://yantra4d.dev/api/auth/callback",
+            "http://localhost:5173/api/auth/callback",
+        ],
         "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "yantra4d-admin",
+        "description": "Yantra4D admin panel",
+        "audience": "yantra4d-api",
+        "redirect_uris": ["https://admin.yantra4d.dev/api/auth/callback"],
+        "allowed_scopes": ["openid", "profile", "email", "admin"],
     },
     {
         "name": "stratum-tcg-client",
         "description": "Stratum TCG client application",
         "audience": "stratum-tcg-api",
-        "redirect_uris": ["https://stratum-tcg.dev/api/auth/callback"],
+        "redirect_uris": [
+            "https://stratum-tcg.dev/api/auth/callback",
+            "http://localhost:5173/api/auth/callback",
+        ],
         "allowed_scopes": ["openid", "profile", "email"],
     },
 ]
@@ -90,8 +125,8 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
 
 
 def _generate_client_id() -> str:
-    """Generate a client identifier: ``jc_`` + 24 random hex characters."""
-    return f"jc_{secrets.token_hex(12)}"
+    """Generate a client identifier: ``jnc_`` + URL-safe random string."""
+    return f"jnc_{secrets.token_urlsafe(24)}"
 
 
 def _generate_client_secret() -> str:
