@@ -239,30 +239,28 @@ export default function EmailTemplatesPage() {
 
   const updatePreview = useCallback(() => {
     if (previewIframeRef.current) {
-      const iframeDoc = previewIframeRef.current.contentDocument
-      if (iframeDoc) {
-        // Replace template variables with sample data for preview
-        let previewHtml = editedBody
-          .replace(/\{\{user_name\}\}/g, 'Jane Doe')
-          .replace(/\{\{user_email\}\}/g, 'jane@example.com')
-          .replace(/\{\{app_name\}\}/g, 'Janua')
-          .replace(/\{\{dashboard_url\}\}/g, '#')
-          .replace(/\{\{support_email\}\}/g, 'support@janua.dev')
-          .replace(/\{\{verification_link\}\}/g, '#')
-          .replace(/\{\{verification_code\}\}/g, '123456')
-          .replace(/\{\{expiry_hours\}\}/g, '24')
-          .replace(/\{\{reset_link\}\}/g, '#')
-          .replace(/\{\{expiry_minutes\}\}/g, '60')
-          .replace(/\{\{ip_address\}\}/g, '192.168.1.1')
-          .replace(/\{\{inviter_name\}\}/g, 'John Smith')
-          .replace(/\{\{organization_name\}\}/g, 'Acme Corp')
-          .replace(/\{\{invitation_link\}\}/g, '#')
-          .replace(/\{\{role\}\}/g, 'Member')
-          .replace(/\{\{expiry_days\}\}/g, '7')
-          .replace(/\{\{mfa_method\}\}/g, 'TOTP')
-          .replace(/\{\{setup_link\}\}/g, '#')
+      // Replace template variables with sample data for preview
+      let previewHtml = editedBody
+        .replace(/\{\{user_name\}\}/g, 'Jane Doe')
+        .replace(/\{\{user_email\}\}/g, 'jane@example.com')
+        .replace(/\{\{app_name\}\}/g, 'Janua')
+        .replace(/\{\{dashboard_url\}\}/g, '#')
+        .replace(/\{\{support_email\}\}/g, 'support@janua.dev')
+        .replace(/\{\{verification_link\}\}/g, '#')
+        .replace(/\{\{verification_code\}\}/g, '123456')
+        .replace(/\{\{expiry_hours\}\}/g, '24')
+        .replace(/\{\{reset_link\}\}/g, '#')
+        .replace(/\{\{expiry_minutes\}\}/g, '60')
+        .replace(/\{\{ip_address\}\}/g, '192.168.1.1')
+        .replace(/\{\{inviter_name\}\}/g, 'John Smith')
+        .replace(/\{\{organization_name\}\}/g, 'Acme Corp')
+        .replace(/\{\{invitation_link\}\}/g, '#')
+        .replace(/\{\{role\}\}/g, 'Member')
+        .replace(/\{\{expiry_days\}\}/g, '7')
+        .replace(/\{\{mfa_method\}\}/g, 'TOTP')
+        .replace(/\{\{setup_link\}\}/g, '#')
 
-        const fullHtml = `<!DOCTYPE html>
+      const fullHtml = `<!DOCTYPE html>
 <html>
 <head>
   <style>
@@ -276,10 +274,8 @@ export default function EmailTemplatesPage() {
 <body>${previewHtml}</body>
 </html>`
 
-        iframeDoc.open()
-        iframeDoc.write(fullHtml)
-        iframeDoc.close()
-      }
+      // Use srcdoc to avoid DOM XSS sink from document.write()
+      previewIframeRef.current.srcdoc = fullHtml
     }
   }, [editedBody])
 
