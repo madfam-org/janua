@@ -11,6 +11,7 @@ const wsURL = process.env.NEXT_PUBLIC_WS_URL || baseURL.replace(/^http/, 'ws') +
 
 export const januaClient = new JanuaClient({
   baseURL,
+  audience: process.env.NEXT_PUBLIC_JANUA_AUDIENCE || 'janua.dev',
   debug: process.env.NODE_ENV === 'development',
   tokenStorage: 'localStorage',
   autoRefreshTokens: true,

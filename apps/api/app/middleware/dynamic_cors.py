@@ -7,6 +7,7 @@ Supports multi-tenant origins (system-level + organization-level).
 import logging
 import time
 from typing import List, Optional, Set
+from urllib.parse import urlparse
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -31,6 +32,7 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
     1. Config file (CORS_ORIGINS environment variable) - always included
     2. Database system_settings table (if enabled)
     3. Database allowed_cors_origins table (if enabled)
+    4. OAuth client redirect_uris (origins auto-derived from active clients)
 
     Caches origins with TTL for performance.
     """
@@ -150,6 +152,12 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
             except Exception as e:
                 logger.warning(f"Failed to load CORS origins from database: {e}")
 
+            try:
+                oauth_origins = await self._load_oauth_client_origins()
+                origins.update(oauth_origins)
+            except Exception as e:
+                logger.warning(f"Failed to load CORS origins from OAuth clients: {e}")
+
         # Update cache
         _cors_origins_cache = origins
         _cors_cache_timestamp = current_time
@@ -185,6 +193,46 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             # Log but don't fail - database might not have the table yet
             logger.debug(f"Could not load CORS origins from database: {e}")
+
+        return origins
+
+    async def _load_oauth_client_origins(self) -> Set[str]:
+        """Derive CORS origins from redirect_uris of active OAuth clients."""
+        from sqlalchemy import select
+
+        from app.core.database import get_db_session
+
+        origins = set()
+
+        try:
+            async with get_db_session() as db:
+                # Import here to avoid circular imports
+                from app.models import OAuthClient
+
+                result = await db.execute(
+                    select(OAuthClient.redirect_uris).where(
+                        OAuthClient.is_active == True
+                    )
+                )
+
+                for (redirect_uris,) in result.all():
+                    if not redirect_uris:
+                        continue
+                    for uri in redirect_uris:
+                        try:
+                            parsed = urlparse(uri)
+                            if parsed.scheme and parsed.netloc:
+                                origin = f"{parsed.scheme}://{parsed.netloc}"
+                                origins.add(origin)
+                        except Exception:
+                            continue
+
+                logger.debug(
+                    f"Loaded {len(origins)} CORS origins from OAuth client redirect_uris"
+                )
+
+        except Exception as e:
+            logger.debug(f"Could not load CORS origins from OAuth clients: {e}")
 
         return origins
 
