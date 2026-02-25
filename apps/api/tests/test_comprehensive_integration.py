@@ -4,7 +4,7 @@ Tests complex workflows and cross-module interactions
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from datetime import datetime
 from httpx import AsyncClient
 

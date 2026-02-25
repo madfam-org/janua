@@ -407,11 +407,11 @@ The script is **idempotent** — it skips clients that already exist (matched by
 ================================================================
   Client:  enclii-switchyard
   ID:      jnc_aBcDeFgHiJkLmNoPqRsTuVwXyZ012345
-  Secret:  jns_aBcDeFgHiJkLmNoPqRsTuVwXyZ...
+  Secret:  [stored — view prefix via DB or admin API]
 ================================================================
 ```
 
-Copy the `ID` and `Secret` values into the corresponding application's `.env` file immediately — **the plaintext secret is not stored and cannot be retrieved later**.
+The full plaintext secret is printed **once** at creation time in the return value of the service call, then discarded. Copy the `ID` and secret into the corresponding application's `.env` file immediately — **the plaintext secret is not stored and cannot be retrieved later**. The secret prefix is stored in the `client_secret_prefix` DB column for identification.
 
 ### Credential Format
 

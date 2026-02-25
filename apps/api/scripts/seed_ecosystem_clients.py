@@ -276,7 +276,7 @@ async def _seed_clients(engine: AsyncEngine) -> None:
                 f"\n{'=' * 64}\n"
                 f"  Client:  {name}\n"
                 f"  ID:      {client_id}\n"
-                f"  Secret:  {secret_prefix}...****  (masked)\n"
+                f"  Secret:  [stored — view prefix via DB or admin API]\n"
                 f"{'=' * 64}"
             )
 
