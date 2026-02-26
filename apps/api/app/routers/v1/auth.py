@@ -799,22 +799,28 @@ async def login_form(
     # SECURITY: Create redirect response with validated URL (CWE-601 mitigation)
     # The safe_next URL was validated at the start of this function
     response = RedirectResponse(url=safe_next, status_code=302)
-    response.set_cookie(
-        key="janua_access_token",
-        value=access_token,
-        max_age=3600,  # 1 hour
-        httponly=False,  # Allow JS access for API calls
-        samesite="lax",
-        secure=True,  # HTTPS only
-    )
-    response.set_cookie(
-        key="janua_refresh_token",
-        value=refresh_token,
-        max_age=604800,  # 7 days
-        httponly=True,  # HttpOnly for security
-        samesite="lax",
-        secure=True,
-    )
+
+    # Build cookie kwargs — include domain for cross-subdomain SSO when configured
+    access_cookie_kwargs: dict = {
+        "httponly": False,  # Allow JS access for API calls
+        "samesite": "lax",
+        "secure": True,  # HTTPS only
+        "max_age": 3600,  # 1 hour
+    }
+    if settings.COOKIE_DOMAIN:
+        access_cookie_kwargs["domain"] = settings.COOKIE_DOMAIN
+
+    refresh_cookie_kwargs: dict = {
+        "httponly": True,  # HttpOnly for security
+        "samesite": "lax",
+        "secure": True,
+        "max_age": 604800,  # 7 days
+    }
+    if settings.COOKIE_DOMAIN:
+        refresh_cookie_kwargs["domain"] = settings.COOKIE_DOMAIN
+
+    response.set_cookie(key="janua_access_token", value=access_token, **access_cookie_kwargs)
+    response.set_cookie(key="janua_refresh_token", value=refresh_token, **refresh_cookie_kwargs)
 
     return response
 

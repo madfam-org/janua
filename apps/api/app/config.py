@@ -249,6 +249,16 @@ class Settings(BaseSettings):
     WEBAUTHN_ORIGIN: str = Field(default="https://janua.dev")
     WEBAUTHN_TIMEOUT: int = Field(default=60000)  # milliseconds
 
+    # Storage (R2/S3-compatible object storage — optional)
+    STORAGE_ENABLED: bool = Field(default=False, description="Enable object storage")
+    STORAGE_BUCKET_NAME: Optional[str] = Field(default=None, description="Storage bucket name")
+    STORAGE_ACCESS_KEY_ID: Optional[str] = Field(
+        default=None, description="Storage access key ID"
+    )
+    STORAGE_SECRET_ACCESS_KEY: Optional[str] = Field(
+        default=None, description="Storage secret access key"
+    )
+
     # Cloudflare
     CLOUDFLARE_TURNSTILE_SECRET: Optional[str] = Field(default=None)
     CLOUDFLARE_ACCOUNT_ID: Optional[str] = Field(default=None)

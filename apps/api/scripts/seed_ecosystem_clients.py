@@ -51,59 +51,72 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
     },
     {
         "name": "enclii-dispatch",
-        "description": "Enclii platform administration console",
+        "description": "Enclii platform administration console (Dispatch)",
         "audience": "enclii-api",
+        # Pre-assigned: already deployed in admin.enclii.dev production config
+        "client_id": "jnc_lofqyf9LQXG_OwENAIw89p_XvngkWMi-",
         "redirect_uris": [
-            "https://admin.enclii.dev/api/auth/callback",
-            "http://localhost:3001/api/auth/callback",
+            "https://admin.enclii.dev/auth/callback",
+            "http://localhost:3001/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
     },
     {
         "name": "enclii-switchyard",
-        "description": "Enclii Switchyard platform UI",
+        "description": "Enclii Switchyard platform (API + UI)",
         "audience": "enclii-api",
+        # Pre-assigned: already deployed in Enclii K8s production secret
+        "client_id": "jnc_RqeHy54KYGjVr8yQiBeUncMhnQFhS2NA",
         "redirect_uris": [
-            "https://enclii.dev/auth/callback",
+            "https://api.enclii.dev/v1/auth/callback",
+            "https://app.enclii.dev/auth/callback",
             "http://localhost:3000/auth/callback",
+            "http://localhost:8080/v1/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
     },
     {
         "name": "tezca-web",
-        "description": "Tezca web application",
+        "description": "Tezca web application (tezca.mx)",
         "audience": "tezca-api",
         "redirect_uris": [
-            "https://tezca.dev/api/auth/callback/janua",
+            "https://tezca.mx/api/auth/callback/janua",
+            "https://tezca.mx/auth/callback",
             "http://localhost:3000/api/auth/callback/janua",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
     },
     {
         "name": "dhanam-web",
-        "description": "Dhanam web application",
+        "description": "Dhanam web application (app.dhan.am)",
         "audience": "dhanam-api",
+        # Pre-assigned: already deployed in Dhanam .env.production
+        "client_id": "jnc_uE2zp9ume_Fd6jMl1elL6wqjiECM711t",
         "redirect_uris": [
-            "https://dhan.am/api/auth/callback/janua",
-            "http://localhost:3000/api/auth/callback/janua",
+            "https://app.dhan.am/auth/callback",
+            "http://localhost:3000/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
     },
     {
         "name": "yantra4d-studio",
-        "description": "Yantra4D studio application",
+        "description": "Yantra4D studio application (4d-app.madfam.io)",
         "audience": "yantra4d-api",
         "redirect_uris": [
-            "https://yantra4d.dev/api/auth/callback",
-            "http://localhost:5173/api/auth/callback",
+            "https://4d-app.madfam.io",
+            "https://4d-app.madfam.io/auth/callback",
+            "http://localhost:5173/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
     },
     {
         "name": "yantra4d-admin",
-        "description": "Yantra4D admin panel",
+        "description": "Yantra4D admin panel (4d-admin.madfam.io)",
         "audience": "yantra4d-api",
-        "redirect_uris": ["https://admin.yantra4d.dev/api/auth/callback"],
+        "redirect_uris": [
+            "https://4d-admin.madfam.io",
+            "https://4d-admin.madfam.io/auth/callback",
+        ],
         "allowed_scopes": ["openid", "profile", "email", "admin"],
     },
     {
@@ -198,17 +211,21 @@ async def _seed_clients(engine: AsyncEngine) -> None:
         for client_def in ECOSYSTEM_CLIENTS:
             name = client_def["name"]
 
-            # Idempotency check
+            # Idempotency check — match by name or pre-assigned client_id
+            pre_assigned_id = client_def.get("client_id")
             existing = await conn.execute(
-                text("SELECT id FROM oauth_clients WHERE name = :name"),
-                {"name": name},
+                text(
+                    "SELECT id FROM oauth_clients "
+                    "WHERE name = :name OR client_id = :cid"
+                ),
+                {"name": name, "cid": pre_assigned_id or ""},
             )
             if existing.fetchone() is not None:
                 logger.info("SKIP  %-25s (already exists)", name)
                 skipped_count += 1
                 continue
 
-            client_id = _generate_client_id()
+            client_id = pre_assigned_id or _generate_client_id()
             plain_secret = _generate_client_secret()
             secret_hash = _hash_secret(plain_secret)
             secret_prefix = plain_secret[:8]
@@ -271,12 +288,14 @@ async def _seed_clients(engine: AsyncEngine) -> None:
 
             created_count += 1
             logger.info("NEW   %-25s  client_id=%s", name, client_id)
-            # Print credentials for operator to capture
+            # Print credentials for operator to capture — secret is shown
+            # ONLY here and never again, so operator must save it now.
             print(
                 f"\n{'=' * 64}\n"
                 f"  Client:  {name}\n"
                 f"  ID:      {client_id}\n"
-                f"  Secret:  [stored — view prefix via DB or admin API]\n"
+                f"  Secret:  {plain_secret}\n"
+                f"  SAVE THIS SECRET NOW — it cannot be retrieved later.\n"
                 f"{'=' * 64}"
             )
 

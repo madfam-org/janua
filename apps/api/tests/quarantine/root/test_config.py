@@ -141,6 +141,31 @@ class TestSettings:
         defaults.update(overrides)
         return defaults
 
+    def test_storage_defaults(self):
+        """Test that storage config fields have correct defaults."""
+        with patch.dict(os.environ, {}, clear=True):
+            settings = Settings(_env_file=None)
+
+            assert settings.STORAGE_ENABLED is False
+            assert settings.STORAGE_BUCKET_NAME is None
+            assert settings.STORAGE_ACCESS_KEY_ID is None
+            assert settings.STORAGE_SECRET_ACCESS_KEY is None
+
+    def test_storage_enabled_from_env(self):
+        """Test that storage config fields load from environment variables."""
+        with patch.dict(os.environ, {
+            "STORAGE_ENABLED": "true",
+            "STORAGE_BUCKET_NAME": "my-bucket",
+            "STORAGE_ACCESS_KEY_ID": "AKID123",
+            "STORAGE_SECRET_ACCESS_KEY": "secret456",
+        }):
+            settings = Settings(_env_file=None)
+
+            assert settings.STORAGE_ENABLED is True
+            assert settings.STORAGE_BUCKET_NAME == "my-bucket"
+            assert settings.STORAGE_ACCESS_KEY_ID == "AKID123"
+            assert settings.STORAGE_SECRET_ACCESS_KEY == "secret456"
+
     def test_database_ssl_mode_warning_in_production(self):
         """Test that insecure DATABASE_SSL_MODE emits a warning in production."""
         import warnings
