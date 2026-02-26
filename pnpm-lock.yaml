@@ -997,8 +997,8 @@ importers:
   packages/react-sdk:
     dependencies:
       '@janua/typescript-sdk':
-        specifier: 0.1.0
-        version: 0.1.0(@apollo/client@3.14.0(@types/react@18.2.79)(graphql-ws@5.16.2(graphql@16.12.0))(graphql@16.12.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(axios@1.13.5)(graphql-ws@5.16.2(graphql@16.12.0))(graphql@16.12.0)
+        specifier: 0.1.1
+        version: 0.1.1(@apollo/client@3.14.0(@types/react@18.2.79)(graphql-ws@6.0.7(graphql@16.12.0)(ws@8.19.0))(graphql@16.12.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(axios@1.13.5)(graphql-ws@6.0.7(graphql@16.12.0)(ws@8.19.0))(graphql@16.12.0)
       react:
         specifier: ^18.0.0
         version: 18.3.1
@@ -1403,10 +1403,6 @@ packages:
 
   '@babel/generator@7.28.5':
     resolution: {integrity: sha512-3EwLFhZ38J4VyIP6WNtt2kUdW9dokXA9Cr4IVIFHuCpZ3H8/YFOl5JjZHisrn1fATPBmKKqXzDFvh9fUwHz6CQ==}
-    engines: {node: '>=6.9.0'}
-
-  '@babel/generator@7.29.0':
-    resolution: {integrity: sha512-vSH118/wwM/pLR38g/Sgk05sNtro6TlTJKuiMXDaZqPUfjTFcudpCOt00IhOfj+1BFAX+UFAlzCU+6WXr3GLFQ==}
     engines: {node: '>=6.9.0'}
 
   '@babel/generator@7.29.1':
@@ -2926,6 +2922,24 @@ packages:
       axios: ^1.0.0
       graphql: ^16.8.0
       graphql-ws: ^5.14.0
+    peerDependenciesMeta:
+      '@apollo/client':
+        optional: true
+      axios:
+        optional: true
+      graphql:
+        optional: true
+      graphql-ws:
+        optional: true
+
+  '@janua/typescript-sdk@0.1.1':
+    resolution: {integrity: sha512-Pgo8koAeukckHPGF2W18w7ToAppG4dVmv2YaaRwbwSRWh6k5ZKlt3zojHEwU2qk4do0nGY/xlQknoq/y4KfeQA==}
+    engines: {node: '>=16.0.0'}
+    peerDependencies:
+      '@apollo/client': ^3.8.0
+      axios: ^1.13.5
+      graphql: ^16.8.0
+      graphql-ws: ^6.0.7
     peerDependenciesMeta:
       '@apollo/client':
         optional: true
@@ -10877,30 +10891,6 @@ snapshots:
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
 
-  '@apollo/client@3.14.0(@types/react@18.2.79)(graphql-ws@5.16.2(graphql@16.12.0))(graphql@16.12.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
-    dependencies:
-      '@graphql-typed-document-node/core': 3.2.0(graphql@16.12.0)
-      '@wry/caches': 1.0.1
-      '@wry/equality': 0.5.7
-      '@wry/trie': 0.5.0
-      graphql: 16.12.0
-      graphql-tag: 2.12.6(graphql@16.12.0)
-      hoist-non-react-statics: 3.3.2
-      optimism: 0.18.1
-      prop-types: 15.8.1
-      rehackt: 0.1.0(@types/react@18.2.79)(react@18.3.1)
-      symbol-observable: 4.0.0
-      ts-invariant: 0.10.3
-      tslib: 2.8.1
-      zen-observable-ts: 1.2.5
-    optionalDependencies:
-      graphql-ws: 5.16.2(graphql@16.12.0)
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-    transitivePeerDependencies:
-      - '@types/react'
-    optional: true
-
   '@apollo/client@3.14.0(@types/react@18.2.79)(graphql-ws@5.16.2(graphql@16.12.0))(graphql@16.12.0)(react-dom@19.2.4(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@16.12.0)
@@ -10921,6 +10911,30 @@ snapshots:
       graphql-ws: 5.16.2(graphql@16.12.0)
       react: 18.3.1
       react-dom: 19.2.4(react@18.3.1)
+    transitivePeerDependencies:
+      - '@types/react'
+    optional: true
+
+  '@apollo/client@3.14.0(@types/react@18.2.79)(graphql-ws@6.0.7(graphql@16.12.0)(ws@8.19.0))(graphql@16.12.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@graphql-typed-document-node/core': 3.2.0(graphql@16.12.0)
+      '@wry/caches': 1.0.1
+      '@wry/equality': 0.5.7
+      '@wry/trie': 0.5.0
+      graphql: 16.12.0
+      graphql-tag: 2.12.6(graphql@16.12.0)
+      hoist-non-react-statics: 3.3.2
+      optimism: 0.18.1
+      prop-types: 15.8.1
+      rehackt: 0.1.0(@types/react@18.2.79)(react@18.3.1)
+      symbol-observable: 4.0.0
+      ts-invariant: 0.10.3
+      tslib: 2.8.1
+      zen-observable-ts: 1.2.5
+    optionalDependencies:
+      graphql-ws: 6.0.7(graphql@16.12.0)(ws@8.19.0)
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
     transitivePeerDependencies:
       - '@types/react'
     optional: true
@@ -11027,14 +11041,6 @@ snapshots:
       - supports-color
 
   '@babel/generator@7.28.5':
-    dependencies:
-      '@babel/parser': 7.29.0
-      '@babel/types': 7.29.0
-      '@jridgewell/gen-mapping': 0.3.13
-      '@jridgewell/trace-mapping': 0.3.31
-      jsesc: 3.1.0
-
-  '@babel/generator@7.29.0':
     dependencies:
       '@babel/parser': 7.29.0
       '@babel/types': 7.29.0
@@ -11894,7 +11900,7 @@ snapshots:
   '@babel/traverse@7.29.0':
     dependencies:
       '@babel/code-frame': 7.29.0
-      '@babel/generator': 7.29.0
+      '@babel/generator': 7.29.1
       '@babel/helper-globals': 7.28.0
       '@babel/parser': 7.29.0
       '@babel/template': 7.28.6
@@ -12509,19 +12515,19 @@ snapshots:
 
   '@istanbuljs/schema@0.1.3': {}
 
-  '@janua/typescript-sdk@0.1.0(@apollo/client@3.14.0(@types/react@18.2.79)(graphql-ws@5.16.2(graphql@16.12.0))(graphql@16.12.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(axios@1.13.5)(graphql-ws@5.16.2(graphql@16.12.0))(graphql@16.12.0)':
-    optionalDependencies:
-      '@apollo/client': 3.14.0(@types/react@18.2.79)(graphql-ws@5.16.2(graphql@16.12.0))(graphql@16.12.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      axios: 1.13.5
-      graphql: 16.12.0
-      graphql-ws: 5.16.2(graphql@16.12.0)
-
   '@janua/typescript-sdk@0.1.0(@apollo/client@3.14.0(@types/react@18.2.79)(graphql-ws@5.16.2(graphql@16.12.0))(graphql@16.12.0)(react-dom@19.2.4(react@18.3.1))(react@18.3.1))(axios@1.13.5)(graphql-ws@5.16.2(graphql@16.12.0))(graphql@16.12.0)':
     optionalDependencies:
       '@apollo/client': 3.14.0(@types/react@18.2.79)(graphql-ws@5.16.2(graphql@16.12.0))(graphql@16.12.0)(react-dom@19.2.4(react@18.3.1))(react@18.3.1)
       axios: 1.13.5
       graphql: 16.12.0
       graphql-ws: 5.16.2(graphql@16.12.0)
+
+  '@janua/typescript-sdk@0.1.1(@apollo/client@3.14.0(@types/react@18.2.79)(graphql-ws@6.0.7(graphql@16.12.0)(ws@8.19.0))(graphql@16.12.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(axios@1.13.5)(graphql-ws@6.0.7(graphql@16.12.0)(ws@8.19.0))(graphql@16.12.0)':
+    optionalDependencies:
+      '@apollo/client': 3.14.0(@types/react@18.2.79)(graphql-ws@6.0.7(graphql@16.12.0)(ws@8.19.0))(graphql@16.12.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      axios: 1.13.5
+      graphql: 16.12.0
+      graphql-ws: 6.0.7(graphql@16.12.0)(ws@8.19.0)
 
   '@jest/console@29.7.0':
     dependencies:
@@ -18540,7 +18546,7 @@ snapshots:
   jest-snapshot@30.2.0:
     dependencies:
       '@babel/core': 7.29.0
-      '@babel/generator': 7.29.0
+      '@babel/generator': 7.29.1
       '@babel/plugin-syntax-jsx': 7.27.1(@babel/core@7.29.0)
       '@babel/plugin-syntax-typescript': 7.27.1(@babel/core@7.29.0)
       '@babel/types': 7.29.0
@@ -19292,7 +19298,7 @@ snapshots:
   metro-transform-plugins@0.83.3:
     dependencies:
       '@babel/core': 7.29.0
-      '@babel/generator': 7.29.0
+      '@babel/generator': 7.29.1
       '@babel/template': 7.28.6
       '@babel/traverse': 7.29.0
       flow-enums-runtime: 0.0.6
@@ -19303,7 +19309,7 @@ snapshots:
   metro-transform-worker@0.83.3:
     dependencies:
       '@babel/core': 7.29.0
-      '@babel/generator': 7.29.0
+      '@babel/generator': 7.29.1
       '@babel/parser': 7.29.0
       '@babel/types': 7.29.0
       flow-enums-runtime: 0.0.6

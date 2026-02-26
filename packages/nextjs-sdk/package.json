@@ -1,6 +1,6 @@
 {
   "name": "@janua/nextjs",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Official Janua SDK for Next.js applications with App Router and Pages Router support",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

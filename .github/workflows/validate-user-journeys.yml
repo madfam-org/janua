@@ -26,6 +26,9 @@ on:
       - 'tests/e2e/journeys/**'
       - 'config/docker-compose.test.yml'
 
+env:
+  NPM_MADFAM_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
+
 jobs:
   validate-journeys:
     name: Validate User Journeys

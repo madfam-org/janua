@@ -24,6 +24,7 @@ env:
   PYTHON_VERSION: '3.11'
   MIN_ALPHA_SCORE: 60
   MIN_BETA_SCORE: 80
+  NPM_MADFAM_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
 
 jobs:
   readiness-check:

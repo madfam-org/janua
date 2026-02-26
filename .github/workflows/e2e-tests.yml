@@ -11,6 +11,7 @@ on:
 
 env:
   NODE_VERSION: '20'
+  NPM_MADFAM_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
 
 jobs:
   e2e-tests:
