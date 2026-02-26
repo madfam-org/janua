@@ -64,6 +64,8 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
+        env:
+          NPM_MADFAM_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
         run: pnpm install --frozen-lockfile
 
       - name: Build SDK
@@ -83,6 +85,19 @@ jobs:
           else
             echo "No test script found, skipping tests"
           fi
+
+      - name: Check version not already published
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
+        run: |
+          cd packages/${{ steps.extract.outputs.sdk_name }}
+          PKG_NAME=$(jq -r '.name' package.json)
+          VERSION=$(jq -r '.version' package.json)
+          if npm view "${PKG_NAME}@${VERSION}" version --registry https://npm.madfam.io 2>/dev/null; then
+            echo "ERROR: ${PKG_NAME}@${VERSION} already published. Bump the version first."
+            exit 1
+          fi
+          echo "OK: ${PKG_NAME}@${VERSION} not yet published"
 
       - name: Publish to npm.madfam.io
         env:
