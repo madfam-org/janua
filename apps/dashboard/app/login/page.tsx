@@ -95,7 +95,7 @@ function LoginForm() {
         januaClient={januaClient}
         afterSignIn={handleAfterSignIn}
         redirectUrl={redirectTo}
-        socialProviders={{ google: false, github: false, microsoft: false, apple: false }}
+        socialProviders={{ google: true, github: true, microsoft: true, apple: true }}
         showRememberMe={false}
       />
 

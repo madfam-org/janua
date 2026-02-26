@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@janua/feature-flags": "workspace:*",
+    "@janua/nextjs": "workspace:*",
     "@janua/react-sdk": "workspace:*",
     "@janua/typescript-sdk": "workspace:*",
     "@janua/ui": "workspace:*",
