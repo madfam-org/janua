@@ -26,6 +26,9 @@ COPY packages/ ./packages/
 # Copy docs source code BEFORE install
 COPY apps/docs/ ./apps/docs/
 
+# Inject NPM token for npm.madfam.io private registry auth
+ARG NPM_MADFAM_TOKEN
+
 # Copy .npmrc for npm.madfam.io registry configuration
 # Workspace packages are resolved locally, published @janua/* from npm.madfam.io
 COPY .npmrc ./
