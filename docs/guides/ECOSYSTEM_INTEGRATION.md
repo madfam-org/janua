@@ -401,7 +401,7 @@ cd apps/api
 python scripts/seed_ecosystem_clients.py
 ```
 
-The script is **idempotent** — it skips clients that already exist (matched by name) and only creates missing ones. Newly created clients print their credentials to stdout:
+The script is **idempotent** — it skips clients that already exist (matched by name or pre-assigned `client_id`) and only creates missing ones. Newly created clients print their credentials to stdout:
 
 ```
 ================================================================
@@ -439,13 +439,20 @@ The seed script (`apps/api/scripts/seed_ecosystem_clients.py`) defines the follo
 
 Note: `enclii-dispatch` and `enclii-switchyard` share the `enclii-api` audience because both are Enclii services consuming the same backend. Similarly, `yantra4d-studio` and `yantra4d-admin` share `yantra4d-api`.
 
+### Pre-assigned Client IDs
+
+Some ecosystem clients have **pre-assigned `client_id` values** — these are hardcoded in both the seed script and the consumer app's deployed configuration. This avoids a chicken-and-egg problem: the consumer app ships with a known `client_id`, and the seed script registers that exact ID in the Janua database.
+
+Clients with pre-assigned IDs: `enclii-dispatch`, `enclii-switchyard`, `dhanam-web`.
+
 ### Adding a New Ecosystem Client
 
 1. Add a new entry to the `ECOSYSTEM_CLIENTS` list in `apps/api/scripts/seed_ecosystem_clients.py`
 2. Include both production and localhost `redirect_uris` for dev/prod parity
-3. Run the seed script against your target database
-4. Copy the generated `jnc_*` / `jns_*` credentials into the app's `.env`
-5. Update the app's `.env.example` with a comment pointing to the seed script
+3. If the consumer app already has a hardcoded `client_id`, add it as a `"client_id"` field in the entry
+4. Run the seed script against your target database
+5. Copy the generated `jnc_*` / `jns_*` credentials into the app's `.env`
+6. Update the app's `.env.example` with a comment pointing to the seed script
 
 For client management operations (rotation, deactivation), see `docs/guides/PROVIDER_OPERATIONS.md`.
 
@@ -455,13 +462,13 @@ For client management operations (rotation, deactivation), see `docs/guides/PROV
 
 This section lists the known MADFAM ecosystem applications and their Janua client configurations. If you are building a new application outside the MADFAM ecosystem, you do not need this section.
 
-| Application | Status | Audience | Redirect URI |
-|-------------|--------|----------|--------------|
-| **Stratum-TCG** (stratum-tcg.dev) | Auth disabled. Highest integration priority. | `stratum-tcg-api` | `https://stratum-tcg.dev/api/auth/callback` |
-| **Dhanam** (dhan.am) | Uses local SDK stub. Minimal work remaining. | `dhanam-api` | `https://dhan.am/api/auth/callback/janua` |
-| **Enclii Dispatch** (admin.enclii.dev) | Custom OIDC middleware with Dex fallback. Needs SDK migration. | `enclii-api` | `https://admin.enclii.dev/api/auth/callback` |
-| **Enclii Switchyard** (enclii.dev) | Needs registered client. Uses Dex locally. | `enclii-api` | `https://enclii.dev/auth/callback` |
-| **Yantra4D Studio** (yantra4d.dev) | Mostly complete. Missing social login and JIT provisioning. | `yantra4d-api` | `https://yantra4d.dev/api/auth/callback` |
-| **Yantra4D Admin** (admin.yantra4d.dev) | Admin panel. | `yantra4d-api` | `https://admin.yantra4d.dev/api/auth/callback` |
-| **Tezca** (tezca.dev) | Most complete integration. Use as reference. | `tezca-api` | `https://tezca.dev/api/auth/callback/janua` |
-| **Janua Dashboard** (app.janua.dev) | Fully integrated (dogfooding). See `apps/dashboard/lib/janua-client.ts`. | `janua-dashboard` | `https://app.janua.dev/api/auth/callback` |
+| Application | Status | Audience | Redirect URI(s) |
+|-------------|--------|----------|-----------------|
+| **Janua Dashboard** (app.janua.dev) | Fully integrated (dogfooding). See `apps/dashboard/lib/janua-client.ts`. | `janua.dev` | `https://app.janua.dev/api/auth/callback` |
+| **Enclii Switchyard** (app.enclii.dev) | Working end-to-end. | `enclii-api` | `https://api.enclii.dev/v1/auth/callback`, `https://app.enclii.dev/auth/callback` |
+| **Enclii Dispatch** (admin.enclii.dev) | OAuth client registered. Needs deployment with secret. | `enclii-api` | `https://admin.enclii.dev/auth/callback` |
+| **Dhanam** (app.dhan.am) | OAuth client registered. Needs CORS fix in Dhanam repo. | `dhanam-api` | `https://app.dhan.am/auth/callback` |
+| **Tezca** (tezca.mx) | SDK integrated. No sign-in UI yet (public-access MVP). | `tezca-api` | `https://tezca.mx/api/auth/callback/janua`, `https://tezca.mx/auth/callback` |
+| **Yantra4D Studio** (4d-app.madfam.io) | Missing env vars in CI. Needs `JANUA_BASE_URL` + `JANUA_CLIENT_ID` secrets. | `yantra4d-api` | `https://4d-app.madfam.io/auth/callback` |
+| **Yantra4D Admin** (4d-admin.madfam.io) | Admin panel. | `yantra4d-api` | `https://4d-admin.madfam.io/auth/callback` |
+| **Stratum-TCG** (stratum-tcg.dev) | Auth disabled. Needs integration. | `stratum-tcg-api` | `https://stratum-tcg.dev/api/auth/callback` |
