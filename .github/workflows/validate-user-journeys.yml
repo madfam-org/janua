@@ -55,7 +55,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Setup Python (for API)
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -309,7 +309,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Setup Python (for API)
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
