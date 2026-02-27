@@ -79,12 +79,25 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
         "name": "tezca-web",
         "description": "Tezca web application (tezca.mx)",
         "audience": "tezca-api",
+        # Pre-assigned: already deployed in Tezca K8s production secret
+        "client_id": "jnc_e3T94-MNy1dXAUNR5KetwduopRALT_nR",
         "redirect_uris": [
-            "https://tezca.mx/api/auth/callback/janua",
-            "https://tezca.mx/auth/callback",
-            "http://localhost:3000/api/auth/callback/janua",
+            "https://tezca.mx/api/auth/callback",
+            "http://localhost:3000/api/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "tezca-admin",
+        "description": "Tezca admin panel (admin.tezca.mx)",
+        "audience": "tezca-api",
+        # Pre-assigned: already deployed in Tezca admin K8s production secret
+        "client_id": "jnc_dyS_lo50uQU81nsuFsWaHZbnTKYTWe2m",
+        "redirect_uris": [
+            "https://admin.tezca.mx/api/auth/callback",
+            "http://localhost:3001/api/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email", "tezca:admin"],
     },
     {
         "name": "dhanam-web",

@@ -51,9 +51,9 @@ spec:
 
     redirectUris:
       # Production
-      - "https://tezca.mx/api/auth/janua/session"
+      - "https://tezca.mx/api/auth/callback"
       # Local development
-      - "http://localhost:3000/api/auth/janua/session"
+      - "http://localhost:3000/api/auth/callback"
 
     postLogoutRedirectUris:
       - "https://tezca.mx"
@@ -217,9 +217,9 @@ spec:
 
     redirectUris:
       # Production
-      - "https://admin.tezca.mx/api/auth/janua/session"
+      - "https://admin.tezca.mx/api/auth/callback"
       # Local development
-      - "http://localhost:3001/api/auth/janua/session"
+      - "http://localhost:3001/api/auth/callback"
 
     postLogoutRedirectUris:
       - "https://admin.tezca.mx"
