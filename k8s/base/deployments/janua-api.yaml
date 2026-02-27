@@ -101,7 +101,7 @@ spec:
             - name: LOG_LEVEL
               value: info
             - name: BASE_URL
-              value: https://api.janua.dev
+              value: https://auth.madfam.io
             # Email
             - name: EMAIL_PROVIDER
               value: resend
@@ -113,9 +113,9 @@ spec:
             # CORS - All allowed frontend origins
             - name: CORS_ORIGINS
               value: "https://admin.janua.dev,https://app.janua.dev,https://api.enclii.dev,https://app.enclii.dev,https://admin.enclii.dev,https://auth.madfam.io,https://app.dhan.am,https://admin.tezca.mx,https://tezca.mx"
-            # Cookie domain for cross-subdomain SSO (api.janua.dev cookies shared with app.janua.dev)
+            # Cookie domain for cross-subdomain SSO (*.madfam.io for auth.madfam.io)
             - name: COOKIE_DOMAIN
-              value: ".janua.dev"
+              value: ".madfam.io"
             # Features
             - name: ENABLE_DOCS
               value: "true"
