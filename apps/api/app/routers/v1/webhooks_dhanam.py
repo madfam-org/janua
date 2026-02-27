@@ -1,17 +1,14 @@
 """
-Dhanam Billing Webhooks - Updates organization subscription_tier
+Dhanam Billing Webhooks - Updates organization per-product tiers
 
 Handles subscription events from Dhanam billing system to keep Janua
-organization tiers in sync for Enclii feature gating via foundry_tier JWT claim.
+organization tiers in sync for JWT claims across all products.
 
-Tier Mapping:
-- Dhanam "sovereign" -> Janua "pro" -> Enclii "sovereign" foundry_tier
-- Dhanam "ecosystem" -> Janua "enterprise" -> Enclii "ecosystem" foundry_tier
+Plan ID format: "{product}_{tier}" (e.g. "tezca_pro", "enclii_pro")
+Bare plan IDs (e.g. "pro") default to product="dhanam".
 
-The SSO orchestrator (sso_orchestrator.py) maps Janua tiers to Enclii foundry_tier:
-- community -> community
-- pro/sovereign -> sovereign
-- enterprise/ecosystem -> ecosystem
+Per-product tiers are stored in Organization.product_tiers JSONB and emitted
+as individual JWT claims (foundry_tier, tezca_tier, yantra4d_tier, dhanam_tier).
 """
 
 import hashlib
@@ -31,31 +28,21 @@ from app.models import Organization
 logger = structlog.get_logger()
 router = APIRouter(prefix="/webhooks/dhanam", tags=["webhooks"])
 
-# Dhanam plan_id -> Janua subscription_tier mapping
-# These align with DHANAM_TO_JANUA_TIER in billing.py for consistency
-DHANAM_PLAN_TIER_MAP = {
-    # Community tier
-    "free": "community",
-    "community": "community",
-    "trial": "community",
-    "enclii_community": "community",
-    # Pro tier (maps to sovereign in Enclii via SSO orchestrator)
-    "pro": "pro",
-    "sovereign": "pro",
-    "pro_monthly": "pro",
-    "pro_annual": "pro",
-    "enclii_sovereign": "pro",
-    # Scale tier
-    "scale": "scale",
-    "scale_monthly": "scale",
-    "scale_annual": "scale",
-    # Enterprise tier (maps to ecosystem in Enclii via SSO orchestrator)
-    "enterprise": "enterprise",
-    "ecosystem": "enterprise",
-    "enterprise_monthly": "enterprise",
-    "enterprise_annual": "enterprise",
-    "enclii_ecosystem": "enterprise",
+KNOWN_PRODUCTS = {"enclii", "tezca", "yantra4d", "dhanam"}
+VALID_TIERS = {"essentials", "pro", "madfam"}
+
+# Legacy plan names -> (product, tier) for backwards compatibility
+LEGACY_PLAN_MAP = {
+    "sovereign": ("enclii", "pro"),
+    "ecosystem": ("enclii", "madfam"),
+    "enclii_sovereign": ("enclii", "pro"),
+    "enclii_ecosystem": ("enclii", "madfam"),
+    "enterprise": ("dhanam", "madfam"),
+    "scale": ("dhanam", "pro"),
 }
+
+# Plans that mean "not billed" — remove product tier on these
+CANCEL_TIERS = {"free", "community", "trial"}
 
 
 def verify_dhanam_signature(payload: bytes, signature: str, secret: str) -> bool:
@@ -64,11 +51,53 @@ def verify_dhanam_signature(payload: bytes, signature: str, secret: str) -> bool
     return hmac.compare_digest(signature, expected)
 
 
-def map_dhanam_plan_to_tier(plan_id: str) -> str:
-    """Map Dhanam plan_id to Janua subscription_tier."""
+def parse_product_plan(plan_id: str) -> tuple[str, str | None]:
+    """Parse a Dhanam plan_id into (product, tier).
+
+    Examples:
+        "tezca_pro" -> ("tezca", "pro")
+        "enclii_essentials" -> ("enclii", "essentials")
+        "pro" -> ("dhanam", "pro")
+        "sovereign" -> ("enclii", "pro")  # legacy
+        "free" -> ("dhanam", None)  # cancel tier
+    """
     if not plan_id:
-        return "community"
-    return DHANAM_PLAN_TIER_MAP.get(plan_id.lower(), "community")
+        return "dhanam", None
+
+    plan_lower = plan_id.lower()
+
+    # Strip billing period suffixes
+    for suffix in ("_monthly", "_annual", "_yearly"):
+        if plan_lower.endswith(suffix):
+            plan_lower = plan_lower[: -len(suffix)]
+            break
+
+    # Check legacy plan names first
+    if plan_lower in LEGACY_PLAN_MAP:
+        return LEGACY_PLAN_MAP[plan_lower]
+
+    # Check cancel/free tiers
+    if plan_lower in CANCEL_TIERS:
+        return "dhanam", None
+
+    # Parse "{product}_{tier}" format
+    parts = plan_lower.split("_", 1)
+    if len(parts) == 2 and parts[0] in KNOWN_PRODUCTS:
+        product, tier = parts
+        if tier in CANCEL_TIERS:
+            return product, None
+        if tier in VALID_TIERS:
+            return product, tier
+        # Unknown tier name for known product — log and use as-is
+        logger.warning("Unknown tier in plan_id", plan_id=plan_id, product=product, tier=tier)
+        return product, tier
+
+    # Bare tier name — default to dhanam product
+    if plan_lower in VALID_TIERS:
+        return "dhanam", plan_lower
+
+    logger.warning("Unrecognized plan_id", plan_id=plan_id)
+    return "dhanam", None
 
 
 async def find_organization(
@@ -253,20 +282,34 @@ async def dhanam_subscription_webhook(
             detail=f"Organization not found. Tried: customer_id={customer_id}, org_id={org_id}, metadata.organization_id={metadata.get('organization_id')}",
         )
 
-    # Determine new tier based on event type
-    old_tier = organization.subscription_tier
+    # Parse product and tier from plan_id
     if event_type in ("subscription.canceled", "subscription.deleted"):
-        # Downgrade to community on cancellation
-        new_tier = "community"
-        logger.info(
-            "Subscription canceled, downgrading to community",
-            organization_id=str(organization.id),
-        )
+        # For cancellations, parse product from plan_id to know which product to downgrade
+        product, _ = parse_product_plan(plan_id) if plan_id else ("dhanam", None)
+        new_tier = None  # Remove tier = not billed
     else:
-        new_tier = map_dhanam_plan_to_tier(plan_id)
+        product, new_tier = parse_product_plan(plan_id)
 
-    # Update organization
-    organization.subscription_tier = new_tier
+    # Update product_tiers JSONB
+    current_tiers = dict(organization.product_tiers or {})
+    old_product_tier = current_tiers.get(product)
+
+    if new_tier:
+        current_tiers[product] = new_tier
+    else:
+        current_tiers.pop(product, None)  # Remove product tier on cancel
+
+    organization.product_tiers = current_tiers
+
+    # Keep legacy subscription_tier in sync (derived from highest product tier)
+    tier_rank = {"essentials": 1, "pro": 2, "madfam": 3}
+    highest = max(
+        (tier_rank.get(t, 0) for t in current_tiers.values()),
+        default=0,
+    )
+    rank_to_legacy = {0: "community", 1: "pro", 2: "pro", 3: "enterprise"}
+    organization.subscription_tier = rank_to_legacy.get(highest, "community")
+
     organization.updated_at = datetime.utcnow()
 
     # Ensure billing_customer_id is linked
@@ -281,11 +324,13 @@ async def dhanam_subscription_webhook(
     await db.commit()
 
     logger.info(
-        "Subscription tier updated via Dhanam webhook",
+        "Product tier updated via Dhanam webhook",
         organization_id=str(organization.id),
         organization_name=organization.name,
-        old_tier=old_tier,
+        product=product,
+        old_tier=old_product_tier,
         new_tier=new_tier,
+        product_tiers=current_tiers,
         plan_id=plan_id,
         event_type=event_type,
     )
@@ -294,7 +339,9 @@ async def dhanam_subscription_webhook(
         "status": "processed",
         "organization_id": str(organization.id),
         "organization_name": organization.name,
-        "old_tier": old_tier,
+        "product": product,
+        "old_tier": old_product_tier,
         "new_tier": new_tier,
+        "product_tiers": current_tiers,
         "event_type": event_type,
     }

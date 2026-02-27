@@ -485,6 +485,60 @@ interface PaymentProviderInterface {
 }
 ```
 
+## Per-Product Tier Storage (Dhanam Consolidation)
+
+**Added**: February 2026
+
+Janua now tracks subscription tiers per product rather than a single organization-wide
+tier. This enables independent billing for each Madfam product (Enclii, Tezca,
+Yantra4D, Dhanam) while maintaining backwards compatibility with the legacy
+`subscription_tier` field.
+
+### How It Works
+
+1. **Dhanam sends a webhook** to `POST /v1/webhooks/dhanam/subscription` with a
+   `plan_id` in the format `{product}_{tier}` (e.g. `tezca_pro`, `enclii_essentials`).
+2. **Janua parses the plan_id** and stores the tier in `Organization.product_tiers`,
+   a JSONB column keyed by product name.
+3. **At SSO token issuance**, `resolve_product_tiers()` reads the JSONB and emits
+   individual JWT claims that downstream services use for feature gating.
+
+### Plan ID Format
+
+| Format | Example | Result |
+|--------|---------|--------|
+| `{product}_{tier}` | `tezca_pro` | product=tezca, tier=pro |
+| `{product}_{tier}_{period}` | `enclii_essentials_monthly` | product=enclii, tier=essentials (period stripped) |
+| Bare tier | `pro` | product=dhanam, tier=pro |
+| Legacy name | `sovereign` | product=enclii, tier=pro |
+| Cancel tier | `free`, `community`, `trial` | tier removed for that product |
+
+### Legacy Plan Mappings
+
+| Legacy Plan ID | Mapped Product | Mapped Tier |
+|----------------|---------------|-------------|
+| `sovereign` | enclii | pro |
+| `ecosystem` | enclii | madfam |
+| `enterprise` | dhanam | madfam |
+| `scale` | dhanam | pro |
+
+### JWT Claims
+
+Each product tier is emitted as a separate claim in the SSO JWT:
+
+| Claim | Source | Values | Consumer |
+|-------|--------|--------|----------|
+| `foundry_tier` | `product_tiers.enclii` (mapped) or legacy `subscription_tier` | `community`, `sovereign`, `ecosystem` | Enclii (Switchyard API) |
+| `tezca_tier` | `product_tiers.tezca` | `essentials`, `pro`, `madfam` | Tezca |
+| `yantra4d_tier` | `product_tiers.yantra4d` | `essentials`, `pro`, `madfam` | Yantra4D |
+| `dhanam_tier` | `product_tiers.dhanam` | `essentials`, `pro`, `madfam` | Dhanam |
+
+Claims are **omitted** (not set to `null`) when a product has no active tier.
+Downstream services treat an absent claim as the free/community tier.
+
+The `foundry_tier` claim uses legacy Enclii naming for backwards compatibility:
+`essentials` maps to `community`, `pro` maps to `sovereign`, `madfam` maps to `ecosystem`.
+
 ## Support
 
 - **Documentation**: This guide and linked references
@@ -493,4 +547,4 @@ interface PaymentProviderInterface {
 
 ---
 
-*Janua Billing Integration Guide | November 2025*
+*Janua Billing Integration Guide | February 2026*

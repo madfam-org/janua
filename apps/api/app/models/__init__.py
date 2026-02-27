@@ -97,7 +97,8 @@ class Organization(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     slug = Column(String(255), unique=True, nullable=False, index=True)
-    subscription_tier = Column(String(100), default="community")  # For tenant/organization billing
+    subscription_tier = Column(String(100), default="community")  # Legacy — derived from highest product tier
+    product_tiers = Column(JSONB, default={})  # Per-product tiers: {"enclii": "pro", "tezca": "essentials"}
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))  # Organization owner
     billing_plan = Column(String(100), default="free")  # Billing plan
     billing_email = Column(String(255))  # Billing contact
