@@ -112,7 +112,7 @@ spec:
               value: auth.madfam.io
             # CORS - All allowed frontend origins
             - name: CORS_ORIGINS
-              value: "https://admin.janua.dev,https://app.janua.dev,https://api.enclii.dev,https://app.enclii.dev,https://admin.enclii.dev,https://auth.madfam.io,https://app.dhan.am"
+              value: "https://admin.janua.dev,https://app.janua.dev,https://api.enclii.dev,https://app.enclii.dev,https://admin.enclii.dev,https://auth.madfam.io,https://app.dhan.am,https://admin.tezca.mx,https://tezca.mx"
             # Cookie domain for cross-subdomain SSO (api.janua.dev cookies shared with app.janua.dev)
             - name: COOKIE_DOMAIN
               value: ".janua.dev"
