@@ -1,10 +1,13 @@
 """
-Seed MADFAM ecosystem OAuth clients into the Janua database.
+Seed core OAuth clients into the Janua database.
 
-Idempotent script that registers OAuth clients for each MADFAM ecosystem
-application. Skips clients that already exist (matched by name). Prints
+Idempotent script that registers OAuth clients for the core platform
+(janua, enclii). Skips clients that already exist (matched by name). Prints
 plain-text secrets for newly created clients so the operator can configure
 each consumer application.
+
+Non-core app clients (tezca, dhanam, yantra4d, etc.) should be registered
+via the Janua OAuth client API: POST /v1/oauth/clients
 
 Usage:
     cd apps/api
@@ -75,75 +78,9 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
         ],
         "allowed_scopes": ["openid", "profile", "email"],
     },
-    {
-        "name": "tezca-web",
-        "description": "Tezca web application (tezca.mx)",
-        "audience": "tezca-api",
-        # Pre-assigned: already deployed in Tezca K8s production secret
-        "client_id": "jnc_e3T94-MNy1dXAUNR5KetwduopRALT_nR",
-        "redirect_uris": [
-            "https://tezca.mx/api/auth/callback",
-            "http://localhost:3000/api/auth/callback",
-        ],
-        "allowed_scopes": ["openid", "profile", "email"],
-    },
-    {
-        "name": "tezca-admin",
-        "description": "Tezca admin panel (admin.tezca.mx)",
-        "audience": "tezca-api",
-        # Pre-assigned: already deployed in Tezca admin K8s production secret
-        "client_id": "jnc_dyS_lo50uQU81nsuFsWaHZbnTKYTWe2m",
-        "redirect_uris": [
-            "https://admin.tezca.mx/api/auth/callback",
-            "http://localhost:3001/api/auth/callback",
-        ],
-        "allowed_scopes": ["openid", "profile", "email", "tezca:admin"],
-    },
-    {
-        "name": "dhanam-web",
-        "description": "Dhanam web application (app.dhan.am)",
-        "audience": "dhanam-api",
-        # Pre-assigned: already deployed in Dhanam .env.production
-        "client_id": "jnc_uE2zp9ume_Fd6jMl1elL6wqjiECM711t",
-        "redirect_uris": [
-            "https://app.dhan.am/auth/callback",
-            "http://localhost:3000/auth/callback",
-        ],
-        "allowed_scopes": ["openid", "profile", "email"],
-    },
-    {
-        "name": "yantra4d-studio",
-        "description": "Yantra4D studio application (4d-app.madfam.io)",
-        "audience": "yantra4d-api",
-        "redirect_uris": [
-            "https://4d-app.madfam.io",
-            "https://4d-app.madfam.io/auth/callback",
-            "http://localhost:5173/auth/callback",
-        ],
-        "allowed_scopes": ["openid", "profile", "email"],
-    },
-    {
-        "name": "yantra4d-admin",
-        "description": "Yantra4D admin panel (4d-admin.madfam.io)",
-        "audience": "yantra4d-api",
-        # Pre-assigned: matches VITE_JANUA_CLIENT_ID in yantra4d deploy.yml
-        "client_id": "jnc_-v2RiP_TMO-XSExftpCh41K46xeszlKh",
-        "redirect_uris": [
-            "https://4d-admin.madfam.io",
-            "https://4d-admin.madfam.io/auth/callback",
-        ],
-        "allowed_scopes": ["openid", "profile", "email", "admin"],
-    },
-    {
-        "name": "stratum-tcg-client",
-        "description": "Stratum TCG client application",
-        "audience": "stratum-tcg-api",
-        "redirect_uris": [
-            "https://stratum-tcg.dev/api/auth/callback",
-            "http://localhost:5173/api/auth/callback",
-        ],
-        "allowed_scopes": ["openid", "profile", "email"],
-    },
+    # Non-core clients (tezca, dhanam, yantra4d, stratum-tcg, etc.) are registered
+    # via the Janua OAuth client API: POST /v1/oauth/clients
+    # Their CORS origins are auto-derived by DynamicCORSMiddleware from redirect_uris.
 ]
 
 

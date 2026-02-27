@@ -217,9 +217,9 @@ class Settings(BaseSettings):
         default=None,
         description="Webhook signing secret for Dhanam subscription notifications",
     )
-    DHANAM_URL: str = Field(
-        default="https://dhan.am",
-        description="Dhanam billing service URL for checkout redirects",
+    DHANAM_URL: Optional[str] = Field(
+        default=None,
+        description="Dhanam billing service URL for checkout redirects. Set via DHANAM_URL env var.",
     )
 
     # Email aliases for easier access
