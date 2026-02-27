@@ -17,27 +17,65 @@ from ...infrastructure.configuration.config_repository import SSOConfigurationRe
 from ...infrastructure.session.session_repository import SSOSessionRepository
 
 
+KNOWN_PRODUCTS = {"enclii", "tezca", "yantra4d", "dhanam"}
+
+# Legacy Janua subscription_tier -> foundry_tier mapping (backwards compat)
+LEGACY_TIER_MAP = {
+    "community": "community",
+    "free": "community",
+    "pro": "sovereign",
+    "sovereign": "sovereign",
+    "scale": "ecosystem",
+    "enterprise": "ecosystem",
+    "ecosystem": "ecosystem",
+}
+
+
 def map_subscription_to_foundry_tier(subscription_tier: str | None) -> str:
     """Map Janua subscription_tier to Foundry tier for JWT claims.
 
-    Tier mapping:
-    - community: 1 project, 3 services (default)
-    - sovereign: 10 projects, unlimited services
-    - ecosystem: unlimited (coming soon)
+    Legacy mapping kept for backwards compatibility during transition:
+    - community/free -> community
+    - pro/sovereign -> sovereign
+    - scale/enterprise/ecosystem -> ecosystem
     """
     if not subscription_tier:
         return "community"
+    return LEGACY_TIER_MAP.get(subscription_tier.lower(), "community")
 
-    tier_lower = subscription_tier.lower()
 
-    if tier_lower in ("free", "community", ""):
-        return "community"
-    if tier_lower in ("pro", "sovereign"):
-        return "sovereign"
-    if tier_lower in ("scale", "enterprise", "ecosystem"):
-        return "ecosystem"
+def resolve_product_tiers(product_tiers: dict | None, subscription_tier: str | None) -> dict:
+    """Resolve per-product tier claims from organization data.
 
-    return "community"  # Default fallback
+    Returns a dict of JWT claim keys to tier values. Products without a tier
+    are omitted (absent claim = community/self-hosted, not billed).
+
+    Args:
+        product_tiers: JSONB dict from Organization.product_tiers
+        subscription_tier: Legacy string from Organization.subscription_tier
+    """
+    tiers = product_tiers or {}
+
+    # Build per-product claims
+    claims = {}
+
+    # foundry_tier: backwards-compatible Enclii claim
+    enclii_tier = tiers.get("enclii")
+    if enclii_tier:
+        # Map new tier names to legacy foundry_tier values for Enclii compat
+        foundry_map = {"essentials": "community", "pro": "sovereign", "madfam": "ecosystem"}
+        claims["foundry_tier"] = foundry_map.get(enclii_tier, enclii_tier)
+    else:
+        # Fall back to legacy subscription_tier mapping
+        claims["foundry_tier"] = map_subscription_to_foundry_tier(subscription_tier)
+
+    # Per-product claims (None/absent = community, no claim emitted)
+    for product in ("tezca", "yantra4d", "dhanam"):
+        tier = tiers.get(product)
+        if tier:
+            claims[f"{product}_tier"] = tier
+
+    return claims
 
 
 class SSOOrchestrator:
@@ -197,27 +235,28 @@ class SSOOrchestrator:
         # Store session
         await self.session_repository.create(sso_session)
 
-        # Query organization to get subscription_tier for foundry_tier claim
-        foundry_tier = "community"  # Default if no organization
+        # Query organization to get per-product tier claims
+        tier_claims = {"foundry_tier": "community"}  # Default if no organization
         if organization_id:
             from app.models import Organization
 
             result = await self.config_repository.db.execute(
-                select(Organization.subscription_tier).where(
+                select(Organization.subscription_tier, Organization.product_tiers).where(
                     Organization.id == organization_id
                 )
             )
-            org_tier = result.scalar_one_or_none()
-            foundry_tier = map_subscription_to_foundry_tier(org_tier)
+            row = result.one_or_none()
+            if row:
+                tier_claims = resolve_product_tiers(row.product_tiers, row.subscription_tier)
 
-        # Generate JWT token with foundry_tier claim
+        # Generate JWT token with per-product tier claims
         jwt_payload = {
             "user_id": user.id,
             "organization_id": organization_id,
             "email": user.email,
             "role": user.role,
             "sso_session_id": sso_session.session_id,
-            "foundry_tier": foundry_tier,
+            **tier_claims,
         }
 
         tokens = self.jwt_service.create_token_pair(jwt_payload)

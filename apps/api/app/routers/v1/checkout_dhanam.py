@@ -1,17 +1,17 @@
 """
-Dhanam Checkout Integration - Creates checkout sessions for Enclii billing
+Dhanam Checkout Integration - Creates checkout sessions for ecosystem billing
 
-This endpoint is called when a user initiates an upgrade from Enclii or other
-MADFAM applications through Dhanam billing service.
+This endpoint is called when a user initiates an upgrade from any MADFAM
+application (Enclii, Tezca, Yantra4D, Dhanam) through Dhanam billing service.
 
 Flow:
-1. Enclii user hits tier limit
-2. Enclii redirects to Dhanam with org context
+1. User hits tier limit in any product
+2. Product app redirects to Dhanam with org context and product plan_id
 3. Dhanam calls this endpoint to get checkout session
 4. User completes payment on Dhanam/payment provider
 5. Dhanam sends webhook to /api/v1/webhooks/dhanam/subscription
-6. Janua updates organization.subscription_tier
-7. User's next JWT has new foundry_tier claim
+6. Janua updates organization.product_tiers[product] = tier
+7. User's next JWT has per-product tier claims
 """
 
 import uuid as uuid_mod
@@ -34,21 +34,8 @@ logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/checkout", tags=["billing"])
 
 
-# Dhanam plan to Janua tier mapping (consistent with webhooks_dhanam.py)
-DHANAM_TO_JANUA_TIER = {
-    # Enclii plans
-    "enclii_community": "community",
-    "enclii_sovereign": "pro",
-    "enclii_ecosystem": "enterprise",
-    # Direct plan names
-    "community": "community",
-    "free": "community",
-    "pro": "pro",
-    "sovereign": "pro",
-    "scale": "scale",
-    "enterprise": "enterprise",
-    "ecosystem": "enterprise",
-}
+# Re-use the product plan parser from webhooks module
+from app.routers.v1.webhooks_dhanam import parse_product_plan, KNOWN_PRODUCTS, VALID_TIERS
 
 
 class CreateCheckoutRequest(BaseModel):
@@ -69,7 +56,8 @@ class CheckoutSessionResponse(BaseModel):
     provider: str = Field(..., description="Payment provider hint (conekta for MX, polar for intl)")
     organization_id: str = Field(..., description="Organization ID being upgraded")
     plan_id: str = Field(..., description="Plan ID for the checkout")
-    janua_tier: str = Field(..., description="Corresponding Janua tier")
+    product: str = Field(..., description="Product being upgraded (enclii, tezca, yantra4d, dhanam)")
+    janua_tier: str = Field(..., description="Corresponding tier")
 
 
 def determine_provider_hint(email: str) -> str:
@@ -102,14 +90,14 @@ async def create_dhanam_checkout(
     The checkout URL pattern: https://dhanam.madfam.io/checkout/session/{session_id}
     Dhanam will handle the actual payment provider integration.
     """
-    # Validate plan_id
-    plan_key = request_data.plan_id.lower()
-    janua_tier = DHANAM_TO_JANUA_TIER.get(plan_key)
-    if not janua_tier:
+    # Parse product and tier from plan_id
+    product, tier = parse_product_plan(request_data.plan_id)
+    if not tier:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid plan_id: {request_data.plan_id}. Valid plans: {list(DHANAM_TO_JANUA_TIER.keys())}",
+            detail=f"Invalid plan_id: {request_data.plan_id}. Expected format: '{{product}}_{{tier}}' where product is one of {sorted(KNOWN_PRODUCTS)} and tier is one of {sorted(VALID_TIERS)}",
         )
+    janua_tier = tier  # For response compat
 
     # Get the organization
     result = await db.execute(
@@ -188,6 +176,7 @@ async def create_dhanam_checkout(
         provider=provider_hint,
         organization_id=str(organization.id),
         plan_id=request_data.plan_id,
+        product=product,
         janua_tier=janua_tier,
     )
 
