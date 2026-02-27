@@ -126,6 +126,8 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
         "name": "yantra4d-admin",
         "description": "Yantra4D admin panel (4d-admin.madfam.io)",
         "audience": "yantra4d-api",
+        # Pre-assigned: matches VITE_JANUA_CLIENT_ID in yantra4d deploy.yml
+        "client_id": "jnc_-v2RiP_TMO-XSExftpCh41K46xeszlKh",
         "redirect_uris": [
             "https://4d-admin.madfam.io",
             "https://4d-admin.madfam.io/auth/callback",
