@@ -109,12 +109,9 @@ export const STORAGE_KEYS = {
 } as const;
 
 /**
- * PKCE storage keys (sessionStorage)
+ * PKCE storage keys — re-exported from @janua/typescript-sdk via utils/pkce
  */
-export const PKCE_STORAGE_KEYS = {
-  codeVerifier: 'janua_pkce_verifier',
-  state: 'janua_pkce_state',
-} as const;
+export { PKCE_STORAGE_KEYS } from '@janua/typescript-sdk';
 
 /**
  * Provider configuration for JanuaProvider

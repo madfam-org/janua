@@ -82,24 +82,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-**For Next.js (Pages Router)** or **Create React App**:
+**For Create React App** or other React setups:
 
-Update `pages/_app.tsx` or `App.tsx`:
+Update `App.tsx`:
 
 ```typescript
-import { JanuaProvider } from '@janua/ui'
-import { januaClient } from '@/lib/janua-client'
+import { JanuaProvider } from '@janua/react-sdk'
 
-function MyApp({ Component, pageProps }: AppProps) {
+function App() {
   return (
-    <JanuaProvider client={januaClient}>
-      <Component {...pageProps} />
+    <JanuaProvider config={{ baseURL: 'https://api.janua.dev' }}>
+      <YourApp />
     </JanuaProvider>
   )
 }
 
-export default MyApp
+export default App
 ```
+
+> **Note:** For Next.js, use `@janua/nextjs` which provides App Router support with server-side rendering, middleware, and edge verification. See the [Next.js SDK README](../packages/nextjs-sdk/README.md).
 
 ---
 

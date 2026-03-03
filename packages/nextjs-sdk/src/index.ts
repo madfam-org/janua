@@ -14,7 +14,9 @@ export {
   useUser,
   useOrganizations,
   SignInForm,
+  SignIn,
   SignUpForm,
+  SignUp,
   UserButton,
   SignedIn,
   SignedOut,
@@ -35,4 +37,8 @@ export type {
   SignedOutProps,
   RedirectToSignInProps,
   ProtectProps,
+  UseRealtimeOptions,
+  UseRealtimeReturn,
 } from './app';
+
+export { useRealtime } from './app';

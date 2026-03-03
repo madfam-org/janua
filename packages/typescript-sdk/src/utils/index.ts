@@ -38,5 +38,19 @@ export { RetryUtils, type RetryOptions } from './retry-utils';
 // Logger utilities
 export { logger, SDKLogger } from './logger';
 
+// PKCE utilities
+export {
+  generateCodeVerifier,
+  generateCodeChallenge,
+  generateState,
+  storePKCEParams,
+  retrievePKCEParams,
+  clearPKCEParams,
+  validateState,
+  parseOAuthCallback,
+  buildAuthorizationUrl,
+  PKCE_STORAGE_KEYS,
+} from './pkce-utils';
+
 // Re-export commonly used types
 export type { TokenStorage as ITokenStorage } from './token-utils';

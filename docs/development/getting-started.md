@@ -214,43 +214,53 @@ export default JanuaNextAuth({
 ```
 
 ```tsx
-// pages/_app.tsx
-import { SessionProvider } from '@janua/nextjs-sdk';
-import type { AppProps } from 'next/app';
+// app/layout.tsx (App Router)
+import { JanuaProvider } from '@janua/nextjs';
 
-export default function App({
-  Component,
-  pageProps: { session, ...pageProps }
-}: AppProps) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider session={session}>
-      <Component {...pageProps} />
-    </SessionProvider>
+    <html>
+      <body>
+        <JanuaProvider config={{ baseURL: process.env.NEXT_PUBLIC_API_URL! }}>
+          {children}
+        </JanuaProvider>
+      </body>
+    </html>
   );
 }
 ```
 
 ```tsx
-// pages/dashboard.tsx
-import { useSession, getServerSideProps } from '@janua/nextjs-sdk';
+// app/dashboard/page.tsx
+import { useAuth } from '@janua/nextjs';
 
 export default function Dashboard() {
-  const { data: session, status } = useSession();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
-  if (status === 'loading') return <p>Loading...</p>;
-  if (status === 'unauthenticated') return <p>Access Denied</p>;
+  if (isLoading) return <p>Loading...</p>;
+  if (!isAuthenticated) return <p>Access Denied</p>;
 
   return (
     <div>
       <h1>Dashboard</h1>
-      <p>Welcome, {session?.user?.email}!</p>
+      <p>Welcome, {user?.email}!</p>
     </div>
   );
 }
+```
 
-export const getServerSideProps = getServerSideProps({
-  requireAuth: true
+```tsx
+// middleware.ts
+import { createJanuaMiddleware } from '@janua/nextjs/middleware';
+
+export default createJanuaMiddleware({
+  publicRoutes: ['/login', '/signup', '/api/health'],
+  jwtSecret: process.env.JANUA_JWT_SECRET!,
 });
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+};
 ```
 
 ### Python/FastAPI Backend Example

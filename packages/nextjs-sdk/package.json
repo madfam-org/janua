@@ -16,15 +16,15 @@
       "import": "./dist/app/index.mjs",
       "require": "./dist/app/index.js"
     },
-    "./pages": {
-      "types": "./dist/pages/index.d.ts",
-      "import": "./dist/pages/index.mjs",
-      "require": "./dist/pages/index.js"
-    },
     "./middleware": {
       "types": "./dist/middleware.d.ts",
       "import": "./dist/middleware.mjs",
       "require": "./dist/middleware.js"
+    },
+    "./edge": {
+      "types": "./dist/edge.d.ts",
+      "import": "./dist/edge.mjs",
+      "require": "./dist/edge.js"
     }
   },
   "files": [
@@ -61,6 +61,7 @@
   },
   "dependencies": {
     "@janua/typescript-sdk": "workspace:*",
+    "@janua/ui": "workspace:*",
     "jose": "^5.0.0"
   },
   "peerDependencies": {

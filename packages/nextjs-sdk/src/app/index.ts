@@ -4,7 +4,9 @@ export type { JanuaProviderProps } from './provider';
 
 export {
   SignInForm,
+  SignIn,
   SignUpForm,
+  SignUp,
   UserButton,
   SignedIn,
   SignedOut,
@@ -28,3 +30,6 @@ export {
   requireAuth,
   validateRequest,
 } from './server';
+
+export { useRealtime } from './use-realtime';
+export type { UseRealtimeOptions, UseRealtimeReturn } from './use-realtime';

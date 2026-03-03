@@ -7,18 +7,43 @@
 
 // Provider and main hook
 export { JanuaProvider, useJanua } from './provider';
-export type { JanuaContextValue, JanuaProviderProps, SignUpOptions } from './provider';
+export type { JanuaContextValue, JanuaProviderProps, SignUpOptions, JanuaAppearance } from './provider';
 
 // Specialized hooks
 export { useAuth } from './hooks/use-auth';
 export type { UseAuthReturn } from './hooks/use-auth';
 export { useOrganization } from './hooks/use-organization';
 export { useSession } from './hooks/use-session';
+export { useUser } from './hooks/use-user';
+export type { UseUserReturn } from './hooks/use-user';
+export { usePasskey } from './hooks/use-passkey';
+export type { UsePasskeyReturn } from './hooks/use-passkey';
+export { useMFA } from './hooks/use-mfa';
+export type { UseMFAReturn } from './hooks/use-mfa';
+export { useRealtime } from './hooks/use-realtime';
+export type { UseRealtimeOptions, UseRealtimeReturn } from './hooks/use-realtime';
 
 // Components
 export { SignIn } from './components/SignIn';
+export type { SignInProps } from './components/SignIn';
 export { SignUp } from './components/SignUp';
+export type { SignUpProps } from './components/SignUp';
 export { UserProfile } from './components/UserProfile';
+export type { UserProfileProps } from './components/UserProfile';
+export { UserButton } from './components/UserButton';
+export type { UserButtonProps } from './components/UserButton';
+export { Protect } from './components/Protect';
+export type { ProtectProps } from './components/Protect';
+export { AuthGuard } from './components/AuthGuard';
+export type { AuthGuardProps } from './components/AuthGuard';
+export { OrgSwitcher } from './components/OrgSwitcher';
+export type { OrgSwitcherProps } from './components/OrgSwitcher';
+export { SignedIn } from './components/SignedIn';
+export type { SignedInProps } from './components/SignedIn';
+export { SignedOut } from './components/SignedOut';
+export type { SignedOutProps } from './components/SignedOut';
+export { MFAChallenge } from './components/MFAChallenge';
+export type { MFAChallengeProps } from './components/MFAChallenge';
 
 // Types
 export type {
@@ -84,5 +109,5 @@ export {
 } from './utils';
 
 // Version
-export const SDK_VERSION = '0.1.0';
+export const SDK_VERSION = '0.1.1';
 export const SDK_NAME = '@janua/react-sdk';

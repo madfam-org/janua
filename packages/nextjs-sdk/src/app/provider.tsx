@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { JanuaClient } from '@janua/typescript-sdk';
 import type { User, Session, JanuaConfig } from '@janua/typescript-sdk';
+import { validateState, retrievePKCEParams, clearPKCEParams } from '../utils/pkce';
 
 interface JanuaContextValue {
   client: JanuaClient;
@@ -22,10 +23,10 @@ export interface JanuaProviderProps {
   onAuthChange?: (user: User | null) => void;
 }
 
-export function JanuaProvider({ 
-  children, 
+export function JanuaProvider({
+  children,
   config,
-  onAuthChange 
+  onAuthChange
 }: JanuaProviderProps) {
   const [client] = useState(() => new JanuaClient(config));
   const [user, setUser] = useState<User | null>(null);
@@ -70,15 +71,32 @@ export function JanuaProvider({
     }
   }, [client, onAuthChange]);
 
+  // OAuth callback handling and initial auth state
   useEffect(() => {
-    // Check for auth params in URL
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('code') && urlParams.has('state')) {
       const code = urlParams.get('code')!;
       const state = urlParams.get('state')!;
-      client.auth.handleOAuthCallback(code, state)
-        .then(() => updateAuthState())
+
+      // Validate PKCE state before proceeding
+      if (!validateState(state)) {
+        console.warn('OAuth state mismatch - possible CSRF attack');
+        setIsLoading(false);
+        return;
+      }
+
+      // Retrieve PKCE code verifier for the token exchange
+      const pkceParams = retrievePKCEParams();
+      const codeVerifier = pkceParams?.verifier;
+
+      client.auth.handleOAuthCallback(code, codeVerifier || state)
+        .then(() => {
+          clearPKCEParams();
+          window.history.replaceState({}, '', window.location.pathname);
+          return updateAuthState();
+        })
         .catch(() => {
+          clearPKCEParams();
           // Error handled silently in production
         })
         .finally(() => setIsLoading(false));
@@ -88,18 +106,68 @@ export function JanuaProvider({
       setIsLoading(false);
     }
 
-    // Set up auth state listener
+    // Set up auth state polling (60 second interval)
     const checkInterval = setInterval(async () => {
       const currentUser = await client.auth.getCurrentUser();
       if (currentUser !== user) {
         updateAuthState();
       }
-    }, 1000);
+    }, 60_000);
 
     return () => {
       clearInterval(checkInterval);
     };
-  }, [client, updateAuthState, user]);
+  }, [client, updateAuthState]);
+
+  // Proactive token auto-refresh before expiry
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleRefresh = async () => {
+      try {
+        const accessToken = await client.getAccessToken();
+        if (!accessToken) return;
+
+        // Parse JWT exp claim (base64 decode the payload segment)
+        const parts = accessToken.split('.');
+        if (parts.length !== 3) return;
+
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        const exp = payload.exp;
+        if (!exp) return;
+
+        const now = Math.floor(Date.now() / 1000);
+        const timeUntilExpiry = exp - now;
+
+        // If already expired or less than 60s remaining, refresh immediately
+        if (timeUntilExpiry < 60) {
+          try {
+            await client.auth.refreshToken();
+          } catch {
+            // Non-fatal: token refresh failure is handled by next auth check
+          }
+          // Schedule next check in 30 seconds
+          timeoutId = setTimeout(scheduleRefresh, 30_000);
+          return;
+        }
+
+        // Schedule refresh for 60 seconds before expiry (minimum 30s delay)
+        const delay = Math.max((timeUntilExpiry - 60) * 1000, 30_000);
+        timeoutId = setTimeout(scheduleRefresh, delay);
+      } catch {
+        // Non-fatal: schedule a retry in 30 seconds
+        timeoutId = setTimeout(scheduleRefresh, 30_000);
+      }
+    };
+
+    scheduleRefresh();
+
+    return () => {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [client]);
 
   const value: JanuaContextValue = {
     client,

@@ -55,7 +55,7 @@ docs.janua.dev/
 │   └── Ruby
 ├── Examples
 │   ├── Next.js App Router
-│   ├── Next.js Pages Router
+│   ├── Next.js Edge Middleware
 │   ├── React SPA
 │   ├── Node.js Backend
 │   └── Edge Functions
