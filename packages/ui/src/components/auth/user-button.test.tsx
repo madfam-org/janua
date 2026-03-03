@@ -99,6 +99,18 @@ describe('UserButton', () => {
         expect(emails.length).toBeGreaterThan(0)
       })
     })
+
+    it('should display active organization when provided', async () => {
+      const user = userEvent.setup()
+      render(<UserButton user={mockUser} activeOrganization="Acme Corp" />)
+
+      const button = screen.getByRole('button', { name: /user menu/i })
+      await user.click(button)
+
+      await waitFor(() => {
+        expect(screen.getByText('Acme Corp')).toBeInTheDocument()
+      })
+    })
   })
 
   describe('Menu Items', () => {
@@ -333,7 +345,6 @@ describe('UserButton', () => {
       await user.click(button)
 
       await waitFor(() => {
-        // Radix UI sets role="menuitem" on dropdown items
         const manageAccountItem = screen.getByText(/manage account/i)
         expect(manageAccountItem).toBeInTheDocument()
       })
@@ -351,11 +362,8 @@ describe('UserButton', () => {
     it('should display avatar image when URL provided', () => {
       render(<UserButton user={mockUser} />)
 
-      // Avatar component may use background-image or img tag
-      // Check for the avatar container which should exist
       const button = screen.getByRole('button', { name: /user menu/i })
       expect(button).toBeInTheDocument()
-      // Avatar is rendered inside button - this test validates avatar URL is accepted
       expect(mockUser.avatarUrl).toBeTruthy()
     })
 
@@ -375,7 +383,6 @@ describe('UserButton', () => {
       const button = screen.getByRole('button', { name: /user menu/i })
       await user.click(button)
 
-      // Check that dropdown content exists (Radix UI handles positioning)
       await waitFor(() => {
         expect(screen.getByText(/manage account/i)).toBeInTheDocument()
       })

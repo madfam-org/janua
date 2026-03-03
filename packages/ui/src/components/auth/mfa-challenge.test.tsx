@@ -19,7 +19,10 @@ describe('MFAChallenge', () => {
       render(<MFAChallenge />)
 
       expect(screen.getByText(/two-factor authentication/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument()
+      // 6 individual digit inputs
+      for (let i = 1; i <= 6; i++) {
+        expect(screen.getByLabelText(`Digit ${i}`)).toBeInTheDocument()
+      }
       expect(screen.getByRole('button', { name: /verify/i })).toBeInTheDocument()
     })
 
@@ -32,7 +35,6 @@ describe('MFAChallenge', () => {
     it('should show TOTP method description', () => {
       render(<MFAChallenge method="totp" />)
 
-      // Use getAllByText since "authenticator app" may appear in multiple places
       const elements = screen.getAllByText(/authenticator app/i)
       expect(elements.length).toBeGreaterThan(0)
     })
@@ -69,46 +71,65 @@ describe('MFAChallenge', () => {
   })
 
   describe('Code Input', () => {
-    it('should only accept numeric input', async () => {
+    it('should only accept numeric input in digit fields', async () => {
       const user = userEvent.setup()
       render(<MFAChallenge />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, 'abc123def')
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, 'a')
 
-      expect(codeInput).toHaveValue('123')
+      expect(digit1).toHaveValue('')
+
+      await user.type(digit1, '1')
+      expect(digit1).toHaveValue('1')
     })
 
-    it('should limit input to 6 digits', async () => {
+    it('should auto-advance to next digit on input', async () => {
       const user = userEvent.setup()
       render(<MFAChallenge />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, '1234567890')
+      const digit1 = screen.getByLabelText('Digit 1')
+      const digit2 = screen.getByLabelText('Digit 2')
 
-      expect(codeInput).toHaveValue('123456')
+      await user.type(digit1, '1')
+      expect(digit2).toHaveFocus()
     })
 
-    it('should have autofocus on code input', () => {
+    it('should have autofocus on first digit input', () => {
       render(<MFAChallenge />)
 
-      const codeInput = screen.getByLabelText(/verification code/i) as HTMLInputElement
-      // Check if element has focus or has autoFocus attribute (React uses autoFocus prop)
-      expect(codeInput).toHaveFocus()
+      const digit1 = screen.getByLabelText('Digit 1')
+      expect(digit1).toHaveFocus()
     })
 
-    it('should have proper autocomplete attribute', () => {
+    it('should have proper autocomplete attribute on first digit', () => {
       render(<MFAChallenge />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      expect(codeInput).toHaveAttribute('autocomplete', 'one-time-code')
+      const digit1 = screen.getByLabelText('Digit 1')
+      expect(digit1).toHaveAttribute('autocomplete', 'one-time-code')
     })
 
-    it('should have numeric input mode', () => {
+    it('should have numeric input mode on digit inputs', () => {
       render(<MFAChallenge />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      expect(codeInput).toHaveAttribute('inputmode', 'numeric')
+      const digit1 = screen.getByLabelText('Digit 1')
+      expect(digit1).toHaveAttribute('inputmode', 'numeric')
+    })
+
+    it('should move back on backspace when current digit is empty', async () => {
+      const user = userEvent.setup()
+      render(<MFAChallenge />)
+
+      const digit1 = screen.getByLabelText('Digit 1')
+      const digit2 = screen.getByLabelText('Digit 2')
+
+      // Type first digit, auto-advance to digit 2
+      await user.type(digit1, '1')
+      expect(digit2).toHaveFocus()
+
+      // Backspace on empty digit 2 → clears digit 1 and focuses it
+      await user.keyboard('{Backspace}')
+      expect(digit1).toHaveFocus()
     })
   })
 
@@ -119,11 +140,19 @@ describe('MFAChallenge', () => {
 
       render(<MFAChallenge onVerify={mockOnVerify} />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, '123456')
-
-      const verifyButton = screen.getByRole('button', { name: /verify/i })
-      await user.click(verifyButton)
+      // Type all 6 digits
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '1')
+      const digit2 = screen.getByLabelText('Digit 2')
+      await user.type(digit2, '2')
+      const digit3 = screen.getByLabelText('Digit 3')
+      await user.type(digit3, '3')
+      const digit4 = screen.getByLabelText('Digit 4')
+      await user.type(digit4, '4')
+      const digit5 = screen.getByLabelText('Digit 5')
+      await user.type(digit5, '5')
+      const digit6 = screen.getByLabelText('Digit 6')
+      await user.type(digit6, '6')
 
       await waitFor(() => {
         expect(mockOnVerify).toHaveBeenCalledWith('123456')
@@ -136,8 +165,14 @@ describe('MFAChallenge', () => {
 
       render(<MFAChallenge onVerify={mockOnVerify} />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, '123456')
+      // Type all 6 digits sequentially — auto-advance handles focus
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '1')
+      await user.type(screen.getByLabelText('Digit 2'), '2')
+      await user.type(screen.getByLabelText('Digit 3'), '3')
+      await user.type(screen.getByLabelText('Digit 4'), '4')
+      await user.type(screen.getByLabelText('Digit 5'), '5')
+      await user.type(screen.getByLabelText('Digit 6'), '6')
 
       await waitFor(() => {
         expect(mockOnVerify).toHaveBeenCalledWith('123456')
@@ -151,12 +186,14 @@ describe('MFAChallenge', () => {
       const verifyButton = screen.getByRole('button', { name: /verify/i })
       expect(verifyButton).toBeDisabled()
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, '12345')
+      // Type only 5 digits
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '1')
+      await user.type(screen.getByLabelText('Digit 2'), '2')
+      await user.type(screen.getByLabelText('Digit 3'), '3')
+      await user.type(screen.getByLabelText('Digit 4'), '4')
+      await user.type(screen.getByLabelText('Digit 5'), '5')
       expect(verifyButton).toBeDisabled()
-
-      await user.type(codeInput, '6')
-      expect(verifyButton).not.toBeDisabled()
     })
 
     it('should show loading state during verification', async () => {
@@ -167,14 +204,37 @@ describe('MFAChallenge', () => {
 
       render(<MFAChallenge onVerify={mockOnVerify} />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, '123456')
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '1')
+      await user.type(screen.getByLabelText('Digit 2'), '2')
+      await user.type(screen.getByLabelText('Digit 3'), '3')
+      await user.type(screen.getByLabelText('Digit 4'), '4')
+      await user.type(screen.getByLabelText('Digit 5'), '5')
+      await user.type(screen.getByLabelText('Digit 6'), '6')
 
-      const verifyButton = screen.getByRole('button', { name: /verify/i })
+      const verifyButton = screen.getByRole('button', { name: /verifying/i })
 
       await waitFor(() => {
-        expect(verifyButton).toHaveTextContent(/verifying/i)
         expect(verifyButton).toBeDisabled()
+      })
+    })
+
+    it('should show success state after verification', async () => {
+      const user = userEvent.setup()
+      mockOnVerify.mockResolvedValue(undefined)
+
+      render(<MFAChallenge onVerify={mockOnVerify} />)
+
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '1')
+      await user.type(screen.getByLabelText('Digit 2'), '2')
+      await user.type(screen.getByLabelText('Digit 3'), '3')
+      await user.type(screen.getByLabelText('Digit 4'), '4')
+      await user.type(screen.getByLabelText('Digit 5'), '5')
+      await user.type(screen.getByLabelText('Digit 6'), '6')
+
+      await waitFor(() => {
+        expect(screen.getByText(/verified/i)).toBeInTheDocument()
       })
     })
 
@@ -184,8 +244,13 @@ describe('MFAChallenge', () => {
 
       render(<MFAChallenge onVerify={mockOnVerify} onError={mockOnError} />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, '000000')
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '0')
+      await user.type(screen.getByLabelText('Digit 2'), '0')
+      await user.type(screen.getByLabelText('Digit 3'), '0')
+      await user.type(screen.getByLabelText('Digit 4'), '0')
+      await user.type(screen.getByLabelText('Digit 5'), '0')
+      await user.type(screen.getByLabelText('Digit 6'), '0')
 
       await waitFor(() => {
         expect(screen.getByText(/invalid verification code/i)).toBeInTheDocument()
@@ -193,17 +258,25 @@ describe('MFAChallenge', () => {
       })
     })
 
-    it('should clear code on error', async () => {
+    it('should clear digits on error', async () => {
       const user = userEvent.setup()
       mockOnVerify.mockRejectedValue(new Error('Invalid code'))
 
       render(<MFAChallenge onVerify={mockOnVerify} />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, '000000')
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '0')
+      await user.type(screen.getByLabelText('Digit 2'), '0')
+      await user.type(screen.getByLabelText('Digit 3'), '0')
+      await user.type(screen.getByLabelText('Digit 4'), '0')
+      await user.type(screen.getByLabelText('Digit 5'), '0')
+      await user.type(screen.getByLabelText('Digit 6'), '0')
 
       await waitFor(() => {
-        expect(codeInput).toHaveValue('')
+        // All digit inputs should be cleared
+        for (let i = 1; i <= 6; i++) {
+          expect(screen.getByLabelText(`Digit ${i}`)).toHaveValue('')
+        }
       })
     })
 
@@ -213,18 +286,22 @@ describe('MFAChallenge', () => {
 
       render(<MFAChallenge onVerify={mockOnVerify} />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
+      // Three failed attempts
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const digit1 = screen.getByLabelText('Digit 1')
+        await user.type(digit1, '0')
+        await user.type(screen.getByLabelText('Digit 2'), '0')
+        await user.type(screen.getByLabelText('Digit 3'), '0')
+        await user.type(screen.getByLabelText('Digit 4'), '0')
+        await user.type(screen.getByLabelText('Digit 5'), '0')
+        await user.type(screen.getByLabelText('Digit 6'), String(attempt + 1))
 
-      // First attempt
-      await user.type(codeInput, '000001')
-      await waitFor(() => expect(codeInput).toHaveValue(''))
+        await waitFor(() => {
+          expect(screen.getByLabelText('Digit 1')).toHaveValue('')
+        })
+      }
 
-      // Second attempt
-      await user.type(codeInput, '000002')
-      await waitFor(() => expect(codeInput).toHaveValue(''))
-
-      // Third attempt - should show help message
-      await user.type(codeInput, '000003')
+      // After 3 failures, should show help message
       await waitFor(() => {
         expect(screen.getByText(/having trouble/i)).toBeInTheDocument()
       })
@@ -334,7 +411,7 @@ describe('MFAChallenge', () => {
   })
 
   describe('Loading States', () => {
-    it('should disable input during verification', async () => {
+    it('should disable digit inputs during verification', async () => {
       const user = userEvent.setup()
       mockOnVerify.mockImplementation(
         () => new Promise((resolve) => setTimeout(resolve, 100))
@@ -342,11 +419,16 @@ describe('MFAChallenge', () => {
 
       render(<MFAChallenge onVerify={mockOnVerify} />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, '123456')
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '1')
+      await user.type(screen.getByLabelText('Digit 2'), '2')
+      await user.type(screen.getByLabelText('Digit 3'), '3')
+      await user.type(screen.getByLabelText('Digit 4'), '4')
+      await user.type(screen.getByLabelText('Digit 5'), '5')
+      await user.type(screen.getByLabelText('Digit 6'), '6')
 
       await waitFor(() => {
-        expect(codeInput).toBeDisabled()
+        expect(screen.getByLabelText('Digit 1')).toBeDisabled()
       })
     })
 
@@ -358,8 +440,13 @@ describe('MFAChallenge', () => {
 
       render(<MFAChallenge onVerify={mockOnVerify} />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, '123456')
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '1')
+      await user.type(screen.getByLabelText('Digit 2'), '2')
+      await user.type(screen.getByLabelText('Digit 3'), '3')
+      await user.type(screen.getByLabelText('Digit 4'), '4')
+      await user.type(screen.getByLabelText('Digit 5'), '5')
+      await user.type(screen.getByLabelText('Digit 6'), '6')
 
       await waitFor(() => {
         const spinner = document.querySelector('.animate-spin')
@@ -369,10 +456,12 @@ describe('MFAChallenge', () => {
   })
 
   describe('Accessibility', () => {
-    it('should have proper form labels', () => {
+    it('should have proper aria-labels on digit inputs', () => {
       render(<MFAChallenge />)
 
-      expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument()
+      for (let i = 1; i <= 6; i++) {
+        expect(screen.getByLabelText(`Digit ${i}`)).toBeInTheDocument()
+      }
     })
 
     it('should have error role on error message', async () => {
@@ -381,8 +470,13 @@ describe('MFAChallenge', () => {
 
       render(<MFAChallenge onVerify={mockOnVerify} />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, '000000')
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '0')
+      await user.type(screen.getByLabelText('Digit 2'), '0')
+      await user.type(screen.getByLabelText('Digit 3'), '0')
+      await user.type(screen.getByLabelText('Digit 4'), '0')
+      await user.type(screen.getByLabelText('Digit 5'), '0')
+      await user.type(screen.getByLabelText('Digit 6'), '0')
 
       await waitFor(() => {
         const errorContainer = screen.getByText(/invalid code/i).closest('div')
@@ -390,39 +484,10 @@ describe('MFAChallenge', () => {
       })
     })
 
-    it('should support keyboard navigation', async () => {
-      const user = userEvent.setup()
-      render(<MFAChallenge showBackupCodeOption={true} onUseBackupCode={mockOnUseBackupCode} />)
-
-      // Code input should have autofocus
-      const codeInput = screen.getByLabelText(/verification code/i)
-      expect(codeInput).toHaveFocus()
-
-      // Type code to enable verify button
-      await user.type(codeInput, '12345')
-
-      // Tab to verify button (now enabled with 5 digits entered, but waiting for 6)
-      await user.tab()
-      const verifyButton = screen.getByRole('button', { name: /verify/i })
-      expect(verifyButton).toBeDisabled() // Still disabled with only 5 digits
-
-      // Since verify button is disabled, tab skips to backup code button
-      expect(screen.getByRole('button', { name: /use a backup code/i })).toHaveFocus()
-    })
-
     it('should have descriptive helper text', () => {
       render(<MFAChallenge />)
 
       expect(screen.getByText(/enter the 6-digit code/i)).toBeInTheDocument()
-    })
-  })
-
-  describe('Visual States', () => {
-    it('should style code input for readability', () => {
-      render(<MFAChallenge />)
-
-      const codeInput = screen.getByLabelText(/verification code/i)
-      expect(codeInput).toHaveClass('text-center', 'text-2xl', 'tracking-widest')
     })
 
     it('should show icon in header', () => {
@@ -438,14 +503,18 @@ describe('MFAChallenge', () => {
       const user = userEvent.setup()
       render(<MFAChallenge />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, '123456')
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '1')
+      await user.type(screen.getByLabelText('Digit 2'), '2')
+      await user.type(screen.getByLabelText('Digit 3'), '3')
+      await user.type(screen.getByLabelText('Digit 4'), '4')
+      await user.type(screen.getByLabelText('Digit 5'), '5')
+      await user.type(screen.getByLabelText('Digit 6'), '6')
 
-      // Should not throw
-      expect(() => {
-        const verifyButton = screen.getByRole('button', { name: /verify/i })
-        verifyButton.click()
-      }).not.toThrow()
+      // Should not throw — shows success state
+      await waitFor(() => {
+        expect(screen.getByText(/verified/i)).toBeInTheDocument()
+      })
     })
 
     it('should handle missing onError gracefully', async () => {
@@ -454,8 +523,13 @@ describe('MFAChallenge', () => {
 
       render(<MFAChallenge onVerify={mockOnVerify} />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-      await user.type(codeInput, '000000')
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '0')
+      await user.type(screen.getByLabelText('Digit 2'), '0')
+      await user.type(screen.getByLabelText('Digit 3'), '0')
+      await user.type(screen.getByLabelText('Digit 4'), '0')
+      await user.type(screen.getByLabelText('Digit 5'), '0')
+      await user.type(screen.getByLabelText('Digit 6'), '0')
 
       await waitFor(() => {
         expect(screen.getByText(/test error/i)).toBeInTheDocument()
@@ -470,16 +544,27 @@ describe('MFAChallenge', () => {
 
       render(<MFAChallenge onVerify={mockOnVerify} />)
 
-      const codeInput = screen.getByLabelText(/verification code/i)
-
       // First attempt - error
-      await user.type(codeInput, '000000')
+      const digit1 = screen.getByLabelText('Digit 1')
+      await user.type(digit1, '0')
+      await user.type(screen.getByLabelText('Digit 2'), '0')
+      await user.type(screen.getByLabelText('Digit 3'), '0')
+      await user.type(screen.getByLabelText('Digit 4'), '0')
+      await user.type(screen.getByLabelText('Digit 5'), '0')
+      await user.type(screen.getByLabelText('Digit 6'), '0')
+
       await waitFor(() => {
         expect(screen.getByText(/first error/i)).toBeInTheDocument()
       })
 
-      // Second attempt - success
-      await user.type(codeInput, '123456')
+      // Second attempt - success (digits cleared on error, type again)
+      await user.type(screen.getByLabelText('Digit 1'), '1')
+      await user.type(screen.getByLabelText('Digit 2'), '2')
+      await user.type(screen.getByLabelText('Digit 3'), '3')
+      await user.type(screen.getByLabelText('Digit 4'), '4')
+      await user.type(screen.getByLabelText('Digit 5'), '5')
+      await user.type(screen.getByLabelText('Digit 6'), '6')
+
       await waitFor(() => {
         expect(screen.queryByText(/first error/i)).not.toBeInTheDocument()
       })

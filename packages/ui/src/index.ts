@@ -2,6 +2,18 @@
 export * from './theme'
 export * from './themes/dual-skin'
 
+// Theme Providers
+export { JanuaThemeProvider, useJanuaTheme, type JanuaThemeProviderProps } from './providers'
+export { JanuaAuthProvider, useJanuaAuthConfig, type JanuaAuthProviderProps } from './providers'
+
+// Theme Presets
+export { defaultPreset, madfamPreset, getPreset, type PresetName } from './tokens/presets'
+
+// Auth Config System
+export type { JanuaAuthConfig } from './config/types'
+export { defaultAuthConfig, mergeConfig } from './config/defaults'
+export { madfamAuthConfig } from './config/madfam-preset'
+
 // Components
 export * from './components/button'
 export * from './components/card'
@@ -42,6 +54,28 @@ export {
   SessionManagement,
   DeviceManagement,
   AuditLog,
+  // Shared Sub-Components
+  SocialButton,
+  GoogleButton,
+  GitHubButton,
+  MicrosoftButton,
+  AppleButton,
+  JanuaSSOButton,
+  AuthCard,
+  AuthDivider,
+  PasswordInput,
+  calculatePasswordStrength,
+  // SSO & Passkey Components
+  JanuaSSOLoginButton,
+  SSOEmailDetector,
+  PasskeyButton,
+  MagicLinkForm,
+  // Social Icons
+  GoogleIcon,
+  GitHubIcon,
+  MicrosoftIcon,
+  AppleIcon,
+  JanuaIcon,
   // Enterprise Components
   InvitationList,
   InviteUserForm,
@@ -83,6 +117,16 @@ export {
   type SessionManagementProps,
   type DeviceManagementProps,
   type AuditLogProps,
+  type SocialButtonProps,
+  type SocialProvider,
+  type AuthCardLayout,
+  type AuthCardProps,
+  type AuthDividerProps,
+  type PasswordInputProps,
+  type JanuaSSOButtonProps,
+  type SSOEmailDetectorProps,
+  type PasskeyButtonProps,
+  type MagicLinkFormProps,
 } from './components/auth'
 
 // State Management

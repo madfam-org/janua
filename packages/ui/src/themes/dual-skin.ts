@@ -239,6 +239,14 @@ export const themeUtilities = {
   },
 };
 
+/**
+ * Convert a ThemeConfig into the preset format expected by JanuaThemeProvider.
+ * This bridges the dual-skin system with the new preset-based theming.
+ */
+export function toPreset(config: ThemeConfig): ThemeConfig {
+  return { ...config }
+}
+
 export default {
   solarpunk: solarpunkTheme,
   neutral: neutralTheme,
@@ -246,4 +254,5 @@ export default {
   generateCSSVariables,
   detectThemeFromDomain,
   themeUtilities,
+  toPreset,
 };

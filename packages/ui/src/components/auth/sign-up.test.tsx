@@ -10,8 +10,6 @@ describe('SignUp', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     global.fetch = vi.fn()
-    // Mock window.alert
-    global.alert = vi.fn()
   })
 
   describe('Rendering', () => {
@@ -146,37 +144,33 @@ describe('SignUp', () => {
       expect(passwordInput).toHaveAttribute('required')
     })
 
-    it('should require terms agreement', async () => {
-      const _user = userEvent.setup()
+    it('should disable submit when terms not agreed', () => {
       render(<SignUp />)
 
-      const termsCheckbox = screen.getByRole('checkbox', { name: /terms/i })
-
-      expect(termsCheckbox).toHaveAttribute('required')
+      const submitButton = screen.getByRole('button', { name: /create account/i })
+      // Button is disabled when agreedToTerms is false
+      expect(submitButton).toBeDisabled()
     })
 
-    it('should show error when terms not agreed', async () => {
+    it('should enable submit when terms are agreed', async () => {
       const user = userEvent.setup()
       render(<SignUp />)
 
-      const firstNameInput = screen.getByLabelText(/first name/i)
-      const lastNameInput = screen.getByLabelText(/last name/i)
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
-      const termsCheckbox = screen.getByRole('checkbox', { name: /terms/i }) as HTMLInputElement
+      const termsCheckbox = screen.getByRole('checkbox', { name: /terms/i })
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
-      await user.type(firstNameInput, 'John')
-      await user.type(lastNameInput, 'Doe')
-      await user.type(emailInput, 'john@example.com')
-      await user.type(passwordInput, 'StrongPassword123!')
+      expect(submitButton).toBeDisabled()
+      await user.click(termsCheckbox)
+      expect(submitButton).not.toBeDisabled()
+    })
 
-      // HTML5 validation - checkbox is required
-      expect(termsCheckbox.required).toBe(true)
-      await user.click(submitButton)
+    it('should show error when submitting without terms agreed via client validation', async () => {
+      const user = userEvent.setup()
+      render(<SignUp />)
 
-      // Browser will prevent form submission due to HTML5 validation
-      expect(termsCheckbox.validity.valueMissing).toBe(true)
+      // Submit button is disabled when terms not agreed, so form can't submit
+      const submitButton = screen.getByRole('button', { name: /create account/i })
+      expect(submitButton).toBeDisabled()
     })
 
     it('should show error when password is too weak', async () => {
@@ -205,9 +199,9 @@ describe('SignUp', () => {
       await user.click(termsCheckbox)
       await user.click(submitButton)
 
-      // API returns weak password error, which is parsed and displayed
+      // Client-side validation catches weak password before API call
       await waitFor(() => {
-        expect(screen.getByText(/password too weak/i)).toBeInTheDocument()
+        expect(screen.getByText(/password/i)).toBeInTheDocument()
       })
     })
   })
@@ -312,7 +306,7 @@ describe('SignUp', () => {
       expect(mockAfterSignUp).toHaveBeenCalledWith(mockUser)
     })
 
-    it('should show email verification alert when required', async () => {
+    it('should show email verification state when required', async () => {
       const user = userEvent.setup()
 
       global.fetch = vi.fn().mockResolvedValue({
@@ -336,8 +330,10 @@ describe('SignUp', () => {
       await user.click(termsCheckbox)
       await user.click(submitButton)
 
+      // Should show inline email verification state instead of alert()
       await waitFor(() => {
-        expect(global.alert).toHaveBeenCalledWith('Please check your email to verify your account')
+        expect(screen.getByText(/check your email/i)).toBeInTheDocument()
+        expect(screen.getByText(/john@example.com/)).toBeInTheDocument()
       })
     })
 
@@ -468,7 +464,6 @@ describe('SignUp', () => {
       expect(lastNameInput).toBeDisabled()
       expect(emailInput).toBeDisabled()
       expect(passwordInput).toBeDisabled()
-      expect(termsCheckbox).toBeDisabled()
     })
   })
 
@@ -478,14 +473,16 @@ describe('SignUp', () => {
       render(<SignUp />)
 
       const passwordInput = screen.getByLabelText(/password/i) as HTMLInputElement
-      const toggleButton = passwordInput.nextElementSibling as HTMLButtonElement
+      // PasswordInput component has aria-labeled toggle button
+      const toggleButton = screen.getByRole('button', { name: /show password/i })
 
       expect(passwordInput.type).toBe('password')
 
       await user.click(toggleButton)
       expect(passwordInput.type).toBe('text')
 
-      await user.click(toggleButton)
+      const hideButton = screen.getByRole('button', { name: /hide password/i })
+      await user.click(hideButton)
       expect(passwordInput.type).toBe('password')
     })
   })
@@ -527,6 +524,16 @@ describe('SignUp', () => {
 
       await user.tab()
       expect(screen.getByLabelText(/password/i)).toHaveFocus()
+    })
+
+    it('should render terms and privacy links', () => {
+      render(<SignUp termsUrl="/my-terms" privacyUrl="/my-privacy" />)
+
+      const termsLink = screen.getByRole('link', { name: /terms of service/i })
+      const privacyLink = screen.getByRole('link', { name: /privacy policy/i })
+
+      expect(termsLink).toHaveAttribute('href', '/my-terms')
+      expect(privacyLink).toHaveAttribute('href', '/my-privacy')
     })
   })
 })

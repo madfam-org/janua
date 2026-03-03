@@ -68,21 +68,27 @@ export function MyComponent() {
 packages/ui/
 ├── src/
 │   ├── components/          # React components
-│   │   ├── button/         # Button component
-│   │   ├── card/           # Card component
-│   │   ├── dialog/         # Dialog/Modal
-│   │   ├── form/           # Form components
-│   │   ├── input/          # Input fields
-│   │   ├── select/         # Select dropdowns
-│   │   ├── table/          # Data tables
+│   │   ├── auth/           # Auth components (SignIn, SignUp, MFA, UserButton, SSO, etc.)
+│   │   ├── enterprise/     # Enterprise components (invitations, SSO config, SAML)
+│   │   ├── compliance/     # Compliance components
+│   │   ├── scim/           # SCIM provisioning components
+│   │   ├── rbac/           # Role-based access control components
+│   │   ├── button.tsx      # Button component
+│   │   ├── card.tsx        # Card component
+│   │   ├── dialog.tsx      # Dialog/Modal
+│   │   ├── input.tsx       # Input fields
+│   │   ├── table.tsx       # Data tables
 │   │   └── ...             # More components
-│   ├── hooks/              # Custom React hooks
-│   ├── utils/              # Utility functions
-│   ├── styles/             # Global styles
-│   └── index.ts            # Main export
-├── tailwind.preset.js      # Tailwind preset
-├── tsconfig.json          # TypeScript config
-└── package.json           # Package config
+│   ├── providers/           # Theme and Auth context providers
+│   ├── tokens/              # Design token presets
+│   ├── config/              # Auth config types and defaults
+│   ├── themes/              # Theme system (dual-skin)
+│   ├── stores/              # State management
+│   ├── lib/                 # Utility functions
+│   └── index.ts             # Main export
+├── tailwind.preset.js       # Tailwind preset
+├── tsconfig.json            # TypeScript config
+└── package.json             # Package config
 ```
 
 ### Design Principles
@@ -314,71 +320,169 @@ import { Alert } from '@janua/ui';
 </Alert>
 ```
 
-## 🎨 Theming
+## Authentication Components
 
-### Design Tokens
+@janua/ui provides a complete set of auth UI components with feature parity with Clerk/Auth0/WorkOS.
 
-```css
-/* Default theme tokens */
-:root {
-  /* Colors */
-  --janua-primary: 243 100% 70%;
-  --janua-secondary: 270 50% 65%;
-  --janua-accent: 330 81% 60%;
-  
-  /* Semantic colors */
-  --janua-success: 142 71% 45%;
-  --janua-warning: 38 92% 50%;
-  --janua-error: 0 84% 60%;
-  --janua-info: 199 89% 48%;
-  
-  /* Neutrals */
-  --janua-background: 0 0% 100%;
-  --janua-foreground: 222 47% 11%;
-  --janua-muted: 210 40% 96%;
-  --janua-border: 214 32% 91%;
-  
-  /* Spacing */
-  --janua-spacing-unit: 0.25rem;
-  
-  /* Radius */
-  --janua-radius: 0.5rem;
-}
-```
-
-### Custom Themes
+### SignIn
 
 ```tsx
-// Creating a custom theme
-import { ThemeProvider } from '@janua/ui';
+import { SignIn } from '@janua/ui';
 
-const customTheme = {
-  colors: {
-    primary: '#FF6B6B',
-    secondary: '#4ECDC4',
-    // ... more colors
-  },
-  fonts: {
-    body: 'Inter, sans-serif',
-    heading: 'Poppins, sans-serif',
-  },
-};
+// Basic usage
+<SignIn
+  socialProviders={{ google: true, github: true }}
+  signUpUrl="/sign-up"
+  afterSignIn={(user) => console.log('Signed in', user)}
+/>
 
-<ThemeProvider theme={customTheme}>
-  <App />
-</ThemeProvider>
+// Advanced: SSO detection, passkey, magic link, layout variants
+<SignIn
+  layout="modal"
+  enableSSO={true}
+  enablePasskey={true}
+  enableMagicLink={true}
+  enableJanuaSSO={true}
+  onMFARequired={(session) => navigate('/mfa')}
+  headerText="Welcome back"
+  forgotPasswordUrl="/reset-password"
+/>
 ```
+
+### SignUp
+
+```tsx
+import { SignUp } from '@janua/ui';
+
+<SignUp
+  socialProviders={{ google: true, github: true }}
+  signInUrl="/sign-in"
+  requireEmailVerification={true}
+  showPasswordStrength={true}
+  termsUrl="/terms"
+  privacyUrl="/privacy"
+  layout="card"
+/>
+```
+
+### MFAChallenge
+
+PIN-style 6-digit input with auto-advance, paste support, and success animation.
+
+```tsx
+import { MFAChallenge } from '@janua/ui';
+
+<MFAChallenge
+  method="totp"
+  userEmail="user@example.com"
+  onVerify={async (code) => await verifyMFA(code)}
+  showBackupCodeOption={true}
+  onUseBackupCode={() => navigate('/backup-code')}
+/>
+```
+
+### UserButton
+
+```tsx
+import { UserButton } from '@janua/ui';
+
+<UserButton
+  user={{ id: '1', email: 'user@example.com', firstName: 'John', lastName: 'Doe' }}
+  onSignOut={() => signOut()}
+  showOrganizations={true}
+  activeOrganization="Acme Corp"
+/>
+```
+
+### Config-Driven Auth (JanuaAuthProvider)
+
+Drive all auth UI from a centralized config — fetched from API or passed statically.
+
+```tsx
+import { JanuaAuthProvider, SignIn } from '@janua/ui';
+
+// Option A: Fetch config from API at runtime
+<JanuaAuthProvider configUrl="https://api.janua.dev/api/v1/auth/ui-config?client_id=abc">
+  <SignIn />
+</JanuaAuthProvider>
+
+// Option B: Static config
+<JanuaAuthProvider config={{
+  branding: { primaryColor: '#10b981', appName: 'My App' },
+  authentication: {
+    emailPassword: true,
+    passkeys: true,
+    socialProviders: { google: true, github: true },
+  },
+}}>
+  <SignIn />
+</JanuaAuthProvider>
+
+// Option C: No provider (backward compatible)
+<SignIn socialProviders={{ google: true }} />
+```
+
+## 🎨 Theming
+
+### JanuaThemeProvider
+
+```tsx
+import { JanuaThemeProvider } from '@janua/ui';
+
+// Use a preset theme
+<JanuaThemeProvider preset="madfam">
+  <App />
+</JanuaThemeProvider>
+
+// Custom accent color
+<JanuaThemeProvider accentColor="#10b981">
+  <App />
+</JanuaThemeProvider>
+
+// Granular color overrides
+<JanuaThemeProvider theme={{ primary: '142 71% 45%', background: '0 0% 100%' }}>
+  <App />
+</JanuaThemeProvider>
+```
+
+### Presets
+
+| Preset | Description |
+|--------|-------------|
+| `default` | Clean professional theme (shadcn defaults) |
+| `madfam` | MADFAM ecosystem brand blue |
+| `solarpunk` | Solarpunk theme from dual-skin system |
 
 ### Dark Mode
 
 ```tsx
-// Automatic dark mode support
-import { ThemeProvider } from '@janua/ui';
-
-<ThemeProvider defaultTheme="system" enableSystem>
+<JanuaThemeProvider darkMode="auto">
   <App />
-</ThemeProvider>
+</JanuaThemeProvider>
 ```
+
+Supports `'auto'` (system preference), `'light'`, and `'dark'`.
+
+### CSS Custom Properties
+
+The theme system injects CSS variables via inline styles:
+
+```css
+--janua-transition-fast: 150ms ease;
+--janua-transition-base: 250ms ease;
+--janua-shadow-card: 0 1px 3px rgba(0,0,0,0.1);
+--janua-radius-card: 0.75rem;
+```
+
+### Animations
+
+Built-in animations with `prefers-reduced-motion` support:
+
+- `janua-fade-in` — Opacity fade
+- `janua-slide-up` — Slide up with fade
+- `janua-shake` — Error shake
+- `janua-shimmer` — Loading shimmer
+- `janua-checkmark` — Success checkmark
 
 ## 🔧 Customization
 

@@ -1,7 +1,6 @@
 import * as React from 'react'
+import { Lock, Loader2, CheckCircle2 } from 'lucide-react'
 import { Button } from '../button'
-import { Input } from '../input'
-import { Label } from '../label'
 import { Card } from '../card'
 import { cn } from '../../lib/utils'
 
@@ -37,11 +36,13 @@ export function MFAChallenge({
   showBackupCodeOption = true,
   allowResend = false,
 }: MFAChallengeProps) {
-  const [code, setCode] = React.useState('')
+  const [digits, setDigits] = React.useState<string[]>(['', '', '', '', '', ''])
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [resendCooldown, setResendCooldown] = React.useState(0)
   const [attempts, setAttempts] = React.useState(0)
+  const [verified, setVerified] = React.useState(false)
+  const inputRefs = React.useRef<(HTMLInputElement | null)[]>([])
 
   // Cooldown timer for resend
   React.useEffect(() => {
@@ -51,34 +52,82 @@ export function MFAChallenge({
     }
   }, [resendCooldown])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const code = digits.join('')
+
+  const handleVerify = React.useCallback(async (fullCode: string) => {
+    if (fullCode.length !== 6 || isLoading) return
     setError(null)
     setIsLoading(true)
 
     try {
-      await onVerify?.(code)
-      // Success - parent component handles redirect
+      await onVerify?.(fullCode)
+      setVerified(true)
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Invalid verification code')
       setError(error.message)
       onError?.(error)
       setAttempts((prev) => prev + 1)
-      setCode('') // Clear code on error
+      // Clear all digits on error
+      setDigits(['', '', '', '', '', ''])
+      inputRefs.current[0]?.focus()
     } finally {
       setIsLoading(false)
+    }
+  }, [isLoading, onVerify, onError])
+
+  const handleDigitChange = (index: number, value: string) => {
+    // Only accept digits
+    const digit = value.replace(/\D/g, '').slice(-1)
+    const newDigits = [...digits]
+    newDigits[index] = digit
+    setDigits(newDigits)
+
+    // Auto-advance to next input
+    if (digit && index < 5) {
+      inputRefs.current[index + 1]?.focus()
+    }
+
+    // Auto-submit when all 6 digits entered
+    const fullCode = newDigits.join('')
+    if (fullCode.length === 6) {
+      handleVerify(fullCode)
+    }
+  }
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      // Move back on backspace when current input is empty
+      const newDigits = [...digits]
+      newDigits[index - 1] = ''
+      setDigits(newDigits)
+      inputRefs.current[index - 1]?.focus()
+    }
+  }
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault()
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!pasted) return
+    const newDigits = [...digits]
+    for (let i = 0; i < 6; i++) {
+      newDigits[i] = pasted[i] || ''
+    }
+    setDigits(newDigits)
+    if (pasted.length === 6) {
+      handleVerify(pasted)
+    } else {
+      inputRefs.current[Math.min(pasted.length, 5)]?.focus()
     }
   }
 
   const handleResend = async () => {
     if (resendCooldown > 0) return
-
     setIsLoading(true)
     setError(null)
 
     try {
       await onRequestNewCode?.()
-      setResendCooldown(60) // 60 second cooldown
+      setResendCooldown(60)
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to resend code')
       setError(error.message)
@@ -88,29 +137,35 @@ export function MFAChallenge({
     }
   }
 
-  // Auto-submit when 6 digits entered
-  React.useEffect(() => {
-    if (code.length === 6 && !isLoading) {
-      handleSubmit(new Event('submit') as any)
-    }
-  }, [code])
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await handleVerify(code)
+  }
 
   const methodText = method === 'sms' ? 'your phone' : 'your authenticator app'
+
+  // Success state
+  if (verified) {
+    return (
+      <Card className={cn('w-full max-w-md mx-auto p-6', className)}>
+        <div className="text-center py-8" style={{ animation: 'janua-fade-in 300ms ease' }}>
+          <div className="flex justify-center mb-4">
+            <CheckCircle2 className="w-16 h-16 text-green-500" />
+          </div>
+          <h2 className="text-2xl font-bold">Verified</h2>
+          <p className="text-sm text-muted-foreground mt-1">Redirecting...</p>
+        </div>
+      </Card>
+    )
+  }
 
   return (
     <Card className={cn('w-full max-w-md mx-auto p-6', className)}>
       {/* Header */}
-      <div className="text-center mb-6">
+      <div className="text-center mb-6" style={{ animation: 'janua-fade-in 300ms ease' }}>
         <div className="flex justify-center mb-4">
           <div className="rounded-full bg-primary/10 p-3">
-            <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-              />
-            </svg>
+            <Lock className="w-8 h-8 text-primary" />
           </div>
         </div>
         <h2 className="text-2xl font-bold">Two-factor authentication</h2>
@@ -128,7 +183,10 @@ export function MFAChallenge({
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Error Message */}
         {error && (
-          <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">
+          <div
+            className="bg-destructive/15 text-destructive text-sm p-3 rounded-md"
+            style={{ animation: 'janua-slide-up 200ms ease, janua-shake 400ms ease' }}
+          >
             {error}
             {attempts >= 3 && (
               <p className="mt-2">
@@ -138,27 +196,37 @@ export function MFAChallenge({
           </div>
         )}
 
-        {/* Code Input */}
+        {/* PIN-style digit inputs */}
         <div className="space-y-2">
-          <Label htmlFor="mfaCode">Verification code</Label>
-          <Input
-            id="mfaCode"
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]{6}"
-            placeholder="000000"
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            maxLength={6}
-            required
-            disabled={isLoading}
-            autoFocus
-            autoComplete="one-time-code"
-            className="text-center text-2xl tracking-widest"
-          />
           <p className="text-xs text-muted-foreground text-center">
             Enter the 6-digit code
           </p>
+          <div className="flex justify-center gap-2" onPaste={handlePaste}>
+            {digits.map((digit, i) => (
+              <input
+                key={i}
+                ref={(el) => { inputRefs.current[i] = el }}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleDigitChange(i, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(i, e)}
+                disabled={isLoading}
+                autoFocus={i === 0}
+                autoComplete={i === 0 ? 'one-time-code' : 'off'}
+                className={cn(
+                  'w-11 h-14 text-center text-2xl font-semibold rounded-md border',
+                  'bg-background text-foreground',
+                  'border-input focus:border-primary focus:ring-2 focus:ring-ring focus:outline-none',
+                  'transition-all duration-150',
+                  'disabled:opacity-50 disabled:cursor-not-allowed',
+                  digit && 'border-primary',
+                )}
+                aria-label={`Digit ${i + 1}`}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Submit Button */}
@@ -169,7 +237,7 @@ export function MFAChallenge({
         >
           {isLoading ? (
             <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               Verifying...
             </>
           ) : (
@@ -223,9 +291,9 @@ export function MFAChallenge({
       <div className="mt-6 p-4 bg-muted rounded-lg">
         <h4 className="text-sm font-medium mb-2">Need help?</h4>
         <ul className="text-xs text-muted-foreground space-y-1">
-          <li>• Make sure your authenticator app is synced with the correct time</li>
-          <li>• The code expires after 30 seconds - try generating a new one</li>
-          <li>• Lost access to your authenticator? Use a backup code</li>
+          <li>Make sure your authenticator app is synced with the correct time</li>
+          <li>The code expires after 30 seconds &mdash; try generating a new one</li>
+          <li>Lost access to your authenticator? Use a backup code</li>
         </ul>
       </div>
     </Card>

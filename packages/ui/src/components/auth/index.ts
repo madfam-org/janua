@@ -1,10 +1,24 @@
-// Authentication Components
+// Core Auth Components
 export * from './sign-in'
 export * from './sign-up'
 export * from './user-button'
 export * from './mfa-setup'
 export * from './mfa-challenge'
 export * from './backup-codes'
+
+// Shared Sub-Components (Phase 2)
+export * from './social-icons'
+export * from './social-buttons'
+export * from './auth-card'
+export * from './divider'
+export * from './password-input'
+
+// SSO & Passkey Components (Phase 5)
+export * from './janua-sso-button'
+export * from './sso-email-detector'
+export * from './passkey-button'
+export * from './magic-link-form'
+
 // Organization switcher exports (has its own Organization interface)
 export {
   OrganizationSwitcher,

@@ -1,11 +1,15 @@
 import * as React from 'react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '../button'
 import { Input } from '../input'
 import { Label } from '../label'
-import { Card } from '../card'
-import { Separator } from '../separator'
+import { Checkbox } from '../checkbox'
 import { cn } from '../../lib/utils'
 import { parseApiError, formatErrorMessage } from '../../lib/error-messages'
+import { AuthCard, type AuthCardLayout } from './auth-card'
+import { SocialButton, type SocialProvider } from './social-buttons'
+import { AuthDivider } from './divider'
+import { PasswordInput } from './password-input'
 
 export interface SignInProps {
   /** Optional custom class name */
@@ -42,6 +46,26 @@ export interface SignInProps {
   januaClient?: any
   /** API URL for direct fetch calls (fallback if no client provided) */
   apiUrl?: string
+  /** Layout variant */
+  layout?: AuthCardLayout
+  /** Show passkey sign-in button */
+  enablePasskey?: boolean
+  /** Show SSO email domain detection */
+  enableSSO?: boolean
+  /** Callback when SSO domain is detected */
+  onSSODetected?: (domain: string) => void
+  /** Show magic link option */
+  enableMagicLink?: boolean
+  /** Show "Sign in with Janua" button for MADFAM apps */
+  enableJanuaSSO?: boolean
+  /** Callback when API returns MFA challenge */
+  onMFARequired?: (session: any) => void
+  /** Custom header text */
+  headerText?: string
+  /** Custom header description */
+  headerDescription?: string
+  /** Configurable forgot password URL */
+  forgotPasswordUrl?: string
 }
 
 export function SignIn({
@@ -61,10 +85,19 @@ export function SignIn({
   showRememberMe = true,
   januaClient,
   apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+  layout = 'card',
+  enablePasskey = false,
+  enableSSO = false,
+  onSSODetected,
+  enableMagicLink = false,
+  enableJanuaSSO = false,
+  onMFARequired,
+  headerText = 'Sign in to your account',
+  headerDescription = 'Welcome back! Please enter your details',
+  forgotPasswordUrl = '/forgot-password',
 }: SignInProps) {
   const [email, setEmail] = React.useState('')
   const [password, setPassword] = React.useState('')
-  const [showPassword, setShowPassword] = React.useState(false)
   const [remember, setRemember] = React.useState(false)
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -76,21 +109,25 @@ export function SignIn({
 
     try {
       if (januaClient) {
-        // Use Janua SDK client for real API integration
         const response = await januaClient.auth.signIn({
           email,
           password,
           remember,
         })
 
-        // SDK automatically handles token storage
+        // Check if MFA is required
+        if (response.mfaRequired && onMFARequired) {
+          onMFARequired(response)
+          setIsLoading(false)
+          return
+        }
+
         afterSignIn?.(response.user)
 
         if (redirectUrl) {
           window.location.href = redirectUrl
         }
       } else {
-        // Fallback to direct fetch if SDK client not provided
         const response = await fetch(`${apiUrl}/api/v1/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -100,6 +137,14 @@ export function SignIn({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
+
+          // Check for MFA challenge response
+          if (response.status === 403 && errorData.mfa_required && onMFARequired) {
+            onMFARequired(errorData)
+            setIsLoading(false)
+            return
+          }
+
           const actionableError = parseApiError(errorData, { status: response.status })
           setError(formatErrorMessage(actionableError, true))
           onError?.(new Error(actionableError.message))
@@ -115,8 +160,8 @@ export function SignIn({
         }
       }
     } catch (err) {
-      const actionableError = parseApiError(err, { 
-        message: err instanceof Error ? err.message : undefined 
+      const actionableError = parseApiError(err, {
+        message: err instanceof Error ? err.message : undefined,
       })
       setError(formatErrorMessage(actionableError, true))
       onError?.(new Error(actionableError.message))
@@ -129,20 +174,17 @@ export function SignIn({
     setIsLoading(true)
     try {
       if (januaClient) {
-        // Use Janua SDK for OAuth flow
         const response = await januaClient.auth.initiateOAuth(provider, {
           redirectUrl: redirectUrl || window.location.origin,
         })
-        // Redirect to OAuth provider
         window.location.href = response.url
       } else {
-        // Fallback to direct URL redirect
         const oauthUrl = `${apiUrl}/api/v1/auth/oauth/${provider}?redirect_url=${encodeURIComponent(redirectUrl || window.location.origin)}`
         window.location.href = oauthUrl
       }
     } catch (err) {
       const actionableError = parseApiError(err, {
-        message: `${provider} authentication failed`
+        message: `${provider} authentication failed`,
       })
       setError(formatErrorMessage(actionableError, true))
       onError?.(new Error(actionableError.message))
@@ -150,114 +192,57 @@ export function SignIn({
     }
   }
 
-  const hasSocialProviders =
-    socialProviders.google ||
-    socialProviders.github ||
-    socialProviders.microsoft ||
-    socialProviders.apple
+  // SSO email domain detection
+  const handleEmailBlur = React.useCallback(() => {
+    if (!enableSSO || !onSSODetected || !email.includes('@')) return
+    const domain = email.split('@')[1]
+    if (domain) {
+      onSSODetected(domain)
+    }
+  }, [email, enableSSO, onSSODetected])
+
+  const socialProviderList: SocialProvider[] = []
+  if (socialProviders.google) socialProviderList.push('google')
+  if (socialProviders.github) socialProviderList.push('github')
+  if (socialProviders.microsoft) socialProviderList.push('microsoft')
+  if (socialProviders.apple) socialProviderList.push('apple')
+  if (enableJanuaSSO) socialProviderList.push('janua')
+
+  const hasSocialProviders = socialProviderList.length > 0
+
+  const header = (
+    <div className="text-center mb-6" style={{ animation: 'janua-fade-in 300ms ease' }}>
+      <h2 className="text-2xl font-bold">{headerText}</h2>
+      <p className="text-sm text-muted-foreground mt-1">{headerDescription}</p>
+    </div>
+  )
+
+  const footer = signUpUrl ? (
+    <p className="text-center text-sm text-muted-foreground mt-6">
+      Don&apos;t have an account?{' '}
+      <a href={signUpUrl} className="text-primary hover:underline font-medium">
+        Sign up
+      </a>
+    </p>
+  ) : undefined
 
   return (
-    <Card className={cn('w-full max-w-md mx-auto p-6', className)}>
-      {/* Logo */}
-      {logoUrl && (
-        <div className="flex justify-center mb-6">
-          <img src={logoUrl} alt="Logo" className="h-12" />
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold">Sign in to your account</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Welcome back! Please enter your details
-        </p>
-      </div>
-
+    <AuthCard layout={layout} logo={logoUrl} header={header} footer={footer} className={className}>
       {/* Social Login Buttons */}
       {hasSocialProviders && (
         <>
-          <div className="space-y-3 mb-6">
-            {socialProviders.google && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => handleSocialLogin('google')}
+          <div className="space-y-2.5 mb-6">
+            {socialProviderList.map((provider, i) => (
+              <SocialButton
+                key={provider}
+                provider={provider}
+                onClick={() => handleSocialLogin(provider)}
                 disabled={isLoading}
-              >
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                  <path
-                    fill="currentColor"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-                Continue with Google
-              </Button>
-            )}
-
-            {socialProviders.github && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => handleSocialLogin('github')}
-                disabled={isLoading}
-              >
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                </svg>
-                Continue with GitHub
-              </Button>
-            )}
-
-            {socialProviders.microsoft && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => handleSocialLogin('microsoft')}
-                disabled={isLoading}
-              >
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                  <path fill="#F25022" d="M1 1h10v10H1z" />
-                  <path fill="#00A4EF" d="M13 1h10v10H13z" />
-                  <path fill="#7FBA00" d="M1 13h10v10H1z" />
-                  <path fill="#FFB900" d="M13 13h10v10H13z" />
-                </svg>
-                Continue with Microsoft
-              </Button>
-            )}
-
-            {socialProviders.apple && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => handleSocialLogin('apple')}
-                disabled={isLoading}
-              >
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-                </svg>
-                Continue with Apple
-              </Button>
-            )}
+                animationIndex={i}
+              />
+            ))}
           </div>
-
-          <div className="relative mb-6">
-            <Separator />
-            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs text-muted-foreground">
-              Or continue with email
-            </span>
-          </div>
+          <AuthDivider label="Or continue with email" />
         </>
       )}
 
@@ -265,20 +250,24 @@ export function SignIn({
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Error Message */}
         {error && (
-          <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">
+          <div
+            className="bg-destructive/15 text-destructive text-sm p-3 rounded-md"
+            style={{ animation: 'janua-slide-up 200ms ease, janua-shake 400ms ease' }}
+          >
             {error}
           </div>
         )}
 
         {/* Email Input */}
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="signin-email">Email</Label>
           <Input
-            id="email"
+            id="signin-email"
             type="email"
             placeholder="name@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onBlur={handleEmailBlur}
             required
             disabled={isLoading}
             autoComplete="email"
@@ -286,75 +275,33 @@ export function SignIn({
         </div>
 
         {/* Password Input */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="password">Password</Label>
+        <PasswordInput
+          id="signin-password"
+          value={password}
+          onChange={setPassword}
+          disabled={isLoading}
+          autoComplete="current-password"
+          labelAction={
             <a
-              href="/forgot-password"
+              href={forgotPasswordUrl}
               className="text-sm text-primary hover:underline"
               tabIndex={-1}
             >
               Forgot password?
             </a>
-          </div>
-          <div className="relative">
-            <Input
-              id="password"
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={isLoading}
-              autoComplete="current-password"
-            />
-            <button
-              type="button"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              onClick={() => setShowPassword(!showPassword)}
-              tabIndex={-1}
-            >
-              {showPassword ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                  />
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                  />
-                </svg>
-              )}
-            </button>
-          </div>
-        </div>
+          }
+        />
 
         {/* Remember Me */}
         {showRememberMe && (
-          <div className="flex items-center">
-            <input
-              id="remember"
-              type="checkbox"
-              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="signin-remember"
               checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
+              onCheckedChange={(checked) => setRemember(checked === true)}
               disabled={isLoading}
             />
-            <Label htmlFor="remember" className="ml-2 text-sm font-normal">
+            <Label htmlFor="signin-remember" className="text-sm font-normal cursor-pointer">
               Remember me for 30 days
             </Label>
           </div>
@@ -362,19 +309,48 @@ export function SignIn({
 
         {/* Submit Button */}
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? 'Signing in...' : 'Sign in'}
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Signing in...
+            </>
+          ) : (
+            'Sign in'
+          )}
         </Button>
-      </form>
 
-      {/* Sign Up Link */}
-      {signUpUrl && (
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          Don't have an account?{' '}
-          <a href={signUpUrl} className="text-primary hover:underline font-medium">
-            Sign up
-          </a>
-        </p>
-      )}
-    </Card>
+        {/* Passkey Button */}
+        {enablePasskey && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={isLoading}
+            onClick={() => {
+              // Passkey auth handled by PasskeyButton component in Phase 5
+              // Placeholder for direct integration
+            }}
+          >
+            Sign in with Passkey
+          </Button>
+        )}
+
+        {/* Magic Link Toggle */}
+        {enableMagicLink && (
+          <div className="text-center">
+            <button
+              type="button"
+              className="text-sm text-primary hover:underline"
+              disabled={isLoading}
+              onClick={() => {
+                // Magic link handled by MagicLinkForm component in Phase 5
+              }}
+            >
+              Email me a sign-in link
+            </button>
+          </div>
+        )}
+      </form>
+    </AuthCard>
   )
 }

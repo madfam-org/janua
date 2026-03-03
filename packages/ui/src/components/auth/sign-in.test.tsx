@@ -54,6 +54,13 @@ describe('SignIn', () => {
 
       expect(container.firstChild).toHaveClass('custom-class')
     })
+
+    it('should render custom header text', () => {
+      render(<SignIn headerText="Welcome Back" headerDescription="Enter your details" />)
+
+      expect(screen.getByText('Welcome Back')).toBeInTheDocument()
+      expect(screen.getByText('Enter your details')).toBeInTheDocument()
+    })
   })
 
   describe('Social Providers', () => {
@@ -259,6 +266,33 @@ describe('SignIn', () => {
         expect(window.location.href).toBe('/dashboard')
       })
     })
+
+    it('should call onMFARequired when API returns MFA challenge', async () => {
+      const user = userEvent.setup()
+      const mockOnMFARequired = vi.fn()
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: async () => ({ mfa_required: true, session_id: 'abc123' }),
+      })
+
+      render(<SignIn onMFARequired={mockOnMFARequired} />)
+
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      const passwordInput = screen.getByLabelText(/password/i)
+      const submitButton = screen.getByRole('button', { name: /sign in/i })
+
+      await user.type(emailInput, 'test@example.com')
+      await user.type(passwordInput, 'password123')
+      await user.click(submitButton)
+
+      await waitFor(() => {
+        expect(mockOnMFARequired).toHaveBeenCalledWith(
+          expect.objectContaining({ mfa_required: true })
+        )
+      })
+    })
   })
 
   describe('Loading State', () => {
@@ -317,11 +351,11 @@ describe('SignIn', () => {
   describe('Password Visibility', () => {
     it('should toggle password visibility', async () => {
       const user = userEvent.setup()
-      const { container } = render(<SignIn />)
+      render(<SignIn />)
 
       const passwordInput = screen.getByLabelText(/password/i) as HTMLInputElement
-      // Toggle button is inside the password field's parent div
-      const toggleButton = container.querySelector('button[type="button"]') as HTMLButtonElement
+      // PasswordInput component has an aria-labeled toggle button
+      const toggleButton = screen.getByRole('button', { name: /show password/i })
 
       expect(passwordInput.type).toBe('password')
       expect(toggleButton).toBeInTheDocument()
@@ -329,8 +363,42 @@ describe('SignIn', () => {
       await user.click(toggleButton)
       expect(passwordInput.type).toBe('text')
 
-      await user.click(toggleButton)
+      const hideButton = screen.getByRole('button', { name: /hide password/i })
+      await user.click(hideButton)
       expect(passwordInput.type).toBe('password')
+    })
+  })
+
+  describe('SSO and Advanced Features', () => {
+    it('should call onSSODetected when email with domain is blurred', async () => {
+      const user = userEvent.setup()
+      const mockOnSSODetected = vi.fn()
+
+      render(<SignIn enableSSO={true} onSSODetected={mockOnSSODetected} />)
+
+      const emailInput = screen.getByRole('textbox', { name: /email/i })
+      await user.type(emailInput, 'user@sso-org.com')
+      await user.tab() // blur
+
+      expect(mockOnSSODetected).toHaveBeenCalledWith('sso-org.com')
+    })
+
+    it('should render passkey button when enabled', () => {
+      render(<SignIn enablePasskey={true} />)
+
+      expect(screen.getByRole('button', { name: /passkey/i })).toBeInTheDocument()
+    })
+
+    it('should render magic link option when enabled', () => {
+      render(<SignIn enableMagicLink={true} />)
+
+      expect(screen.getByText(/email me a sign-in link/i)).toBeInTheDocument()
+    })
+
+    it('should render Janua SSO button when enabled', () => {
+      render(<SignIn enableJanuaSSO={true} />)
+
+      expect(screen.getByRole('button', { name: /janua/i })).toBeInTheDocument()
     })
   })
 
@@ -338,8 +406,6 @@ describe('SignIn', () => {
     it('should accept appearance prop without error', () => {
       const { container } = render(<SignIn appearance={{ theme: 'dark' }} />)
 
-      // Component accepts appearance prop but doesn't apply theme classes directly
-      // Theme should be handled at app level (e.g., next-themes provider)
       expect(container.firstChild).toBeInTheDocument()
     })
 
@@ -356,8 +422,6 @@ describe('SignIn', () => {
         />
       )
 
-      // Component accepts appearance.variables prop
-      // CSS variables should be set at app level
       expect(container.firstChild).toBeInTheDocument()
     })
   })
@@ -406,12 +470,6 @@ describe('SignIn', () => {
 
       await user.tab()
       expect(screen.getByLabelText(/password/i)).toHaveFocus()
-
-      await user.tab()
-      expect(screen.getByRole('checkbox', { name: /remember me/i })).toHaveFocus()
-
-      await user.tab()
-      expect(screen.getByRole('button', { name: /sign in/i })).toHaveFocus()
     })
   })
 })

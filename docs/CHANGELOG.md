@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Auth Component Overhaul** (`@janua/ui`): Major UI SDK upgrade reaching feature parity with Clerk/Auth0/WorkOS
+  - `JanuaThemeProvider` — React context for runtime theming with preset support (`default`, `madfam`, `solarpunk`), dark mode via `next-themes`, and granular color overrides
+  - `JanuaAuthProvider` — Config-driven auth UI provider that fetches `JanuaAuthConfig` from API or accepts static config, enabling tenant customization from the Janua dashboard
+  - Shared sub-components: `SocialButton` (branded Google/GitHub/Microsoft/Apple/Janua buttons), `AuthCard` (card/modal/page layouts), `AuthDivider`, `PasswordInput` (with strength meter)
+  - SSO email domain detection (`SSOEmailDetector`) — email-first flow that checks domain against API and redirects to org IdP
+  - Passkey/WebAuthn button (`PasskeyButton`) — auto-hides on unsupported browsers, calls `navigator.credentials.get()`
+  - Magic link passwordless login (`MagicLinkForm`) — email input with success state and 60s resend cooldown
+  - "Sign in with Janua" button (`JanuaSSOButton`) for MADFAM ecosystem cross-app auth
+  - PIN-style MFA digit inputs (6 individual inputs with auto-advance, backspace navigation, paste support, success animation)
+  - CSS animations (`janua-fade-in`, `janua-slide-up`, `janua-shake`, `janua-shimmer`, `janua-checkmark`) with `prefers-reduced-motion` support
+  - Theme presets system (`packages/ui/src/tokens/presets.ts`) and auth config defaults (`packages/ui/src/config/`)
+  - Runtime auth config type system (`JanuaAuthConfig`) covering branding, auth methods, social providers, SSO, MFA, flow settings, and locale strings
+
+### Changed
+- **SignIn** component: replaced inline SVGs with `SocialButton` components, native checkbox with Radix `Checkbox`, added layout/SSO/passkey/magicLink/MFA props (all optional, backward compatible)
+- **SignUp** component: replaced `alert()` with inline email verification success state, added layout/terms/privacy props, Radix `Checkbox` for terms
+- **MFAChallenge** component: single text input replaced with 6 PIN-style digit inputs, added success checkmark animation, lucide icons replace inline SVGs
+- **UserButton** component: inline SVGs replaced with lucide icons, added `activeOrganization` prop, dropdown open/close animations
+
 - Initial package structure for PyPI distribution
 - Comprehensive CLI interface with `janua` command
 - Middleware stack for easy FastAPI integration
