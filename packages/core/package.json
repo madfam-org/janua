@@ -23,7 +23,7 @@
     "jsonwebtoken": "^9.0.3",
     "qrcode": "^1.5.3",
     "speakeasy": "^2.0.0",
-    "uuid": "^9.0.1"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
