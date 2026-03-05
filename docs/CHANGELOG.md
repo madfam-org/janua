@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MFA challenge verify endpoint (`POST /mfa/challenge/verify`) for completing MFA during sign-in
 
 ### Security
+- **Browser-based auth audit** (2026-03-05): Comprehensive Playwright-driven audit of 12 surfaces across 8 domains — found 2 critical (tokens in URL on Enclii callback, missing headers on Tezca/Forgesight), 4 high (broken auth flows on Dhanam/Forgesight, logout 500, Enclii shell leak), 5 medium severity issues. Full report: `docs/internal/browser-audit-report.md`
+- **CSP Swagger UI fix**: Added `cdn.jsdelivr.net` to `script-src` and `style-src` in security headers middleware so `/docs` endpoint renders correctly
+- **CSP dynamic host**: Security headers middleware now accepts `api_host` parameter for environment-aware `connect-src` directives instead of hardcoded values
 - **MFA before token issuance**: Sign-in now requires MFA verification before issuing session tokens for MFA-enabled users
 - **Session invalidation on password change**: All active sessions (except current) are revoked when a user changes their password
 - **Security headers for website and docs**: Full CSP, HSTS, Referrer-Policy, Permissions-Policy, X-Frame-Options, X-Content-Type-Options for all public-facing Next.js apps

@@ -752,11 +752,33 @@ bandit -r app/
 - DDoS testing
 ```
 
+### Browser-Based Auth Audit
+
+Periodic automated audit of all auth-gated surfaces using Playwright browser automation.
+
+```
+[ ] All auth-gated surfaces redirect unauthenticated users to login
+[ ] Login flows complete successfully (tokens/cookies set)
+[ ] Logout clears cookies and invalidates server-side sessions
+[ ] Open redirect tests pass (?next=https://evil.com rejected)
+[ ] Security headers present on all surfaces (HSTS, CSP, X-Frame-Options, XCTO)
+[ ] Cookie attributes correct (Secure, HttpOnly where expected, SameSite)
+[ ] Tokens not leaked in URL query parameters or Referer headers
+[ ] Admin domain gate rejects unauthorized email domains
+[ ] CSP does not contain localhost/development artifacts in production
+[ ] CORS configured correctly for all consumer app origins
+```
+
+**Latest audit**: `docs/internal/browser-audit-report.md` (2026-03-05)
+
+**Surfaces in scope**: Janua API, Dashboard, Admin, Docs, Website, Dhanam, Enclii Switchyard, Pravara MES, Tezca, Forgesight, Yantra4D, Dhanam Admin
+
 ### Ongoing Security Testing
 
 ```
 [ ] Regular dependency updates
 [ ] Automated vulnerability scanning in CI/CD
+[ ] Browser-based auth audit (quarterly)
 [ ] Bug bounty program (optional)
 [ ] Red team exercises (optional)
 ```

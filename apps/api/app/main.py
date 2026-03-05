@@ -33,6 +33,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
+from urllib.parse import urlparse
 
 # Secure password hashing context - using bcrypt 2b to avoid passlib wrap bug detection issue
 pwd_context = CryptContext(
@@ -417,27 +418,8 @@ app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_middleware(PerformanceMonitoringMiddleware, slow_threshold_ms=100.0)
 
 
-# Security Headers Middleware
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-
-        # Security headers for A+ SSL rating
-        response.headers[
-            "Strict-Transport-Security"
-        ] = "max-age=31536000; includeSubDomains; preload"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers[
-            "Content-Security-Policy"
-        ] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
-        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-        response.headers["Server"] = "Janua-API"  # Hide server version info
-
-        return response
-
+# Import standalone security headers middleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
 
 # Add security middleware (order matters - add these first)
 # Disabled HTTPS redirect - Railway handles HTTPS termination at the proxy level
@@ -493,8 +475,9 @@ else:
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
-# Add security headers middleware
-app.add_middleware(SecurityHeadersMiddleware)
+# Add security headers middleware (CSP connect-src uses the configured API host)
+_api_host = settings.JANUA_CUSTOM_DOMAIN or urlparse(settings.API_BASE_URL).netloc
+app.add_middleware(SecurityHeadersMiddleware, api_host=_api_host)
 
 # Add GLOBAL RATE LIMITING for 100% endpoint coverage
 # This ensures ALL endpoints have rate limiting, not just those with @limiter.limit decorators

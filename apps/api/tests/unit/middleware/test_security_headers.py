@@ -106,13 +106,13 @@ class TestSecurityHeadersBasicHeaders:
         assert "microphone=()" in result.headers["Permissions-Policy"]
         assert "geolocation=()" in result.headers["Permissions-Policy"]
 
-    async def test_x_powered_by_header(self, middleware, mock_request, mock_response):
-        """Test X-Powered-By header is added."""
+    async def test_server_header_set(self, middleware, mock_request, mock_response):
+        """Test Server header is set to Janua-API."""
         call_next = AsyncMock(return_value=mock_response)
 
         result = await middleware.dispatch(mock_request, call_next)
 
-        assert result.headers["X-Powered-By"] == "Janua Identity Platform"
+        assert result.headers["Server"] == "Janua-API"
 
 
 class TestHSTSHeader:
@@ -243,6 +243,63 @@ class TestContentSecurityPolicy:
         assert "connect-src 'self' https://api.janua.dev" in csp
 
 
+class TestCSPDynamicApiHost:
+    """Test CSP connect-src uses configurable api_host parameter."""
+
+    @pytest.fixture
+    def mock_response(self):
+        """Create mock response with mutable headers."""
+        response = MagicMock(spec=Response)
+        response.headers = {}
+        return response
+
+    async def test_csp_connect_src_default_host(self, mock_response):
+        """Test CSP connect-src uses default api.janua.dev host."""
+        app = MagicMock()
+        middleware = SecurityHeadersMiddleware(app, strict=True)
+
+        request = MagicMock(spec=Request)
+        request.url.scheme = "https"
+        request.url.path = "/api/v1/users"
+
+        call_next = AsyncMock(return_value=mock_response)
+        result = await middleware.dispatch(request, call_next)
+
+        csp = result.headers["Content-Security-Policy"]
+        assert "connect-src 'self' https://api.janua.dev" in csp
+
+    async def test_csp_connect_src_custom_host(self, mock_response):
+        """Test CSP connect-src uses custom api_host when provided."""
+        app = MagicMock()
+        middleware = SecurityHeadersMiddleware(app, strict=True, api_host="auth.madfam.io")
+
+        request = MagicMock(spec=Request)
+        request.url.scheme = "https"
+        request.url.path = "/api/v1/users"
+
+        call_next = AsyncMock(return_value=mock_response)
+        result = await middleware.dispatch(request, call_next)
+
+        csp = result.headers["Content-Security-Policy"]
+        assert "connect-src 'self' https://auth.madfam.io" in csp
+        assert "api.janua.dev" not in csp
+
+    async def test_csp_swagger_cdn_allowed(self, mock_response):
+        """Test CSP allows CDN resources needed by Swagger UI."""
+        app = MagicMock()
+        middleware = SecurityHeadersMiddleware(app, strict=True)
+
+        request = MagicMock(spec=Request)
+        request.url.scheme = "https"
+        request.url.path = "/api/v1/users"
+
+        call_next = AsyncMock(return_value=mock_response)
+        result = await middleware.dispatch(request, call_next)
+
+        csp = result.headers["Content-Security-Policy"]
+        assert "cdn.jsdelivr.net" in csp
+
+
 class TestCSPSwaggerRelaxation:
     """Test CSP relaxation for Swagger documentation endpoints."""
 
@@ -351,7 +408,8 @@ class TestServerHeaderRemoval:
         result = await middleware.dispatch(request, call_next)
 
         # Should not raise an error
-        assert "X-Powered-By" in result.headers
+        assert "Server" in result.headers
+        assert result.headers["Server"] == "Janua-API"
 
 
 class TestMiddlewareCallsNextHandler:
@@ -421,7 +479,7 @@ class TestAllHeadersPresence:
             "Strict-Transport-Security",
             "Content-Security-Policy",
             "Permissions-Policy",
-            "X-Powered-By",
+            "Server",
         ]
 
         for header in required_headers:

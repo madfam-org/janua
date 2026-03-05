@@ -12,9 +12,10 @@ logger = structlog.get_logger()
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add security headers to all responses"""
 
-    def __init__(self, app, strict: bool = True):
+    def __init__(self, app, strict: bool = True, api_host: str = "api.janua.dev"):
         super().__init__(app)
         self.strict = strict
+        self.api_host = api_host
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Add security headers to response"""
@@ -39,7 +40,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",  # For Swagger UI
             "img-src 'self' data: https:",
             "font-src 'self' data:",
-            "connect-src 'self' https://api.janua.dev",
+            f"connect-src 'self' https://{self.api_host}",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
@@ -63,7 +64,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if "server" in response.headers:
             del response.headers["server"]
 
-        # Add custom server header
-        response.headers["X-Powered-By"] = "Janua Identity Platform"
+        # Hide server version info
+        response.headers["Server"] = "Janua-API"
 
         return response

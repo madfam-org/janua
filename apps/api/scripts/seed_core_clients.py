@@ -1,17 +1,14 @@
 """
-Seed core OAuth clients into the Janua database.
+Seed ecosystem OAuth clients into the Janua database.
 
-Idempotent script that registers OAuth clients for the core platform
-(janua, enclii). Skips clients that already exist (matched by name). Prints
-plain-text secrets for newly created clients so the operator can configure
-each consumer application.
-
-Non-core app clients (tezca, dhanam, yantra4d, etc.) should be registered
-via the Janua OAuth client API: POST /v1/oauth/clients
+Idempotent script that registers OAuth clients for all MADFAM ecosystem
+applications. Skips clients that already exist (matched by name or
+pre-assigned client_id). Prints plain-text secrets for newly created
+clients so the operator can configure each consumer application.
 
 Usage:
     cd apps/api
-    python scripts/seed_ecosystem_clients.py
+    python scripts/seed_core_clients.py
 """
 
 from __future__ import annotations
@@ -78,9 +75,81 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
         ],
         "allowed_scopes": ["openid", "profile", "email"],
     },
-    # Non-core clients (tezca, dhanam, yantra4d, stratum-tcg, etc.) are registered
-    # via the Janua OAuth client API: POST /v1/oauth/clients
-    # Their CORS origins are auto-derived by DynamicCORSMiddleware from redirect_uris.
+    # ── Consumer ecosystem clients ──────────────────────────────────────
+    {
+        "name": "dhanam-web",
+        "description": "Dhanam financial management web application",
+        "audience": "dhanam-api",
+        # Pre-assigned: already deployed in dhanam .env.production
+        "client_id": "jnc_uE2zp9ume_Fd6jMl1elL6wqjiECM711t",
+        "redirect_uris": [
+            "https://dhanam.madfam.io/api/auth/callback",
+            "http://localhost:3000/api/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "tezca-web",
+        "description": "Tezca Mexican law intelligence platform (web + admin)",
+        "audience": "tezca-api",
+        "redirect_uris": [
+            "https://tezca.mx/api/auth/callback",
+            "https://admin.tezca.mx/api/auth/callback",
+            "http://localhost:3000/api/auth/callback",
+            "http://localhost:3001/api/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "forgesight-app",
+        "description": "Forgesight customer-facing application",
+        "audience": "forgesight-api",
+        "redirect_uris": [
+            "https://forgesight.madfam.io/api/auth/callback",
+            "http://localhost:3000/api/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "forgesight-admin",
+        "description": "Forgesight admin panel",
+        "audience": "forgesight-api",
+        "redirect_uris": [
+            "https://admin.forgesight.madfam.io/auth/callback",
+            "http://localhost:3001/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "pravara-dashboard",
+        "description": "Pravara MES operator dashboard",
+        "audience": "pravara-api",
+        "redirect_uris": [
+            "https://pravara.madfam.io/auth/callback",
+            "http://localhost:4501/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "yantra4d-studio",
+        "description": "Yantra4D simulation studio",
+        "audience": "yantra4d-api",
+        "redirect_uris": [
+            "https://studio.yantra4d.com/auth/callback",
+            "http://localhost:5173/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "yantra4d-admin",
+        "description": "Yantra4D admin panel",
+        "audience": "yantra4d-api",
+        "redirect_uris": [
+            "https://admin.yantra4d.com/auth/callback",
+            "http://localhost:3001/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
 ]
 
 
