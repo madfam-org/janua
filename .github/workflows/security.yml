@@ -87,7 +87,7 @@ jobs:
           cd apps/api && pip-audit --format json --output pip-audit-report.json
 
       - name: Upload Security Reports
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: python-security-reports
           path: |
@@ -127,7 +127,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
       - name: Upload Security Reports
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: javascript-security-reports
           path: |
@@ -280,7 +280,7 @@ jobs:
           echo "- DAST ZAP: ${{ needs.dast-zap.result }}" >> security-summary.md
 
       - name: Upload Security Summary
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: security-summary
           path: security-summary.md
