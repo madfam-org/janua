@@ -1,181 +1,169 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth, useUser as _useUser } from './provider';
-import type { SignUpRequest, SignInRequest } from '@janua/typescript-sdk';
+import {
+  SignIn as UISignIn,
+  SignUp as UISignUp,
+  UserButton as UIUserButton,
+} from '@janua/ui/components/auth';
+import type { SignInProps as UISignInProps } from '@janua/ui/components/auth';
+import type { SignUpProps as UISignUpProps } from '@janua/ui/components/auth';
+import type { UserButtonProps as UIUserButtonProps } from '@janua/ui/components/auth';
 
-// SignIn Component
+// SignIn Component - thin wrapper around @janua/ui SignIn
 export interface SignInFormProps {
   onSuccess?: () => void;
   onError?: (error: Error) => void;
   redirectTo?: string;
   className?: string;
+  /** Pass-through props to @janua/ui SignIn */
+  appearance?: UISignInProps['appearance'];
+  socialProviders?: UISignInProps['socialProviders'];
+  logoUrl?: string;
+  showRememberMe?: boolean;
+  signUpUrl?: string;
+  layout?: UISignInProps['layout'];
+  enablePasskey?: boolean;
+  enableSSO?: boolean;
+  enableMagicLink?: boolean;
+  enableJanuaSSO?: boolean;
+  onMFARequired?: (session: any) => void;
+  headerText?: string;
+  headerDescription?: string;
+  forgotPasswordUrl?: string;
 }
 
-export function SignInForm({ 
-  onSuccess, 
-  onError, 
+export function SignInForm({
+  onSuccess,
+  onError,
   redirectTo = '/',
-  className 
+  className,
+  appearance,
+  socialProviders,
+  logoUrl,
+  showRememberMe,
+  signUpUrl,
+  layout,
+  enablePasskey,
+  enableSSO,
+  enableMagicLink,
+  enableJanuaSSO,
+  onMFARequired,
+  headerText,
+  headerDescription,
+  forgotPasswordUrl,
 }: SignInFormProps) {
   const { auth } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      await auth.signIn({ email, password });
-      if (onSuccess) {
-        onSuccess();
-      } else if (typeof window !== 'undefined') {
-        window.location.href = redirectTo;
-      }
-    } catch (error) {
-      if (onError) {
-        onError(error as Error);
-      } else {
-        // Error handled silently in production
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
-    <form onSubmit={handleSubmit} className={className}>
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Email"
-        required
-        disabled={isLoading}
-      />
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Password"
-        required
-        disabled={isLoading}
-      />
-      <button type="submit" disabled={isLoading}>
-        {isLoading ? 'Signing in...' : 'Sign In'}
-      </button>
-    </form>
+    <UISignIn
+      className={className}
+      januaClient={{ auth }}
+      afterSignIn={onSuccess ? () => onSuccess() : undefined}
+      onError={onError}
+      redirectUrl={redirectTo}
+      appearance={appearance}
+      socialProviders={socialProviders}
+      logoUrl={logoUrl}
+      showRememberMe={showRememberMe}
+      signUpUrl={signUpUrl}
+      layout={layout}
+      enablePasskey={enablePasskey}
+      enableSSO={enableSSO}
+      enableMagicLink={enableMagicLink}
+      enableJanuaSSO={enableJanuaSSO}
+      onMFARequired={onMFARequired}
+      headerText={headerText}
+      headerDescription={headerDescription}
+      forgotPasswordUrl={forgotPasswordUrl}
+    />
   );
 }
 
-// SignUp Component
+/** Modern alias for SignInForm */
+export const SignIn = SignInForm;
+
+// SignUp Component - thin wrapper around @janua/ui SignUp
 export interface SignUpFormProps {
   onSuccess?: () => void;
   onError?: (error: Error) => void;
   redirectTo?: string;
   className?: string;
   includeNames?: boolean;
+  /** Pass-through props to @janua/ui SignUp */
+  appearance?: UISignUpProps['appearance'];
+  socialProviders?: UISignUpProps['socialProviders'];
+  logoUrl?: string;
+  signInUrl?: string;
+  layout?: UISignUpProps['layout'];
+  requireEmailVerification?: boolean;
+  showPasswordStrength?: boolean;
+  termsUrl?: string;
+  privacyUrl?: string;
 }
 
-export function SignUpForm({ 
-  onSuccess, 
-  onError, 
+export function SignUpForm({
+  onSuccess,
+  onError,
   redirectTo = '/',
   className,
-  includeNames = true
+  appearance,
+  socialProviders,
+  logoUrl,
+  signInUrl,
+  layout,
+  requireEmailVerification,
+  showPasswordStrength,
+  termsUrl,
+  privacyUrl,
 }: SignUpFormProps) {
   const { auth } = useAuth();
-  const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState<SignUpRequest>({
-    email: '',
-    password: '',
-    first_name: '',
-    last_name: '',
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      await auth.signUp(formData);
-      if (onSuccess) {
-        onSuccess();
-      } else if (typeof window !== 'undefined') {
-        window.location.href = redirectTo;
-      }
-    } catch (error) {
-      if (onError) {
-        onError(error as Error);
-      } else {
-        // Error handled silently in production
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
-    <form onSubmit={handleSubmit} className={className}>
-      {includeNames && (
-        <>
-          <input
-            type="text"
-            value={formData.first_name || ''}
-            onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-            placeholder="First Name"
-            disabled={isLoading}
-          />
-          <input
-            type="text"
-            value={formData.last_name || ''}
-            onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-            placeholder="Last Name"
-            disabled={isLoading}
-          />
-        </>
-      )}
-      <input
-        type="email"
-        value={formData.email}
-        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-        placeholder="Email"
-        required
-        disabled={isLoading}
-      />
-      <input
-        type="password"
-        value={formData.password}
-        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-        placeholder="Password"
-        required
-        disabled={isLoading}
-      />
-      <button type="submit" disabled={isLoading}>
-        {isLoading ? 'Creating account...' : 'Sign Up'}
-      </button>
-    </form>
+    <UISignUp
+      className={className}
+      januaClient={{ auth }}
+      afterSignUp={onSuccess ? () => onSuccess() : undefined}
+      onError={onError}
+      redirectUrl={redirectTo}
+      appearance={appearance}
+      socialProviders={socialProviders}
+      logoUrl={logoUrl}
+      signInUrl={signInUrl}
+      layout={layout}
+      requireEmailVerification={requireEmailVerification}
+      showPasswordStrength={showPasswordStrength}
+      termsUrl={termsUrl}
+      privacyUrl={privacyUrl}
+    />
   );
 }
 
-// UserButton Component
+/** Modern alias for SignUpForm */
+export const SignUp = SignUpForm;
+
+// UserButton Component - thin wrapper around @janua/ui UserButton
 export interface UserButtonProps {
   className?: string;
   showEmail?: boolean;
   showName?: boolean;
   afterSignOut?: () => void;
+  showManageAccount?: boolean;
+  manageAccountUrl?: string;
+  showOrganizations?: boolean;
+  activeOrganization?: string;
 }
 
-export function UserButton({ 
+export function UserButton({
   className,
-  showEmail = true,
-  showName = true,
-  afterSignOut
+  afterSignOut,
+  showManageAccount,
+  manageAccountUrl,
+  showOrganizations,
+  activeOrganization,
 }: UserButtonProps) {
   const { user, signOut } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
 
   if (!user) {
     return null;
@@ -188,88 +176,26 @@ export function UserButton({
     }
   };
 
-  const displayName = showName && (user.first_name || user.last_name)
-    ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
-    : null;
-
   return (
-    <div className={className} style={{ position: 'relative' }}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '8px',
-          border: '1px solid #ccc',
-          borderRadius: '8px',
-          background: 'white',
-          cursor: 'pointer',
-        }}
-      >
-        {user.profile_image_url ? (
-          <img
-            src={user.profile_image_url}
-            alt="Profile"
-            style={{ width: 32, height: 32, borderRadius: '50%' }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: '#ccc',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {user.email[0].toUpperCase()}
-          </div>
-        )}
-        <div style={{ textAlign: 'left' }}>
-          {displayName && <div style={{ fontWeight: 500 }}>{displayName}</div>}
-          {showEmail && <div style={{ fontSize: '0.875rem', color: '#666' }}>{user.email}</div>}
-        </div>
-      </button>
-
-      {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '100%',
-            right: 0,
-            marginTop: '8px',
-            background: 'white',
-            border: '1px solid #ccc',
-            borderRadius: '8px',
-            padding: '8px',
-            minWidth: '200px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            zIndex: 1000,
-          }}
-        >
-          <button
-            onClick={handleSignOut}
-            style={{
-              width: '100%',
-              padding: '8px',
-              border: 'none',
-              background: 'none',
-              textAlign: 'left',
-              cursor: 'pointer',
-            }}
-          >
-            Sign Out
-          </button>
-        </div>
-      )}
-    </div>
+    <UIUserButton
+      className={className}
+      user={{
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        avatarUrl: user.profile_image_url,
+      }}
+      onSignOut={handleSignOut}
+      showManageAccount={showManageAccount}
+      manageAccountUrl={manageAccountUrl}
+      showOrganizations={showOrganizations}
+      activeOrganization={activeOrganization}
+    />
   );
 }
 
-// SignedIn Component
+// SignedIn Component - pure React logic, no UI dependency needed
 export interface SignedInProps {
   children: React.ReactNode;
 }

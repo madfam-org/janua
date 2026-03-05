@@ -79,13 +79,18 @@ export class WebSocket extends EventEmitter<WebSocketEventMap> {
 
     try {
       const token = await this.config.getAuthToken()
-      const url = token
-        ? `${this.config.url}?token=${encodeURIComponent(token)}`
-        : this.config.url
 
-      this.ws = new globalThis.WebSocket(url, this.config.protocols)
+      // Security: Never send auth token as URL query parameter (visible in logs, referrer headers, etc.)
+      // Instead, connect without token and send auth as first message after open.
+      this.ws = new globalThis.WebSocket(this.config.url, this.config.protocols)
 
-      this.ws.onopen = () => this.handleOpen()
+      this.ws.onopen = () => {
+        // Send auth token as first message after connection established
+        if (token && this.ws) {
+          this.ws.send(JSON.stringify({ type: 'auth', token }))
+        }
+        this.handleOpen()
+      }
       this.ws.onmessage = (event) => this.handleMessage(event)
       this.ws.onerror = (event) => this.handleError(event)
       this.ws.onclose = (event) => this.handleClose(event)

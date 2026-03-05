@@ -458,7 +458,7 @@ describe('JanuaClient', () => {
     describe('getVersion', () => {
       it('should return SDK version', () => {
         const version = client.getVersion();
-        expect(version).toBe('1.0.0');
+        expect(version).toBe('0.1.1');
       });
     });
 
@@ -466,7 +466,7 @@ describe('JanuaClient', () => {
       it('should return environment information', () => {
         const info = client.getEnvironmentInfo();
 
-        expect(info.sdk_version).toBe('1.0.0');
+        expect(info.sdk_version).toBe('0.1.1');
         expect(info.base_url).toBe('https://api.example.com');
         expect(info.environment).toBeDefined();
         expect(info.user_agent).toBeDefined();

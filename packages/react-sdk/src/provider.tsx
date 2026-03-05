@@ -30,6 +30,18 @@ import { mapErrorToState, ReactJanuaError } from './utils/errors';
 /**
  * Context value interface with full authentication capabilities
  */
+/**
+ * Appearance configuration for theming UI components
+ */
+export interface JanuaAppearance {
+  /** Theme preset name */
+  preset?: string;
+  /** Primary accent color */
+  accentColor?: string;
+  /** Enable dark mode */
+  darkMode?: boolean;
+}
+
 export interface JanuaContextValue {
   // Underlying client for advanced usage
   client: JanuaClient;
@@ -40,6 +52,9 @@ export interface JanuaContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   error: JanuaErrorState | null;
+
+  // Theming
+  appearance: JanuaAppearance | undefined;
 
   // Core authentication methods
   signIn: (email: string, password: string) => Promise<void>;
@@ -73,6 +88,8 @@ const JanuaContext = createContext<JanuaContextValue | undefined>(undefined);
 export interface JanuaProviderProps {
   children: ReactNode;
   config: JanuaConfig | JanuaProviderConfig;
+  /** Appearance configuration for theming UI components */
+  appearance?: JanuaAppearance;
 }
 
 /**
@@ -136,7 +153,7 @@ function isTokenExpired(token: string): boolean {
  * }
  * ```
  */
-export function JanuaProvider({ children, config }: JanuaProviderProps) {
+export function JanuaProvider({ children, config, appearance }: JanuaProviderProps) {
   const [client] = useState(() => new JanuaClient(config));
   const [user, setUser] = useState<JanuaUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -492,6 +509,7 @@ export function JanuaProvider({ children, config }: JanuaProviderProps) {
       isLoading,
       isAuthenticated: !!user,
       error,
+      appearance,
       signIn,
       signUp,
       signOut,
@@ -508,6 +526,7 @@ export function JanuaProvider({ children, config }: JanuaProviderProps) {
       session,
       isLoading,
       error,
+      appearance,
       signIn,
       signUp,
       signOut,

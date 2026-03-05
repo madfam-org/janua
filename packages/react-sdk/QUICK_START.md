@@ -1,31 +1,46 @@
-# Janua React SDK Quick Start
+# @janua/react-sdk Quick Start
 
-> **Add authentication to your React app in minutes with pre-built components and hooks**
+Add authentication to your React app in minutes using pre-built components and hooks.
 
-## Installation
+---
+
+## 1. Install
 
 ```bash
-npm install @janua/react-sdk @janua/typescript-sdk
-# or
-yarn add @janua/react-sdk @janua/typescript-sdk
-# or
-pnpm add @janua/react-sdk @janua/typescript-sdk
+# npm
+npm install @janua/react-sdk
+
+# yarn
+yarn add @janua/react-sdk
+
+# pnpm
+pnpm add @janua/react-sdk
 ```
 
-## Quick Setup
+Requires React 18+. Add the MADFAM registry to your `.npmrc`:
 
-### 1. Wrap Your App with JanuaProvider
+```ini
+@janua:registry=https://npm.madfam.io
+//npm.madfam.io/:_authToken=${NPM_MADFAM_TOKEN}
+```
+
+---
+
+## 2. Wrap your app with JanuaProvider
+
+Place `JanuaProvider` at the root of your application. It initializes the Janua client and makes authentication state available to all hooks and components below it.
 
 ```tsx
-// App.tsx or index.tsx
+// main.tsx or App.tsx
 import { JanuaProvider } from '@janua/react-sdk';
 
 function App() {
   return (
     <JanuaProvider
       config={{
-        baseUrl: 'https://janua.dev',
-        tenantId: 'your-tenant-id', // Get from Janua Dashboard
+        baseURL: 'https://api.janua.dev',
+        clientId: 'your-client-id',
+        redirectUri: `${window.location.origin}/auth/callback`,
       }}
     >
       <YourApp />
@@ -34,548 +49,201 @@ function App() {
 }
 ```
 
-### 2. Add Pre-built Auth Components
+---
+
+## 3. Add a sign-in form with the SignIn component
+
+The `SignIn` component renders a complete sign-in form backed by `@janua/ui`. Theming is inherited from the `appearance` prop on `JanuaProvider`.
 
 ```tsx
-import { SignIn, SignUp, UserButton } from '@janua/react-sdk';
+import { SignIn } from '@janua/react-sdk';
 
-// Sign In Page
 export function SignInPage() {
   return (
     <SignIn
-      redirectUrl="/dashboard"
-      appearance={{
-        theme: 'light', // or 'dark', 'auto'
-        primaryColor: '#6366f1',
-        borderRadius: 'md',
+      onSuccess={() => {
+        window.location.href = '/dashboard';
       }}
+      socialProviders={{ google: true, github: true }}
+      enablePasskeys={true}
+      signUpUrl="/sign-up"
     />
-  );
-}
-
-// Sign Up Page
-export function SignUpPage() {
-  return (
-    <SignUp
-      redirectUrl="/onboarding"
-      additionalFields={['firstName', 'lastName', 'company']}
-      termsUrl="/terms"
-      privacyUrl="/privacy"
-    />
-  );
-}
-
-// User Menu in Header
-export function Header() {
-  return (
-    <header>
-      <nav>
-        <UserButton
-          afterSignOutUrl="/"
-          appearance={{
-            elements: {
-              avatarBox: 'w-10 h-10',
-            },
-          }}
-        />
-      </nav>
-    </header>
   );
 }
 ```
 
-## React Hooks
+---
 
-### useAuth Hook
+## 4. Check auth state with useAuth
+
+Use `useAuth` anywhere inside `JanuaProvider` to access the current user, session, and auth methods.
 
 ```tsx
 import { useAuth } from '@janua/react-sdk';
 
 function Dashboard() {
-  const { 
-    user,
-    session,
-    isAuthenticated,
-    isLoading,
-    signOut,
-    updateProfile,
-  } = useAuth();
+  const { isAuthenticated, isLoading, user, signOut } = useAuth();
 
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  if (!isAuthenticated) {
-    return <div>Please sign in</div>;
-  }
+  if (isLoading) return <p>Loading...</p>;
+  if (!isAuthenticated) return <p>Please sign in.</p>;
 
   return (
     <div>
-      <h1>Welcome, {user.email}!</h1>
-      <p>User ID: {user.id}</p>
-      <p>Session expires: {new Date(session.expiresAt).toLocaleString()}</p>
-      
-      <button onClick={() => updateProfile({ firstName: 'New Name' })}>
-        Update Name
-      </button>
-      
-      <button onClick={signOut}>
-        Sign Out
-      </button>
+      <p>Signed in as {user?.email}</p>
+      <button onClick={signOut}>Sign out</button>
     </div>
   );
 }
 ```
 
-### useUser Hook
+---
+
+## 5. Protect routes
+
+Use `AuthGuard` to redirect unauthenticated users at the route level:
 
 ```tsx
-import { useUser } from '@janua/react-sdk';
+import { AuthGuard } from '@janua/react-sdk';
 
-function Profile() {
-  const { user, isLoaded, update } = useUser();
-
-  if (!isLoaded) return <div>Loading user...</div>;
-  if (!user) return <div>No user found</div>;
-
+function ProtectedPage() {
   return (
-    <div>
-      <h2>{user.firstName} {user.lastName}</h2>
-      <p>{user.email}</p>
-      
-      <button onClick={() => update({ phoneNumber: '+1234567890' })}>
-        Add Phone
-      </button>
-    </div>
+    <AuthGuard redirectTo="/sign-in">
+      <Dashboard />
+    </AuthGuard>
   );
 }
 ```
 
-### useSession Hook
+Use `Protect` when you want to render fallback content instead of redirecting:
 
 ```tsx
-import { useSession } from '@janua/react-sdk';
+import { Protect } from '@janua/react-sdk';
 
-function SessionInfo() {
-  const { session, refresh, revoke } = useSession();
-
-  if (!session) return null;
-
+function AdminSection() {
   return (
-    <div>
-      <p>Session ID: {session.id}</p>
-      <p>Expires in: {session.expiresIn} seconds</p>
-      
-      <button onClick={refresh}>Refresh Token</button>
-      <button onClick={revoke}>Revoke Session</button>
-    </div>
+    <Protect role="admin" fallback={<p>You do not have access to this section.</p>}>
+      <AdminPanel />
+    </Protect>
   );
 }
 ```
 
-### useOrganization Hook
+Use `SignedIn` and `SignedOut` for simple conditional rendering in layouts:
 
 ```tsx
-import { useOrganization } from '@janua/react-sdk';
+import { SignedIn, SignedOut, UserButton } from '@janua/react-sdk';
 
-function OrgSwitcher() {
-  const {
-    organization,
-    organizations,
-    isLoaded,
-    setActive,
-    create,
-    inviteMember,
-  } = useOrganization();
-
-  const handleCreateOrg = async () => {
-    const newOrg = await create({
-      name: 'New Company',
-      slug: 'new-company',
-    });
-    await setActive(newOrg.id);
-  };
-
+function Header() {
   return (
-    <div>
-      <h3>Current Org: {organization?.name}</h3>
-      
-      <select 
-        value={organization?.id}
-        onChange={(e) => setActive(e.target.value)}
-      >
-        {organizations.map(org => (
-          <option key={org.id} value={org.id}>
-            {org.name}
-          </option>
-        ))}
-      </select>
-      
-      <button onClick={handleCreateOrg}>
-        Create Organization
-      </button>
-      
-      <button onClick={() => inviteMember('user@example.com', 'member')}>
-        Invite Member
-      </button>
-    </div>
+    <nav>
+      <SignedIn>
+        <UserButton showManageAccount={true} manageAccountUrl="/settings" />
+      </SignedIn>
+      <SignedOut>
+        <a href="/sign-in">Sign in</a>
+      </SignedOut>
+    </nav>
   );
 }
 ```
 
-## Component Customization
+---
 
-### Theming
+## 6. Handle OAuth callback
 
-```tsx
-import { SignIn } from '@janua/react-sdk';
-
-<SignIn
-  appearance={{
-    theme: 'dark',
-    primaryColor: '#8b5cf6',
-    borderRadius: 'lg',
-    fontFamily: 'Inter, sans-serif',
-    elements: {
-      card: 'shadow-2xl',
-      formButtonPrimary: 'bg-gradient-to-r from-purple-500 to-pink-500',
-      formFieldInput: 'border-gray-300 focus:border-purple-500',
-      headerTitle: 'text-3xl font-bold',
-      headerSubtitle: 'text-gray-600',
-      footer: 'hidden', // Hide footer
-    },
-  }}
-/>
-```
-
-### Custom Fields
+When using `signInWithOAuth`, the provider redirects to your `redirectUri` with `code` and `state` parameters. Handle the callback with `handleOAuthCallback`:
 
 ```tsx
-import { SignUp } from '@janua/react-sdk';
-
-<SignUp
-  additionalFields={[
-    {
-      name: 'company',
-      label: 'Company Name',
-      type: 'text',
-      required: true,
-      placeholder: 'Acme Inc.',
-    },
-    {
-      name: 'role',
-      label: 'Your Role',
-      type: 'select',
-      options: [
-        { value: 'developer', label: 'Developer' },
-        { value: 'designer', label: 'Designer' },
-        { value: 'manager', label: 'Manager' },
-      ],
-    },
-    {
-      name: 'acceptTerms',
-      label: 'I accept the terms and conditions',
-      type: 'checkbox',
-      required: true,
-    },
-  ]}
-  onSuccess={(user) => {
-    console.log('User signed up:', user);
-    // Custom logic after signup
-  }}
-/>
-```
-
-### Custom Components
-
-```tsx
+import { useEffect } from 'react';
 import { useAuth } from '@janua/react-sdk';
 
-function CustomSignIn() {
-  const { signIn } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+function AuthCallback() {
+  const { handleOAuthCallback } = useAuth();
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const state = params.get('state');
 
-    try {
-      await signIn({ email, password });
-      // Redirect handled by provider
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="Email"
-        required
-      />
-      
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Password"
-        required
-      />
-      
-      {error && <div className="error">{error}</div>}
-      
-      <button type="submit" disabled={loading}>
-        {loading ? 'Signing in...' : 'Sign In'}
-      </button>
-    </form>
-  );
-}
-```
-
-## Protected Routes
-
-### React Router
-
-```tsx
-import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '@janua/react-sdk';
-
-function ProtectedRoute() {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
-  return isAuthenticated ? <Outlet /> : <Navigate to="/sign-in" />;
-}
-
-// Usage in router
-<Routes>
-  <Route path="/sign-in" element={<SignIn />} />
-  <Route path="/sign-up" element={<SignUp />} />
-  
-  <Route element={<ProtectedRoute />}>
-    <Route path="/dashboard" element={<Dashboard />} />
-    <Route path="/profile" element={<Profile />} />
-    <Route path="/settings" element={<Settings />} />
-  </Route>
-</Routes>
-```
-
-### Custom Guard Component
-
-```tsx
-import { useAuth } from '@janua/react-sdk';
-
-interface AuthGuardProps {
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
-  requiredRole?: string;
-  requiredPermission?: string;
-}
-
-function AuthGuard({ 
-  children, 
-  fallback = <Navigate to="/sign-in" />,
-  requiredRole,
-  requiredPermission,
-}: AuthGuardProps) {
-  const { user, isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return <div>Checking authentication...</div>;
-  }
-
-  if (!isAuthenticated) {
-    return <>{fallback}</>;
-  }
-
-  if (requiredRole && user.role !== requiredRole) {
-    return <div>Insufficient permissions</div>;
-  }
-
-  if (requiredPermission && !user.permissions?.includes(requiredPermission)) {
-    return <div>Permission denied</div>;
-  }
-
-  return <>{children}</>;
-}
-
-// Usage
-<AuthGuard requiredRole="admin">
-  <AdminPanel />
-</AuthGuard>
-```
-
-## Social Login
-
-```tsx
-import { SignIn } from '@janua/react-sdk';
-
-<SignIn
-  providers={['google', 'github', 'microsoft']}
-  appearance={{
-    elements: {
-      socialButtonsContainer: 'flex gap-2',
-      socialButton: 'flex-1',
-    },
-  }}
-/>
-
-// Or with custom social buttons
-import { useAuth } from '@janua/react-sdk';
-
-function SocialAuth() {
-  const { signInWithProvider } = useAuth();
-
-  return (
-    <div>
-      <button onClick={() => signInWithProvider('google')}>
-        <img src="/google-logo.svg" alt="Google" />
-        Continue with Google
-      </button>
-      
-      <button onClick={() => signInWithProvider('github')}>
-        <img src="/github-logo.svg" alt="GitHub" />
-        Continue with GitHub
-      </button>
-    </div>
-  );
-}
-```
-
-## Passkeys (WebAuthn)
-
-```tsx
-import { usePasskeys } from '@janua/react-sdk';
-
-function PasskeySetup() {
-  const { 
-    passkeys,
-    register,
-    authenticate,
-    remove,
-    isSupported,
-  } = usePasskeys();
-
-  if (!isSupported) {
-    return <div>Passkeys not supported on this device</div>;
-  }
-
-  const handleRegister = async () => {
-    try {
-      await register({
-        displayName: 'My MacBook',
+    if (code && state) {
+      handleOAuthCallback(code, state).then(() => {
+        window.location.href = '/dashboard';
       });
-      alert('Passkey registered successfully!');
-    } catch (error) {
-      console.error('Failed to register passkey:', error);
     }
-  };
+  }, [handleOAuthCallback]);
+
+  return <p>Completing sign in...</p>;
+}
+```
+
+---
+
+## 7. Enable passkeys
+
+```tsx
+import { usePasskey } from '@janua/react-sdk';
+
+function PasskeyOption() {
+  const { register, authenticate, isSupported, isLoading, error } = usePasskey();
+
+  if (!isSupported) return null;
 
   return (
     <div>
-      <h3>Passkeys</h3>
-      
-      {passkeys.length === 0 ? (
-        <button onClick={handleRegister}>
-          Add Passkey
-        </button>
-      ) : (
-        <ul>
-          {passkeys.map(passkey => (
-            <li key={passkey.id}>
-              {passkey.displayName}
-              <button onClick={() => remove(passkey.id)}>
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      
-      <button onClick={authenticate}>
-        Sign in with Passkey
+      {error && <p>{error.message}</p>}
+      <button onClick={() => register('My device')} disabled={isLoading}>
+        Register passkey
+      </button>
+      <button onClick={() => authenticate()} disabled={isLoading}>
+        Sign in with passkey
       </button>
     </div>
   );
 }
 ```
 
-## Multi-Factor Authentication
+---
+
+## 8. Enable two-factor authentication
 
 ```tsx
 import { useMFA } from '@janua/react-sdk';
+import { useState } from 'react';
 
-function MFASettings() {
-  const {
-    isMFAEnabled,
-    availableMethods,
-    enabledMethods,
-    enable,
-    disable,
-    verify,
-  } = useMFA();
+function MFAEnrollment() {
+  const { enable, verify, isLoading, error } = useMFA();
+  const [qrCode, setQrCode] = useState('');
+  const [code, setCode] = useState('');
 
-  const [showQR, setShowQR] = useState(false);
-  const [qrCode, setQRCode] = useState('');
-  const [verifyCode, setVerifyCode] = useState('');
-
-  const handleEnableTOTP = async () => {
-    const { qrCode, secret } = await enable('totp');
-    setQRCode(qrCode);
-    setShowQR(true);
+  const handleEnable = async () => {
+    const result = await enable('totp');
+    setQrCode(result.qr_code);
   };
 
   const handleVerify = async () => {
-    try {
-      await verify('totp', verifyCode);
-      alert('MFA enabled successfully!');
-      setShowQR(false);
-    } catch (error) {
-      alert('Invalid code. Please try again.');
-    }
+    await verify(code);
+    alert('Two-factor authentication enabled.');
   };
 
   return (
     <div>
-      <h3>Two-Factor Authentication</h3>
-      
-      {!isMFAEnabled ? (
-        <button onClick={handleEnableTOTP}>
+      {error && <p>{error.message}</p>}
+      {!qrCode ? (
+        <button onClick={handleEnable} disabled={isLoading}>
           Enable 2FA
         </button>
       ) : (
-        <button onClick={() => disable('totp')}>
-          Disable 2FA
-        </button>
-      )}
-      
-      {showQR && (
         <div>
-          <img src={qrCode} alt="QR Code" />
-          <p>Scan with your authenticator app</p>
-          
+          <img src={qrCode} alt="Scan this QR code with your authenticator app" />
           <input
             type="text"
-            value={verifyCode}
-            onChange={(e) => setVerifyCode(e.target.value)}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
             placeholder="Enter 6-digit code"
             maxLength={6}
           />
-          
-          <button onClick={handleVerify}>
-            Verify and Enable
+          <button onClick={handleVerify} disabled={isLoading}>
+            Verify and activate
           </button>
         </div>
       )}
@@ -584,98 +252,59 @@ function MFASettings() {
 }
 ```
 
-## TypeScript Support
+---
 
-All components and hooks are fully typed:
+## 9. Apply theming
+
+Pass an `appearance` object to `JanuaProvider` to theme all components in the tree:
 
 ```tsx
-import type { 
-  User, 
-  Session, 
-  Organization,
-  SignInProps,
-  SignUpProps,
-  UserButtonProps,
-  Appearance,
-} from '@janua/react-sdk';
+import { JanuaProvider } from '@janua/react-sdk';
+import type { JanuaAppearance } from '@janua/react-sdk';
 
-// Type-safe component props
-const signInProps: SignInProps = {
-  redirectUrl: '/dashboard',
-  appearance: {
-    theme: 'light',
-    primaryColor: '#6366f1',
-  },
+const appearance: JanuaAppearance = {
+  accentColor: '#6366f1',
+  darkMode: false,
 };
 
-// Type-safe hooks
-const { user }: { user: User | null } = useUser();
-```
-
-## Error Handling
-
-```tsx
-import { ErrorBoundary } from '@janua/react-sdk';
-
-<ErrorBoundary
-  fallback={({ error, retry }) => (
-    <div>
-      <h2>Something went wrong</h2>
-      <p>{error.message}</p>
-      <button onClick={retry}>Try Again</button>
-    </div>
-  )}
->
-  <YourApp />
-</ErrorBoundary>
-```
-
-## Testing
-
-```tsx
-import { render, screen, waitFor } from '@testing-library/react';
-import { JanuaProvider, MockJanuaProvider } from '@janua/react-sdk';
-import { Dashboard } from './Dashboard';
-
-// Mock provider for testing
-test('renders dashboard for authenticated user', async () => {
-  const mockUser = {
-    id: '123',
-    email: 'test@example.com',
-    firstName: 'Test',
-    lastName: 'User',
-  };
-
-  render(
-    <MockJanuaProvider user={mockUser} isAuthenticated={true}>
-      <Dashboard />
-    </MockJanuaProvider>
+function App() {
+  return (
+    <JanuaProvider config={config} appearance={appearance}>
+      <YourApp />
+    </JanuaProvider>
   );
-
-  await waitFor(() => {
-    expect(screen.getByText('Welcome, test@example.com!')).toBeInTheDocument();
-  });
-});
+}
 ```
 
-## Best Practices
+---
 
-1. **Always wrap your app with JanuaProvider** at the root level
-2. **Use built-in components** when possible for consistency
-3. **Handle loading states** appropriately in your UI
-4. **Implement error boundaries** for graceful error handling
-5. **Use TypeScript** for better type safety and IDE support
-6. **Test with MockJanuaProvider** for unit tests
-7. **Secure sensitive routes** with authentication guards
-8. **Implement proper logout** to clear all session data
+## Common patterns at a glance
 
-## Support
+| Goal | API |
+|------|-----|
+| Sign in with email/password | `useAuth().signIn(email, password)` |
+| Sign in with OAuth | `useAuth().signInWithOAuth(provider)` |
+| Sign out | `useAuth().signOut()` |
+| Read current user | `useAuth().user` or `useUser().user` |
+| Update user profile | `useUser().updateUser({ firstName, lastName })` |
+| Access session | `useSession().session` |
+| List organizations | `useOrganization().organizations` |
+| Register a passkey | `usePasskey().register(name?)` |
+| Authenticate with passkey | `usePasskey().authenticate(email?)` |
+| Enable MFA | `useMFA().enable('totp')` |
+| Verify MFA code | `useMFA().verify(code)` |
+| Listen to real-time events | `useRealtime({ channels: ['...'] })` |
+| Protect a route | `<AuthGuard redirectTo="/sign-in">` |
+| Conditional rendering | `<SignedIn>` / `<SignedOut>` |
+| Show user menu | `<UserButton />` |
+| Show full profile panel | `<UserProfile />` |
 
-- **Documentation**: [docs.janua.dev](https://docs.janua.dev)
-- **Examples**: [github.com/madfam-org/examples](https://github.com/madfam-org/examples)
-- **Discord**: [discord.gg/janua](https://discord.gg/janua)
-- **Email**: react-support@janua.dev
+---
 
-## License
+## Next steps
 
-MIT - See [LICENSE](./LICENSE) for details
+- [Full API reference](./README.md) — all hooks, components, and types
+- [TypeScript SDK](../typescript-sdk/README.md) — direct API client for advanced use
+- [Next.js SDK](../nextjs-sdk/README.md) — server-side rendering and App Router support
+- [Janua API docs](https://api.janua.dev/docs) — REST API reference
+- [docs.janua.dev](https://docs.janua.dev) — guides and examples

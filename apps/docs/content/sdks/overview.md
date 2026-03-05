@@ -732,19 +732,19 @@ function MagicLinkComponent() {
 }
 ```
 
-### usePasskeys
+### usePasskey
 
 ```jsx
-import { usePasskeys } from '@janua/react-sdk';
+import { usePasskey } from '@janua/react-sdk';
 
 function PasskeyComponent() {
-  const { 
-    registerPasskey, 
-    authenticateWithPasskey, 
-    loading, 
-    error, 
-    supported 
-  } = usePasskeys();
+  const {
+    register,
+    authenticate,
+    isLoading: loading,
+    error,
+    isSupported: supported
+  } = usePasskey();
 
   if (!supported) {
     return <p>Passkeys not supported in this browser</p>;
@@ -1745,7 +1745,7 @@ npm install @janua/vue
 ```javascript
 // main.js
 import { createApp } from 'vue'
-import { createJanua } from '@janua/vue'
+import { createJanua } from '@janua/vue-sdk'
 import App from './App.vue'
 
 const app = createApp(App)
@@ -1781,7 +1781,7 @@ app.mount('#app')
 </template>
 
 <script setup>
-import { useAuth } from '@janua/vue'
+import { useAuth } from '@janua/vue-sdk'
 
 const { 
   user, 
@@ -1832,7 +1832,7 @@ const handleRegister = async () => {
 </template>
 
 <script setup>
-import { useMagicLink } from '@janua/vue'
+import { useMagicLink } from '@janua/vue-sdk'
 
 const { sendMagicLink, loading, error, sent } = useMagicLink()
 
@@ -1864,7 +1864,7 @@ const sendLink = async () => {
 </template>
 
 <script setup>
-import { usePasskeys } from '@janua/vue'
+import { usePasskeys } from '@janua/vue-sdk'
 
 const { 
   registerPasskey, 
@@ -1916,7 +1916,7 @@ const authenticateWithPasskey = async () => {
 
 <script setup>
 import { ref } from 'vue'
-import { useUser } from '@janua/vue'
+import { useUser } from '@janua/vue-sdk'
 
 const { user, updateUser, loading, error } = useUser()
 
@@ -1948,7 +1948,7 @@ const updateProfile = async () => {
 </template>
 
 <script setup>
-import { useOrganization } from '@janua/vue'
+import { useOrganization } from '@janua/vue-sdk'
 
 const { 
   organizations,
@@ -1980,7 +1980,7 @@ const createOrg = async () => {
 </template>
 
 <script setup>
-import { usePermissions } from '@janua/vue'
+import { usePermissions } from '@janua/vue-sdk'
 
 const props = defineProps({
   permissions: Array,
@@ -2003,7 +2003,7 @@ const { hasPermission, loading } = usePermissions(
 </template>
 
 <script setup>
-import { usePermissions } from '@janua/vue'
+import { usePermissions } from '@janua/vue-sdk'
 
 const props = defineProps({
   permissions: { type: Array, required: true },
@@ -2084,24 +2084,26 @@ export default function RootLayout({
 }
 ```
 
-### Pages Router (pages directory)
+### App Router Layout
 
 ```javascript
-// pages/_app.tsx
-import type { AppProps } from 'next/app'
+// app/layout.tsx
 import { JanuaProvider } from '@janua/nextjs'
 
-export default function App({ Component, pageProps }: AppProps) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <JanuaProvider
-      apiKey={process.env.NEXT_PUBLIC_JANUA_API_KEY!}
-      baseUrl="https://api.janua.dev"
-    >
-      <Component {...pageProps} />
-    </JanuaProvider>
+    <html>
+      <body>
+        <JanuaProvider config={{ baseURL: process.env.NEXT_PUBLIC_API_URL! }}>
+          {children}
+        </JanuaProvider>
+      </body>
+    </html>
   )
 }
 ```
+
+> **Note:** The Next.js SDK supports App Router only. Pages Router is not supported.
 
 ## Server-Side Integration
 
@@ -2147,45 +2149,29 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// pages/api/auth/login.ts (Pages Router)
-import type { NextApiRequest, NextApiResponse } from 'next'
-import { JanuaServerClient } from '@janua/nextjs/server'
+// app/api/auth/callback/route.ts (App Router)
+import { NextRequest, NextResponse } from 'next/server'
+import { JanuaServerClient } from '@janua/nextjs'
 
 const janua = new JanuaServerClient({
-  apiKey: process.env.JANUA_API_KEY!
+  appId: process.env.JANUA_APP_ID!,
+  apiKey: process.env.JANUA_API_KEY!,
+  jwtSecret: process.env.JANUA_JWT_SECRET!,
 })
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' })
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const code = searchParams.get('code')
+
+  if (!code) {
+    return NextResponse.json({ error: 'Missing code' }, { status: 400 })
   }
-  
+
   try {
-    const { email, password } = req.body
-    
-    const result = await janua.auth.login({
-      email,
-      password
-    })
-    
-    // Set secure HTTP-only cookie
-    res.setHeader(
-      'Set-Cookie',
-      `janua-token=${result.session.accessToken}; HttpOnly; Secure; SameSite=Strict; Max-Age=${60 * 60 * 24 * 7}; Path=/`
-    )
-    
-    res.status(200).json({
-      success: true,
-      user: result.user
-    })
+    const result = await janua.handleOAuthCallback(code)
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      error: error.message
-    })
+    return NextResponse.json({ error: 'Auth failed' }, { status: 400 })
   }
 }
 ```

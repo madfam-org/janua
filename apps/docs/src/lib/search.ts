@@ -128,11 +128,11 @@ export const searchData: SearchResult[] = [
   {
     id: 'nextjs-sdk',
     title: '@janua/nextjs',
-    description: 'Next.js SDK with App Router and Pages Router support',
+    description: 'Next.js SDK with App Router support',
     url: '/sdks/javascript/nextjs',
     type: 'sdk',
     section: 'JavaScript SDKs',
-    content: 'nextjs next.js app router pages router middleware server components api routes'
+    content: 'nextjs next.js app router middleware server components edge verification'
   },
   {
     id: 'react-sdk',
@@ -145,7 +145,7 @@ export const searchData: SearchResult[] = [
   },
   {
     id: 'vue-sdk',
-    title: '@janua/vue',
+    title: '@janua/vue-sdk',
     description: 'Vue 3 composables and plugin',
     url: '/sdks/javascript/vue',
     type: 'sdk',

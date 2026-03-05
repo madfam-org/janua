@@ -23,7 +23,7 @@ export default function SDKsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <SDKCard
             name="@janua/nextjs"
-            description="Complete Next.js integration with App Router and Pages Router support"
+            description="Complete Next.js integration with App Router support"
             version="1.2.0"
             href="/sdks/javascript/nextjs"
             githubUrl="https://github.com/madfam-io/janua-nextjs"
@@ -42,12 +42,12 @@ export default function SDKsPage() {
             stable
           />
           <SDKCard
-            name="@janua/vue"
-            description="Vue 3 composables and plugin for authentication"
-            version="1.0.5"
+            name="@janua/vue-sdk"
+            description="Vue 3 composables, components, and Nuxt 3 module for authentication"
+            version="0.1.0"
             href="/sdks/javascript/vue"
-            githubUrl="https://github.com/madfam-io/janua-vue"
-            installCommand="npm install @janua/vue"
+            githubUrl="https://github.com/madfam-org/janua"
+            installCommand="npm install @janua/vue-sdk"
             features={["Vue 3 Composables", "Pinia Integration", "TypeScript Support", "Nuxt 3 Compatible"]}
             stable
           />

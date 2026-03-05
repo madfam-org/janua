@@ -27,8 +27,9 @@ export class JanuaServerClient {
   constructor(config: { appId: string; apiKey: string; jwtSecret: string }) {
     this.client = new JanuaClient({
       baseURL: process.env.NEXT_PUBLIC_API_URL!,
+      apiKey: config.apiKey,
     });
-    
+
     this.secret = new TextEncoder().encode(config.jwtSecret);
   }
 
@@ -154,6 +155,34 @@ export class JanuaServerClient {
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         last_activity: new Date().toISOString()
       } as any,
+    };
+  }
+
+  async handleOAuthCallback(code: string, codeVerifier?: string): Promise<{ user: User; session: Session }> {
+    const response = await this.client.auth.handleOAuthCallback(code, codeVerifier || '');
+
+    const sessionData: SessionData = {
+      user: response.user,
+      session: {
+        id: 'temp',
+        user_id: response.user.id,
+        is_current: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        last_activity: new Date().toISOString()
+      } as any,
+      accessToken: response.tokens.access_token,
+      refreshToken: response.tokens.refresh_token,
+    };
+
+    const encryptedSession = await this.encryptSession(sessionData);
+    const cookieStore = await cookies();
+    cookieStore.set(COOKIE_NAME, encryptedSession, COOKIE_OPTIONS);
+
+    return {
+      user: response.user,
+      session: sessionData.session,
     };
   }
 

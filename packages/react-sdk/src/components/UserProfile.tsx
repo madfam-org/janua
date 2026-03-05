@@ -1,12 +1,22 @@
-import React, { useState } from 'react'
+import React, { useCallback } from 'react'
+import { UserProfile as UIUserProfile } from '@janua/ui/components/auth'
 import { useJanua } from '../provider'
 
-interface UserProfileProps {
+export interface UserProfileProps {
+  /** Optional custom class name */
   className?: string
+  /** Callback after sign-out */
   onSignOut?: () => void
+  /** Show organization section */
   showOrganization?: boolean
+  /** Show sessions section */
   showSessions?: boolean
+  /** Allow profile editing */
   allowEdit?: boolean
+  /** Show security tab */
+  showSecurityTab?: boolean
+  /** Show danger zone */
+  showDangerZone?: boolean
 }
 
 /**
@@ -20,183 +30,66 @@ function parseFullName(name: string | null): { firstName: string; lastName: stri
   }
   return {
     firstName: parts[0],
-    lastName: parts.slice(1).join(' ')
+    lastName: parts.slice(1).join(' '),
   }
 }
 
+/**
+ * UserProfile component - thin wrapper around @janua/ui UserProfile
+ *
+ * Injects user data from Janua context and maps to the @janua/ui
+ * UserProfile props interface.
+ */
 export function UserProfile({
-  className = '',
+  className,
   onSignOut,
-  showOrganization = true,
-  showSessions = false,
-  allowEdit = true
+  allowEdit = true,
+  showSecurityTab = true,
+  showDangerZone = true,
 }: UserProfileProps) {
-  const { user, session, signOut, isLoading, client } = useJanua()
-  const [isEditing, setIsEditing] = useState(false)
+  const { user, signOut, client } = useJanua()
 
-  // Parse the name from the user object
-  const { firstName: initialFirstName, lastName: initialLastName } = parseFullName(user?.name || null)
-
-  const [formData, setFormData] = useState({
-    firstName: initialFirstName,
-    lastName: initialLastName,
-    email: user?.email || ''
-  })
-
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     await signOut()
-    if (onSignOut) {
-      onSignOut()
-    }
-  }
+    onSignOut?.()
+  }, [signOut, onSignOut])
 
-  const handleSave = async () => {
-    try {
-      // Update user profile using the Janua SDK
+  const handleUpdateProfile = useCallback(
+    async (data: { firstName?: string; lastName?: string; username?: string; phone?: string }) => {
       await client.updateUser({
-        first_name: formData.firstName,
-        last_name: formData.lastName
+        first_name: data.firstName,
+        last_name: data.lastName,
       })
-
-      // Refresh user data
-      const updatedUser = await client.getCurrentUser()
-      if (updatedUser) {
-        const { firstName, lastName } = parseFullName(
-          updatedUser.name ||
-          (updatedUser.first_name && updatedUser.last_name
-            ? `${updatedUser.first_name} ${updatedUser.last_name}`
-            : updatedUser.first_name || updatedUser.last_name || null)
-        )
-        setFormData({
-          firstName,
-          lastName,
-          email: updatedUser.email || ''
-        })
-      }
-
-      setIsEditing(false)
-    } catch (error) {
-      // Error handled silently in production
-    }
-  }
+    },
+    [client]
+  )
 
   if (!user) {
     return (
-      <div className={`janua-user-profile ${className}`}>
-        <p className="text-gray-500">Not authenticated</p>
+      <div className={className}>
+        <p>Not authenticated</p>
       </div>
     )
   }
 
+  const { firstName, lastName } = parseFullName(user.name)
+
   return (
-    <div className={`janua-user-profile ${className}`}>
-      <div className="bg-white shadow rounded-lg p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">User Profile</h2>
-          {allowEdit && !isEditing && (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="text-sm text-indigo-600 hover:text-indigo-500"
-            >
-              Edit
-            </button>
-          )}
-        </div>
-
-        <div className="space-y-4">
-          {isEditing ? (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">First name</label>
-                  <input
-                    type="text"
-                    value={formData.firstName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Last name</label>
-                  <input
-                    type="text"
-                    value={formData.lastName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                />
-              </div>
-              <div className="flex space-x-3">
-                <button
-                  onClick={handleSave}
-                  className="flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="flex-1 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  Cancel
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <h3 className="text-sm font-medium text-gray-500">Name</h3>
-                <p className="mt-1 text-sm text-gray-900">
-                  {user.display_name || user.name || 'Not set'}
-                </p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-500">Email</h3>
-                <p className="mt-1 text-sm text-gray-900">{user.email}</p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-500">User ID</h3>
-                <p className="mt-1 text-sm text-gray-900 font-mono">{user.id}</p>
-              </div>
-              {showOrganization && user.organization_id && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Organization</h3>
-                  <p className="mt-1 text-sm text-gray-900">{user.organization_id}</p>
-                </div>
-              )}
-              {showSessions && session && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Current Session</h3>
-                  <p className="mt-1 text-sm text-gray-900 font-mono">{session.id}</p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Expires: {new Date(session.expires_at).toLocaleString()}
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {!isEditing && (
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <button
-              onClick={handleSignOut}
-              disabled={isLoading}
-              className="w-full py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? 'Signing out...' : 'Sign out'}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+    <UIUserProfile
+      className={className}
+      user={{
+        id: user.id,
+        email: user.email,
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
+        avatarUrl: user.picture,
+        emailVerified: user.email_verified,
+        twoFactorEnabled: user.mfa_enabled,
+        createdAt: user.created_at ? new Date(user.created_at) : undefined,
+      }}
+      onUpdateProfile={allowEdit ? handleUpdateProfile : undefined}
+      showSecurityTab={showSecurityTab}
+      showDangerZone={showDangerZone}
+    />
   )
 }

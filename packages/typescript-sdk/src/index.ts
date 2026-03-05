@@ -202,7 +202,19 @@ export {
   RetryUtils,
 
   // Event emitter
-  EventEmitter
+  EventEmitter,
+
+  // PKCE utilities
+  generateCodeVerifier,
+  generateCodeChallenge,
+  generateState,
+  storePKCEParams,
+  retrievePKCEParams,
+  clearPKCEParams,
+  validateState,
+  parseOAuthCallback,
+  buildAuthorizationUrl,
+  PKCE_STORAGE_KEYS,
 } from './utils';
 
 // Token storage type export (interface)
@@ -247,7 +259,7 @@ export {
 } from './plugins';
 
 // Version and metadata
-export const SDK_VERSION = '1.0.0';
+export const SDK_VERSION = '0.1.1';
 export const SDK_NAME = 'janua-typescript-sdk';
 
 /**

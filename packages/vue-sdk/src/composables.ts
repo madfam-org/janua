@@ -1,10 +1,22 @@
-import { inject, computed, ComputedRef } from 'vue';
-import { JANUA_KEY, JanuaVue } from './plugin';
+import { inject, computed, ref, type ComputedRef, type Ref } from 'vue';
+import { JANUA_KEY } from './plugin';
+import type { JanuaVue } from './plugin';
 import type { User, Session } from '@janua/typescript-sdk';
+import { checkWebAuthnSupport } from '@janua/typescript-sdk';
+import {
+  generateCodeVerifier,
+  generateCodeChallenge,
+  generateState,
+  storePKCEParams,
+  retrievePKCEParams,
+  clearPKCEParams,
+  validateState,
+  buildAuthorizationUrl,
+} from './utils/pkce';
 
 export function useJanua(): JanuaVue {
   const janua = inject<JanuaVue>(JANUA_KEY);
-  
+
   if (!janua) {
     throw new Error('Janua plugin not installed. Make sure to call app.use(createJanua(...))');
   }
@@ -23,6 +35,7 @@ export function useAuth() {
     session: computed(() => state.session),
     isAuthenticated: computed(() => state.isAuthenticated),
     isLoading: computed(() => state.isLoading),
+    error: computed(() => state.error),
     signIn: janua.signIn.bind(janua),
     signUp: janua.signUp.bind(janua),
     signOut: janua.signOut.bind(janua),
@@ -78,33 +91,70 @@ export function useSession(): {
 export function useOrganizations() {
   const janua = useJanua();
   const client = janua.getClient();
-  
+
   return client.organizations;
 }
 
 export function useSignIn() {
   const janua = useJanua();
   const state = janua.getState();
+  const error = ref<Error | null>(null);
+  const isLoading = ref(false);
+
+  const signIn = async (email: string, password: string) => {
+    error.value = null;
+    isLoading.value = true;
+    try {
+      return await janua.signIn(email, password);
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e));
+      throw e;
+    } finally {
+      isLoading.value = false;
+    }
+  };
 
   return {
-    signIn: janua.signIn.bind(janua),
-    isLoading: computed(() => state.isLoading),
+    signIn,
+    isLoading: computed(() => isLoading.value || state.isLoading),
+    error: computed(() => error.value),
   };
 }
 
 export function useSignUp() {
   const janua = useJanua();
   const state = janua.getState();
+  const error = ref<Error | null>(null);
+  const isLoading = ref(false);
+
+  const signUp = async (data: {
+    email: string;
+    password: string;
+    firstName?: string;
+    lastName?: string;
+  }) => {
+    error.value = null;
+    isLoading.value = true;
+    try {
+      return await janua.signUp(data);
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e));
+      throw e;
+    } finally {
+      isLoading.value = false;
+    }
+  };
 
   return {
-    signUp: janua.signUp.bind(janua),
-    isLoading: computed(() => state.isLoading),
+    signUp,
+    isLoading: computed(() => isLoading.value || state.isLoading),
+    error: computed(() => error.value),
   };
 }
 
 export function useSignOut() {
   const janua = useJanua();
-  
+
   return {
     signOut: janua.signOut.bind(janua),
   };
@@ -113,95 +163,226 @@ export function useSignOut() {
 export function useMagicLink() {
   const janua = useJanua();
   const client = janua.getClient();
+  const error = ref<Error | null>(null);
+  const isLoading = ref(false);
 
   const sendMagicLink = async (email: string, redirectUrl?: string) => {
-    await client.auth.sendMagicLink({ email, redirect_url: redirectUrl });
+    error.value = null;
+    isLoading.value = true;
+    try {
+      await client.auth.sendMagicLink({ email, redirect_url: redirectUrl });
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e));
+      throw e;
+    } finally {
+      isLoading.value = false;
+    }
   };
 
   const signInWithMagicLink = async (token: string) => {
-    const response = await client.auth.verifyMagicLink(token);
-    await janua.updateSession();
-    return response;
+    error.value = null;
+    isLoading.value = true;
+    try {
+      const response = await client.auth.verifyMagicLink(token);
+      await janua.updateSession();
+      return response;
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e));
+      throw e;
+    } finally {
+      isLoading.value = false;
+    }
   };
 
   return {
     sendMagicLink,
     signInWithMagicLink,
+    isLoading: computed(() => isLoading.value),
+    error: computed(() => error.value),
   };
 }
 
-export function useOAuth() {
+export type OAuthProvider = 'google' | 'github' | 'microsoft' | 'apple' | 'discord' | 'twitter';
+
+export function useOAuth(options?: { clientId?: string; redirectUri?: string }) {
   const janua = useJanua();
   const client = janua.getClient();
+  const error = ref<Error | null>(null);
+  const isLoading = ref(false);
 
-  const getOAuthUrl = async (
-    provider: any,
-    redirectUrl?: string
-  ) => {
-    return client.auth.initiateOAuth(provider as any, { redirect_uri: redirectUrl || window.location.origin + '/auth/callback' });
+  const signInWithOAuth = async (provider: OAuthProvider, redirectUrl?: string) => {
+    error.value = null;
+    isLoading.value = true;
+    try {
+      const verifier = generateCodeVerifier();
+      const challenge = await generateCodeChallenge(verifier);
+      const state = generateState();
+
+      storePKCEParams(verifier, state);
+
+      const clientId = options?.clientId || 'default';
+      const redirectUri = redirectUrl
+        || options?.redirectUri
+        || (typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '');
+
+      const baseURL = (client as any).config?.baseURL || (client as any).baseURL || '';
+      const authUrl = buildAuthorizationUrl(baseURL, provider, clientId, redirectUri, challenge, state);
+
+      window.location.href = authUrl;
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e));
+      isLoading.value = false;
+      throw e;
+    }
   };
 
-  const handleOAuthCallback = async (code: string, state: string) => {
-    const response = await client.auth.handleOAuthCallback(code, state);
-    await janua.updateSession();
-    return response;
+  const handleOAuthCallback = async (code: string, callbackState: string) => {
+    error.value = null;
+    isLoading.value = true;
+    try {
+      // Validate state parameter to prevent CSRF
+      if (!validateState(callbackState)) {
+        throw new Error('Invalid OAuth state - possible CSRF attack');
+      }
+
+      const pkceParams = retrievePKCEParams();
+      if (!pkceParams) {
+        throw new Error('Missing PKCE parameters');
+      }
+
+      // Exchange code with code_verifier
+      await client.auth.handleOAuthCallback(code, callbackState);
+      clearPKCEParams();
+      await janua.updateSession();
+
+      // Clean OAuth params from URL
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    } catch (e) {
+      clearPKCEParams();
+      error.value = e instanceof Error ? e : new Error(String(e));
+      throw e;
+    } finally {
+      isLoading.value = false;
+    }
   };
 
   return {
-    getOAuthUrl,
+    signInWithOAuth,
     handleOAuthCallback,
+    isLoading: computed(() => isLoading.value),
+    error: computed(() => error.value),
   };
 }
 
 export function usePasskeys() {
   const janua = useJanua();
   const client = janua.getClient();
+  const error = ref<Error | null>(null);
+  const isLoading = ref(false);
 
-  const registerPasskey = async (options?: any) => {
-    const registrationOptions = await client.auth.getPasskeyRegistrationOptions();
-    // In a real implementation, you would use the WebAuthn API here
-    // const credential = await navigator.credentials.create(registrationOptions);
-    // await client.auth.completePasskeyRegistration(credential);
-    return registrationOptions;
+  // Check WebAuthn support synchronously on init
+  const support = typeof window !== 'undefined' ? checkWebAuthnSupport() : { available: false, platform: false, conditional: false };
+  const isSupported = ref(support.available);
+
+  const registerPasskey = async (name?: string) => {
+    error.value = null;
+    isLoading.value = true;
+    try {
+      await client.registerPasskey(name);
+      await janua.updateSession();
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e));
+      throw e;
+    } finally {
+      isLoading.value = false;
+    }
   };
 
-  const authenticateWithPasskey = async () => {
-    const authOptions = await client.auth.getPasskeyAuthenticationOptions();
-    // In a real implementation, you would use the WebAuthn API here
-    // const credential = await navigator.credentials.get(authOptions);
-    // const response = await client.auth.completePasskeyAuthentication(credential);
-    // await janua.updateSession();
-    return authOptions;
+  const authenticateWithPasskey = async (email?: string) => {
+    error.value = null;
+    isLoading.value = true;
+    try {
+      await client.signInWithPasskey(email);
+      await janua.updateSession();
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e));
+      throw e;
+    } finally {
+      isLoading.value = false;
+    }
   };
 
   return {
     registerPasskey,
     authenticateWithPasskey,
+    isSupported: computed(() => isSupported.value),
+    isLoading: computed(() => isLoading.value),
+    error: computed(() => error.value),
   };
 }
 
 export function useMFA() {
   const janua = useJanua();
   const client = janua.getClient();
+  const error = ref<Error | null>(null);
+  const isLoading = ref(false);
 
   const enableMFA = async (type: 'totp' | 'sms') => {
-    return client.auth.enableMFA(type);
+    error.value = null;
+    isLoading.value = true;
+    try {
+      return await client.auth.enableMFA(type);
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e));
+      throw e;
+    } finally {
+      isLoading.value = false;
+    }
   };
 
   const confirmMFA = async (code: string) => {
-    await client.auth.verifyMFA({ code });
-    await janua.updateSession();
+    error.value = null;
+    isLoading.value = true;
+    try {
+      await client.auth.verifyMFA({ code });
+      await janua.updateSession();
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e));
+      throw e;
+    } finally {
+      isLoading.value = false;
+    }
   };
 
   const disableMFA = async (password: string) => {
-    await client.auth.disableMFA(password);
-    await janua.updateSession();
+    error.value = null;
+    isLoading.value = true;
+    try {
+      await client.auth.disableMFA(password);
+      await janua.updateSession();
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e));
+      throw e;
+    } finally {
+      isLoading.value = false;
+    }
   };
 
   const verifyMFA = async (code: string) => {
-    const tokens = await client.auth.verifyMFA({ code });
-    await janua.updateSession();
-    return tokens;
+    error.value = null;
+    isLoading.value = true;
+    try {
+      const tokens = await client.auth.verifyMFA({ code });
+      await janua.updateSession();
+      return tokens;
+    } catch (e) {
+      error.value = e instanceof Error ? e : new Error(String(e));
+      throw e;
+    } finally {
+      isLoading.value = false;
+    }
   };
 
   return {
@@ -209,5 +390,7 @@ export function useMFA() {
     confirmMFA,
     disableMFA,
     verifyMFA,
+    isLoading: computed(() => isLoading.value),
+    error: computed(() => error.value),
   };
 }

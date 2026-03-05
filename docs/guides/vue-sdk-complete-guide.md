@@ -33,7 +33,7 @@ pnpm add @janua/vue
 ```typescript
 // main.ts
 import { createApp } from 'vue'
-import { createJanua } from '@janua/vue'
+import { createJanua } from '@janua/vue-sdk'
 import App from './App.vue'
 
 const app = createApp(App)
@@ -64,7 +64,7 @@ export const januaConfig = {
 
 ```typescript
 // main.ts
-import { createJanua } from '@janua/vue'
+import { createJanua } from '@janua/vue-sdk'
 import { januaConfig } from './config/janua'
 
 app.use(createJanua(januaConfig))
@@ -134,7 +134,7 @@ const prodConfig = {
 </template>
 
 <script setup lang="ts">
-import { useAuth } from '@janua/vue'
+import { useAuth } from '@janua/vue-sdk'
 
 const {
   user,
@@ -195,7 +195,7 @@ const handleSignOut = async () => {
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useUser } from '@janua/vue'
+import { useUser } from '@janua/vue-sdk'
 
 const { user, isLoading, updateUser } = useUser()
 
@@ -250,7 +250,7 @@ const handleUpdateProfile = async () => {
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useSession } from '@janua/vue'
+import { useSession } from '@janua/vue-sdk'
 
 const { session, refreshSession, revokeSession } = useSession()
 
@@ -308,8 +308,8 @@ const handleRevokeSession = async () => {
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useOrganizations } from '@janua/vue'
-import type { Organization } from '@janua/vue'
+import { useOrganizations } from '@janua/vue-sdk'
+import type { Organization } from '@janua/vue-sdk'
 
 const organizations = ref<Organization[]>([])
 const isLoading = ref(true)
@@ -384,7 +384,7 @@ const createOrganization = async () => {
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useMagicLink } from '@janua/vue'
+import { useMagicLink } from '@janua/vue-sdk'
 
 const { sendMagicLink, signInWithMagicLink } = useMagicLink()
 
@@ -442,7 +442,7 @@ const handleMagicLinkCallback = async (token: string) => {
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useOAuth } from '@janua/vue'
+import { useOAuth } from '@janua/vue-sdk'
 
 const { getOAuthUrl, handleOAuthCallback } = useOAuth()
 
@@ -563,7 +563,7 @@ const handleCallback = async () => {
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useMFA } from '@janua/vue'
+import { useMFA } from '@janua/vue-sdk'
 
 const { enableMFA, confirmMFA, disableMFA, verifyMFA } = useMFA()
 
@@ -658,9 +658,9 @@ const handleDisableMFA = async () => {
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { usePasskeys } from '@janua/vue'
+import { usePasskeys } from '@janua/vue-sdk'
 
-const { registerPasskey, authenticateWithPasskey } = usePasskeys()
+const { registerPasskey, authenticateWithPasskey, isSupported, isLoading: passkeysLoading, error: passkeysError } = usePasskeys()
 
 const hasPasskey = ref(false)
 const isLoading = ref(false)
@@ -728,7 +728,7 @@ const handleAuthenticateWithPasskey = async () => {
 ```typescript
 // router/index.ts
 import { createRouter, createWebHistory } from 'vue-router'
-import { useJanua } from '@janua/vue'
+import { useJanua } from '@janua/vue-sdk'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -805,7 +805,7 @@ export default router
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useAuth } from '@janua/vue'
+import { useAuth } from '@janua/vue-sdk'
 
 const { user } = useAuth()
 
@@ -857,7 +857,7 @@ function usePermissions() {
 ```typescript
 // composables/useCustomAuth.ts
 import { ref, computed, watch } from 'vue'
-import { useAuth } from '@janua/vue'
+import { useAuth } from '@janua/vue-sdk'
 import { useRouter } from 'vue-router'
 import { useToast } from './useToast'
 
@@ -1189,7 +1189,7 @@ export function useCustomAuth() {
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useCustomAuth } from '../composables/useCustomAuth'
-import { useOAuth } from '@janua/vue'
+import { useOAuth } from '@janua/vue-sdk'
 import MagicLinkForm from '../components/MagicLinkForm.vue'
 
 const {
@@ -1513,7 +1513,7 @@ const handleOAuthLogin = async (provider: string) => {
 // tests/composables/useAuth.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { createJanua } from '@janua/vue'
+import { createJanua } from '@janua/vue-sdk'
 
 // Mock the TypeScript SDK
 vi.mock('@janua/typescript-sdk', () => ({
@@ -1702,9 +1702,9 @@ test.describe('Authentication', () => {
 
 ```typescript
 // types/janua.d.ts
-import '@janua/vue'
+import '@janua/vue-sdk'
 
-declare module '@janua/vue' {
+declare module '@janua/vue-sdk' {
   interface User {
     id: string
     email: string
@@ -1748,8 +1748,8 @@ declare module '@janua/vue' {
 ```typescript
 // composables/useTypedAuth.ts
 import type { ComputedRef } from 'vue'
-import type { User, Session } from '@janua/vue'
-import { useAuth } from '@janua/vue'
+import type { User, Session } from '@janua/vue-sdk'
+import { useAuth } from '@janua/vue-sdk'
 
 interface TypedAuthReturn {
   user: ComputedRef<User | null>
@@ -1785,7 +1785,7 @@ export function useTypedAuth(): TypedAuthReturn {
 
 // main.ts
 import { createApp } from 'vue'
-import { createJanua } from '@janua/vue'
+import { createJanua } from '@janua/vue-sdk'
 import App from './App.vue'
 
 const app = createApp(App)
@@ -1836,7 +1836,7 @@ fetch('https://api.janua.dev/health')
 // AuthCallback.vue
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useOAuth } from '@janua/vue'
+import { useOAuth } from '@janua/vue-sdk'
 import { useRouter } from 'vue-router'
 
 const { handleOAuthCallback } = useOAuth()

@@ -26,8 +26,6 @@ DEFAULT_ALLOWED_HOSTS = [
     "::1",
     "janua.dev",
     "*.janua.dev",
-    "madfam.io",
-    "*.madfam.io",
 ]
 
 
