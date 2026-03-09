@@ -380,7 +380,11 @@ def _generate_id_token(
     return jwt_manager.encode_token(claims)
 
 
-def _build_safe_callback_url(redirect_uri: str, params: dict) -> str:
+def _build_safe_callback_url(
+    redirect_uri: str,
+    params: dict,
+    client_validated: bool = False,
+) -> str:
     """
     Build a callback URL with query parameters.
 
@@ -391,18 +395,30 @@ def _build_safe_callback_url(redirect_uri: str, params: dict) -> str:
     Args:
         redirect_uri: The validated redirect URI from the OAuth client
         params: Query parameters to append (code, state, error, etc.)
+        client_validated: If True, the redirect_uri was already validated against
+            the OAuth client's registered redirect_uris. Skips host allowlist
+            check but still validates against dangerous schemes.
 
     Returns:
         The complete callback URL with query parameters
     """
-    # Double-check that the redirect_uri is not a dangerous scheme
-    # This is defense-in-depth even though validation should have happened earlier
-    if not is_safe_redirect_url(redirect_uri, allow_relative=False):
+    # Always block dangerous schemes regardless of validation status
+    url_lower = (redirect_uri or "").lower().strip()
+    if url_lower.startswith(("javascript:", "data:", "vbscript:", "file:")):
         logger.error(
-            "Attempted to build callback URL with unsafe redirect_uri",
+            "Blocked dangerous scheme in redirect URI",
             redirect_uri_prefix=redirect_uri[:50] if redirect_uri else None,
         )
-        raise ValueError("Invalid redirect URI")
+        raise ValueError("Invalid redirect URI scheme")
+
+    if not client_validated:
+        # Full host allowlist check for non-client-validated URIs
+        if not is_safe_redirect_url(redirect_uri, allow_relative=False):
+            logger.error(
+                "Attempted to build callback URL with unsafe redirect_uri",
+                redirect_uri_prefix=redirect_uri[:50] if redirect_uri else None,
+            )
+            raise ValueError("Invalid redirect URI")
 
     return f"{redirect_uri}?{urlencode(params)}"
 
@@ -714,7 +730,7 @@ async def authorize_get(
     if state:
         callback_params["state"] = state
 
-    callback_url = _build_safe_callback_url(redirect_uri, callback_params)
+    callback_url = _build_safe_callback_url(redirect_uri, callback_params, client_validated=True)
     return RedirectResponse(url=callback_url, status_code=302)
 
 
@@ -778,7 +794,7 @@ async def handle_consent(
         error_params = {"error": "access_denied", "error_description": "User denied the request"}
         if state:
             error_params["state"] = state
-        error_url = _build_safe_callback_url(redirect_uri, error_params)
+        error_url = _build_safe_callback_url(redirect_uri, error_params, client_validated=True)
         return RedirectResponse(url=error_url, status_code=302)
 
     # User approved - store consent
@@ -786,12 +802,24 @@ async def handle_consent(
     scope = auth_request["scope"]
     requested_scopes = ConsentService.parse_scopes(scope)
 
-    await ConsentService.grant_consent(
-        db=db,
-        user_id=current_user.id,
-        client_id=client_id,
-        scopes=requested_scopes,
-    )
+    try:
+        await ConsentService.grant_consent(
+            db=db,
+            user_id=current_user.id,
+            client_id=client_id,
+            scopes=requested_scopes,
+        )
+    except Exception as e:
+        logger.error(
+            "Failed to store OAuth consent",
+            user_id=str(current_user.id),
+            client_id=client_id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process consent. Please try again.",
+        )
 
     # Generate authorization code
     auth_code = secrets.token_urlsafe(32)
@@ -808,16 +836,20 @@ async def handle_consent(
     await _store_auth_code(auth_code, code_data, redis)
 
     # Update client last_used_at
-    if client:
-        client.last_used_at = datetime.utcnow()
-        await db.commit()
+    try:
+        if client:
+            client.last_used_at = datetime.utcnow()
+            await db.commit()
+    except Exception as e:
+        # Non-critical — don't fail the consent flow for a timestamp update
+        logger.warning("Failed to update client last_used_at", error=str(e))
 
     # SECURITY: Redirect with code using validated redirect_uri
     callback_params = {"code": auth_code}
     if state:
         callback_params["state"] = state
 
-    callback_url = _build_safe_callback_url(redirect_uri, callback_params)
+    callback_url = _build_safe_callback_url(redirect_uri, callback_params, client_validated=True)
 
     logger.info(
         "OAuth consent granted",
@@ -924,7 +956,7 @@ async def authorize_post(
     if state:
         callback_params["state"] = state
 
-    callback_url = _build_safe_callback_url(redirect_uri, callback_params)
+    callback_url = _build_safe_callback_url(redirect_uri, callback_params, client_validated=True)
     return RedirectResponse(url=callback_url, status_code=302)
 
 

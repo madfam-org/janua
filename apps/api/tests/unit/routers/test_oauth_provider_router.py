@@ -345,6 +345,34 @@ class TestSafeCallbackURLBuilder:
 
             assert "Invalid redirect URI" in str(exc_info.value)
 
+    def test_build_safe_callback_url_client_validated_skips_host_check(self):
+        """Should skip host allowlist check when client_validated=True"""
+        from app.routers.v1.oauth_provider import _build_safe_callback_url
+
+        # Even if is_safe_redirect_url would reject the host, client_validated=True bypasses it
+        result = _build_safe_callback_url(
+            "https://app.dhan.am/auth/callback",
+            {"code": "abc123", "state": "xyz"},
+            client_validated=True,
+        )
+
+        assert result.startswith("https://app.dhan.am/auth/callback?")
+        assert "code=abc123" in result
+
+    def test_build_safe_callback_url_client_validated_still_blocks_dangerous_schemes(self):
+        """Should still block dangerous schemes even with client_validated=True"""
+        from app.routers.v1.oauth_provider import _build_safe_callback_url
+
+        with pytest.raises(ValueError):
+            _build_safe_callback_url(
+                "javascript:alert(1)", {"code": "abc"}, client_validated=True
+            )
+
+        with pytest.raises(ValueError):
+            _build_safe_callback_url(
+                "data:text/html,<script>", {"code": "abc"}, client_validated=True
+            )
+
 
 class TestUserEntitlements:
     """Test user entitlements fetching"""
