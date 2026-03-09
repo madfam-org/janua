@@ -113,7 +113,7 @@ spec:
             # CORS - All allowed frontend origins
             - name: CORS_ORIGINS
               # Non-core app origins auto-derived from OAuth client redirect_uris via DynamicCORSMiddleware
-              value: "https://admin.janua.dev,https://app.janua.dev,https://api.enclii.dev,https://app.enclii.dev,https://admin.enclii.dev,https://auth.madfam.io,https://tezca.mx,https://admin.tezca.mx,https://www.tezca.mx,https://madfam.io,https://www.madfam.io,https://dhanam.madfam.io,https://forgesight.madfam.io,https://pravara.madfam.io"
+              value: "https://admin.janua.dev,https://app.janua.dev,https://api.enclii.dev,https://app.enclii.dev,https://admin.enclii.dev,https://auth.madfam.io,https://tezca.mx,https://admin.tezca.mx,https://www.tezca.mx,https://madfam.io,https://www.madfam.io,https://dhanam.madfam.io,https://forgesight.madfam.io,https://pravara.madfam.io,https://dhan.am,https://app.dhan.am"
             # Cookie domain for cross-subdomain SSO (*.madfam.io for auth.madfam.io)
             - name: COOKIE_DOMAIN
               value: ".madfam.io"
