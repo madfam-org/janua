@@ -64,7 +64,7 @@
 
 ### 2.2 Deployment topology (v1)
 
-* **Enclii/Hetzner** — Self-hosted on Hetzner bare metal (95.217.198.239) via MADFAM's Enclii DevOps solution. Docker containers for API, frontends, **Postgres** (primary), **Redis** (caches/ratelimits), background workers.
+* **Enclii/Hetzner** — Self-hosted on Hetzner bare metal (<CONTROL_PLANE_IP>) via MADFAM's Enclii DevOps solution. Docker containers for API, frontends, **Postgres** (primary), **Redis** (caches/ratelimits), background workers.
 * **Cloudflare Tunnel** — Secure ingress for all janua.dev subdomains (api, app, admin, docs).
 * **Cloudflare** — Fronts `janua.dev` for WAF/CDN; **R2** for audit/exports; **Turnstile** on risky flows; caches **JWKS** globally.
 * **Email** — SES or SendGrid with warmed IPs; domain: `mail.janua.dev` (DNS managed via Cloudflare).

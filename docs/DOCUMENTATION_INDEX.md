@@ -45,7 +45,7 @@ This index provides a navigable structure for all Janua documentation. Organized
 
 ### Current Assessment (January 2026)
 - **Production Readiness**: 75-80%
-- **Infrastructure**: K3s single-node on Hetzner AX41-NVME (~$55/month)
+- **Infrastructure**: K3s single-node on Hetzner dedicated server (see internal-devops for pricing)
 - **Status**: All 5 Janua services healthy and operational
 
 ## 🗄️ Documentation Archive Policy

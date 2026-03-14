@@ -21,7 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Architecture & Stack
 
 **Infrastructure Stack**:
-- **Enclii/Hetzner**: Self-hosted on bare metal (95.217.198.239) with Docker containers
+- **Enclii/Hetzner**: Self-hosted on bare metal (<CONTROL_PLANE_IP>) with Docker containers
 - **Cloudflare Tunnel**: Secure ingress for all janua.dev subdomains
 - **PostgreSQL + Redis**: Self-hosted databases in Docker containers
 

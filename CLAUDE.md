@@ -409,8 +409,8 @@ Other service domains (api, dashboard, admin, docs) are managed via static tunne
 See [Enclii Service Spec Reference](https://docs.enclii.dev/reference/service-spec) for the full schema.
 
 ### Production Infrastructure
-**Server**: foundry-core (95.217.198.239) via Cloudflare Tunnel
-**K8s Cluster**: K3s single-node on Hetzner AX41-NVME (ready for multi-node scaling)
+**Server**: foundry-core (<CONTROL_PLANE_IP>) via Cloudflare Tunnel
+**K8s Cluster**: K3s single-node on Hetzner dedicated server (ready for multi-node scaling)
 **Namespace**: janua
 
 **Active Services**:

@@ -89,7 +89,7 @@ kubectl get mutatingwebhookconfigurations,validatingwebhookconfigurations -o wid
 
 | Parameter | Value |
 |-----------|-------|
-| **Cluster** | foundry-core (K3s, 95.217.198.239) |
+| **Cluster** | foundry-core (K3s, <CONTROL_PLANE_IP>) |
 | **Namespace** | `janua` |
 | **Deployment** | `janua-api` (2 replicas, RollingUpdate, maxSurge=1, maxUnavailable=0) |
 | **Image** | `ghcr.io/madfam-org/janua-api:main-<sha>` |

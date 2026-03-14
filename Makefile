@@ -108,7 +108,7 @@ deploy-staging:
 deploy-prod:
 	@echo "Deploying to production..."
 	@echo "Run: enclii deploy --environment production"
-	@echo "Or manually: ssh root@95.217.198.239 'cd /opt/solarpunk/janua && docker-compose -f deployment/production/docker-compose.production.yml up -d'"
+	@echo "Or manually: ssh root@${CONTROL_PLANE_IP} 'cd /opt/solarpunk/janua && docker-compose -f deployment/production/docker-compose.production.yml up -d'"
 
 # Run security scan
 security-scan:

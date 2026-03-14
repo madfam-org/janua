@@ -24,7 +24,7 @@
 | Website | `janua.dev` | ✅ Running on Enclii |
 
 **Infrastructure**: 2-Node Hetzner Cluster via [Enclii PaaS](https://github.com/madfam-org/enclii)
-- Production workloads on "The Sanctuary" (AX41-NVMe)
+- Production workloads on "The Sanctuary" (dedicated server)
 - CI/CD builds on "The Forge" (CPX11)
 - Zero-trust ingress via Cloudflare Tunnel
 
