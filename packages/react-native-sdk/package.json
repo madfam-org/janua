@@ -14,7 +14,7 @@
     "react-native": ">=0.60.0"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "^1.19.0",
+    "@react-native-async-storage/async-storage": "^3.0.1",
     "react-native-keychain": "^8.1.0",
     "react-native-webauthn": "^1.0.0",
     "react-native-url-polyfill": "^2.0.0",
