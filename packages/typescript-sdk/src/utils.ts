@@ -34,7 +34,19 @@ export {
   type RetryOptions,
 
   // Webhook utilities
-  WebhookUtils
+  WebhookUtils,
+
+  // PKCE utilities
+  generateCodeVerifier,
+  generateCodeChallenge,
+  generateState,
+  storePKCEParams,
+  retrievePKCEParams,
+  clearPKCEParams,
+  validateState,
+  parseOAuthCallback,
+  buildAuthorizationUrl,
+  PKCE_STORAGE_KEYS,
 } from './utils/index';
 
 // Re-export type aliases for backward compatibility
