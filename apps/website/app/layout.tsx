@@ -1,6 +1,8 @@
+import { Suspense } from 'react'
 import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/react'
 import { ThemeProvider, FloatingThemeToggle } from '@janua/ui'
+import { PostHogProvider } from '@/components/PostHogProvider'
 import '../styles/globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -55,9 +57,13 @@ export default function RootLayout({
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <body className={`${inter.className} antialiased bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100`}>
         <ThemeProvider>
-          <div className="relative">
-            {children}
-          </div>
+          <Suspense fallback={null}>
+            <PostHogProvider>
+              <div className="relative">
+                {children}
+              </div>
+            </PostHogProvider>
+          </Suspense>
           <FloatingThemeToggle />
         </ThemeProvider>
         <Analytics />
