@@ -508,6 +508,25 @@ class Invitation(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class GuestInvite(Base):
+    """Guest invite link for granting temporary guest access to an organization."""
+
+    __tablename__ = "guest_invites"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    token = Column(String(255), unique=True, nullable=False, index=True)
+    label = Column(String(255), default="")
+    max_uses = Column(Integer, default=0)  # 0 = unlimited
+    use_count = Column(Integer, default=0)
+    guest_ttl_hours = Column(Integer, default=4)
+    room_id = Column(String(255), nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    revoked = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class AuditLog(Base):
     """Audit log model matching the existing production database schema."""
 

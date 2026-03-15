@@ -133,6 +133,12 @@ from app.routers.v1 import (
 from app.routers.v1 import (
     billing as billing_v1,
 )
+from app.routers.v1 import (
+    guest as guest_v1,
+)
+from app.routers.v1 import (
+    guest_invites as guest_invites_v1,
+)
 
 # Additional feature routers with optional loading
 additional_routers = {}
@@ -1008,6 +1014,8 @@ app.include_router(audit_logs_v1.router, prefix="/api")
 app.include_router(alerts_v1.router, prefix="/api/v1")
 app.include_router(localization_v1.router, prefix="/api/v1")  # Localization model now available
 app.include_router(billing_v1.router, prefix="/api/v1")  # Billing and plans
+app.include_router(guest_v1.router, prefix="/api/v1")  # Guest access tokens
+app.include_router(guest_invites_v1.router, prefix="/api/v1")  # Guest invite CRUD
 
 # Internal service API routers (for MADFAM service-to-service communication)
 try:
