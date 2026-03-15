@@ -297,6 +297,15 @@ class Settings(BaseSettings):
     ENABLE_OAUTH: bool = Field(default=True)
     ENABLE_MFA: bool = Field(default=True)
     ENABLE_ORGANIZATIONS: bool = Field(default=True)
+    ENABLE_GUEST_ACCESS: bool = Field(
+        default=True, description="Enable guest access token endpoint"
+    )
+    GUEST_MAX_TTL_HOURS: int = Field(
+        default=24, description="Maximum TTL for guest tokens in hours"
+    )
+    GUEST_DEFAULT_TTL_HOURS: int = Field(
+        default=4, description="Default TTL for guest tokens in hours"
+    )
     # Beta endpoints - SECURITY: Disabled by default in production
     # These bypass standard auth flows and should only be enabled for development/testing
     ENABLE_BETA_ENDPOINTS: bool = Field(
