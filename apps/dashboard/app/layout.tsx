@@ -1,8 +1,10 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/lib/auth'
 import { ThemeProvider, FloatingThemeToggle } from '@janua/ui'
+import { PostHogProvider } from '@/components/PostHogProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -21,7 +23,11 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider>
           <AuthProvider>
-            {children}
+            <Suspense fallback={null}>
+              <PostHogProvider>
+                {children}
+              </PostHogProvider>
+            </Suspense>
           </AuthProvider>
           <FloatingThemeToggle />
         </ThemeProvider>

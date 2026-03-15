@@ -1049,6 +1049,10 @@ for router_name, router_module in enterprise_routers.items():
 async def startup_event():
     logger.info("Starting Janua API...")
 
+    # Initialize PostHog analytics (no-op if POSTHOG_API_KEY is not set)
+    from app.analytics import init_posthog
+    init_posthog()
+
     # CRITICAL: Validate SECRET_KEY in production
     if settings.ENVIRONMENT == "production":
         default_secret = "development-secret-key-change-in-production"
@@ -1138,6 +1142,11 @@ async def _check_redis_health():
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Shutting down Janua API...")
+
+    # Flush pending PostHog events
+    from app.analytics import shutdown as posthog_shutdown
+    posthog_shutdown()
+
     try:
         # Graceful shutdown of scalability features
         await shutdown_scalability_features()
