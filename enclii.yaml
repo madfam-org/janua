@@ -7,7 +7,7 @@ spec:
   runtime:
     port: 8080
     replicas: 1
-    healthCheck: /health
+    healthCheck: /api/v1/health/ready
   domains:
     - name: api.janua.dev
       environment: production

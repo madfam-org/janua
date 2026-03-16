@@ -69,7 +69,7 @@ EXPOSE 8080 4100
 
 # Healthcheck uses PORT env var for flexibility
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
-  CMD python -c "import os,urllib.request; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\", \"8080\")}/health')" || exit 1
+  CMD python -c "import os,urllib.request; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"PORT\", \"8080\")}/api/v1/health/ready')" || exit 1
 
 # Use entrypoint for database migrations before app start
 ENTRYPOINT ["/app/entrypoint.sh"]
