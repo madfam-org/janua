@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { JanuaClient } from '@janua/typescript-sdk';
 import type { User, Session, JanuaConfig } from '@janua/typescript-sdk';
 import { validateState, retrievePKCEParams, clearPKCEParams } from '../utils/pkce';
@@ -30,6 +30,7 @@ export function JanuaProvider({
 }: JanuaProviderProps) {
   const [client] = useState(() => new JanuaClient(config));
   const [user, setUser] = useState<User | null>(null);
+  const userRef = useRef<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -41,6 +42,7 @@ export function JanuaProvider({
     };
 
     setUser(currentUser);
+    userRef.current = currentUser;
     setSession(currentSession as any);
 
     if (onAuthChange) {
@@ -112,7 +114,7 @@ export function JanuaProvider({
         const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('janua_access_token');
         if (!hasToken) return;
         const currentUser = await client.auth.getCurrentUser();
-        if (currentUser !== user) {
+        if (currentUser?.id !== userRef.current?.id) {
           updateAuthState();
         }
       } catch {
