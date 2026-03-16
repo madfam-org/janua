@@ -99,3 +99,8 @@ coverage.xml
 deployment/production/ssl/db/*.key
 deployment/production/ssl/db/*.crt
 deployment/production/ssl/db/*.srl
+# Local IDE config
+packages/ui/.npmrc
+
+# WIP SDK scaffolds
+packages/sveltekit-sdk/
