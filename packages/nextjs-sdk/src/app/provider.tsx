@@ -108,9 +108,15 @@ export function JanuaProvider({
 
     // Set up auth state polling (60 second interval)
     const checkInterval = setInterval(async () => {
-      const currentUser = await client.auth.getCurrentUser();
-      if (currentUser !== user) {
-        updateAuthState();
+      try {
+        const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('janua_access_token');
+        if (!hasToken) return;
+        const currentUser = await client.auth.getCurrentUser();
+        if (currentUser !== user) {
+          updateAuthState();
+        }
+      } catch {
+        // Non-fatal: polling failure is handled by next cycle
       }
     }, 60_000);
 
@@ -125,6 +131,8 @@ export function JanuaProvider({
 
     const scheduleRefresh = async () => {
       try {
+        const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('janua_access_token');
+        if (!hasToken) return;
         const accessToken = await client.getAccessToken();
         if (!accessToken) return;
 

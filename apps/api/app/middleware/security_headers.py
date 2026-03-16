@@ -43,7 +43,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             f"connect-src 'self' https://{self.api_host}",
             "frame-ancestors 'none'",
             "base-uri 'self'",
-            f"form-action 'self' https://{self.api_host}",
+            f"form-action 'self' https://{self.api_host} https://{self.api_host}/api/v1/auth/login-form",
             "upgrade-insecure-requests",
         ]
 
