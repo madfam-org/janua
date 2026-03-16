@@ -2,7 +2,7 @@
 
 Official Janua SDK for React applications. Provides authentication context, hooks, pre-built components, and utilities for integrating Janua into any React 18+ application.
 
-**Version:** 0.1.1 | **React:** 18+ | **License:** AGPL-3.0
+**Version:** 0.1.2 | **React:** 18+ | **License:** AGPL-3.0
 
 ---
 
