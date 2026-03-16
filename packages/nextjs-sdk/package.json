@@ -1,6 +1,6 @@
 {
   "name": "@janua/nextjs",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Official Janua SDK for Next.js applications with App Router and Pages Router support",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -60,8 +60,8 @@
     "url": "https://github.com/madfam-org/janua/issues"
   },
   "dependencies": {
-    "@janua/typescript-sdk": "workspace:*",
-    "@janua/ui": "workspace:*",
+    "@janua/typescript-sdk": "^0.1.2",
+    "@janua/ui": "^0.1.1",
     "jose": "^5.0.0"
   },
   "peerDependencies": {
