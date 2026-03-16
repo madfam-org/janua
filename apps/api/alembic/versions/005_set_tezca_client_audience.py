@@ -1,4 +1,4 @@
-"""Set per-client JWT audience for tezca-web OAuth client.
+"""Set per-client JWT audience for Tezca OAuth clients.
 
 The audience column was added in migration 002 but left NULL for existing
 clients. This data migration populates it so Janua issues tokens with
@@ -20,11 +20,13 @@ depends_on = None
 
 def upgrade() -> None:
     op.execute(
-        "UPDATE oauth_clients SET audience = 'tezca-api' WHERE name = 'tezca-web'"
+        "UPDATE oauth_clients SET audience = 'tezca-api' "
+        "WHERE name IN ('Tezca Web', 'Tezca Admin')"
     )
 
 
 def downgrade() -> None:
     op.execute(
-        "UPDATE oauth_clients SET audience = NULL WHERE name = 'tezca-web'"
+        "UPDATE oauth_clients SET audience = NULL "
+        "WHERE name IN ('Tezca Web', 'Tezca Admin')"
     )
