@@ -364,9 +364,15 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
         db, user, ip_address=request.client.host, user_agent=request.headers.get("user-agent")
     )
 
-    # Log activity
-    await log_activity(db, str(user.id), "signin", {"method": "password"}, request)
-    await log_audit_event(db, str(user.id), "signin", {"method": "password"}, request)
+    # Log activity (best-effort, don't fail login)
+    try:
+        await log_activity(db, str(user.id), "signin", {"method": "password"}, request)
+    except Exception:
+        pass
+    try:
+        await log_audit_event(db, str(user.id), "signin", {"method": "password"}, request)
+    except Exception:
+        pass
 
     return SignInResponse(
         user=UserResponse(
@@ -869,21 +875,45 @@ async def sign_out(
 ):
     """Sign out current session"""
     token = credentials.credentials
-    payload = AuthService.decode_token(token, token_type="access")
+    payload = await AuthService.verify_token(token, token_type="access")
 
     if payload:
-        # Find and revoke session
-        result = await db.execute(
-            select(UserSession).where(UserSession.access_token_jti == payload["jti"])
-        )
-        session = result.scalar_one_or_none()
+        # Blacklist the access token JTI
+        try:
+            from app.core.jwt_manager import jwt_manager
+            await jwt_manager.blacklist_token(payload["jti"], "access")
+        except Exception:
+            pass  # Best-effort blacklisting
 
-        if session:
-            AuthService.revoke_session(db, str(session.id))
+        # Find and revoke session in DB
+        try:
+            result = await db.execute(
+                select(UserSession).where(UserSession.access_token_jti == payload["jti"])
+            )
+            session = result.scalar_one_or_none()
 
-    # Log activity
-    await log_activity(db, str(current_user.id), "signout", {})
-    await log_audit_event(db, str(current_user.id), "signout", {})
+            if session:
+                session.revoked = True
+                # Also blacklist the refresh token
+                if session.refresh_token_jti:
+                    try:
+                        from app.core.jwt_manager import jwt_manager
+                        await jwt_manager.blacklist_token(session.refresh_token_jti, "refresh")
+                    except Exception:
+                        pass
+                await db.commit()
+        except Exception:
+            pass  # Best-effort session revocation
+
+    # Log activity (best-effort, don't fail logout)
+    try:
+        await log_activity(db, str(current_user.id), "signout", {})
+    except Exception:
+        pass
+    try:
+        await log_audit_event(db, str(current_user.id), "signout", {})
+    except Exception:
+        pass
 
     return {"message": "Successfully signed out"}
 

@@ -473,6 +473,8 @@ export interface JanuaConfig {
   environment?: Environment;
   debug?: boolean;
   autoRefreshTokens?: boolean;
+  /** Skip remote getCurrentUser() calls — use when auth is managed server-side (e.g. httpOnly cookies) */
+  skipRemoteAuth?: boolean;
   tokenStorage?: 'localStorage' | 'sessionStorage' | 'memory' | 'custom';
   customStorage?: {
     getItem: (key: string) => string | null | Promise<string | null>;

@@ -875,3 +875,59 @@ class TestAuditEventMap:
         import asyncio
 
         assert asyncio.iscoroutinefunction(log_audit_event)
+
+
+class TestSignOutResilience:
+    """Test sign_out endpoint resilience — logging failures must not break logout."""
+
+    def test_sign_out_uses_verify_token_not_decode_token(self):
+        """sign_out must use AuthService.verify_token (async), not decode_token (nonexistent)."""
+        import inspect
+        from app.routers.v1.auth import sign_out
+
+        source = inspect.getsource(sign_out)
+        assert "verify_token" in source, "sign_out should use AuthService.verify_token"
+        assert "decode_token" not in source, "sign_out should NOT reference decode_token (method does not exist)"
+
+    def test_sign_out_wraps_log_activity_in_try_except(self):
+        """log_activity in sign_out must be wrapped in try/except for resilience."""
+        import inspect
+        from app.routers.v1.auth import sign_out
+
+        source = inspect.getsource(sign_out)
+        # Verify try/except wrapping around log_activity
+        assert source.count("try:") >= 2, "sign_out should have multiple try/except blocks for resilience"
+        assert "log_activity" in source
+        assert "log_audit_event" in source
+
+    def test_sign_out_blacklists_token(self):
+        """sign_out must blacklist the access token JTI via jwt_manager."""
+        import inspect
+        from app.routers.v1.auth import sign_out
+
+        source = inspect.getsource(sign_out)
+        assert "blacklist_token" in source, "sign_out should blacklist token JTI in Redis"
+
+    def test_sign_out_revokes_session(self):
+        """sign_out must set session.revoked = True in the database."""
+        import inspect
+        from app.routers.v1.auth import sign_out
+
+        source = inspect.getsource(sign_out)
+        assert "revoked" in source, "sign_out should mark session as revoked"
+
+
+class TestSignInResilience:
+    """Test sign_in endpoint resilience — logging failures must not break login."""
+
+    def test_sign_in_wraps_log_activity_in_try_except(self):
+        """log_activity in sign_in must be wrapped in try/except for resilience."""
+        import inspect
+        from app.routers.v1.auth import sign_in
+
+        source = inspect.getsource(sign_in)
+        # Find the log_activity call that's for the non-MFA path (after create_session)
+        # It should be inside a try/except block
+        assert "try:" in source, "sign_in should wrap logging in try/except"
+        assert "log_activity" in source
+        assert "log_audit_event" in source

@@ -1036,6 +1036,28 @@ export const config = {
 }
 ```
 
+### Server-Managed Auth (skipRemoteAuth)
+
+When your app manages authentication server-side (e.g., httpOnly cookies with a `/api/auth/me` proxy), the SDK's default `getCurrentUser()` call will be CORS-blocked because it tries to reach the Janua API directly from the browser.
+
+Set `skipRemoteAuth: true` to prevent this:
+
+```typescript
+const config: JanuaConfig = {
+  baseURL: 'https://auth.madfam.io',
+  apiKey: process.env.NEXT_PUBLIC_JANUA_PUBLISHABLE_KEY,
+  autoRefreshTokens: true,
+  skipRemoteAuth: true,
+};
+```
+
+When enabled:
+- `JanuaProvider` derives user state from the JWT payload in `localStorage` instead of calling the remote API.
+- The 60-second auth state polling interval is disabled.
+- OAuth callback handling and token refresh continue to work normally.
+
+This is appropriate for apps that hydrate the SDK's `localStorage` from server-side session tokens (e.g., via a cookie bridge or SSR injection).
+
 ## Advanced Features
 
 ### Session Security Levels
