@@ -240,10 +240,10 @@ class TestContentSecurityPolicy:
         result = await middleware.dispatch(request, call_next)
 
         csp = result.headers["Content-Security-Policy"]
-        assert "connect-src 'self' https://api.janua.dev" in csp
+        assert "connect-src 'self' https://api.janua.dev https://cloudflareinsights.com" in csp
 
-    async def test_csp_form_action_includes_api_host(self, middleware, mock_response):
-        """Test CSP form-action directive includes the configured api_host."""
+    async def test_csp_form_action_self_only(self, middleware, mock_response):
+        """Test CSP form-action directive is 'self' only (no explicit URLs)."""
         request = MagicMock(spec=Request)
         request.url.scheme = "https"
         request.url.path = "/api/users"
@@ -253,7 +253,7 @@ class TestContentSecurityPolicy:
         result = await middleware.dispatch(request, call_next)
 
         csp = result.headers["Content-Security-Policy"]
-        assert "form-action 'self' https://api.janua.dev" in csp
+        assert "form-action 'self'" in csp
 
 
 class TestCSPDynamicApiHost:
@@ -279,7 +279,7 @@ class TestCSPDynamicApiHost:
         result = await middleware.dispatch(request, call_next)
 
         csp = result.headers["Content-Security-Policy"]
-        assert "connect-src 'self' https://api.janua.dev" in csp
+        assert "connect-src 'self' https://api.janua.dev https://cloudflareinsights.com" in csp
 
     async def test_csp_connect_src_custom_host(self, mock_response):
         """Test CSP connect-src uses custom api_host when provided."""
@@ -294,11 +294,11 @@ class TestCSPDynamicApiHost:
         result = await middleware.dispatch(request, call_next)
 
         csp = result.headers["Content-Security-Policy"]
-        assert "connect-src 'self' https://auth.madfam.io" in csp
+        assert "connect-src 'self' https://auth.madfam.io https://cloudflareinsights.com" in csp
         assert "api.janua.dev" not in csp
 
-    async def test_csp_form_action_custom_host(self, mock_response):
-        """Test CSP form-action uses custom api_host when provided."""
+    async def test_csp_form_action_self_only_custom_host(self, mock_response):
+        """Test CSP form-action is 'self' only regardless of custom api_host."""
         app = MagicMock()
         middleware = SecurityHeadersMiddleware(app, strict=True, api_host="auth.madfam.io")
 
@@ -310,7 +310,7 @@ class TestCSPDynamicApiHost:
         result = await middleware.dispatch(request, call_next)
 
         csp = result.headers["Content-Security-Policy"]
-        assert "form-action 'self' https://auth.madfam.io" in csp
+        assert "form-action 'self'" in csp
 
     async def test_csp_swagger_cdn_allowed(self, mock_response):
         """Test CSP allows CDN resources needed by Swagger UI."""

@@ -36,14 +36,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Content Security Policy
         csp_directives = [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",  # For Swagger UI
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com",  # For Swagger UI + CF Insights
             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",  # For Swagger UI
             "img-src 'self' data: https:",
             "font-src 'self' data:",
-            f"connect-src 'self' https://{self.api_host}",
+            f"connect-src 'self' https://{self.api_host} https://cloudflareinsights.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",
-            f"form-action 'self' https://{self.api_host} https://{self.api_host}/api/v1/auth/login-form",
+            "form-action 'self'",
             "upgrade-insecure-requests",
         ]
 
