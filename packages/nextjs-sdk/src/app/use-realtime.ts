@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { WebSocket as JanuaWebSocket } from '@janua/typescript-sdk';
 import type { WebSocketConfig, WebSocketStatus, WebSocketMessage, WebSocketEventMap } from '@janua/typescript-sdk';
-import { useAuth } from './provider';
+import { useJanua } from './provider';
 
 export interface UseRealtimeOptions {
   /** Channels to auto-subscribe on connect */
@@ -35,7 +35,7 @@ export interface UseRealtimeReturn {
 
 export function useRealtime(options: UseRealtimeOptions = {}): UseRealtimeReturn {
   const { channels = [], url, reconnect = true, autoConnect = true } = options;
-  const { client } = useAuth();
+  const { client } = useJanua();
   const [status, setStatus] = useState<WebSocketStatus>('disconnected');
   const wsRef = useRef<JanuaWebSocket | null>(null);
 
