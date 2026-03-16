@@ -500,16 +500,31 @@ async def authorize_get(
 
     # If user not authenticated, redirect to login
     if not current_user:
-        # Store auth request in session/query params and redirect to login
-        # Use request host to preserve white-label domain (e.g., auth.madfam.io)
-        scheme = "https" if settings.ENVIRONMENT == "production" else request.url.scheme
-        request_host = request.headers.get("host", urlparse(settings.API_BASE_URL).netloc)
+        # SECURITY: Store full OAuth parameters in Redis instead of encoding them
+        # into the redirect URL. This avoids double-encoding issues with urlencode()
+        # that caused redirect loops when the 'next' URL contained query params.
+        # Pattern matches the consent flow storage at lines 580-596.
+        pre_login_id = secrets.token_urlsafe(16)
+        pre_login_data = {
+            "response_type": response_type,
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "scope": scope,
+            "state": state,
+            "nonce": nonce,
+            "code_challenge": code_challenge,
+            "code_challenge_method": code_challenge_method,
+        }
+        await redis.setex(
+            f"oauth:pre_login:{pre_login_id}",
+            600,  # 10 minutes TTL
+            json.dumps(pre_login_data),
+        )
 
-        # SECURITY: Build login redirect URL using internal path only
-        # The login_url is a relative path to our own login endpoint, which is safe
+        # Pass only the opaque ID plus display-only params to the login page
         login_params = urlencode(
             {
-                "next": f"{scheme}://{request_host}{request.url.path}?{request.url.query}",
+                "auth_request_id": pre_login_id,
                 "client_id": client_id,
                 "client_name": client.name,
             }

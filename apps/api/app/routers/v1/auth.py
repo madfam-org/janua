@@ -2,9 +2,11 @@
 Authentication router for v1 API
 """
 
+import json
 import secrets
 from datetime import datetime, timedelta
 from typing import Dict, Optional
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -14,7 +16,10 @@ from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+import structlog
+
 from app.config import settings
+from app.core.redis import ResilientRedisClient, get_redis
 from app.core.url_security import validate_redirect_url
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -25,6 +30,8 @@ from app.services.email import EmailService
 
 from ...models import ActivityLog, EmailVerification, MagicLink, PasswordReset, User, UserStatus
 from ...models import Session as UserSession
+
+logger = structlog.get_logger()
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -462,6 +469,7 @@ async def check_session(
 async def login_page(
     request: Request,
     next: Optional[str] = None,
+    auth_request_id: Optional[str] = None,
     client_id: Optional[str] = None,
     client_name: Optional[str] = None,
 ):
@@ -470,11 +478,12 @@ async def login_page(
 
     This endpoint serves an HTML login form that:
     1. Accepts email/password credentials
-    2. POSTs to /api/v1/auth/login
-    3. On success, redirects to the 'next' URL (OAuth authorize endpoint)
+    2. POSTs to /api/v1/auth/login-form
+    3. On success, redirects to the OAuth authorize endpoint
 
     Query params:
-    - next: URL to redirect to after successful login
+    - auth_request_id: Opaque ID for Redis-stored OAuth params (preferred for OAuth flows)
+    - next: URL to redirect to after successful login (fallback for non-OAuth logins)
     - client_id: OAuth client requesting authorization
     - client_name: Human-readable name of the OAuth client
     """
@@ -487,6 +496,14 @@ async def login_page(
     safe_next = validate_redirect_url(next or "/", default_url="/")
     next_url = html.escape(safe_next)
     app_name = html.escape(client_name or "Application")
+
+    # Build hidden fields for the form: prefer auth_request_id over next URL
+    # to avoid double-encoding issues with complex OAuth redirect URLs
+    escaped_auth_request_id = html.escape(auth_request_id or "")
+    if auth_request_id:
+        hidden_fields = f'<input type="hidden" name="auth_request_id" value="{escaped_auth_request_id}">'
+    else:
+        hidden_fields = f'<input type="hidden" name="next" value="{next_url}">'
 
     html_content = f"""
 <!DOCTYPE html>
@@ -616,7 +633,7 @@ async def login_page(
         <div class="error" id="error"></div>
 
         <form id="loginForm" method="POST" action="/api/v1/auth/login-form">
-            <input type="hidden" name="next" value="{next_url}">
+            {hidden_fields}
             <div class="form-group">
                 <label for="email">Email</label>
                 <input type="email" id="email" name="email" required autocomplete="email" autofocus>
@@ -646,7 +663,9 @@ async def login_form(
     email: str = Form(...),
     password: str = Form(...),
     next: str = Form("/"),
+    auth_request_id: Optional[str] = Form(None),
     db: Session = Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis),
 ):
     """
     Handle form-based login for OAuth authorization flows.
@@ -654,21 +673,68 @@ async def login_form(
     This endpoint:
     1. Authenticates the user with email/password
     2. Sets access_token cookie for subsequent requests
-    3. Redirects to the 'next' URL (typically OAuth authorize)
+    3. Redirects to the OAuth authorize endpoint (reconstructed from Redis) or 'next' URL
 
     This works without JavaScript, avoiding CSP issues with inline scripts.
 
-    SECURITY: The 'next' parameter is validated to prevent open redirect attacks (CWE-601).
-    Only redirects to trusted Janua ecosystem domains are allowed.
+    SECURITY: When auth_request_id is present, the OAuth parameters are retrieved from
+    Redis and the authorize URL is reconstructed fresh, avoiding double-encoding issues
+    with urlencode() that caused redirect loops. Falls back to the 'next' param for
+    non-OAuth logins.
     """
     import html
 
     from fastapi.responses import HTMLResponse, RedirectResponse
 
-    # SECURITY: Validate redirect URL to prevent open redirect attacks (CWE-601)
-    # This must be done BEFORE any authentication to ensure malicious URLs
-    # are rejected even on failed login attempts (to avoid leaking validation status)
-    safe_next = validate_redirect_url(next, default_url="/")
+    # Determine the redirect target: prefer Redis-backed auth request over 'next' URL
+    # This avoids the double-encoding bug where urlencode(redirect_uri) produced
+    # mangled query strings that caused infinite redirect loops.
+    safe_next = "/"
+    if auth_request_id:
+        # Retrieve stored OAuth parameters from Redis
+        stored_data = await redis.get(f"oauth:pre_login:{auth_request_id}")
+        if stored_data:
+            try:
+                auth_params = json.loads(stored_data)
+                # Reconstruct the authorize URL fresh from stored parameters
+                # Only include non-None parameters to avoid polluting the URL
+                query_params = {}
+                for key in [
+                    "response_type", "client_id", "redirect_uri", "scope",
+                    "state", "nonce", "code_challenge", "code_challenge_method",
+                ]:
+                    if auth_params.get(key) is not None:
+                        query_params[key] = auth_params[key]
+
+                safe_next = f"/api/v1/oauth/authorize?{urlencode(query_params)}"
+                logger.info(
+                    "Reconstructed OAuth authorize URL from Redis",
+                    auth_request_id=auth_request_id,
+                    client_id=auth_params.get("client_id"),
+                )
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.warning(
+                    "Failed to parse stored auth request, falling back to default",
+                    auth_request_id=auth_request_id,
+                    error=str(e),
+                )
+                safe_next = "/"
+        else:
+            logger.warning(
+                "Auth request not found in Redis (expired or invalid)",
+                auth_request_id=auth_request_id,
+            )
+            safe_next = "/"
+    else:
+        # Fallback: validate the 'next' URL for non-OAuth logins (CWE-601)
+        safe_next = validate_redirect_url(next, default_url="/")
+
+    # Build the hidden field for error page retries — preserve auth_request_id
+    # so the OAuth context survives failed login attempts
+    if auth_request_id:
+        error_hidden_field = f'<input type="hidden" name="auth_request_id" value="{html.escape(auth_request_id)}">'
+    else:
+        error_hidden_field = f'<input type="hidden" name="next" value="{html.escape(safe_next)}">'
 
     # Helper to return error page
     def make_error_page(error_message: str) -> HTMLResponse:
@@ -741,7 +807,7 @@ async def login_form(
         </div>
         <div class="error">{html.escape(error_message)}</div>
         <form method="POST" action="/api/v1/auth/login-form">
-            <input type="hidden" name="next" value="{html.escape(safe_next)}">
+            {error_hidden_field}
             <div class="form-group">
                 <label for="email">Email</label>
                 <input type="email" id="email" name="email" value="{html.escape(email)}" required autofocus>
@@ -802,8 +868,17 @@ async def login_form(
         db, user, ip_address=request.client.host, user_agent=request.headers.get("user-agent")
     )
 
+    # SECURITY: Delete the Redis key after successful login (single-use)
+    # This prevents replay attacks where a leaked auth_request_id could be reused
+    if auth_request_id:
+        try:
+            await redis.delete(f"oauth:pre_login:{auth_request_id}")
+        except Exception:
+            pass  # Best-effort cleanup; the key has a TTL anyway
+
     # SECURITY: Create redirect response with validated URL (CWE-601 mitigation)
-    # The safe_next URL was validated at the start of this function
+    # For OAuth flows, safe_next is the freshly-reconstructed authorize URL.
+    # For non-OAuth flows, safe_next was validated against the redirect allowlist.
     response = RedirectResponse(url=safe_next, status_code=302)
 
     # Build cookie kwargs — include domain for cross-subdomain SSO when configured

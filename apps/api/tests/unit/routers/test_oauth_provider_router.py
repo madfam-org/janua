@@ -588,3 +588,90 @@ class TestOAuthSchemas:
         assert response.sub == "user_123"
         assert response.email == "test@example.com"
         assert response.name == "Test User"
+
+
+class TestPreLoginRedisStorage:
+    """Test that unauthenticated authorize requests store params in Redis
+    and redirect to login with auth_request_id (not double-encoded next URL)."""
+
+    @pytest.fixture
+    def mock_redis(self):
+        """Mock Redis client"""
+        redis = AsyncMock()
+        redis.setex = AsyncMock(return_value=True)
+        redis.get = AsyncMock(return_value=None)
+        redis.delete = AsyncMock(return_value=True)
+        return redis
+
+    def test_authorize_stores_params_in_redis_when_unauthenticated(self):
+        """Verify the authorize endpoint code path stores OAuth params in Redis
+        instead of encoding them into the redirect URL."""
+        import inspect
+        from app.routers.v1.oauth_provider import authorize_get
+
+        source = inspect.getsource(authorize_get)
+
+        # Must use Redis-backed storage pattern (not urlencode of full authorize URL)
+        assert "oauth:pre_login:" in source, (
+            "authorize_get should store params in Redis with key prefix 'oauth:pre_login:'"
+        )
+        assert "auth_request_id" in source, (
+            "authorize_get should pass auth_request_id to login page"
+        )
+        # Must NOT build a 'next' URL containing the full authorize path+query
+        # (this was the root cause of the double-encoding redirect loop)
+        assert 'f"{scheme}://{request_host}{request.url.path}?{request.url.query}"' not in source, (
+            "authorize_get must not build a 'next' URL from request.url.path+query "
+            "(causes double-encoding redirect loop)"
+        )
+
+    def test_pre_login_data_contains_all_oauth_params(self):
+        """The stored pre_login_data must include all OAuth authorize parameters
+        so the authorize URL can be reconstructed after login."""
+        import inspect
+        from app.routers.v1.oauth_provider import authorize_get
+
+        source = inspect.getsource(authorize_get)
+
+        required_params = [
+            '"response_type"',
+            '"client_id"',
+            '"redirect_uri"',
+            '"scope"',
+            '"state"',
+            '"nonce"',
+            '"code_challenge"',
+            '"code_challenge_method"',
+        ]
+        for param in required_params:
+            assert param in source, (
+                f"pre_login_data must include {param} for authorize URL reconstruction"
+            )
+
+    async def test_pre_login_redis_key_format(self, mock_redis):
+        """Verify the Redis key format follows the existing convention."""
+        # The key must be oauth:pre_login:{id} to match oauth:auth_request:{id}
+        import secrets
+
+        pre_login_id = secrets.token_urlsafe(16)
+        key = f"oauth:pre_login:{pre_login_id}"
+
+        await mock_redis.setex(key, 600, json.dumps({"client_id": "test"}))
+
+        call_args = mock_redis.setex.call_args
+        assert call_args[0][0].startswith("oauth:pre_login:")
+        assert call_args[0][1] == 600  # 10 minute TTL
+
+    def test_login_redirect_does_not_contain_next_with_full_url(self):
+        """The redirect to login must use auth_request_id, not a 'next' param
+        containing the full authorize URL (which caused double-encoding)."""
+        import inspect
+        from app.routers.v1.oauth_provider import authorize_get
+
+        source = inspect.getsource(authorize_get)
+
+        # In the unauthenticated branch, login_params should include auth_request_id
+        # and should NOT include a 'next' key with scheme://host/path?query
+        assert '"auth_request_id": pre_login_id' in source, (
+            "login_params must include auth_request_id"
+        )

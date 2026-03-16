@@ -931,3 +931,155 @@ class TestSignInResilience:
         assert "try:" in source, "sign_in should wrap logging in try/except"
         assert "log_activity" in source
         assert "log_audit_event" in source
+
+
+# =============================================================================
+# Test OAuth Redirect Loop Fix (Redis-backed auth_request_id)
+# =============================================================================
+
+
+class TestLoginPageAuthRequestId:
+    """Test login_page accepts auth_request_id and passes it to the form."""
+
+    def test_login_page_accepts_auth_request_id_param(self):
+        """login_page must accept auth_request_id as an optional query param."""
+        import inspect
+        from app.routers.v1.auth import login_page
+
+        sig = inspect.signature(login_page)
+        assert "auth_request_id" in sig.parameters, (
+            "login_page must accept auth_request_id query param"
+        )
+        param = sig.parameters["auth_request_id"]
+        assert param.default is None, "auth_request_id should default to None"
+
+    def test_login_page_passes_auth_request_id_as_hidden_field(self):
+        """login_page must pass auth_request_id as a hidden form field."""
+        import inspect
+        from app.routers.v1.auth import login_page
+
+        source = inspect.getsource(login_page)
+        assert 'name="auth_request_id"' in source, (
+            "login_page must include auth_request_id as a hidden form field"
+        )
+
+    def test_login_page_does_not_include_next_when_auth_request_id_present(self):
+        """When auth_request_id is present, login_page should NOT include
+        a 'next' hidden field (to avoid double-encoding)."""
+        import inspect
+        from app.routers.v1.auth import login_page
+
+        source = inspect.getsource(login_page)
+        # The code should have conditional logic: if auth_request_id, use it; else use next
+        assert "if auth_request_id:" in source, (
+            "login_page must conditionally choose between auth_request_id and next"
+        )
+
+    def test_login_page_still_supports_next_param(self):
+        """login_page must retain backward compatibility with the 'next' param."""
+        import inspect
+        from app.routers.v1.auth import login_page
+
+        sig = inspect.signature(login_page)
+        assert "next" in sig.parameters, (
+            "login_page must still accept 'next' param for backward compatibility"
+        )
+
+
+class TestLoginFormAuthRequestId:
+    """Test login_form handles auth_request_id by retrieving params from Redis."""
+
+    def test_login_form_accepts_auth_request_id_param(self):
+        """login_form must accept auth_request_id as an optional form field."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        sig = inspect.signature(login_form)
+        assert "auth_request_id" in sig.parameters, (
+            "login_form must accept auth_request_id form field"
+        )
+
+    def test_login_form_accepts_redis_dependency(self):
+        """login_form must accept a Redis dependency for auth request retrieval."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        sig = inspect.signature(login_form)
+        assert "redis" in sig.parameters, (
+            "login_form must accept Redis dependency"
+        )
+
+    def test_login_form_retrieves_params_from_redis(self):
+        """login_form must retrieve OAuth params from Redis when auth_request_id is present."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        source = inspect.getsource(login_form)
+        assert "oauth:pre_login:" in source, (
+            "login_form must look up OAuth params in Redis using key prefix 'oauth:pre_login:'"
+        )
+
+    def test_login_form_reconstructs_authorize_url(self):
+        """login_form must reconstruct the OAuth authorize URL from stored params."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        source = inspect.getsource(login_form)
+        assert "/api/v1/oauth/authorize?" in source, (
+            "login_form must reconstruct the authorize URL path"
+        )
+        assert "urlencode" in source, (
+            "login_form must use urlencode to build the query string from stored params"
+        )
+
+    def test_login_form_deletes_redis_key_after_success(self):
+        """login_form must delete the Redis key after successful login (single-use)."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        source = inspect.getsource(login_form)
+        assert "redis.delete" in source, (
+            "login_form must delete the Redis key after successful authentication"
+        )
+
+    def test_login_form_falls_back_to_next_param(self):
+        """login_form must fall back to 'next' param when auth_request_id is absent."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        source = inspect.getsource(login_form)
+        assert "validate_redirect_url(next" in source, (
+            "login_form must fall back to validate_redirect_url(next) when no auth_request_id"
+        )
+
+    def test_login_form_handles_expired_auth_request(self):
+        """login_form must handle missing/expired Redis keys gracefully."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        source = inspect.getsource(login_form)
+        # When Redis returns None (expired key), should fall back to "/"
+        assert 'safe_next = "/"' in source, (
+            "login_form must fall back to '/' when auth request is expired or not found"
+        )
+
+    def test_login_form_preserves_auth_request_id_in_error_page(self):
+        """Error pages must preserve auth_request_id so retries work."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        source = inspect.getsource(login_form)
+        # The error page hidden field should use auth_request_id when available
+        assert "error_hidden_field" in source, (
+            "login_form must build conditional hidden field for error page retries"
+        )
+
+    def test_login_form_filters_none_params_from_url(self):
+        """The reconstructed authorize URL must not include None-valued params."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        source = inspect.getsource(login_form)
+        assert "is not None" in source, (
+            "login_form must filter out None values when reconstructing the authorize URL"
+        )
