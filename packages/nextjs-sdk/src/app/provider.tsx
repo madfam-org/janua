@@ -35,7 +35,22 @@ export function JanuaProvider({
   const [isLoading, setIsLoading] = useState(true);
 
   const updateAuthState = useCallback(async () => {
-    const currentUser = await client.auth.getCurrentUser();
+    let currentUser: User | null = null;
+
+    if (!config.skipRemoteAuth) {
+      currentUser = await client.auth.getCurrentUser();
+    } else {
+      // Derive user from localStorage token if available
+      const token = typeof window !== 'undefined'
+        ? localStorage.getItem('janua_access_token') : null;
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+          currentUser = { id: payload.sub, email: payload.email } as User;
+        } catch { /* invalid token */ }
+      }
+    }
+
     const currentSession = {
       accessToken: await client.getAccessToken(),
       refreshToken: await client.getRefreshToken()
@@ -48,7 +63,7 @@ export function JanuaProvider({
     if (onAuthChange) {
       onAuthChange(currentUser);
     }
-  }, [client, onAuthChange]);
+  }, [client, config, onAuthChange]);
 
   const updateUser = useCallback(async () => {
     try {
@@ -110,6 +125,7 @@ export function JanuaProvider({
 
     // Set up auth state polling (60 second interval)
     const checkInterval = setInterval(async () => {
+      if (config.skipRemoteAuth) return; // Skip remote polling when auth is server-managed
       try {
         const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('janua_access_token');
         if (!hasToken) return;
