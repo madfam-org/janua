@@ -43,7 +43,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             f"connect-src 'self' https://{self.api_host} https://cloudflareinsights.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",
-            f"form-action 'self' https://{self.api_host}",
+            "form-action 'self'",
             "upgrade-insecure-requests",
         ]
 

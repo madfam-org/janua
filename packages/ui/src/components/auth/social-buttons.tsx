@@ -43,7 +43,7 @@ const providerConfig: Record<SocialProvider, {
   },
   janua: {
     icon: JanuaIcon,
-    label: 'Sign in with Janua',
+    label: 'Enterprise SSO',
     className: 'bg-[hsl(221,83%,53%)] hover:bg-[hsl(221,83%,48%)] text-white border-transparent',
   },
 }
@@ -97,5 +97,5 @@ export function AppleButton(props: Omit<SocialButtonProps, 'provider'>) {
 }
 
 export function JanuaSSOButton(props: Omit<SocialButtonProps, 'provider'>) {
-  return <SocialButton provider="janua" label="Sign in with Janua" {...props} />
+  return <SocialButton provider="janua" label="Enterprise SSO" {...props} />
 }

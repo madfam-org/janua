@@ -71,7 +71,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Check for authentication token and user info
-  const token = request.cookies.get('janua_token')?.value
+  const token = request.cookies.get('janua_access_token')?.value
   const userEmail = request.cookies.get('janua_admin_email')?.value
   const userRoles = request.cookies.get('janua_admin_roles')?.value
 
@@ -133,11 +133,11 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     // Strict Content Security Policy
     'Content-Security-Policy': [
       "default-src 'self'",
-      `script-src 'self'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} 'unsafe-inline'`,
+      `script-src 'self'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} 'unsafe-inline' https://static.cloudflareinsights.com`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",
       "img-src 'self' data: https:",
-      `connect-src 'self' ${process.env.NEXT_PUBLIC_JANUA_API_URL || 'https://api.janua.dev'}`,
+      `connect-src 'self' ${process.env.NEXT_PUBLIC_JANUA_API_URL || 'https://api.janua.dev'} https://cloudflareinsights.com`,
       "frame-ancestors 'none'",
     ].join('; '),
 

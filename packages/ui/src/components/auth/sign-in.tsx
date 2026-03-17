@@ -66,6 +66,12 @@ export interface SignInProps {
   headerDescription?: string
   /** Configurable forgot password URL */
   forgotPasswordUrl?: string
+  /** Terms of Service URL */
+  termsUrl?: string
+  /** Privacy Policy URL */
+  privacyUrl?: string
+  /** Show email/password form (default true). Set false for SSO-only configs */
+  showEmailPassword?: boolean
 }
 
 export function SignIn({
@@ -95,6 +101,9 @@ export function SignIn({
   headerText = 'Sign in to your account',
   headerDescription = 'Welcome back! Please enter your details',
   forgotPasswordUrl = '/forgot-password',
+  termsUrl = '/terms',
+  privacyUrl = '/privacy',
+  showEmailPassword = true,
 }: SignInProps) {
   const [email, setEmail] = React.useState('')
   const [password, setPassword] = React.useState('')
@@ -242,12 +251,12 @@ export function SignIn({
               />
             ))}
           </div>
-          <AuthDivider label="Or continue with email" />
+          {showEmailPassword && <AuthDivider label="Or continue with email" />}
         </>
       )}
 
       {/* Email/Password Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
+      {showEmailPassword && <form onSubmit={handleSubmit} className="space-y-4">
         {/* Error Message */}
         {error && (
           <div
@@ -350,7 +359,25 @@ export function SignIn({
             </button>
           </div>
         )}
-      </form>
+      </form>}
+
+      {/* Legal Links */}
+      <p className="text-center text-xs text-muted-foreground mt-6">
+        By continuing, you agree to the{' '}
+        <a href={termsUrl} className="underline hover:text-foreground" target="_blank" rel="noopener noreferrer">
+          Terms of Service
+        </a>{' '}
+        and{' '}
+        <a href={privacyUrl} className="underline hover:text-foreground" target="_blank" rel="noopener noreferrer">
+          Privacy Policy
+        </a>
+        .
+      </p>
+
+      {/* Powered by Janua */}
+      <p className="text-center text-xs text-muted-foreground mt-3 opacity-60">
+        Powered by Janua
+      </p>
     </AuthCard>
   )
 }
