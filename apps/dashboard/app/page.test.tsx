@@ -58,7 +58,7 @@ describe('DashboardPage', () => {
     // Mock cookie and localStorage
     Object.defineProperty(document, 'cookie', {
       writable: true,
-      value: 'janua_token=test-token',
+      value: 'janua_access_token=test-token',
     })
     Storage.prototype.getItem = jest.fn(() =>
       JSON.stringify({ name: 'Test User', email: 'test@example.com' })

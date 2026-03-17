@@ -395,10 +395,70 @@ describe('SignIn', () => {
       expect(screen.getByText(/email me a sign-in link/i)).toBeInTheDocument()
     })
 
-    it('should render Janua SSO button when enabled', () => {
+    it('should render Enterprise SSO button when enableJanuaSSO is true', () => {
       render(<SignIn enableJanuaSSO={true} />)
 
-      expect(screen.getByRole('button', { name: /janua/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /enterprise sso/i })).toBeInTheDocument()
+    })
+  })
+
+  describe('Legal Links and Footer', () => {
+    it('should render terms and privacy links with default URLs', () => {
+      render(<SignIn />)
+
+      const termsLink = screen.getByRole('link', { name: /terms of service/i })
+      const privacyLink = screen.getByRole('link', { name: /privacy policy/i })
+
+      expect(termsLink).toHaveAttribute('href', '/terms')
+      expect(privacyLink).toHaveAttribute('href', '/privacy')
+    })
+
+    it('should render custom terms and privacy URLs', () => {
+      render(<SignIn termsUrl="https://example.com/terms" privacyUrl="https://example.com/privacy" />)
+
+      const termsLink = screen.getByRole('link', { name: /terms of service/i })
+      const privacyLink = screen.getByRole('link', { name: /privacy policy/i })
+
+      expect(termsLink).toHaveAttribute('href', 'https://example.com/terms')
+      expect(privacyLink).toHaveAttribute('href', 'https://example.com/privacy')
+    })
+
+    it('should render "Powered by Janua" footer', () => {
+      render(<SignIn />)
+
+      expect(screen.getByText(/powered by janua/i)).toBeInTheDocument()
+    })
+  })
+
+  describe('showEmailPassword prop', () => {
+    it('should show email/password form by default', () => {
+      render(<SignIn />)
+
+      expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument()
+      expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
+    })
+
+    it('should hide email/password form when showEmailPassword is false', () => {
+      render(<SignIn showEmailPassword={false} enableJanuaSSO={true} />)
+
+      expect(screen.queryByRole('textbox', { name: /email/i })).not.toBeInTheDocument()
+      expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument()
+      // SSO button should still be visible
+      expect(screen.getByRole('button', { name: /enterprise sso/i })).toBeInTheDocument()
+    })
+
+    it('should still render legal links when email/password is hidden', () => {
+      render(<SignIn showEmailPassword={false} enableJanuaSSO={true} />)
+
+      expect(screen.getByRole('link', { name: /terms of service/i })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /privacy policy/i })).toBeInTheDocument()
+    })
+
+    it('should not render divider when email/password is hidden', () => {
+      render(<SignIn showEmailPassword={false} socialProviders={{ google: true }} />)
+
+      expect(screen.queryByText(/or continue with email/i)).not.toBeInTheDocument()
     })
   })
 

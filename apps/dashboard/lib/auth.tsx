@@ -17,7 +17,7 @@ import {
 import { januaClient } from './janua-client'
 import type { User } from '@janua/typescript-sdk'
 
-const COOKIE_NAME = 'janua_token'
+const COOKIE_NAME = 'janua_access_token'
 
 /**
  * Syncs the access token to a cookie for Next.js middleware route protection

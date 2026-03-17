@@ -13,7 +13,7 @@ const STORAGE_KEYS = {
   REFRESH_TOKEN: 'janua_refresh_token',
   TOKEN_EXPIRES_AT: 'janua_token_expires_at',
   USER: 'janua_user',
-  COOKIE: 'janua_token',
+  COOKIE: 'janua_access_token',
 } as const
 
 /**

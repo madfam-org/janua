@@ -43,7 +43,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Get token from cookie
-  const token = request.cookies.get('janua_token')?.value
+  const token = request.cookies.get('janua_access_token')?.value
   const hasValidToken = isValidTokenStructure(token)
 
   // If user is authenticated and trying to access login page, redirect to home
@@ -61,7 +61,7 @@ export function middleware(request: NextRequest) {
   if (!hasValidToken) {
     // Clear the invalid cookie
     const response = NextResponse.redirect(new URL('/login', request.url))
-    response.cookies.set('janua_token', '', {
+    response.cookies.set('janua_access_token', '', {
       path: '/',
       expires: new Date(0),
     })
