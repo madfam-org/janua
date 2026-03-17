@@ -79,8 +79,14 @@ export default function LoginPage() {
           januaClient={januaClient}
           afterSignIn={handleAfterSignIn}
           onError={(error) => console.error('Login error:', error)}
-          socialProviders={{ google: false, github: false, microsoft: false, apple: false }}
+          socialProviders={{}}
+          enableJanuaSSO={true}
+          showEmailPassword={false}
           showRememberMe={false}
+          headerText="Sign in"
+          headerDescription="Platform operator access only"
+          termsUrl="https://madfam.io/terms"
+          privacyUrl="https://madfam.io/privacy"
         />
 
         <p className="text-muted-foreground mt-4 text-center text-xs">

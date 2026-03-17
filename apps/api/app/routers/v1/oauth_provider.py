@@ -661,6 +661,9 @@ async def authorize_get(
         .scope-text h4 {{ font-size: 14px; font-weight: 500; color: #333; }}
         .scope-text p {{ font-size: 12px; color: #666; margin-top: 2px; }}
         .user-info {{ font-size: 12px; color: #888; margin-bottom: 20px; text-align: center; }}
+        .legal-links {{ text-align: center; margin-bottom: 20px; font-size: 11px; color: #888; }}
+        .legal-links a {{ color: #667eea; text-decoration: none; }}
+        .legal-links a:hover {{ text-decoration: underline; }}
         .buttons {{ display: flex; gap: 12px; }}
         button {{
             flex: 1;
@@ -701,6 +704,13 @@ async def authorize_get(
 
         <div class="user-info">
             Signed in as <strong>{escaped_user_email}</strong>
+        </div>
+
+        <div class="legal-links">
+            By allowing, you agree to the
+            <a href="https://madfam.io/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
+            and
+            <a href="https://madfam.io/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
         </div>
 
         <form method="POST" action="/api/v1/oauth/consent">

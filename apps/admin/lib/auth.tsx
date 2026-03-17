@@ -97,11 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Get access token from localStorage (where SDK stores it)
       const accessToken = localStorage.getItem('janua_access_token') || ''
-      document.cookie = `janua_token=${accessToken}; path=/; max-age=86400; SameSite=Strict`
+      document.cookie = `janua_access_token=${accessToken}; path=/; max-age=86400; SameSite=Strict`
       document.cookie = `janua_admin_email=${userData.email}; path=/; max-age=86400; SameSite=Strict`
       document.cookie = `janua_admin_roles=${roles}; path=/; max-age=86400; SameSite=Strict`
     } else {
-      document.cookie = 'janua_token=; Max-Age=0; path=/'
+      document.cookie = 'janua_access_token=; Max-Age=0; path=/'
       document.cookie = 'janua_admin_email=; Max-Age=0; path=/'
       document.cookie = 'janua_admin_roles=; Max-Age=0; path=/'
     }
@@ -111,9 +111,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkSession = useCallback(async (): Promise<boolean> => {
     try {
       // First, check if we have the SSO cookie from dashboard login
-      const ssoToken = getCookie('janua_token')
+      const ssoToken = getCookie('janua_access_token')
       if (!ssoToken) {
-        console.log('[SSO] No janua_token cookie found')
+        console.log('[SSO] No janua_access_token cookie found')
         return false
       }
 

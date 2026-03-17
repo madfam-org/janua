@@ -19,11 +19,11 @@ const nextConfig = {
 
     const cspDirectives = [
       "default-src 'self'",
-      `script-src 'self'${isDev ? " 'unsafe-eval'" : ""} 'unsafe-inline'`,
+      `script-src 'self'${isDev ? " 'unsafe-eval'" : ""} 'unsafe-inline' https://static.cloudflareinsights.com`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",
       "img-src 'self' data: https:",
-      `connect-src 'self' ${apiUrl}${isDev ? ' ws://localhost:*' : ''}`,
+      `connect-src 'self' ${apiUrl} https://cloudflareinsights.com${isDev ? ' ws://localhost:*' : ''}`,
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
