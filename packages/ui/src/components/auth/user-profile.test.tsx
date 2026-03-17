@@ -341,7 +341,9 @@ describe('UserProfile', () => {
       await user.click(accountTab)
 
       expect(screen.getByText(mockUser.id)).toBeInTheDocument()
-      expect(screen.getByText('1/1/2024')).toBeInTheDocument()
+      // Date format is locale-dependent; verify the account info section renders
+      const dateStr = new Date('2024-01-01').toLocaleDateString()
+      expect(screen.getByText(dateStr)).toBeInTheDocument()
     })
 
     it('should show delete account section when enabled', async () => {

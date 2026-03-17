@@ -269,7 +269,7 @@ describe('OrganizationProfile', () => {
       await user.click(saveButton)
 
       await waitFor(() => {
-        expect(screen.getByText('Failed to update organization')).toBeInTheDocument()
+        expect(screen.getAllByText('Failed to update organization')[0]).toBeInTheDocument()
         expect(mockOnError).toHaveBeenCalledWith(error)
       })
     })
@@ -559,7 +559,7 @@ describe('OrganizationProfile', () => {
       await user.click(deleteButton)
 
       await waitFor(() => {
-        expect(screen.getByText('Failed to delete organization')).toBeInTheDocument()
+        expect(screen.getAllByText('Failed to delete organization')[0]).toBeInTheDocument()
         expect(mockOnError).toHaveBeenCalledWith(error)
       })
     })

@@ -19,7 +19,7 @@ describe('SignUp', () => {
       expect(screen.getByLabelText(/first name/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/last name/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
       expect(screen.getByRole('checkbox', { name: /terms/i })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument()
     })
@@ -44,14 +44,14 @@ describe('SignUp', () => {
       const _user = userEvent.setup()
       render(<SignUp showPasswordStrength={true} />)
 
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       expect(passwordInput).toBeInTheDocument()
     })
 
     it('should not render password strength meter when disabled', () => {
       render(<SignUp showPasswordStrength={false} />)
 
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       expect(passwordInput).toBeInTheDocument()
     })
   })
@@ -139,7 +139,7 @@ describe('SignUp', () => {
       const _user = userEvent.setup()
       render(<SignUp />)
 
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
 
       expect(passwordInput).toHaveAttribute('required')
     })
@@ -188,7 +188,7 @@ describe('SignUp', () => {
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const termsCheckbox = screen.getByRole('checkbox', { name: /terms/i })
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
@@ -199,9 +199,9 @@ describe('SignUp', () => {
       await user.click(termsCheckbox)
       await user.click(submitButton)
 
-      // Client-side validation catches weak password before API call
+      // API returns weak password error
       await waitFor(() => {
-        expect(screen.getByText(/password/i)).toBeInTheDocument()
+        expect(screen.getByText(/password too weak/i)).toBeInTheDocument()
       })
     })
   })
@@ -211,7 +211,7 @@ describe('SignUp', () => {
       const user = userEvent.setup()
       render(<SignUp showPasswordStrength={true} />)
 
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       await user.type(passwordInput, 'weak')
 
       await waitFor(() => {
@@ -223,7 +223,7 @@ describe('SignUp', () => {
       const user = userEvent.setup()
       render(<SignUp showPasswordStrength={true} />)
 
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       await user.type(passwordInput, 'Medium123')
 
       await waitFor(() => {
@@ -235,7 +235,7 @@ describe('SignUp', () => {
       const user = userEvent.setup()
       render(<SignUp showPasswordStrength={true} />)
 
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       await user.type(passwordInput, 'VeryStrongPassword123!')
 
       await waitFor(() => {
@@ -247,7 +247,7 @@ describe('SignUp', () => {
       const user = userEvent.setup()
       render(<SignUp showPasswordStrength={true} />)
 
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       await user.type(passwordInput, 'test')
 
       await waitFor(() => {
@@ -271,7 +271,7 @@ describe('SignUp', () => {
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const termsCheckbox = screen.getByRole('checkbox', { name: /terms/i })
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
@@ -319,7 +319,7 @@ describe('SignUp', () => {
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const termsCheckbox = screen.getByRole('checkbox', { name: /terms/i })
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
@@ -352,7 +352,7 @@ describe('SignUp', () => {
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const termsCheckbox = screen.getByRole('checkbox', { name: /terms/i })
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
@@ -381,7 +381,7 @@ describe('SignUp', () => {
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const termsCheckbox = screen.getByRole('checkbox', { name: /terms/i })
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
@@ -416,7 +416,7 @@ describe('SignUp', () => {
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const termsCheckbox = screen.getByRole('checkbox', { name: /terms/i })
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
@@ -449,7 +449,7 @@ describe('SignUp', () => {
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const termsCheckbox = screen.getByRole('checkbox', { name: /terms/i })
       const submitButton = screen.getByRole('button', { name: /create account/i })
 
@@ -472,7 +472,7 @@ describe('SignUp', () => {
       const user = userEvent.setup()
       render(<SignUp />)
 
-      const passwordInput = screen.getByLabelText(/password/i) as HTMLInputElement
+      const passwordInput = screen.getByLabelText('Password') as HTMLInputElement
       // PasswordInput component has aria-labeled toggle button
       const toggleButton = screen.getByRole('button', { name: /show password/i })
 
@@ -494,7 +494,7 @@ describe('SignUp', () => {
       expect(screen.getByLabelText(/first name/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/last name/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
     })
 
     it('should have proper autocomplete attributes', () => {
@@ -503,7 +503,7 @@ describe('SignUp', () => {
       expect(screen.getByLabelText(/first name/i)).toHaveAttribute('autocomplete', 'given-name')
       expect(screen.getByLabelText(/last name/i)).toHaveAttribute('autocomplete', 'family-name')
       expect(screen.getByLabelText(/email/i)).toHaveAttribute('autocomplete', 'email')
-      expect(screen.getByLabelText(/password/i)).toHaveAttribute('autocomplete', 'new-password')
+      expect(screen.getByLabelText('Password')).toHaveAttribute('autocomplete', 'new-password')
     })
 
     it('should support keyboard navigation', async () => {
@@ -523,7 +523,7 @@ describe('SignUp', () => {
       expect(screen.getByLabelText(/email/i)).toHaveFocus()
 
       await user.tab()
-      expect(screen.getByLabelText(/password/i)).toHaveFocus()
+      expect(screen.getByLabelText('Password')).toHaveFocus()
     })
 
     it('should render terms and privacy links', () => {

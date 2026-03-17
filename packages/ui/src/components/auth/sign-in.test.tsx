@@ -17,7 +17,7 @@ describe('SignIn', () => {
       render(<SignIn />)
 
       expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument()
-      expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
     })
 
@@ -137,7 +137,7 @@ describe('SignIn', () => {
       const emailInput = screen.getByRole('textbox', { name: /email/i })
       await user.type(emailInput, 'test@example.com')
 
-      const passwordInput = screen.getByLabelText(/password/i) as HTMLInputElement
+      const passwordInput = screen.getByLabelText('Password') as HTMLInputElement
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
       // HTML5 validation - password is required
@@ -161,7 +161,7 @@ describe('SignIn', () => {
       render(<SignIn afterSignIn={mockAfterSignIn} />)
 
       const emailInput = screen.getByRole('textbox', { name: /email/i })
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
       await user.type(emailInput, 'test@example.com')
@@ -197,7 +197,7 @@ describe('SignIn', () => {
       render(<SignIn showRememberMe={true} />)
 
       const emailInput = screen.getByRole('textbox', { name: /email/i })
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const rememberCheckbox = screen.getByRole('checkbox', { name: /remember me/i })
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
@@ -227,7 +227,7 @@ describe('SignIn', () => {
       render(<SignIn onError={mockOnError} />)
 
       const emailInput = screen.getByRole('textbox', { name: /email/i })
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
       await user.type(emailInput, 'test@example.com')
@@ -255,7 +255,7 @@ describe('SignIn', () => {
       render(<SignIn redirectUrl="/dashboard" />)
 
       const emailInput = screen.getByRole('textbox', { name: /email/i })
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
       await user.type(emailInput, 'test@example.com')
@@ -280,7 +280,7 @@ describe('SignIn', () => {
       render(<SignIn onMFARequired={mockOnMFARequired} />)
 
       const emailInput = screen.getByRole('textbox', { name: /email/i })
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
       await user.type(emailInput, 'test@example.com')
@@ -308,7 +308,7 @@ describe('SignIn', () => {
       render(<SignIn />)
 
       const emailInput = screen.getByRole('textbox', { name: /email/i })
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
       await user.type(emailInput, 'test@example.com')
@@ -336,7 +336,7 @@ describe('SignIn', () => {
       render(<SignIn />)
 
       const emailInput = screen.getByRole('textbox', { name: /email/i })
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
       await user.type(emailInput, 'test@example.com')
@@ -353,7 +353,7 @@ describe('SignIn', () => {
       const user = userEvent.setup()
       render(<SignIn />)
 
-      const passwordInput = screen.getByLabelText(/password/i) as HTMLInputElement
+      const passwordInput = screen.getByLabelText('Password') as HTMLInputElement
       // PasswordInput component has an aria-labeled toggle button
       const toggleButton = screen.getByRole('button', { name: /show password/i })
 
@@ -435,7 +435,7 @@ describe('SignIn', () => {
       render(<SignIn />)
 
       expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument()
-      expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
     })
 
@@ -443,7 +443,7 @@ describe('SignIn', () => {
       render(<SignIn showEmailPassword={false} enableJanuaSSO={true} />)
 
       expect(screen.queryByRole('textbox', { name: /email/i })).not.toBeInTheDocument()
-      expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
       // SSO button should still be visible
       expect(screen.getByRole('button', { name: /enterprise sso/i })).toBeInTheDocument()
     })
@@ -491,7 +491,7 @@ describe('SignIn', () => {
       render(<SignIn />)
 
       expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
     })
 
     it('should have proper ARIA attributes on error', async () => {
@@ -505,7 +505,7 @@ describe('SignIn', () => {
       render(<SignIn />)
 
       const emailInput = screen.getByRole('textbox', { name: /email/i })
-      const passwordInput = screen.getByLabelText(/password/i)
+      const passwordInput = screen.getByLabelText('Password')
       const submitButton = screen.getByRole('button', { name: /sign in/i })
 
       await user.type(emailInput, 'test@example.com')
@@ -529,7 +529,7 @@ describe('SignIn', () => {
       expect(emailInput).toHaveFocus()
 
       await user.tab()
-      expect(screen.getByLabelText(/password/i)).toHaveFocus()
+      expect(screen.getByLabelText('Password')).toHaveFocus()
     })
   })
 })
