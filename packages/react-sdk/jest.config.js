@@ -19,6 +19,7 @@ module.exports = {
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^@janua/ui/(.*)$': '<rootDir>/src/__mocks__/janua-ui.ts',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
   },
   setupFilesAfterEnv: ['<rootDir>/src/jest-setup.ts'],

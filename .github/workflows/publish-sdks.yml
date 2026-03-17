@@ -81,7 +81,7 @@ jobs:
         run: |
           cd packages/${{ steps.extract.outputs.sdk_name }}
           if jq -e '.scripts.test' package.json > /dev/null 2>&1; then
-            pnpm test || true
+            pnpm test
           else
             echo "No test script found, skipping tests"
           fi

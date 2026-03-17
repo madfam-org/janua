@@ -53,7 +53,7 @@ jobs:
       - name: Run tests
         run: |
           cd packages/${{ matrix.sdk }}
-          pnpm test || true
+          pnpm test
 
       - name: Run linter
         run: |

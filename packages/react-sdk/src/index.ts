@@ -109,5 +109,5 @@ export {
 } from './utils';
 
 // Version
-export const SDK_VERSION = '0.1.1';
+export const SDK_VERSION = '0.1.3';
 export const SDK_NAME = '@janua/react-sdk';
