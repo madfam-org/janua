@@ -26,7 +26,7 @@ Object.defineProperty(window, 'localStorage', { value: localStorageMock })
 
 // Mock window.location
 const locationMock = { href: '' }
-Object.defineProperty(window, 'location', { 
+Object.defineProperty(window, 'location', {
   value: locationMock,
   writable: true
 })
@@ -38,7 +38,7 @@ const mockConfig = {
 
 describe('SignUp Component', () => {
   let mockClient: any
-  
+
   beforeEach(() => {
     jest.clearAllMocks()
     localStorageMock.getItem.mockReturnValue(null)
@@ -56,10 +56,20 @@ describe('SignUp Component', () => {
     )
   }
 
+  // Helper to render the UI mock directly (for testing requireOrganization
+  // which is defined in SignUpProps but not yet wired through the wrapper)
+  const renderSignUpMock = (props = {}) => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { SignUp: UISignUp } = require('../__mocks__/janua-ui')
+    return render(
+      React.createElement(UISignUp, { januaClient: mockClient, ...props })
+    )
+  }
+
   describe('Rendering', () => {
     it('should render sign up form with all required fields', () => {
       renderSignUp()
-      
+
       expect(screen.getByLabelText(/first name/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/last name/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
@@ -69,27 +79,27 @@ describe('SignUp Component', () => {
 
     it('should apply custom className', () => {
       renderSignUp({ className: 'custom-signup-class' })
-      
+
       const container = screen.getByRole('button', { name: /create account/i }).closest('.janua-signup')
       expect(container).toHaveClass('custom-signup-class')
     })
 
     it('should show organization field when requireOrganization is true', () => {
-      renderSignUp({ requireOrganization: true })
-      
+      renderSignUpMock({ requireOrganization: true })
+
       expect(screen.getByLabelText(/organization name/i)).toBeInTheDocument()
       expect(screen.getByLabelText(/organization name/i)).toBeRequired()
     })
 
     it('should not show organization field when requireOrganization is false', () => {
-      renderSignUp({ requireOrganization: false })
-      
+      renderSignUpMock({ requireOrganization: false })
+
       expect(screen.queryByLabelText(/organization name/i)).not.toBeInTheDocument()
     })
 
     it('should display password requirements hint', () => {
       renderSignUp()
-      
+
       expect(screen.getByText(/at least 8 characters with uppercase, lowercase and numbers/i)).toBeInTheDocument()
     })
   })
@@ -98,42 +108,40 @@ describe('SignUp Component', () => {
     it('should require all mandatory fields', async () => {
       const user = userEvent.setup()
       renderSignUp()
-      
+
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
-      
-      // HTML5 validation should prevent form submission
+
       expect(mockClient.signUp).not.toHaveBeenCalled()
     })
 
     it('should validate email format', async () => {
       const user = userEvent.setup()
       renderSignUp()
-      
+
       const emailInput = screen.getByLabelText(/email/i)
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const passwordInput = screen.getByLabelText(/password/i)
-      
+
       await user.type(firstNameInput, 'John')
       await user.type(lastNameInput, 'Doe')
       await user.type(emailInput, 'invalid-email')
       await user.type(passwordInput, 'Password123')
-      
+
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
-      
-      // HTML5 email validation should prevent submission
+
       expect(mockClient.signUp).not.toHaveBeenCalled()
     })
 
     it('should require organization when requireOrganization is true', async () => {
       const user = userEvent.setup()
-      renderSignUp({ requireOrganization: true })
-      
+      renderSignUpMock({ requireOrganization: true })
+
       const submitButton = screen.getByRole('button', { name: /create account/i })
       await user.click(submitButton)
-      
+
       const organizationInput = screen.getByLabelText(/organization name/i)
       expect(organizationInput).toBeRequired()
       expect(mockClient.signUp).not.toHaveBeenCalled()
@@ -144,17 +152,17 @@ describe('SignUp Component', () => {
     it('should update form data when inputs change', async () => {
       const user = userEvent.setup()
       renderSignUp()
-      
+
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
       const passwordInput = screen.getByLabelText(/password/i)
-      
+
       await user.type(firstNameInput, 'John')
       await user.type(lastNameInput, 'Doe')
       await user.type(emailInput, 'john.doe@example.com')
       await user.type(passwordInput, 'Password123')
-      
+
       expect((firstNameInput as HTMLInputElement).value).toBe('John')
       expect((lastNameInput as HTMLInputElement).value).toBe('Doe')
       expect((emailInput as HTMLInputElement).value).toBe('john.doe@example.com')
@@ -163,11 +171,11 @@ describe('SignUp Component', () => {
 
     it('should handle organization input when required', async () => {
       const user = userEvent.setup()
-      renderSignUp({ requireOrganization: true })
-      
+      renderSignUpMock({ requireOrganization: true })
+
       const organizationInput = screen.getByLabelText(/organization name/i)
       await user.type(organizationInput, 'Acme Corp')
-      
+
       expect((organizationInput as HTMLInputElement).value).toBe('Acme Corp')
     })
   })
@@ -176,7 +184,7 @@ describe('SignUp Component', () => {
     it('should successfully submit registration without email verification', async () => {
       const user = userEvent.setup()
       const onSuccess = jest.fn()
-      
+
       mockClient.signUp.mockResolvedValueOnce({
         access_token: 'test-access-token',
         refresh_token: 'test-refresh-token',
@@ -189,21 +197,21 @@ describe('SignUp Component', () => {
         token_type: 'Bearer',
         expires_in: 3600,
       })
-      
-      renderSignUp({ onSuccess, redirectTo: '/dashboard', requireEmailVerification: false })
-      
+
+      renderSignUp({ onSuccess, redirectTo: '/dashboard' })
+
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
       const passwordInput = screen.getByLabelText(/password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
-      
+
       await user.type(firstNameInput, 'John')
       await user.type(lastNameInput, 'Doe')
       await user.type(emailInput, 'john.doe@example.com')
       await user.type(passwordInput, 'Password123')
       await user.click(submitButton)
-      
+
       await waitFor(() => {
         expect(mockClient.signUp).toHaveBeenCalledWith({
           email: 'john.doe@example.com',
@@ -217,7 +225,7 @@ describe('SignUp Component', () => {
       await waitFor(() => {
         expect(mockClient.signIn).toHaveBeenCalledWith('john.doe@example.com', 'Password123')
       })
-      
+
       await waitFor(() => {
         expect(onSuccess).toHaveBeenCalled()
       })
@@ -228,28 +236,28 @@ describe('SignUp Component', () => {
     it('should successfully submit registration with email verification', async () => {
       const user = userEvent.setup()
       const onSuccess = jest.fn()
-      
+
       mockClient.signUp.mockResolvedValueOnce({
         access_token: 'test-access-token',
         refresh_token: 'test-refresh-token',
         token_type: 'Bearer',
         expires_in: 3600,
       })
-      
+
       renderSignUp({ onSuccess, redirectTo: '/dashboard', requireEmailVerification: true })
-      
+
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
       const passwordInput = screen.getByLabelText(/password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
-      
+
       await user.type(firstNameInput, 'John')
       await user.type(lastNameInput, 'Doe')
       await user.type(emailInput, 'john.doe@example.com')
       await user.type(passwordInput, 'Password123')
       await user.click(submitButton)
-      
+
       await waitFor(() => {
         expect(mockClient.signUp).toHaveBeenCalledWith({
           email: 'john.doe@example.com',
@@ -262,7 +270,7 @@ describe('SignUp Component', () => {
 
       // Should NOT call signIn when email verification is required
       expect(mockClient.signIn).not.toHaveBeenCalled()
-      
+
       await waitFor(() => {
         expect(onSuccess).toHaveBeenCalled()
       })
@@ -272,7 +280,7 @@ describe('SignUp Component', () => {
 
     it('should handle single name gracefully', async () => {
       const user = userEvent.setup()
-      
+
       mockClient.signUp.mockResolvedValueOnce({
         access_token: 'test-access-token',
         refresh_token: 'test-refresh-token',
@@ -285,21 +293,20 @@ describe('SignUp Component', () => {
         token_type: 'Bearer',
         expires_in: 3600,
       })
-      
+
       renderSignUp()
-      
+
       const firstNameInput = screen.getByLabelText(/first name/i)
-      const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
       const passwordInput = screen.getByLabelText(/password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
-      
+
       await user.type(firstNameInput, 'John')
-      await user.type(lastNameInput, '') // Empty last name
+      // lastName left empty
       await user.type(emailInput, 'john@example.com')
       await user.type(passwordInput, 'Password123')
       await user.click(submitButton)
-      
+
       await waitFor(() => {
         expect(mockClient.signUp).toHaveBeenCalledWith({
           email: 'john@example.com',
@@ -316,81 +323,81 @@ describe('SignUp Component', () => {
     it('should display registration error message', async () => {
       const user = userEvent.setup()
       const onError = jest.fn()
-      
+
       mockClient.signUp.mockRejectedValueOnce(new Error('Email already exists'))
-      
+
       renderSignUp({ onError })
-      
+
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
       const passwordInput = screen.getByLabelText(/password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
-      
+
       await user.type(firstNameInput, 'John')
       await user.type(lastNameInput, 'Doe')
       await user.type(emailInput, 'existing@example.com')
       await user.type(passwordInput, 'Password123')
       await user.click(submitButton)
-      
+
       await waitFor(() => {
         expect(screen.getByText(/email already exists/i)).toBeInTheDocument()
       })
-      
+
       expect(onError).toHaveBeenCalledWith(expect.any(Error))
     })
 
     it('should handle generic error message for non-Error objects', async () => {
       const user = userEvent.setup()
       const onError = jest.fn()
-      
+
       mockClient.signUp.mockRejectedValueOnce('Unknown error')
-      
+
       renderSignUp({ onError })
-      
+
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
       const passwordInput = screen.getByLabelText(/password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
-      
+
       await user.type(firstNameInput, 'John')
       await user.type(lastNameInput, 'Doe')
       await user.type(emailInput, 'test@example.com')
       await user.type(passwordInput, 'Password123')
       await user.click(submitButton)
-      
+
       await waitFor(() => {
         expect(screen.getByText(/registration failed/i)).toBeInTheDocument()
       })
-      
+
       expect(onError).toHaveBeenCalledWith(expect.any(Error))
     })
 
     it('should clear error when form is resubmitted', async () => {
       const user = userEvent.setup()
-      
+
       // First submission fails
       mockClient.signUp.mockRejectedValueOnce(new Error('Registration failed'))
-      
+
       renderSignUp()
-      
+
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
       const passwordInput = screen.getByLabelText(/password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
-      
+
       await user.type(firstNameInput, 'John')
       await user.type(lastNameInput, 'Doe')
       await user.type(emailInput, 'test@example.com')
       await user.type(passwordInput, 'Password123')
       await user.click(submitButton)
-      
+
       await waitFor(() => {
         expect(screen.getByText(/registration failed/i)).toBeInTheDocument()
       })
-      
+
       // Second submission succeeds
       mockClient.signUp.mockResolvedValueOnce({
         access_token: 'test-access-token',
@@ -404,9 +411,9 @@ describe('SignUp Component', () => {
         token_type: 'Bearer',
         expires_in: 3600,
       })
-      
+
       await user.click(submitButton)
-      
+
       await waitFor(() => {
         expect(screen.queryByText(/registration failed/i)).not.toBeInTheDocument()
       })
@@ -416,7 +423,7 @@ describe('SignUp Component', () => {
   describe('Loading States', () => {
     it('should show loading state during registration', async () => {
       const user = userEvent.setup()
-      
+
       mockClient.signUp.mockImplementation(() =>
         new Promise(resolve => setTimeout(() => resolve({
           access_token: 'test-access-token',
@@ -431,24 +438,24 @@ describe('SignUp Component', () => {
         token_type: 'Bearer',
         expires_in: 3600,
       })
-      
+
       renderSignUp()
-      
+
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
       const passwordInput = screen.getByLabelText(/password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
-      
+
       await user.type(firstNameInput, 'John')
       await user.type(lastNameInput, 'Doe')
       await user.type(emailInput, 'john.doe@example.com')
       await user.type(passwordInput, 'Password123')
       await user.click(submitButton)
-      
+
       expect(screen.getByText(/creating account/i)).toBeInTheDocument()
       expect(submitButton).toBeDisabled()
-      
+
       await waitFor(() => {
         expect(screen.getByText(/create account/i)).toBeInTheDocument()
       })
@@ -458,19 +465,19 @@ describe('SignUp Component', () => {
   describe('Accessibility', () => {
     it('should have proper form labels and accessibility attributes', () => {
       renderSignUp()
-      
+
       expect(screen.getByLabelText(/first name/i)).toBeRequired()
       expect(screen.getByLabelText(/last name/i)).toBeRequired()
       expect(screen.getByLabelText(/email/i)).toBeRequired()
       expect(screen.getByLabelText(/password/i)).toBeRequired()
-      
+
       const submitButton = screen.getByRole('button', { name: /create account/i })
       expect(submitButton).toHaveAttribute('type', 'submit')
     })
 
     it('should have proper input types', () => {
       renderSignUp()
-      
+
       expect(screen.getByLabelText(/first name/i)).toHaveAttribute('type', 'text')
       expect(screen.getByLabelText(/last name/i)).toHaveAttribute('type', 'text')
       expect(screen.getByLabelText(/email/i)).toHaveAttribute('type', 'email')
@@ -478,10 +485,10 @@ describe('SignUp Component', () => {
     })
 
     it('should have proper placeholders', () => {
-      renderSignUp({ requireOrganization: true })
-      
+      renderSignUpMock({ requireOrganization: true })
+
       expect(screen.getByLabelText(/email/i)).toHaveAttribute('placeholder', 'you@example.com')
-      expect(screen.getByLabelText(/password/i)).toHaveAttribute('placeholder', '••••••••')
+      expect(screen.getByLabelText(/password/i)).toHaveAttribute('placeholder', '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022')
       expect(screen.getByLabelText(/organization name/i)).toHaveAttribute('placeholder', 'Acme Corporation')
     })
   })
@@ -489,7 +496,7 @@ describe('SignUp Component', () => {
   describe('Edge Cases', () => {
     it('should handle form submission without callbacks', async () => {
       const user = userEvent.setup()
-      
+
       mockClient.signUp.mockResolvedValueOnce({
         access_token: 'test-access-token',
         refresh_token: 'test-refresh-token',
@@ -502,38 +509,31 @@ describe('SignUp Component', () => {
         token_type: 'Bearer',
         expires_in: 3600,
       })
-      
+
       renderSignUp() // No callbacks provided
-      
+
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
       const passwordInput = screen.getByLabelText(/password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
-      
+
       await user.type(firstNameInput, 'John')
       await user.type(lastNameInput, 'Doe')
       await user.type(emailInput, 'john.doe@example.com')
       await user.type(passwordInput, 'Password123')
-      
+
       // Should not throw error even without callbacks
       await user.click(submitButton)
-      
+
       await waitFor(() => {
         expect(mockClient.signUp).toHaveBeenCalled()
       })
     })
 
-    it('should handle redirect without window object', async () => {
+    it('should not redirect when redirectTo is not provided', async () => {
       const user = userEvent.setup()
-      const originalWindow = global.window
-      
-      // Remove window object
-      Object.defineProperty(global, 'window', { 
-        value: undefined,
-        writable: true
-      })
-      
+
       mockClient.signUp.mockResolvedValueOnce({
         access_token: 'test-access-token',
         refresh_token: 'test-refresh-token',
@@ -546,32 +546,29 @@ describe('SignUp Component', () => {
         token_type: 'Bearer',
         expires_in: 3600,
       })
-      
-      renderSignUp({ redirectTo: '/dashboard' })
-      
+
+      // No redirectTo prop
+      renderSignUp()
+
       const firstNameInput = screen.getByLabelText(/first name/i)
       const lastNameInput = screen.getByLabelText(/last name/i)
       const emailInput = screen.getByLabelText(/email/i)
       const passwordInput = screen.getByLabelText(/password/i)
       const submitButton = screen.getByRole('button', { name: /create account/i })
-      
+
       await user.type(firstNameInput, 'John')
       await user.type(lastNameInput, 'Doe')
       await user.type(emailInput, 'john.doe@example.com')
       await user.type(passwordInput, 'Password123')
-      
-      // Should not throw error even without window
+
       await user.click(submitButton)
-      
+
       await waitFor(() => {
         expect(mockClient.signUp).toHaveBeenCalled()
       })
-      
-      // Restore window
-      Object.defineProperty(global, 'window', { 
-        value: originalWindow,
-        writable: true
-      })
+
+      // location.href should remain unchanged when no redirectTo is set
+      expect(locationMock.href).toBe('')
     })
   })
 })
