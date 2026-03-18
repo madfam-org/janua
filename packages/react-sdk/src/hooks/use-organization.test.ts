@@ -1,7 +1,7 @@
-import * as module from './use-organization'
+import * as useOrganizationExports from './use-organization'
 
 describe('use-organization', () => {
   it('should export expected functions', () => {
-    expect(module).toBeDefined()
+    expect(useOrganizationExports).toBeDefined()
   })
 })

@@ -1,7 +1,7 @@
-import * as module from './use-auth'
+import * as useAuthExports from './use-auth'
 
 describe('use-auth', () => {
   it('should export expected functions', () => {
-    expect(module).toBeDefined()
+    expect(useAuthExports).toBeDefined()
   })
 })
