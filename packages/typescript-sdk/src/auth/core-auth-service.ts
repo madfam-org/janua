@@ -54,7 +54,7 @@ export class CoreAuthService {
       await this.tokenManager.setTokens({
         access_token: response.data.access_token,
         refresh_token: response.data.refresh_token,
-        expires_at: Date.now() + (response.data.expires_in * 1000)
+        expires_at: Date.now() + (response.data.expires_in! * 1000)
       });
     }
 
@@ -65,10 +65,10 @@ export class CoreAuthService {
     return {
       user: response.data.user,
       tokens: {
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_in: response.data.expires_in,
-        token_type: response.data.token_type
+        access_token: response.data.access_token!,
+        refresh_token: response.data.refresh_token!,
+        expires_in: response.data.expires_in!,
+        token_type: response.data.token_type!
       }
     };
   }
@@ -100,7 +100,7 @@ export class CoreAuthService {
       await this.tokenManager.setTokens({
         access_token: response.data.access_token,
         refresh_token: response.data.refresh_token,
-        expires_at: Date.now() + (response.data.expires_in * 1000)
+        expires_at: Date.now() + (response.data.expires_in! * 1000)
       });
     }
 
@@ -111,10 +111,10 @@ export class CoreAuthService {
     return {
       user: response.data.user,
       tokens: {
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_in: response.data.expires_in,
-        token_type: response.data.token_type
+        access_token: response.data.access_token!,
+        refresh_token: response.data.refresh_token!,
+        expires_in: response.data.expires_in!,
+        token_type: response.data.token_type!
       }
     };
   }
