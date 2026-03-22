@@ -148,7 +148,10 @@ export function SAMLConfigForm({
   // Update custom mapping
   const updateCustomMapping = (index: number, field: 'key' | 'value', value: string) => {
     const updated = [...customMappings]
-    updated[index][field] = value
+    const mapping = updated[index]
+    if (mapping) {
+      mapping[field] = value
+    }
     setCustomMappings(updated)
   }
 

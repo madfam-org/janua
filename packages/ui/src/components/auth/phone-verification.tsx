@@ -55,6 +55,7 @@ export function PhoneVerification({
       const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000)
       return () => clearTimeout(timer)
     }
+    return undefined
   }, [resendCooldown])
 
   // Auto-submit when 6 digits entered

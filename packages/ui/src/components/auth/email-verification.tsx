@@ -96,6 +96,7 @@ export function EmailVerification({
       const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000)
       return () => clearTimeout(timer)
     }
+    return undefined
   }, [resendCooldown])
 
   const handleResend = async () => {

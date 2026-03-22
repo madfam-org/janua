@@ -216,7 +216,7 @@ export function SSOProviderList({
       error: { variant: 'destructive', label: 'Error' },
     }
 
-    const config = variants[status] || variants.pending
+    const config = variants[status] ?? { variant: 'default' as const, label: 'Pending' }
 
     return <Badge variant={config.variant as any}>{config.label}</Badge>
   }

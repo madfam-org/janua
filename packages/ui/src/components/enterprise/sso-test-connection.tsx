@@ -38,7 +38,7 @@ export interface SSOTestConnectionProps {
 export function SSOTestConnection({
   className,
   configurationId,
-  organizationId,
+  organizationId: _organizationId,
   onTest,
   onClose,
   onError,

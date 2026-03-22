@@ -42,7 +42,7 @@ export function UserButton({
 
   const initials = user.firstName && user.lastName
     ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
-    : user.email[0].toUpperCase()
+    : (user.email?.[0] ?? '?').toUpperCase()
 
   return (
     <DropdownMenu.Root>

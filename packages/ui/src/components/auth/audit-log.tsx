@@ -212,7 +212,8 @@ export function AuditLog({
   }
 
   const formatEventType = (type: string) => {
-    return type.split('.')[1].split('_').map(word =>
+    const part = type.split('.')[1] ?? type
+    return part.split('_').map(word =>
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ')
   }

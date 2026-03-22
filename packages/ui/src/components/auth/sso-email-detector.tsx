@@ -64,8 +64,8 @@ export function SSOEmailDetector({
       }
 
       if (orgName) {
-        setSSOOrg(orgName)
-        onSSODetected(domain, orgName)
+        setSSOOrg(orgName as string)
+        onSSODetected(domain, orgName as string)
       } else {
         onEmailSubmit(email)
       }

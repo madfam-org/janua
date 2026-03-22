@@ -246,7 +246,6 @@ export const AUTH_ERRORS = {
 export function parseApiError(error: any, context?: ErrorContext): ActionableError {
   // Extract error information
   const status = context?.status || error?.response?.status || error?.status
-  const _code = context?.code || error?.code || error?.response?.data?.code
   const message = context?.message || error?.message || error?.response?.data?.message
 
   // Map HTTP status codes to error types

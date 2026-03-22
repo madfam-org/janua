@@ -230,7 +230,7 @@ export function InvitationList({
       revoked: { variant: 'destructive', label: 'Revoked' },
     }
 
-    const config = variants[status] || variants.pending
+    const config = variants[status] ?? { variant: 'default' as const, label: 'Pending' }
 
     return (
       <Badge variant={config.variant as any} className="capitalize">
