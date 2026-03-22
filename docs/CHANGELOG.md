@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Theme presets system (`packages/ui/src/tokens/presets.ts`) and auth config defaults (`packages/ui/src/config/`)
   - Runtime auth config type system (`JanuaAuthConfig`) covering branding, auth methods, social providers, SSO, MFA, flow settings, and locale strings
 
+### Fixed
+- **TypeScript strict mode** (`@janua/ui@0.1.4`): Resolved 17 strict mode errors across 15 source files that caused consumer build failures when `tsc` evaluated uncompiled `.tsx` sources
+  - Added explicit `return undefined` in `useEffect` hooks with conditional early returns (email-verification, magic-link-form, mfa-challenge, phone-verification)
+  - Added nullish fallbacks for array indexing (`split()[n]`) in audit-log, user-button, sso-email-detector, bulk-invite-upload
+  - Added guards for `Record<string, T>` dynamic lookups in invitation-list, sso-provider-list
+  - Added `if` guard for possibly-undefined array element mutation in saml-config-form
+  - Removed unused `cn` imports from sign-in and sign-up
+  - Removed unused `_code` variable from error-messages, prefixed unused destructured `organizationId` in sso-test-connection
+
 ### Changed
 - **SignIn** component: replaced inline SVGs with `SocialButton` components, native checkbox with Radix `Checkbox`, added layout/SSO/passkey/magicLink/MFA props (all optional, backward compatible)
 - **SignUp** component: replaced `alert()` with inline email verification success state, added layout/terms/privacy props, Radix `Checkbox` for terms
