@@ -40,7 +40,7 @@ export function SSOEmailDetector({
     e.preventDefault()
     if (!email.includes('@')) return
 
-    const domain = email.split('@')[1]
+    const domain = email.split('@')[1] ?? ''
     setIsChecking(true)
 
     try {
@@ -64,8 +64,8 @@ export function SSOEmailDetector({
       }
 
       if (orgName) {
-        setSSOOrg(orgName as string)
-        onSSODetected(domain, orgName as string)
+        setSSOOrg(orgName)
+        onSSODetected(domain, orgName)
       } else {
         onEmailSubmit(email)
       }

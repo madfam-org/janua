@@ -87,7 +87,7 @@ export function BulkInviteUpload({
     if (lines.length === 0) return []
 
     const invitations: ParsedInvitation[] = []
-    const headers = lines[0].toLowerCase().split(',').map(h => h.trim())
+    const headers = (lines[0] ?? '').toLowerCase().split(',').map(h => h.trim())
 
     const emailIndex = headers.indexOf('email')
     const roleIndex = headers.indexOf('role')
@@ -98,7 +98,7 @@ export function BulkInviteUpload({
     }
 
     for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim()
+      const line = lines[i]?.trim() ?? ''
       if (!line) continue
 
       const values = line.split(',').map(v => v.trim().replace(/^["']|["']$/g, ''))
