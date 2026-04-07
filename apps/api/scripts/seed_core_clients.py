@@ -150,6 +150,46 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
         ],
         "allowed_scopes": ["openid", "profile", "email"],
     },
+    {
+        "name": "fortuna-web",
+        "description": "Fortuna social intelligence platform",
+        "audience": "fortuna-api",
+        "redirect_uris": [
+            "https://app.fortuna.madfam.io/api/auth/callback",
+            "http://localhost:8501/api/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "coforma-studio-web",
+        "description": "Coforma collaborative architecture studio",
+        "audience": "coforma-api",
+        "redirect_uris": [
+            "https://studio.coforma.madfam.io/api/auth/callback",
+            "http://localhost:3000/api/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "phyne-crm-api",
+        "description": "PhyneCRM customer relationship management",
+        "audience": "phyne-crm-api",
+        "redirect_uris": [
+            "https://crm.madfam.io/api/auth/callback",
+            "http://localhost:3000/api/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "digifab-quoting-web",
+        "description": "Cotiza digital fabrication quoting studio",
+        "audience": "digifab-api",
+        "redirect_uris": [
+            "https://cotiza.madfam.io/api/auth/callback",
+            "http://localhost:3000/api/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
 ]
 
 
