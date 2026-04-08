@@ -376,7 +376,7 @@ npm install @janua/react-native-sdk
 ## Deployment Topology
 
 ### Infrastructure
-- **Server**: Hetzner AX41-NVMe ("The Sanctuary") — 2-node cluster
+- **Server**: Hetzner dedicated servers — 3-node cluster (foundry-cp, foundry-worker-01, foundry-builder-01)
 - **Orchestration**: K3s (lightweight Kubernetes)
 - **Ingress**: Cloudflare Tunnel (zero-trust, no open ports)
 - **Namespace**: janua
