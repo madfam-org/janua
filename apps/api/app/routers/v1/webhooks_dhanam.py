@@ -28,7 +28,7 @@ from app.models import Organization
 logger = structlog.get_logger()
 router = APIRouter(prefix="/webhooks/dhanam", tags=["webhooks"])
 
-KNOWN_PRODUCTS = {"enclii", "tezca", "yantra4d", "dhanam"}
+KNOWN_PRODUCTS = {"enclii", "tezca", "yantra4d", "dhanam", "karafiel", "forgesight"}
 VALID_TIERS = {"essentials", "pro", "madfam"}
 
 # Legacy plan names -> (product, tier) for backwards compatibility

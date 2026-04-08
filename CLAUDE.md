@@ -231,6 +231,26 @@ GET    /api/v1/organizations       # List organizations
 POST   /api/v1/organizations       # Create organization
 ```
 
+### Dhanam Billing Integration
+
+Janua integrates with Dhanam (billing platform) for subscription management via checkout and webhook endpoints.
+
+**Endpoints:**
+- `POST /api/v1/checkout/dhanam` -- Create a checkout session for a product plan
+- `POST /api/v1/webhooks/dhanam` -- Receive subscription lifecycle events from Dhanam
+
+**Known Products** (defined in `KNOWN_PRODUCTS`):
+`enclii`, `tezca`, `yantra4d`, `dhanam`, `karafiel`, `forgesight`
+
+**Plan ID Format:** `{product}_{tier}` (e.g., `karafiel_pro`, `forgesight_team`)
+
+**Key Files:**
+| Purpose | Location |
+|---------|----------|
+| Checkout handler | `apps/api/app/routers/v1/checkout_dhanam.py` |
+| Webhook handler | `apps/api/app/routers/v1/webhooks_dhanam.py` |
+| Webhook tests | `apps/api/tests/unit/routers/test_webhooks_dhanam.py` |
+
 ---
 
 ## Environment Variables
@@ -261,10 +281,16 @@ GOOGLE_CLIENT_SECRET=...
 GITHUB_CLIENT_ID=...
 GITHUB_CLIENT_SECRET=...
 
-# Email
+# Email (SMTP - legacy)
 SMTP_HOST=localhost
 SMTP_PORT=1025
 SMTP_FROM=noreply@janua.dev
+
+# Email (Resend)
+EMAIL_ENABLED=true               # Enable email sending (default: false)
+EMAIL_PROVIDER=resend             # Email provider (resend)
+EMAIL_FROM_ADDRESS=noreply@janua.dev
+RESEND_API_KEY=re_XXXXX           # Resend API key (sending access)
 ```
 
 ### Admin Bootstrap

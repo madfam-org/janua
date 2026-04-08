@@ -107,6 +107,13 @@ spec:
               value: resend
             - name: EMAIL_FROM
               value: noreply@janua.dev
+            - name: EMAIL_ENABLED
+              value: "true"
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: janua-secrets
+                  key: resend-api-key
             # Custom domain for white-label OIDC issuer (auth.madfam.io instead of api.janua.dev)
             - name: JANUA_CUSTOM_DOMAIN
               value: auth.madfam.io
