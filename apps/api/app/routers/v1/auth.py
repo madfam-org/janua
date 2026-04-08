@@ -27,6 +27,7 @@ from app.services.account_lockout_service import AccountLockoutService
 from app.services.auth_service import AuthService
 from app.services.audit_logger import AuditEventType, AuditLogger
 from app.services.email import EmailService
+from app.services.webhooks import WebhookEventType, trigger_user_webhook
 
 from ...models import ActivityLog, EmailVerification, MagicLink, PasswordReset, User, UserStatus
 from ...models import Session as UserSession
@@ -237,6 +238,24 @@ async def sign_up(
     # Log activity
     await log_activity(db, str(user.id), "signup", {"method": "email"}, request)
     await log_audit_event(db, str(user.id), "signup", {"method": "email"}, request)
+
+    # Dispatch user.created webhook for CRM integration
+    try:
+        await trigger_user_webhook(
+            db,
+            WebhookEventType.USER_CREATED,
+            {
+                "id": str(user.id),
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "username": user.username,
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+            },
+            user_id=str(user.id),
+        )
+    except Exception:
+        pass  # Webhook failure must not block signup
 
     # Send verification email in background
     if settings.EMAIL_ENABLED:

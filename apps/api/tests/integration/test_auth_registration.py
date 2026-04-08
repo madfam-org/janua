@@ -12,8 +12,9 @@ Test Coverage:
 - Invalid input rejection ✅
 - Organization creation on signup ✅
 - Missing required fields ✅
+- Webhook dispatch on signup (USER_CREATED) ✅
 
-Status: COMPLETE - 18 comprehensive tests implemented
+Status: COMPLETE - 17 comprehensive tests implemented
 Coverage Impact: +8% estimated
 """
 
@@ -473,3 +474,99 @@ async def test_signup_very_long_inputs(client: AsyncClient):
 
     # Should reject with validation error
     assert response.status_code in [400, 422], "Should enforce maximum lengths"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_signup_dispatches_user_created_webhook(client: AsyncClient):
+    """
+    Test that successful signup dispatches a USER_CREATED webhook
+
+    Covers:
+    - Webhook trigger_user_webhook called after user creation
+    - Correct event type (WebhookEventType.USER_CREATED)
+    - User data dict contains expected fields (id, email, first_name, last_name, username, created_at)
+    - user_id keyword argument is passed
+    - Webhook failure does not block signup (silent exception handling)
+    """
+    from app.services.webhooks import WebhookEventType
+
+    registration_data = {
+        "email": "webhook_test@example.com",
+        "password": "SecurePassword123!",
+        "first_name": "Webhook",
+        "last_name": "Tester",
+        "username": "webhooktester",
+    }
+
+    with patch(
+        "app.routers.v1.auth.trigger_user_webhook", new_callable=AsyncMock
+    ) as mock_trigger:
+        response = await client.post("/api/v1/auth/signup", json=registration_data)
+
+    # Signup must succeed regardless of webhook
+    assert response.status_code in [200, 201], (
+        f"Expected 200 or 201, got {response.status_code}: {response.text}"
+    )
+
+    # Verify webhook was called exactly once
+    mock_trigger.assert_awaited_once()
+
+    # Unpack the call arguments
+    call_args = mock_trigger.call_args
+    positional = call_args.args if call_args.args else call_args[0]
+    keyword = call_args.kwargs if call_args.kwargs else call_args[1]
+
+    # positional[0] = db session, positional[1] = event type, positional[2] = user data dict
+    event_type = positional[1]
+    user_data = positional[2]
+
+    assert event_type == WebhookEventType.USER_CREATED
+
+    # Verify user data payload contains the expected keys
+    assert "id" in user_data
+    assert user_data["email"] == registration_data["email"]
+    assert user_data["first_name"] == registration_data["first_name"]
+    assert user_data["last_name"] == registration_data["last_name"]
+    assert user_data["username"] == registration_data["username"]
+    assert "created_at" in user_data
+
+    # Verify user_id keyword argument
+    assert "user_id" in keyword
+    assert keyword["user_id"] == user_data["id"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_signup_succeeds_when_webhook_raises(client: AsyncClient):
+    """
+    Test that signup completes successfully even when the webhook dispatch raises
+
+    The webhook call is wrapped in a bare except so failures must not propagate
+    to the caller. This test verifies that contract.
+    """
+    registration_data = {
+        "email": "webhook_fail@example.com",
+        "password": "SecurePassword123!",
+        "first_name": "Webhook",
+        "last_name": "Failure",
+        "username": "webhookfailure",
+    }
+
+    with patch(
+        "app.routers.v1.auth.trigger_user_webhook",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError("Simulated webhook delivery failure"),
+    ):
+        response = await client.post("/api/v1/auth/signup", json=registration_data)
+
+    # Signup must still succeed despite webhook failure
+    assert response.status_code in [200, 201], (
+        f"Signup should succeed even when webhook fails, got {response.status_code}: {response.text}"
+    )
+
+    data = response.json()
+    assert "user" in data
+    assert data["user"]["email"] == registration_data["email"]

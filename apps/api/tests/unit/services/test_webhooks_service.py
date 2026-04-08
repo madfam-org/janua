@@ -473,3 +473,66 @@ class TestSignatureFormat:
         result = service._generate_signature(secret, payload)
 
         assert result == expected
+
+
+class TestTriggerUserWebhookSignature:
+    """Test trigger_user_webhook callable signature and contract."""
+
+    def test_trigger_user_webhook_accepts_expected_arguments(self):
+        """Test trigger_user_webhook accepts (db, event_type, user_data, user_id)."""
+        import inspect
+
+        sig = inspect.signature(trigger_user_webhook)
+        param_names = list(sig.parameters.keys())
+
+        assert "db" in param_names, "Must accept a 'db' parameter"
+        assert "event_type" in param_names, "Must accept an 'event_type' parameter"
+        assert "user_data" in param_names, "Must accept a 'user_data' parameter"
+        assert "user_id" in param_names, "Must accept a 'user_id' parameter"
+
+    def test_trigger_user_webhook_parameter_order(self):
+        """Test trigger_user_webhook parameters are in the expected order."""
+        import inspect
+
+        sig = inspect.signature(trigger_user_webhook)
+        param_names = list(sig.parameters.keys())
+
+        # db should come first, event_type second, user_data third, user_id fourth
+        assert param_names.index("db") < param_names.index("event_type")
+        assert param_names.index("event_type") < param_names.index("user_data")
+        assert param_names.index("user_data") < param_names.index("user_id")
+
+    def test_trigger_user_webhook_is_async(self):
+        """Test trigger_user_webhook is an async function."""
+        import asyncio
+
+        assert asyncio.iscoroutinefunction(trigger_user_webhook)
+
+    async def test_trigger_user_webhook_delegates_to_service(self):
+        """Test trigger_user_webhook delegates to webhook_service.trigger_event."""
+        from unittest.mock import AsyncMock, patch
+
+        mock_db = AsyncMock()
+        user_data = {
+            "id": "user-123",
+            "email": "test@example.com",
+            "first_name": "Test",
+            "last_name": "User",
+            "username": "testuser",
+            "created_at": "2025-01-13T00:00:00",
+        }
+
+        with patch("app.services.webhooks.webhook_service.trigger_event", new_callable=AsyncMock) as mock_trigger:
+            await trigger_user_webhook(
+                mock_db,
+                WebhookEventType.USER_CREATED,
+                user_data,
+                user_id="user-123",
+            )
+
+            mock_trigger.assert_awaited_once_with(
+                mock_db,
+                WebhookEventType.USER_CREATED,
+                user_data,
+                user_id="user-123",
+            )
