@@ -263,7 +263,7 @@ async def _get_admin_user_id(engine: AsyncEngine) -> uuid.UUID:
 async def _seed_clients(engine: AsyncEngine) -> None:
     """Insert missing ecosystem clients into ``oauth_clients``."""
     admin_id = await _get_admin_user_id(engine)
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()  # naive UTC — matches DB column type
 
     created_count = 0
     skipped_count = 0
@@ -318,9 +318,9 @@ async def _seed_clients(engine: AsyncEngine) -> None:
                         :client_secret_prefix,
                         :name,
                         :description,
-                        :redirect_uris::jsonb,
-                        :allowed_scopes::jsonb,
-                        :grant_types::jsonb,
+                        CAST(:redirect_uris AS jsonb),
+                        CAST(:allowed_scopes AS jsonb),
+                        CAST(:grant_types AS jsonb),
                         :audience,
                         true,
                         true,
