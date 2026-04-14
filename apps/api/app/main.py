@@ -22,6 +22,22 @@ try:
 except ImportError:
     pass  # bcrypt not installed, passlib will use fallback implementation
 
+# Initialize Sentry early, before other imports
+_sentry_dsn = os.environ.get("SENTRY_DSN", "")
+if _sentry_dsn:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+        sentry_sdk.init(
+            dsn=_sentry_dsn,
+            environment=os.environ.get("SENTRY_ENVIRONMENT", os.environ.get("ENVIRONMENT", "development")),
+            traces_sample_rate=0.1,
+            integrations=[FastApiIntegration()],
+        )
+    except ImportError:
+        pass  # sentry-sdk not installed
+
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
