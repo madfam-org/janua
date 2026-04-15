@@ -35,7 +35,7 @@ router = APIRouter(prefix="/checkout", tags=["billing"])
 
 
 # Re-use the product plan parser from webhooks module
-from app.routers.v1.webhooks_dhanam import parse_product_plan, KNOWN_PRODUCTS, VALID_TIERS
+from app.routers.v1.webhooks_dhanam import parse_product_plan, VALID_TIERS
 
 
 class CreateCheckoutRequest(BaseModel):
@@ -95,7 +95,7 @@ async def create_dhanam_checkout(
     if not tier:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid plan_id: {request_data.plan_id}. Expected format: '{{product}}_{{tier}}' where product is one of {sorted(KNOWN_PRODUCTS)} and tier is one of {sorted(VALID_TIERS)}",
+            detail=f"Invalid plan_id: {request_data.plan_id}. Expected format: '{{product}}_{{tier}}' where tier is one of {sorted(VALID_TIERS)}",
         )
     janua_tier = tier  # For response compat
 

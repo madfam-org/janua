@@ -10,13 +10,14 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.dependencies import get_current_user, require_admin
-from app.models import User
+from app.dependencies import get_current_user, require_admin, verify_internal_api_key
+from app.models import OAuthClient, User
 from app.schemas.oauth_client import (
     OAuthClientCreate,
     OAuthClientDetailResponse,
@@ -43,6 +44,94 @@ async def get_oauth_client_service(
 ) -> OAuthClientService:
     """Dependency to get OAuth client service"""
     return OAuthClientService(db)
+
+
+@router.post("/register", response_model=OAuthClientDetailResponse)
+async def register_oauth_client(
+    data: OAuthClientCreate,
+    response: Response,
+    _auth: bool = Depends(verify_internal_api_key),
+    service: OAuthClientService = Depends(get_oauth_client_service),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Register an OAuth2 client via internal API key (service-to-service).
+
+    This is the zero-touch onboarding endpoint for MADFAM ecosystem services.
+    Consumer services call this from their own bootstrap scripts using the
+    shared INTERNAL_API_KEY, without needing a human login.
+
+    **Idempotent**: If a client with the same name already exists, returns
+    the existing client (HTTP 200, no secret). On first creation, returns
+    HTTP 201 with the client_secret (only shown once).
+
+    **Auth**: X-Internal-API-Key header (shared secret from K8s).
+    """
+    # Idempotency: check if client with this name already exists
+    existing = await db.execute(
+        select(OAuthClient).where(OAuthClient.name == data.name)
+    )
+    existing_client = existing.scalar_one_or_none()
+
+    if existing_client:
+        response.status_code = 200
+        return OAuthClientDetailResponse(
+            id=str(existing_client.id),
+            client_id=existing_client.client_id,
+            client_secret=None,  # Never re-expose secret
+            name=existing_client.name,
+            description=existing_client.description,
+            redirect_uris=existing_client.redirect_uris or [],
+            allowed_scopes=existing_client.allowed_scopes or [],
+            grant_types=existing_client.grant_types or [],
+            logo_url=existing_client.logo_url,
+            website_url=existing_client.website_url,
+            is_active=existing_client.is_active,
+            is_confidential=existing_client.is_confidential,
+            last_used_at=existing_client.last_used_at,
+            organization_id=str(existing_client.organization_id) if existing_client.organization_id else None,
+            created_at=existing_client.created_at,
+            updated_at=existing_client.updated_at,
+        )
+
+    # Resolve bootstrap admin user (first admin by creation date)
+    admin_result = await db.execute(
+        select(User).where(User.is_admin == True).order_by(User.created_at).limit(1)
+    )
+    admin_user = admin_result.scalar_one_or_none()
+
+    if not admin_user:
+        raise HTTPException(
+            status_code=503,
+            detail="No admin user found. Run ADMIN_BOOTSTRAP_PASSWORD to create one.",
+        )
+
+    client, plain_secret = await service.create_client(
+        data=data,
+        created_by=admin_user,
+    )
+
+    logger.info("OAuth client registered via bootstrap: %s (client_id=%s)", data.name, client.client_id)
+
+    response.status_code = 201
+    return OAuthClientDetailResponse(
+        id=str(client.id),
+        client_id=client.client_id,
+        client_secret=plain_secret,
+        name=client.name,
+        description=client.description,
+        redirect_uris=client.redirect_uris or [],
+        allowed_scopes=client.allowed_scopes or [],
+        grant_types=client.grant_types or [],
+        logo_url=client.logo_url,
+        website_url=client.website_url,
+        is_active=client.is_active,
+        is_confidential=client.is_confidential,
+        last_used_at=client.last_used_at,
+        organization_id=str(client.organization_id) if client.organization_id else None,
+        created_at=client.created_at,
+        updated_at=client.updated_at,
+    )
 
 
 @router.post("", response_model=OAuthClientDetailResponse, status_code=201)

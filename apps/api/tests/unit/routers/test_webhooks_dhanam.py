@@ -28,10 +28,15 @@ class TestParseProductPlan:
             ("enclii_madfam", ("enclii", "madfam")),
             ("yantra4d_pro", ("yantra4d", "pro")),
             ("dhanam_essentials", ("dhanam", "essentials")),
+            # Zero-touch: any product name is accepted without code changes
+            ("karafiel_pro", ("karafiel", "pro")),
+            ("karafiel_essentials", ("karafiel", "essentials")),
+            ("forgesight_madfam", ("forgesight", "madfam")),
+            ("newservice_pro", ("newservice", "pro")),
         ],
     )
     def test_product_prefixed_plans(self, plan_id: str, expected: tuple):
-        """Plans with '{product}_{tier}' format parse correctly."""
+        """Plans with '{product}_{tier}' format parse correctly (any product accepted)."""
         assert parse_product_plan(plan_id) == expected
 
     # --- Legacy plan mappings ---
@@ -67,6 +72,8 @@ class TestParseProductPlan:
             ("enclii_community", "enclii"),
             ("yantra4d_trial", "yantra4d"),
             ("dhanam_free", "dhanam"),
+            ("karafiel_free", "karafiel"),
+            ("newservice_community", "newservice"),
         ],
     )
     def test_cancel_tier_product_prefixed(self, plan_id: str, expected_product: str):
@@ -118,15 +125,24 @@ class TestParseProductPlan:
         """Empty plan_id returns (dhanam, None)."""
         assert parse_product_plan("") == ("dhanam", None)
 
-    def test_unrecognized_plan(self):
-        """Completely unrecognized plan_id returns (dhanam, None)."""
-        assert parse_product_plan("xyzzy_garbage") == ("dhanam", None)
+    def test_unrecognized_plan_single_word(self):
+        """Single unrecognized word (not a tier, not a legacy plan) returns (dhanam, None)."""
+        assert parse_product_plan("xyzzy") == ("dhanam", None)
 
-    def test_unknown_tier_for_known_product(self):
-        """Known product with unknown tier returns (product, tier) as-is."""
+    def test_numeric_prefix_rejected(self):
+        """Product names starting with digits are rejected."""
+        assert parse_product_plan("123_pro") == ("dhanam", None)
+
+    def test_unknown_tier_for_any_product(self):
+        """Any product with unknown tier returns (product, tier) as-is."""
         product, tier = parse_product_plan("enclii_platinum")
         assert product == "enclii"
         assert tier == "platinum"
+
+        # Works for new products too (open product parsing)
+        product2, tier2 = parse_product_plan("newservice_platinum")
+        assert product2 == "newservice"
+        assert tier2 == "platinum"
 
 
 class TestResolveProductTiers:
@@ -191,6 +207,21 @@ class TestResolveProductTiers:
         claims = resolve_product_tiers({"dhanam": "essentials"}, None)
         assert claims["dhanam_tier"] == "essentials"
 
+    def test_karafiel_tier_emitted(self):
+        """Karafiel product tier emits karafiel_tier claim (zero-touch, no code change needed)."""
+        claims = resolve_product_tiers({"karafiel": "pro"}, None)
+        assert claims["karafiel_tier"] == "pro"
+
+    def test_forgesight_tier_emitted(self):
+        """Forgesight product tier emits forgesight_tier claim."""
+        claims = resolve_product_tiers({"forgesight": "essentials"}, None)
+        assert claims["forgesight_tier"] == "essentials"
+
+    def test_unknown_product_tier_emitted(self):
+        """Any product stored in product_tiers gets a JWT claim (zero-touch onboarding)."""
+        claims = resolve_product_tiers({"newservice": "pro"}, None)
+        assert claims["newservice_tier"] == "pro"
+
     def test_absent_product_tier_omits_claim(self):
         """Products without a tier do not appear in claims."""
         claims = resolve_product_tiers({"enclii": "pro"}, None)
@@ -207,12 +238,16 @@ class TestResolveProductTiers:
             "tezca": "pro",
             "yantra4d": "essentials",
             "dhanam": "madfam",
+            "karafiel": "pro",
+            "forgesight": "essentials",
         }
         claims = resolve_product_tiers(tiers, None)
         assert claims["foundry_tier"] == "ecosystem"
         assert claims["tezca_tier"] == "pro"
         assert claims["yantra4d_tier"] == "essentials"
         assert claims["dhanam_tier"] == "madfam"
+        assert claims["karafiel_tier"] == "pro"
+        assert claims["forgesight_tier"] == "essentials"
 
     def test_partial_product_tiers(self):
         """Only products with tiers appear in claims."""

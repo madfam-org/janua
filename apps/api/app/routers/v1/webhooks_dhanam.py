@@ -13,6 +13,7 @@ as individual JWT claims (foundry_tier, tezca_tier, yantra4d_tier, dhanam_tier).
 
 import hashlib
 import hmac
+import re
 from datetime import datetime
 from uuid import UUID
 
@@ -28,7 +29,9 @@ from app.models import Organization
 logger = structlog.get_logger()
 router = APIRouter(prefix="/webhooks/dhanam", tags=["webhooks"])
 
-KNOWN_PRODUCTS = {"enclii", "tezca", "yantra4d", "dhanam", "karafiel", "forgesight"}
+# Open product validation: any lowercase alphanumeric name is a valid product.
+# No hardcoded product list — new ecosystem services are accepted automatically.
+PRODUCT_PATTERN = re.compile(r"^[a-z][a-z0-9]*$")
 VALID_TIERS = {"essentials", "pro", "madfam"}
 
 # Legacy plan names -> (product, tier) for backwards compatibility
@@ -80,9 +83,9 @@ def parse_product_plan(plan_id: str) -> tuple[str, str | None]:
     if plan_lower in CANCEL_TIERS:
         return "dhanam", None
 
-    # Parse "{product}_{tier}" format
+    # Parse "{product}_{tier}" format — accepts any valid product name
     parts = plan_lower.split("_", 1)
-    if len(parts) == 2 and parts[0] in KNOWN_PRODUCTS:
+    if len(parts) == 2 and PRODUCT_PATTERN.match(parts[0]):
         product, tier = parts
         if tier in CANCEL_TIERS:
             return product, None

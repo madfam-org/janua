@@ -1,10 +1,13 @@
 """
 Seed ecosystem OAuth clients into the Janua database.
 
-Idempotent script that registers OAuth clients for all MADFAM ecosystem
-applications. Skips clients that already exist (matched by name or
-pre-assigned client_id). Prints plain-text secrets for newly created
-clients so the operator can configure each consumer application.
+DEPRECATED: Prefer POST /api/v1/oauth/clients/register from each consumer
+service's bootstrap script (scripts/bootstrap-ecosystem.sh). This endpoint
+uses X-Internal-API-Key auth for headless service-to-service registration,
+making it zero-touch — no Janua repo changes needed for new services.
+
+This seed script is kept for backwards compatibility and initial bootstrap
+of the first admin user's clients. New services should NOT be added here.
 
 Usage:
     cd apps/api
@@ -187,6 +190,19 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
         "redirect_uris": [
             "https://cotiza.madfam.io/api/auth/callback",
             "http://localhost:3000/api/auth/callback",
+        ],
+        "allowed_scopes": ["openid", "profile", "email"],
+    },
+    {
+        "name": "karafiel-web",
+        "description": "Karafiel combat accounting platform (web + admin)",
+        "audience": "karafiel-api",
+        "redirect_uris": [
+            "https://karafiel.mx/api/auth/callback",
+            "https://app.karafiel.mx/api/auth/callback",
+            "https://admin.karafiel.mx/api/auth/callback",
+            "http://localhost:3050/api/auth/callback",
+            "http://localhost:3051/api/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
     },

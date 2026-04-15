@@ -17,8 +17,6 @@ from ...infrastructure.configuration.config_repository import SSOConfigurationRe
 from ...infrastructure.session.session_repository import SSOSessionRepository
 
 
-KNOWN_PRODUCTS = {"enclii", "tezca", "yantra4d", "dhanam"}
-
 # Legacy Janua subscription_tier -> foundry_tier mapping (backwards compat)
 LEGACY_TIER_MAP = {
     "community": "community",
@@ -69,9 +67,11 @@ def resolve_product_tiers(product_tiers: dict | None, subscription_tier: str | N
         # Fall back to legacy subscription_tier mapping
         claims["foundry_tier"] = map_subscription_to_foundry_tier(subscription_tier)
 
-    # Per-product claims (None/absent = community, no claim emitted)
-    for product in ("tezca", "yantra4d", "dhanam"):
-        tier = tiers.get(product)
+    # Per-product claims: iterate ALL products in product_tiers.
+    # Any product stored in the JSONB gets a JWT claim — no hardcoded list.
+    for product, tier in tiers.items():
+        if product == "enclii":
+            continue  # Handled above via foundry_tier backwards-compat
         if tier:
             claims[f"{product}_tier"] = tier
 

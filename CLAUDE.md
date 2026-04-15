@@ -239,10 +239,13 @@ Janua integrates with Dhanam (billing platform) for subscription management via 
 - `POST /api/v1/checkout/dhanam` -- Create a checkout session for a product plan
 - `POST /api/v1/webhooks/dhanam` -- Receive subscription lifecycle events from Dhanam
 
-**Known Products** (defined in `KNOWN_PRODUCTS`):
-`enclii`, `tezca`, `yantra4d`, `dhanam`, `karafiel`, `forgesight`
+**Products**: Open registration — any lowercase alphanumeric product name is accepted
+(zero-touch: new ecosystem services don't need Janua code changes).
 
-**Plan ID Format:** `{product}_{tier}` (e.g., `karafiel_pro`, `forgesight_team`)
+**Plan ID Format:** `{product}_{tier}` (e.g., `karafiel_pro`, `newservice_essentials`)
+
+**Client Registration:** `POST /api/v1/oauth/clients/register` — headless, idempotent
+client registration via `X-Internal-API-Key` header (for consumer bootstrap scripts).
 
 **Key Files:**
 | Purpose | Location |
