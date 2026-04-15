@@ -700,12 +700,18 @@ class ApiKey(Base):
     name = Column(String(255), nullable=False)
     key_hash = Column(String(255), nullable=False)
     prefix = Column(String(20), nullable=False)
+    key_prefix = Column(String(12), nullable=True)  # Visible prefix e.g. "sk_live_ab3f"
     scopes = Column(JSONB, default=[])
+    rate_limit_per_min = Column(Integer, default=60)
     is_active = Column(Boolean, default=True)
     last_used = Column(DateTime)
     expires_at = Column(DateTime)
+    revoked_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship
+    organization = relationship("Organization", backref="api_keys", foreign_keys=[organization_id])
 
 
 class LegacyInvoice(Base):

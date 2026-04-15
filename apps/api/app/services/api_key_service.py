@@ -3,8 +3,13 @@ API Key Management Service
 
 Business logic for creating, validating, and managing API keys.
 Follows the same patterns as OAuthClientService for consistency.
+
+Supports two key formats:
+- Legacy: jnk_<random> (bcrypt hashed) -- existing keys
+- Modern: sk_live_<hex> (SHA-256 hashed) -- new keys for external consumers / AI agents
 """
 
+import hashlib
 import logging
 import secrets
 import uuid
@@ -20,22 +25,29 @@ from app.schemas.api_key import ApiKeyCreate, ApiKeyUpdate
 
 logger = logging.getLogger(__name__)
 
+# Prefix for modern API keys (external consumers, AI agents)
+SK_LIVE_PREFIX = "sk_live_"
+
 
 class ApiKeyService:
     """Service for API key management operations"""
 
     # Configuration
     KEY_LENGTH = 48  # Length of random part (base64 encoded)
-    KEY_PREFIX = "jnk_"  # Janua Key prefix
+    KEY_PREFIX = "jnk_"  # Janua Key prefix (legacy)
     DISPLAY_PREFIX_LENGTH = 12  # Characters to show in display prefix
 
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    # ------------------------------------------------------------------
+    # Key generation helpers
+    # ------------------------------------------------------------------
+
     @staticmethod
     def generate_api_key() -> Tuple[str, str, str]:
         """
-        Generate a new API key with hash and display prefix.
+        Generate a new API key with hash and display prefix (legacy format).
 
         Returns:
             Tuple of (plain_key, hashed_key, display_prefix)
@@ -52,18 +64,43 @@ class ApiKeyService:
         return plain_key, hashed, display_prefix
 
     @staticmethod
+    def generate_sk_live_key() -> Tuple[str, str, str]:
+        """
+        Generate a modern sk_live_ key with SHA-256 hash.
+
+        Returns:
+            Tuple of (full_key, sha256_hex_hash, key_prefix)
+            key_prefix format: "sk_live_" + first 4 hex chars of the random part
+        """
+        random_hex = secrets.token_hex(32)  # 64 hex chars
+        full_key = f"{SK_LIVE_PREFIX}{random_hex}"
+        key_hash = hashlib.sha256(full_key.encode()).hexdigest()
+        key_prefix = f"{SK_LIVE_PREFIX}{random_hex[:4]}"
+        return full_key, key_hash, key_prefix
+
+    @staticmethod
+    def hash_key_sha256(plain_key: str) -> str:
+        """Hash a key with SHA-256 for constant-time lookup."""
+        return hashlib.sha256(plain_key.encode()).hexdigest()
+
+    @staticmethod
     def verify_api_key(plain_key: str, hashed_key: str) -> bool:
         """
         Verify an API key against its hash.
+        Supports both bcrypt (legacy jnk_) and SHA-256 (modern sk_live_) formats.
 
         Args:
             plain_key: The plain text API key
-            hashed_key: The bcrypt hash to verify against
+            hashed_key: The bcrypt or SHA-256 hash to verify against
 
         Returns:
             True if the key is valid, False otherwise
         """
         try:
+            # SHA-256 hashes are exactly 64 hex chars
+            if len(hashed_key) == 64 and all(c in '0123456789abcdef' for c in hashed_key):
+                return hashlib.sha256(plain_key.encode()).hexdigest() == hashed_key
+            # Fall back to bcrypt verification for legacy keys
             return bcrypt.checkpw(plain_key.encode(), hashed_key.encode())
         except Exception as e:
             logger.error(f"Error verifying API key: {e}")
@@ -74,6 +111,7 @@ class ApiKeyService:
         data: ApiKeyCreate,
         user: User,
         organization_id: uuid.UUID,
+        use_sk_live: bool = True,
     ) -> Tuple[ApiKey, str]:
         """
         Create a new API key.
@@ -82,12 +120,20 @@ class ApiKeyService:
             data: API key creation data
             user: User creating the key
             organization_id: Organization the key belongs to
+            use_sk_live: If True, generate modern sk_live_ key with SHA-256.
+                         If False, generate legacy jnk_ key with bcrypt.
 
         Returns:
             Tuple of (created ApiKey model, plain text key)
         """
         # Generate the key
-        plain_key, hashed_key, display_prefix = self.generate_api_key()
+        if use_sk_live:
+            plain_key, hashed_key, visible_prefix = self.generate_sk_live_key()
+        else:
+            plain_key, hashed_key, visible_prefix = self.generate_api_key()
+
+        # Display prefix for backward compat (first 12 chars + ...)
+        display_prefix = plain_key[: self.DISPLAY_PREFIX_LENGTH] + "..."
 
         # Create the API key record
         api_key = ApiKey(
@@ -97,7 +143,9 @@ class ApiKeyService:
             name=data.name,
             key_hash=hashed_key,
             prefix=display_prefix,
+            key_prefix=visible_prefix,
             scopes=data.scopes,
+            rate_limit_per_min=getattr(data, "rate_limit_per_min", 60),
             is_active=True,
             expires_at=data.expires_at,
         )
@@ -108,13 +156,13 @@ class ApiKeyService:
         audit_log = AuditLog(
             id=uuid.uuid4(),
             user_id=user.id,
-            organization_id=organization_id,
             action="api_key_created",
             resource_type="api_key",
             resource_id=str(api_key.id),
             details={
                 "api_key_name": data.name,
                 "scopes": data.scopes,
+                "rate_limit_per_min": api_key.rate_limit_per_min,
                 "expires_at": data.expires_at.isoformat() if data.expires_at else None,
             },
         )
@@ -258,12 +306,12 @@ class ApiKeyService:
             audit_log = AuditLog(
                 id=uuid.uuid4(),
                 user_id=user.id,
-                organization_id=api_key.organization_id,
                 action="api_key_updated",
                 resource_type="api_key",
                 resource_id=str(api_key.id),
                 details={
                     "api_key_name": api_key.name,
+                    "organization_id": str(api_key.organization_id),
                     "changes": changes,
                 },
             )
@@ -284,7 +332,7 @@ class ApiKeyService:
         """
         Delete (revoke) an API key.
 
-        This performs a soft delete by setting is_active=False.
+        This performs a soft delete by setting is_active=False and revoked_at.
 
         Args:
             api_key_id: The API key ID
@@ -298,15 +346,16 @@ class ApiKeyService:
             return False
 
         # Soft delete
+        now = datetime.utcnow()
         api_key.is_active = False
-        api_key.updated_at = datetime.utcnow()
+        api_key.revoked_at = now
+        api_key.updated_at = now
 
         # Create audit log entry
         audit_log = AuditLog(
             id=uuid.uuid4(),
             user_id=user.id,
-            organization_id=api_key.organization_id,
-            action="api_key_deleted",
+            action="api_key_revoked",
             resource_type="api_key",
             resource_id=str(api_key.id),
             details={
@@ -317,7 +366,7 @@ class ApiKeyService:
 
         await self.db.commit()
 
-        logger.info(f"API key deleted: {api_key.id} by user {user.id}")
+        logger.info(f"API key revoked: {api_key.id} by user {user.id}")
 
         return True
 
@@ -357,12 +406,12 @@ class ApiKeyService:
         audit_log = AuditLog(
             id=uuid.uuid4(),
             user_id=user.id,
-            organization_id=api_key.organization_id,
             action="api_key_rotated",
             resource_type="api_key",
             resource_id=str(api_key.id),
             details={
                 "api_key_name": api_key.name,
+                "organization_id": str(api_key.organization_id),
                 "old_prefix": old_prefix,
                 "new_prefix": display_prefix,
             },
@@ -396,6 +445,7 @@ class ApiKeyService:
         Validate an API key and return the associated user.
 
         This is the main authentication flow for API keys.
+        Supports both legacy jnk_ and modern sk_live_ key formats.
 
         Args:
             plain_key: The plain text API key
@@ -403,32 +453,8 @@ class ApiKeyService:
         Returns:
             Tuple of (User, ApiKey) if valid, None if invalid
         """
-        # Validate key format
-        if not plain_key.startswith(self.KEY_PREFIX):
-            return None
-
-        # Create display prefix for lookup
-        display_prefix = plain_key[: self.DISPLAY_PREFIX_LENGTH] + "..."
-
-        # Find the key by prefix
-        result = await self.db.execute(
-            select(ApiKey).where(
-                ApiKey.prefix == display_prefix,
-                ApiKey.is_active == True,
-            )
-        )
-        api_key = result.scalar_one_or_none()
-
+        api_key = await self._resolve_api_key(plain_key)
         if not api_key:
-            return None
-
-        # Verify the full key
-        if not self.verify_api_key(plain_key, api_key.key_hash):
-            return None
-
-        # Check expiration
-        if api_key.expires_at and api_key.expires_at < datetime.utcnow():
-            logger.info(f"API key expired: {api_key.id}")
             return None
 
         # Get the user
@@ -442,6 +468,78 @@ class ApiKeyService:
         await self.update_last_used(api_key)
 
         return user, api_key
+
+    async def verify_key_for_service(
+        self,
+        plain_key: str,
+    ) -> Optional[ApiKey]:
+        """
+        Verify an API key and return the key record (for service-to-service calls).
+
+        Unlike validate_and_get_user, this does NOT load the User object --
+        it returns only the ApiKey so the caller can extract org_id and scopes.
+
+        Args:
+            plain_key: The plain text API key
+
+        Returns:
+            The ApiKey record if valid, None if invalid/revoked/expired
+        """
+        api_key = await self._resolve_api_key(plain_key)
+        if not api_key:
+            return None
+
+        # Update last used timestamp
+        await self.update_last_used(api_key)
+        return api_key
+
+    async def _resolve_api_key(self, plain_key: str) -> Optional[ApiKey]:
+        """
+        Internal helper: look up and verify an API key by its plain text value.
+
+        Supports two lookup strategies:
+        - sk_live_ keys: SHA-256 hash lookup (constant-time, no scan)
+        - jnk_ keys: prefix lookup + bcrypt verify (legacy)
+
+        Returns:
+            The verified ApiKey record, or None
+        """
+        if plain_key.startswith(SK_LIVE_PREFIX):
+            # Modern format: direct hash lookup
+            key_hash = self.hash_key_sha256(plain_key)
+            result = await self.db.execute(
+                select(ApiKey).where(
+                    ApiKey.key_hash == key_hash,
+                    ApiKey.is_active == True,
+                    ApiKey.revoked_at == None,
+                )
+            )
+            api_key = result.scalar_one_or_none()
+        elif plain_key.startswith(self.KEY_PREFIX):
+            # Legacy format: prefix lookup + bcrypt verify
+            display_prefix = plain_key[: self.DISPLAY_PREFIX_LENGTH] + "..."
+            result = await self.db.execute(
+                select(ApiKey).where(
+                    ApiKey.prefix == display_prefix,
+                    ApiKey.is_active == True,
+                    ApiKey.revoked_at == None,
+                )
+            )
+            api_key = result.scalar_one_or_none()
+            if api_key and not self.verify_api_key(plain_key, api_key.key_hash):
+                return None
+        else:
+            return None
+
+        if not api_key:
+            return None
+
+        # Check expiration
+        if api_key.expires_at and api_key.expires_at < datetime.utcnow():
+            logger.info(f"API key expired: {api_key.id}")
+            return None
+
+        return api_key
 
     async def check_user_can_manage_key(
         self,

@@ -23,6 +23,8 @@ from app.schemas.api_key import (
     ApiKeyResponse,
     ApiKeyRotateResponse,
     ApiKeyUpdate,
+    ApiKeyVerifyRequest,
+    ApiKeyVerifyResponse,
 )
 from app.services.api_key_service import ApiKeyService
 
@@ -120,10 +122,13 @@ async def list_api_keys(
                 organization_id=str(key.organization_id),
                 name=key.name,
                 prefix=key.prefix,
+                key_prefix=key.key_prefix,
                 scopes=key.scopes or [],
+                rate_limit_per_min=key.rate_limit_per_min or 60,
                 is_active=key.is_active,
                 last_used=key.last_used,
                 expires_at=key.expires_at,
+                revoked_at=key.revoked_at,
                 created_at=key.created_at,
                 updated_at=key.updated_at,
             )
@@ -169,10 +174,13 @@ async def create_api_key(
         organization_id=str(api_key.organization_id),
         name=api_key.name,
         prefix=api_key.prefix,
+        key_prefix=api_key.key_prefix,
         scopes=api_key.scopes or [],
+        rate_limit_per_min=api_key.rate_limit_per_min or 60,
         is_active=api_key.is_active,
         last_used=api_key.last_used,
         expires_at=api_key.expires_at,
+        revoked_at=api_key.revoked_at,
         created_at=api_key.created_at,
         updated_at=api_key.updated_at,
         key=plain_key,
@@ -208,10 +216,13 @@ async def get_api_key(
         organization_id=str(api_key.organization_id),
         name=api_key.name,
         prefix=api_key.prefix,
+        key_prefix=api_key.key_prefix,
         scopes=api_key.scopes or [],
+        rate_limit_per_min=api_key.rate_limit_per_min or 60,
         is_active=api_key.is_active,
         last_used=api_key.last_used,
         expires_at=api_key.expires_at,
+        revoked_at=api_key.revoked_at,
         created_at=api_key.created_at,
         updated_at=api_key.updated_at,
     )
@@ -247,10 +258,13 @@ async def update_api_key(
         organization_id=str(api_key.organization_id),
         name=api_key.name,
         prefix=api_key.prefix,
+        key_prefix=api_key.key_prefix,
         scopes=api_key.scopes or [],
+        rate_limit_per_min=api_key.rate_limit_per_min or 60,
         is_active=api_key.is_active,
         last_used=api_key.last_used,
         expires_at=api_key.expires_at,
+        revoked_at=api_key.revoked_at,
         created_at=api_key.created_at,
         updated_at=api_key.updated_at,
     )
@@ -316,12 +330,50 @@ async def rotate_api_key(
         organization_id=str(api_key.organization_id),
         name=api_key.name,
         prefix=api_key.prefix,
+        key_prefix=api_key.key_prefix,
         scopes=api_key.scopes or [],
+        rate_limit_per_min=api_key.rate_limit_per_min or 60,
         is_active=api_key.is_active,
         last_used=api_key.last_used,
         expires_at=api_key.expires_at,
+        revoked_at=api_key.revoked_at,
         created_at=api_key.created_at,
         updated_at=api_key.updated_at,
         key=plain_key,
         previous_prefix=old_prefix,
+    )
+
+
+@router.post("/verify", response_model=ApiKeyVerifyResponse)
+async def verify_api_key(
+    data: ApiKeyVerifyRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Verify an API key and return its org_id and scopes.
+
+    This is an **internal** endpoint intended for service-to-service calls.
+    It does NOT require JWT authentication so that other MADFAM services
+    can validate API keys presented by external consumers.
+
+    Returns valid=false (not an HTTP error) when the key is invalid,
+    so callers can distinguish "key checked but rejected" from transport errors.
+    """
+    service = ApiKeyService(db)
+
+    api_key = await service.verify_key_for_service(data.key)
+
+    if not api_key:
+        return ApiKeyVerifyResponse(
+            valid=False,
+            org_id=None,
+            scopes=[],
+            key_id=None,
+        )
+
+    return ApiKeyVerifyResponse(
+        valid=True,
+        org_id=str(api_key.organization_id),
+        scopes=api_key.scopes or [],
+        key_id=str(api_key.id),
     )

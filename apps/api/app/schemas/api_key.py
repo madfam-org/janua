@@ -25,6 +25,12 @@ class ApiKeyCreate(BaseModel):
         description="List of permission scopes for this key",
         examples=[["read:users", "write:users", "read:organizations"]],
     )
+    rate_limit_per_min: int = Field(
+        default=60,
+        ge=1,
+        le=10000,
+        description="Rate limit in requests per minute for this key",
+    )
     expires_at: Optional[datetime] = Field(
         default=None,
         description="Optional expiration date for the key (null for no expiration)",
@@ -94,13 +100,20 @@ class ApiKeyResponse(BaseModel):
     prefix: str = Field(
         ..., description="Display prefix of the key (e.g., 'jnk_abc123...')"
     )
+    key_prefix: Optional[str] = Field(
+        default=None, description="Visible key prefix (e.g., 'sk_live_ab3f')"
+    )
     scopes: List[str] = Field(default=[], description="Permission scopes for this key")
+    rate_limit_per_min: int = Field(default=60, description="Rate limit per minute for this key")
     is_active: bool = Field(..., description="Whether the key is active")
     last_used: Optional[datetime] = Field(
         default=None, description="When the key was last used"
     )
     expires_at: Optional[datetime] = Field(
         default=None, description="When the key expires (null for no expiration)"
+    )
+    revoked_at: Optional[datetime] = Field(
+        default=None, description="When the key was revoked (null if active)"
     )
     created_at: datetime = Field(..., description="When the key was created")
     updated_at: datetime = Field(..., description="When the key was last updated")
@@ -141,4 +154,29 @@ class ApiKeyRotateResponse(ApiKeyCreateResponse):
 
     previous_prefix: str = Field(
         ..., description="Prefix of the previous (now invalidated) key"
+    )
+
+
+class ApiKeyVerifyRequest(BaseModel):
+    """Schema for verifying an API key (internal service-to-service endpoint)"""
+
+    key: str = Field(
+        ...,
+        min_length=10,
+        description="The full API key to verify",
+    )
+
+
+class ApiKeyVerifyResponse(BaseModel):
+    """Schema for API key verification response"""
+
+    valid: bool = Field(..., description="Whether the key is valid and active")
+    org_id: Optional[str] = Field(
+        default=None, description="Organization ID the key belongs to (null if invalid)"
+    )
+    scopes: List[str] = Field(
+        default=[], description="Permission scopes granted by this key"
+    )
+    key_id: Optional[str] = Field(
+        default=None, description="The API key record ID (null if invalid)"
     )

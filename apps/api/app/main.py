@@ -522,6 +522,12 @@ app.add_middleware(TenantMiddleware)
 # Add comprehensive error handling middleware (add last so it catches everything)
 app.add_middleware(ErrorHandlingMiddleware)
 
+# API Key Authentication Middleware (must be registered BEFORE CORS)
+# Intercepts X-API-Key / Bearer sk_live_* and injects X-Org-Id, X-Scopes, X-Key-Id
+from app.middleware.api_key_auth import ApiKeyAuthMiddleware
+
+app.add_middleware(ApiKeyAuthMiddleware)
+
 # Configure Dynamic CORS (loads origins from config + database)
 # This supports multi-tenant CORS origins managed via Admin API
 from app.middleware.dynamic_cors import DynamicCORSMiddleware
