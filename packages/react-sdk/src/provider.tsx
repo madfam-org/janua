@@ -136,6 +136,38 @@ function isTokenExpired(token: string): boolean {
 }
 
 /**
+ * Parse basic user info from a JWT access token.
+ * Used as a fallback when getCurrentUser() fails — ensures isAuthenticated
+ * is set correctly even if the user profile API is unavailable.
+ */
+function parseUserFromToken(token: string): JanuaUser | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload.sub) return null;
+
+    return {
+      id: payload.sub,
+      email: payload.email || '',
+      name: payload.name || null,
+      display_name: payload.name || payload.email?.split('@')[0] || null,
+      locale: payload.locale || 'en-US',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      mfa_enabled: payload.mfa_enabled || false,
+      email_verified: payload.email_verified || false,
+      created_at: payload.iat ? new Date(payload.iat * 1000).toISOString() : new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      organization_id: payload.org_id,
+      organization_role: payload.roles?.[0],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * JanuaProvider component for React applications
  *
  * Wraps your application and provides authentication context.
@@ -279,12 +311,21 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
             return;
           }
         } else {
-          // Token is valid, fetch current user
-          // Security: User data stored in React state only, not localStorage (CWE-312)
-          const currentUser = await client.getCurrentUser();
-          if (currentUser) {
-            const mappedUser = mapApiUserToJanuaUser(currentUser);
-            setUser(mappedUser);
+          // Token is valid — set basic user from JWT immediately as fallback
+          const tokenUser = parseUserFromToken(token);
+          if (tokenUser) {
+            setUser(tokenUser);
+          }
+
+          // Then try to fetch full user profile for richer data
+          try {
+            const currentUser = await client.getCurrentUser();
+            if (currentUser) {
+              const mappedUser = mapApiUserToJanuaUser(currentUser);
+              setUser(mappedUser);
+            }
+          } catch {
+            // getCurrentUser failed — token-based user is already set above
           }
         }
       } catch (err) {
@@ -313,11 +354,21 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
 
         storeTokens(response.tokens.access_token, response.tokens.refresh_token);
 
-        // Security: User data stored in React state only, not localStorage (CWE-312)
-        const currentUser = await client.getCurrentUser();
-        if (currentUser) {
-          const mappedUser = mapApiUserToJanuaUser(currentUser);
-          setUser(mappedUser);
+        // Set user from token immediately so isAuthenticated becomes true
+        const tokenUser = parseUserFromToken(response.tokens.access_token);
+        if (tokenUser) {
+          setUser(tokenUser);
+        }
+
+        // Then try to fetch full user profile for richer data (non-blocking)
+        try {
+          const currentUser = await client.getCurrentUser();
+          if (currentUser) {
+            const mappedUser = mapApiUserToJanuaUser(currentUser);
+            setUser(mappedUser);
+          }
+        } catch {
+          // getCurrentUser failed — token-based user is already set above
         }
       } catch (err) {
         const errorState = mapErrorToState(err);
