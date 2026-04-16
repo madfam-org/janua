@@ -144,7 +144,6 @@ export function EcosystemVault() {
 
   // Handle rotation
   const handleRotate = async (secretId: string, newValue: string, reason?: string) => {
-    console.log('Rotating secret:', secretId, 'Reason:', reason)
     setSecrets((prev) =>
       prev.map((s) =>
         s.id === secretId

@@ -113,7 +113,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // First, check if we have the SSO cookie from dashboard login
       const ssoToken = getCookie('janua_access_token')
       if (!ssoToken) {
-        console.log('[SSO] No janua_access_token cookie found')
         return false
       }
 
@@ -131,7 +130,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.ok) {
         const userData = await response.json()
         if (userData && userData.id) {
-          console.log('[SSO] Session found via cookie, user:', userData.email)
           // Store the token in localStorage for SDK to use
           localStorage.setItem('janua_access_token', ssoToken)
           // Update local state with user and set middleware cookies
@@ -140,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return true
         }
       } else {
-        console.log('[SSO] Token validation failed:', response.status)
+        // Token validation failed — will fall through to unauthenticated state
       }
       setMiddlewareCookies(null)
       return false
