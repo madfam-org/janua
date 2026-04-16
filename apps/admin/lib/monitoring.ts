@@ -2,7 +2,7 @@
  * Frontend monitoring utilities for admin application
  */
 
-// TODO: Re-enable when @janua/core logger is available
+// TODO(2026-04-16): Re-enable when @janua/core is added as admin app dependency -- tracked in backlog
 // import { createLogger } from '@janua/core/utils/logger'
 // const logger = createLogger('AdminMonitoring')
 
@@ -24,7 +24,7 @@ class AdminMonitoring {
 
   constructor() {
     this.baseUrl = '/api/metrics'
-    this.isEnabled = process.env.NODE_ENV === 'production' || 
+    this.isEnabled = process.env.NODE_ENV === 'production' ||
                      process.env.NEXT_PUBLIC_ENABLE_MONITORING === 'true'
   }
 
@@ -76,8 +76,8 @@ class AdminMonitoring {
   trackConfigChange(setting: string, oldValue?: unknown, newValue?: unknown, adminUserId?: string): void {
     this.track({
       type: 'configChange',
-      metadata: { 
-        setting, 
+      metadata: {
+        setting,
         oldValue: oldValue !== undefined ? String(oldValue) : undefined,
         newValue: newValue !== undefined ? String(newValue) : undefined,
         adminUserId,
@@ -92,14 +92,14 @@ class AdminMonitoring {
   trackError(error: Error | string, context?: Record<string, unknown>): void {
     const errorMessage = error instanceof Error ? error.message : error
     const errorStack = error instanceof Error ? error.stack : undefined
-    
+
     this.track({
       type: 'error',
-      metadata: { 
+      metadata: {
         message: errorMessage,
         stack: errorStack,
         timestamp: Date.now(),
-        ...context 
+        ...context
       }
     })
   }
@@ -142,7 +142,7 @@ export function trackErrorBoundary(error: Error, errorInfo: { componentStack?: s
 // Security-focused tracking for admin operations
 export function trackSecurityEvent(eventType: string, severity: 'low' | 'medium' | 'high', details: Record<string, unknown>) {
   adminMonitoring.trackAdminAction(`security_${eventType}`, 'security', undefined)
-  
+
   // Also track as error if high severity
   if (severity === 'high') {
     adminMonitoring.trackError(`Security event: ${eventType}`, {

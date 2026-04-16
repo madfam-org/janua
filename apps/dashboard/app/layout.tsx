@@ -38,4 +38,4 @@ export default function RootLayout({
 
 // NOTE: FeatureFlagProvider temporarily removed due to React types conflict
 // between Next.js 15 (React 19) and @janua/feature-flags (React 18 types)
-// TODO: Re-add once types are aligned across the monorepo
+// TODO(2026-04-16): Re-add FeatureFlagProvider once React types are aligned across the monorepo -- tracked in backlog

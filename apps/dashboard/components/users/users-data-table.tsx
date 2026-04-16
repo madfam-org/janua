@@ -144,6 +144,11 @@ export function UsersDataTable({ initialPage = 1, pageSize = 20 }: UsersDataTabl
       router.push(`/users/${action.userId}?tab=sessions`)
       return
     }
+    if (action.type === 'change_role') {
+      // Navigate to user detail profile tab for role management
+      router.push(`/users/${action.userId}?tab=profile`)
+      return
+    }
     setActionDialog({ open: true, action, loading: false })
   }, [router])
 
@@ -176,10 +181,6 @@ export function UsersDataTable({ initialPage = 1, pageSize = 20 }: UsersDataTabl
           break
         case 'delete':
           await deleteUser(userId)
-          break
-        case 'change_role':
-          // TODO: Open role selection dialog
-          console.log('Change role for:', userId)
           break
       }
 
