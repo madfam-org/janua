@@ -90,13 +90,10 @@ export function getUserMessage(code?: string): string | undefined {
   return ERROR_MESSAGES[code]
 }
 
+import { AUTO_DISMISS_MS } from '@/lib/constants'
+
 // Auto-dismiss timeouts by severity (in milliseconds)
-const AUTO_DISMISS_TIMEOUT: Record<ErrorSeverity, number | null> = {
-  error: null, // Don't auto-dismiss errors
-  warning: 10000, // 10 seconds
-  info: 5000, // 5 seconds
-  success: 3000, // 3 seconds
-}
+const AUTO_DISMISS_TIMEOUT: Record<ErrorSeverity, number | null> = AUTO_DISMISS_MS
 
 interface ErrorProviderProps {
   children: ReactNode

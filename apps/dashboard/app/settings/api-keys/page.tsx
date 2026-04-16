@@ -22,6 +22,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { listApiKeys, createApiKey, revokeApiKey } from '@/lib/api'
+import { TOAST_DISMISS_MS } from '@/lib/constants'
 
 interface ApiKey {
   id: string
@@ -138,7 +139,7 @@ export default function ApiKeysPage() {
       await revokeApiKey(keyId)
 
       setSuccess('API key revoked successfully')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
       fetchApiKeys()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to revoke API key')

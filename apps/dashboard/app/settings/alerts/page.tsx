@@ -34,6 +34,7 @@ import {
   deleteRule,
   toggleRule,
 } from '@/lib/api'
+import { TOAST_DISMISS_MS } from '@/lib/constants'
 
 interface Alert {
   id: string
@@ -138,7 +139,7 @@ export default function AlertsPage() {
     try {
       await acknowledgeAlert(alertId)
       setSuccess('Alert acknowledged')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
       fetchAlertData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to acknowledge alert')
@@ -149,7 +150,7 @@ export default function AlertsPage() {
     try {
       await resolveAlert(alertId)
       setSuccess('Alert resolved')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
       fetchAlertData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to resolve alert')
@@ -165,7 +166,7 @@ export default function AlertsPage() {
     try {
       await createChannel(newChannel)
       setSuccess('Notification channel created')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
       setShowChannelForm(false)
       setNewChannel({ name: '', type: 'email', config: { endpoint: '' } })
       fetchAlertData()
@@ -180,7 +181,7 @@ export default function AlertsPage() {
     try {
       await deleteChannel(channelId)
       setSuccess('Channel deleted')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
       fetchAlertData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete channel')
@@ -215,7 +216,7 @@ export default function AlertsPage() {
       })
 
       setSuccess('Alert rule created successfully')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
       setShowRuleForm(false)
       setNewRule({
         name: '',
@@ -238,7 +239,7 @@ export default function AlertsPage() {
     try {
       await deleteRule(ruleId)
       setSuccess('Rule deleted successfully')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
       fetchAlertData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete rule')

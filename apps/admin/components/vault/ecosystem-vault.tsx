@@ -16,6 +16,7 @@ import {
 
 import type { MaskedSecret, SecretCategory, SecretStatus } from './types'
 import { CATEGORY_ICONS, CATEGORY_LABELS } from './constants'
+import { VAULT_POLL_INTERVAL_MS } from '@/lib/constants'
 import { VaultStatusBadge } from './status-badge'
 import { MaskedValue } from './masked-value'
 import { RotationSheet } from './rotation-sheet'
@@ -102,7 +103,7 @@ export function EcosystemVault() {
     if (revealedSecrets.size > 0) {
       const timer = setTimeout(() => {
         setRevealedSecrets(new Set())
-      }, 30000)
+      }, VAULT_POLL_INTERVAL_MS)
       return () => clearTimeout(timer)
     }
   }, [revealedSecrets])

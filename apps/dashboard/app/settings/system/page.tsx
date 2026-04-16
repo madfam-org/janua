@@ -23,6 +23,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { getCorsOrigins, addCorsOrigin, deleteCorsOrigin, getSystemSettings, updateSystemSetting } from '@/lib/api'
+import { TOAST_DISMISS_MS } from '@/lib/constants'
 
 interface CorsOrigin {
   id: string
@@ -142,7 +143,7 @@ export default function SystemSettingsPage() {
       setCorsOrigins((prev) => [...prev, added as unknown as CorsOrigin])
       setNewOrigin('')
       setSuccess('CORS origin added')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add CORS origin')
     } finally {
@@ -160,7 +161,7 @@ export default function SystemSettingsPage() {
 
       setCorsOrigins((prev) => prev.filter((o) => o.id !== originId))
       setSuccess('CORS origin removed')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove CORS origin')
     }
@@ -188,7 +189,7 @@ export default function SystemSettingsPage() {
         return next
       })
       setSuccess(`${section.charAt(0).toUpperCase() + section.slice(1)} settings saved`)
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save settings')
     } finally {

@@ -21,6 +21,7 @@ import {
   Star,
 } from 'lucide-react'
 import { getBillingCurrent, getInvoices, getPaymentMethods, createCheckout } from '@/lib/api'
+import { TOAST_DISMISS_MS } from '@/lib/constants'
 
 interface Subscription {
   id: string
@@ -235,7 +236,7 @@ export default function BillingPage() {
         window.location.href = data.checkout_url
       } else {
         setSuccess(`Successfully switched to ${planId} plan`)
-        setTimeout(() => setSuccess(null), 3000)
+        setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
         fetchBillingData()
       }
     } catch (err) {

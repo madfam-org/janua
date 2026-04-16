@@ -24,6 +24,7 @@ import {
   Star,
 } from 'lucide-react'
 import { listRoles, listSystemRoles, listPermissions, createRole, updateRole, deleteRole } from '@/lib/api'
+import { TOAST_DISMISS_MS } from '@/lib/constants'
 
 interface Role {
   id: string
@@ -126,7 +127,7 @@ export default function RolesPage() {
       })
 
       setSuccess('Role created successfully')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
       resetForm()
       fetchData()
     } catch (err) {
@@ -154,7 +155,7 @@ export default function RolesPage() {
       })
 
       setSuccess('Role updated successfully')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
       resetForm()
       fetchData()
     } catch (err) {
@@ -173,7 +174,7 @@ export default function RolesPage() {
       await deleteRole(roleId)
 
       setSuccess('Role deleted successfully')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
       fetchData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete role')

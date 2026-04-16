@@ -26,6 +26,7 @@ import {
   Info,
 } from 'lucide-react'
 import { listEmailTemplates, updateEmailTemplate, resetEmailTemplate } from '@/lib/api'
+import { TOAST_DISMISS_MS } from '@/lib/constants'
 
 interface EmailTemplate {
   id: string
@@ -305,7 +306,7 @@ export default function EmailTemplatesPage() {
       setSelectedTemplate((prev) => (prev ? { ...prev, ...updatedTemplate } : prev))
       setHasChanges(false)
       setSuccess('Template saved successfully')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save template')
     } finally {
@@ -328,7 +329,7 @@ export default function EmailTemplatesPage() {
       await resetEmailTemplate(selectedTemplate.id)
 
       setSuccess('Template reset to default')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
       fetchTemplates()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reset template')

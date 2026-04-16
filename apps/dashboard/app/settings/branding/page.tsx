@@ -19,6 +19,7 @@ import {
   Save,
 } from 'lucide-react'
 import { getBranding, updateBranding, getDomains, addDomain, verifyDomain } from '@/lib/api'
+import { TOAST_DISMISS_MS } from '@/lib/constants'
 import { januaClient } from '@/lib/janua-client'
 
 interface BrandingConfiguration {
@@ -155,7 +156,7 @@ export default function BrandingSettingsPage() {
       const data = await updateBranding(organizationId, formData)
       setConfig(data as unknown as BrandingConfiguration)
       setSuccess('Branding configuration saved successfully!')
-      setTimeout(() => setSuccess(null), 3000)
+      setTimeout(() => setSuccess(null), TOAST_DISMISS_MS)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save configuration')
     } finally {
