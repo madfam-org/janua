@@ -30,5 +30,5 @@ If you didn't make this change, please contact our security team immediately.
 Need help? Contact us at {{ support_email }}
 
 ---
-Janua by Aureo Labs
+Janua by Innovaciones MADFAM
 {{ base_url }}

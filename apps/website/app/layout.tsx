@@ -12,7 +12,7 @@ export const metadata = {
   title: 'Janua - Edge-Fast Identity Platform',
   description: 'Secure substrate for identity. Edge-fast verification with full control. The modern alternative to Auth0 and Clerk.',
   keywords: ['identity', 'authentication', 'auth', 'JWT', 'passkeys', 'WebAuthn', 'edge computing'],
-  authors: [{ name: 'Aureo Labs' }],
+  authors: [{ name: 'Innovaciones MADFAM' }],
   openGraph: {
     title: 'Janua - Edge-Fast Identity Platform',
     description: 'Secure substrate for identity. Edge-fast verification with full control.',

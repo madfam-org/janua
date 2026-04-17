@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Janua** is a secure identity platform providing edge-fast verification and full control. Currently in private alpha stage, operating entirely on the single domain `janua.dev`.
 
-**Company**: Janua by Aureo Labs (a MADFAM company)
+**Company**: Janua by Innovaciones MADFAM
 **Status**: Private alpha
 **Domain**: https://janua.dev
 

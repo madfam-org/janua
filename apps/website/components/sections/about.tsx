@@ -188,7 +188,7 @@ export function AboutSection() {
                 Headquarters
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Janua by Aureo Labs<br />
+                Janua by Innovaciones MADFAM<br />
                 A MADFAM Company<br />
                 Distributed Team<br />
                 San Francisco, CA / Remote

@@ -111,7 +111,7 @@ export function CTASection() {
           <div className="flex gap-8 justify-center items-center opacity-70">
             <div className="text-white font-semibold">MADFAM</div>
             <div className="text-white font-semibold">Forge Sight</div>
-            <div className="text-white font-semibold">Aureo Labs</div>
+            <div className="text-white font-semibold">Innovaciones MADFAM</div>
           </div>
         </motion.div>
       </motion.div>

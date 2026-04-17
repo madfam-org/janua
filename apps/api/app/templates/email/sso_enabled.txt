@@ -31,5 +31,5 @@ a more convenient and secure way to access your account.
 Questions about SSO? Contact us at {{ support_email }}
 
 ---
-Janua by Aureo Labs
+Janua by Innovaciones MADFAM
 {{ base_url }}

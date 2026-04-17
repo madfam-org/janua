@@ -37,5 +37,5 @@ trail for regulatory reporting and review.
 Questions about this alert? Contact our compliance team at {{ support_email }}
 
 ---
-Janua by Aureo Labs
+Janua by Innovaciones MADFAM
 {{ base_url }}
