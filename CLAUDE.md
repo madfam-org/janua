@@ -764,6 +764,32 @@ EOF
 
 ## Production Operations
 
+### Secrets Rotation Registry
+
+`infra/secrets/SECRETS_REGISTRY.yaml` is the declarative source of truth
+for rotation cadences (quarterly / semi_annual / annual / on_demand)
+across Janua, Enclii, and the broader MADFAM ecosystem. Added
+2026-04-17: an `ecosystem` section covering ENCLII_API_TOKEN, probe
+tokens, webhook secrets, AI-provider keys, Karafiel compliance creds,
+Dhanam provider creds (Belvo/Plaid/Bitso), and Colyseus.
+
+Enforcement ships as a K8s CronJob at
+`infra/k8s/production/rotation-monitor-cronjob.yaml`. Daily at 13:05 UTC
+it runs `scripts/secrets/rotation_monitor.py` which classifies every
+registry entry as `overdue | reminder | bootstrap | ok | skipped` and
+exits non-zero on any actionable finding so Alertmanager pages
+on-call. Slack webhook URL is mounted from the optional
+`rotation-monitor-secrets` Secret.
+
+13 pytest cases at `scripts/secrets/test_rotation_monitor.py` cover all
+severity branches and malformed-entry resilience. Run:
+
+```bash
+python3 scripts/secrets/rotation_monitor.py                 # markdown, exit 0/1
+python3 scripts/secrets/rotation_monitor.py --json          # JSON output
+python3 -m pytest scripts/secrets/test_rotation_monitor.py  # test suite
+```
+
 ### Kubernetes Commands
 
 ```bash
