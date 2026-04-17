@@ -1,8 +1,8 @@
 # Janua — SOFTWARE\_SPEC.md
 
-**Company:** Janua (janua.dev) by **Aureo Labs** (aureolabs.dev), a **MADFAM** company (madfam.io)
+**Company:** Janua (janua.dev) by **Innovaciones MADFAM** (innovacionesmadfam.dev), a **MADFAM** company (madfam.io)
 **Doc status:** Draft v1.2 (Updated for Enclii/Hetzner + Cloudflare Tunnel architecture)
-**Owners:** Platform Eng @ Aureo Labs
+**Owners:** Platform Eng @ Innovaciones MADFAM
 **Audience:** Engineering, Security, Product, GTM
 **Review cadence:** Monthly until GA
 

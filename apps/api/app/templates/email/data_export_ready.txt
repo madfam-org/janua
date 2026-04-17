@@ -33,5 +33,5 @@ and do not share the download link with anyone.
 Questions about your data? Contact us at {{ support_email }}
 
 ---
-Janua by Aureo Labs
+Janua by Innovaciones MADFAM
 {{ base_url }}

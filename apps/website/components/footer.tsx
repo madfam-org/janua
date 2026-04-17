@@ -223,7 +223,7 @@ export function Footer() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-6 mb-4 lg:mb-0">
               <p className="text-gray-400 text-sm">
-                © 2024 Janua by Aureo Labs. All rights reserved.
+                © 2024 Janua by Innovaciones MADFAM. All rights reserved.
               </p>
               <div className="flex space-x-6">
                 {navigation.legal.map((item) => (

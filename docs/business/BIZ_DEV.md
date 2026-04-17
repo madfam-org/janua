@@ -1,6 +1,6 @@
 # Janua — BIZ\_DEV.md
 
-**Company:** Janua (janua.dev) by **Aureo Labs** (aureolabs.dev), a **MADFAM** company (madfam.io)
+**Company:** Janua (janua.dev) by **Innovaciones MADFAM** (innovacionesmadfam.dev), a **MADFAM** company (madfam.io)
 **Doc status:** Draft v1.0 (Monetization & Internal Adoption)
 **Owners:** BizOps, Product, Finance, Legal, Platform Eng
 **Scope:** Pricing & packaging, payments architecture (Conekta MX + Fungies.io MoR INTL), GTM, revenue ops, and internal rollout across MADFAM products.
@@ -21,7 +21,7 @@ Janua is the **secure substrate for identity**. Our business strategy is **produ
 
 1. **B2B SaaS** teams (Seed–Series B) needing auth/RBAC/SSO quickly.
 2. **Mid‑market/Enterprise** platforms seeking **region pinning** and **policy control** without lock‑in.
-3. **Internal platforms** at MADFAM/Aureo Labs to unify login, entitlements, and billing.
+3. **Internal platforms** at MADFAM/Innovaciones MADFAM to unify login, entitlements, and billing.
 
 **Secondary ICPs**
 
@@ -129,7 +129,7 @@ Janua is the **secure substrate for identity**. Our business strategy is **produ
 
 1. **Forge Sight** — replace Clerk; dogfood all core features.
 2. **Internal tools** — MADFAM intranet, dashboards; validate org/RBAC.
-3. **Aureo Labs apps** — any B2B or dev‑facing properties; enable SSO pilots.
+3. **Innovaciones MADFAM apps** — any B2B or dev‑facing properties; enable SSO pilots.
 4. **Customer apps** — prioritize those needing audit/regional controls.
 
 ### 4.2 Standards & invariants

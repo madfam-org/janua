@@ -76,7 +76,7 @@ interface TrustSection {
   logos: [
     "MADFAM",
     "Forge Sight",
-    "Aureo Labs",
+    "Innovaciones MADFAM",
     // Partner logos
   ]
   

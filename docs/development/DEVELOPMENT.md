@@ -477,4 +477,4 @@ NEXT_PUBLIC_DEBUG=true yarn workspace @janua/admin dev
 
 ## License
 
-Copyright © Aureo Labs (MADFAM). See [LICENSE](./LICENSE) for details.
+Copyright © Innovaciones MADFAM (MADFAM). See [LICENSE](./LICENSE) for details.

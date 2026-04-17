@@ -363,9 +363,9 @@ VACUUM ANALYZE;
 - **Connection Pool Exhaustion**: Increase pool size, check connection leaks
 
 ### Emergency Contacts
-- **On-call Engineer**: alerts@aureo.io
-- **Database Team**: dba@aureo.io
-- **Security Team**: security@aureo.io
+- **On-call Engineer**: alerts@madfam.io
+- **Database Team**: dba@madfam.io
+- **Security Team**: security@madfam.io
 
 ### Escalation Procedures
 1. **Level 1**: Automated alerts and basic troubleshooting

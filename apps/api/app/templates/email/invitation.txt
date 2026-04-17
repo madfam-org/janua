@@ -24,5 +24,5 @@ SSO integration, multi-factor authentication, and comprehensive user identity fe
 Questions? Contact us at {{ support_email }}
 
 ---
-Janua by Aureo Labs
+Janua by Innovaciones MADFAM
 {{ base_url }}
