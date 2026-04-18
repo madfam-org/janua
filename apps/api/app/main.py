@@ -111,6 +111,9 @@ from app.routers.v1 import (
     oauth_clients as oauth_clients_v1,
 )
 from app.routers.v1 import (
+    oauth_on_behalf as oauth_on_behalf_v1,
+)
+from app.routers.v1 import (
     oauth_provider as oauth_provider_v1,
 )
 from app.routers.v1 import (
@@ -1005,6 +1008,9 @@ app.include_router(auth_v1.router, prefix="/api/v1")
 app.include_router(oauth_v1.router, prefix="/api/v1")
 app.include_router(oauth_clients_v1.router, prefix="/api/v1")
 app.include_router(oauth_provider_v1.router, prefix="/api/v1")
+# P3.2 — on-behalf OAuth linking for Enclii self-serve signup.
+# Endpoints no-op with 404 unless JANUA_SERVICE_TOKEN is configured.
+app.include_router(oauth_on_behalf_v1.router, prefix="/api/v1")
 app.include_router(users_v1.router, prefix="/api/v1")
 app.include_router(sessions_v1.router, prefix="/api/v1")
 app.include_router(devices_v1.router, prefix="/api/v1")
