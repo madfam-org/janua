@@ -293,6 +293,14 @@ class Settings(BaseSettings):
     ENABLE_SSO: bool = Field(default=False)
     ENABLE_SCIM: bool = Field(default=False)
     ENABLE_SIGNUPS: bool = Field(default=True)
+    # Service-to-service token shared with trusted internal callers (e.g.
+    # Enclii's signup flow) for on-behalf endpoints. When empty the
+    # on-behalf routes return 404. Rotated via the same process as other
+    # machine tokens (RFC 0005).
+    JANUA_SERVICE_TOKEN: str = Field(
+        default="",
+        description="Service token for internal on-behalf endpoints (oauth_on_behalf.py).",
+    )
     ENABLE_MAGIC_LINKS: bool = Field(default=True)
     ENABLE_OAUTH: bool = Field(default=True)
     ENABLE_MFA: bool = Field(default=True)
