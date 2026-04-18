@@ -477,6 +477,74 @@ See `enclii/infra/k8s/production/cloudflared-unified.yaml` for routing configura
 
 ---
 
+## Deployment Pipeline (dev → staging → prod)
+
+Janua is a **Phase 2** target (critical-service priority — auth underpins the
+entire MADFAM ecosystem) for the 3-tier pipeline defined in
+[internal-devops/rfcs/0001-dev-staging-prod-pipeline.md](https://github.com/madfam-org/internal-devops/blob/main/rfcs/0001-dev-staging-prod-pipeline.md).
+
+**Current state:** Janua has **no staging environment today**. Every push to
+`main` triggers `docker-publish.yml`, which builds images for all 5 services
+and commits their digests directly into `k8s/base/deployments/kustomization.yaml`.
+ArgoCD watches that path and reconciles straight into prod. See
+[docs/PP_3_STAGING_AUDIT.md](docs/PP_3_STAGING_AUDIT.md) for the full row-by-row
+gap analysis (~15% compliant with RFC 0001).
+
+### Known divergences from RFC 0001 (tracked in PP_3_STAGING_AUDIT.md)
+
+| Divergence | Impact | Resolution PR |
+|---|---|---|
+| No `janua-staging` namespace, no staging overlay, no staging ArgoCD App | Auth service changes land directly in prod; no soak | PP.3b |
+| ArgoCD watches `k8s/base/deployments/` with digests baked into base | Base is not env-agnostic; `overlays/prod/` is orphaned | PP.3b |
+| `overlays/prod/kustomization.yaml` has `newTag: main` (mutable) and is unused | Misleading — not the deployed state | PP.3b |
+| No `promote-to-prod.yml` or `rollback-prod.yml` | Prod consumes CI builds; rollback = `git revert` + rebuild | PP.3c |
+| No staging subdomain (`staging-auth.madfam.io`, `staging-api.janua.dev`) | Can't cross-service smoke | PP.3b (+ Cloudflare ops) |
+| No distinct staging JWT signing keypair | Requirement: staging must never share prod RSA keypair — see below | PP.3b (secrets template) |
+| No staging OAuth clients registered with Google / GitHub / Microsoft | Staging downstream services can't test full OIDC flow | PP.3b (ops action) |
+| Nightly prod→staging masked DB refresh not implemented | Staging DB will be seeded manually until masking tool chosen | Deferred (RFC 0001 open question) |
+
+### Janua-specific staging constraints
+
+Janua cannot use itself as a "staging auth provider" the way every other
+MADFAM service does. Staging Janua must be a **fully separate tenant**:
+
+- **Separate PostgreSQL DB** (`janua_staging`), never a replica of prod
+- **Separate OAuth client registry** — staging downstream services register against staging Janua, never against prod
+- **Distinct JWT RSA-2048 keypair** — if staging ever shares prod keys, a compromised staging env can issue prod-valid tokens. **Hard requirement**, not a best practice
+- **Distinct `FIELD_ENCRYPTION_KEY`** (Fernet) — needed for SOC 2 CF-01 separation
+- **Distinct issuer URL** — `https://staging-auth.madfam.io` or `https://auth-staging.janua.dev`, Cloudflare tunnel + DNS managed by ops
+
+A "staging reads prod in read-only mode" workaround is **rejected** because Janua issues JWTs (staging tokens would be valid against prod services), the OAuth client registry is write-heavy, and audit log bleed-through is unacceptable.
+
+See `docs/PP_3_STAGING_AUDIT.md` § Janua-specific staging constraints for the
+full `janua-staging-secrets` template (keys to generate, providers to register,
+redirect URIs).
+
+### Promotion pattern (when PP.3c lands)
+
+Janua is **Pattern B — manual gate** per RFC 0001 § Promotion mechanics.
+Reasoning: Janua is the auth floor for every MADFAM service. A wrong promote
+breaks every downstream login. When PP.3c ships, `enclii.yaml` will declare:
+
+```yaml
+promotion:
+  pattern: manual
+  min_soak_minutes: 30
+  require_smoke_pass: true
+```
+
+### What currently ships on push to `main`
+
+| Workflow | Trigger | Effect |
+|---|---|---|
+| `docker-publish.yml` | push to main (apps/packages/Dockerfile paths) | Builds all 5 images, commits digests to `k8s/base/deployments/kustomization.yaml`, ArgoCD reconciles prod |
+
+**This flow is intentionally preserved unchanged by PP.3.** Convergence to
+RFC 0001 is sequenced across follow-up PRs (PP.3b structural, PP.3c
+promote/rollback) so each diff is reviewable and reversible.
+
+---
+
 ## Common Workflows
 
 ### Adding a New API Endpoint
