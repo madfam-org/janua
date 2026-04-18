@@ -3,6 +3,19 @@ kind: Service
 metadata:
   name: janua
   project: janua
+
+# RFC 0001 promotion policy — Janua is Pattern B (manual gate) because
+# it is the ecosystem auth floor. Every other MADFAM service depends on
+# Janua's JWTs; a wrong promote breaks every downstream login. Blast
+# radius is maximum. The promote-to-prod.yml workflow's scheduled
+# auto-promote job is disabled via the repo variable AUTO_PROMOTE_ENABLED
+# (default: unset -> evaluated as "false"); leaving this value "manual"
+# here is the policy record.
+promotion:
+  pattern: manual
+  min_soak_minutes: 30
+  require_smoke_pass: true
+
 spec:
   runtime:
     port: 8080

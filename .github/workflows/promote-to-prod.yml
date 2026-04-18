@@ -1,0 +1,286 @@
+# PP.3c (RFC 0001 Phase 2) — promote staging -> prod.
+#
+# Promotes a staging image digest to production. Does NOT rebuild —
+# promotion is strictly a pointer update. This is the single most
+# important invariant of the pipeline.
+#
+# Janua is RFC 0001 Pattern B (manual gate) because it is the ecosystem
+# auth floor — every other MADFAM service depends on Janua's JWTs.
+# A wrong promote breaks every downstream login. The scheduled
+# auto-promote job is present in the template but gated off via the
+# repo variable AUTO_PROMOTE_ENABLED — enclii.yaml declares
+# `promotion.pattern: manual`, and AUTO_PROMOTE_ENABLED defaults to
+# "false". To enable auto-promote in the future, flip the repo
+# variable + update enclii.yaml.
+#
+# Janua-specific operator note:
+#   Promotes MUST serialize with key rotation (JWT RSA keypair in
+#   janua-secrets) and OAuth-client-registry changes (Google / GitHub /
+#   Microsoft client IDs). The `prod-promote` concurrency group below
+#   serializes promotes against each other; coordination with rotation
+#   jobs is a human discipline — if a rotation is in flight, wait for
+#   it to complete + its audit row to land before promoting. A
+#   simultaneous key rotation + image promote is the single most likely
+#   way to brick downstream logins ecosystem-wide.
+#
+# Target file note:
+#   This workflow writes to k8s/overlays/production/kustomization.yaml,
+#   which is the canonical prod manifest path AFTER PP.3b lands (PP.3b
+#   renames k8s/overlays/prod -> k8s/overlays/production and migrates
+#   digests out of k8s/base/deployments). Until PP.3b ships, the
+#   workflow will fail with a helpful error — that's intentional, you
+#   cannot promote to a target that does not exist yet.
+
+name: Promote staging -> prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: "Which image to promote"
+        required: true
+        type: choice
+        options:
+          - api
+          - admin
+          - dashboard
+          - docs
+          - website
+          - all
+      digest:
+        description: "Staging image digest to promote (sha256:...). Leave blank to read current staging overlay digest for the chosen component."
+        required: false
+        type: string
+      reason:
+        description: "Why are you promoting now? (shown in audit log; required)"
+        required: true
+        type: string
+
+  # Auto-promote is gated — Janua is Pattern B, so this job exits early
+  # unless the repo variable AUTO_PROMOTE_ENABLED == "true".
+  schedule:
+    - cron: "*/15 * * * *"
+
+concurrency:
+  # Serialize all prod-touching operations (promote + rollback share
+  # this group). See operator note above re: key rotation coordination.
+  group: prod-promote
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate promotion candidate(s)
+    runs-on: ubuntu-latest
+    outputs:
+      should_promote: ${{ steps.resolve.outputs.should_promote }}
+      api_digest: ${{ steps.resolve.outputs.api_digest }}
+      admin_digest: ${{ steps.resolve.outputs.admin_digest }}
+      dashboard_digest: ${{ steps.resolve.outputs.dashboard_digest }}
+      docs_digest: ${{ steps.resolve.outputs.docs_digest }}
+      website_digest: ${{ steps.resolve.outputs.website_digest }}
+      short: ${{ steps.resolve.outputs.short }}
+      reason: ${{ steps.resolve.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 100
+
+      - id: resolve
+        name: Resolve digest(s) per component
+        env:
+          AUTO_ENABLED: ${{ vars.AUTO_PROMOTE_ENABLED || 'false' }}
+          MIN_SOAK_MIN: ${{ vars.MIN_SOAK_MINUTES || '30' }}
+          COMPONENT: ${{ inputs.component }}
+          INPUT_DIGEST: ${{ inputs.digest }}
+          INPUT_REASON: ${{ inputs.reason }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT" == "schedule" ]]; then
+            if [[ "$AUTO_ENABLED" != "true" ]]; then
+              echo "Auto-promote disabled for Janua (Pattern B — manual gate)."
+              echo "should_promote=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            COMPONENT="all"
+            REASON="auto:scheduled"
+          else
+            REASON="manual:$INPUT_REASON"
+          fi
+
+          STAGING_FILE="k8s/overlays/staging/kustomization.yaml"
+          if [[ ! -f "$STAGING_FILE" ]]; then
+            echo "::error::$STAGING_FILE does not exist. PP.3b (staging overlay) must land before PP.3c promotes can succeed."
+            exit 1
+          fi
+
+          read_staging_digest() {
+            local image="$1"
+            python3 - "$image" <<'PY'
+          import re, pathlib, sys
+          image = sys.argv[1]
+          text = pathlib.Path("k8s/overlays/staging/kustomization.yaml").read_text()
+          # Match either "name: <img>\n  digest: sha256:..."
+          # or the alt order "digest: sha256:...\n  name: <img>"
+          pat = r'name:\s+' + re.escape(image) + r'\s*\n\s+digest:\s+(sha256:[a-f0-9]+)'
+          m = re.search(pat, text)
+          if not m:
+              alt = r'digest:\s+(sha256:[a-f0-9]+)\s*\n\s+name:\s+' + re.escape(image)
+              m = re.search(alt, text)
+          if not m:
+              sys.exit(1)
+          print(m.group(1))
+          PY
+          }
+
+          resolve_one() {
+            local comp="$1"
+            local image="ghcr.io/madfam-org/janua-$comp"
+            local d
+            if [[ -n "$INPUT_DIGEST" && "$COMPONENT" != "all" ]]; then
+              d="$INPUT_DIGEST"
+            else
+              d=$(read_staging_digest "$image") || {
+                echo "::error::Could not read staging digest for $comp ($image) from $STAGING_FILE"
+                exit 1
+              }
+            fi
+            if [[ ! "$d" =~ ^sha256:[a-f0-9]+$ ]]; then
+              echo "::error::Invalid $comp digest: $d"
+              exit 1
+            fi
+            # Placeholder check — never promote the zero-digest
+            if [[ "$d" == "sha256:0000000000000000000000000000000000000000000000000000000000000000" ]]; then
+              echo "::error::$comp staging digest is the placeholder — staging has never deployed this image. Refusing to promote."
+              exit 1
+            fi
+            # Soak check: find the commit that wrote this digest to staging overlay
+            STAGING_COMMIT=$(git log --all -n 50 --format="%H" -- "$STAGING_FILE" \
+              | while read sha; do
+                  if git show "$sha:$STAGING_FILE" 2>/dev/null | grep -q "$d"; then
+                    echo "$sha"; break
+                  fi
+                done)
+            if [[ -z "$STAGING_COMMIT" ]]; then
+              echo "::error::$comp digest $d has no recent staging commit — refusing to promote."
+              exit 1
+            fi
+            STAGING_TIME=$(git show -s --format=%ct "$STAGING_COMMIT")
+            NOW=$(date +%s)
+            AGE_MIN=$(( (NOW - STAGING_TIME) / 60 ))
+            if [[ "$AGE_MIN" -lt "$MIN_SOAK_MIN" ]]; then
+              echo "::error::$comp digest soaked ${AGE_MIN}min; required ${MIN_SOAK_MIN}min."
+              exit 1
+            fi
+            echo "$d"
+          }
+
+          API_D=""
+          ADMIN_D=""
+          DASHBOARD_D=""
+          DOCS_D=""
+          WEBSITE_D=""
+          case "$COMPONENT" in
+            api)       API_D=$(resolve_one api) ;;
+            admin)     ADMIN_D=$(resolve_one admin) ;;
+            dashboard) DASHBOARD_D=$(resolve_one dashboard) ;;
+            docs)      DOCS_D=$(resolve_one docs) ;;
+            website)   WEBSITE_D=$(resolve_one website) ;;
+            all)
+              API_D=$(resolve_one api)
+              ADMIN_D=$(resolve_one admin)
+              DASHBOARD_D=$(resolve_one dashboard)
+              DOCS_D=$(resolve_one docs)
+              WEBSITE_D=$(resolve_one website)
+              ;;
+            *)
+              echo "::error::Unknown component $COMPONENT"; exit 1 ;;
+          esac
+
+          SHORT="$(git rev-parse --short HEAD)"
+          {
+            echo "api_digest=$API_D"
+            echo "admin_digest=$ADMIN_D"
+            echo "dashboard_digest=$DASHBOARD_D"
+            echo "docs_digest=$DOCS_D"
+            echo "website_digest=$WEBSITE_D"
+            echo "short=$SHORT"
+            echo "reason=$REASON"
+            echo "should_promote=true"
+          } >> "$GITHUB_OUTPUT"
+
+  promote:
+    name: Write prod kustomization
+    needs: validate
+    if: needs.validate.outputs.should_promote == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.MADFAM_BOT_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Patch prod kustomization digests
+        env:
+          API_DIGEST: ${{ needs.validate.outputs.api_digest }}
+          ADMIN_DIGEST: ${{ needs.validate.outputs.admin_digest }}
+          DASHBOARD_DIGEST: ${{ needs.validate.outputs.dashboard_digest }}
+          DOCS_DIGEST: ${{ needs.validate.outputs.docs_digest }}
+          WEBSITE_DIGEST: ${{ needs.validate.outputs.website_digest }}
+          SHORT: ${{ needs.validate.outputs.short }}
+          REASON: ${{ needs.validate.outputs.reason }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          FILE="k8s/overlays/production/kustomization.yaml"
+          if [[ ! -f "$FILE" ]]; then
+            echo "::error::$FILE does not exist. PP.3b must land first — it renames k8s/overlays/prod -> k8s/overlays/production and migrates digests out of k8s/base/deployments."
+            exit 1
+          fi
+
+          python3 <<'PY'
+          import os, re, pathlib
+          path = pathlib.Path("k8s/overlays/production/kustomization.yaml")
+          text = path.read_text()
+
+          # Janua prod kustomization uses long-form image keys:
+          #   - name: ghcr.io/madfam-org/janua-<comp>
+          #     digest: sha256:...
+          # (or the alt order seen in base/).
+          def patch(text, image, digest):
+              if not digest:
+                  return text
+              pat = (
+                  r'(name:\s+' + re.escape(image)
+                  + r'\s*\n\s+(?:newName:\s+' + re.escape(image) + r'\s*\n\s+)?digest:\s+)sha256:[a-f0-9]+'
+              )
+              alt = (
+                  r'(digest:\s+)sha256:[a-f0-9]+(\s*\n\s+name:\s+' + re.escape(image) + r')'
+              )
+              if re.search(pat, text):
+                  return re.sub(pat, lambda m: m.group(1) + digest, text)
+              if re.search(alt, text):
+                  return re.sub(alt, lambda m: m.group(1) + digest + m.group(2), text)
+              return text
+
+          text = patch(text, "ghcr.io/madfam-org/janua-api",       os.environ["API_DIGEST"])
+          text = patch(text, "ghcr.io/madfam-org/janua-admin",     os.environ["ADMIN_DIGEST"])
+          text = patch(text, "ghcr.io/madfam-org/janua-dashboard", os.environ["DASHBOARD_DIGEST"])
+          text = patch(text, "ghcr.io/madfam-org/janua-docs",      os.environ["DOCS_DIGEST"])
+          text = patch(text, "ghcr.io/madfam-org/janua-website",   os.environ["WEBSITE_DIGEST"])
+          path.write_text(text)
+          PY
+
+          git config user.name "madfam-deploy-bot"
+          git config user.email "deploy-bot@madfam.io"
+          git add "$FILE"
+          git commit -m "deploy(prod): promote $SHORT
+
+          Reason: $REASON
+          Promoted-by: $ACTOR" || {
+            echo "No digest change — already at target"
+            exit 0
+          }
+          git push

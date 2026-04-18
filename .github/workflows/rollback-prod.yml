@@ -1,0 +1,171 @@
+# PP.3c (RFC 0001 Phase 2) — emergency prod rollback.
+#
+# Writes a target digest into k8s/overlays/production/kustomization.yaml
+# and commits. ArgoCD reconciles within ~3 min. Intended RTO <5 min.
+#
+# There is no auto-trigger — rollbacks are always a human call. Per
+# RFC 0001, leaving `digest` blank rolls back to the previous prod
+# digest for the chosen component by reading git history.
+#
+# Janua-specific operator note:
+#   Rollbacks share the `prod-promote` concurrency group with promotes
+#   to serialize prod-touching writes. If a JWT keypair rotation is in
+#   flight when you need to roll back, the safer path is: let the
+#   rotation complete (its commit lands), THEN roll back to the target
+#   digest. Rolling back across a key-rotation boundary can orphan
+#   in-flight tokens — coordinate via the #incident channel.
+#
+# Target file note:
+#   Rolls back via k8s/overlays/production/kustomization.yaml (post
+#   PP.3b canonical path). Until PP.3b lands, this workflow fails fast
+#   with a helpful error.
+
+name: Rollback prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: "Which image to roll back"
+        required: true
+        type: choice
+        options:
+          - api
+          - admin
+          - dashboard
+          - docs
+          - website
+      digest:
+        description: "Digest to roll back to (sha256:...). Leave blank to use the previous prod digest from git history."
+        required: false
+        type: string
+      reason:
+        description: "Why are you rolling back? (shown in audit log; required)"
+        required: true
+        type: string
+
+concurrency:
+  group: prod-promote
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    name: Write target digest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.MADFAM_BOT_PAT || secrets.GITHUB_TOKEN }}
+          fetch-depth: 100
+
+      - name: Resolve target digest
+        id: target
+        env:
+          COMPONENT: ${{ inputs.component }}
+          INPUT_DIGEST: ${{ inputs.digest }}
+        run: |
+          set -euo pipefail
+          FILE="k8s/overlays/production/kustomization.yaml"
+          if [[ ! -f "$FILE" ]]; then
+            echo "::error::$FILE does not exist. PP.3b must land first — rollback target path is the post-PP.3b canonical overlay."
+            exit 1
+          fi
+          IMAGE="ghcr.io/madfam-org/janua-$COMPONENT"
+
+          if [[ -n "$INPUT_DIGEST" ]]; then
+            TARGET="$INPUT_DIGEST"
+          else
+            CURRENT_DIGEST=$(python3 - "$IMAGE" <<'PY'
+          import re, pathlib, sys
+          image = sys.argv[1]
+          t = pathlib.Path("k8s/overlays/production/kustomization.yaml").read_text()
+          pat = r'name:\s+' + re.escape(image) + r'\s*\n(?:\s+newName:[^\n]+\n)?\s+digest:\s+(sha256:[a-f0-9]+)'
+          m = re.search(pat, t)
+          if not m:
+              alt = r'digest:\s+(sha256:[a-f0-9]+)\s*\n\s+name:\s+' + re.escape(image)
+              m = re.search(alt, t)
+          if m: print(m.group(1))
+          PY
+          )
+            if [[ -z "$CURRENT_DIGEST" ]]; then
+              echo "::error::Could not read current prod digest for $COMPONENT ($IMAGE)"; exit 1
+            fi
+            # Walk git log; find first historical version where the digest
+            # for this component differed from current.
+            TARGET=""
+            for sha in $(git log -n 40 --format=%H -- "$FILE"); do
+              HIST=$(git show "$sha:$FILE" 2>/dev/null | python3 - "$IMAGE" <<'PY'
+          import re, sys
+          image = sys.argv[1]
+          t = sys.stdin.read()
+          pat = r'name:\s+' + re.escape(image) + r'\s*\n(?:\s+newName:[^\n]+\n)?\s+digest:\s+(sha256:[a-f0-9]+)'
+          m = re.search(pat, t)
+          if not m:
+              alt = r'digest:\s+(sha256:[a-f0-9]+)\s*\n\s+name:\s+' + re.escape(image)
+              m = re.search(alt, t)
+          if m: print(m.group(1))
+          PY
+          )
+              if [[ -n "$HIST" && "$HIST" != "$CURRENT_DIGEST" ]]; then
+                TARGET="$HIST"
+                break
+              fi
+            done
+            if [[ -z "$TARGET" ]]; then
+              echo "::error::Cannot find previous $COMPONENT digest. Pass one explicitly."; exit 1
+            fi
+          fi
+
+          if [[ ! "$TARGET" =~ ^sha256:[a-f0-9]+$ ]]; then
+            echo "::error::Invalid digest: $TARGET"; exit 1
+          fi
+          echo "target=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "Rolling back $COMPONENT to $TARGET"
+
+      - name: Patch prod kustomization
+        env:
+          TARGET: ${{ steps.target.outputs.target }}
+          COMPONENT: ${{ inputs.component }}
+          REASON: ${{ inputs.reason }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          FILE="k8s/overlays/production/kustomization.yaml"
+          python3 <<'PY'
+          import os, re, pathlib
+          p = pathlib.Path("k8s/overlays/production/kustomization.yaml")
+          t = p.read_text()
+          target = os.environ["TARGET"]
+          comp = os.environ["COMPONENT"]
+          image = f"ghcr.io/madfam-org/janua-{comp}"
+          pat = (
+              r'(name:\s+' + re.escape(image)
+              + r'\s*\n\s+(?:newName:\s+' + re.escape(image) + r'\s*\n\s+)?digest:\s+)sha256:[a-f0-9]+'
+          )
+          alt = (
+              r'(digest:\s+)sha256:[a-f0-9]+(\s*\n\s+name:\s+' + re.escape(image) + r')'
+          )
+          if re.search(pat, t):
+              t = re.sub(pat, lambda m: m.group(1) + target, t)
+          elif re.search(alt, t):
+              t = re.sub(alt, lambda m: m.group(1) + target + m.group(2), t)
+          else:
+              raise SystemExit(f"Could not locate {image} digest entry")
+          p.write_text(t)
+          PY
+          SHORT="${TARGET:7:15}"
+          git config user.name "madfam-deploy-bot"
+          git config user.email "deploy-bot@madfam.io"
+          git add "$FILE"
+          git commit -m "rollback(prod): restore $COMPONENT $SHORT
+
+          Reason: $REASON
+          Rolled-back-by: $ACTOR"
+          git push
+
+      - name: Notify
+        if: always()
+        run: |
+          echo "::notice::Janua ${{ inputs.component }} rolled back to ${{ steps.target.outputs.target }}. Monitor ArgoCD (janua Application) for reconcile completion. RTO target <5min."
