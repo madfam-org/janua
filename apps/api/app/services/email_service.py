@@ -3,6 +3,7 @@ Email service for sending verification, password reset, and notification emails
 """
 
 import hashlib
+import json
 import secrets
 import smtplib
 from datetime import datetime
@@ -47,7 +48,9 @@ class EmailService:
         # Generate verification token
         verification_token = self._generate_verification_token()
 
-        # Store token in Redis with 24-hour expiry
+        # Store token in Redis with 24-hour expiry.
+        # Audit 2026-04-23 M2: use JSON rather than `str(dict)` so the read
+        # path never needs `ast.literal_eval` on untrusted data.
         if self.redis_client:
             token_key = f"email_verification:{verification_token}"
             token_data = {
@@ -56,7 +59,9 @@ class EmailService:
                 "created_at": datetime.utcnow().isoformat(),
                 "type": "email_verification",
             }
-            await self.redis_client.setex(token_key, 24 * 60 * 60, str(token_data))  # 24 hours
+            await self.redis_client.setex(
+                token_key, 24 * 60 * 60, json.dumps(token_data)
+            )  # 24 hours
 
         # Generate verification URL
         verification_url = f"{settings.BASE_URL}/auth/verify-email?token={verification_token}"
@@ -100,10 +105,23 @@ class EmailService:
             if not token_data:
                 raise Exception("Invalid or expired verification token")
 
-            # Parse token data (simplified for alpha)
-            import ast
+            # Audit 2026-04-23 M2: parse as JSON (was `ast.literal_eval`).
+            # Fall back to the legacy `str(dict)` shape once so in-flight
+            # tokens written before this deploy still verify — the fallback
+            # can be removed after the 24h max-TTL soak.
+            decoded = token_data.decode()
+            try:
+                token_info = json.loads(decoded)
+            except ValueError:
+                import ast  # noqa: PLC0415 — deprecated legacy path
 
-            token_info = ast.literal_eval(token_data.decode())
+                logger.warning(
+                    "Legacy repr-format email token seen; remove this fallback "
+                    "after a full 24h TTL soak past the M2 deploy."
+                )
+                token_info = ast.literal_eval(decoded)
+            if not isinstance(token_info, dict):
+                raise Exception("Malformed verification token payload")
 
             # Delete token after successful verification
             await self.redis_client.delete(token_key)
@@ -121,7 +139,7 @@ class EmailService:
         # Generate reset token
         reset_token = self._generate_verification_token()
 
-        # Store token in Redis with 1-hour expiry
+        # Store token in Redis with 1-hour expiry (audit 2026-04-23 M2: JSON).
         if self.redis_client:
             token_key = f"password_reset:{reset_token}"
             token_data = {
@@ -129,7 +147,9 @@ class EmailService:
                 "created_at": datetime.utcnow().isoformat(),
                 "type": "password_reset",
             }
-            await self.redis_client.setex(token_key, 60 * 60, str(token_data))  # 1 hour
+            await self.redis_client.setex(
+                token_key, 60 * 60, json.dumps(token_data)
+            )  # 1 hour
 
         # Generate reset URL
         reset_url = f"{settings.BASE_URL}/auth/reset-password?token={reset_token}"
