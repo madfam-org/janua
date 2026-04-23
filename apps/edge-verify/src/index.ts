@@ -14,6 +14,66 @@ export interface Env {
   JWKS_URL: string
   JWT_AUDIENCE: string
   JWT_ISSUER: string
+  // Comma-separated list of origins or wildcard patterns
+  // (e.g. "https://app.madfam.io,https://*.madfam.io,https://partner.com").
+  // When unset, falls back to a conservative *.madfam.io allowlist.
+  CORS_ALLOWED_ORIGINS?: string
+}
+
+// Default allowlist used when CORS_ALLOWED_ORIGINS is not provided. Keep this
+// in sync with Enclii ingress and known MADFAM product domains.
+const DEFAULT_ALLOWED_ORIGINS: readonly string[] = [
+  'https://*.madfam.io',
+  'https://*.janua.dev',
+  // Ecosystem partner domains that talk to the edge verifier from the browser.
+  'https://*.enclii.dev',
+  'https://*.rondel.io',
+  'https://*.forgesight.quest',
+  'https://*.dhan.am',
+  'https://*.karafiel.mx',
+  'https://*.tezca.mx',
+  'https://*.selva.town',
+  'https://*.routecraft.app',
+]
+
+function parseAllowlist(env: Env): readonly string[] {
+  const raw = (env.CORS_ALLOWED_ORIGINS ?? '').trim()
+  if (!raw) return DEFAULT_ALLOWED_ORIGINS
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+}
+
+function matchesPattern(origin: string, pattern: string): boolean {
+  // Exact match covers "https://app.madfam.io" style entries.
+  if (pattern === origin) return true
+  // Wildcard host support, e.g. "https://*.madfam.io" matches
+  // "https://admin.madfam.io" but NOT "https://evil-madfam.io".
+  if (pattern.includes('*')) {
+    const escaped = pattern
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '[A-Za-z0-9-]+')
+    return new RegExp(`^${escaped}$`).test(origin)
+  }
+  return false
+}
+
+function resolveCors(env: Env, origin: string | null): Record<string, string> {
+  const base: Record<string, string> = {
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Max-Age': '86400',
+    Vary: 'Origin',
+  }
+  if (!origin) return base
+  const allowlist = parseAllowlist(env)
+  const allowed = allowlist.some((p) => matchesPattern(origin, p))
+  if (!allowed) return base
+  return {
+    ...base,
+    'Access-Control-Allow-Origin': origin,
+  }
 }
 
 export default {
@@ -25,13 +85,9 @@ export default {
     // Start timing
     const startTime = Date.now()
 
-    // CORS headers
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-      'Access-Control-Max-Age': '86400',
-    }
+    // CORS headers (audit 2026-04-23 H5: no wildcards on the edge verifier).
+    const origin = request.headers.get('Origin')
+    const corsHeaders = resolveCors(env, origin)
 
     // Handle OPTIONS
     if (request.method === 'OPTIONS') {
