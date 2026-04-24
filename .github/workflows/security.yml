@@ -13,6 +13,9 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '20'
+  # Required by .npmrc to resolve @janua/* packages from npm.madfam.io.
+  # Without this, pnpm install falls back to the public registry.
+  NPM_MADFAM_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
 
 jobs:
   # Static Application Security Testing (SAST)
