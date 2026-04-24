@@ -9,6 +9,11 @@ on:
 env:
   NODE_VERSION: "20"
   PYTHON_VERSION: "3.11"
+  # Required by .npmrc to resolve @janua/* packages from npm.madfam.io.
+  # Without this, pnpm install falls back to the public registry and 404s
+  # on @janua/typescript-sdk (and any other private scope). Matches the
+  # pattern in ci.yml / tests.yml / docs-validation.yml.
+  NPM_MADFAM_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
 
 jobs:
   code-quality:
