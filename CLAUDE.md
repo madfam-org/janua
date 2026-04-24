@@ -987,3 +987,13 @@ This section defines the operating protocol for AI agents (Claude Code, GitHub C
 ---
 
 *Janua - The Gatekeeper | One key for the whole city*
+
+## Known Issues — Audit 2026-04-23
+
+See `/Users/aldoruizluna/labspace/claudedocs/ECOSYSTEM_AUDIT_2026-04-23.md` for the full ecosystem audit.
+
+- ~~**🟠 H5: Wildcard CORS on edge-verify**~~ — Fixed 2026-04-23: `resolveCors` now reflects Origin only when it matches an allowlist (configurable via `CORS_ALLOWED_ORIGINS` env; defaults to `https://*.madfam.io` + known MADFAM product domains). Never emits `*`.
+- **🟠 H9: `ENABLE_DOCS=true` in base K8s deployment** — `k8s/base/deployments/janua-api.yaml:128`. Verify overlay overrides in prod with `enclii service describe janua-api`; otherwise `/docs` + `/openapi.json` enumerate all auth endpoints on auth.madfam.io.
+- **🟠 M2: `ast.literal_eval` on Redis-stored email token** — `apps/api/app/services/email_service.py:106`. Swap for `json.loads` + schema validation.
+- **🔴 T2: 5 core auth e2e tests skipped** — `tests/e2e/auth-flows.spec.ts:94, 106, 122, 139, 150` (login invalid creds, password reset, MFA enrollment, session persistence, logout/redirect). Un-skip and wire to CI.
+- **🟢 positive**: Correct RS256 usage, good webhook signature verification pattern.
