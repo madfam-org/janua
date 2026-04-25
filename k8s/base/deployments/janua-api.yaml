@@ -125,8 +125,11 @@ spec:
             - name: COOKIE_DOMAIN
               value: ".madfam.io"
             # Features
+            # ENABLE_DOCS: prod-safe default (false). Dev overlay flips this on.
+            # Audit 2026-04-23 H9: /docs, /redoc, /openapi.json must NOT be public
+            # in prod (would enumerate all auth endpoints on auth.madfam.io).
             - name: ENABLE_DOCS
-              value: "true"
+              value: "false"
             - name: ENABLE_SIGNUPS
               value: "true"
             - name: ENABLE_OAUTH

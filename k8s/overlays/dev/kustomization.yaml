@@ -28,6 +28,25 @@ patches:
     target:
       kind: Deployment
       name: janua-api
+  # H9 (2026-04-23): re-enable Swagger UI / OpenAPI for local dev only.
+  # The base default is "false" (prod-safe); flip it back on here so devs
+  # still get /docs, /redoc, /openapi.json on localhost.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: janua-api
+      spec:
+        template:
+          spec:
+            containers:
+              - name: janua-api
+                env:
+                  - name: ENABLE_DOCS
+                    value: "true"
+    target:
+      kind: Deployment
+      name: janua-api
 
 # Use local images for dev
 images:
