@@ -11,6 +11,14 @@
 
 Janua is a self-hosted authentication platform built with FastAPI and modern web technologies. Think Auth0 or Clerk, but you run it on your own infrastructure. **All features are free and open source.**
 
+## MADFAM Ecosystem Boundary — Identity, Not Money
+
+In the MADFAM ecosystem, Janua is **identity + credential federation, not money**. Per the operator's 2026-04-25 directive, Dhanam is the only service that holds Stripe keys; Janua may relay OAuth credentials for Conekta/Polar integration into Dhanam, but it never holds Stripe keys and never moves money on its own.
+
+The Conekta integration runs through `apps/api/app/services/billing_service.py` per ADR-001 (`internal-devops/decisions/adr-001-conekta-via-janua.md`): consumer apps call `JanuaBillingService` → Janua determines provider (Conekta MX / Polar intl / Stripe fallback) → relays normalized webhook events back to Dhanam. Conekta API keys live only in Janua's namespace; Dhanam never touches raw provider credentials for relayed payments.
+
+**Full monetization architecture**: `internal-devops/ecosystem/monetization-architecture-2026-04-26.md` is the canonical end-to-end reference for money flows, fan-out signing, CFDI pipeline, PMF gating, and operator-only blockers across the ecosystem.
+
 ---
 
 ## Quick Start
