@@ -18,7 +18,6 @@ Must be registered BEFORE DynamicCORSMiddleware in main.py so that
 the injected headers are available to route handlers.
 """
 
-import hashlib
 import logging
 import time
 from collections import defaultdict

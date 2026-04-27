@@ -22,7 +22,7 @@ import os
 import secrets
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 import bcrypt
