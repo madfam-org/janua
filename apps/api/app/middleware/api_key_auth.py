@@ -176,7 +176,6 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
         # Inject identity headers into the request scope so route handlers
         # can read them via request.headers.
         scopes_csv = ",".join(api_key.scopes or [])
-        headers = dict(request.scope["headers"])
         # Starlette stores headers as list of (name_bytes, value_bytes) tuples
         extra_headers = [
             (b"x-org-id", str(api_key.organization_id).encode()),

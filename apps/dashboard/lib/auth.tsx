@@ -12,7 +12,6 @@ import { ReactNode, createContext, useCallback, useContext, useEffect, useState 
 import {
   JanuaProvider,
   useJanua,
-  useAuth as useJanuaAuth,
 } from '@janua/nextjs'
 import { januaClient } from './janua-client'
 import type { User } from '@janua/typescript-sdk'

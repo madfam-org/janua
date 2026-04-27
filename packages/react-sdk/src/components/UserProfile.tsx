@@ -49,11 +49,6 @@ export function UserProfile({
 }: UserProfileProps) {
   const { user, signOut, client } = useJanua()
 
-  const handleSignOut = useCallback(async () => {
-    await signOut()
-    onSignOut?.()
-  }, [signOut, onSignOut])
-
   const handleUpdateProfile = useCallback(
     async (data: { firstName?: string; lastName?: string; username?: string; phone?: string }) => {
       await client.updateUser({

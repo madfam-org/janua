@@ -1,4 +1,4 @@
-import { createApp, defineComponent } from 'vue'
+import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createJanua } from '../plugin'
 

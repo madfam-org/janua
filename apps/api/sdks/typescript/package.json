@@ -43,7 +43,7 @@
     "url": "https://github.com/madfam-org/janua/issues"
   },
   "dependencies": {
-    "axios": "^1.6.0",
+    "axios": "^1.15.0",
     "form-data": "^4.0.0"
   },
   "devDependencies": {
@@ -62,5 +62,8 @@
   },
   "engines": {
     "node": ">=16.0.0"
+  },
+  "overrides": {
+    "follow-redirects": "^1.16.0"
   }
 }
