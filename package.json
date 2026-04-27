@@ -79,7 +79,7 @@
     "jest-junit": "^16.0.0",
     "jest-transform-stub": "^2.0.0",
     "prisma": "6.1.0",
-    "storybook": "^8.6.15",
+    "storybook": "^10.3.5",
     "tsx": "^4.6.0",
     "typescript": "^5.7.2"
   },
