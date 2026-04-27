@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^1.19.0",
-    "react-native-keychain": "^8.1.0",
+    "react-native-keychain": "^10.0.0",
     "react-native-webauthn": "^1.0.0",
     "react-native-url-polyfill": "^2.0.0",
     "base64-js": "^1.5.1"

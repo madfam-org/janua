@@ -981,8 +981,8 @@ importers:
         specifier: '>=0.60.0'
         version: 0.83.1(@babel/core@7.29.0)(@types/react@18.2.79)(react@19.2.4)
       react-native-keychain:
-        specifier: ^8.1.0
-        version: 8.2.0
+        specifier: ^10.0.0
+        version: 10.0.0
       react-native-url-polyfill:
         specifier: ^2.0.0
         version: 2.0.0(react-native@0.83.1(@babel/core@7.29.0)(@types/react@18.2.79)(react@19.2.4))
@@ -9606,8 +9606,9 @@ packages:
   react-is@18.3.1:
     resolution: {integrity: sha512-/LLMVyas0ljjAtoYiPqYiL8VWXzUUdThrmU5+n20DZv+a+ClRoevUzw5JxU+Ieh5/c87ytoTBV9G1FiKfNJdmg==}
 
-  react-native-keychain@8.2.0:
-    resolution: {integrity: sha512-SkRtd9McIl1Ss2XSWNLorG+KMEbgeVqX+gV+t3u1EAAqT8q2/OpRmRbxpneT2vnb/dMhiU7g6K/pf3nxLUXRvA==}
+  react-native-keychain@10.0.0:
+    resolution: {integrity: sha512-YzPKSAnSzGEJ12IK6CctNLU79T1W15WDrElRQ+1/FsOazGX9ucFPTQwgYe8Dy8jiSEDJKM4wkVa3g4lD2Z+Pnw==}
+    engines: {node: '>=16'}
 
   react-native-url-polyfill@2.0.0:
     resolution: {integrity: sha512-My330Do7/DvKnEvwQc0WdcBnFPploYKp9CYlefDXzIdEaA+PAhDYllkvGeEroEzvc4Kzzj2O4yVdz8v6fjRvhA==}
@@ -22065,7 +22066,7 @@ snapshots:
 
   react-is@18.3.1: {}
 
-  react-native-keychain@8.2.0: {}
+  react-native-keychain@10.0.0: {}
 
   react-native-url-polyfill@2.0.0(react-native@0.83.1(@babel/core@7.29.0)(@types/react@18.2.79)(react@19.2.4)):
     dependencies:
