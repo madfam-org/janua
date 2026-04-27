@@ -14,7 +14,7 @@
     "cors": "^2.8.6",
     "jsonwebtoken": "^9.0.3",
     "bcryptjs": "^2.4.3",
-    "uuid": "^13.0.0",
+    "uuid": "^14.0.0",
     "express-rate-limit": "^8.3.1",
     "cookie-parser": "^1.4.6"
   },
