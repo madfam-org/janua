@@ -17,6 +17,32 @@ promotion:
   require_smoke_pass: true
 
 spec:
+  # status.madfam.io tracking — Janua is the ecosystem auth floor.
+  # Pre-existing entries on the platform configmap were hand-added in
+  # the legacy era (before zero-touch). Declaring them here locks them
+  # into the regenerate path so the next `POST /v1/admin/status/regenerate`
+  # cannot silently drop them. See Phase 2 follow-up backfill 2026-04-27.
+  status:
+    enabled: true
+    entries:
+      - name: Auth
+        url: https://auth.madfam.io/health
+        href: https://auth.madfam.io
+        group: Janua
+        family: MADFAM Platform
+        description: SSO authentication service
+      - name: Janua Website
+        url: https://janua.dev
+        href: https://janua.dev
+        group: Janua
+        family: MADFAM Platform
+        description: Product landing page
+      - name: Janua Docs
+        url: https://docs.janua.dev
+        href: https://docs.janua.dev
+        group: Janua
+        family: MADFAM Platform
+        description: Authentication documentation
   runtime:
     port: 8080
     replicas: 1
