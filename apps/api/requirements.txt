@@ -1,7 +1,7 @@
 # Core dependencies
 fastapi>=0.115.0  # Updated for security fixes
 uvicorn[standard]>=0.32.0  # Updated for security fixes
-python-multipart>=0.0.18  # CVE-2024-24762, CVE-2024-53981
+python-multipart>=0.0.26  # CVE-2024-24762, CVE-2024-53981, GHSA-wp53-j4wj-2cfg, GHSA-mj87-hwqh-73pj
 pyjwt[crypto]>=2.10.0  # Replaces python-jose (CVE-2024-33663, CVE-2024-33664)
 pydantic[email]>=2.10.0  # Updated for security fixes
 pydantic-settings>=2.6.0  # Updated for security fixes
@@ -38,7 +38,7 @@ boto3>=1.35.0  # S3-compatible client for Cloudflare R2 (not used with AWS)
 aiofiles>=24.1.0  # Updated
 
 # Image Processing
-Pillow>=10.0.0  # Required for avatar image optimization in storage service
+Pillow>=12.2.0  # GHSA-cfh3-3jmp-rvhc, GHSA-whj4-6x5x-4v2j (avatar image optimization)
 
 # Payment Processing
 stripe>=11.0.0  # Updated for security fixes
@@ -59,7 +59,7 @@ plotly>=5.24.0  # Updated
 scikit-learn>=1.6.0  # CVE-2024-5206
 
 # GraphQL
-strawberry-graphql>=0.262.0  # Updated
+strawberry-graphql>=0.312.3  # GHSA-hv3w-m4g2-5x77, GHSA-vpwc-v33q-mq89
 
 # Performance Testing
 locust>=2.32.0  # Updated
@@ -81,9 +81,14 @@ pytz>=2024.2  # Updated
 psutil>=6.1.0  # Updated
 aiohttp>=3.11.0  # CVE-2024-23334, CVE-2024-23829, CVE-2024-27306, CVE-2024-30251
 
+# Transitive deps with known vulns — pin minimum-versions to force upgrades
+urllib3>=2.6.3  # GHSA-pq67-6m6q-mj2v, GHSA-gm62-xv2j-4w53, GHSA-2xpw-w6gg-jr37, GHSA-38jv-5279-wg99
+requests>=2.33.0  # GHSA-gc5v-m9x4-r6x2
+python-dotenv>=1.2.2  # GHSA-mf9w-mj56-hr94
+
 # Development & Testing (optional)
-pytest>=8.3.0  # Updated
+pytest>=9.0.3  # GHSA-6w46-j5rx-g56g
 pytest-asyncio>=0.24.0  # Updated
 pytest-cov>=6.0.0  # Updated
-black>=24.10.0  # Updated
+black>=26.3.1  # GHSA-3936-cmfr-pm3m
 fakeredis[aioredis]>=2.21.0  # Required for CI testing
