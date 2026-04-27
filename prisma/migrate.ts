@@ -1,7 +1,6 @@
 #!/usr/bin/env tsx
 
-import { execSync } from 'child_process'
-import { readFileSync, writeFileSync } from 'fs'
+import { execFileSync, execSync } from 'child_process'
 import { join } from 'path'
 
 /**
@@ -309,7 +308,9 @@ ON CONFLICT (key) DO NOTHING;
       // Run migrations on the new database
       const tenantDatabaseUrl = process.env.DATABASE_URL!.replace(/\/[^/]+$/, `/${dbName}`)
 
-      execSync(`DATABASE_URL="${tenantDatabaseUrl}" npx prisma migrate deploy`, {
+      // Pass DATABASE_URL via env-only (no shell interpolation) to avoid
+      // command-line injection if the URL contains shell metacharacters.
+      execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
         stdio: 'inherit',
         env: { ...process.env, DATABASE_URL: tenantDatabaseUrl }
       })

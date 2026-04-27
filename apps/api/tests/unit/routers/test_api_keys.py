@@ -290,15 +290,6 @@ class TestApiKeyAuthMiddleware:
     def test_extract_api_key_from_x_api_key_header(self):
         from app.middleware.api_key_auth import _extract_api_key
 
-        scope = {
-            "type": "http",
-            "method": "GET",
-            "path": "/api/v1/test",
-            "query_string": b"",
-            "headers": [
-                (b"x-api-key", b"sk_live_abc123"),
-            ],
-        }
         request = MagicMock(spec=["headers"])
         request.headers = {"x-api-key": "sk_live_abc123"}
 

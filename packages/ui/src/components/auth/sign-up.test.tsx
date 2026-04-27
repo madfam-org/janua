@@ -165,7 +165,6 @@ describe('SignUp', () => {
     })
 
     it('should show error when submitting without terms agreed via client validation', async () => {
-      const user = userEvent.setup()
       render(<SignUp />)
 
       // Submit button is disabled when terms not agreed, so form can't submit

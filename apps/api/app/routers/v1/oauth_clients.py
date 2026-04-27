@@ -111,7 +111,9 @@ async def register_oauth_client(
         created_by=admin_user,
     )
 
-    logger.info("OAuth client registered via bootstrap: %s (client_id=%s)", data.name, client.client_id)
+    # Sanitize user-provided name to prevent log injection (CRLF / control chars)
+    safe_name = "".join(ch for ch in (data.name or "")[:128] if ch.isprintable() and ch not in "\r\n")
+    logger.info("OAuth client registered via bootstrap: %s (client_id=%s)", safe_name, client.client_id)
 
     response.status_code = 201
     return OAuthClientDetailResponse(
