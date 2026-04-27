@@ -48,7 +48,6 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
 from urllib.parse import urlparse
 
 # Secure password hashing context - using bcrypt 2b to avoid passlib wrap bug detection issue

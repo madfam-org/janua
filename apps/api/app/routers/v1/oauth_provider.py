@@ -20,7 +20,7 @@ import secrets
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode
 
 import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status

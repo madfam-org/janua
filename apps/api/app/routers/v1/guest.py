@@ -8,10 +8,9 @@ specifying an ``org_id`` directly (rate-limited more aggressively).
 from __future__ import annotations
 
 import logging
-import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field

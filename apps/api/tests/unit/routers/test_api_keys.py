@@ -11,14 +11,14 @@ Covers:
 
 import hashlib
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from app.models import ApiKey, Organization, OrganizationMember, User, UserStatus
+from app.models import Organization, OrganizationMember, User, UserStatus
 from app.services.api_key_service import ApiKeyService
 
 
