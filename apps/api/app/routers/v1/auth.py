@@ -517,12 +517,35 @@ async def login_page(
     app_name = html.escape(client_name or "Application")
 
     # Build hidden fields for the form: prefer auth_request_id over next URL
-    # to avoid double-encoding issues with complex OAuth redirect URLs
+    # to avoid double-encoding issues with complex OAuth redirect URLs.
+    #
+    # IMPORTANT: also preserve client_id (and client_name for display) as hidden
+    # fields so that if `auth_request_id` has expired in Redis by the time the
+    # user submits, /login-form can still recover the OAuth context by looking
+    # up the registered client and reconstructing a valid /oauth/authorize URL.
+    # Without this, a slightly-stale login URL produces a silent redirect to
+    # `auth.madfam.io/` (raw JSON) — the "Sign In does nothing" UX bug.
     escaped_auth_request_id = html.escape(auth_request_id or "")
+    escaped_client_id = html.escape(client_id or "")
+    escaped_client_name_field = html.escape(client_name or "")
+    oauth_context_fields = ""
+    if client_id:
+        oauth_context_fields += (
+            f'<input type="hidden" name="client_id" value="{escaped_client_id}">'
+        )
+    if client_name:
+        oauth_context_fields += (
+            f'<input type="hidden" name="client_name" value="{escaped_client_name_field}">'
+        )
     if auth_request_id:
-        hidden_fields = f'<input type="hidden" name="auth_request_id" value="{escaped_auth_request_id}">'
+        hidden_fields = (
+            f'<input type="hidden" name="auth_request_id" value="{escaped_auth_request_id}">'
+            + oauth_context_fields
+        )
     else:
-        hidden_fields = f'<input type="hidden" name="next" value="{next_url}">'
+        hidden_fields = (
+            f'<input type="hidden" name="next" value="{next_url}">' + oauth_context_fields
+        )
 
     html_content = f"""
 <!DOCTYPE html>
@@ -683,6 +706,8 @@ async def login_form(
     password: str = Form(...),
     next: str = Form("/"),
     auth_request_id: Optional[str] = Form(None),
+    client_id: Optional[str] = Form(None),
+    client_name: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -705,18 +730,29 @@ async def login_form(
 
     from fastapi.responses import HTMLResponse, RedirectResponse
 
-    # Determine the redirect target: prefer Redis-backed auth request over 'next' URL
+    # Determine the redirect target: prefer Redis-backed auth request over 'next' URL.
     # This avoids the double-encoding bug where urlencode(redirect_uri) produced
     # mangled query strings that caused infinite redirect loops.
+    #
+    # Branch outcomes (each emits a structured log so silent UX failures are
+    # diagnosable post-hoc — track via log line key `login_form.redirect_branch`):
+    #   - redis_hit             → OAuth flow resumes (happy path)
+    #   - redis_miss_oauth_recovered → OAuth flow resumes via OAuthClient fallback
+    #   - redis_miss_no_recovery → renders an "expired session" error page (NOT
+    #                              a silent redirect to JSON `/`, the historical bug)
+    #   - redis_miss_parse_error → same as redis_miss_no_recovery
+    #   - non_oauth             → normal `next` URL flow
     safe_next = "/"
+    oauth_recovery_attempted = False
+    redirect_branch = "non_oauth"
     if auth_request_id:
         # Retrieve stored OAuth parameters from Redis
         stored_data = await redis.get(f"oauth:pre_login:{auth_request_id}")
         if stored_data:
             try:
                 auth_params = json.loads(stored_data)
-                # Reconstruct the authorize URL fresh from stored parameters
-                # Only include non-None parameters to avoid polluting the URL
+                # Reconstruct the authorize URL fresh from stored parameters.
+                # Only include non-None parameters to avoid polluting the URL.
                 query_params = {}
                 for key in [
                     "response_type", "client_id", "redirect_uri", "scope",
@@ -726,24 +762,79 @@ async def login_form(
                         query_params[key] = auth_params[key]
 
                 safe_next = f"/api/v1/oauth/authorize?{urlencode(query_params)}"
+                redirect_branch = "redis_hit"
                 logger.info(
-                    "Reconstructed OAuth authorize URL from Redis",
+                    "login_form.redirect_branch",
+                    branch=redirect_branch,
                     auth_request_id=auth_request_id,
                     client_id=auth_params.get("client_id"),
                 )
             except (json.JSONDecodeError, KeyError) as e:
+                redirect_branch = "redis_miss_parse_error"
                 logger.warning(
-                    "Failed to parse stored auth request, falling back to default",
+                    "login_form.redirect_branch",
+                    branch=redirect_branch,
                     auth_request_id=auth_request_id,
                     error=str(e),
                 )
-                safe_next = "/"
+                oauth_recovery_attempted = True
         else:
+            redirect_branch = "redis_miss"
             logger.warning(
-                "Auth request not found in Redis (expired or invalid)",
+                "login_form.redirect_branch",
+                branch=redirect_branch,
                 auth_request_id=auth_request_id,
+                client_id_present=bool(client_id),
             )
-            safe_next = "/"
+            oauth_recovery_attempted = True
+
+        # OAuth flow recovery: when Redis lost the params (TTL expired or API
+        # restart), try to reconstruct a minimal authorize URL from the
+        # OAuth client's first registered redirect_uri. This avoids the silent
+        # redirect to `/` (raw JSON) that previously made "Sign In does
+        # nothing". The user still needs to re-consent / re-grant if scopes
+        # changed, but they land somewhere meaningful.
+        if oauth_recovery_attempted and client_id:
+            from ...models import OAuthClient as _OAuthClient
+
+            stmt = select(_OAuthClient).where(_OAuthClient.client_id == client_id)
+            result = await db.execute(stmt)
+            oauth_client = result.scalar_one_or_none()
+            if oauth_client and oauth_client.is_active and oauth_client.redirect_uris:
+                redirect_uris = oauth_client.redirect_uris
+                # redirect_uris is JSONB → may be a list or a JSON string
+                if isinstance(redirect_uris, str):
+                    try:
+                        redirect_uris = json.loads(redirect_uris)
+                    except json.JSONDecodeError:
+                        redirect_uris = []
+                if redirect_uris:
+                    # Use the first registered redirect_uri; the OAuth flow
+                    # will validate it on the authorize endpoint.
+                    fallback_redirect = redirect_uris[0]
+                    fallback_scope = " ".join(oauth_client.allowed_scopes or ["openid"])
+                    query_params = {
+                        "response_type": "code",
+                        "client_id": client_id,
+                        "redirect_uri": fallback_redirect,
+                        "scope": fallback_scope,
+                    }
+                    safe_next = f"/api/v1/oauth/authorize?{urlencode(query_params)}"
+                    redirect_branch = "redis_miss_oauth_recovered"
+                    logger.info(
+                        "login_form.redirect_branch",
+                        branch=redirect_branch,
+                        client_id=client_id,
+                        fallback_redirect=fallback_redirect,
+                    )
+            else:
+                logger.warning(
+                    "login_form.redirect_branch",
+                    branch="redis_miss_no_recovery",
+                    client_id=client_id,
+                    client_found=bool(oauth_client),
+                )
+                redirect_branch = "redis_miss_no_recovery"
     else:
         # Fallback: validate the 'next' URL for non-OAuth logins (CWE-601)
         safe_next = validate_redirect_url(next, default_url="/")
@@ -895,10 +986,58 @@ async def login_form(
         except Exception:
             pass  # Best-effort cleanup; the key has a TTL anyway
 
-    # SECURITY: Create redirect response with validated URL (CWE-601 mitigation)
-    # For OAuth flows, safe_next is the freshly-reconstructed authorize URL.
-    # For non-OAuth flows, safe_next was validated against the redirect allowlist.
-    response = RedirectResponse(url=safe_next, status_code=302)
+    # If the OAuth context was unrecoverable (Redis expired AND we couldn't
+    # reconstruct from the OAuthClient registration), render an explicit
+    # "session expired" page instead of silently redirecting to JSON `/`.
+    # This was the long-standing UX bug where Sign In appeared to do nothing.
+    if redirect_branch in ("redis_miss_no_recovery", "redis_miss_parse_error") and (
+        not auth_request_id or safe_next == "/"
+    ):
+        expired_html = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign-in session expired - Janua</title>
+    <style>
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            padding: 20px;
+        }}
+        .container {{
+            background: white; border-radius: 16px; padding: 40px;
+            width: 100%; max-width: 440px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }}
+        h1 {{ color: #333; font-size: 22px; margin-bottom: 16px; }}
+        p {{ color: #555; line-height: 1.55; margin-bottom: 12px; }}
+        .footer {{ text-align: center; margin-top: 24px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>&#128274; Sign-in session expired</h1>
+        <p>Your sign-in session for <strong>{html.escape(client_name or "this application")}</strong> expired before you completed login. Your credentials were accepted, but the OAuth flow can't continue from here.</p>
+        <p>Return to the application and start sign-in again.</p>
+        <div class="footer">Powered by Janua &bull; Secure Authentication</div>
+    </div>
+</body>
+</html>
+"""
+        # Cookies are still set so the next OAuth /authorize will short-circuit
+        # via get_user_from_cookie_or_header — the user won't have to re-type
+        # their password.
+        response = HTMLResponse(content=expired_html, status_code=200)
+    else:
+        # SECURITY: Create redirect response with validated URL (CWE-601 mitigation)
+        # For OAuth flows, safe_next is the freshly-reconstructed authorize URL.
+        # For non-OAuth flows, safe_next was validated against the redirect allowlist.
+        response = RedirectResponse(url=safe_next, status_code=302)
 
     # Build cookie kwargs — include domain for cross-subdomain SSO when configured
     access_cookie_kwargs: dict = {

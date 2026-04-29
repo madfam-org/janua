@@ -1083,3 +1083,89 @@ class TestLoginFormAuthRequestId:
         assert "is not None" in source, (
             "login_form must filter out None values when reconstructing the authorize URL"
         )
+
+
+class TestLoginFormOAuthRecovery:
+    """Test login_form recovers from Redis-expired auth_request_id."""
+
+    def test_login_page_passes_client_id_as_hidden_field(self):
+        """login_page must include client_id as a hidden field so /login-form
+        can recover OAuth context if the Redis-stored auth_request_id has
+        expired by the time the form is submitted."""
+        import inspect
+        from app.routers.v1.auth import login_page
+
+        source = inspect.getsource(login_page)
+        assert 'name="client_id"' in source, (
+            "login_page must include client_id as a hidden form field for OAuth recovery"
+        )
+
+    def test_login_page_passes_client_name_as_hidden_field(self):
+        """login_page must include client_name as a hidden field for the
+        expired-session error page to display the application name."""
+        import inspect
+        from app.routers.v1.auth import login_page
+
+        source = inspect.getsource(login_page)
+        assert 'name="client_name"' in source, (
+            "login_page must include client_name as a hidden form field"
+        )
+
+    def test_login_form_accepts_client_id_param(self):
+        """login_form must accept client_id as an optional form field."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        sig = inspect.signature(login_form)
+        assert "client_id" in sig.parameters, (
+            "login_form must accept client_id form field for OAuth recovery"
+        )
+
+    def test_login_form_accepts_client_name_param(self):
+        """login_form must accept client_name as an optional form field."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        sig = inspect.signature(login_form)
+        assert "client_name" in sig.parameters, (
+            "login_form must accept client_name form field"
+        )
+
+    def test_login_form_attempts_oauth_client_recovery_on_redis_miss(self):
+        """When Redis returns None for an auth_request_id but client_id is
+        present, login_form must attempt to look up the OAuth client and
+        reconstruct an authorize URL from its registered redirect_uris."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        source = inspect.getsource(login_form)
+        assert "OAuthClient" in source, (
+            "login_form must reference OAuthClient model to recover from expired Redis keys"
+        )
+        assert "redirect_uris" in source, (
+            "login_form must read redirect_uris from the OAuth client for recovery"
+        )
+
+    def test_login_form_renders_expired_page_on_unrecoverable_oauth_state(self):
+        """When neither Redis nor OAuth client lookup yields a redirect target,
+        login_form must render an explicit 'session expired' error page rather
+        than redirecting to JSON `/` (the historical silent-failure UX bug)."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        source = inspect.getsource(login_form)
+        assert "Sign-in session expired" in source, (
+            "login_form must render an explicit expired-session page on unrecoverable OAuth state"
+        )
+
+    def test_login_form_logs_redirect_branch_for_observability(self):
+        """Each redirect branch in login_form must emit a structured log so
+        future silent-failure reports can be diagnosed from server logs."""
+        import inspect
+        from app.routers.v1.auth import login_form
+
+        source = inspect.getsource(login_form)
+        assert "login_form.redirect_branch" in source, (
+            "login_form must emit structured log key 'login_form.redirect_branch' "
+            "at every redirect-decision branch for post-hoc diagnosis"
+        )
