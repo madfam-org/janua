@@ -242,21 +242,38 @@ class TestContentSecurityPolicy:
         csp = result.headers["Content-Security-Policy"]
         assert "connect-src 'self' https://api.janua.dev https://cloudflareinsights.com" in csp
 
-    async def test_csp_form_action_self_only(self, middleware, mock_response):
-        """Test CSP form-action directive uses 'self' only (no explicit host)."""
+    async def test_csp_form_action_includes_oauth_callback_domains(self, middleware, mock_response):
+        """form-action MUST include downstream OAuth client redirect_uri parent
+        domains because CSP form-action applies through the entire redirect
+        chain, including the final destination after the OAuth callback redirect.
+
+        Without this, browsers silently block the form submission when
+        login-form 302s through /oauth/authorize to the registered client
+        redirect_uri (e.g. https://app.enclii.dev/auth/callback). This was
+        the actual root cause of the long-standing 'Sign In does nothing'
+        UX bug — diagnosed via Playwright on app.enclii.dev 2026-04-29.
+        """
         request = MagicMock(spec=Request)
         request.url.scheme = "https"
-        request.url.path = "/api/users"
+        request.url.path = "/api/v1/auth/login"
 
         call_next = AsyncMock(return_value=mock_response)
 
         result = await middleware.dispatch(request, call_next)
 
         csp = result.headers["Content-Security-Policy"]
+        # 'self' still required for first-hop POST to /api/v1/auth/login-form
         assert "form-action 'self'" in csp
-        # Should NOT have an explicit host — 'self' is sufficient and avoids
-        # Chrome CSP path-matching quirks on API-served login HTML pages
-        assert "form-action 'self' https://" not in csp
+        # Downstream OAuth-callback parent domains MUST be present so the
+        # browser doesn't block the redirect chain to e.g. app.enclii.dev
+        for domain in [
+            "https://*.enclii.dev",
+            "https://*.madfam.io",
+            "https://*.dhan.am",
+            "https://*.tezca.mx",
+            "https://*.karafiel.mx",
+        ]:
+            assert domain in csp, f"form-action missing required OAuth callback domain: {domain}"
 
 
 class TestCSPDynamicApiHost:
@@ -300,8 +317,12 @@ class TestCSPDynamicApiHost:
         assert "connect-src 'self' https://auth.madfam.io https://cloudflareinsights.com" in csp
         assert "api.janua.dev" not in csp
 
-    async def test_csp_form_action_self_only_with_custom_host(self, mock_response):
-        """Test CSP form-action uses 'self' only regardless of api_host setting."""
+    async def test_csp_form_action_with_custom_host_still_lists_oauth_callbacks(self, mock_response):
+        """Even with a custom api_host, the OAuth-callback parent domains
+        must remain in form-action so browsers don't block the OAuth
+        redirect chain. The api_host changes the connect-src but not the
+        form-action allowlist (which is OAuth-client-driven, not host-driven).
+        """
         app = MagicMock()
         middleware = SecurityHeadersMiddleware(app, strict=True, api_host="auth.madfam.io")
 
@@ -314,7 +335,11 @@ class TestCSPDynamicApiHost:
 
         csp = result.headers["Content-Security-Policy"]
         assert "form-action 'self'" in csp
-        assert "form-action 'self' https://" not in csp
+        # api_host appears as the explicit form-action allow
+        assert "https://auth.madfam.io" in csp
+        # OAuth callback parents survive the api_host customization
+        assert "https://*.enclii.dev" in csp
+        assert "https://*.madfam.io" in csp
 
     async def test_csp_swagger_cdn_allowed(self, mock_response):
         """Test CSP allows CDN resources needed by Swagger UI."""

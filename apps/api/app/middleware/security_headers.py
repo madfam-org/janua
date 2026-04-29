@@ -43,7 +43,28 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             f"connect-src 'self' https://{self.api_host} https://cloudflareinsights.com",
             "frame-ancestors 'none'",
             "base-uri 'self'",
-            f"form-action 'self' https://{self.api_host}",
+            # form-action: applies to entire redirect chain, including the
+            # final destination after OAuth callback redirects. The login
+            # form posts to /api/v1/auth/login-form, which 302s to the
+            # OAuth authorize endpoint, which 302s to the registered
+            # client redirect_uri (e.g. https://app.enclii.dev/auth/callback).
+            # If the final URL isn't in this list, Chrome blocks the entire
+            # form submit silently (the "Sign In does nothing" UX bug).
+            #
+            # OAuth clients are registered in the database with their
+            # validated redirect_uris; rather than dynamically reading
+            # all of them on every request, we list the trusted parent
+            # domains here. The OAuth authorize endpoint still validates
+            # the specific redirect_uri against the client's registered
+            # list — this CSP entry just permits the browser to follow.
+            f"form-action 'self' https://{self.api_host} "
+            "https://*.enclii.dev https://*.madfam.io https://*.dhan.am "
+            "https://*.tezca.mx https://*.karafiel.mx https://*.forgesight.quest "
+            "https://*.fortuna.tube https://*.avala.studio "
+            "https://*.cotiza.studio https://*.almanac.solar https://*.yantra4d.com "
+            "https://*.coforma.studio https://*.routecraft.app https://*.solar "
+            "https://4d-admin.madfam.io https://sniper.madfam.io "
+            "http://127.0.0.1:* http://localhost:*",
             "upgrade-insecure-requests",
         ]
 
