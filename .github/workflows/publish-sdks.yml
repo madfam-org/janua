@@ -107,7 +107,7 @@ jobs:
           npm publish --access restricted
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: ${{ steps.extract.outputs.sdk_name }} v${{ steps.extract.outputs.version }}
           body: |
@@ -173,7 +173,7 @@ jobs:
           twine upload --repository pypi dist/*
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Python SDK v${{ steps.extract.outputs.version }}
           body: |
@@ -223,7 +223,7 @@ jobs:
           go test -v -race ./...
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Go SDK ${{ steps.extract.outputs.version }}
           body: |
@@ -296,7 +296,7 @@ jobs:
           fi
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: Flutter SDK v${{ steps.extract.outputs.version }}
           body: |
