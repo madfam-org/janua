@@ -338,6 +338,8 @@ async def list_organizations(
 
     result = []
     for org, role, member_count in user_orgs:
+        # Coalesce nullable columns (legacy rows may have NULL owner_id/billing_plan/updated_at).
+        # See migration 000_init.py for organizations table.
         result.append(
             OrganizationResponse(
                 id=str(org.id),
@@ -345,16 +347,16 @@ async def list_organizations(
                 slug=org.slug,
                 description=org.description,
                 logo_url=org.logo_url,
-                owner_id=str(org.owner_id),
+                owner_id=str(org.owner_id) if org.owner_id else "",
                 settings=org.settings or {},
                 org_metadata=org.org_metadata or {},
                 billing_email=org.billing_email,
-                billing_plan=org.billing_plan,
+                billing_plan=org.billing_plan or "free",
                 created_at=org.created_at,
-                updated_at=org.updated_at,
-                member_count=member_count,  # Already loaded from subquery!
+                updated_at=org.updated_at or org.created_at,
+                member_count=member_count or 0,  # Already loaded from subquery!
                 is_owner=org.owner_id == current_user.id,
-                user_role=role.value if role else None,
+                user_role=role.value if hasattr(role, "value") else (role if role else None),
             )
         )
 

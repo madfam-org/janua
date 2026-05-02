@@ -7,6 +7,12 @@ import type { Session, SessionListParams, PaginatedResponse, UUID } from './type
 
 /**
  * Sessions module for managing user sessions
+ *
+ * NOTE: All paths must include the `/api/v1` prefix to match the FastAPI
+ * router mount point (apps/api/app/main.py: include_router(..., prefix="/api/v1")).
+ * Prior versions called `/sessions/...` directly which 404'd in production
+ * because baseURL was `https://api.janua.dev` (the dashboard's Sessions tab
+ * displayed "Failed to Load Sessions — Request failed with status code 404").
  */
 export class Sessions {
   constructor(private httpClient: HttpClient) {}
@@ -17,7 +23,7 @@ export class Sessions {
   async getCurrentSession(): Promise<Session> {
     const response = await this.httpClient.request<{ session: Session }>({
       method: 'GET',
-      url: '/sessions/current'
+      url: '/api/v1/sessions/current'
     });
     return response.data.session;
   }
@@ -28,7 +34,7 @@ export class Sessions {
   async listSessions(params?: SessionListParams): Promise<PaginatedResponse<Session>> {
     const response = await this.httpClient.request<PaginatedResponse<Session>>({
       method: 'GET',
-      url: '/sessions',
+      url: '/api/v1/sessions',
       params
     });
     return response.data;
@@ -40,7 +46,7 @@ export class Sessions {
   async getSession(sessionId: UUID): Promise<Session> {
     const response = await this.httpClient.request<{ session: Session }>({
       method: 'GET',
-      url: `/sessions/${sessionId}`
+      url: `/api/v1/sessions/${sessionId}`
     });
     return response.data.session;
   }
@@ -51,7 +57,7 @@ export class Sessions {
   async revokeSession(sessionId: UUID): Promise<void> {
     await this.httpClient.request({
       method: 'DELETE',
-      url: `/sessions/${sessionId}`
+      url: `/api/v1/sessions/${sessionId}`
     });
   }
 
@@ -61,7 +67,7 @@ export class Sessions {
   async revokeAllSessions(): Promise<{ revokedCount: number }> {
     const response = await this.httpClient.request<{ revokedCount: number }>({
       method: 'POST',
-      url: '/sessions/revoke-all'
+      url: '/api/v1/sessions/revoke-all'
     });
     return response.data;
   }
@@ -72,7 +78,7 @@ export class Sessions {
   async refreshSession(): Promise<Session> {
     const response = await this.httpClient.request<{ session: Session }>({
       method: 'POST',
-      url: '/sessions/refresh'
+      url: '/api/v1/sessions/refresh'
     });
     return response.data.session;
   }
