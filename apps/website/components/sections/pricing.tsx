@@ -98,7 +98,10 @@ export function PricingSection() {
         'SCIM provisioning',
         'Custom contracts & SLAs',
         'Dedicated support',
-        '99.99% uptime SLA',
+        // SLA is negotiated per contract at launch. We will not advertise a
+        // specific uptime percentage publicly until we have an SRE on-call
+        // rotation, an SLO definition file, and reproducible measurements.
+        'Uptime SLA negotiated per contract',
         'Audit logs (unlimited)',
         'Custom integrations',
         'Data residency options',

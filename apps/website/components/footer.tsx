@@ -12,8 +12,10 @@ const navigation = {
     { name: 'Security', href: '#security' },
     { name: 'Performance', href: '#performance' },
     { name: 'Integrations', href: '#integrations' },
-    { name: 'Pricing', href: '/pricing' },
-    { name: 'Changelog', href: '/changelog' }
+    { name: 'Pricing', href: '/pricing' }
+    // 'Changelog' removed — no /changelog page exists yet (was 404).
+    // Re-add when apps/website/app/changelog/page.tsx ships, sourced
+    // from docs/CHANGELOG.md.
   ],
   developers: [
     { name: 'Documentation', href: 'https://docs.janua.dev' },
@@ -42,9 +44,10 @@ const navigation = {
   legal: [
     { name: 'Privacy Policy', href: '/privacy' },
     { name: 'Terms of Service', href: '/terms' },
-    { name: 'Cookie Policy', href: '/cookies' },
-    { name: 'Security', href: '/security' },
-    { name: 'Compliance', href: '/compliance' }
+    { name: 'Cookie Policy', href: '/cookies' }
+    // 'Security' (/security) and 'Compliance' (/compliance) removed —
+    // both 404. Re-add only after thin honest pages exist (e.g. linking
+    // to /.well-known/security.txt and the in-progress audit status).
   ]
 }
 

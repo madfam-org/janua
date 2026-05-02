@@ -25,60 +25,63 @@ interface Certification {
 export function SecurityTrustCenter() {
   const [selectedCert, setSelectedCert] = useState<Certification | null>(null)
 
+  // Janua is in Private Alpha. None of the frameworks below are independently
+  // certified yet. Each entry reflects the controls implemented internally and
+  // the audit/certification track being pursued. Issuer + validity dates are
+  // published only after a real certification body has signed off.
   const certifications: Certification[] = [
     {
-      name: 'SOC 2: Type II Audit In Progress',
+      name: 'SOC 2 Type II',
       status: 'in-progress',
-      issuer: 'AICPA',
+      issuer: 'AICPA (audit pending)',
       logo: '🔒',
-      description: 'Security, availability, and confidentiality controls implemented. Independent Type II audit in progress; report not yet issued.'
+      description: 'Internal controls implemented for security, availability, and confidentiality. Independent audit not yet started.'
     },
     {
       name: 'ISO 27001',
-      status: 'certified',
-      issuer: 'ISO',
-      validUntil: '2025-12-01',
+      status: 'in-progress',
+      issuer: 'ISO (audit pending)',
       logo: '🛡️',
-      description: 'International standard for information security management systems.'
+      description: 'Information security management controls being mapped to ISO 27001 Annex A. Not yet certified.'
     },
     {
       name: 'HIPAA',
-      status: 'certified',
-      issuer: 'HHS',
-      validUntil: '2025-08-30',
+      status: 'in-progress',
+      issuer: 'Self-attested controls only',
       logo: '🏥',
-      description: 'Healthcare data protection and privacy compliance.'
+      description: 'Technical safeguards implemented (encryption, audit trails, access controls). HIPAA does not issue certifications; BAAs are not yet offered.'
     },
     {
       name: 'GDPR',
-      status: 'certified',
-      issuer: 'EU',
+      status: 'in-progress',
+      issuer: 'Self-attested controls only',
       logo: '🇪🇺',
-      description: 'European Union data protection and privacy regulation compliance.'
+      description: 'Data subject rights, data minimization, and EU data residency under active implementation. Not yet validated by external counsel.'
     },
     {
       name: 'PCI DSS',
-      status: 'in-progress',
+      status: 'planned',
       issuer: 'PCI SSC',
       logo: '💳',
-      description: 'Payment card industry data security standard.'
+      description: 'Payment data is processed by Stripe/Conekta/Polar; Janua does not store card data. PCI DSS scope assessment planned alongside SOC 2.'
     },
     {
       name: 'FedRAMP',
       status: 'planned',
       issuer: 'GSA',
       logo: '🏛️',
-      description: 'US government cloud security authorization.'
+      description: 'US government cloud security authorization. Not started; no committed timeline.'
     }
   ]
 
+  // Verifiable, non-fabricated controls. Counts that change over time
+  // (threats blocked, incident-response time) require a real metrics
+  // pipeline before being shown publicly.
   const securityMetrics: SecurityMetric[] = [
-    { label: 'Threats Blocked (24h)', value: '12,453', trend: 'up', status: 'healthy' },
-    { label: 'Security Score', value: '98/100', trend: 'stable', status: 'healthy' },
-    { label: 'Vulnerabilities', value: 0, trend: 'stable', status: 'healthy' },
-    { label: 'Incident Response', value: '<15min', trend: 'stable', status: 'healthy' },
-    { label: 'Encryption', value: 'AES-256', trend: 'stable', status: 'healthy' },
-    { label: 'Audit Logs', value: '100%', trend: 'stable', status: 'healthy' }
+    { label: 'Encryption at rest', value: 'AES-256', trend: 'stable', status: 'healthy' },
+    { label: 'Encryption in transit', value: 'TLS 1.3', trend: 'stable', status: 'healthy' },
+    { label: 'JWT signing', value: 'RS256', trend: 'stable', status: 'healthy' },
+    { label: 'Audit logging', value: 'Hash-chained', trend: 'stable', status: 'healthy' }
   ]
 
   const securityFeatures = [
@@ -130,8 +133,9 @@ export function SecurityTrustCenter() {
             </span>
           </h2>
           <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
-            Bank-level security with comprehensive compliance certifications.
-            Your data is protected by multiple layers of defense and continuous monitoring.
+            Strong cryptographic primitives, hash-chained audit logs, and zero-trust
+            request handling. Janua is in Private Alpha — formal certifications are
+            in progress and we publish only what we can independently verify.
           </p>
         </motion.div>
 
@@ -269,26 +273,24 @@ export function SecurityTrustCenter() {
           className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-12 text-center"
         >
           <h3 className="text-3xl font-bold text-white mb-4">
-            Complete Security Documentation
+            Security questions? Talk to us.
           </h3>
           <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Access our comprehensive security whitepapers, audit reports, and compliance documentation.
+            We do not yet publish a security whitepaper or audit reports.
+            Reach out and we will share our threat model, controls matrix, and
+            current audit progress directly.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
+              asChild
               size="lg"
               variant="secondary"
               className="bg-white text-blue-600 hover:bg-gray-100"
             >
-              <FileCheck className="mr-2 w-5 h-5" />
-              Download Security Whitepaper
-            </Button>
-            <Button
-              size="lg"
-              variant="secondary"
-              className="bg-white/10 text-white hover:bg-white/20 border border-white/30"
-            >
-              View Audit Reports
+              <a href="mailto:security@janua.dev">
+                <FileCheck className="mr-2 w-5 h-5" />
+                Email security@janua.dev
+              </a>
             </Button>
           </div>
         </motion.div>
