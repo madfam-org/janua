@@ -5,7 +5,7 @@ import { ArrowRight, Building2, Shield, Globe, Users, Settings, Lock, FileText, 
 
 export const metadata: Metadata = {
   title: 'Enterprise Authentication | Janua',
-  description: 'Enterprise-grade authentication with SOC 2 compliance, 99.99% uptime, and dedicated support. Secure your organization at scale.',
+  description: 'Enterprise-grade authentication for organizations that need SSO, SCIM, audit logging, and dedicated support. Janua is in Private Alpha; SLAs are negotiated per enterprise contract at launch.',
 }
 
 export default function EnterprisePage() {
@@ -30,8 +30,9 @@ export default function EnterprisePage() {
             </h1>
 
             <p className="text-xl text-slate-600 dark:text-slate-300 mb-10 max-w-3xl mx-auto">
-              SOC 2 compliant, 99.99% uptime SLA, and enterprise-grade security.
-              Secure your organization with authentication infrastructure built for the largest enterprises.
+              SSO, SCIM, audit logging, and a security posture designed for
+              enterprise review. Janua is in Private Alpha — uptime targets and
+              SLAs are agreed in writing as part of each enterprise contract.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -64,9 +65,9 @@ export default function EnterprisePage() {
               <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Award className="w-8 h-8 text-blue-600 dark:text-blue-400" />
               </div>
-              <h3 className="font-semibold text-slate-900 dark:text-white mb-2">SOC 2 Type II</h3>
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-2">SOC 2 (in progress)</h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Certified secure by independent auditors
+                Internal controls implemented; Type II audit not yet started.
               </p>
             </div>
 
@@ -76,7 +77,7 @@ export default function EnterprisePage() {
               </div>
               <h3 className="font-semibold text-slate-900 dark:text-white mb-2">GDPR & CCPA</h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Full compliance with global privacy regulations
+                Privacy controls implemented and self-attested. External counsel review pending.
               </p>
             </div>
 
@@ -86,7 +87,7 @@ export default function EnterprisePage() {
               </div>
               <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Zero Trust</h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Built on zero-trust security principles
+                Built on zero-trust principles: every request verified at the edge.
               </p>
             </div>
 
@@ -94,9 +95,9 @@ export default function EnterprisePage() {
               <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Globe className="w-8 h-8 text-amber-600 dark:text-amber-400" />
               </div>
-              <h3 className="font-semibold text-slate-900 dark:text-white mb-2">99.99% Uptime</h3>
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-2">SLA (Private Alpha)</h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Enterprise SLA with financial guarantees
+                Uptime targets are negotiated per enterprise contract. No public SLA is published yet.
               </p>
             </div>
           </div>
@@ -208,16 +209,16 @@ export default function EnterprisePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
             <div className="text-center">
-              <div className="text-2xl font-bold text-slate-900 dark:text-white mb-2">99.99%</div>
-              <div className="text-sm text-slate-600 dark:text-slate-400">Uptime SLA</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white mb-2">SSO + SCIM</div>
+              <div className="text-sm text-slate-600 dark:text-slate-400">SAML 2.0 and SCIM 2.0 supported</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-slate-900 dark:text-white mb-2">&lt; 24h</div>
-              <div className="text-sm text-slate-600 dark:text-slate-400">Support Response</div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Per-contract</div>
+              <div className="text-sm text-slate-600 dark:text-slate-400">Support response negotiated with each customer</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-slate-900 dark:text-white mb-2">SOC 2</div>
-              <div className="text-sm text-slate-600 dark:text-slate-400">Type II Certified</div>
+              <div className="text-sm text-slate-600 dark:text-slate-400">Audit in progress (not yet certified)</div>
             </div>
           </div>
 

@@ -72,6 +72,16 @@ interface PlanDetails {
   badge?: string
 }
 
+// Source of truth for prices and MAU caps:
+//   apps/api/app/services/billing_service.py → PRICING_TIERS
+// Community: free, 2,000 MAU
+// Pro:       $69 / 1,380 MXN, 10,000 MAU
+// Scale:     $299 / 5,980 MXN, 50,000 MAU
+// Enterprise: custom
+//
+// If you change these, update PRICING_TIERS first and propagate. The
+// marketing site (apps/website/components/sections/pricing.tsx) and
+// comparison table are aligned to the same canonical values.
 const plans: PlanDetails[] = [
   {
     id: 'community',
@@ -80,7 +90,7 @@ const plans: PlanDetails[] = [
     period: 'forever',
     description: 'For personal projects and small teams getting started.',
     features: [
-      'Up to 1,000 monthly active users',
+      'Up to 2,000 monthly active users',
       'Email/password authentication',
       'Social login (Google, GitHub)',
       'Basic MFA (TOTP)',
@@ -92,7 +102,7 @@ const plans: PlanDetails[] = [
   {
     id: 'pro',
     name: 'Pro',
-    price: '$49',
+    price: '$69',
     period: '/month',
     description: 'For growing teams that need more power and flexibility.',
     features: [
@@ -111,11 +121,11 @@ const plans: PlanDetails[] = [
   {
     id: 'scale',
     name: 'Scale',
-    price: '$199',
+    price: '$299',
     period: '/month',
     description: 'For scaling businesses with advanced security needs.',
     features: [
-      'Up to 100,000 monthly active users',
+      'Up to 50,000 monthly active users',
       'All Pro features',
       'SCIM provisioning',
       'Advanced audit logs',
@@ -136,8 +146,8 @@ const plans: PlanDetails[] = [
       'Unlimited monthly active users',
       'All Scale features',
       'Dedicated infrastructure',
-      'SLA guarantees (99.99%)',
-      'SOC 2 compliance support',
+      'SLA negotiated per contract',
+      'SOC 2 compliance support (audit in progress)',
       'Custom integrations',
       'On-call engineering support',
       'Migration assistance',

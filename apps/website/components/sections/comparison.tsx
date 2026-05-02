@@ -76,13 +76,17 @@ export function ComparisonSection() {
       category: 'Pricing',
       items: [
         {
+          // Aligned to apps/api/app/services/billing_service.py PRICING_TIERS
+          // (Community tier mau_limit=2000). Was '10,000' here, which
+          // contradicted the canonical billing config.
           metric: 'Free Tier MAU',
-          janua: '10,000',
+          janua: '2,000',
           clerk: '5,000',
           auth0: '7,000',
           supabase: '50,000'
         },
         {
+          // Pro = $69/mo per PRICING_TIERS (apps/api). Includes 10,000 MAU.
           metric: 'Pro Tier Price',
           janua: '$69/mo',
           clerk: '$99/mo',
