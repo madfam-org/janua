@@ -460,6 +460,35 @@ describe('SignIn', () => {
 
       expect(screen.queryByText(/or continue with email/i)).not.toBeInTheDocument()
     })
+
+    // Regression: admin.janua.dev fidelity audit AJ-5 (2026-05-02). Mirrors the
+    // exact prop set used by apps/admin/app/login/page.tsx so a future regression
+    // in <SignIn> would fail this test before reaching production.
+    it('should hide email/password with the admin.janua.dev prop combo', () => {
+      render(
+        <SignIn
+          enableJanuaSSO={true}
+          showEmailPassword={false}
+          showRememberMe={false}
+          socialProviders={{}}
+          headerText="Sign in"
+          headerDescription="Platform operator access only"
+        />
+      )
+
+      expect(screen.queryByRole('textbox', { name: /email/i })).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^sign in$/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /enterprise sso/i })).toBeInTheDocument()
+    })
+
+    it('should still render email/password when prop is undefined (default true)', () => {
+      // Explicit-undefined is functionally equivalent to omitted; both must default to true.
+      render(<SignIn showEmailPassword={undefined} />)
+
+      expect(screen.getByRole('textbox', { name: /email/i })).toBeInTheDocument()
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
+    })
   })
 
   describe('Appearance', () => {
