@@ -17,13 +17,21 @@ const nextConfig = {
     const isDev = process.env.NODE_ENV === 'development'
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
+    // Cloudflare Insights is auto-injected by the Cloudflare proxy on
+    // production hosts; allow its beacon script and analytics endpoint
+    // without weakening the rest of the CSP. Mirrors the dashboard fix
+    // landed on main in 628e3a85.
+    const cfInsightsScript = 'https://static.cloudflareinsights.com'
+    const cfInsightsConnect = 'https://cloudflareinsights.com'
+
     const cspDirectives = [
       "default-src 'self'",
-      `script-src 'self'${isDev ? " 'unsafe-eval'" : ""} 'unsafe-inline' https://static.cloudflareinsights.com`,
+      `script-src 'self'${isDev ? " 'unsafe-eval'" : ""} 'unsafe-inline' ${cfInsightsScript}`,
+      `script-src-elem 'self' 'unsafe-inline' ${cfInsightsScript}`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",
       "img-src 'self' data: https:",
-      `connect-src 'self' ${apiUrl} https://cloudflareinsights.com${isDev ? ' ws://localhost:*' : ''}`,
+      `connect-src 'self' ${apiUrl} ${cfInsightsConnect}${isDev ? ' ws://localhost:*' : ''}`,
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
