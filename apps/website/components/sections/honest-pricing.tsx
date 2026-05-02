@@ -18,87 +18,104 @@ interface PricingTier {
   honestNote?: string
 }
 
+// Pricing aligned with the canonical billing service tiers
+// (apps/api/app/services/billing_service.py PRICING_TIERS) and the
+// /pricing page (apps/website/components/sections/pricing.tsx).
+//
+// Community: Free, 2,000 MAU
+// Pro: $69/mo, 10,000 MAU
+// Scale: $299/mo, 50,000 MAU
+// Enterprise: Custom, Unlimited
 const pricingTiers: PricingTier[] = [
   {
-    name: 'Developer',
+    name: 'Community',
     price: 'Free',
-    description: 'Perfect for testing and small projects',
-    mau: '10,000 MAU',
+    description: 'Perfect for side projects and MVPs',
+    mau: '2,000 MAU',
     badge: 'Great for MVPs',
     features: [
-      'All authentication methods',
-      'Passkeys & MFA included',
-      'All 13 SDKs',
-      'Edge deployment',
+      'Passkey authentication',
+      'Email + password auth',
+      'Session management',
+      'Edge verification (<30ms)',
       'Community support',
-      'Basic analytics'
+      'Single region'
     ],
     notIncluded: [
-      'No SLA guarantees',
-      'No dedicated support',
+      'No SLA',
       'No custom domains',
-      'No advanced audit logs'
+      'No SSO/SAML',
+      'No advanced MFA'
     ],
     honestNote: 'Perfect for validating your idea without cost'
   },
   {
-    name: 'Startup',
-    price: '$99',
-    description: 'For growing applications',
-    mau: '50,000 MAU',
+    name: 'Pro',
+    price: '$69',
+    description: 'For growing startups and teams',
+    mau: '10,000 MAU',
     badge: 'Most Popular',
     features: [
-      'Everything in Developer',
-      '99.9% uptime SLA',
+      'Everything in Community',
+      'Social logins (OAuth)',
+      'Organizations & RBAC',
+      'Webhooks & events',
       'Email support',
-      'Custom domains',
-      'Advanced analytics',
-      'Webhook events',
-      'Team management (5 seats)'
+      'Custom domain',
+      'Advanced MFA (TOTP)',
+      'Audit logs (30 days)',
+      'Multi-region'
     ],
     notIncluded: [
-      'No priority support',
-      'No SAML SSO',
-      'No compliance reports'
+      'No SSO/SAML',
+      'No SCIM',
+      'No custom contracts'
     ],
     honestNote: 'Scales with you as you find product-market fit'
   },
   {
-    name: 'Growth',
-    price: '$499',
-    description: 'For scaling businesses',
-    mau: '250,000 MAU',
+    name: 'Scale',
+    price: '$299',
+    description: 'For scale-ups with compliance needs',
+    mau: '50,000 MAU',
     features: [
-      'Everything in Startup',
+      'Everything in Pro',
+      'SSO/SAML',
+      'Advanced security policies',
       'Priority support',
-      'SAML SSO',
-      'Advanced RBAC',
       'Audit logs (90 days)',
-      'Team management (25 seats)',
-      'Custom rate limits'
+      'Custom JWT claims',
+      'IP allowlisting',
+      'Rate limiting controls'
     ],
     notIncluded: [
-      'No dedicated success manager',
+      'No SCIM',
       'No custom contracts',
-      'No on-premise deployment'
+      'No dedicated support'
     ],
-    honestNote: 'Enterprise features without enterprise pricing'
+    honestNote: 'Enterprise-class security without enterprise pricing'
   },
   {
     name: 'Enterprise',
     price: 'Custom',
-    description: 'For large organizations',
+    description: 'For enterprises with custom needs',
     mau: 'Unlimited',
     badge: 'Full Support',
     features: [
-      'Everything in Growth',
-      'Dedicated success manager',
+      'Everything in Scale',
+      'SCIM provisioning',
       'Custom contracts & SLAs',
-      'Compliance assistance',
-      'Unlimited audit retention',
-      'Unlimited team seats',
-      'On-premise option',
-      'White-label option'
+      'Dedicated support',
+      // SLA is negotiated per contract at launch. We do not advertise a
+      // specific uptime percentage publicly until we have an SRE on-call
+      // rotation, an SLO definition file, and reproducible measurements.
+      'Uptime SLA negotiated per contract',
+      'Audit logs (unlimited)',
+      'Custom integrations',
+      'Data residency options',
+      'Security reviews',
+      'MSA & BAA available',
+      'White-glove onboarding'
     ],
     notIncluded: [],
     honestNote: 'Transparent pricing based on your actual needs'
@@ -107,74 +124,77 @@ const pricingTiers: PricingTier[] = [
 
 interface ComparisonRow {
   feature: string
-  developer: boolean | string
-  startup: boolean | string
-  growth: boolean | string
+  community: boolean | string
+  pro: boolean | string
+  scale: boolean | string
   enterprise: boolean | string
 }
 
 const detailedComparison: ComparisonRow[] = [
   {
     feature: 'Monthly Active Users',
-    developer: '10,000',
-    startup: '50,000',
-    growth: '250,000',
+    community: '2,000',
+    pro: '10,000',
+    scale: '50,000',
     enterprise: 'Unlimited'
   },
   {
     feature: 'Passkeys (WebAuthn)',
-    developer: true,
-    startup: true,
-    growth: true,
+    community: true,
+    pro: true,
+    scale: true,
     enterprise: true
   },
   {
     feature: 'MFA/TOTP',
-    developer: true,
-    startup: true,
-    growth: true,
+    community: false,
+    pro: true,
+    scale: true,
     enterprise: true
   },
   {
     feature: 'OAuth Providers',
-    developer: '5',
-    startup: '5',
-    growth: 'All',
+    community: 'Email/password only',
+    pro: 'Social (OAuth)',
+    scale: 'All',
     enterprise: 'All + Custom'
   },
   {
     feature: 'Edge Response Time',
-    developer: '<30ms*',
-    startup: '<30ms*',
-    growth: '<30ms*',
+    community: '<30ms*',
+    pro: '<30ms*',
+    scale: '<30ms*',
     enterprise: '<30ms*'
   },
   {
     feature: 'Support',
-    developer: 'Community',
-    startup: 'Email',
-    growth: 'Priority',
+    community: 'Community',
+    pro: 'Email',
+    scale: 'Priority',
     enterprise: 'Dedicated'
   },
   {
     feature: 'SLA',
-    developer: false,
-    startup: '99.9%',
-    growth: '99.95%',
-    enterprise: 'Custom'
+    community: false,
+    pro: false,
+    scale: false,
+    // SLA is only offered at the Enterprise tier and is negotiated per
+    // contract. No public uptime percentage until SRE on-call + SLO
+    // definitions are in place.
+    enterprise: 'Negotiated per contract'
   },
   {
     feature: 'SAML SSO',
-    developer: false,
-    startup: false,
-    growth: true,
+    community: false,
+    pro: false,
+    scale: true,
     enterprise: true
   },
   {
     feature: 'Audit Log Retention',
-    developer: '7 days',
-    startup: '30 days',
-    growth: '90 days',
+    community: false,
+    pro: '30 days',
+    scale: '90 days',
     enterprise: 'Unlimited'
   }
 ]
@@ -216,7 +236,7 @@ export function HonestPricing() {
           {/* Important Note */}
           <div className="mt-6 inline-flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
             <AlertCircle className="w-4 h-4" />
-            <span>Currently in beta. Production packages coming Q1 2025.</span>
+            <span>Currently in Private Alpha. Production packages coming soon.</span>
           </div>
         </div>
 
@@ -258,14 +278,14 @@ export function HonestPricing() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.1 }}
               className={`relative bg-white dark:bg-slate-900 rounded-lg border ${
-                tier.name === 'Startup'
+                tier.name === 'Pro'
                   ? 'border-blue-500 shadow-lg scale-105'
                   : 'border-slate-200 dark:border-slate-800'
               } p-6`}
             >
               {tier.badge && (
                 <Badge
-                  variant={tier.name === 'Startup' ? 'default' : 'secondary'}
+                  variant={tier.name === 'Pro' ? 'default' : 'secondary'}
                   className="absolute -top-3 left-1/2 -translate-x-1/2"
                 >
                   {tier.badge}
@@ -330,7 +350,7 @@ export function HonestPricing() {
 
               {/* CTA Button */}
               <Button
-                variant={tier.name === 'Startup' ? 'default' : 'outline'}
+                variant={tier.name === 'Pro' ? 'default' : 'outline'}
                 className="w-full"
                 asChild
               >
@@ -366,13 +386,13 @@ export function HonestPricing() {
                     Feature
                   </th>
                   <th className="text-center p-4 font-semibold text-slate-900 dark:text-white">
-                    Developer
+                    Community
                   </th>
                   <th className="text-center p-4 font-semibold text-slate-900 dark:text-white">
-                    Startup
+                    Pro
                   </th>
                   <th className="text-center p-4 font-semibold text-slate-900 dark:text-white">
-                    Growth
+                    Scale
                   </th>
                   <th className="text-center p-4 font-semibold text-slate-900 dark:text-white">
                     Enterprise
@@ -389,41 +409,41 @@ export function HonestPricing() {
                       {row.feature}
                     </td>
                     <td className="p-4 text-center">
-                      {typeof row.developer === 'boolean' ? (
-                        row.developer ? (
+                      {typeof row.community === 'boolean' ? (
+                        row.community ? (
                           <Check className="w-4 h-4 text-green-600 mx-auto" />
                         ) : (
                           <X className="w-4 h-4 text-slate-400 mx-auto" />
                         )
                       ) : (
                         <span className="text-sm text-slate-600 dark:text-slate-400">
-                          {row.developer}
+                          {row.community}
                         </span>
                       )}
                     </td>
                     <td className="p-4 text-center">
-                      {typeof row.startup === 'boolean' ? (
-                        row.startup ? (
+                      {typeof row.pro === 'boolean' ? (
+                        row.pro ? (
                           <Check className="w-4 h-4 text-green-600 mx-auto" />
                         ) : (
                           <X className="w-4 h-4 text-slate-400 mx-auto" />
                         )
                       ) : (
                         <span className="text-sm text-slate-600 dark:text-slate-400">
-                          {row.startup}
+                          {row.pro}
                         </span>
                       )}
                     </td>
                     <td className="p-4 text-center">
-                      {typeof row.growth === 'boolean' ? (
-                        row.growth ? (
+                      {typeof row.scale === 'boolean' ? (
+                        row.scale ? (
                           <Check className="w-4 h-4 text-green-600 mx-auto" />
                         ) : (
                           <X className="w-4 h-4 text-slate-400 mx-auto" />
                         )
                       ) : (
                         <span className="text-sm text-slate-600 dark:text-slate-400">
-                          {row.growth}
+                          {row.scale}
                         </span>
                       )}
                     </td>
@@ -446,7 +466,7 @@ export function HonestPricing() {
             </table>
 
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-4 text-center">
-              * Edge response times based on architecture design. Production benchmarks coming Q1 2025.
+              * Edge response times based on architecture design. Production benchmarks coming soon.
             </p>
           </motion.div>
         )}
@@ -485,17 +505,17 @@ export function HonestPricing() {
               </h4>
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 The code is production-ready, but we're finalizing package registry setup. You can use them
-                directly from GitHub today. NPM/PyPI publishing is coming in Q1 2025.
+                directly from GitHub today. Public NPM/PyPI publishing is coming soon.
               </p>
             </div>
 
             <div>
               <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-2">
-                What about the 31.3% test coverage?
+                What about test coverage?
               </h4>
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 We're transparent about this. While the core authentication flows are well-tested, overall
-                coverage needs improvement. We're actively working on this and update the percentage weekly.
+                coverage needs improvement. We're actively working on this.
               </p>
             </div>
           </div>

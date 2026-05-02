@@ -48,7 +48,11 @@ export function PricingSection() {
         'Organizations & RBAC',
         'Webhooks & events',
         'Email support',
-        '99.9% uptime SLA',
+        // SLA is only offered at the Enterprise tier and is negotiated per
+        // contract. We do not advertise a public uptime percentage until we
+        // have an SRE on-call rotation, an SLO definition file, and
+        // reproducible measurements.
+        'Best-effort uptime (SLA available with Enterprise)',
         'Custom domain',
         'Advanced MFA (TOTP)',
         'Audit logs (30 days)',
@@ -73,7 +77,9 @@ export function PricingSection() {
         'SSO/SAML',
         'Advanced security policies',
         'Priority support',
-        '99.95% uptime SLA',
+        // SLA is only offered at the Enterprise tier and is negotiated per
+        // contract. No public uptime percentage advertised at lower tiers.
+        'Best-effort uptime (SLA available with Enterprise)',
         'Audit logs (90 days)',
         'Custom JWT claims',
         'IP allowlisting',
