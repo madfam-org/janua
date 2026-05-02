@@ -64,9 +64,9 @@ export default function EnterprisePage() {
               <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Award className="w-8 h-8 text-blue-600 dark:text-blue-400" />
               </div>
-              <h3 className="font-semibold text-slate-900 dark:text-white mb-2">SOC 2 Type II</h3>
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-2">SOC 2: Type II Audit In Progress</h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Certified secure by independent auditors
+                Controls implemented; certification audit in progress
               </p>
             </div>
 

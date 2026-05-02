@@ -93,6 +93,15 @@ spec:
                 secretKeyRef:
                   name: janua-secrets
                   key: field-encryption-key
+            # Metrics auth (gates /metrics, /metrics/performance, /metrics/scalability).
+            # Optional: when unset in production, /metrics* return 404 (fail-closed).
+            # In-cluster Prometheus must send `Authorization: Bearer $METRICS_TOKEN`.
+            - name: METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: janua-secrets
+                  key: metrics-token
+                  optional: true
             # Configuration
             - name: PORT
               value: "8080"
