@@ -22,13 +22,22 @@ import {
 } from 'lucide-react'
 import { getBillingCurrent, getInvoices, getPaymentMethods, createCheckout } from '@/lib/api'
 import { TOAST_DISMISS_MS } from '@/lib/constants'
+import { useAuth } from '@/lib/auth'
+
+/** Format an ISO date string, returning a dash for null/undefined/invalid values. */
+function formatBillingDate(value: string | null | undefined): string {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString()
+}
 
 interface Subscription {
   id: string
   plan: 'community' | 'pro' | 'scale' | 'enterprise'
   status: 'active' | 'trialing' | 'past_due' | 'canceled'
-  current_period_start: string
-  current_period_end: string
+  current_period_start: string | null
+  current_period_end: string | null
   cancel_at_period_end: boolean
 }
 
@@ -164,6 +173,9 @@ const planIcons: Record<string, React.ReactNode> = {
 }
 
 export default function BillingPage() {
+  const { user } = useAuth()
+  // Master-admin (self-hosted Janua deployment scope) — no plans/billing apply here.
+  const isMasterAdmin = user?.is_admin === true
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
@@ -309,8 +321,21 @@ export default function BillingPage() {
           </Card>
         )}
 
-        {/* Current Subscription */}
-        {subscription && (
+        {/* Self-hosted notice for master admins (no plans/billing apply) */}
+        {isMasterAdmin && (
+          <Card data-testid="self-hosted-billing-notice">
+            <CardHeader>
+              <CardTitle>Self-hosted deployment</CardTitle>
+              <CardDescription>
+                Billing is not applied to this scope. Plans and payments are managed by the Janua
+                deployment owner.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+
+        {/* Current Subscription (hidden for master admins on self-hosted deployments) */}
+        {!isMasterAdmin && subscription && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -336,13 +361,13 @@ export default function BillingPage() {
                 <div>
                   <p className="text-muted-foreground text-sm">Billing Period Start</p>
                   <p className="font-medium">
-                    {new Date(subscription.current_period_start).toLocaleDateString()}
+                    {formatBillingDate(subscription.current_period_start)}
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground text-sm">Billing Period End</p>
                   <p className="font-medium">
-                    {new Date(subscription.current_period_end).toLocaleDateString()}
+                    {formatBillingDate(subscription.current_period_end)}
                   </p>
                 </div>
                 <div>
@@ -360,7 +385,8 @@ export default function BillingPage() {
           </Card>
         )}
 
-        {/* Plan Cards */}
+        {/* Plan Cards (hidden for master admins on self-hosted deployments) */}
+        {!isMasterAdmin && (
         <div>
           <h2 className="mb-4 text-lg font-semibold">Available Plans</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -458,8 +484,10 @@ export default function BillingPage() {
             })}
           </div>
         </div>
+        )}
 
-        {/* Payment Methods */}
+        {/* Payment Methods (only show for non-master-admins, or if methods exist) */}
+        {(!isMasterAdmin || paymentMethods.length > 0) && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -510,8 +538,10 @@ export default function BillingPage() {
             )}
           </CardContent>
         </Card>
+        )}
 
-        {/* Invoice History */}
+        {/* Invoice History (only show for non-master-admins, or if invoices exist) */}
+        {(!isMasterAdmin || invoices.length > 0) && (
         <Card>
           <CardHeader>
             <CardTitle>Invoice History</CardTitle>
@@ -547,7 +577,7 @@ export default function BillingPage() {
                       <tr key={invoice.id} className="border-b last:border-0">
                         <td className="py-3 font-medium">{invoice.number}</td>
                         <td className="text-muted-foreground py-3 text-sm">
-                          {new Date(invoice.created_at).toLocaleDateString()}
+                          {formatBillingDate(invoice.created_at)}
                         </td>
                         <td className="py-3">
                           {formatCurrency(invoice.amount, invoice.currency)}
@@ -584,6 +614,7 @@ export default function BillingPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
     </div>
   )

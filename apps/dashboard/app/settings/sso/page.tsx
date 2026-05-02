@@ -22,6 +22,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { januaClient } from '@/lib/janua-client'
+import { useAuth } from '@/lib/auth'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
@@ -56,12 +57,19 @@ const statusLabels = {
   error: 'Configuration Error',
 }
 
+// Sentinel value used when a master admin is configuring SSO at the platform
+// level on a self-hosted Janua deployment (i.e. there is no parent organization).
+const PLATFORM_SCOPE = 'platform'
+
 export default function SSOSettingsPage() {
+  const { user } = useAuth()
+  const isMasterAdmin = user?.is_admin === true
   const [configurations, setConfigurations] = useState<SSOConfiguration[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [testing, setTesting] = useState<string | null>(null)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [isPlatformScope, setIsPlatformScope] = useState(false)
   const [showConfigForm, setShowConfigForm] = useState<'saml' | 'oidc' | null>(null)
   const [configuring, setConfiguring] = useState(false)
   const [configFormData, setConfigFormData] = useState({
@@ -93,23 +101,38 @@ export default function SSOSettingsPage() {
 
       // Get organization ID from user data or memberships
       const orgId = (userData as any).current_organization_id || (userData as any).organization_id
-      if (!orgId) {
-        setError('No organization found. Please join or create an organization first.')
-        setLoading(false)
-        return
-      }
-      setOrganizationId(orgId)
 
-      // Fetch SSO configurations
-      try {
-        const data = await januaClient.sso.getConfiguration(orgId)
-        setConfigurations(Array.isArray(data) ? data : data ? [data as unknown as SSOConfiguration] : [])
-      } catch (fetchErr: any) {
-        if (fetchErr?.status === 404 || fetchErr?.message?.includes('404')) {
-          setConfigurations([])
+      // Master admins on self-hosted deployments may not belong to any organization
+      // but should still be able to configure SSO at the platform level.
+      if (!orgId) {
+        if ((userData as any)?.is_admin === true || isMasterAdmin) {
+          setIsPlatformScope(true)
+          setOrganizationId(PLATFORM_SCOPE)
         } else {
-          throw fetchErr
+          setError('No organization found. Please join or create an organization first.')
+          setLoading(false)
+          return
         }
+      } else {
+        setOrganizationId(orgId)
+      }
+
+      // Fetch SSO configurations (skip the per-org call for platform scope —
+      // platform-level SSO has no org id to query against).
+      const scope = orgId || (isMasterAdmin || (userData as any)?.is_admin === true ? PLATFORM_SCOPE : null)
+      if (scope && scope !== PLATFORM_SCOPE) {
+        try {
+          const data = await januaClient.sso.getConfiguration(scope)
+          setConfigurations(Array.isArray(data) ? data : data ? [data as unknown as SSOConfiguration] : [])
+        } catch (fetchErr: any) {
+          if (fetchErr?.status === 404 || fetchErr?.message?.includes('404')) {
+            setConfigurations([])
+          } else {
+            throw fetchErr
+          }
+        }
+      } else {
+        setConfigurations([])
       }
     } catch (err) {
       console.error('Failed to fetch SSO configurations:', err)
@@ -242,6 +265,18 @@ export default function SSOSettingsPage() {
       </header>
 
       <div className="container mx-auto space-y-6 px-4 py-8">
+        {isPlatformScope && (
+          <Card data-testid="sso-platform-scope-notice">
+            <CardHeader>
+              <CardTitle className="text-base">Platform-wide SSO</CardTitle>
+              <CardDescription>
+                You are configuring SSO at the platform level for this self-hosted Janua
+                deployment. Settings here apply to the deployment owner&apos;s identity providers and
+                are not scoped to a single organization.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
         {error && (
           <Card className="border-destructive">
             <CardContent className="pt-6">
