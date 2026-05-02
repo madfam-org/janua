@@ -188,6 +188,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await januaClient.auth.signOut()
     setUser(null)
     setMiddlewareCookies(null)
+    // Clear the HttpOnly admin cookies set by /api/auth/session (POST). The
+    // client-side cookie wipes in setMiddlewareCookies(null) cannot remove
+    // HttpOnly cookies, so we delegate to the server route handler.
+    try {
+      await fetch('/api/auth/session', { method: 'DELETE' })
+    } catch (err) {
+      console.error('Failed to clear admin session cookies:', err)
+    }
     window.location.href = '/login'
   }
 

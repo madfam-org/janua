@@ -466,9 +466,9 @@ async function handleDataDeletionRequest(userId: string) {
           </div>
 
           <div>
-            <h4 className="font-medium text-gray-900 dark:text-white mb-2">SOC 2 Type II</h4>
+            <h4 className="font-medium text-gray-900 dark:text-white mb-2">SOC 2 Controls Support</h4>
             <p className="text-gray-600 dark:text-gray-400 mb-2">
-              System and Organization Controls:
+              Audit-log capabilities aligned with SOC 2 control families (audit not yet completed):
             </p>
             <ul className="text-gray-600 dark:text-gray-400 space-y-1">
               <li>✓ Comprehensive audit logging</li>
