@@ -12,12 +12,20 @@ const nextConfig = {
     const isDev = process.env.NODE_ENV === 'development'
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
+    // Cloudflare Insights is auto-injected by the Cloudflare proxy on production
+    // hosts; allow its beacon script and analytics endpoint without weakening
+    // the rest of the CSP. Inter is self-hosted via next/font, so we don't need
+    // to permit fonts.googleapis.com.
+    const cfInsightsScript = 'https://static.cloudflareinsights.com'
+    const cfInsightsConnect = 'https://cloudflareinsights.com'
+
     const cspDirectives = [
       "default-src 'self'",
-      `script-src 'self'${isDev ? " 'unsafe-eval'" : ""} 'unsafe-inline'`,
+      `script-src 'self'${isDev ? " 'unsafe-eval'" : ""} 'unsafe-inline' ${cfInsightsScript}`,
+      `script-src-elem 'self' 'unsafe-inline' ${cfInsightsScript}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
-      `connect-src 'self' ${apiUrl}${isDev ? ' ws://localhost:*' : ''}`,
+      `connect-src 'self' ${apiUrl} ${cfInsightsConnect}${isDev ? ' ws://localhost:*' : ''}`,
       "font-src 'self'",
       "object-src 'none'",
       "base-uri 'self'",

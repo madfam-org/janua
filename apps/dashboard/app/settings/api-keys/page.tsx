@@ -20,6 +20,7 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  XCircle,
 } from 'lucide-react'
 import { listApiKeys, createApiKey, revokeApiKey } from '@/lib/api'
 import { TOAST_DISMISS_MS } from '@/lib/constants'
@@ -62,6 +63,9 @@ export default function ApiKeysPage() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  // Separate fetch error so the list area renders error XOR empty, never both
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [hasLoaded, setHasLoaded] = useState(false)
 
   // New key form
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -78,13 +82,15 @@ export default function ApiKeysPage() {
   const fetchApiKeys = async () => {
     try {
       setLoading(true)
-      setError(null)
+      setFetchError(null)
 
       const data = await listApiKeys()
       setApiKeys(Array.isArray(data) ? data as unknown as ApiKey[] : [])
+      setHasLoaded(true)
     } catch (err) {
       console.error('Failed to fetch API keys:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load API keys')
+      setFetchError(err instanceof Error ? err.message : 'Failed to load API keys')
+      setApiKeys([])
     } finally {
       setLoading(false)
     }
@@ -345,8 +351,18 @@ export default function ApiKeysPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {apiKeys.length === 0 ? (
-              <div className="py-8 text-center">
+            {fetchError ? (
+              <div className="py-8 text-center" data-testid="api-keys-error">
+                <XCircle className="text-destructive mx-auto size-12" />
+                <h3 className="mt-4 text-lg font-medium">Could not load API keys</h3>
+                <p className="text-muted-foreground mt-2">{fetchError}</p>
+                <Button className="mt-4" variant="outline" onClick={fetchApiKeys}>
+                  <RefreshCw className="mr-2 size-4" />
+                  Retry
+                </Button>
+              </div>
+            ) : hasLoaded && apiKeys.length === 0 ? (
+              <div className="py-8 text-center" data-testid="api-keys-empty">
                 <Key className="text-muted-foreground mx-auto size-12" />
                 <h3 className="mt-4 text-lg font-medium">No API keys yet</h3>
                 <p className="text-muted-foreground mt-2">
@@ -357,7 +373,7 @@ export default function ApiKeysPage() {
                   Create API Key
                 </Button>
               </div>
-            ) : (
+            ) : apiKeys.length === 0 ? null : (
               <div className="space-y-3">
                 {apiKeys.map((key) => (
                   <div

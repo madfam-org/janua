@@ -27,19 +27,19 @@ import {
 import { listAuditLogs, exportAuditLogs } from '@/lib/api'
 import { AuditStream } from '@/components/audit/audit-stream'
 
+// Schema matches the canonical /api/v1/audit-logs response (also consumed by the
+// dashboard "Audit" tab via components/audit/audit-list.tsx).
 interface AuditLogEntry {
   id: string
   timestamp: string
-  event_type: string
-  actor_id?: string
-  actor_email?: string
-  actor_ip?: string
-  target_type?: string
-  target_id?: string
   action: string
-  details?: Record<string, any>
-  success: boolean
-  organization_id?: string
+  user_id?: string | null
+  user_email?: string | null
+  resource_type?: string | null
+  resource_id?: string | null
+  ip_address?: string | null
+  user_agent?: string | null
+  details?: Record<string, any> | null
 }
 
 const eventIcons: Record<string, any> = {
@@ -104,19 +104,25 @@ export default function AuditLogsPage() {
       }
 
       if (eventFilter !== 'all') {
-        params.event_type = eventFilter
+        // The canonical endpoint filters by `action`, not `event_type`.
+        params.action = eventFilter
       }
 
       const data = await listAuditLogs(params)
-      const logsList = Array.isArray(data) ? data : []
+      // The endpoint may return either AuditLog[] directly or
+      // { logs, has_more, cursor }. Handle both shapes (matches AuditList).
+      const rawData = data as unknown as { logs?: AuditLogEntry[]; has_more?: boolean }
+      const logsList: AuditLogEntry[] = Array.isArray(data)
+        ? (data as unknown as AuditLogEntry[])
+        : rawData.logs || []
 
       if (page === 1) {
-        setLogs(logsList as unknown as AuditLogEntry[])
+        setLogs(logsList)
       } else {
-        setLogs((prev) => [...prev, ...(logsList as unknown as AuditLogEntry[])])
+        setLogs((prev) => [...prev, ...logsList])
       }
 
-      setHasMore(logsList.length === 50)
+      setHasMore(rawData.has_more ?? logsList.length === 50)
     } catch (err) {
       console.error('Failed to fetch audit logs:', err)
       setError(err instanceof Error ? err.message : 'Failed to load audit logs')
@@ -150,10 +156,10 @@ export default function AuditLogsPage() {
     if (!searchQuery) return true
     const query = searchQuery.toLowerCase()
     return (
-      log.actor_email?.toLowerCase().includes(query) ||
-      log.event_type.toLowerCase().includes(query) ||
-      log.action?.toLowerCase().includes(query) ||
-      log.actor_ip?.includes(query)
+      (log.user_email?.toLowerCase().includes(query) ?? false) ||
+      log.action.toLowerCase().includes(query) ||
+      (log.ip_address?.toLowerCase().includes(query) ?? false) ||
+      (log.resource_type?.toLowerCase().includes(query) ?? false)
     )
   })
 
@@ -294,37 +300,42 @@ export default function AuditLogsPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {filteredLogs.map((log) => (
+                {filteredLogs.map((log) => {
+                  const isFailure = log.action.includes('failed') || log.action.includes('denied')
+                  return (
                   <div
                     key={log.id}
                     className={`flex items-start justify-between rounded-lg border p-4 ${
-                      !log.success ? 'border-destructive/30 bg-destructive/5' : ''
+                      isFailure ? 'border-destructive/30 bg-destructive/5' : ''
                     }`}
                   >
                     <div className="flex items-start gap-4">
-                      <div className={`bg-muted rounded-full p-2 ${!log.success ? 'bg-destructive/10' : ''}`}>
-                        {getEventIcon(log.event_type)}
+                      <div className={`bg-muted rounded-full p-2 ${isFailure ? 'bg-destructive/10' : ''}`}>
+                        {getEventIcon(log.action)}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{getEventLabel(log.event_type)}</span>
-                          <Badge variant={log.success ? 'default' : 'destructive'}>
-                            {log.success ? 'Success' : 'Failed'}
-                          </Badge>
+                          <span className="font-medium">{getEventLabel(log.action)}</span>
+                          {isFailure && (
+                            <Badge variant="destructive">Failed</Badge>
+                          )}
                         </div>
                         <div className="text-muted-foreground mt-1 text-sm">
-                          {log.actor_email && (
+                          {log.user_email && (
                             <span className="flex items-center gap-1">
                               <User className="size-3" />
-                              {log.actor_email}
+                              {log.user_email}
                             </span>
                           )}
-                          {log.actor_ip && (
-                            <span className="ml-4">IP: {log.actor_ip}</span>
+                          {log.ip_address && (
+                            <span className="ml-4">IP: {log.ip_address}</span>
                           )}
                         </div>
-                        {log.action && log.action !== log.event_type && (
-                          <p className="mt-1 text-sm">{log.action}</p>
+                        {log.resource_type && (
+                          <p className="mt-1 text-sm">
+                            {log.resource_type}
+                            {log.resource_id ? ` · ${log.resource_id.slice(0, 8)}…` : ''}
+                          </p>
                         )}
                         {log.details && Object.keys(log.details).length > 0 && (
                           <details className="mt-2">
@@ -342,7 +353,8 @@ export default function AuditLogsPage() {
                       {formatDate(log.timestamp)}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
