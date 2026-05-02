@@ -151,10 +151,10 @@ export function TrustSection() {
               </svg>
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              SOC 2 Type II
+              SOC 2: Type II Audit In Progress
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Audited security and availability controls
+              Controls implemented; audit in progress
             </p>
           </div>
 

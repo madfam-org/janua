@@ -27,12 +27,11 @@ export function SecurityTrustCenter() {
 
   const certifications: Certification[] = [
     {
-      name: 'SOC 2 Type II',
-      status: 'certified',
+      name: 'SOC 2: Type II Audit In Progress',
+      status: 'in-progress',
       issuer: 'AICPA',
-      validUntil: '2026-03-15',
       logo: '🔒',
-      description: 'Comprehensive security, availability, and confidentiality controls validated by independent auditors.'
+      description: 'Security, availability, and confidentiality controls implemented. Independent Type II audit in progress; report not yet issued.'
     },
     {
       name: 'ISO 27001',

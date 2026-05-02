@@ -39,7 +39,7 @@ if _sentry_dsn:
         pass  # sentry-sdk not installed
 
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from passlib.context import CryptContext
@@ -701,8 +701,42 @@ def jwks():
     return jwt_manager.get_jwks()
 
 
+# ---------------------------------------------------------------------------
+# Metrics auth guard
+#
+# /metrics, /metrics/performance, and /metrics/scalability disclose
+# endpoint inventory, latency profiles, and per-path call counters
+# (including paths probed by attackers). Public exposure on
+# api.janua.dev is an information-disclosure risk, so we gate them
+# behind a service-to-service token distinct from user auth.
+#
+# Set METRICS_TOKEN in the API deployment env. In-cluster Prometheus
+# scrapes must send it as `Authorization: Bearer <METRICS_TOKEN>`.
+# If METRICS_TOKEN is unset (e.g., local dev), the endpoints are open
+# only when ENVIRONMENT in {"development", "test"}; in any other
+# environment an unset token causes a 404 (fail-closed).
+# ---------------------------------------------------------------------------
+def _require_metrics_token(request: Request) -> None:
+    expected = os.getenv("METRICS_TOKEN", "").strip()
+    if not expected:
+        # Fail-open only in non-prod-like environments.
+        if settings.ENVIRONMENT in {"development", "test"}:
+            return
+        # Treat as not-configured -> 404 to avoid signalling existence.
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        # 404 (not 401) so unauthenticated probes cannot fingerprint /metrics*.
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    presented = auth.split(" ", 1)[1].strip()
+    if not secrets.compare_digest(presented, expected):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
 # Performance metrics endpoint
-@app.get("/metrics/performance")
+@app.get("/metrics/performance", dependencies=[Depends(_require_metrics_token)])
 async def performance_metrics():
     """Get API performance metrics"""
     from app.core.performance import get_performance_metrics
@@ -711,7 +745,7 @@ async def performance_metrics():
 
 
 # Prometheus metrics endpoint
-@app.get("/metrics")
+@app.get("/metrics", dependencies=[Depends(_require_metrics_token)])
 async def prometheus_metrics():
     """Prometheus metrics endpoint"""
     from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, generate_latest
@@ -813,7 +847,7 @@ async def prometheus_metrics():
 
 
 # Scalability status endpoint
-@app.get("/metrics/scalability")
+@app.get("/metrics/scalability", dependencies=[Depends(_require_metrics_token)])
 async def scalability_metrics():
     """Get enterprise scalability status and metrics"""
     return await get_scalability_status()
