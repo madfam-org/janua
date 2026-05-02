@@ -217,6 +217,10 @@ export function SignIn({
   if (enableJanuaSSO) socialProviderList.push('janua')
 
   const hasSocialProviders = socialProviderList.length > 0
+  // Default is `true` when the prop is omitted (see destructuring above).
+  // `!== false` ensures only an explicit `false` opts out, mirroring how
+  // boolean React props are typically handled and matching the prop's JSDoc.
+  const renderEmailPassword = showEmailPassword !== false
 
   const header = (
     <div className="text-center mb-6" style={{ animation: 'janua-fade-in 300ms ease' }}>
@@ -250,12 +254,12 @@ export function SignIn({
               />
             ))}
           </div>
-          {showEmailPassword && <AuthDivider label="Or continue with email" />}
+          {renderEmailPassword && <AuthDivider label="Or continue with email" />}
         </>
       )}
 
       {/* Email/Password Form */}
-      {showEmailPassword && <form onSubmit={handleSubmit} className="space-y-4">
+      {renderEmailPassword && <form onSubmit={handleSubmit} className="space-y-4">
         {/* Error Message */}
         {error && (
           <div
