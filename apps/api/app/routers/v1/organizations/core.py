@@ -136,6 +136,9 @@ async def list_organizations(
             if owner:
                 owner_email = owner.email
 
+        # Coalesce nullable columns. Migration 000_init.py declared updated_at
+        # as nullable, and legacy rows can still have NULL values that would
+        # crash pydantic validation for the whole list (-> 500 in dashboard).
         orgs_result.append(
             OrganizationResponse(
                 id=str(org.id),
@@ -145,12 +148,13 @@ async def list_organizations(
                 logo_url=org.logo_url,
                 billing_email=org.billing_email,
                 created_at=org.created_at,
-                updated_at=org.updated_at,
-                member_count=member_count,
+                updated_at=org.updated_at or org.created_at,
+                member_count=member_count or 0,
                 settings=org.settings or {},
                 # Include plan (subscription_tier) and owner_email for UI
                 plan=getattr(org, "subscription_tier", None)
-                or getattr(org, "billing_plan", "community"),
+                or getattr(org, "billing_plan", None)
+                or "community",
                 owner_email=owner_email,
             )
         )

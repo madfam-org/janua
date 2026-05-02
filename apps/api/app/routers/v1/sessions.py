@@ -116,7 +116,7 @@ async def list_sessions(
             UserSession.revoked_at.is_(None),
             UserSession.expires_at > datetime.utcnow(),
         )
-        .order_by(UserSession.last_activity_at.desc())
+        .order_by(UserSession.last_activity.desc())
     )
     sessions = result.scalars().all()
 
@@ -137,7 +137,7 @@ async def list_sessions(
                 os=device_info["os"],
                 is_current=session.access_token_jti == current_jti,
                 created_at=session.created_at,
-                last_activity_at=session.last_activity_at,
+                last_activity_at=session.last_activity,
                 expires_at=session.expires_at,
                 revoked=session.revoked,
             )
@@ -193,7 +193,7 @@ async def get_session(
         os=device_info["os"],
         is_current=session.access_token_jti == current_jti,
         created_at=session.created_at,
-        last_activity_at=session.last_activity_at,
+        last_activity_at=session.last_activity,
         expires_at=session.expires_at,
         revoked=session.revoked,
     )
@@ -287,7 +287,7 @@ async def refresh_session(
         raise HTTPException(status_code=404, detail="Session not found or revoked")
 
     # Update last activity
-    session.last_activity_at = datetime.utcnow()
+    session.last_activity = datetime.utcnow()
     await db.commit()
 
     return {"message": "Session refreshed successfully"}
@@ -304,7 +304,7 @@ async def get_recent_activity(
     result = await db.execute(
         select(UserSession)
         .where(UserSession.user_id == current_user.id)
-        .order_by(UserSession.last_activity_at.desc())
+        .order_by(UserSession.last_activity.desc())
         .limit(limit)
     )
     sessions = result.scalars().all()
@@ -317,9 +317,9 @@ async def get_recent_activity(
             {
                 "session_id": str(session.id),
                 "activity_type": "session_created"
-                if session.created_at == session.last_activity_at
+                if session.created_at == session.last_activity
                 else "session_active",
-                "timestamp": session.last_activity_at,
+                "timestamp": session.last_activity,
                 "ip_address": session.ip_address,
                 "device": f"{device_info['browser']} on {device_info['os']}",
                 "device_type": device_info["device_type"],

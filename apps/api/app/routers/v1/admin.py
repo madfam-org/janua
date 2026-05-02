@@ -355,25 +355,28 @@ async def list_all_users(
         except Exception:
             pass  # Table may not exist in production yet
 
+        # Coalesce nullable boolean columns (legacy rows may have NULL).
+        # See migration 000_init.py: email_verified, is_admin, mfa_enabled are nullable=True.
+        # Without this guard, pydantic raises ValidationError -> 500 on the whole list.
         result.append(
             UserAdminResponse(
                 id=str(user.id),
                 email=user.email,
-                email_verified=user.email_verified,
+                email_verified=bool(user.email_verified),
                 username=user.username,
                 first_name=user.first_name,
                 last_name=user.last_name,
-                status=user.status.value,
-                mfa_enabled=user.mfa_enabled,
-                is_admin=user.is_admin,
-                organizations_count=orgs_count,
-                sessions_count=sessions_count,
+                status=user.status.value if user.status else UserStatus.ACTIVE.value,
+                mfa_enabled=bool(user.mfa_enabled),
+                is_admin=bool(user.is_admin),
+                organizations_count=orgs_count or 0,
+                sessions_count=sessions_count or 0,
                 oauth_providers=[
                     p.value if hasattr(p, "value") else str(p) for p in oauth_providers
                 ],
-                passkeys_count=passkeys_count,
+                passkeys_count=passkeys_count or 0,
                 created_at=user.created_at,
-                updated_at=user.updated_at,
+                updated_at=user.updated_at or user.created_at,
                 last_sign_in_at=user.last_sign_in_at,
             )
         )
@@ -574,18 +577,20 @@ async def list_all_organizations(
         )
         members_count = members_result.scalar()
 
+        # Coalesce nullable columns (legacy rows may have NULL billing_plan/owner_id/updated_at).
+        # See migration 000_init.py: owner_id and billing_plan are nullable=True.
         result.append(
             OrganizationAdminResponse(
                 id=str(org.id),
                 name=org.name,
                 slug=org.slug,
-                owner_id=str(org.owner_id),
+                owner_id=str(org.owner_id) if org.owner_id else "",
                 owner_email=owner.email if owner else "unknown",
-                billing_plan=org.billing_plan,
+                billing_plan=org.billing_plan or "free",
                 billing_email=org.billing_email,
-                members_count=members_count,
+                members_count=members_count or 0,
                 created_at=org.created_at,
-                updated_at=org.updated_at,
+                updated_at=org.updated_at or org.created_at,
             )
         )
 
