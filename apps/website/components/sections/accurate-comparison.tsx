@@ -1,355 +1,246 @@
 'use client'
 
-import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Check, X, Minus, AlertCircle, Info, ExternalLink } from 'lucide-react'
+import { Check, X, Minus, ExternalLink } from 'lucide-react'
 import { Badge } from '@janua/ui'
 import { Button } from '@janua/ui'
 import Link from 'next/link'
 
-type FeatureStatus = 'yes' | 'no' | 'partial' | 'coming'
+type Cell = 'yes' | 'no' | 'partial' | string
 
-interface ComparisonRow {
+interface Row {
   feature: string
-  category: string
   description?: string
-  janua: FeatureStatus | string
-  auth0: FeatureStatus | string
-  clerk: FeatureStatus | string
-  supabase: FeatureStatus | string
-  footnote?: string
+  janua: Cell
+  auth0: Cell
+  clerk: Cell
+  keycloak: Cell
+  notes?: string
 }
 
-const comparisonData: ComparisonRow[] = [
-  // Performance
+// Janua cells: traced to code in this repo.
+// Competitor cells: based on each vendor's public docs as of 2026.
+// We do not invent cells. Where a competitor wins, we show it.
+const rows: Row[] = [
+  // Standards & protocols
   {
-    feature: 'Edge Latency',
-    category: 'Performance',
-    description: 'Authentication response time from edge locations',
-    janua: '<30ms*',
-    auth0: '100-200ms',
-    clerk: '80-150ms',
-    supabase: '60-120ms',
-    footnote: 'Based on edge architecture, not yet benchmarked at scale'
+    feature: 'OIDC provider',
+    janua: 'yes',
+    auth0: 'yes',
+    clerk: 'yes',
+    keycloak: 'yes',
   },
   {
-    feature: 'Global Edge Deployment',
-    category: 'Performance',
+    feature: 'OAuth 2.0 + PKCE',
+    janua: 'yes',
+    auth0: 'yes',
+    clerk: 'yes',
+    keycloak: 'yes',
+  },
+  {
+    feature: 'SAML 2.0 SSO',
+    janua: 'yes',
+    auth0: 'yes',
+    clerk: 'yes',
+    keycloak: 'yes',
+    notes: 'Janua: per-org config, JIT provisioning. Rolling out under enterprise routers.',
+  },
+  {
+    feature: 'SCIM v2 provisioning',
+    janua: 'yes',
+    auth0: 'yes',
+    clerk: 'partial',
+    keycloak: 'partial',
+    notes: 'Janua: rolling out. Clerk: enterprise plan only.',
+  },
+  {
+    feature: 'WebAuthn / Passkeys',
+    janua: 'yes',
+    auth0: 'yes',
+    clerk: 'yes',
+    keycloak: 'yes',
+  },
+  {
+    feature: 'TOTP MFA',
+    janua: 'yes',
+    auth0: 'yes',
+    clerk: 'yes',
+    keycloak: 'yes',
+  },
+  // Where data lives
+  {
+    feature: 'You own the user table',
+    description: 'Identity data lives in your Postgres, not the vendor\'s.',
     janua: 'yes',
     auth0: 'no',
+    clerk: 'no',
+    keycloak: 'yes',
+  },
+  {
+    feature: 'Self-host (production-grade)',
+    description: 'Helm chart or docker-compose, not a hidden dev mode.',
+    janua: 'yes',
+    auth0: 'no',
+    clerk: 'no',
+    keycloak: 'yes',
+  },
+  {
+    feature: 'OSS license',
+    janua: 'AGPL-3.0',
+    auth0: 'Proprietary',
+    clerk: 'Proprietary',
+    keycloak: 'Apache-2.0',
+    notes: 'Keycloak\'s Apache-2.0 is more permissive than Janua\'s AGPL-3.0.',
+  },
+  // Operator surface
+  {
+    feature: 'Audit log + retention controls',
+    janua: 'yes',
+    auth0: 'yes',
     clerk: 'partial',
-    supabase: 'no'
+    keycloak: 'partial',
+    notes: 'Janua: 30&ndash;365 day retention, CSV/JSON export. Clerk: enterprise plan.',
   },
-
-  // Authentication Methods
   {
-    feature: 'Passkeys (WebAuthn)',
-    category: 'Authentication',
-    description: 'FIDO2/WebAuthn passwordless authentication',
-    janua: 'yes',
+    feature: 'Webhook events for security + lifecycle',
+    janua: '26 types',
     auth0: 'yes',
     clerk: 'yes',
-    supabase: 'partial'
+    keycloak: 'partial',
   },
+  // Developer experience
   {
-    feature: 'MFA/TOTP',
-    category: 'Authentication',
-    janua: 'yes',
-    auth0: 'yes',
-    clerk: 'yes',
-    supabase: 'yes'
-  },
-  {
-    feature: 'Magic Links',
-    category: 'Authentication',
-    janua: 'yes',
-    auth0: 'yes',
-    clerk: 'yes',
-    supabase: 'yes'
-  },
-  {
-    feature: 'OAuth Providers',
-    category: 'Authentication',
-    janua: '5+',
-    auth0: '50+',
-    clerk: '20+',
-    supabase: '15+'
-  },
-
-  // Enterprise Features
-  {
-    feature: 'SAML SSO',
-    category: 'Enterprise',
-    janua: 'yes',
-    auth0: 'yes',
-    clerk: 'yes',
-    supabase: 'partial'
-  },
-  {
-    feature: 'OIDC SSO',
-    category: 'Enterprise',
-    janua: 'yes',
-    auth0: 'yes',
-    clerk: 'yes',
-    supabase: 'yes'
-  },
-  {
-    feature: 'RBAC',
-    category: 'Enterprise',
-    description: 'Role-based access control',
-    janua: 'yes',
-    auth0: 'yes',
-    clerk: 'yes',
-    supabase: 'yes'
-  },
-  {
-    feature: 'Audit Logging',
-    category: 'Enterprise',
-    janua: 'yes',
-    auth0: 'yes',
-    clerk: 'yes',
-    supabase: 'partial'
-  },
-
-  // Developer Experience
-  {
-    feature: 'SDK Languages',
-    category: 'Developer Experience',
-    janua: '13',
+    feature: 'Client SDKs in repo',
+    janua: '9',
     auth0: '15+',
     clerk: '5',
-    supabase: '8'
+    keycloak: '3',
+    notes: 'Auth0 wins on raw SDK count. Janua ships TS, React, Next, Svelte, Vue, RN, Flutter, Go, Python.',
   },
   {
-    feature: 'TypeScript SDK',
-    category: 'Developer Experience',
+    feature: 'Next.js middleware',
     janua: 'yes',
     auth0: 'yes',
     clerk: 'yes',
-    supabase: 'yes'
+    keycloak: 'no',
   },
+  // Pricing transparency
   {
-    feature: 'React Hooks',
-    category: 'Developer Experience',
-    janua: 'yes',
-    auth0: 'yes',
-    clerk: 'yes',
-    supabase: 'yes'
-  },
-  {
-    feature: 'Migration Tools',
-    category: 'Developer Experience',
-    description: 'Tools to migrate from other providers',
-    janua: 'yes',
-    auth0: 'no',
-    clerk: 'no',
-    supabase: 'no'
-  },
-
-  // Security & Compliance
-  {
-    feature: 'Third-Party Security Audit',
-    category: 'Security',
-    janua: 'coming',
-    auth0: 'yes',
-    clerk: 'yes',
-    supabase: 'partial',
-    footnote: 'Janua audit scheduled Q1 2025'
-  },
-  {
-    feature: 'SOC 2 Compliance',
-    category: 'Security',
-    janua: 'coming',
-    auth0: 'yes',
-    clerk: 'yes',
-    supabase: 'no',
-    footnote: 'Janua targeting Q2 2025'
-  },
-  {
-    feature: 'GDPR Compliant',
-    category: 'Security',
-    janua: 'yes',
-    auth0: 'yes',
-    clerk: 'yes',
-    supabase: 'yes'
-  },
-  {
-    feature: 'Open Source Core',
-    category: 'Security',
-    description: 'Core authentication logic is open source',
-    janua: 'yes',
-    auth0: 'no',
-    clerk: 'no',
-    supabase: 'yes'
-  },
-
-  // Testing & Quality
-  {
-    feature: 'Test Coverage',
-    category: 'Quality',
-    description: 'Percentage of code covered by tests',
-    janua: '31.3%',
-    auth0: 'N/A',
-    clerk: 'N/A',
-    supabase: 'N/A',
-    footnote: 'Janua improving weekly, targeting 85%+'
-  },
-
-  // Pricing
-  {
-    feature: 'Free Tier MAU',
-    category: 'Pricing',
-    description: 'Monthly Active Users in free tier',
-    janua: '10,000',
-    auth0: '7,000',
+    feature: 'Free tier MAU',
+    janua: '2,000',
+    auth0: '7,500',
     clerk: '10,000',
-    supabase: '50,000'
+    keycloak: 'Unlimited (self-host)',
+    notes: 'Clerk and Auth0 win on free-tier MAU. Keycloak is free at any scale if you operate it.',
   },
   {
-    feature: 'Pricing Model',
-    category: 'Pricing',
-    janua: '$ (Dev-friendly)',
-    auth0: '$$$$ (Enterprise)',
-    clerk: '$$$ (Growth)',
-    supabase: '$$ (Usage)'
-  }
+    feature: 'Paid entry tier (per month)',
+    janua: '$69 / 10k MAU',
+    auth0: '$240+',
+    clerk: '$25 + per-MAU',
+    keycloak: 'Self-operate',
+  },
+  // Compliance
+  {
+    feature: 'SOC 2 Type II',
+    janua: 'in progress',
+    auth0: 'yes',
+    clerk: 'yes',
+    keycloak: 'n/a (you self-attest)',
+    notes: 'Auth0 and Clerk win here today. Janua audit is in progress; see /solutions/enterprise.',
+  },
 ]
 
-const StatusIcon = ({ status }: { status: FeatureStatus | string }) => {
-  if (status === 'yes') {
-    return <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
-  }
-  if (status === 'no') {
-    return <X className="w-4 h-4 text-slate-400" />
-  }
-  if (status === 'partial') {
-    return <Minus className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-  }
-  if (status === 'coming') {
-    return (
-      <Badge variant="secondary" className="text-xs">
-        Coming Soon
-      </Badge>
-    )
-  }
-  // For string values
-  return <span className="text-sm font-medium text-slate-900 dark:text-white">{status}</span>
+const StatusCell = ({ value }: { value: Cell }) => {
+  if (value === 'yes') return <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
+  if (value === 'no') return <X className="w-4 h-4 text-slate-400" />
+  if (value === 'partial') return <Minus className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+  return <span className="text-xs font-medium text-slate-900 dark:text-white">{value}</span>
 }
 
 export function AccurateComparison() {
-  const [selectedCategory, setSelectedCategory] = useState<string>('All')
-  const [_showFootnotes, _setShowFootnotes] = useState(true)
-
-  const categories = ['All', ...Array.from(new Set(comparisonData.map(row => row.category)))]
-
-  const filteredData = selectedCategory === 'All'
-    ? comparisonData
-    : comparisonData.filter(row => row.category === selectedCategory)
-
-  const footnotes = Array.from(new Set(comparisonData.filter(row => row.footnote).map(row => row.footnote)))
-
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-12">
+        <div className="text-center mb-12 max-w-3xl mx-auto">
           <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white mb-4">
-            Honest Feature Comparison
+            Janua, Auth0, Clerk, Keycloak.
           </h2>
-          <p className="text-lg text-slate-600 dark:text-slate-400 max-w-3xl mx-auto">
-            A transparent comparison of Janua with established authentication providers.
-            We believe in honest communication about our capabilities and roadmap.
+          <p className="text-lg text-slate-600 dark:text-slate-400">
+            One table. Every cell verifiable. Where a competitor wins, we say
+            so out loud.
           </p>
         </div>
 
-        {/* Category Filter */}
-        <div className="mb-8 flex flex-wrap gap-2 justify-center">
-          {categories.map(category => (
-            <Button
-              key={category}
-              variant={selectedCategory === category ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedCategory(category)}
-            >
-              {category}
-            </Button>
-          ))}
-        </div>
-
-        {/* Comparison Table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
           <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800">
+            <thead className="bg-slate-50 dark:bg-slate-900/50">
+              <tr>
                 <th className="text-left p-4 font-semibold text-slate-900 dark:text-white">
                   Feature
                 </th>
                 <th className="text-center p-4">
                   <div className="font-semibold text-slate-900 dark:text-white">Janua</div>
-                  <Badge variant="outline" className="mt-1 text-xs">Edge-Native</Badge>
+                  <span className="text-xs text-slate-500">Self-host or managed</span>
                 </th>
                 <th className="text-center p-4">
                   <div className="font-semibold text-slate-900 dark:text-white">Auth0</div>
-                  <span className="text-xs text-slate-500">Enterprise Leader</span>
+                  <span className="text-xs text-slate-500">SaaS</span>
                 </th>
                 <th className="text-center p-4">
                   <div className="font-semibold text-slate-900 dark:text-white">Clerk</div>
-                  <span className="text-xs text-slate-500">Modern DX</span>
+                  <span className="text-xs text-slate-500">SaaS</span>
                 </th>
                 <th className="text-center p-4">
-                  <div className="font-semibold text-slate-900 dark:text-white">Supabase</div>
-                  <span className="text-xs text-slate-500">Open Source</span>
+                  <div className="font-semibold text-slate-900 dark:text-white">Keycloak</div>
+                  <span className="text-xs text-slate-500">Self-host</span>
                 </th>
               </tr>
             </thead>
             <tbody>
-              {filteredData.map((row, idx) => (
+              {rows.map((row, idx) => (
                 <motion.tr
                   key={idx}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, y: 10 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
                   transition={{ delay: idx * 0.02 }}
-                  className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50"
+                  className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/30"
                 >
                   <td className="p-4">
-                    <div className="flex items-start gap-2">
-                      <div>
-                        <div className="font-medium text-slate-900 dark:text-white">
-                          {row.feature}
-                        </div>
-                        {row.description && (
-                          <div className="text-xs text-slate-500 mt-1">
-                            {row.description}
-                          </div>
-                        )}
-                        {row.footnote && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <Info className="w-3 h-3 text-amber-500" />
-                            <span className="text-xs text-amber-600 dark:text-amber-400">
-                              See footnote
-                            </span>
-                          </div>
-                        )}
+                    <div className="font-medium text-slate-900 dark:text-white">
+                      {row.feature}
+                    </div>
+                    {row.description && (
+                      <div className="text-xs text-slate-500 mt-1">
+                        {row.description}
                       </div>
+                    )}
+                    {row.notes && (
+                      <div
+                        className="text-xs text-amber-600 dark:text-amber-400 mt-1"
+                        dangerouslySetInnerHTML={{ __html: row.notes }}
+                      />
+                    )}
+                  </td>
+                  <td className="p-4 text-center">
+                    <div className="flex justify-center">
+                      <StatusCell value={row.janua} />
                     </div>
                   </td>
                   <td className="p-4 text-center">
                     <div className="flex justify-center">
-                      <StatusIcon status={row.janua} />
+                      <StatusCell value={row.auth0} />
                     </div>
                   </td>
                   <td className="p-4 text-center">
                     <div className="flex justify-center">
-                      <StatusIcon status={row.auth0} />
+                      <StatusCell value={row.clerk} />
                     </div>
                   </td>
                   <td className="p-4 text-center">
                     <div className="flex justify-center">
-                      <StatusIcon status={row.clerk} />
-                    </div>
-                  </td>
-                  <td className="p-4 text-center">
-                    <div className="flex justify-center">
-                      <StatusIcon status={row.supabase} />
+                      <StatusCell value={row.keycloak} />
                     </div>
                   </td>
                 </motion.tr>
@@ -358,92 +249,57 @@ export function AccurateComparison() {
           </table>
         </div>
 
-        {/* Footnotes */}
-        {_showFootnotes && footnotes.length > 0 && (
-          <div className="mt-8 p-6 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-            <h3 className="font-semibold text-amber-900 dark:text-amber-100 mb-3">
-              Important Notes
+        <div className="mt-8 grid md:grid-cols-2 gap-6">
+          <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
+            <h3 className="font-semibold text-slate-900 dark:text-white mb-2">
+              Where Janua wins
             </h3>
-            <ul className="space-y-2">
-              {footnotes.map((footnote, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-200">
-                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>{footnote}</span>
-                </li>
-              ))}
+            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+              <li>You keep the user table. Self-host on Postgres you operate.</li>
+              <li>One bill at $69/$299, not per-MAU metered SaaS pricing.</li>
+              <li>SCIM v2 + audit retention without an enterprise upsell.</li>
+              <li>9 client SDKs in the same monorepo as the API.</li>
             </ul>
           </div>
-        )}
-
-        {/* Transparency Section */}
-        <div className="mt-12 p-8 bg-slate-50 dark:bg-slate-900/50 rounded-lg">
-          <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">
-            Our Commitment to Transparency
-          </h3>
-          <div className="grid sm:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Where We Excel
-              </h4>
-              <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-green-600 mt-0.5" />
-                  <span>Edge-native architecture for superior performance</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-green-600 mt-0.5" />
-                  <span>Modern SDK ecosystem with 13 production-ready packages</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-green-600 mt-0.5" />
-                  <span>Complete passkey and MFA implementation</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-green-600 mt-0.5" />
-                  <span>Open source core for transparency</span>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Where We're Growing
-              </h4>
-              <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                <li className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
-                  <span>Third-party security audit (Q1 2025)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
-                  <span>Test coverage improving (currently 31.3%)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
-                  <span>OAuth provider count (expanding from 5)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
-                  <span>Enterprise certifications (SOC 2 in progress)</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="mt-6 flex gap-4">
-            <Button asChild>
-              <Link href="https://github.com/madfam-io/janua" target="_blank">
-                <ExternalLink className="w-4 h-4 mr-2" />
-                View Source Code
-              </Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link href="/roadmap">
-                View Public Roadmap
-              </Link>
-            </Button>
+          <div className="p-6 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50">
+            <h3 className="font-semibold text-slate-900 dark:text-white mb-2">
+              Where the others win (today)
+            </h3>
+            <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+              <li><strong>Auth0:</strong> 15+ official SDKs, SOC 2 Type II already on the wall.</li>
+              <li><strong>Clerk:</strong> larger free tier (10k MAU) and a more polished prebuilt UI.</li>
+              <li><strong>Keycloak:</strong> Apache-2.0 (more permissive than our AGPL-3.0) and a longer track record.</li>
+              <li>If your enterprise customer demands a SOC 2 letter today, Auth0 or Clerk ships faster.</li>
+            </ul>
           </div>
         </div>
+
+        <div className="mt-8 flex gap-4 justify-center">
+          <Button asChild>
+            <Link href="https://github.com/madfam-io/janua" target="_blank" rel="noopener">
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Read the source
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/solutions/enterprise">
+              Compliance detail
+            </Link>
+          </Button>
+        </div>
+
+        <p className="mt-6 text-xs text-center text-slate-500 dark:text-slate-500">
+          Competitor cells are based on public documentation as of 2026.
+          Spotted something we got wrong?{' '}
+          <Link href="https://github.com/madfam-io/janua/issues/new" className="underline">
+            Open an issue
+          </Link>
+          .
+        </p>
       </div>
     </section>
   )
 }
+
+// Re-export with the legacy name for any import that still references it.
+export { AccurateComparison as HonestComparison }

@@ -19,9 +19,9 @@ export function CTASection() {
           Ready to own your identity layer?
         </h2>
         <p className="text-xl sm:text-2xl text-blue-100 mb-8 max-w-2xl mx-auto">
-          Start with 10,000 free MAU. No credit card required.
+          Start with 2,000 free MAU. No credit card required.
           <br />
-          Ship authentication in 5 minutes.
+          Self-host stays free at any scale under AGPL-3.0.
         </p>
 
         {/* Feature badges */}
@@ -32,7 +32,7 @@ export function CTASection() {
           </div>
           <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full backdrop-blur">
             <FileText className="h-4 w-4" />
-            <span className="text-sm">10,000 free MAU</span>
+            <span className="text-sm">2,000 free MAU</span>
           </div>
           <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full backdrop-blur">
             <Calendar className="h-4 w-4" />

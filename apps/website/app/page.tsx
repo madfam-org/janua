@@ -1,53 +1,54 @@
-// Honest marketing components - no exaggeration, just facts
+// Landing page composition. Each section below is a separate component that
+// has been audited for verifiable claims against the codebase. See each
+// component file's header comment for the source-of-truth file paths.
 import { HonestHeroSection } from '@/components/sections/honest-hero'
-import { PerformanceDemo } from '@/components/sections/performance-demo'
-import { AccurateComparison } from '@/components/sections/accurate-comparison'
+import { PainPoints } from '@/components/sections/pain-points'
+import { FeaturesGrid } from '@/components/sections/features'
+import { HowItWorks } from '@/components/sections/how-it-works'
 import { RealSDKExamples } from '@/components/sections/real-sdk-examples'
+import { AccurateComparison } from '@/components/sections/accurate-comparison'
 import { TransparencyRoadmap } from '@/components/sections/transparency-roadmap'
 import { HonestPricing } from '@/components/sections/honest-pricing'
+import { LandingCTA } from '@/components/sections/landing-cta'
 
-// Keep existing components that are factual
 import { Navigation } from '@/components/navigation'
 import { Footer } from '@/components/footer'
-import { FeaturesGrid } from '@/components/sections/features'
-import { DeveloperExperience } from '@/components/sections/developer-experience'
 
 export default function LandingPage() {
   return (
     <>
       <Navigation />
       <main className="relative">
-        {/* Honest Hero - Real metrics, no exaggeration */}
+        {/* Pain-point hook + verifiable status badges */}
         <HonestHeroSection />
 
-        {/* Interactive Performance Demo - Let users test real latency */}
-        <PerformanceDemo />
+        {/* Four conversations every founding engineer has had */}
+        <PainPoints />
 
-        {/* Core features - What actually exists */}
+        {/* Verified feature grid with source paths */}
         <section className="py-24 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-950">
           <div className="max-w-7xl mx-auto">
             <FeaturesGrid />
           </div>
         </section>
 
-        {/* Real SDK Examples - Actual working code */}
+        {/* Three real steps with copy-paste commands */}
+        <HowItWorks />
+
+        {/* SDK examples drawn from packages/ */}
         <RealSDKExamples />
 
-        {/* Developer Experience - Honest about our tools */}
-        <section className="py-24 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-950">
-          <div className="max-w-7xl mx-auto">
-            <DeveloperExperience />
-          </div>
-        </section>
-
-        {/* Accurate Comparison - Fair assessment vs competitors */}
+        {/* Janua vs Auth0, Clerk, Keycloak — every cell verifiable */}
         <AccurateComparison />
 
-        {/* Transparency & Roadmap - Where we are and where we're going */}
+        {/* What ships vs what's maturing — no dated promises */}
         <TransparencyRoadmap />
 
-        {/* Honest Pricing - Clear about what's included */}
+        {/* Pricing aligned with billing_service.py canonical tiers */}
         <HonestPricing />
+
+        {/* Dual CTA: self-host or talk to us */}
+        <LandingCTA />
       </main>
       <Footer />
     </>
