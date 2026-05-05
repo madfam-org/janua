@@ -96,21 +96,15 @@ def _is_active(expires_at: Optional[datetime], now: datetime) -> bool:
     return expires_at is None or expires_at > now
 
 
-async def _fetch_user_rows(
-    user_id: UuidType, db: AsyncSession
-) -> list[UserEntitlement]:
+async def _fetch_user_rows(user_id: UuidType, db: AsyncSession) -> list[UserEntitlement]:
     """Pull all rows for this user. Filtering by expiry happens upstream so
     callers can choose to surface recently-cancelled entitlements (e.g. for
     audit) — the JWT claim and the /me endpoint both filter to active."""
-    result = await db.execute(
-        select(UserEntitlement).where(UserEntitlement.user_id == user_id)
-    )
+    result = await db.execute(select(UserEntitlement).where(UserEntitlement.user_id == user_id))
     return list(result.scalars().all())
 
 
-async def _fetch_org_tiers(
-    user: User, db: AsyncSession
-) -> dict[str, str]:
+async def _fetch_org_tiers(user: User, db: AsyncSession) -> dict[str, str]:
     """Read the user's primary organization's product_tiers JSONB.
 
     Per-user rows always win over org inheritance; this is purely a fallback
@@ -134,9 +128,7 @@ async def _fetch_org_tiers(
     if not primary_org_id:
         return {}
 
-    org_result = await db.execute(
-        select(Organization).where(Organization.id == primary_org_id)
-    )
+    org_result = await db.execute(select(Organization).where(Organization.id == primary_org_id))
     org = org_result.scalar_one_or_none()
     if not org or not org.product_tiers:
         return {}
@@ -252,9 +244,7 @@ async def upsert_entitlement(
     if existing is not None:
         existing.tier = tier
         existing.source = source
-        existing.dhanam_subscription_id = (
-            dhanam_subscription_id or existing.dhanam_subscription_id
-        )
+        existing.dhanam_subscription_id = dhanam_subscription_id or existing.dhanam_subscription_id
         existing.expires_at = expires_at
         existing.updated_at = datetime.utcnow()
         await db.flush()

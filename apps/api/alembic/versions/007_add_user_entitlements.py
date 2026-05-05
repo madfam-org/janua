@@ -13,6 +13,7 @@ Create Date: 2026-05-04
 """
 
 import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -41,16 +42,38 @@ def upgrade() -> None:
 
     op.create_table(
         "user_entitlements",
-        sa.Column("id", sa.dialects.postgresql.UUID(as_uuid=True) if dialect == "postgresql" else sa.String(length=36), primary_key=True),
-        sa.Column("user_id", sa.dialects.postgresql.UUID(as_uuid=True) if dialect == "postgresql" else sa.String(length=36), nullable=False),
+        sa.Column(
+            "id",
+            (
+                sa.dialects.postgresql.UUID(as_uuid=True)
+                if dialect == "postgresql"
+                else sa.String(length=36)
+            ),
+            primary_key=True,
+        ),
+        sa.Column(
+            "user_id",
+            (
+                sa.dialects.postgresql.UUID(as_uuid=True)
+                if dialect == "postgresql"
+                else sa.String(length=36)
+            ),
+            nullable=False,
+        ),
         sa.Column("product", sa.String(length=64), nullable=False),
         sa.Column("tier", sa.String(length=64), nullable=False),
-        sa.Column("granted_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.Column(
+            "granted_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")
+        ),
         sa.Column("expires_at", sa.DateTime(), nullable=True),
         sa.Column("source", source_type, nullable=False),
         sa.Column("dhanam_subscription_id", sa.String(length=255), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.Column(
+            "created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.UniqueConstraint("user_id", "product", name="uq_user_entitlements_user_product"),
     )

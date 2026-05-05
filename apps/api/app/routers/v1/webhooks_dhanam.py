@@ -139,9 +139,7 @@ async def find_organization(
     if metadata and metadata.get("organization_id"):
         try:
             org_uuid = UUID(metadata["organization_id"])
-            result = await db.execute(
-                select(Organization).where(Organization.id == org_uuid)
-            )
+            result = await db.execute(select(Organization).where(Organization.id == org_uuid))
             organization = result.scalar_one_or_none()
             if organization:
                 logger.debug(
@@ -168,9 +166,7 @@ async def find_organization(
     if org_id:
         try:
             org_uuid = UUID(org_id)
-            result = await db.execute(
-                select(Organization).where(Organization.id == org_uuid)
-            )
+            result = await db.execute(select(Organization).where(Organization.id == org_uuid))
             organization = result.scalar_one_or_none()
             if organization:
                 logger.debug(
@@ -399,9 +395,7 @@ async def _resolve_user(
                 return user
 
     if user_email_payload:
-        result = await db.execute(
-            select(User).where(User.email == str(user_email_payload).lower())
-        )
+        result = await db.execute(select(User).where(User.email == str(user_email_payload).lower()))
         user = result.scalar_one_or_none()
         if user is not None:
             return user

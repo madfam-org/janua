@@ -98,8 +98,12 @@ class Organization(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     slug = Column(String(255), unique=True, nullable=False, index=True)
-    subscription_tier = Column(String(100), default="community")  # Legacy — derived from highest product tier
-    product_tiers = Column(JSONB, default={})  # Per-product tiers: {"enclii": "pro", "tezca": "essentials"}
+    subscription_tier = Column(
+        String(100), default="community"
+    )  # Legacy — derived from highest product tier
+    product_tiers = Column(
+        JSONB, default={}
+    )  # Per-product tiers: {"enclii": "pro", "tezca": "essentials"}
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))  # Organization owner
     billing_plan = Column(String(100), default="free")  # Billing plan
     billing_email = Column(String(255))  # Billing contact
@@ -320,9 +324,7 @@ class UserEntitlement(Base):
     dhanam_subscription_id = Column(String(255), nullable=True, index=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     __table_args__ = (
         # One current row per (user, product). Cancellations update the same
@@ -689,7 +691,9 @@ class WebhookDelivery(Base):
     webhook_endpoint_id = Column(
         UUID(as_uuid=True), ForeignKey("webhook_endpoints.id"), nullable=False
     )
-    webhook_event_id = Column(UUID(as_uuid=True), ForeignKey("legacy_webhook_events.id"), nullable=False)
+    webhook_event_id = Column(
+        UUID(as_uuid=True), ForeignKey("legacy_webhook_events.id"), nullable=False
+    )
     status = Column(SQLEnum(WebhookStatus), default=WebhookStatus.PENDING)
     attempts = Column(Integer, default=0)
     last_attempt = Column(DateTime)
@@ -797,7 +801,9 @@ class LegacyInvoice(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    subscription_id = Column(UUID(as_uuid=True))  # No FK - legacy model, reference billing.Subscription if needed
+    subscription_id = Column(
+        UUID(as_uuid=True)
+    )  # No FK - legacy model, reference billing.Subscription if needed
     invoice_number = Column(String(255), unique=True, nullable=False)
     amount = Column(Integer, nullable=False)  # Amount in cents
     currency = Column(String(3), default="USD")
@@ -881,6 +887,7 @@ class RBACPolicy(Base):
     - User-specific access (grant permission to specific users)
     - Custom conditions (JSON-based condition evaluation)
     """
+
     __tablename__ = "rbac_policies"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

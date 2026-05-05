@@ -120,7 +120,7 @@ async def _get_user_entitlements(
 
         if memberships:
             # Collect all roles across organizations
-            roles = list(set([m.role for m in memberships if m.role]))
+            roles = list({m.role for m in memberships if m.role})
             entitlements["roles"] = roles
 
             # Get primary organization (first membership or tenant)
@@ -275,7 +275,7 @@ async def _store_auth_code(code: str, data: dict, redis: ResilientRedisClient):
         logger.error("Failed to store auth code in Redis", key=key)
         raise HTTPException(
             status_code=503,
-            detail="Authorization service temporarily unavailable. Please try again."
+            detail="Authorization service temporarily unavailable. Please try again.",
         )
     logger.info("Auth code stored successfully", key=key)
 
@@ -1300,9 +1300,7 @@ async def _handle_authorization_code_grant(
     # Per-product MADFAM ecosystem grants (Selva-unified SSO Phase 1).
     # Sourced from the user_entitlements table + org inheritance + admin
     # bootstrap. See app/services/entitlements_service.py.
-    madfam_entitled_products = entitlements_to_claim(
-        await get_user_entitlements(user, db)
-    )
+    madfam_entitled_products = entitlements_to_claim(await get_user_entitlements(user, db))
 
     # Resolve per-client audience (falls back to global JWT_AUDIENCE)
     client_audience = client.audience or settings.JWT_AUDIENCE
@@ -1401,9 +1399,7 @@ async def _handle_refresh_token_grant(
     entitlements = await _get_user_entitlements(user, db)
 
     # Per-product MADFAM ecosystem grants (Selva-unified SSO Phase 1).
-    madfam_entitled_products = entitlements_to_claim(
-        await get_user_entitlements(user, db)
-    )
+    madfam_entitled_products = entitlements_to_claim(await get_user_entitlements(user, db))
 
     # Resolve per-client audience (falls back to global JWT_AUDIENCE)
     client_audience = client.audience or settings.JWT_AUDIENCE
