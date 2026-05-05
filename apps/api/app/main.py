@@ -157,6 +157,9 @@ from app.routers.v1 import (
 from app.routers.v1 import (
     guest_invites as guest_invites_v1,
 )
+from app.routers.v1 import (
+    me as me_v1,
+)
 
 # Additional feature routers with optional loading
 additional_routers = {}
@@ -1077,6 +1080,7 @@ app.include_router(localization_v1.router, prefix="/api/v1")  # Localization mod
 app.include_router(billing_v1.router, prefix="/api/v1")  # Billing and plans
 app.include_router(guest_v1.router, prefix="/api/v1")  # Guest access tokens
 app.include_router(guest_invites_v1.router, prefix="/api/v1")  # Guest invite CRUD
+app.include_router(me_v1.router, prefix="/api/v1")  # Caller-scoped (entitlements)
 
 # Internal service API routers (for MADFAM service-to-service communication)
 try:

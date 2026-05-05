@@ -37,6 +37,10 @@ from app.core.url_security import is_safe_redirect_url, validate_oauth_redirect_
 from app.dependencies import get_current_user
 from app.models import OAuthClient, Organization, OrganizationMember, User
 from app.services.consent_service import ConsentService
+from app.services.entitlements_service import (
+    entitlements_to_claim,
+    get_user_entitlements,
+)
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/oauth", tags=["OAuth Provider"])
@@ -428,6 +432,63 @@ def _build_safe_callback_url(
 # ============================================================================
 
 
+def _is_silent_auth_allowed(client: OAuthClient) -> bool:
+    """`prompt=none` is restricted to first-party clients to prevent surprise
+    issuance to third-party apps.
+
+    A client is first-party when it is BOTH `is_active=True` AND `is_confidential=True`
+    (i.e. has a registered server-side secret) AND its name does not begin
+    with the operator-marker prefix used for tenant-self-service registrations.
+    Operators wanting silent-auth for a specific tenant client can opt-in by
+    setting `OAuthClient.allowed_scopes` to include `madfam:silent_auth`.
+
+    The implementation is intentionally conservative: silent-auth bypasses
+    the visible consent screen, so we err on the side of "no, show the
+    interactive flow" when a client has not been explicitly trusted.
+    """
+    if not client.is_active:
+        return False
+    if not getattr(client, "is_confidential", False):
+        return False
+    allowed_scopes = list(client.allowed_scopes or [])
+    if "madfam:silent_auth" in allowed_scopes:
+        return True
+    # Default-allow for known first-party MADFAM client_ids. The Selva office
+    # client is the primary consumer of silent-auth in Phase 1.
+    name = (client.name or "").lower()
+    if name.startswith("selva-office") or name.startswith("madfam-"):
+        return True
+    return False
+
+
+def _redirect_with_oauth_error(
+    redirect_uri: str,
+    error: str,
+    error_description: str,
+    state: Optional[str],
+    *,
+    client_validated: bool,
+) -> RedirectResponse:
+    """Build an OAuth-spec-compliant error redirect (`error`, `error_description`,
+    optional `state`).
+
+    This is the standard "tell the client we couldn't authenticate silently"
+    path for `prompt=none` failures (`error=login_required`,
+    `error=consent_required`, etc.). The redirect_uri MUST be already
+    validated against the OAuth client's registered URIs before calling this.
+    """
+    params: dict[str, str] = {
+        "error": error,
+        "error_description": error_description,
+    }
+    if state:
+        params["state"] = state
+    return RedirectResponse(
+        url=_build_safe_callback_url(redirect_uri, params, client_validated=client_validated),
+        status_code=302,
+    )
+
+
 @router.get("/authorize")
 async def authorize_get(
     request: Request,
@@ -439,6 +500,16 @@ async def authorize_get(
     nonce: Optional[str] = Query(None),
     code_challenge: Optional[str] = Query(None),
     code_challenge_method: Optional[str] = Query(None),
+    prompt: Optional[str] = Query(
+        None,
+        description=(
+            "OIDC prompt parameter. Currently honored: 'none' (silent auth — "
+            "issue code immediately if a valid Janua session cookie is present, "
+            "otherwise redirect with error=login_required per OIDC spec). "
+            "Any other value is ignored; flow proceeds as the default "
+            "interactive path."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -451,9 +522,17 @@ async def authorize_get(
     Authentication is checked from both:
     - Authorization header (Bearer token)
     - janua_access_token cookie (set by login form)
+
+    OIDC `prompt=none` (silent auth, ADR 2026-05-04-selva-unified-sso):
+        - Valid session present → issue code immediately, skip consent UI.
+        - No / expired session → redirect back with `error=login_required`.
+        - Consent missing → redirect back with `error=consent_required`.
+        - Email verification or MFA required → respect those checks; never
+          bypass them just because `prompt=none` was requested.
     """
     # Get user from header or cookie (supports browser-based OAuth flow)
     current_user = await get_user_from_cookie_or_header(request, db)
+    silent_auth = (prompt or "").strip().lower() == "none"
 
     # Validate response_type
     if response_type != "code":
@@ -498,8 +577,39 @@ async def authorize_get(
             detail="invalid_request: PKCE (code_challenge) is required for public clients",
         )
 
+    # SECURITY: silent-auth (prompt=none) is restricted to pre-registered
+    # first-party clients. A third-party app cannot use prompt=none to skip
+    # the consent UI even if the user has a Janua session.
+    if silent_auth and not _is_silent_auth_allowed(client):
+        logger.warning(
+            "Rejected prompt=none from non-first-party client",
+            client_id=client_id,
+            client_name=client.name,
+        )
+        return _redirect_with_oauth_error(
+            redirect_uri,
+            error="interaction_required",
+            error_description="silent_auth not allowed for this client",
+            state=state,
+            client_validated=True,
+        )
+
     # If user not authenticated, redirect to login
     if not current_user:
+        # OIDC prompt=none: must NOT prompt — return error and let the caller
+        # decide whether to fall back to interactive flow.
+        if silent_auth:
+            logger.info(
+                "prompt=none but no Janua session — emitting login_required",
+                client_id=client_id,
+            )
+            return _redirect_with_oauth_error(
+                redirect_uri,
+                error="login_required",
+                error_description="No active Janua session for silent auth",
+                state=state,
+                client_validated=True,
+            )
         # SECURITY: Store full OAuth parameters in Redis instead of encoding them
         # into the redirect URL. This avoids double-encoding issues with urlencode()
         # that caused redirect loops when the 'next' URL contained query params.
@@ -541,6 +651,17 @@ async def authorize_get(
             grace_period = timedelta(hours=settings.EMAIL_VERIFICATION_GRACE_PERIOD_HOURS)
             grace_deadline = current_user.created_at + grace_period
             if datetime.utcnow() >= grace_deadline:
+                # Silent auth must surface this as an OAuth error redirect, not
+                # an HTML 403 — the caller can then decide whether to escalate
+                # to interactive flow.
+                if silent_auth:
+                    return _redirect_with_oauth_error(
+                        redirect_uri,
+                        error="login_required",
+                        error_description="email_verification_required",
+                        state=state,
+                        client_validated=True,
+                    )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Email verification required. Please verify your email before authorizing third-party applications.",
@@ -551,6 +672,21 @@ async def authorize_get(
     has_consent = await ConsentService.has_consent(db, current_user.id, client_id, requested_scopes)
 
     if not has_consent:
+        # OIDC prompt=none: never show an interactive consent screen. If the
+        # user hasn't pre-consented, signal consent_required to the caller.
+        if silent_auth:
+            logger.info(
+                "prompt=none but consent missing — emitting consent_required",
+                client_id=client_id,
+                user_id=str(current_user.id),
+            )
+            return _redirect_with_oauth_error(
+                redirect_uri,
+                error="consent_required",
+                error_description="User has not consented to requested scopes",
+                state=state,
+                client_validated=True,
+            )
         # Show consent screen
         csrf_token = await _generate_csrf_token(str(current_user.id), redis)
         scope_descriptions = ConsentService.get_scope_descriptions()
@@ -1161,6 +1297,13 @@ async def _handle_authorization_code_grant(
     # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status)
     entitlements = await _get_user_entitlements(user, db)
 
+    # Per-product MADFAM ecosystem grants (Selva-unified SSO Phase 1).
+    # Sourced from the user_entitlements table + org inheritance + admin
+    # bootstrap. See app/services/entitlements_service.py.
+    madfam_entitled_products = entitlements_to_claim(
+        await get_user_entitlements(user, db)
+    )
+
     # Resolve per-client audience (falls back to global JWT_AUDIENCE)
     client_audience = client.audience or settings.JWT_AUDIENCE
 
@@ -1178,6 +1321,8 @@ async def _handle_authorization_code_grant(
             "roles": entitlements["roles"],
             "sub_status": entitlements["sub_status"],
             "is_admin": entitlements["is_admin"],
+            # MADFAM ecosystem per-product entitlements
+            "madfam_entitled_products": madfam_entitled_products,
         },
     )
 
@@ -1255,6 +1400,11 @@ async def _handle_refresh_token_grant(
     # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status)
     entitlements = await _get_user_entitlements(user, db)
 
+    # Per-product MADFAM ecosystem grants (Selva-unified SSO Phase 1).
+    madfam_entitled_products = entitlements_to_claim(
+        await get_user_entitlements(user, db)
+    )
+
     # Resolve per-client audience (falls back to global JWT_AUDIENCE)
     client_audience = client.audience or settings.JWT_AUDIENCE
 
@@ -1272,6 +1422,8 @@ async def _handle_refresh_token_grant(
             "roles": entitlements["roles"],
             "sub_status": entitlements["sub_status"],
             "is_admin": entitlements["is_admin"],
+            # MADFAM ecosystem per-product entitlements
+            "madfam_entitled_products": madfam_entitled_products,
         },
     )
 

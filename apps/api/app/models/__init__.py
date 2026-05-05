@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import DeclarativeBase, relationship
@@ -254,6 +255,80 @@ class UserConsent(Base):
 
     __table_args__ = (
         # Each user-client combination should have one consent record
+        {"sqlite_autoincrement": True},
+    )
+
+
+class EntitlementSource(str, enum.Enum):
+    """How a UserEntitlement row got into the table.
+
+    - DHANAM_SUBSCRIPTION: written by the Dhanam subscription webhook.
+    - ADMIN_GRANT: manually granted by a Janua admin (e.g. ops bootstrap,
+      catch-all for `admin@madfam.io`).
+    - INHERITED: derived from the user's organization product_tiers (legacy
+      org-level grants get projected onto every member at JWT-issue time).
+    """
+
+    DHANAM_SUBSCRIPTION = "dhanam_subscription"
+    ADMIN_GRANT = "admin_grant"
+    INHERITED = "inherited"
+
+
+class UserEntitlement(Base):
+    """
+    Per-user, per-product tier grant.
+
+    Selva-unified SSO Phase 1 (ADR 2026-05-04): when an operator logs into
+    Selva via Janua SSO, the issued JWT carries a `madfam_entitled_products`
+    claim listing every product:tier they are entitled to under their current
+    plan. Entries are populated by:
+
+    - Dhanam subscription webhooks (subscription.activated|cancelled|updated)
+    - Admin grants (e.g. catch-all for admin@madfam.io)
+    - Org membership inheritance (Organization.product_tiers projected at
+      JWT-issue time; not stored as physical rows here).
+
+    The `(user_id, product)` pair is uniquely indexed — a user has at most
+    one current tier per product. Cancellation does not delete the row; it
+    sets `expires_at` so an audit history is preserved.
+    """
+
+    __tablename__ = "user_entitlements"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+
+    # Product identifier — lowercase alphanumeric (karafiel, dhanam, ...).
+    # Open-set: any new MADFAM product can be granted without a code change.
+    product = Column(String(64), nullable=False)
+
+    # Tier within the product (e.g. "contador", "pro", "admin"). The set of
+    # valid tiers per product is documented in
+    # internal-devops/ecosystem/product-tier-mapping.yaml; Janua does not
+    # enforce the set so new tiers can ship without a migration.
+    tier = Column(String(64), nullable=False)
+
+    granted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # NULL = no expiry (admin grants typically). When set in the past the
+    # entitlement is treated as inactive at JWT-issue time.
+    expires_at = Column(DateTime, nullable=True, index=True)
+
+    source = Column(SQLEnum(EntitlementSource), nullable=False)
+
+    # Idempotency key for Dhanam webhook upserts. NULL for admin grants.
+    dhanam_subscription_id = Column(String(255), nullable=True, index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    __table_args__ = (
+        # One current row per (user, product). Cancellations update the same
+        # row by setting expires_at; we never duplicate.
+        sa.UniqueConstraint("user_id", "product", name="uq_user_entitlements_user_product"),
+        sa.Index("ix_user_entitlements_user_expires", "user_id", "expires_at"),
         {"sqlite_autoincrement": True},
     )
 

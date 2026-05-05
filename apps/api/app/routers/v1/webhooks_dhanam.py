@@ -24,7 +24,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.database import get_db
-from app.models import Organization
+from app.models import EntitlementSource, Organization, User
+from app.services.entitlements_service import (
+    cancel_entitlement,
+    upsert_entitlement,
+)
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/webhooks/dhanam", tags=["webhooks"])
@@ -260,6 +264,14 @@ async def dhanam_subscription_webhook(
     customer_id = event_data.get("customer_id")
     plan_id = event_data.get("plan_id")
     org_id = event_data.get("organization_id")
+    # Optional per-user grant — when Dhanam knows which user the subscription
+    # belongs to, the payload should set `data.user_id` (UUID string) or
+    # `data.user_email`. Either resolves to a Janua User row that gets a
+    # per-user entitlement upsert; without one we fall back to org-only
+    # tiers exactly like before. See ADR 2026-05-04-selva-unified-sso.
+    user_id_payload = event_data.get("user_id")
+    user_email_payload = event_data.get("user_email")
+    subscription_id_payload = event_data.get("subscription_id") or event_data.get("id")
 
     # For cancel events, plan_id might be missing - that's OK
     if event_type in ("subscription.created", "subscription.updated"):
@@ -324,6 +336,19 @@ async def dhanam_subscription_webhook(
             customer_id=customer_id,
         )
 
+    # Per-user entitlement upsert (Selva-unified SSO Phase 1).
+    # Falls back silently when payload doesn't carry a user identifier — the
+    # org-level tier write above remains authoritative for that case.
+    user_entitlement_status = await _maybe_upsert_user_entitlement(
+        db=db,
+        product=product,
+        new_tier=new_tier,
+        event_type=event_type,
+        user_id_payload=user_id_payload,
+        user_email_payload=user_email_payload,
+        subscription_id=subscription_id_payload,
+    )
+
     await db.commit()
 
     logger.info(
@@ -347,4 +372,107 @@ async def dhanam_subscription_webhook(
         "new_tier": new_tier,
         "product_tiers": current_tiers,
         "event_type": event_type,
+        "user_entitlement": user_entitlement_status,
+    }
+
+
+async def _resolve_user(
+    db: AsyncSession,
+    user_id_payload: str | None,
+    user_email_payload: str | None,
+) -> User | None:
+    """Resolve a Janua User from webhook payload fields.
+
+    Returns None if neither field is populated or the lookup misses.
+    Tolerates malformed UUIDs (returns None rather than raising) so the
+    webhook never 500s on a Dhanam payload format glitch.
+    """
+    if user_id_payload:
+        try:
+            user_uuid = UUID(str(user_id_payload))
+        except (ValueError, TypeError):
+            logger.warning("Invalid user_id in dhanam webhook", user_id=user_id_payload)
+        else:
+            result = await db.execute(select(User).where(User.id == user_uuid))
+            user = result.scalar_one_or_none()
+            if user is not None:
+                return user
+
+    if user_email_payload:
+        result = await db.execute(
+            select(User).where(User.email == str(user_email_payload).lower())
+        )
+        user = result.scalar_one_or_none()
+        if user is not None:
+            return user
+
+    return None
+
+
+async def _maybe_upsert_user_entitlement(
+    *,
+    db: AsyncSession,
+    product: str,
+    new_tier: str | None,
+    event_type: str,
+    user_id_payload: str | None,
+    user_email_payload: str | None,
+    subscription_id: str | None,
+) -> dict:
+    """Best-effort per-user entitlement maintenance.
+
+    - On created/updated with a tier → upsert.
+    - On canceled/deleted → cancel (immediate; grace period is a future
+      iteration once Dhanam emits `period_end`).
+    - On payload without a user identifier → no-op (org-level tier stays
+      authoritative for that user via `INHERITED` projection in
+      entitlements_service).
+    """
+    if not (user_id_payload or user_email_payload):
+        return {"action": "skipped", "reason": "no_user_identifier"}
+
+    user = await _resolve_user(db, user_id_payload, user_email_payload)
+    if user is None:
+        return {"action": "skipped", "reason": "user_not_found"}
+
+    if event_type in ("subscription.canceled", "subscription.deleted"):
+        cancelled = await cancel_entitlement(
+            db,
+            user_id=user.id,
+            product=product,
+        )
+        return {
+            "action": "cancelled" if cancelled else "noop",
+            "user_id": str(user.id),
+            "product": product,
+        }
+
+    if not new_tier:
+        # created/updated path but tier resolved to None (free/community).
+        # Treat as cancellation so the user falls back to org/admin grants.
+        cancelled = await cancel_entitlement(
+            db,
+            user_id=user.id,
+            product=product,
+        )
+        return {
+            "action": "cancelled" if cancelled else "noop",
+            "user_id": str(user.id),
+            "product": product,
+            "reason": "tier_resolved_to_none",
+        }
+
+    row = await upsert_entitlement(
+        db,
+        user_id=user.id,
+        product=product,
+        tier=new_tier,
+        source=EntitlementSource.DHANAM_SUBSCRIPTION,
+        dhanam_subscription_id=subscription_id,
+    )
+    return {
+        "action": "upserted",
+        "user_id": str(user.id),
+        "product": product,
+        "tier": row.tier,
     }
