@@ -63,6 +63,18 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "https://*.fortuna.tube https://*.avala.studio "
             "https://*.cotiza.studio https://*.almanac.solar https://*.yantra4d.com "
             "https://*.coforma.studio https://*.routecraft.app https://*.solar "
+            # 2026-05-04: added the remaining MADFAM ecosystem domains. Login
+            # via Janua SSO from these origins was browser-blocked by CSP
+            # form-action because the post-login redirect URL wasn't in the
+            # allowlist. Same bug class as the forgesight CORS regression
+            # fixed earlier (PR enclii#228 for CORS_ORIGINS).
+            "https://selva.town https://*.selva.town "
+            "https://rondel.io https://*.rondel.io "
+            "https://phynecrm.com https://*.phynecrm.com "
+            "https://pravara.mx https://*.pravara.mx "
+            "https://sim4d.io https://*.sim4d.io "
+            "https://aureo.studio https://*.aureo.studio "
+            "https://ceq.studio https://*.ceq.studio "
             "https://4d-admin.madfam.io https://sniper.madfam.io "
             "http://127.0.0.1:* http://localhost:*",
             "upgrade-insecure-requests",
