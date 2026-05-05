@@ -55,7 +55,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           token: ${{ secrets.MADFAM_BOT_PAT || secrets.GITHUB_TOKEN }}
           fetch-depth: 100

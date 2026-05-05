@@ -81,7 +81,7 @@ jobs:
       short: ${{ steps.resolve.outputs.short }}
       reason: ${{ steps.resolve.outputs.reason }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 100
 
@@ -218,7 +218,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           token: ${{ secrets.MADFAM_BOT_PAT || secrets.GITHUB_TOKEN }}
 
