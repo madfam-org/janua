@@ -455,6 +455,83 @@ class TestTokenEndpointValidation:
         """Should support refresh_token grant"""
         assert True  # Placeholder - tested via integration tests
 
+    def test_grant_type_client_credentials(self):
+        """Should support client_credentials grant for machine clients"""
+        assert True  # Handler coverage below
+
+    async def test_client_credentials_issues_service_access_token(self):
+        """Machine clients get access tokens with service claims and no refresh token."""
+        from app.routers.v1.oauth_provider import _handle_client_credentials_grant
+
+        client = MagicMock()
+        client.client_id = "svc_selva"
+        client.is_confidential = True
+        client.grant_types = ["client_credentials"]
+        client.allowed_scopes = ["selva:verify", "openid"]
+        client.audience = "autoswarm-office"
+        client.organization_id = "org-platform"
+        db = AsyncMock()
+
+        with patch.object(
+            oauth_provider_module.jwt_manager,
+            "create_access_token",
+            return_value=("access-token", "jti", None),
+        ) as create_access_token:
+            response = await _handle_client_credentials_grant(
+                scope="selva:verify",
+                client=client,
+                db=db,
+            )
+
+        assert response.access_token == "access-token"
+        assert response.refresh_token is None
+        assert response.scope == "selva:verify"
+        claims = create_access_token.call_args.kwargs["additional_claims"]
+        assert claims["client_id"] == "svc_selva"
+        assert claims["aud"] == "autoswarm-office"
+        assert claims["roles"] == ["service"]
+        assert claims["token_use"] == "client_credentials"
+        assert claims["org_id"] == "org-platform"
+        db.commit.assert_awaited_once()
+
+    async def test_client_credentials_rejects_public_clients(self):
+        """Public browser clients cannot use client_credentials."""
+        from fastapi import HTTPException
+
+        from app.routers.v1.oauth_provider import _handle_client_credentials_grant
+
+        client = MagicMock()
+        client.is_confidential = False
+        db = AsyncMock()
+
+        with pytest.raises(HTTPException) as exc:
+            await _handle_client_credentials_grant(
+                scope="selva:verify",
+                client=client,
+                db=db,
+            )
+
+        assert exc.value.status_code == 401
+
+    async def test_client_credentials_rejects_oidc_user_scopes(self):
+        """Client credentials tokens are not OIDC user tokens."""
+        from fastapi import HTTPException
+
+        from app.routers.v1.oauth_provider import _handle_client_credentials_grant
+
+        client = MagicMock()
+        client.client_id = "svc_selva"
+        client.is_confidential = True
+        client.grant_types = ["client_credentials"]
+        client.allowed_scopes = ["selva:verify", "openid"]
+        db = AsyncMock()
+
+        with pytest.raises(HTTPException) as exc:
+            await _handle_client_credentials_grant(scope="openid", client=client, db=db)
+
+        assert exc.value.status_code == 400
+        assert "user scopes" in exc.value.detail
+
 
 class TestUserInfoEndpointClaims:
     """Test UserInfo endpoint claims"""
@@ -550,10 +627,12 @@ class TestOAuthSchemas:
             redirect_uri="https://app.example.com/callback",
             client_id="client_123",
             code_verifier="verifier_123",
+            scope="openid profile",
         )
 
         assert request.grant_type == "authorization_code"
         assert request.code == "auth_code_123"
+        assert request.scope == "openid profile"
 
     def test_token_response_schema(self):
         """Test TokenResponse schema"""

@@ -49,6 +49,68 @@ router = APIRouter(prefix="/oauth", tags=["OAuth Provider"])
 CSRF_TOKEN_TTL = 600
 
 
+def _accepted_audiences_for_client(client: OAuthClient) -> list[str]:
+    """Return accepted token audiences for an OAuth client, including legacy global aud."""
+    audiences = [client.audience or settings.JWT_AUDIENCE, settings.JWT_AUDIENCE]
+    return list(dict.fromkeys(audience for audience in audiences if audience))
+
+
+async def _resolve_token_client(
+    token: str,
+    db: AsyncSession,
+    expected_client: Optional[OAuthClient] = None,
+) -> Optional[OAuthClient]:
+    """Resolve the OAuth client bound to a token before audience validation."""
+    if expected_client:
+        return expected_client
+
+    try:
+        claims = jwt_manager.get_unverified_claims(token)
+    except Exception:
+        return None
+
+    client_id = claims.get("client_id")
+    if not client_id:
+        return None
+
+    client = await _get_oauth_client(client_id, db)
+    if not client or not client.is_active:
+        return None
+    return client
+
+
+async def _verify_oauth_token(
+    token: str,
+    token_type: str,
+    db: AsyncSession,
+    expected_client: Optional[OAuthClient] = None,
+) -> Optional[dict]:
+    """Verify OAuth tokens against the bound client's audience plus legacy global aud."""
+    client = await _resolve_token_client(token, db, expected_client)
+    if not client:
+        return jwt_manager.verify_token(token, token_type=token_type)
+
+    payload = jwt_manager.verify_token(
+        token,
+        token_type=token_type,
+        audience=_accepted_audiences_for_client(client),
+    )
+    if not payload:
+        return None
+
+    token_client_id = payload.get("client_id")
+    if token_client_id and token_client_id != client.client_id:
+        logger.warning(
+            "OAuth token client mismatch",
+            expected=client.client_id,
+            got=token_client_id,
+            token_type=token_type,
+        )
+        return None
+
+    return payload
+
+
 async def _generate_csrf_token(user_id: str, redis: ResilientRedisClient) -> str:
     """Generate a CSRF token for OAuth consent forms."""
     csrf_token = secrets.token_urlsafe(32)
@@ -225,13 +287,17 @@ class AuthorizationRequest(BaseModel):
 class TokenRequest(BaseModel):
     """OAuth 2.0 Token Request parameters."""
 
-    grant_type: str = Field(..., description="Grant type (authorization_code, refresh_token)")
+    grant_type: str = Field(
+        ...,
+        description="Grant type (authorization_code, refresh_token, client_credentials)",
+    )
     code: Optional[str] = Field(None, description="Authorization code")
     redirect_uri: Optional[str] = Field(None, description="Redirect URI used in authorization")
     client_id: Optional[str] = Field(None, description="Client ID")
     client_secret: Optional[str] = Field(None, description="Client secret")
     refresh_token: Optional[str] = Field(None, description="Refresh token for token refresh")
     code_verifier: Optional[str] = Field(None, description="PKCE code verifier")
+    scope: Optional[str] = Field(None, description="Space-separated scope list")
 
 
 class TokenResponse(BaseModel):
@@ -1136,6 +1202,7 @@ async def token(
     client_secret: Optional[str] = Form(None),
     refresh_token: Optional[str] = Form(None),
     code_verifier: Optional[str] = Form(None),
+    scope: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -1147,6 +1214,7 @@ async def token(
     Supports:
     - authorization_code: Exchange auth code for access/refresh/id tokens
     - refresh_token: Get new access token using refresh token
+    - client_credentials: Mint machine access token for confidential clients
     """
     # Handle client authentication (Basic auth or form params)
     auth_header = request.headers.get("Authorization", "")
@@ -1208,6 +1276,12 @@ async def token(
     elif grant_type == "refresh_token":
         return await _handle_refresh_token_grant(
             refresh_token=refresh_token,
+            client=client,
+            db=db,
+        )
+    elif grant_type == "client_credentials":
+        return await _handle_client_credentials_grant(
+            scope=scope,
             client=client,
             db=db,
         )
@@ -1370,8 +1444,18 @@ async def _handle_refresh_token_grant(
 
     # Verify refresh token
     try:
-        payload = jwt_manager.verify_token(refresh_token, token_type="refresh")
+        payload = await _verify_oauth_token(
+            refresh_token,
+            token_type="refresh",
+            db=db,
+            expected_client=client,
+        )
     except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid_grant: Invalid refresh token",
+        )
+    if not payload:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="invalid_grant: Invalid refresh token",
@@ -1447,6 +1531,86 @@ async def _handle_refresh_token_grant(
     )
 
 
+async def _handle_client_credentials_grant(
+    scope: Optional[str],
+    client: OAuthClient,
+    db: AsyncSession,
+) -> TokenResponse:
+    """Handle client_credentials grant type for confidential machine clients."""
+    if not client.is_confidential:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_client: client_credentials requires a confidential client",
+        )
+
+    if "client_credentials" not in (client.grant_types or []):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="unauthorized_client: client_credentials grant is not enabled",
+        )
+
+    allowed_scopes = [str(item) for item in (client.allowed_scopes or []) if item]
+    requested_scopes = [item for item in (scope or "").split() if item]
+    if not requested_scopes:
+        requested_scopes = [
+            item for item in allowed_scopes if item not in {"openid", "profile", "email"}
+        ]
+
+    requested_scopes = list(dict.fromkeys(requested_scopes))
+    unknown_scopes = sorted(set(requested_scopes) - set(allowed_scopes))
+    if unknown_scopes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"invalid_scope: not allowed for client: {' '.join(unknown_scopes)}",
+        )
+
+    user_scopes = sorted(set(requested_scopes) & {"openid", "profile", "email"})
+    if user_scopes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "invalid_scope: user scopes not allowed for client_credentials: "
+                f"{' '.join(user_scopes)}"
+            ),
+        )
+
+    if not requested_scopes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid_scope: no machine scopes configured for client",
+        )
+
+    client_audience = client.audience or settings.JWT_AUDIENCE
+    scope_value = " ".join(requested_scopes)
+    organization_id = str(client.organization_id) if client.organization_id else None
+    additional_claims = {
+        "client_id": client.client_id,
+        "aud": client_audience,
+        "scope": scope_value,
+        "roles": ["service"],
+        "token_use": "client_credentials",
+    }
+    if organization_id:
+        additional_claims["org_id"] = organization_id
+
+    access_token, _, _ = jwt_manager.create_access_token(
+        user_id=f"service:{client.client_id}",
+        email=f"{client.client_id}@clients.janua.internal",
+        additional_claims=additional_claims,
+    )
+
+    client.last_used_at = datetime.utcnow()
+    await db.commit()
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="Bearer",
+        expires_in=3600,
+        refresh_token=None,
+        scope=scope_value,
+    )
+
+
 # ============================================================================
 # OpenID Connect UserInfo Endpoint
 # ============================================================================
@@ -1476,8 +1640,14 @@ async def userinfo(
 
     # Verify token
     try:
-        payload = jwt_manager.verify_token(token, token_type="access")
+        payload = await _verify_oauth_token(token, token_type="access", db=db)
     except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_token: Token expired or invalid",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid_token: Token expired or invalid",
@@ -1573,7 +1743,14 @@ async def introspect(
     try:
         # Try as access token first
         token_type = token_type_hint or "access"
-        payload = jwt_manager.verify_token(token, token_type=token_type)
+        payload = await _verify_oauth_token(
+            token,
+            token_type=token_type,
+            db=db,
+            expected_client=client,
+        )
+        if not payload:
+            return {"active": False}
 
         return {
             "active": True,
