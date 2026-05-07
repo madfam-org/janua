@@ -968,6 +968,8 @@ class Translation(Base):
 
 
 # Import enterprise models
+from app.models.enterprise import SSOConfiguration, SSOProvider, SSOStatus  # noqa: E402
+
 # Import compliance models
 
 # Add relationships to User model
