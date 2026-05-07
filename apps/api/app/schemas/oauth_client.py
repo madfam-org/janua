@@ -34,6 +34,14 @@ class OAuthClientCreate(BaseModel):
         max_length=255,
         description="Per-client JWT audience claim. Falls back to global JWT_AUDIENCE if not set.",
     )
+    client_key: Optional[str] = Field(
+        None,
+        max_length=255,
+        description=(
+            "Stable logical key for internal /register reconciliation. "
+            "When no separate storage exists, this should match audience."
+        ),
+    )
     logo_url: Optional[str] = Field(None, max_length=500, description="Client logo URL")
     website_url: Optional[str] = Field(None, max_length=500, description="Client website URL")
     is_confidential: Optional[bool] = Field(

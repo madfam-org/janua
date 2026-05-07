@@ -51,6 +51,7 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
             "http://localhost:4101/api/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email", "admin"],
+        "is_confidential": True,
     },
     {
         "name": "enclii-dispatch",
@@ -63,6 +64,7 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
             "http://localhost:3001/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
+        "is_confidential": False,
     },
     {
         "name": "enclii-switchyard",
@@ -77,6 +79,7 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
             "http://localhost:8080/v1/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
+        "is_confidential": False,
     },
     # ── Consumer ecosystem clients ──────────────────────────────────────
     {
@@ -86,10 +89,11 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
         # Pre-assigned: already deployed in dhanam .env.production
         "client_id": "jnc_uE2zp9ume_Fd6jMl1elL6wqjiECM711t",
         "redirect_uris": [
-            "https://dhanam.madfam.io/api/auth/callback",
-            "http://localhost:3000/api/auth/callback",
+            "https://app.dhan.am/auth/callback",
+            "http://localhost:3000/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
+        "is_confidential": False,
     },
     {
         "name": "tezca-web",
@@ -107,21 +111,31 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
         "name": "forgesight-app",
         "description": "Forgesight customer-facing application",
         "audience": "forgesight-api",
+        "client_id": "jnc_hMmsXcCeWGFTn95l9I1iLzibSugXCgDC",
         "redirect_uris": [
-            "https://forgesight.madfam.io/api/auth/callback",
+            "https://app.forgesight.quest",
+            "https://app.forgesight.quest/auth/callback",
+            "https://app.forgesight.quest/api/auth/callback",
+            "http://localhost:3000",
+            "http://localhost:3000/auth/callback",
             "http://localhost:3000/api/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
+        "is_confidential": False,
     },
     {
         "name": "forgesight-admin",
         "description": "Forgesight admin panel",
         "audience": "forgesight-api",
+        "client_id": "jnc_71GgDdnFqsb_ha9_Z45tAMRZCbLX9Rz5",
         "redirect_uris": [
-            "https://admin.forgesight.madfam.io/auth/callback",
+            "https://admin.forgesight.quest",
+            "https://admin.forgesight.quest/auth/callback",
+            "http://localhost:3001",
             "http://localhost:3001/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
+        "is_confidential": False,
     },
     {
         "name": "pravara-dashboard",
@@ -142,6 +156,7 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
             "http://localhost:5173/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
+        "is_confidential": False,
     },
     {
         "name": "yantra4d-admin",
@@ -152,6 +167,7 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
             "http://localhost:3001/auth/callback",
         ],
         "allowed_scopes": ["openid", "profile", "email"],
+        "is_confidential": False,
     },
     {
         "name": "fortuna-web",
@@ -297,8 +313,36 @@ async def _seed_clients(engine: AsyncEngine) -> None:
                 ),
                 {"name": name, "cid": pre_assigned_id or ""},
             )
-            if existing.fetchone() is not None:
-                logger.info("SKIP  %-25s (already exists)", name)
+            existing_row = existing.fetchone()
+            if existing_row is not None:
+                await conn.execute(
+                    text(
+                        """
+                        UPDATE oauth_clients
+                           SET description = :description,
+                               redirect_uris = CAST(:redirect_uris AS jsonb),
+                               allowed_scopes = CAST(:allowed_scopes AS jsonb),
+                               grant_types = CAST(:grant_types AS jsonb),
+                               audience = :audience,
+                               is_confidential = :is_confidential,
+                               updated_at = :now
+                         WHERE id = :id
+                        """
+                    ),
+                    {
+                        "id": str(existing_row[0]),
+                        "description": client_def.get("description"),
+                        "redirect_uris": _json_dumps(client_def["redirect_uris"]),
+                        "allowed_scopes": _json_dumps(client_def["allowed_scopes"]),
+                        "grant_types": _json_dumps(
+                            ["authorization_code", "refresh_token"]
+                        ),
+                        "audience": client_def.get("audience"),
+                        "is_confidential": client_def.get("is_confidential", True),
+                        "now": now,
+                    },
+                )
+                logger.info("SYNC  %-25s (already exists)", name)
                 skipped_count += 1
                 continue
 
@@ -339,7 +383,7 @@ async def _seed_clients(engine: AsyncEngine) -> None:
                         CAST(:grant_types AS jsonb),
                         :audience,
                         true,
-                        true,
+                        :is_confidential,
                         :now,
                         :now
                     )
@@ -359,6 +403,7 @@ async def _seed_clients(engine: AsyncEngine) -> None:
                         ["authorization_code", "refresh_token"]
                     ),
                     "audience": client_def.get("audience"),
+                    "is_confidential": client_def.get("is_confidential", True),
                     "now": now,
                 },
             )

@@ -1,7 +1,7 @@
 # Janua Provider Operations Runbook
 
 **Audience**: Platform operators managing Janua as an identity provider
-**Last Updated**: 2026-02-24
+**Last Updated**: 2026-05-06
 **Applies to**: Janua API v1, MADFAM ecosystem deployments
 
 ---
@@ -34,28 +34,26 @@ Key operational areas covered:
 
 ## Ecosystem Bootstrap
 
-The `scripts/seed_ecosystem_clients.py` script registers known MADFAM ecosystem applications as OAuth clients in a single operation. This is an operator tool for initial setup or environment provisioning. It is not the consumer onboarding path -- individual apps should not run this script themselves.
+Consumer-owned bootstrap is the standard path. Each MADFAM product repo should carry its own OAuth client desired state and call `POST /api/v1/oauth/clients/register` with `X-Internal-API-Key`.
+
+The compatibility script `apps/api/scripts/seed_core_clients.py` registers core MADFAM ecosystem applications in a single operation. This is an operator tool for initial setup or disaster recovery. It is not the consumer onboarding path -- individual apps should not run this script themselves.
 
 ### Running the seed script
 
 ```bash
-cd /path/to/janua/scripts
-python seed_ecosystem_clients.py
+cd /path/to/janua/apps/api
+python scripts/seed_core_clients.py
 ```
 
-To register a single app:
-
-```bash
-python seed_ecosystem_clients.py --app stratum-tcg
-```
-
-The script creates OAuth clients with pre-configured values for each ecosystem app (audience, redirect URIs, allowed scopes). Client credentials are printed to stdout on creation. Store them securely -- the `client_secret` is not retrievable after this point.
+The script converges OAuth clients with pre-configured values for each core ecosystem app (audience, redirect URIs, allowed scopes, public/confidential posture). Client credentials are printed to stdout only on first creation. Store them securely -- the `client_secret` is not retrievable after this point.
 
 ### When to run
 
 - After a fresh deployment or database migration
-- When adding a new app to the ecosystem
+- During break-glass recovery for a core app
 - When re-provisioning a staging or development environment
+
+Do not add ordinary product apps to this script. Add product-owned bootstrap payloads to the product repo instead.
 
 ### Manual client registration
 
@@ -76,6 +74,21 @@ curl -X POST https://api.janua.dev/api/v1/oauth/clients \
 ```
 
 The response includes the `client_id` and `client_secret`. Save the secret immediately.
+
+### Zero-touch client registration
+
+For MADFAM product repos, use the internal bootstrap endpoint instead of a human dashboard/API operation:
+
+```bash
+curl -X POST https://auth.madfam.io/api/v1/oauth/clients/register \
+  -H "X-Internal-API-Key: $JANUA_INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d @infra/oauth-redirect-uris.json
+```
+
+This endpoint is idempotent and convergent. Existing clients are updated for non-secret fields (`redirect_uris`, scopes, grant types, audience, description, website/logo URLs, and `is_confidential`) and no secret is re-exposed.
+
+See `internal-devops/runbooks/enclii-janua-app-onboarding.md` for the Enclii + Janua end-to-end SOP.
 
 ---
 
