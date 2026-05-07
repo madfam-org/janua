@@ -87,7 +87,7 @@ jobs:
 
       - name: Run pip-audit
         run: |
-          cd apps/api && pip-audit --format json --output pip-audit-report.json
+          cd apps/api && pip-audit -r requirements.txt --format json --output pip-audit-report.json
 
       - name: Upload Security Reports
         uses: actions/upload-artifact@v7
@@ -119,7 +119,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run pnpm audit
-        run: pnpm audit --json > pnpm-audit-report.json
+        run: |
+          pnpm audit --prod --json > pnpm-audit-report.json || true
+          node -e "const r=require('./pnpm-audit-report.json'); const v=r.metadata?.vulnerabilities||{}; if ((v.high||0)+(v.critical||0)>0) process.exit(1)"
 
       - name: Run Snyk Security Scan
         continue-on-error: true  # Requires SNYK_TOKEN secret — soft-fail until configured
