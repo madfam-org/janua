@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import DeclarativeBase, relationship
@@ -97,8 +98,12 @@ class Organization(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     slug = Column(String(255), unique=True, nullable=False, index=True)
-    subscription_tier = Column(String(100), default="community")  # Legacy — derived from highest product tier
-    product_tiers = Column(JSONB, default={})  # Per-product tiers: {"enclii": "pro", "tezca": "essentials"}
+    subscription_tier = Column(
+        String(100), default="community"
+    )  # Legacy — derived from highest product tier
+    product_tiers = Column(
+        JSONB, default={}
+    )  # Per-product tiers: {"enclii": "pro", "tezca": "essentials"}
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))  # Organization owner
     billing_plan = Column(String(100), default="free")  # Billing plan
     billing_email = Column(String(255))  # Billing contact
@@ -254,6 +259,78 @@ class UserConsent(Base):
 
     __table_args__ = (
         # Each user-client combination should have one consent record
+        {"sqlite_autoincrement": True},
+    )
+
+
+class EntitlementSource(str, enum.Enum):
+    """How a UserEntitlement row got into the table.
+
+    - DHANAM_SUBSCRIPTION: written by the Dhanam subscription webhook.
+    - ADMIN_GRANT: manually granted by a Janua admin (e.g. ops bootstrap,
+      catch-all for `admin@madfam.io`).
+    - INHERITED: derived from the user's organization product_tiers (legacy
+      org-level grants get projected onto every member at JWT-issue time).
+    """
+
+    DHANAM_SUBSCRIPTION = "dhanam_subscription"
+    ADMIN_GRANT = "admin_grant"
+    INHERITED = "inherited"
+
+
+class UserEntitlement(Base):
+    """
+    Per-user, per-product tier grant.
+
+    Selva-unified SSO Phase 1 (ADR 2026-05-04): when an operator logs into
+    Selva via Janua SSO, the issued JWT carries a `madfam_entitled_products`
+    claim listing every product:tier they are entitled to under their current
+    plan. Entries are populated by:
+
+    - Dhanam subscription webhooks (subscription.activated|cancelled|updated)
+    - Admin grants (e.g. catch-all for admin@madfam.io)
+    - Org membership inheritance (Organization.product_tiers projected at
+      JWT-issue time; not stored as physical rows here).
+
+    The `(user_id, product)` pair is uniquely indexed — a user has at most
+    one current tier per product. Cancellation does not delete the row; it
+    sets `expires_at` so an audit history is preserved.
+    """
+
+    __tablename__ = "user_entitlements"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+
+    # Product identifier — lowercase alphanumeric (karafiel, dhanam, ...).
+    # Open-set: any new MADFAM product can be granted without a code change.
+    product = Column(String(64), nullable=False)
+
+    # Tier within the product (e.g. "contador", "pro", "admin"). The set of
+    # valid tiers per product is documented in
+    # internal-devops/ecosystem/product-tier-mapping.yaml; Janua does not
+    # enforce the set so new tiers can ship without a migration.
+    tier = Column(String(64), nullable=False)
+
+    granted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # NULL = no expiry (admin grants typically). When set in the past the
+    # entitlement is treated as inactive at JWT-issue time.
+    expires_at = Column(DateTime, nullable=True, index=True)
+
+    source = Column(SQLEnum(EntitlementSource), nullable=False)
+
+    # Idempotency key for Dhanam webhook upserts. NULL for admin grants.
+    dhanam_subscription_id = Column(String(255), nullable=True, index=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        # One current row per (user, product). Cancellations update the same
+        # row by setting expires_at; we never duplicate.
+        sa.UniqueConstraint("user_id", "product", name="uq_user_entitlements_user_product"),
+        sa.Index("ix_user_entitlements_user_expires", "user_id", "expires_at"),
         {"sqlite_autoincrement": True},
     )
 
@@ -614,7 +691,9 @@ class WebhookDelivery(Base):
     webhook_endpoint_id = Column(
         UUID(as_uuid=True), ForeignKey("webhook_endpoints.id"), nullable=False
     )
-    webhook_event_id = Column(UUID(as_uuid=True), ForeignKey("legacy_webhook_events.id"), nullable=False)
+    webhook_event_id = Column(
+        UUID(as_uuid=True), ForeignKey("legacy_webhook_events.id"), nullable=False
+    )
     status = Column(SQLEnum(WebhookStatus), default=WebhookStatus.PENDING)
     attempts = Column(Integer, default=0)
     last_attempt = Column(DateTime)
@@ -722,7 +801,9 @@ class LegacyInvoice(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    subscription_id = Column(UUID(as_uuid=True))  # No FK - legacy model, reference billing.Subscription if needed
+    subscription_id = Column(
+        UUID(as_uuid=True)
+    )  # No FK - legacy model, reference billing.Subscription if needed
     invoice_number = Column(String(255), unique=True, nullable=False)
     amount = Column(Integer, nullable=False)  # Amount in cents
     currency = Column(String(3), default="USD")
@@ -806,6 +887,7 @@ class RBACPolicy(Base):
     - User-specific access (grant permission to specific users)
     - Custom conditions (JSON-based condition evaluation)
     """
+
     __tablename__ = "rbac_policies"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -886,6 +968,8 @@ class Translation(Base):
 
 
 # Import enterprise models
+from app.models.enterprise import SSOConfiguration, SSOProvider, SSOStatus  # noqa: E402
+
 # Import compliance models
 
 # Add relationships to User model

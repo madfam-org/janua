@@ -37,12 +37,78 @@ from app.core.url_security import is_safe_redirect_url, validate_oauth_redirect_
 from app.dependencies import get_current_user
 from app.models import OAuthClient, Organization, OrganizationMember, User
 from app.services.consent_service import ConsentService
+from app.services.entitlements_service import (
+    entitlements_to_claim,
+    get_user_entitlements,
+)
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/oauth", tags=["OAuth Provider"])
 
 # CSRF token TTL (10 minutes)
 CSRF_TOKEN_TTL = 600
+
+
+def _accepted_audiences_for_client(client: OAuthClient) -> list[str]:
+    """Return accepted token audiences for an OAuth client, including legacy global aud."""
+    audiences = [client.audience or settings.JWT_AUDIENCE, settings.JWT_AUDIENCE]
+    return list(dict.fromkeys(audience for audience in audiences if audience))
+
+
+async def _resolve_token_client(
+    token: str,
+    db: AsyncSession,
+    expected_client: Optional[OAuthClient] = None,
+) -> Optional[OAuthClient]:
+    """Resolve the OAuth client bound to a token before audience validation."""
+    if expected_client:
+        return expected_client
+
+    try:
+        claims = jwt_manager.get_unverified_claims(token)
+    except Exception:
+        return None
+
+    client_id = claims.get("client_id")
+    if not client_id:
+        return None
+
+    client = await _get_oauth_client(client_id, db)
+    if not client or not client.is_active:
+        return None
+    return client
+
+
+async def _verify_oauth_token(
+    token: str,
+    token_type: str,
+    db: AsyncSession,
+    expected_client: Optional[OAuthClient] = None,
+) -> Optional[dict]:
+    """Verify OAuth tokens against the bound client's audience plus legacy global aud."""
+    client = await _resolve_token_client(token, db, expected_client)
+    if not client:
+        return jwt_manager.verify_token(token, token_type=token_type)
+
+    payload = jwt_manager.verify_token(
+        token,
+        token_type=token_type,
+        audience=_accepted_audiences_for_client(client),
+    )
+    if not payload:
+        return None
+
+    token_client_id = payload.get("client_id")
+    if token_client_id and token_client_id != client.client_id:
+        logger.warning(
+            "OAuth token client mismatch",
+            expected=client.client_id,
+            got=token_client_id,
+            token_type=token_type,
+        )
+        return None
+
+    return payload
 
 
 async def _generate_csrf_token(user_id: str, redis: ResilientRedisClient) -> str:
@@ -116,7 +182,7 @@ async def _get_user_entitlements(
 
         if memberships:
             # Collect all roles across organizations
-            roles = list(set([m.role for m in memberships if m.role]))
+            roles = list({m.role for m in memberships if m.role})
             entitlements["roles"] = roles
 
             # Get primary organization (first membership or tenant)
@@ -221,13 +287,17 @@ class AuthorizationRequest(BaseModel):
 class TokenRequest(BaseModel):
     """OAuth 2.0 Token Request parameters."""
 
-    grant_type: str = Field(..., description="Grant type (authorization_code, refresh_token)")
+    grant_type: str = Field(
+        ...,
+        description="Grant type (authorization_code, refresh_token, client_credentials)",
+    )
     code: Optional[str] = Field(None, description="Authorization code")
     redirect_uri: Optional[str] = Field(None, description="Redirect URI used in authorization")
     client_id: Optional[str] = Field(None, description="Client ID")
     client_secret: Optional[str] = Field(None, description="Client secret")
     refresh_token: Optional[str] = Field(None, description="Refresh token for token refresh")
     code_verifier: Optional[str] = Field(None, description="PKCE code verifier")
+    scope: Optional[str] = Field(None, description="Space-separated scope list")
 
 
 class TokenResponse(BaseModel):
@@ -271,7 +341,7 @@ async def _store_auth_code(code: str, data: dict, redis: ResilientRedisClient):
         logger.error("Failed to store auth code in Redis", key=key)
         raise HTTPException(
             status_code=503,
-            detail="Authorization service temporarily unavailable. Please try again."
+            detail="Authorization service temporarily unavailable. Please try again.",
         )
     logger.info("Auth code stored successfully", key=key)
 
@@ -428,6 +498,63 @@ def _build_safe_callback_url(
 # ============================================================================
 
 
+def _is_silent_auth_allowed(client: OAuthClient) -> bool:
+    """`prompt=none` is restricted to first-party clients to prevent surprise
+    issuance to third-party apps.
+
+    A client is first-party when it is BOTH `is_active=True` AND `is_confidential=True`
+    (i.e. has a registered server-side secret) AND its name does not begin
+    with the operator-marker prefix used for tenant-self-service registrations.
+    Operators wanting silent-auth for a specific tenant client can opt-in by
+    setting `OAuthClient.allowed_scopes` to include `madfam:silent_auth`.
+
+    The implementation is intentionally conservative: silent-auth bypasses
+    the visible consent screen, so we err on the side of "no, show the
+    interactive flow" when a client has not been explicitly trusted.
+    """
+    if not client.is_active:
+        return False
+    if not getattr(client, "is_confidential", False):
+        return False
+    allowed_scopes = list(client.allowed_scopes or [])
+    if "madfam:silent_auth" in allowed_scopes:
+        return True
+    # Default-allow for known first-party MADFAM client_ids. The Selva office
+    # client is the primary consumer of silent-auth in Phase 1.
+    name = (client.name or "").lower()
+    if name.startswith("selva-office") or name.startswith("madfam-"):
+        return True
+    return False
+
+
+def _redirect_with_oauth_error(
+    redirect_uri: str,
+    error: str,
+    error_description: str,
+    state: Optional[str],
+    *,
+    client_validated: bool,
+) -> RedirectResponse:
+    """Build an OAuth-spec-compliant error redirect (`error`, `error_description`,
+    optional `state`).
+
+    This is the standard "tell the client we couldn't authenticate silently"
+    path for `prompt=none` failures (`error=login_required`,
+    `error=consent_required`, etc.). The redirect_uri MUST be already
+    validated against the OAuth client's registered URIs before calling this.
+    """
+    params: dict[str, str] = {
+        "error": error,
+        "error_description": error_description,
+    }
+    if state:
+        params["state"] = state
+    return RedirectResponse(
+        url=_build_safe_callback_url(redirect_uri, params, client_validated=client_validated),
+        status_code=302,
+    )
+
+
 @router.get("/authorize")
 async def authorize_get(
     request: Request,
@@ -439,6 +566,16 @@ async def authorize_get(
     nonce: Optional[str] = Query(None),
     code_challenge: Optional[str] = Query(None),
     code_challenge_method: Optional[str] = Query(None),
+    prompt: Optional[str] = Query(
+        None,
+        description=(
+            "OIDC prompt parameter. Currently honored: 'none' (silent auth — "
+            "issue code immediately if a valid Janua session cookie is present, "
+            "otherwise redirect with error=login_required per OIDC spec). "
+            "Any other value is ignored; flow proceeds as the default "
+            "interactive path."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -451,9 +588,17 @@ async def authorize_get(
     Authentication is checked from both:
     - Authorization header (Bearer token)
     - janua_access_token cookie (set by login form)
+
+    OIDC `prompt=none` (silent auth, ADR 2026-05-04-selva-unified-sso):
+        - Valid session present → issue code immediately, skip consent UI.
+        - No / expired session → redirect back with `error=login_required`.
+        - Consent missing → redirect back with `error=consent_required`.
+        - Email verification or MFA required → respect those checks; never
+          bypass them just because `prompt=none` was requested.
     """
     # Get user from header or cookie (supports browser-based OAuth flow)
     current_user = await get_user_from_cookie_or_header(request, db)
+    silent_auth = (prompt or "").strip().lower() == "none"
 
     # Validate response_type
     if response_type != "code":
@@ -498,8 +643,39 @@ async def authorize_get(
             detail="invalid_request: PKCE (code_challenge) is required for public clients",
         )
 
+    # SECURITY: silent-auth (prompt=none) is restricted to pre-registered
+    # first-party clients. A third-party app cannot use prompt=none to skip
+    # the consent UI even if the user has a Janua session.
+    if silent_auth and not _is_silent_auth_allowed(client):
+        logger.warning(
+            "Rejected prompt=none from non-first-party client",
+            client_id=client_id,
+            client_name=client.name,
+        )
+        return _redirect_with_oauth_error(
+            redirect_uri,
+            error="interaction_required",
+            error_description="silent_auth not allowed for this client",
+            state=state,
+            client_validated=True,
+        )
+
     # If user not authenticated, redirect to login
     if not current_user:
+        # OIDC prompt=none: must NOT prompt — return error and let the caller
+        # decide whether to fall back to interactive flow.
+        if silent_auth:
+            logger.info(
+                "prompt=none but no Janua session — emitting login_required",
+                client_id=client_id,
+            )
+            return _redirect_with_oauth_error(
+                redirect_uri,
+                error="login_required",
+                error_description="No active Janua session for silent auth",
+                state=state,
+                client_validated=True,
+            )
         # SECURITY: Store full OAuth parameters in Redis instead of encoding them
         # into the redirect URL. This avoids double-encoding issues with urlencode()
         # that caused redirect loops when the 'next' URL contained query params.
@@ -541,6 +717,17 @@ async def authorize_get(
             grace_period = timedelta(hours=settings.EMAIL_VERIFICATION_GRACE_PERIOD_HOURS)
             grace_deadline = current_user.created_at + grace_period
             if datetime.utcnow() >= grace_deadline:
+                # Silent auth must surface this as an OAuth error redirect, not
+                # an HTML 403 — the caller can then decide whether to escalate
+                # to interactive flow.
+                if silent_auth:
+                    return _redirect_with_oauth_error(
+                        redirect_uri,
+                        error="login_required",
+                        error_description="email_verification_required",
+                        state=state,
+                        client_validated=True,
+                    )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Email verification required. Please verify your email before authorizing third-party applications.",
@@ -551,6 +738,21 @@ async def authorize_get(
     has_consent = await ConsentService.has_consent(db, current_user.id, client_id, requested_scopes)
 
     if not has_consent:
+        # OIDC prompt=none: never show an interactive consent screen. If the
+        # user hasn't pre-consented, signal consent_required to the caller.
+        if silent_auth:
+            logger.info(
+                "prompt=none but consent missing — emitting consent_required",
+                client_id=client_id,
+                user_id=str(current_user.id),
+            )
+            return _redirect_with_oauth_error(
+                redirect_uri,
+                error="consent_required",
+                error_description="User has not consented to requested scopes",
+                state=state,
+                client_validated=True,
+            )
         # Show consent screen
         csrf_token = await _generate_csrf_token(str(current_user.id), redis)
         scope_descriptions = ConsentService.get_scope_descriptions()
@@ -1000,6 +1202,7 @@ async def token(
     client_secret: Optional[str] = Form(None),
     refresh_token: Optional[str] = Form(None),
     code_verifier: Optional[str] = Form(None),
+    scope: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -1011,6 +1214,7 @@ async def token(
     Supports:
     - authorization_code: Exchange auth code for access/refresh/id tokens
     - refresh_token: Get new access token using refresh token
+    - client_credentials: Mint machine access token for confidential clients
     """
     # Handle client authentication (Basic auth or form params)
     auth_header = request.headers.get("Authorization", "")
@@ -1072,6 +1276,12 @@ async def token(
     elif grant_type == "refresh_token":
         return await _handle_refresh_token_grant(
             refresh_token=refresh_token,
+            client=client,
+            db=db,
+        )
+    elif grant_type == "client_credentials":
+        return await _handle_client_credentials_grant(
+            scope=scope,
             client=client,
             db=db,
         )
@@ -1161,6 +1371,11 @@ async def _handle_authorization_code_grant(
     # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status)
     entitlements = await _get_user_entitlements(user, db)
 
+    # Per-product MADFAM ecosystem grants (Selva-unified SSO Phase 1).
+    # Sourced from the user_entitlements table + org inheritance + admin
+    # bootstrap. See app/services/entitlements_service.py.
+    madfam_entitled_products = entitlements_to_claim(await get_user_entitlements(user, db))
+
     # Resolve per-client audience (falls back to global JWT_AUDIENCE)
     client_audience = client.audience or settings.JWT_AUDIENCE
 
@@ -1178,6 +1393,8 @@ async def _handle_authorization_code_grant(
             "roles": entitlements["roles"],
             "sub_status": entitlements["sub_status"],
             "is_admin": entitlements["is_admin"],
+            # MADFAM ecosystem per-product entitlements
+            "madfam_entitled_products": madfam_entitled_products,
         },
     )
 
@@ -1227,8 +1444,18 @@ async def _handle_refresh_token_grant(
 
     # Verify refresh token
     try:
-        payload = jwt_manager.verify_token(refresh_token, token_type="refresh")
+        payload = await _verify_oauth_token(
+            refresh_token,
+            token_type="refresh",
+            db=db,
+            expected_client=client,
+        )
     except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid_grant: Invalid refresh token",
+        )
+    if not payload:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="invalid_grant: Invalid refresh token",
@@ -1255,6 +1482,9 @@ async def _handle_refresh_token_grant(
     # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status)
     entitlements = await _get_user_entitlements(user, db)
 
+    # Per-product MADFAM ecosystem grants (Selva-unified SSO Phase 1).
+    madfam_entitled_products = entitlements_to_claim(await get_user_entitlements(user, db))
+
     # Resolve per-client audience (falls back to global JWT_AUDIENCE)
     client_audience = client.audience or settings.JWT_AUDIENCE
 
@@ -1272,6 +1502,8 @@ async def _handle_refresh_token_grant(
             "roles": entitlements["roles"],
             "sub_status": entitlements["sub_status"],
             "is_admin": entitlements["is_admin"],
+            # MADFAM ecosystem per-product entitlements
+            "madfam_entitled_products": madfam_entitled_products,
         },
     )
 
@@ -1296,6 +1528,86 @@ async def _handle_refresh_token_grant(
         expires_in=3600,
         refresh_token=new_refresh_token,
         scope=scope,
+    )
+
+
+async def _handle_client_credentials_grant(
+    scope: Optional[str],
+    client: OAuthClient,
+    db: AsyncSession,
+) -> TokenResponse:
+    """Handle client_credentials grant type for confidential machine clients."""
+    if not client.is_confidential:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_client: client_credentials requires a confidential client",
+        )
+
+    if "client_credentials" not in (client.grant_types or []):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="unauthorized_client: client_credentials grant is not enabled",
+        )
+
+    allowed_scopes = [str(item) for item in (client.allowed_scopes or []) if item]
+    requested_scopes = [item for item in (scope or "").split() if item]
+    if not requested_scopes:
+        requested_scopes = [
+            item for item in allowed_scopes if item not in {"openid", "profile", "email"}
+        ]
+
+    requested_scopes = list(dict.fromkeys(requested_scopes))
+    unknown_scopes = sorted(set(requested_scopes) - set(allowed_scopes))
+    if unknown_scopes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"invalid_scope: not allowed for client: {' '.join(unknown_scopes)}",
+        )
+
+    user_scopes = sorted(set(requested_scopes) & {"openid", "profile", "email"})
+    if user_scopes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "invalid_scope: user scopes not allowed for client_credentials: "
+                f"{' '.join(user_scopes)}"
+            ),
+        )
+
+    if not requested_scopes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid_scope: no machine scopes configured for client",
+        )
+
+    client_audience = client.audience or settings.JWT_AUDIENCE
+    scope_value = " ".join(requested_scopes)
+    organization_id = str(client.organization_id) if client.organization_id else None
+    additional_claims = {
+        "client_id": client.client_id,
+        "aud": client_audience,
+        "scope": scope_value,
+        "roles": ["service"],
+        "token_use": "client_credentials",
+    }
+    if organization_id:
+        additional_claims["org_id"] = organization_id
+
+    access_token, _, _ = jwt_manager.create_access_token(
+        user_id=f"service:{client.client_id}",
+        email=f"{client.client_id}@clients.janua.internal",
+        additional_claims=additional_claims,
+    )
+
+    client.last_used_at = datetime.utcnow()
+    await db.commit()
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="Bearer",
+        expires_in=3600,
+        refresh_token=None,
+        scope=scope_value,
     )
 
 
@@ -1328,8 +1640,14 @@ async def userinfo(
 
     # Verify token
     try:
-        payload = jwt_manager.verify_token(token, token_type="access")
+        payload = await _verify_oauth_token(token, token_type="access", db=db)
     except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_token: Token expired or invalid",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid_token: Token expired or invalid",
@@ -1425,7 +1743,14 @@ async def introspect(
     try:
         # Try as access token first
         token_type = token_type_hint or "access"
-        payload = jwt_manager.verify_token(token, token_type=token_type)
+        payload = await _verify_oauth_token(
+            token,
+            token_type=token_type,
+            db=db,
+            expected_client=client,
+        )
+        if not payload:
+            return {"active": False}
 
         return {
             "active": True,
