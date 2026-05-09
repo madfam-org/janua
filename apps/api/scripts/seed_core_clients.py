@@ -174,9 +174,9 @@ ECOSYSTEM_CLIENTS: list[dict[str, Any]] = [
         "allowed_scopes": ["openid", "profile", "email"],
     },
     {
-        "name": "phyne-crm-api",
-        "description": "PhyneCRM customer relationship management",
-        "audience": "phyne-crm-api",
+        "name": "phynd-crm-api",
+        "description": "PhyndCRM customer relationship management",
+        "audience": "phynd-crm-api",
         "redirect_uris": [
             "https://crm.madfam.io/api/auth/callback",
             "http://localhost:3000/api/auth/callback",

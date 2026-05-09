@@ -70,7 +70,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             # fixed earlier (PR enclii#228 for CORS_ORIGINS).
             "https://selva.town https://*.selva.town "
             "https://rondel.io https://*.rondel.io "
-            "https://phynecrm.com https://*.phynecrm.com "
+            "https://phyndcrm.com https://*.phyndcrm.com "
             "https://pravara.mx https://*.pravara.mx "
             "https://sim4d.io https://*.sim4d.io "
             "https://aureo.studio https://*.aureo.studio "
