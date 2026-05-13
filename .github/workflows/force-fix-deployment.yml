@@ -1,5 +1,8 @@
 name: Force Fix janua-api Deployment
 
+# MADFAM-ENCLII-FIRST-WORKFLOW-EXCEPTION v1: emergency recovery path only.
+# Routine production deployment/remediation must go through Enclii web, API, CLI, or GitOps.
+
 # Emergency workflow to fix janua-api when Switchyard has corrupted the deployment
 # This completely replaces the deployment with the correct spec from our manifests
 

@@ -1,5 +1,8 @@
 name: Unified Recovery - Deploy Switchyard + Fix Janua
 
+# MADFAM-ENCLII-FIRST-WORKFLOW-EXCEPTION v1: emergency recovery path only.
+# Routine production deployment/remediation must go through Enclii web, API, CLI, or GitOps.
+
 # Comprehensive recovery workflow that:
 # 1. Deploys the new Switchyard with opt-out fix
 # 2. Waits for Switchyard to be healthy

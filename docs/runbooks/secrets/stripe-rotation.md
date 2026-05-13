@@ -1,5 +1,13 @@
 # Stripe API Key & Webhook Secret Rotation
 
+> [!IMPORTANT]
+> MADFAM-ENCLII-FIRST-LEGACY-RAW v1: This document contains legacy raw infrastructure command examples.
+> Routine production operations must use Enclii web, API, or CLI. Treat raw
+> `kubectl`, `helm`, SSH, provider CLI/API, `docker exec`, and direct container
+> access as platform bootstrap or documented break-glass only, and record any
+> missing Enclii adapter gap.
+
+
 ## Overview
 
 This runbook covers rotating Stripe API keys and webhook secrets used for payment processing.

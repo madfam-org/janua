@@ -1,5 +1,13 @@
 # SSO Critical Path — MADFAM Platform Verification
 
+> [!IMPORTANT]
+> MADFAM-ENCLII-FIRST-LEGACY-RAW v1: This document contains legacy raw infrastructure command examples.
+> Routine production operations must use Enclii web, API, or CLI. Treat raw
+> `kubectl`, `helm`, SSH, provider CLI/API, `docker exec`, and direct container
+> access as platform bootstrap or documented break-glass only, and record any
+> missing Enclii adapter gap.
+
+
 **Created**: 2026-02-26
 **Status**: In progress — 3 of 7 fixes merged, 4 remaining
 **Branch**: `fix/sso-verification-failures` (merged to `main`)

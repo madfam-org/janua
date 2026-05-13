@@ -197,10 +197,10 @@ jobs:
             # Then commit and push
             \`\`\`
 
-            ### Option 2: Re-deploy from Git
+            ### Option 2: Reconcile from Git via Enclii
             If Git state is the source of truth:
             \`\`\`bash
-            kubectl apply -k k8s/overlays/prod
+            enclii ops apps sync janua --env production --apply --reason "resolve drift detected by workflow"
             \`\`\`
 
             ---
