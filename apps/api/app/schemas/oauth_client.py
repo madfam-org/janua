@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import List, Optional
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class OAuthClientCreate(BaseModel):
@@ -19,7 +19,11 @@ class OAuthClientCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Client application name")
     description: Optional[str] = Field(None, max_length=1000, description="Client description")
     redirect_uris: List[str] = Field(
-        ..., min_length=1, description="Allowed redirect URIs for OAuth flow"
+        default_factory=list,
+        description=(
+            "Allowed redirect URIs for interactive OAuth flows. "
+            "Machine-only client_credentials clients may leave this empty."
+        ),
     )
     allowed_scopes: Optional[List[str]] = Field(
         default=["openid", "profile", "email"],
@@ -33,6 +37,14 @@ class OAuthClientCreate(BaseModel):
         None,
         max_length=255,
         description="Per-client JWT audience claim. Falls back to global JWT_AUDIENCE if not set.",
+    )
+    organization_id: Optional[str] = Field(
+        None,
+        description=(
+            "Optional organization UUID to scope machine tokens and downstream org_id claims. "
+            "Register routes may accept this in the body; user-authenticated routes may also "
+            "use their organization_id query parameter."
+        ),
     )
     logo_url: Optional[str] = Field(None, max_length=500, description="Client logo URL")
     website_url: Optional[str] = Field(None, max_length=500, description="Client website URL")
@@ -98,6 +110,17 @@ class OAuthClientCreate(BaseModel):
             if grant_type not in valid_types:
                 raise ValueError(f"Invalid grant type: {grant_type}")
         return v
+
+    @model_validator(mode="after")
+    def validate_redirects_for_grants(self) -> "OAuthClientCreate":
+        """Require redirect URIs only for interactive OAuth grants."""
+        grant_types = self.grant_types or []
+        interactive_grants = {"authorization_code", "implicit"}
+        if interactive_grants.intersection(grant_types) and not self.redirect_uris:
+            raise ValueError(
+                "redirect_uris are required for authorization_code or implicit clients"
+            )
+        return self
 
 
 class OAuthClientUpdate(BaseModel):

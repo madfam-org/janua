@@ -6,6 +6,7 @@ Tests OAuth 2.0 Authorization Server endpoints with security validation.
 import base64
 import hashlib
 import json
+import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -455,6 +456,119 @@ class TestTokenEndpointValidation:
         """Should support refresh_token grant"""
         assert True  # Placeholder - tested via integration tests
 
+    async def test_client_credentials_grant_mints_service_account_claims(self):
+        """Should mint short-lived machine tokens with org and product-tier claims."""
+        from app.routers.v1.oauth_provider import _handle_client_credentials_grant
+
+        org_id = uuid.uuid4()
+        mock_client = MagicMock()
+        mock_client.client_id = "jnc_ecosystem_probe"
+        mock_client.name = "MADFAM Ecosystem Probe"
+        mock_client.allowed_scopes = ["openid", "admin", "yantra4d:quote", "cotiza:quote"]
+        mock_client.audience = "madfam-ecosystem"
+        mock_client.is_confidential = True
+        mock_client.organization_id = org_id
+
+        mock_org = MagicMock()
+        mock_org.id = org_id
+        mock_org.slug = "madfam"
+        mock_org.subscription_tier = "madfam"
+        mock_org.product_tiers = {
+            "yantra4d": "madfam",
+            "cotiza": "madfam",
+            "forgesight": "madfam",
+        }
+
+        mock_db = AsyncMock()
+        mock_db.execute = AsyncMock(
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_org))
+        )
+        mock_db.commit = AsyncMock()
+
+        with patch.object(
+            oauth_provider_module.jwt_manager,
+            "create_access_token",
+            return_value=("encoded_access_token", "jti", None),
+        ) as mock_create:
+            response = await _handle_client_credentials_grant(
+                client=mock_client,
+                requested_scope="openid admin yantra4d:quote",
+                db=mock_db,
+            )
+
+        assert response.access_token == "encoded_access_token"
+        assert response.refresh_token is None
+        assert response.scope == "admin openid yantra4d:quote"
+        mock_db.commit.assert_called_once()
+
+        _, kwargs = mock_create.call_args
+        assert kwargs["user_id"] == "service-account:jnc_ecosystem_probe"
+        assert kwargs["email"] == "madfam-ecosystem-probe@service.auth.madfam.io"
+        claims = kwargs["additional_claims"]
+        assert claims["aud"] == "madfam-ecosystem"
+        assert claims["org_id"] == str(org_id)
+        assert claims["tenant_id"] == str(org_id)
+        assert claims["roles"] == ["admin", "service_account"]
+        assert claims["is_admin"] is True
+        assert claims["yantra4d_tier"] == "madfam"
+        assert claims["cotiza_tier"] == "madfam"
+        assert claims["forgesight_tier"] == "madfam"
+
+    async def test_client_credentials_rejects_scope_not_allowed_on_client(self):
+        """Should fail closed when a machine client requests ungranted scopes."""
+        from fastapi import HTTPException
+
+        from app.routers.v1.oauth_provider import _handle_client_credentials_grant
+
+        mock_client = MagicMock()
+        mock_client.client_id = "jnc_ecosystem_probe"
+        mock_client.name = "MADFAM Ecosystem Probe"
+        mock_client.allowed_scopes = ["openid", "yantra4d:quote"]
+        mock_client.is_confidential = True
+        mock_client.organization_id = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await _handle_client_credentials_grant(
+                client=mock_client,
+                requested_scope="openid admin",
+                db=AsyncMock(),
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "invalid_scope" in exc_info.value.detail
+
+    async def test_client_credentials_product_scope_emits_tier_without_org(self):
+        """Product scopes should produce downstream tier claims for machine clients."""
+        from app.routers.v1.oauth_provider import _handle_client_credentials_grant
+
+        mock_client = MagicMock()
+        mock_client.client_id = "jnc_ecosystem_probe"
+        mock_client.name = "MADFAM Ecosystem Probe"
+        mock_client.allowed_scopes = ["openid", "yantra4d:quote", "cotiza:quote"]
+        mock_client.audience = "madfam-ecosystem"
+        mock_client.is_confidential = True
+        mock_client.organization_id = None
+
+        mock_db = AsyncMock()
+        mock_db.commit = AsyncMock()
+
+        with patch.object(
+            oauth_provider_module.jwt_manager,
+            "create_access_token",
+            return_value=("encoded_access_token", "jti", None),
+        ) as mock_create:
+            await _handle_client_credentials_grant(
+                client=mock_client,
+                requested_scope="openid yantra4d:quote cotiza:quote",
+                db=mock_db,
+            )
+
+        _, kwargs = mock_create.call_args
+        claims = kwargs["additional_claims"]
+        assert claims["yantra4d_tier"] == "madfam"
+        assert claims["cotiza_tier"] == "madfam"
+        assert "forgesight_tier" not in claims
+
 
 class TestUserInfoEndpointClaims:
     """Test UserInfo endpoint claims"""
@@ -550,10 +664,40 @@ class TestOAuthSchemas:
             redirect_uri="https://app.example.com/callback",
             client_id="client_123",
             code_verifier="verifier_123",
+            scope="openid profile",
         )
 
         assert request.grant_type == "authorization_code"
         assert request.code == "auth_code_123"
+        assert request.scope == "openid profile"
+
+    def test_machine_only_oauth_client_allows_empty_redirect_uris(self):
+        """client_credentials-only clients should not need browser redirects."""
+        from app.schemas.oauth_client import OAuthClientCreate
+
+        client = OAuthClientCreate(
+            name="madfam-ecosystem-probe",
+            redirect_uris=[],
+            grant_types=["client_credentials"],
+            allowed_scopes=["openid", "yantra4d:quote"],
+            organization_id=str(uuid.uuid4()),
+        )
+
+        assert client.redirect_uris == []
+        assert client.grant_types == ["client_credentials"]
+        assert client.organization_id is not None
+
+    def test_interactive_oauth_client_requires_redirect_uris(self):
+        """Interactive OAuth clients still require registered redirect URIs."""
+        from app.schemas.oauth_client import OAuthClientCreate
+
+        with pytest.raises(Exception):
+            OAuthClientCreate(
+                name="interactive-app",
+                redirect_uris=[],
+                grant_types=["authorization_code"],
+                allowed_scopes=["openid"],
+            )
 
     def test_token_response_schema(self):
         """Test TokenResponse schema"""

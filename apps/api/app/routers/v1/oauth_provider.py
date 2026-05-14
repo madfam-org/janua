@@ -16,6 +16,7 @@ import hashlib
 import html
 import json
 import os
+import re
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
@@ -221,13 +222,16 @@ class AuthorizationRequest(BaseModel):
 class TokenRequest(BaseModel):
     """OAuth 2.0 Token Request parameters."""
 
-    grant_type: str = Field(..., description="Grant type (authorization_code, refresh_token)")
+    grant_type: str = Field(
+        ..., description="Grant type (authorization_code, refresh_token, client_credentials)"
+    )
     code: Optional[str] = Field(None, description="Authorization code")
     redirect_uri: Optional[str] = Field(None, description="Redirect URI used in authorization")
     client_id: Optional[str] = Field(None, description="Client ID")
     client_secret: Optional[str] = Field(None, description="Client secret")
     refresh_token: Optional[str] = Field(None, description="Refresh token for token refresh")
     code_verifier: Optional[str] = Field(None, description="PKCE code verifier")
+    scope: Optional[str] = Field(None, description="Space-separated requested scopes")
 
 
 class TokenResponse(BaseModel):
@@ -421,6 +425,94 @@ def _build_safe_callback_url(
             raise ValueError("Invalid redirect URI")
 
     return f"{redirect_uri}?{urlencode(params)}"
+
+
+def _parse_requested_scopes(scope: Optional[str], client: OAuthClient) -> str:
+    """Return validated space-separated scopes for token grants."""
+    allowed = set(client.allowed_scopes or ["openid", "profile", "email"])
+    requested = set((scope or "").split())
+    if not requested:
+        requested = set(allowed)
+
+    if not requested.issubset(allowed):
+        denied = sorted(requested - allowed)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"invalid_scope: {', '.join(denied)}",
+        )
+
+    return " ".join(sorted(requested))
+
+
+def _service_account_email(client: OAuthClient) -> str:
+    """Derive a stable non-human email claim for machine clients."""
+    slug = re.sub(r"[^a-z0-9-]+", "-", (client.name or "").lower()).strip("-")
+    slug = slug or "service-account"
+    return f"{slug}@service.auth.madfam.io"
+
+
+async def _get_client_credentials_claims(
+    client: OAuthClient,
+    scope: str,
+    db: AsyncSession,
+) -> dict:
+    """Build downstream-compatible claims for a machine OAuth client."""
+    requested_scopes = set(scope.split())
+    scoped_products = {
+        requested_scope.split(":", 1)[0]
+        for requested_scope in requested_scopes
+        if ":" in requested_scope
+    }
+    roles = ["service_account"]
+    if "admin" in requested_scopes:
+        roles.append("admin")
+    for requested_scope in requested_scopes:
+        if requested_scope.endswith(":admin"):
+            roles.append(requested_scope.replace(":", "_"))
+
+    claims = {
+        "client_id": client.client_id,
+        "scope": scope,
+        "token_use": "client_credentials",
+        "actor_type": "service_account",
+        "roles": sorted(set(roles)),
+        "is_admin": "admin" in requested_scopes,
+        "tier": "community",
+        "sub_status": "active",
+    }
+
+    # Machine clients are explicitly provisioned by Janua admins. When a client
+    # has product-scoped permissions, emit the corresponding product tier so
+    # downstream tier gates can authorize the service account without requiring
+    # a human browser session. Organization product_tiers, when available below,
+    # override these scope-derived defaults.
+    for product in scoped_products:
+        claim_key = re.sub(r"[^a-z0-9_]", "_", str(product).lower())
+        if claim_key:
+            claims[f"{claim_key}_tier"] = "madfam"
+
+    if client.organization_id:
+        org_result = await db.execute(
+            select(Organization).where(Organization.id == client.organization_id)
+        )
+        org = org_result.scalar_one_or_none()
+        if org:
+            org_id = str(org.id)
+            claims.update(
+                {
+                    "org_id": org_id,
+                    "tenant_id": org_id,
+                    "org_slug": org.slug,
+                    "tier": org.subscription_tier or "community",
+                    "product_tiers": org.product_tiers or {},
+                }
+            )
+            for product, product_tier in (org.product_tiers or {}).items():
+                claim_key = re.sub(r"[^a-z0-9_]", "_", str(product).lower())
+                if claim_key:
+                    claims[f"{claim_key}_tier"] = product_tier
+
+    return claims
 
 
 # ============================================================================
@@ -1000,6 +1092,7 @@ async def token(
     client_secret: Optional[str] = Form(None),
     refresh_token: Optional[str] = Form(None),
     code_verifier: Optional[str] = Form(None),
+    scope: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -1011,6 +1104,7 @@ async def token(
     Supports:
     - authorization_code: Exchange auth code for access/refresh/id tokens
     - refresh_token: Get new access token using refresh token
+    - client_credentials: Get short-lived machine tokens for service accounts
     """
     # Handle client authentication (Basic auth or form params)
     auth_header = request.headers.get("Authorization", "")
@@ -1059,6 +1153,13 @@ async def token(
                 detail="invalid_client: Invalid client_secret",
             )
 
+    allowed_grants = set(client.grant_types or ["authorization_code", "refresh_token"])
+    if grant_type not in allowed_grants:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"unauthorized_client: Grant type not allowed: {grant_type}",
+        )
+
     # Handle grant types
     if grant_type == "authorization_code":
         return await _handle_authorization_code_grant(
@@ -1075,11 +1176,53 @@ async def token(
             client=client,
             db=db,
         )
+    elif grant_type == "client_credentials":
+        return await _handle_client_credentials_grant(
+            client=client,
+            requested_scope=scope,
+            db=db,
+        )
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"unsupported_grant_type: {grant_type}",
         )
+
+
+async def _handle_client_credentials_grant(
+    client: OAuthClient,
+    requested_scope: Optional[str],
+    db: AsyncSession,
+) -> TokenResponse:
+    """Handle client_credentials grant type for machine/service identities."""
+    if not getattr(client, "is_confidential", False):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_client: client_credentials requires a confidential client",
+        )
+
+    scope = _parse_requested_scopes(requested_scope, client)
+    client_audience = client.audience or settings.JWT_AUDIENCE
+    additional_claims = await _get_client_credentials_claims(client, scope, db)
+    additional_claims["aud"] = client_audience
+
+    access_token, _, _ = jwt_manager.create_access_token(
+        user_id=f"service-account:{client.client_id}",
+        email=_service_account_email(client),
+        additional_claims=additional_claims,
+    )
+
+    client.last_used_at = datetime.utcnow()
+    await db.commit()
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="Bearer",
+        expires_in=3600,
+        refresh_token=None,
+        id_token=None,
+        scope=scope,
+    )
 
 
 async def _handle_authorization_code_grant(

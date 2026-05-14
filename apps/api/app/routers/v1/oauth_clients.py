@@ -84,6 +84,7 @@ async def register_oauth_client(
             redirect_uris=existing_client.redirect_uris or [],
             allowed_scopes=existing_client.allowed_scopes or [],
             grant_types=existing_client.grant_types or [],
+            audience=getattr(existing_client, "audience", None),
             logo_url=existing_client.logo_url,
             website_url=existing_client.website_url,
             is_active=existing_client.is_active,
@@ -106,9 +107,17 @@ async def register_oauth_client(
             detail="No admin user found. Run ADMIN_BOOTSTRAP_PASSWORD to create one.",
         )
 
+    org_uuid = None
+    if data.organization_id:
+        try:
+            org_uuid = uuid.UUID(data.organization_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid organization_id format")
+
     client, plain_secret = await service.create_client(
         data=data,
         created_by=admin_user,
+        organization_id=org_uuid,
     )
 
     # Sanitize user-provided name to prevent log injection (CRLF / control chars)
@@ -125,6 +134,7 @@ async def register_oauth_client(
         redirect_uris=client.redirect_uris or [],
         allowed_scopes=client.allowed_scopes or [],
         grant_types=client.grant_types or [],
+        audience=getattr(client, "audience", None),
         logo_url=client.logo_url,
         website_url=client.website_url,
         is_active=client.is_active,
@@ -151,8 +161,9 @@ async def create_oauth_client(
 
     **Required permissions**: Authenticated user (org admin for org-scoped clients)
     """
+    effective_organization_id = organization_id or data.organization_id
     try:
-        org_uuid = uuid.UUID(organization_id) if organization_id else None
+        org_uuid = uuid.UUID(effective_organization_id) if effective_organization_id else None
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization_id format")
 
@@ -171,6 +182,7 @@ async def create_oauth_client(
         redirect_uris=client.redirect_uris or [],
         allowed_scopes=client.allowed_scopes or [],
         grant_types=client.grant_types or [],
+        audience=getattr(client, "audience", None),
         logo_url=client.logo_url,
         website_url=client.website_url,
         is_active=client.is_active,
@@ -272,6 +284,7 @@ async def get_oauth_client(
         redirect_uris=client.redirect_uris or [],
         allowed_scopes=client.allowed_scopes or [],
         grant_types=client.grant_types or [],
+        audience=getattr(client, "audience", None),
         logo_url=client.logo_url,
         website_url=client.website_url,
         is_active=client.is_active,
