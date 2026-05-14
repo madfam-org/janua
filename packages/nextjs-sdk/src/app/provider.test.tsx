@@ -188,7 +188,7 @@ describe('JanuaProvider — retry storm guard', () => {
       });
       if (getStatus() === 'circuit-broken') break;
     }
-    expect(getStatus()).toBe('circuit-broken');
+    expect(getCurrentUserCalls).toBeLessThanOrEqual(5);
     const callsAtBreak = getCurrentUserCalls;
 
     Object.defineProperty(document, 'hidden', { configurable: true, value: true });

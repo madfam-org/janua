@@ -43,20 +43,27 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
   
   body {
-    @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
     font-feature-settings: "rlig" 1, "calt" 1;
   }
   
   h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold text-foreground;
+    color: hsl(var(--foreground));
+    font-weight: 600;
   }
   
   a {
-    @apply text-primary hover:text-primary/80 transition-colors;
+    color: hsl(var(--primary));
+    transition: color 150ms ease;
+  }
+
+  a:hover {
+    color: hsl(var(--primary) / 0.8);
   }
 }
 
@@ -113,13 +120,14 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-background;
+  background-color: hsl(var(--background));
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/20 rounded-full;
+  background-color: hsl(var(--muted-foreground) / 0.2);
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-muted-foreground/30;
+  background-color: hsl(var(--muted-foreground) / 0.3);
 }
