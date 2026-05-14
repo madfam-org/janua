@@ -1,35 +1,53 @@
 # Registry Authentication Setup
 
-## npm (for TypeScript, React, Vue SDKs)
+## npm.madfam.io (for TypeScript, React, Vue SDKs)
 
-### 1. Create npm account
-Go to https://www.npmjs.com/signup
+Janua JavaScript SDKs are published to the MADFAM registry at
+`https://npm.madfam.io`, not the public npm registry. Public packages still
+resolve through Verdaccio's upstream proxy, while `@janua/*` and other MADFAM
+ecosystem scopes are served directly by `npm.madfam.io`.
 
-### 2. Login to npm
+### 1. Create or reuse a MADFAM registry account
+Use the operator-approved account or automation user in `https://npm.madfam.io`.
+
+### 2. Login to npm.madfam.io
 ```bash
-npm login
-# Enter username, password, email, and 2FA code if enabled
+npm login --registry=https://npm.madfam.io
+# Enter the MADFAM registry username, password, email, and 2FA code if enabled
 ```
 
 ### 3. Verify authentication
 ```bash
-npm whoami
-# Should show your npm username
+npm whoami --registry=https://npm.madfam.io
+# Should show your MADFAM registry username
 ```
 
 ### 4. Set up automation token (for CI/CD)
-1. Go to https://www.npmjs.com/settings/YOUR_USERNAME/tokens
+1. Go to `https://npm.madfam.io` while signed in as an approved operator or automation user.
 2. Click "Generate New Token"
 3. Select "Automation" type
 4. Copy the token
 5. Set as environment variable:
 ```bash
-export NPM_TOKEN=your_token_here
+export NPM_MADFAM_TOKEN=your_token_here
 ```
 
 ### 5. Configure .npmrc for automation
 ```bash
-echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > ~/.npmrc
+cat > ~/.npmrc <<'EOF'
+@madfam:registry=https://npm.madfam.io
+@dhanam:registry=https://npm.madfam.io
+@janua:registry=https://npm.madfam.io
+@cotiza:registry=https://npm.madfam.io
+@fortuna:registry=https://npm.madfam.io
+@avala:registry=https://npm.madfam.io
+@forgesight:registry=https://npm.madfam.io
+@coforma:registry=https://npm.madfam.io
+@forj:registry=https://npm.madfam.io
+@enclii:registry=https://npm.madfam.io
+//npm.madfam.io/:_authToken=${NPM_MADFAM_TOKEN}
+//npm.madfam.io/:always-auth=true
+EOF
 ```
 
 ## PyPI (for Python SDK)
@@ -102,8 +120,8 @@ go get github.com/madfam-org/janua/go-sdk@v1.0.0
 Run these commands to check your current auth status:
 
 ```bash
-# npm
-npm whoami
+# npm.madfam.io
+npm whoami --registry=https://npm.madfam.io
 
 # PyPI (check if .pypirc exists)
 ls -la ~/.pypirc

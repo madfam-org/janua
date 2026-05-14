@@ -54,7 +54,7 @@ jobs:
       with:
         node-version: 20.x
         cache: 'npm'
-        registry-url: 'https://registry.npmjs.org'
+        registry-url: 'https://npm.madfam.io'
 
     - name: Install dependencies
       run: npm ci
@@ -62,8 +62,8 @@ jobs:
     - name: Build
       run: npm run build
 
-    - name: Publish to npm
+    - name: Publish to npm.madfam.io
       if: contains(github.event.head_commit.message, 'release:')
       run: npm publish
       env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
