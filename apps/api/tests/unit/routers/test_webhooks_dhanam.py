@@ -9,7 +9,7 @@ Covers:
 import pytest
 
 from app.routers.v1.webhooks_dhanam import parse_product_plan
-from app.sso.application.services.sso_orchestrator import resolve_product_tiers
+from app.sso.application.services.product_tiers import resolve_product_tiers
 
 
 class TestParseProductPlan:

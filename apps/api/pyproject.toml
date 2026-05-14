@@ -38,7 +38,7 @@ dependencies = [
     # Core Framework
     "fastapi>=0.104.0,<1.0.0",
     "uvicorn[standard]>=0.24.0,<1.0.0",
-    "python-multipart>=0.0.6,<1.0.0",
+    "python-multipart>=0.0.27,<1.0.0",
 
     # Data Validation & Settings
     "pydantic[email]>=2.5.0,<3.0.0",
@@ -66,6 +66,7 @@ dependencies = [
 
     # External Integrations
     "httpx>=0.25.0,<1.0.0",
+    "urllib3>=2.7.0,<3.0.0",
     "aiohttp>=3.9.0,<4.0.0",
     "boto3>=1.34.0,<2.0.0",  # S3-compatible client for Cloudflare R2
 

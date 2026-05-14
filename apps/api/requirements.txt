@@ -1,7 +1,7 @@
 # Core dependencies
 fastapi>=0.115.0  # Updated for security fixes
 uvicorn[standard]>=0.32.0  # Updated for security fixes
-python-multipart>=0.0.26  # CVE-2024-24762, CVE-2024-53981, GHSA-wp53-j4wj-2cfg, GHSA-mj87-hwqh-73pj
+python-multipart>=0.0.27  # CVE-2024-24762, CVE-2024-53981, GHSA-wp53-j4wj-2cfg, GHSA-mj87-hwqh-73pj, CVE-2026-42561
 pyjwt[crypto]>=2.10.0  # Replaces python-jose (CVE-2024-33663, CVE-2024-33664)
 pydantic[email]>=2.10.0  # Updated for security fixes
 pydantic-settings>=2.6.0  # Updated for security fixes
@@ -82,7 +82,7 @@ psutil>=6.1.0  # Updated
 aiohttp>=3.11.0  # CVE-2024-23334, CVE-2024-23829, CVE-2024-27306, CVE-2024-30251
 
 # Transitive deps with known vulns — pin minimum-versions to force upgrades
-urllib3>=2.6.3  # GHSA-pq67-6m6q-mj2v, GHSA-gm62-xv2j-4w53, GHSA-2xpw-w6gg-jr37, GHSA-38jv-5279-wg99
+urllib3>=2.7.0  # GHSA-pq67-6m6q-mj2v, GHSA-gm62-xv2j-4w53, GHSA-2xpw-w6gg-jr37, GHSA-38jv-5279-wg99, CVE-2026-44431, CVE-2026-44432
 requests>=2.33.0  # GHSA-gc5v-m9x4-r6x2
 python-dotenv>=1.2.2  # GHSA-mf9w-mj56-hr94
 

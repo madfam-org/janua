@@ -12,8 +12,8 @@
   "dependencies": {
     "@janua/nextjs-sdk": "^1.0.0",
     "@janua/react-sdk": "^1.0.0",
-    "@janua/typescript-sdk": "^1.0.0",
-    "next": "15.1.6",
+    "@janua/typescript-sdk": "^0.1.4",
+    "next": "16.2.6",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
