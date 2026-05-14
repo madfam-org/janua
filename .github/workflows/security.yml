@@ -83,11 +83,11 @@ jobs:
 
       - name: Run Safety Check
         run: |
-          cd apps/api && safety check --json > safety-report.json
+          cd apps/api && safety check -r requirements.txt --json > safety-report.json
 
       - name: Run pip-audit
         run: |
-          cd apps/api && pip-audit --format json --output pip-audit-report.json
+          cd apps/api && pip-audit -r requirements.txt --format json --output pip-audit-report.json
 
       - name: Upload Security Reports
         uses: actions/upload-artifact@v7
@@ -108,6 +108,8 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
+        with:
+          version: 10.25.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v6

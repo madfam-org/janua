@@ -32,7 +32,7 @@ export interface UseRealtimeReturn {
 
 export function useRealtime(options: UseRealtimeOptions = {}): UseRealtimeReturn {
   const { channels = [], url, reconnect = true, autoConnect = true } = options;
-  const { client } = useJanua();
+  const client = useJanua().getClient();
   const status = ref<WebSocketStatus>('disconnected');
 
   const baseURL = (client as any).config?.baseURL || '';

@@ -96,14 +96,14 @@ describe('JanuaVue Plugin', () => {
   })
 
   it('auth state updates: signIn updates user/session/isAuthenticated', async () => {
-    const { JanuaClient } = await import('@janua/typescript-sdk')
-    const mockInstance = new JanuaClient({} as any)
     const fakeUser = { id: '1', email: 'a@b.com' }
-    ;(mockInstance.getCurrentUser as any).mockResolvedValue(fakeUser)
-    ;(mockInstance.getAccessToken as any).mockResolvedValue('access-tok')
-    ;(mockInstance.getRefreshToken as any).mockResolvedValue('refresh-tok')
-
     const janua = new JanuaVue({ baseURL: BASE_URL })
+    const mockClient = janua.getClient()
+
+    ;(mockClient.getCurrentUser as any).mockResolvedValue(fakeUser)
+    ;(mockClient.getAccessToken as any).mockResolvedValue('access-tok')
+    ;(mockClient.getRefreshToken as any).mockResolvedValue('refresh-tok')
+
     await vi.advanceTimersByTimeAsync(0)
 
     await janua.signIn('a@b.com', 'pass')

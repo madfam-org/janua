@@ -55,12 +55,10 @@ describe('useAuth', () => {
   })
 
   it('error computed reflects plugin state error after failed signIn', async () => {
-    const { result } = withSetup(() => useAuth())
+    const { result, janua } = withSetup(() => useAuth())
 
     // Force signIn to reject on the underlying auth mock
-    const { JanuaClient } = await import('@janua/typescript-sdk')
-    const instance = new JanuaClient({} as any)
-    ;(instance.auth.signIn as any).mockRejectedValueOnce(new Error('fail'))
+    ;(janua.getClient().auth.signIn as any).mockRejectedValueOnce(new Error('fail'))
 
     try {
       await result.signIn('a@b.com', 'bad')
