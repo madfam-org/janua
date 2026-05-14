@@ -259,8 +259,7 @@ export {
 } from './plugins';
 
 // Version and metadata
-export const SDK_VERSION = '0.1.1';
-export const SDK_NAME = 'janua-typescript-sdk';
+export { SDK_VERSION, SDK_NAME } from './version';
 
 /**
  * Quick start examples and common usage patterns

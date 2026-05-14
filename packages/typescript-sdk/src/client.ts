@@ -28,6 +28,7 @@ import { SCIMModule } from './scim';
 import { EnterpriseFeatures, FEATURES, type LicenseInfo } from './enterprise';
 import { GraphQL } from './graphql';
 import { WebSocket } from './websocket';
+import { SDK_VERSION } from './version';
 
 /**
  * Main Janua SDK client class
@@ -551,7 +552,7 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
    * Get SDK version
    */
   getVersion(): string {
-    return '1.0.0'; // This should be dynamically set during build
+    return SDK_VERSION;
   }
 
   /**

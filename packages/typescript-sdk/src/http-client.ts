@@ -16,6 +16,7 @@ import {
 } from './errors';
 import { TokenManager, RetryUtils, EventEmitter } from './utils';
 import type { SdkEventMap } from './types';
+import { SDK_NAME, SDK_VERSION } from './version';
 
 /**
  * HTTP client with automatic token refresh and retry logic
@@ -332,14 +333,12 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
    * Get user agent string
    */
   private getUserAgent(): string {
-    const sdkVersion = '1.0.0'; // This should be dynamically set
-
     if (typeof window !== 'undefined') {
-      return `janua-typescript-sdk/${sdkVersion} (Browser)`;
+      return `${SDK_NAME}/${SDK_VERSION} (Browser)`;
     } else if (typeof process !== 'undefined') {
-      return `janua-typescript-sdk/${sdkVersion} (Node.js ${process.version})`;
+      return `${SDK_NAME}/${SDK_VERSION} (Node.js ${process.version})`;
     } else {
-      return `janua-typescript-sdk/${sdkVersion}`;
+      return `${SDK_NAME}/${SDK_VERSION}`;
     }
   }
 

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Janua multi-tenant payment platform",
   "private": true,
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@10.25.0",
   "workspaces": [
     "packages/*",
     "apps/*"
