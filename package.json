@@ -60,15 +60,15 @@
     "test:visual:update": "npx playwright test tests/e2e/visual --update-snapshots"
   },
   "devDependencies": {
-    "@babel/preset-env": "^7.29.3",
+    "@babel/preset-env": "^7.29.5",
     "@babel/preset-react": "^7.27.1",
     "@babel/preset-typescript": "^7.27.1",
-    "@playwright/test": "^1.59.1",
+    "@playwright/test": "^1.60.0",
     "@storybook/addon-essentials": "^8.6.18",
     "@storybook/addon-interactions": "^8.6.18",
     "@storybook/addon-links": "^8.6.15",
     "@storybook/blocks": "^8.6.18",
-    "@storybook/react-vite": "^10.3.6",
+    "@storybook/react-vite": "^10.4.0",
     "@storybook/test": "^8.6.15",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.3.0",
@@ -80,7 +80,7 @@
     "jest-transform-stub": "^2.0.0",
     "prisma": "6.1.0",
     "storybook": "^8.6.15",
-    "tsx": "^4.6.0",
+    "tsx": "^4.22.3",
     "typescript": "^5.7.2"
   },
   "dependencies": {
