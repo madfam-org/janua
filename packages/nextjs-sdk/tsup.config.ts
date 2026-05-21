@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     'app/index': 'src/app/index.ts',
+    'app/client': 'src/app/client.ts',
     middleware: 'src/middleware.ts',
     edge: 'src/edge.ts',
   },

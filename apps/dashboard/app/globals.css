@@ -1,8 +1,7 @@
 /* Inter is self-hosted via next/font/google in app/layout.tsx (no Google CDN @import) */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@config "../tailwind.config.js";
+@import "tailwindcss";
 
 @layer base {
   :root {

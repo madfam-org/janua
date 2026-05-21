@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { initPostHog } from "@/lib/analytics/posthog";
+import { initPostHog, trackEvent } from "@/lib/analytics/posthog";
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -13,9 +13,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.posthog) {
-      window.posthog.capture("$pageview");
-    }
+    trackEvent("$pageview");
   }, [pathname, searchParams]);
 
   return <>{children}</>;

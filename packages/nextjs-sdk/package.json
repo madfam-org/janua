@@ -16,6 +16,11 @@
       "import": "./dist/app/index.mjs",
       "require": "./dist/app/index.js"
     },
+    "./app/client": {
+      "types": "./dist/app/client.d.ts",
+      "import": "./dist/app/client.mjs",
+      "require": "./dist/app/client.js"
+    },
     "./middleware": {
       "types": "./dist/middleware.d.ts",
       "import": "./dist/middleware.mjs",

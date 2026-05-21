@@ -41,6 +41,7 @@ RUN pnpm install --no-frozen-lockfile --shamefully-hoist
 RUN pnpm --filter @janua/feature-flags build || true
 RUN pnpm --filter @janua/typescript-sdk build || true
 RUN pnpm --filter @janua/react-sdk build || true
+RUN pnpm --filter @janua/nextjs build || true
 RUN pnpm --filter @janua/ui build || true
 
 # Build dashboard with production API URL baked in

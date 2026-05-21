@@ -12,7 +12,7 @@ import { ReactNode, createContext, useCallback, useContext, useEffect, useState 
 import {
   JanuaProvider,
   useJanua,
-} from '@janua/nextjs'
+} from '@janua/nextjs/app/client'
 import { januaClient } from './janua-client'
 import type { User } from '@janua/typescript-sdk'
 
