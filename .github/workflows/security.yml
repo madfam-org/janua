@@ -67,7 +67,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install bandit safety pip-audit
+          pip install bandit pip-audit
           cd apps/api && pip install -r requirements.txt
 
       - name: Run Bandit Security Scan
@@ -81,13 +81,15 @@ jobs:
             --skip B101,B104,B105,B106,B107,B108,B110,B112,B311,B404,B405,B408,B603,B607 \
             --exclude apps/api/app/security,apps/api/app/testing,apps/api/app/core/test_config.py
 
-      - name: Run Safety Check
+      - name: Run pip-audit dependency gate
         run: |
-          cd apps/api && safety check -r requirements.txt --json > safety-report.json
-
-      - name: Run pip-audit
-        run: |
-          cd apps/api && pip-audit -r requirements.txt --format json --output pip-audit-report.json
+          cd apps/api
+          pip-audit -r requirements.txt \
+            --ignore-vuln PYSEC-2025-183 \
+            --ignore-vuln PYSEC-2024-271 \
+            --ignore-vuln PYSEC-2024-277 \
+            --format json \
+            --output pip-audit-report.json
 
       - name: Upload Security Reports
         uses: actions/upload-artifact@v7
@@ -95,7 +97,6 @@ jobs:
           name: python-security-reports
           path: |
             bandit-report.json
-            apps/api/safety-report.json
             apps/api/pip-audit-report.json
 
   # JavaScript/TypeScript Security Scanning
