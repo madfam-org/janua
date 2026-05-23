@@ -18,7 +18,7 @@ env:
 jobs:
   code-quality:
     name: Code Quality
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
 
     steps:
       - uses: actions/checkout@v6
@@ -43,7 +43,7 @@ jobs:
 
   frontend-tests-build:
     name: Frontend Tests & Build
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
 
     steps:
       - uses: actions/checkout@v6
@@ -85,7 +85,7 @@ jobs:
     # Disabled - consolidated into tests.yml workflow
     if: false
     name: Backend Tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
 
     services:
       postgres:
@@ -196,7 +196,7 @@ jobs:
 
   security-scan:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
 
     steps:
       - uses: actions/checkout@v6
@@ -218,7 +218,7 @@ jobs:
 
   security-scanning:
     name: Security Scanning
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     permissions:
       actions: read
       contents: read
@@ -243,7 +243,7 @@ jobs:
 
   smoke-tests:
     name: Smoke Tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     needs: [frontend-tests-build]  # backend-tests disabled, consolidated into tests.yml
 
     steps:

@@ -35,7 +35,7 @@ on:
 jobs:
   publish-npm:
     name: Publish NPM SDK
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     permissions:
       contents: write
     env:
@@ -155,7 +155,7 @@ jobs:
 
   publish-python:
     name: Publish Python SDK
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     permissions:
       contents: write
     if: startsWith(github.ref, 'refs/tags/python-sdk-v')
@@ -217,7 +217,7 @@ jobs:
 
   publish-go:
     name: Publish Go SDK
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     permissions:
       contents: write
     if: startsWith(github.ref, 'refs/tags/go-sdk/v')
@@ -267,7 +267,7 @@ jobs:
 
   publish-flutter:
     name: Publish Flutter SDK
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     permissions:
       contents: write
     if: startsWith(github.ref, 'refs/tags/flutter-sdk-v')
