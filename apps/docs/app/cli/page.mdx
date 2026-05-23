@@ -1,0 +1,74 @@
+# Janua CLI (`@janua/cli`)
+
+The Janua CLI provisions OAuth clients for **consumer repositories** and provides optional administration commands for platform operators.
+
+## Install
+
+```bash
+npm config set @janua:registry https://npm.madfam.io
+npm install -g @janua/cli
+```
+
+Monorepo development:
+
+```bash
+cd packages/cli && pnpm install && pnpm build && npm link
+```
+
+## Consumer provisioning (CI)
+
+Add `janua.client.yaml` to your application repository:
+
+```yaml
+apiVersion: janua.dev/v1
+kind: OAuthClient
+metadata:
+  name: my-service-web
+spec:
+  audience: my-service-api
+  redirect_uris:
+    - https://app.example.com/api/auth/callback
+    - http://localhost:3000/api/auth/callback
+  allowed_scopes: [openid, profile, email]
+  grant_types: [authorization_code, refresh_token]
+  is_confidential: true
+```
+
+### Commands
+
+| Command | Purpose |
+|---------|---------|
+| `janua provision plan` | Show create vs drift (exit 1 on drift) |
+| `janua provision apply` | Idempotent `POST /api/v1/oauth/clients/register` |
+| `janua provision verify` | Fail CI if manifest does not match Janua |
+| `janua provision export-env` | Print `JANUA_CLIENT_ID` exports |
+
+### Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `JANUA_INTERNAL_API_KEY` | Yes (provision) | Shared internal key for register API |
+| `JANUA_API_URL` | No | Default `https://api.janua.dev` |
+| `JANUA_CLIENT_ID` | Runtime | Emitted after apply |
+| `JANUA_CLIENT_SECRET` | Runtime | Emitted once on first apply (201) |
+
+Never commit `JANUA_INTERNAL_API_KEY` or client secrets. Store them in Enclii/Vault or your CI secret manager.
+
+### Example CI step
+
+```bash
+janua provision apply -f janua.client.yaml --quiet
+```
+
+## Platform administration
+
+Requires interactive login:
+
+```bash
+janua admin auth login
+janua admin clients list
+```
+
+Legacy aliases (`janua auth login`, `janua apps list`) remain available.
+
+See [Ecosystem integration](https://github.com/madfam-org/janua/blob/main/docs/guides/ECOSYSTEM_INTEGRATION.md) and `examples/consumer-bootstrap/` in the Janua repository.

@@ -60,6 +60,33 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+  cli-test:
+    name: CLI Tests (@janua/cli)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck CLI
+        run: pnpm --filter @janua/cli typecheck
+
+      - name: Test CLI
+        run: pnpm --filter @janua/cli test
+
+      - name: Build CLI
+        run: pnpm --filter @janua/cli build
+
   # Build all packages
   build:
     name: Build

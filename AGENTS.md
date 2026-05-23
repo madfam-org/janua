@@ -312,6 +312,10 @@ Janua integrates with Dhanam (billing platform) for subscription management via 
 **Client Registration:** `POST /api/v1/oauth/clients/register` — headless, idempotent
 client registration via `X-Internal-API-Key` header (for consumer bootstrap scripts).
 
+**Consumer provisioning CLI:** `@janua/cli` (`packages/cli`) — `janua provision apply|plan|verify`
+with `janua.client.yaml`. Publish tag `cli-v*`. Template: `examples/consumer-bootstrap/`.
+Docs: `apps/docs/app/cli/page.mdx`, `packages/cli/README.md`.
+
 **Key Files:**
 | Purpose | Location |
 |---------|----------|

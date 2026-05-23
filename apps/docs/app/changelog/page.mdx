@@ -104,8 +104,8 @@ Janua follows [Semantic Versioning](https://semver.org/):
 # Update packages
 npm update @janua/nextjs @janua/react-sdk
 
-# Check for breaking changes
-npx @janua/cli upgrade-check
+# Verify OAuth client manifest matches Janua
+npx @janua/cli provision verify -f janua.client.yaml
 ```
 
 ## Release Schedule

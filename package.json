@@ -33,6 +33,8 @@
     "lint:packages": "cd packages/core && npm run lint",
     "typecheck": "npm run typecheck:packages",
     "typecheck:packages": "cd packages/core && npm run typecheck",
+    "test:cli": "pnpm --filter @janua/cli test",
+    "build:cli": "pnpm --filter @janua/cli build",
     "db:setup": "npm run db:generate && npm run db:migrate && npm run db:seed",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

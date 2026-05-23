@@ -175,6 +175,13 @@ class OAuthClientService:
         )
         return result.scalar_one_or_none()
 
+    async def get_client_by_name(self, name: str) -> Optional[OAuthClient]:
+        """Get an OAuth2 client by its unique application name."""
+        result = await self.db.execute(
+            select(OAuthClient).where(OAuthClient.name == name)
+        )
+        return result.scalar_one_or_none()
+
     async def list_clients(
         self,
         user: User,

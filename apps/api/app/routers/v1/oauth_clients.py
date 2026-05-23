@@ -68,32 +68,11 @@ async def register_oauth_client(
     **Auth**: X-Internal-API-Key header (shared secret from K8s).
     """
     # Idempotency: check if client with this name already exists
-    existing = await db.execute(
-        select(OAuthClient).where(OAuthClient.name == data.name)
-    )
-    existing_client = existing.scalar_one_or_none()
+    existing_client = await service.get_client_by_name(data.name)
 
     if existing_client:
         response.status_code = 200
-        return OAuthClientDetailResponse(
-            id=str(existing_client.id),
-            client_id=existing_client.client_id,
-            client_secret=None,  # Never re-expose secret
-            name=existing_client.name,
-            description=existing_client.description,
-            redirect_uris=existing_client.redirect_uris or [],
-            allowed_scopes=existing_client.allowed_scopes or [],
-            grant_types=existing_client.grant_types or [],
-            audience=getattr(existing_client, "audience", None),
-            logo_url=existing_client.logo_url,
-            website_url=existing_client.website_url,
-            is_active=existing_client.is_active,
-            is_confidential=existing_client.is_confidential,
-            last_used_at=existing_client.last_used_at,
-            organization_id=str(existing_client.organization_id) if existing_client.organization_id else None,
-            created_at=existing_client.created_at,
-            updated_at=existing_client.updated_at,
-        )
+        return _client_detail_response(existing_client)
 
     # Resolve bootstrap admin user (first admin by creation date)
     admin_result = await db.execute(
@@ -144,6 +123,51 @@ async def register_oauth_client(
         created_at=client.created_at,
         updated_at=client.updated_at,
     )
+
+
+def _client_detail_response(client: OAuthClient, *, include_secret: Optional[str] = None) -> OAuthClientDetailResponse:
+    """Build a detail response from a stored OAuth client row."""
+    return OAuthClientDetailResponse(
+        id=str(client.id),
+        client_id=client.client_id,
+        client_secret=include_secret,
+        name=client.name,
+        description=client.description,
+        redirect_uris=client.redirect_uris or [],
+        allowed_scopes=client.allowed_scopes or [],
+        grant_types=client.grant_types or [],
+        audience=getattr(client, "audience", None),
+        logo_url=client.logo_url,
+        website_url=client.website_url,
+        is_active=client.is_active,
+        is_confidential=client.is_confidential,
+        last_used_at=client.last_used_at,
+        organization_id=str(client.organization_id) if client.organization_id else None,
+        created_at=client.created_at,
+        updated_at=client.updated_at,
+    )
+
+
+@router.get(
+    "/internal/by-name/{name}",
+    response_model=OAuthClientDetailResponse,
+    tags=["oauth-clients"],
+)
+async def get_oauth_client_by_name_internal(
+    name: str,
+    _auth: bool = Depends(verify_internal_api_key),
+    service: OAuthClientService = Depends(get_oauth_client_service),
+):
+    """
+    Fetch an OAuth client by application name (service-to-service).
+
+    Used by ``@janua/cli provision plan|verify`` for idempotent drift detection
+    without creating clients.
+    """
+    client = await service.get_client_by_name(name)
+    if not client:
+        raise HTTPException(status_code=404, detail="OAuth client not found")
+    return _client_detail_response(client)
 
 
 @router.post("", response_model=OAuthClientDetailResponse, status_code=201)

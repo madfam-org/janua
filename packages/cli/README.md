@@ -1,181 +1,85 @@
 # @janua/cli
 
-> Command-line interface for the Janua authentication platform
+> Provision OAuth clients for MADFAM consumer apps and administer Janua
 
-**Version:** 0.1.0 | **Language:** TypeScript | **Status:** Development
+**Version:** 0.2.0 | **Status:** Production (provisioning), Development (admin UX)
 
-## Overview
+## Consumer repos (CI bootstrap)
 
-The Janua CLI provides command-line access to the Janua authentication platform for managing users, organizations, OAuth clients, webhooks, and audit logs. Built with Commander.js for a familiar CLI experience.
-
-## Installation
+1. Add `janua.client.yaml` (see `examples/consumer-bootstrap/`).
+2. Store `JANUA_INTERNAL_API_KEY` in Enclii/Vault or CI secrets.
+3. Run:
 
 ```bash
-# Install globally from npm
+janua provision plan -f janua.client.yaml
+janua provision apply -f janua.client.yaml
+janua provision verify -f janua.client.yaml
+```
+
+Uses `POST /api/v1/oauth/clients/register` (idempotent by client name).
+
+## Install
+
+```bash
+npm config set @janua:registry https://npm.madfam.io
 npm install -g @janua/cli
-
-# Or from the monorepo
-cd packages/cli
-pnpm install
-pnpm build
-npm link
 ```
 
-## Quick Start
-
-```bash
-# Interactive setup wizard
-janua config init
-
-# Authenticate
-janua auth login
-
-# Check connection
-janua auth status
-
-# List users
-janua users list
-```
+Publish: tag `cli-v0.2.0` on the Janua repository (see `.github/workflows/publish-sdks.yml`).
 
 ## Commands
 
-### Configuration
+### Provisioning (internal API key)
+
+| Command | Description |
+|---------|-------------|
+| `janua provision apply` | Register clients from manifest |
+| `janua provision plan` | Detect create vs drift |
+| `janua provision verify` | Fail if remote drifts from manifest |
+| `janua provision export-env` | Print shell exports |
+
+### Administration (Bearer token)
 
 ```bash
-janua config init          # Interactive setup (API URL, login)
-janua config show          # Show current configuration
-janua config set <k> <v>   # Set a config value
-janua config reset          # Reset to defaults
+janua admin auth login
+janua admin clients list
+janua admin users list
 ```
 
-### Authentication
+Legacy top-level aliases (`janua auth login`, `janua apps list`) remain for compatibility.
 
-```bash
-janua auth login           # Authenticate and store token
-janua auth logout          # Clear stored credentials
-janua auth status          # Show current auth state
-janua auth token           # Print current access token
+## Manifest
+
+```yaml
+apiVersion: janua.dev/v1
+kind: OAuthClient
+metadata:
+  name: my-service-web
+spec:
+  audience: my-service-api
+  redirect_uris:
+    - https://app.example.com/api/auth/callback
+  allowed_scopes: [openid, profile, email]
+  grant_types: [authorization_code, refresh_token]
+  is_confidential: true
 ```
 
-### Users
+Multi-client file: `kind: OAuthClientList` with `clients: [...]`.
 
-```bash
-janua users list                    # List all users
-janua users list --status active    # Filter by status
-janua users list --limit 50         # Control page size
-janua users get <user-id>           # Get user details
-janua users update <user-id> --status suspended   # Update user
-```
+## Environment
 
-### Organizations
-
-```bash
-janua orgs list                     # List organizations
-janua orgs get <org-id>             # Get org details
-janua orgs members <org-id>         # List org members
-```
-
-### OAuth Applications
-
-```bash
-janua apps list                     # List OAuth clients
-janua apps create                   # Interactive client creation
-janua apps get <client-id>          # Get client details
-janua apps rotate-secret <id>       # Rotate client secret
-```
-
-### Webhooks
-
-```bash
-janua webhooks list                 # List webhook endpoints
-janua webhooks create               # Interactive webhook creation
-janua webhooks test <id>            # Send test event
-```
-
-### Audit Logs
-
-```bash
-janua logs list                     # List recent audit events
-janua logs list --action login      # Filter by action
-janua logs list --user <email>      # Filter by user
-janua logs list --limit 100         # Control page size
-```
-
-## Output Formats
-
-All commands support multiple output formats:
-
-```bash
-janua users list                    # Default: table format
-janua users list --format json      # JSON output
-janua users list --format yaml      # YAML output
-```
-
-## Configuration
-
-Configuration is stored at `~/.config/janua/config.json`:
-
-```json
-{
-  "apiUrl": "https://api.janua.dev",
-  "token": "...",
-  "defaultFormat": "table"
-}
-```
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `JANUA_API_URL` | API base URL | `https://api.janua.dev` |
-| `JANUA_TOKEN` | Access token (overrides stored) | - |
-| `JANUA_FORMAT` | Default output format | `table` |
+| Variable | Use |
+|----------|-----|
+| `JANUA_INTERNAL_API_KEY` | Provision commands |
+| `JANUA_API_URL` | API base (default production) |
+| `JANUA_TOKEN` | Admin Bearer override |
 
 ## Development
 
 ```bash
 cd packages/cli
-
-# Install dependencies
 pnpm install
-
-# Build
+pnpm test
 pnpm build
-
-# Run in dev mode (watch)
-pnpm dev
-
-# Type check
-pnpm typecheck
-
-# Run locally without installing
-node dist/index.js users list
+node dist/index.js provision plan -f ../../examples/consumer-bootstrap/janua.client.yaml
 ```
-
-## Architecture
-
-```
-packages/cli/
-├── src/
-│   ├── index.ts              # Entry point, command registration
-│   ├── config.ts             # Persistent config (~/.config/janua/)
-│   ├── client.ts             # HTTP client with auth headers
-│   ├── commands/
-│   │   ├── auth/index.ts     # login, logout, status, token
-│   │   ├── users/index.ts    # list, get, update
-│   │   ├── orgs/index.ts     # list, get, members
-│   │   ├── apps/index.ts     # list, create, get, rotate-secret
-│   │   ├── config/index.ts   # init, show, set, reset
-│   │   ├── webhooks/index.ts # list, create, test
-│   │   └── logs/index.ts     # list (with filters)
-│   └── utils/
-│       ├── output.ts         # Table/JSON/YAML formatters
-│       ├── prompts.ts        # Interactive prompts (inquirer)
-│       └── errors.ts         # Error categorization & display
-├── package.json
-└── tsconfig.json
-```
-
-## License
-
-Part of the Janua platform. See [LICENSE](../../LICENSE) for details.
