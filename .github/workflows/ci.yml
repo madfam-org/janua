@@ -18,7 +18,7 @@ concurrency:
 jobs:
   networkpolicy-port-lint:
     name: NetworkPolicy port consistency
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     timeout-minutes: 3
     # Prevents the 2026-05-04 status.enclii.dev outage class:
     # NetworkPolicy `ports:` clauses that don't intersect the selected pods'
@@ -38,7 +38,7 @@ jobs:
   # Lint and typecheck all packages
   lint:
     name: Lint & Typecheck
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -62,7 +62,7 @@ jobs:
 
   cli-test:
     name: CLI Tests (@janua/cli)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -90,7 +90,7 @@ jobs:
   # Build all packages
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     needs: lint
     steps:
       - uses: actions/checkout@v6
@@ -115,7 +115,7 @@ jobs:
     # Disabled - consolidated into tests.yml workflow
     if: false
     name: API Tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     services:
       postgres:
         image: postgres:15-alpine
@@ -231,7 +231,7 @@ jobs:
   # E2E tests (optional, runs on main only)
   e2e:
     name: E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     needs: [build, api-test]
     if: github.ref == 'refs/heads/main'
     steps:

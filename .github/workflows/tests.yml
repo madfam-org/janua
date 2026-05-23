@@ -19,7 +19,7 @@ env:
 jobs:
   api-tests:
     name: API Tests (Python)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     timeout-minutes: 25
 
     services:
@@ -161,7 +161,7 @@ jobs:
 
   e2e-tests:
     name: E2E Tests (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     timeout-minutes: 15
 
     services:
@@ -263,7 +263,7 @@ jobs:
   coverage-gate:
     name: Coverage Quality Gate
     needs: [api-tests]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v6
 
