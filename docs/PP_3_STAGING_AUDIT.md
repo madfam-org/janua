@@ -13,7 +13,23 @@
 > Runbook: [internal-devops/runbooks/staging-bootstrap.md](https://github.com/madfam-org/internal-devops/blob/main/runbooks/staging-bootstrap.md)
 > Reference impl: [karafiel PP.1 — `infra/k8s/overlays/staging/`](https://github.com/madfam-org/karafiel/tree/main/infra/k8s/overlays/staging)
 > Precedent: [dhanam PP.2 — `docs/PP_2_STAGING_AUDIT.md`](https://github.com/madfam-org/dhanam/blob/main/docs/PP_2_STAGING_AUDIT.md) (PR #295)
-> Scope: audit only — this PR ships the document + a CLAUDE.md cross-reference. Structural and promotion-workflow convergence is **deferred** to PP.3b / PP.3c.
+> Scope: audit (PP.3) + implementation tracker (PP.3b/3c). Structural convergence landed in **PR #404** — see [PP_3B_STAGING_PIPELINE.md](./PP_3B_STAGING_PIPELINE.md) for the canonical operator guide.
+
+## Implementation status (2026-05-23)
+
+| Milestone | Status | Notes |
+|-----------|--------|-------|
+| PP.3 audit document | Done | This file |
+| PP.3b staging + production overlays | PR #404 | `k8s/overlays/{staging,production}/` |
+| PP.3b docker-publish → staging only | PR #404 | Prod digests via promote only |
+| PP.3c promote-to-prod.yml | On `main` | Enabled after PP.3b paths exist |
+| PP.3c rollback-prod.yml | On `main` | Same |
+| Ops: ArgoCD path migration | **Pending** | `k8s/base/deployments` → `k8s/overlays/production` |
+| Ops: janua-staging bootstrap | **Pending** | Secrets, DB, tunnel routes |
+| Staging smoke in CI | **Open** | Future PR |
+| OAuth client_id pin on register API | PR #404 | Optional `jnc_*` on register |
+
+Compliance estimate: **~15%** pre-PP.3b → **~55%** after code merge → **~75%** after ops bootstrap.
 
 ## TL;DR
 

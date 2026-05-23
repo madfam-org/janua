@@ -552,25 +552,38 @@ Janua is a **Phase 2** target (critical-service priority — auth underpins the
 entire MADFAM ecosystem) for the 3-tier pipeline defined in
 [internal-devops/rfcs/0001-dev-staging-prod-pipeline.md](https://github.com/madfam-org/internal-devops/blob/main/rfcs/0001-dev-staging-prod-pipeline.md).
 
-**Current state:** Janua has **no staging environment today**. Every push to
-`main` triggers `docker-publish.yml`, which builds images for all 5 services
-and commits their digests directly into `k8s/base/deployments/kustomization.yaml`.
-ArgoCD watches that path and reconciles straight into prod. See
-[docs/PP_3_STAGING_AUDIT.md](docs/PP_3_STAGING_AUDIT.md) for the full row-by-row
-gap analysis (~15% compliant with RFC 0001).
+**Current state (post PP.3b, PR #404):** Structural 3-tier pipeline is in the
+repo. `docker-publish.yml` commits digests to `k8s/overlays/staging/` only;
+production digests land via `promote-to-prod.yml`. Full staging tenant requires
+ops bootstrap (ArgoCD, secrets, tunnel routes) — see
+[docs/PP_3B_STAGING_PIPELINE.md](docs/PP_3B_STAGING_PIPELINE.md).
 
-### Known divergences from RFC 0001 (tracked in PP_3_STAGING_AUDIT.md)
+**Legacy note:** Before PP.3b, every push to `main` committed digests directly
+into `k8s/base/deployments/kustomization.yaml` and ArgoCD reconciled straight
+into prod (~15% RFC 0001 compliance). See
+[docs/PP_3_STAGING_AUDIT.md](docs/PP_3_STAGING_AUDIT.md) for the row-by-row audit.
 
-| Divergence | Impact | Resolution PR |
+### Pipeline status (2026-05-23)
+
+| Item | Status |
+|------|--------|
+| Staging overlay in repo | Done (PR #404) |
+| Production overlay in repo | Done (PR #404) |
+| Promote / rollback workflows | On `main` |
+| ArgoCD → production overlay | **Ops pending** |
+| janua-staging tenant live | **Ops pending** |
+| Staging smoke in CI | Open |
+
+### Remaining divergences (ops + follow-up PRs)
+
+| Divergence | Impact | Resolution |
 |---|---|---|
-| No `janua-staging` namespace, no staging overlay, no staging ArgoCD App | Auth service changes land directly in prod; no soak | PP.3b |
-| ArgoCD watches `k8s/base/deployments/` with digests baked into base | Base is not env-agnostic; `overlays/prod/` is orphaned | PP.3b |
-| `overlays/prod/kustomization.yaml` has `newTag: main` (mutable) and is unused | Misleading — not the deployed state | PP.3b |
-| No `promote-to-prod.yml` or `rollback-prod.yml` | Prod consumes CI builds; rollback = `git revert` + rebuild | PP.3c |
-| No staging subdomain (`staging-auth.madfam.io`, `staging-api.janua.dev`) | Can't cross-service smoke | PP.3b (+ Cloudflare ops) |
-| No distinct staging JWT signing keypair | Requirement: staging must never share prod RSA keypair — see below | PP.3b (secrets template) |
-| No staging OAuth clients registered with Google / GitHub / Microsoft | Staging downstream services can't test full OIDC flow | PP.3b (ops action) |
-| Nightly prod→staging masked DB refresh not implemented | Staging DB will be seeded manually until masking tool chosen | Deferred (RFC 0001 open question) |
+| ArgoCD still on `k8s/base/deployments` until ops migrates | Prod may use `:main` tags if overlay not wired | Ops: point App at `k8s/overlays/production` |
+| No staging subdomain / tunnel routes yet | Can't cross-service smoke | Ops: Cloudflare + `janua-staging` App |
+| No distinct staging JWT keypair in cluster yet | Staging not safe to use | Ops: `janua-staging-secrets.template.yaml` |
+| No staging OAuth clients with Google/GitHub/Microsoft | Full OIDC untestable in staging | Ops: register staging provider apps |
+| No staging smoke step in docker-publish | Soak not auto-verified | Follow-up PR |
+| Nightly prod→staging masked DB refresh | Staging DB seeded manually | Deferred (RFC 0001) |
 
 ### Janua-specific staging constraints
 
@@ -589,11 +602,11 @@ See `docs/PP_3_STAGING_AUDIT.md` § Janua-specific staging constraints for the
 full `janua-staging-secrets` template (keys to generate, providers to register,
 redirect URIs).
 
-### Promotion pattern (when PP.3c lands)
+### Promotion pattern
 
 Janua is **Pattern B — manual gate** per RFC 0001 § Promotion mechanics.
 Reasoning: Janua is the auth floor for every MADFAM service. A wrong promote
-breaks every downstream login. When PP.3c ships, `enclii.yaml` will declare:
+breaks every downstream login. `enclii.yaml` declares:
 
 ```yaml
 promotion:
@@ -602,15 +615,18 @@ promotion:
   require_smoke_pass: true
 ```
 
-### What currently ships on push to `main`
+Auto-promote exists in `promote-to-prod.yml` but is gated off unless repo
+variable `AUTO_PROMOTE_ENABLED=true`.
+
+### What runs on push to `main`
 
 | Workflow | Trigger | Effect |
 |---|---|---|
-| `docker-publish.yml` | push to main (apps/packages/Dockerfile paths) | Builds all 5 images, commits digests to `k8s/base/deployments/kustomization.yaml`, ArgoCD reconciles prod |
+| `docker-publish.yml` | push to main (apps/packages/Dockerfile paths) | Builds images, commits digests to `k8s/overlays/staging/`, ArgoCD syncs staging (after ops bootstrap) |
+| `promote-to-prod.yml` | workflow_dispatch (manual) | Promotes soaked staging digest(s) → `k8s/overlays/production/` |
+| `rollback-prod.yml` | workflow_dispatch (incident) | Rolls back prod digest from git history or explicit input |
 
-**This flow is intentionally preserved unchanged by PP.3.** Convergence to
-RFC 0001 is sequenced across follow-up PRs (PP.3b structural, PP.3c
-promote/rollback) so each diff is reviewable and reversible.
+Canonical operator guide: [docs/PP_3B_STAGING_PIPELINE.md](docs/PP_3B_STAGING_PIPELINE.md).
 
 ---
 

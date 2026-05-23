@@ -33,6 +33,10 @@ export const oauthClientManifestSchema = z
         ),
     }),
     spec: z.object({
+      client_id: z
+        .string()
+        .regex(/^jnc_[A-Za-z0-9_-]{8,56}$/, "spec.client_id must start with jnc_")
+        .optional(),
       audience: z.string().min(1).max(255).optional(),
       description: z.string().max(1000).optional(),
       redirect_uris: z.array(httpsOrLocalRedirect).default([]),
@@ -84,6 +88,7 @@ export function manifestToRegisterBody(manifest: OAuthClientManifest): Record<st
   const { spec, metadata } = manifest;
   return {
     name: metadata.name,
+    client_id: spec.client_id,
     description: spec.description,
     redirect_uris: spec.redirect_uris,
     allowed_scopes: spec.allowed_scopes,

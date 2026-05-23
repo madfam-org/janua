@@ -72,6 +72,7 @@ describe("manifestToRegisterBody", () => {
     const manifest = oauthClientManifestSchema.parse(baseManifest);
     expect(manifestToRegisterBody(manifest)).toEqual({
       name: "my-service-web",
+      client_id: undefined,
       description: undefined,
       redirect_uris: manifest.spec.redirect_uris,
       allowed_scopes: manifest.spec.allowed_scopes,

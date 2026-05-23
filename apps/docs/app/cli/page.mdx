@@ -26,6 +26,7 @@ metadata:
   name: my-service-web
 spec:
   audience: my-service-api
+  client_id: jnc_optionalPinnedId012345678   # optional
   redirect_uris:
     - https://app.example.com/api/auth/callback
     - http://localhost:3000/api/auth/callback
@@ -39,7 +40,7 @@ spec:
 | Command | Purpose |
 |---------|---------|
 | `janua provision plan` | Show create vs drift (exit 1 on drift) |
-| `janua provision apply` | Idempotent `POST /api/v1/oauth/clients/register` |
+| `janua provision apply` | Idempotent `POST /api/v1/oauth/clients/register` (by name or pinned `spec.client_id`) |
 | `janua provision verify` | Fail CI if manifest does not match Janua |
 | `janua provision export-env` | Print `JANUA_CLIENT_ID` exports |
 
@@ -71,4 +72,4 @@ janua admin clients list
 
 Legacy aliases (`janua auth login`, `janua apps list`) remain available.
 
-See [Ecosystem integration](https://github.com/madfam-org/janua/blob/main/docs/guides/ECOSYSTEM_INTEGRATION.md) and `examples/consumer-bootstrap/` in the Janua repository.
+See [Ecosystem integration](https://github.com/madfam-org/janua/blob/main/docs/guides/ECOSYSTEM_INTEGRATION.md), [Staging pipeline guide](https://github.com/madfam-org/janua/blob/main/docs/PP_3B_STAGING_PIPELINE.md), and `examples/consumer-bootstrap/` in the Janua repository.
