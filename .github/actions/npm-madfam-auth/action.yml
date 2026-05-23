@@ -1,0 +1,55 @@
+# Canonical copy: madfam-org/internal-devops/.github/actions/npm-madfam-auth
+# Duplicated here because private internal-devops actions are not resolvable
+# from other repos until org "Actions access" is enabled for the org.
+name: npm.madfam.io auth
+description: Configure and verify npm.madfam.io authentication
+inputs:
+  token:
+    description: Bearer token (defaults to env NPM_MADFAM_TOKEN)
+    required: false
+  registry-url:
+    description: Registry base URL
+    required: false
+    default: https://npm.madfam.io
+  require-publish-capable:
+    description: Run npm publish --dry-run smoke
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Validate token and configure .npmrc
+      shell: bash
+      env:
+        INPUT_TOKEN: ${{ inputs.token }}
+        REGISTRY_URL: ${{ inputs.registry-url }}
+        REQUIRE_PUBLISH: ${{ inputs.require-publish-capable }}
+      run: |
+        set -euo pipefail
+        TOKEN="${INPUT_TOKEN:-${NPM_MADFAM_TOKEN:-}}"
+        if [ -z "${TOKEN}" ]; then
+          echo "::error::NPM_MADFAM_TOKEN is empty"
+          exit 1
+        fi
+        printf '\n//npm.madfam.io/:_authToken=%s\n' "${TOKEN}" >> .npmrc
+        chmod 600 .npmrc
+        HTTP_CODE=$(curl -sf -o /tmp/npm_whoami.json -w '%{http_code}' \
+          -H "Authorization: Bearer ${TOKEN}" \
+          "${REGISTRY_URL}/-/whoami" || echo "000")
+        echo "curl /-/whoami → HTTP ${HTTP_CODE}"
+        USERNAME=$(jq -r '.username // empty' /tmp/npm_whoami.json 2>/dev/null || true)
+        if [ -z "${USERNAME}" ]; then
+          echo "::error::Registry token did not return a username"
+          exit 1
+        fi
+        echo "registry username: ${USERNAME}"
+        if ! npm whoami --registry "${REGISTRY_URL}/" 2>&1; then
+          echo "::error::npm whoami failed"
+          exit 1
+        fi
+        if [ "${REQUIRE_PUBLISH}" = "true" ]; then
+          SMOKE_DIR=$(mktemp -d)
+          trap 'rm -rf "${SMOKE_DIR}"' EXIT
+          printf '%s\n' '{' '  "name": "@madfam/npm-publish-smoke",' '  "version": "0.0.0-smoke",' '  "private": true' '}' > "${SMOKE_DIR}/package.json"
+          (cd "${SMOKE_DIR}" && npm publish --dry-run --access restricted --registry "${REGISTRY_URL}/")
+        fi

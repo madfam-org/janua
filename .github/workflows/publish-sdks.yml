@@ -85,7 +85,7 @@ jobs:
           echo "release_tag=${SDK_NAME}-v${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Authenticate to npm.madfam.io
-        uses: madfam-org/internal-devops/.github/actions/npm-madfam-auth@main
+        uses: ./.github/actions/npm-madfam-auth
         with:
           token: ${{ secrets.NPM_MADFAM_TOKEN }}
 
