@@ -28,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      NPM_MADFAM_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
     if: |
       startsWith(github.ref, 'refs/tags/typescript-sdk-v') ||
       startsWith(github.ref, 'refs/tags/react-sdk-v') ||
@@ -35,7 +38,6 @@ jobs:
       startsWith(github.ref, 'refs/tags/vue-sdk-v') ||
       startsWith(github.ref, 'refs/tags/react-native-sdk-v') ||
       startsWith(github.ref, 'refs/tags/core-v') ||
-      startsWith(github.ref, 'refs/tags/ui-v') ||
       startsWith(github.ref, 'refs/tags/jwt-utils-v') ||
       startsWith(github.ref, 'refs/tags/edge-v') ||
       startsWith(github.ref, 'refs/tags/cli-v') ||
@@ -62,10 +64,14 @@ jobs:
           VERSION=${TAG#*-v}
           echo "sdk_name=$SDK_NAME" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "release_tag=${SDK_NAME}-v${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Authenticate to npm.madfam.io
+        uses: madfam-org/internal-devops/.github/actions/npm-madfam-auth@main
+        with:
+          token: ${{ secrets.NPM_MADFAM_TOKEN }}
 
       - name: Install dependencies
-        env:
-          NPM_MADFAM_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
         run: pnpm install --frozen-lockfile
 
       - name: Build SDK
@@ -86,41 +92,43 @@ jobs:
             echo "No test script found, skipping tests"
           fi
 
-      - name: Check version not already published
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
+      - name: Resolve publish state
+        id: publish_state
         run: |
           cd packages/${{ steps.extract.outputs.sdk_name }}
           PKG_NAME=$(jq -r '.name' package.json)
           VERSION=$(jq -r '.version' package.json)
+          echo "package_name=${PKG_NAME}" >> $GITHUB_OUTPUT
           if npm view "${PKG_NAME}@${VERSION}" version --registry https://npm.madfam.io 2>/dev/null; then
-            echo "ERROR: ${PKG_NAME}@${VERSION} already published. Bump the version first."
-            exit 1
+            echo "already_published=true" >> $GITHUB_OUTPUT
+            echo "${PKG_NAME}@${VERSION} is already on npm.madfam.io — publish will be skipped"
+          else
+            echo "already_published=false" >> $GITHUB_OUTPUT
+            echo "OK: ${PKG_NAME}@${VERSION} not yet published"
           fi
-          echo "OK: ${PKG_NAME}@${VERSION} not yet published"
 
       - name: Publish to npm.madfam.io
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
+        if: steps.publish_state.outputs.already_published != 'true'
         run: |
           cd packages/${{ steps.extract.outputs.sdk_name }}
           npm publish --access restricted
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
+        continue-on-error: true
         with:
+          tag_name: ${{ steps.extract.outputs.release_tag }}
           name: ${{ steps.extract.outputs.sdk_name }} v${{ steps.extract.outputs.version }}
           body: |
             Release ${{ steps.extract.outputs.version }} of ${{ steps.extract.outputs.sdk_name }}
 
             ## Installation
             ```bash
-            # Configure registry (first time only)
             npm config set @janua:registry https://npm.madfam.io
-
-            # Install package
             npm install @janua/${{ steps.extract.outputs.sdk_name }}@${{ steps.extract.outputs.version }}
             ```
+
+            Registry package: `${{ steps.publish_state.outputs.package_name }}@${{ steps.extract.outputs.version }}` on npm.madfam.io
 
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/packages/${{ steps.extract.outputs.sdk_name }}/CHANGELOG.md) for details.
           draft: false
