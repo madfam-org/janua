@@ -58,7 +58,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && format('{0}-v{1}', inputs.sdk_name, inputs.version) || github.ref }}
+          # workflow_dispatch uses main (has workflow + local actions). Tag pushes use the tag ref.
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
