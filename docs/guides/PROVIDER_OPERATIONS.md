@@ -42,7 +42,17 @@ Key operational areas covered:
 
 ## Ecosystem Bootstrap
 
-The `scripts/seed_ecosystem_clients.py` script registers known MADFAM ecosystem applications as OAuth clients in a single operation. This is an operator tool for initial setup or environment provisioning. It is not the consumer onboarding path -- individual apps should not run this script themselves.
+**Consumer services** should provision OAuth clients with `@janua/cli`:
+
+```bash
+janua provision apply -f janua.client.yaml
+```
+
+See `examples/consumer-bootstrap/` and `POST /api/v1/oauth/clients/register`.
+
+The `scripts/seed_ecosystem_clients.py` script registers known MADFAM ecosystem applications
+in bulk. Use it for operator break-glass or fresh-environment bootstrap only — not for
+routine consumer onboarding.
 
 ### Running the seed script
 

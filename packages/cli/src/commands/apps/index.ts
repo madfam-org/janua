@@ -44,10 +44,15 @@ const CLIENT_COLUMNS: ColumnDef[] = [
   },
 ];
 
-export function registerAppCommands(program: Command): void {
-  const apps = program
-    .command("apps")
-    .description("OAuth client application commands");
+export function registerAppCommands(
+  program: Command,
+  options?: { group?: string }
+): void {
+  const apps = options?.group
+    ? program
+        .command(options.group)
+        .description("OAuth client application commands")
+    : program;
 
   apps
     .command("list")

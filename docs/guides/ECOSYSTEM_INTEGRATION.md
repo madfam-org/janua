@@ -18,11 +18,20 @@ Create an OAuth client for your application using one of these methods.
 3. Click **Create Client** and fill in your app name, redirect URIs, and audience string.
 4. Copy the generated `client_id` and `client_secret`.
 
-**Via API**:
+**Via CLI (recommended for consumer repos)**:
 
 ```bash
-curl -X POST https://api.janua.dev/api/v1/oauth/clients \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
+# janua.client.yaml in your app repo — see examples/consumer-bootstrap/
+janua provision apply -f janua.client.yaml
+```
+
+Requires `JANUA_INTERNAL_API_KEY` (from Enclii/Vault). Idempotent by client name.
+
+**Via register API (CI/scripts)**:
+
+```bash
+curl -X POST https://api.janua.dev/api/v1/oauth/clients/register \
+  -H "X-Internal-API-Key: $JANUA_INTERNAL_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "your-app-name",
@@ -30,6 +39,14 @@ curl -X POST https://api.janua.dev/api/v1/oauth/clients \
     "audience": "your-app-api",
     "allowed_scopes": ["openid", "profile", "email"]
   }'
+```
+
+**Via admin API** (operators with a user token):
+
+```bash
+curl -X POST https://api.janua.dev/api/v1/oauth/clients \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  ...
 ```
 
 ### Add Environment Variables
@@ -390,9 +407,13 @@ The Janua SDKs handle this automatically when configured.
 
 ---
 
-## Appendix A: Client Registration via Seed Script
+## Appendix A: Client registration paths
 
-For MADFAM ecosystem applications, OAuth clients are provisioned using the seed script rather than the Dashboard UI or API. This ensures consistent configuration across all ecosystem apps.
+**Preferred for new consumer services:** `janua provision apply` (`@janua/cli`) or
+`POST /api/v1/oauth/clients/register` from the service's own CI — no Janua repo changes.
+
+**Legacy operator bootstrap:** the seed script below remains for break-glass and initial
+environment setup only.
 
 ### Running the Seed Script
 

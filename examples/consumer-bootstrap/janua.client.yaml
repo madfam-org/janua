@@ -1,0 +1,18 @@
+apiVersion: janua.dev/v1
+kind: OAuthClient
+metadata:
+  name: example-consumer-web
+spec:
+  audience: example-consumer-api
+  description: Example MADFAM consumer app OAuth client (template)
+  redirect_uris:
+    - https://app.example.com/api/auth/callback
+    - http://localhost:3000/api/auth/callback
+  allowed_scopes:
+    - openid
+    - profile
+    - email
+  grant_types:
+    - authorization_code
+    - refresh_token
+  is_confidential: true
