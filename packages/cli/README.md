@@ -16,7 +16,9 @@ janua provision apply -f janua.client.yaml
 janua provision verify -f janua.client.yaml
 ```
 
-Uses `POST /api/v1/oauth/clients/register` (idempotent by client name).
+Uses `POST /api/v1/oauth/clients/register` (idempotent by client name or pinned `spec.client_id`).
+
+Full pipeline and ops guide: [docs/PP_3B_STAGING_PIPELINE.md](../../docs/PP_3B_STAGING_PIPELINE.md).
 
 ## Install
 
@@ -57,6 +59,7 @@ metadata:
   name: my-service-web
 spec:
   audience: my-service-api
+  client_id: jnc_optionalPinnedId012345678   # optional — auto-generated if omitted
   redirect_uris:
     - https://app.example.com/api/auth/callback
   allowed_scopes: [openid, profile, email]

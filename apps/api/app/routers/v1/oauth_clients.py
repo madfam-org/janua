@@ -71,8 +71,24 @@ async def register_oauth_client(
     existing_client = await service.get_client_by_name(data.name)
 
     if existing_client:
+        if data.client_id and existing_client.client_id != data.client_id:
+            raise HTTPException(
+                status_code=409,
+                detail="Client name already registered with a different client_id",
+            )
         response.status_code = 200
         return _client_detail_response(existing_client)
+
+    if data.client_id:
+        existing_by_id = await service.get_client_by_client_id(data.client_id)
+        if existing_by_id:
+            if existing_by_id.name == data.name:
+                response.status_code = 200
+                return _client_detail_response(existing_by_id)
+            raise HTTPException(
+                status_code=409,
+                detail="client_id already registered to a different client",
+            )
 
     # Resolve bootstrap admin user (first admin by creation date)
     admin_result = await db.execute(

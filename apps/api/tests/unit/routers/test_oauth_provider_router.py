@@ -819,3 +819,71 @@ class TestPreLoginRedisStorage:
         assert '"auth_request_id": pre_login_id' in source, (
             "login_params must include auth_request_id"
         )
+
+
+class TestOidcEndSession:
+    """Tests for OIDC RP-Initiated Logout (GET /logout)."""
+
+    @pytest.fixture
+    def mock_client(self):
+        client = MagicMock()
+        client.is_active = True
+        client.redirect_uris = [
+            "https://app.ceq.lol/auth/callback",
+            "http://localhost:5801/auth/callback",
+        ]
+        return client
+
+    @pytest.fixture
+    def mock_db(self, mock_client):
+        db = AsyncMock()
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = mock_client
+        db.execute = AsyncMock(return_value=result)
+        return db
+
+    async def test_logout_redirects_to_post_logout_uri(self, mock_db):
+        from app.routers.v1.oauth_provider import oidc_end_session
+
+        response = await oidc_end_session(
+            client_id="jnc_test",
+            post_logout_redirect_uri="https://app.ceq.lol/",
+            state=None,
+            db=mock_db,
+        )
+
+        assert response.status_code == 302
+        assert response.headers["location"] == "https://app.ceq.lol/"
+
+    async def test_logout_rejects_unknown_client(self, mock_db):
+        from fastapi import HTTPException
+        from app.routers.v1.oauth_provider import oidc_end_session
+
+        result = mock_db.execute.return_value
+        result.scalar_one_or_none.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await oidc_end_session(
+                client_id="jnc_missing",
+                post_logout_redirect_uri="https://app.ceq.lol/",
+                state=None,
+                db=mock_db,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail == "invalid_client"
+
+    async def test_logout_rejects_unregistered_post_logout_uri(self, mock_db):
+        from fastapi import HTTPException
+        from app.routers.v1.oauth_provider import oidc_end_session
+
+        with pytest.raises(HTTPException) as exc_info:
+            await oidc_end_session(
+                client_id="jnc_test",
+                post_logout_redirect_uri="https://evil.com/",
+                state=None,
+                db=mock_db,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "post_logout_redirect_uri" in exc_info.value.detail

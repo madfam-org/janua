@@ -212,7 +212,7 @@ if [[ $DRIFT_FOUND -eq 1 ]]; then
     echo "Resolution options:"
     echo "  1. Image tag drift only? This is EXPECTED - CI/CD uses commit-specific tags for traceability"
     echo "  2. If cluster state is correct: Update k8s/ manifests in Git"
-    echo "  3. If Git state is correct: Re-apply manifests with kubectl apply -k k8s/overlays/prod"
+    echo "  3. If Git state is correct: Re-apply manifests with kubectl apply -k k8s/overlays/production"
     exit 1
 else
     echo "STATUS: NO DRIFT - Configuration in sync"

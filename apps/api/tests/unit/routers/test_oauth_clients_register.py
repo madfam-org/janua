@@ -123,6 +123,63 @@ async def test_register_is_idempotent_without_secret(oauth_register_client: Asyn
 
 
 @pytest.mark.asyncio
+async def test_register_accepts_pinned_client_id(oauth_register_client: AsyncClient):
+    pinned = "jnc_pinnedTestClientId0123456789AB"
+    payload = _client_payload("register-pinned-id")
+    payload["client_id"] = pinned
+    response = await oauth_register_client.post(
+        REGISTER_URL,
+        json=payload,
+        headers={"X-Internal-API-Key": INTERNAL_KEY},
+    )
+    assert response.status_code == 201
+    assert response.json()["client_id"] == pinned
+
+
+@pytest.mark.asyncio
+async def test_register_pinned_client_id_is_idempotent(oauth_register_client: AsyncClient):
+    pinned = "jnc_pinnedIdempotentClient0123456"
+    payload = _client_payload("register-pinned-idempotent")
+    payload["client_id"] = pinned
+    first = await oauth_register_client.post(
+        REGISTER_URL,
+        json=payload,
+        headers={"X-Internal-API-Key": INTERNAL_KEY},
+    )
+    assert first.status_code == 201
+
+    second = await oauth_register_client.post(
+        REGISTER_URL,
+        json=payload,
+        headers={"X-Internal-API-Key": INTERNAL_KEY},
+    )
+    assert second.status_code == 200
+    assert second.json()["client_id"] == pinned
+    assert second.json()["client_secret"] is None
+
+
+@pytest.mark.asyncio
+async def test_register_rejects_client_id_name_mismatch(oauth_register_client: AsyncClient):
+    pinned = "jnc_conflictClientId0123456789012"
+    payload = _client_payload("register-conflict-a")
+    payload["client_id"] = pinned
+    first = await oauth_register_client.post(
+        REGISTER_URL,
+        json=payload,
+        headers={"X-Internal-API-Key": INTERNAL_KEY},
+    )
+    assert first.status_code == 201
+
+    payload["name"] = "register-conflict-b"
+    second = await oauth_register_client.post(
+        REGISTER_URL,
+        json=payload,
+        headers={"X-Internal-API-Key": INTERNAL_KEY},
+    )
+    assert second.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_register_rejects_invalid_internal_key(oauth_register_client: AsyncClient):
     response = await oauth_register_client.post(
         REGISTER_URL,

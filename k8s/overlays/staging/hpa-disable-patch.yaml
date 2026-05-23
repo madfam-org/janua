@@ -1,0 +1,7 @@
+# Pin HPA to 1 replica in staging — no horizontal scaling needed.
+- op: replace
+  path: /spec/minReplicas
+  value: 1
+- op: replace
+  path: /spec/maxReplicas
+  value: 1

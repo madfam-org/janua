@@ -9,6 +9,7 @@ Compact LLM context index for this repository.
 - `ECOSYSTEM.md` — MADFAM ecosystem and Enclii deployment context when present.
 - `llms-full.txt` — full context map and durable operating contract.
 - `packages/cli/README.md` — `@janua/cli` consumer provisioning (`janua provision *`).
+- `docs/PP_3B_STAGING_PIPELINE.md` — staging/prod pipeline, ops bootstrap, OAuth provisioning.
 - `examples/consumer-bootstrap/` — `janua.client.yaml` template for consumer repos.
 
 ## Production operations

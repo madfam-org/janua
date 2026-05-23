@@ -2,7 +2,8 @@ name: Docker Publish
 
 # Consolidated build+deploy workflow for ALL 5 Janua services.
 # Builds changed services in parallel, commits all digests in a single commit.
-# ArgoCD detects the kustomization.yaml change and syncs to production.
+# ArgoCD detects the staging kustomization.yaml change and syncs to janua-staging.
+# Production digests are promoted separately via promote-to-prod.yml (Pattern B).
 
 on:
   push:
@@ -330,7 +331,7 @@ jobs:
           cosign sign --yes ${{ env.IMAGE_PREFIX }}/janua-website@${{ steps.build.outputs.digest }}
 
   commit-digests:
-    name: Commit Digests to Kustomization
+    name: Commit Digests to Staging Kustomization
     runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     needs: [build-api, build-admin, build-dashboard, build-docs, build-website]
     if: always() && github.ref == 'refs/heads/main'
@@ -347,7 +348,7 @@ jobs:
 
       - name: Update digests
         run: |
-          cd k8s/base/deployments
+          cd k8s/overlays/staging
           UPDATED=0
 
           if [ "${{ needs.build-api.result }}" == "success" ] && [ -n "${{ needs.build-api.outputs.digest }}" ]; then
@@ -392,7 +393,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Save the kustomization.yaml content we just modified
-          cp k8s/base/deployments/kustomization.yaml /tmp/kustomization-updated.yaml
+          cp k8s/overlays/staging/kustomization.yaml /tmp/kustomization-updated.yaml
 
           # Retry loop: handles concurrent pushes
           for ATTEMPT in 1 2 3; do
@@ -401,11 +402,11 @@ jobs:
             git reset --hard origin/main
 
             # Re-apply our digest changes on top of latest remote
-            cp /tmp/kustomization-updated.yaml k8s/base/deployments/kustomization.yaml
+            cp /tmp/kustomization-updated.yaml k8s/overlays/staging/kustomization.yaml
 
-            git add k8s/base/deployments/kustomization.yaml
+            git add k8s/overlays/staging/kustomization.yaml
             git diff --staged --quiet && { echo "No changes to commit"; exit 0; }
-            git commit -m "chore(deploy): update $UPDATED janua service digest(s)"
+            git commit -m "chore(staging): update $UPDATED janua service digest(s)"
 
             if git push origin main; then
               echo "Push succeeded on attempt $ATTEMPT"
