@@ -286,3 +286,35 @@ def validate_oauth_redirect_uri(
             return True
 
     return False
+
+
+def validate_post_logout_redirect_uri(
+    logout_uri: str,
+    registered_uris: list[str],
+) -> bool:
+    """
+    Validate a post-logout redirect URI for OIDC RP-Initiated Logout.
+
+    Accepts exact matches against registered redirect URIs, plus origin-root
+    URIs (e.g. https://app.example.com/) when a callback is registered on the
+    same origin (e.g. https://app.example.com/auth/callback).
+    """
+    if not logout_uri or not registered_uris:
+        return False
+
+    if validate_oauth_redirect_uri(logout_uri, registered_uris):
+        return True
+
+    parsed = urlparse(logout_uri)
+    path = parsed.path.rstrip("/") or "/"
+    if path != "/":
+        return False
+
+    logout_origin = f"{parsed.scheme}://{parsed.netloc}".lower()
+    for registered in registered_uris:
+        reg_parsed = urlparse(registered)
+        reg_origin = f"{reg_parsed.scheme}://{reg_parsed.netloc}".lower()
+        if logout_origin == reg_origin:
+            return True
+
+    return False

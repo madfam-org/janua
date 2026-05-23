@@ -649,6 +649,7 @@ def openid_configuration():
         "jwks_uri": f"{base_url}/.well-known/jwks.json",
         "introspection_endpoint": f"{base_url}/api/v1/oauth/introspect",
         "revocation_endpoint": f"{base_url}/api/v1/oauth/revoke",
+        "end_session_endpoint": f"{base_url}/logout",
         "registration_endpoint": f"{base_url}/api/v1/oauth/register",
         "response_types_supported": [
             "code",
@@ -1041,6 +1042,7 @@ app.include_router(auth_v1.router, prefix="/api/v1")
 app.include_router(oauth_v1.router, prefix="/api/v1")
 app.include_router(oauth_clients_v1.router, prefix="/api/v1")
 app.include_router(oauth_provider_v1.router, prefix="/api/v1")
+app.include_router(oauth_provider_v1.logout_router)
 # P3.2 — on-behalf OAuth linking for Enclii self-serve signup.
 # Endpoints no-op with 404 unless JANUA_SERVICE_TOKEN is configured.
 app.include_router(oauth_on_behalf_v1.router, prefix="/api/v1")

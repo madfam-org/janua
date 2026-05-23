@@ -34,13 +34,19 @@ from app.config import settings
 from app.core.database import get_db
 from app.core.jwt_manager import jwt_manager
 from app.core.redis import ResilientRedisClient, get_redis
-from app.core.url_security import is_safe_redirect_url, validate_oauth_redirect_uri
+from app.core.url_security import (
+    is_safe_redirect_url,
+    validate_oauth_redirect_uri,
+    validate_post_logout_redirect_uri,
+)
 from app.dependencies import get_current_user
 from app.models import OAuthClient, Organization, OrganizationMember, User
 from app.services.consent_service import ConsentService
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/oauth", tags=["OAuth Provider"])
+# Root-level OIDC end-session route (mounted at /logout in main.py)
+logout_router = APIRouter(tags=["OAuth Provider"])
 
 # CSRF token TTL (10 minutes)
 CSRF_TOKEN_TTL = 600
@@ -1631,3 +1637,66 @@ async def revoke(
     # Return 200 OK regardless of whether token was valid
     # This is per RFC 7009 - don't leak token validity information
     return {"message": "Token revoked"}
+
+
+# ============================================================================
+# OIDC RP-Initiated Logout (OpenID Connect Session Management 1.0)
+# ============================================================================
+
+
+def _clear_janua_session_cookies(response: RedirectResponse) -> None:
+    """Clear Janua browser session cookies on logout."""
+    delete_kwargs: dict = {}
+    if settings.COOKIE_DOMAIN:
+        delete_kwargs["domain"] = settings.COOKIE_DOMAIN
+    for cookie_name in (
+        "janua_access_token",
+        "janua_refresh_token",
+        "access_token",
+        "refresh_token",
+    ):
+        response.delete_cookie(cookie_name, **delete_kwargs)
+
+
+@logout_router.get("/logout")
+async def oidc_end_session(
+    client_id: str = Query(..., description="OAuth client ID"),
+    post_logout_redirect_uri: str = Query(
+        ..., description="URI to redirect after logout (must match client registration)"
+    ),
+    state: Optional[str] = Query(None, description="Opaque state forwarded to redirect URI"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    OIDC RP-Initiated Logout endpoint (end_session_endpoint).
+
+    Clears Janua session cookies and redirects to the registered post-logout URI.
+    """
+    client = await _get_oauth_client(client_id, db)
+    if not client or not client.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid_client",
+        )
+
+    allowed_uris = client.redirect_uris or []
+    if isinstance(allowed_uris, str):
+        try:
+            allowed_uris = json.loads(allowed_uris)
+        except json.JSONDecodeError:
+            allowed_uris = []
+
+    if not validate_post_logout_redirect_uri(post_logout_redirect_uri, allowed_uris):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid_request: post_logout_redirect_uri not registered for client",
+        )
+
+    redirect_url = post_logout_redirect_uri
+    if state:
+        separator = "&" if "?" in redirect_url else "?"
+        redirect_url = f"{redirect_url}{separator}{urlencode({'state': state})}"
+
+    response = RedirectResponse(url=redirect_url, status_code=302)
+    _clear_janua_session_cookies(response)
+    return response

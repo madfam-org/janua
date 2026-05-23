@@ -10,6 +10,7 @@ from app.core.url_security import (
     is_safe_redirect_url,
     validate_redirect_url,
     validate_oauth_redirect_uri,
+    validate_post_logout_redirect_uri,
     get_allowed_redirect_hosts,
     _host_matches_pattern,
 )
@@ -168,6 +169,27 @@ class TestValidateOauthRedirectUri:
         assert not validate_oauth_redirect_uri("", ["https://example.com"])
         assert not validate_oauth_redirect_uri("https://example.com", [])
         assert not validate_oauth_redirect_uri(None, ["https://example.com"])
+
+
+class TestValidatePostLogoutRedirectUri:
+    """Tests for post-logout redirect URI validation."""
+
+    def test_exact_match(self):
+        registered = ["https://app.ceq.lol/", "http://localhost:5801/auth/callback"]
+        assert validate_post_logout_redirect_uri("https://app.ceq.lol/", registered)
+
+    def test_origin_root_allowed_for_registered_callback(self):
+        registered = ["https://app.ceq.lol/auth/callback", "http://localhost:5801/auth/callback"]
+        assert validate_post_logout_redirect_uri("https://app.ceq.lol/", registered)
+        assert validate_post_logout_redirect_uri("http://localhost:5801/", registered)
+
+    def test_non_root_path_rejected_without_exact_match(self):
+        registered = ["https://app.ceq.lol/auth/callback"]
+        assert not validate_post_logout_redirect_uri("https://app.ceq.lol/other", registered)
+
+    def test_different_origin_rejected(self):
+        registered = ["https://app.ceq.lol/auth/callback"]
+        assert not validate_post_logout_redirect_uri("https://evil.com/", registered)
 
 
 class TestGetAllowedRedirectHosts:
