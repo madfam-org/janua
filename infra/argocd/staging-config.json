@@ -1,0 +1,8 @@
+{
+  "name": "janua-staging",
+  "repoURL": "https://github.com/madfam-org/janua.git",
+  "branch": "main",
+  "manifestPath": "k8s/overlays/staging",
+  "namespace": "janua-staging",
+  "partOf": "janua"
+}

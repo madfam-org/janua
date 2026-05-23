@@ -52,6 +52,24 @@ class OAuthClientCreate(BaseModel):
         default=True,
         description="True for server-side apps (require secret), False for SPAs/mobile",
     )
+    client_id: Optional[str] = Field(
+        None,
+        max_length=64,
+        description=(
+            "Optional pre-assigned public client identifier (must start with jnc_). "
+            "Use when a consumer requires a fixed client_id across environments."
+        ),
+    )
+
+    @field_validator("client_id")
+    @classmethod
+    def validate_client_id(cls, v: Optional[str]) -> Optional[str]:
+        """Validate optional pinned client_id format."""
+        if v is None:
+            return v
+        if not re.match(r"^jnc_[A-Za-z0-9_-]{8,56}$", v):
+            raise ValueError("client_id must start with jnc_ and use URL-safe characters")
+        return v
 
     @field_validator("redirect_uris")
     @classmethod

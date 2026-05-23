@@ -31,8 +31,20 @@ jobs:
         run: |
           echo "=== Building k8s/base ==="
           kustomize build k8s/base > /tmp/base.yaml
-          echo "=== Validating manifests ==="
+          echo "=== Validating base ==="
           kubeconform -strict -summary -ignore-missing-schemas /tmp/base.yaml
+
+      - name: Build and validate production overlay
+        run: |
+          echo "=== Building k8s/overlays/production ==="
+          kustomize build k8s/overlays/production > /tmp/production.yaml
+          kubeconform -strict -summary -ignore-missing-schemas /tmp/production.yaml
+
+      - name: Build and validate staging overlay
+        run: |
+          echo "=== Building k8s/overlays/staging ==="
+          kustomize build k8s/overlays/staging > /tmp/staging.yaml
+          kubeconform -strict -summary -ignore-missing-schemas /tmp/staging.yaml
 
       - name: Check for selector mutations
         run: |

@@ -1,0 +1,34 @@
+# Production overlay — canonical prod manifest set (RFC 0001 / PP.3b).
+#
+# ArgoCD watches this path (see infra/argocd/config.json). Image digests
+# land here ONLY via promote-to-prod.yml — never from docker-publish.yml.
+#
+# Ops note: after this overlay lands, re-point the janua ArgoCD Application
+# source path from k8s/base/deployments → k8s/overlays/production.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: janua
+
+resources:
+  - ../../base
+
+# Production image digests — seeded from the former k8s/base/deployments
+# kustomization on PP.3b cutover. Updated exclusively by promote-to-prod.yml.
+images:
+  - name: ghcr.io/madfam-org/janua-admin
+    newName: ghcr.io/madfam-org/janua-admin
+    digest: sha256:cd7137af1441333161e996ea582f0364a69982bad880391478771a76f350473c
+  - name: ghcr.io/madfam-org/janua-api
+    newName: ghcr.io/madfam-org/janua-api
+    digest: sha256:13982832c5bb7a10bb190f2d64ade48a831245d5c1304a351557acd00c3d259b
+  - name: ghcr.io/madfam-org/janua-dashboard
+    newName: ghcr.io/madfam-org/janua-dashboard
+    digest: sha256:13cf070c98a1762a4a5a08efa959b6386963f8c22544dade53b61b66c0e08193
+  - name: ghcr.io/madfam-org/janua-docs
+    newName: ghcr.io/madfam-org/janua-docs
+    digest: sha256:0c4373cd8c879680a6f49da55171696660f677d26dd4e4d06521c2e6fa533bb3
+  - name: ghcr.io/madfam-org/janua-website
+    newName: ghcr.io/madfam-org/janua-website
+    digest: sha256:a9a6aded0d7c9c6f81b750edce78947191f1289e6cc1dae5ed0a1ac2f0774702

@@ -1,0 +1,77 @@
+# Staging-specific env vars on the API deployment.
+# Strategic merge on env[] merges by name — secret refs retargeted to janua-staging-secrets.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: janua-api
+spec:
+  template:
+    spec:
+      containers:
+        - name: janua-api
+          env:
+            - name: ENVIRONMENT
+              value: staging
+            - name: LOG_LEVEL
+              value: debug
+            - name: BASE_URL
+              value: https://staging-auth.madfam.io
+            - name: JANUA_CUSTOM_DOMAIN
+              value: staging-auth.madfam.io
+            - name: CORS_ORIGINS
+              value: "https://staging-admin.janua.dev,https://staging-app.janua.dev,https://staging-auth.madfam.io,https://staging-api.janua.dev,http://localhost:4101,http://localhost:5801"
+            - name: COOKIE_DOMAIN
+              value: ".madfam.io"
+            - name: ENABLE_DOCS
+              value: "true"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: janua-staging-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: janua-staging-secrets
+                  key: redis-url
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: janua-staging-secrets
+                  key: jwt-secret
+            - name: JWT_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: janua-staging-secrets
+                  key: jwt-private-key
+            - name: JWT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: janua-staging-secrets
+                  key: jwt-public-key
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: janua-staging-secrets
+                  key: secret-key
+            - name: FIELD_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: janua-staging-secrets
+                  key: field-encryption-key
+            - name: DHANAM_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: janua-staging-secrets
+                  key: dhanam-webhook-secret
+            - name: METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: janua-staging-secrets
+                  key: metrics-token
+                  optional: true
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: janua-staging-secrets
+                  key: resend-api-key

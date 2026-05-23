@@ -62,9 +62,12 @@ jobs:
         if: steps.connectivity.outputs.connected == 'true'
         run: |
           # Check if kustomize overlay exists
-          if [[ -d "k8s/overlays/prod" ]]; then
+          if [[ -d "k8s/overlays/production" ]]; then
+            kubectl kustomize k8s/overlays/production > /tmp/expected.yaml
+            echo "Rendered expected manifests from k8s/overlays/production"
+          elif [[ -d "k8s/overlays/prod" ]]; then
             kubectl kustomize k8s/overlays/prod > /tmp/expected.yaml
-            echo "Rendered expected manifests from k8s/overlays/prod"
+            echo "Rendered expected manifests from k8s/overlays/prod (legacy)"
           else
             # Fallback to base if overlay doesn't exist
             kubectl kustomize k8s/base > /tmp/expected.yaml
@@ -122,9 +125,9 @@ jobs:
             # Check if this image is in our kustomization
             # Extract base image name (without tag) for comparison since kustomization.yaml
             # uses separate 'name' and 'newTag' fields rather than full image:tag strings
-            if [[ -f "k8s/overlays/prod/kustomization.yaml" ]]; then
+            if [[ -f "k8s/overlays/production/kustomization.yaml" ]]; then
               BASE_IMAGE=$(echo "$RUNNING" | cut -d: -f1)
-              if ! grep -q "$BASE_IMAGE" k8s/overlays/prod/kustomization.yaml 2>/dev/null; then
+              if ! grep -q "$BASE_IMAGE" k8s/overlays/production/kustomization.yaml 2>/dev/null; then
                 echo "  ⚠️ Image not found in kustomization.yaml" >> $GITHUB_STEP_SUMMARY
                 DRIFT_FOUND=true
               fi

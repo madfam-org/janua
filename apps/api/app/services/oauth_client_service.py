@@ -83,8 +83,11 @@ class OAuthClientService:
         Returns:
             Tuple of (created client, plain text secret)
         """
-        # Generate credentials
-        client_id = self.generate_client_id()
+        # Generate credentials — honor pinned client_id when provided
+        if data.client_id:
+            client_id = data.client_id
+        else:
+            client_id = self.generate_client_id()
         plain_secret, hashed_secret, secret_prefix = self.generate_client_secret()
 
         # Create client record
