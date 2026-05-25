@@ -1,0 +1,46 @@
+name: Hosted Auth Synthetics
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      require_strict_token:
+        description: 'Fail when synthetic token credentials are not configured'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  hosted-auth:
+    name: Hosted auth probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run hosted auth synthetic
+        env:
+          API_URL: ${{ vars.JANUA_API_URL || 'https://api.janua.dev' }}
+          ISSUER_URL: ${{ vars.JANUA_ISSUER_URL || 'https://auth.madfam.io' }}
+          EXPECTED_ISSUER: ${{ vars.JANUA_EXPECTED_ISSUER || vars.JANUA_ISSUER_URL || 'https://auth.madfam.io' }}
+          TIMEOUT: '10'
+          REQUIRE_STRICT_TOKEN: ${{ github.event.inputs.require_strict_token || vars.JANUA_REQUIRE_STRICT_TOKEN || 'false' }}
+          JANUA_SYNTHETIC_CLIENT_ID: ${{ secrets.JANUA_SYNTHETIC_CLIENT_ID }}
+          JANUA_SYNTHETIC_CLIENT_SECRET: ${{ secrets.JANUA_SYNTHETIC_CLIENT_SECRET }}
+          JANUA_SYNTHETIC_TOKEN_AUDIENCE: ${{ vars.JANUA_SYNTHETIC_TOKEN_AUDIENCE }}
+          JANUA_SYNTHETIC_SCOPE: ${{ vars.JANUA_SYNTHETIC_SCOPE || 'openid profile email' }}
+        run: bash scripts/hosted-auth-synthetic.sh
+
+      - name: Upload synthetic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hosted-auth-synthetic-${{ github.run_number }}
+          path: janua-hosted-auth-synthetic-summary.json
+          if-no-files-found: warn
+

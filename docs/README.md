@@ -26,6 +26,7 @@ Complete documentation for the Janua self-hosted authentication platform.
 
 ### Enterprise Features
 - **[Enterprise Overview](enterprise/ENTERPRISE_FEATURES.md)** - Enterprise capabilities
+- **[GA Claim Matrix](enterprise/GA_CLAIM_MATRIX.md)** - Current supported/beta/roadmap claim control
 - **[SSO Guide](enterprise/sso-integration-guide.md)** - Enterprise SSO setup
 - **[RBAC Setup](enterprise/enterprise-rbac-setup-guide.md)** - Role-based access control
 - **[SCIM Provisioning](guides/SCIM_PROVISIONING_GUIDE.md)** - User provisioning
@@ -65,6 +66,7 @@ Complete documentation for the Janua self-hosted authentication platform.
 - [Deployment Guide](deployment/DEPLOYMENT.md)
 - [Monitoring Setup](deployment/MONITORING_SETUP.md)
 - [Production Readiness](deployment/PRODUCTION_READINESS_REPORT.md)
+- [Commercial GA Remediation](internal/operations/COMMERCIAL_GA_REMEDIATION_PLAN.md)
 - [Railway Deployment](internal/operations/RAILWAY_DEPLOYMENT.md)
 
 ### For Product Teams
@@ -77,6 +79,7 @@ Complete documentation for the Janua self-hosted authentication platform.
 - [Business Development](business/BIZ_DEV.md)
 - [Comparison to Alternatives](../README.md#comparison-to-alternatives)
 - [Pricing Strategy](../README.md#is-this-production-ready)
+- [Commercial GA Remediation](internal/operations/COMMERCIAL_GA_REMEDIATION_PLAN.md)
 
 ## LLM-Friendly Documentation
 
@@ -111,5 +114,5 @@ Found an issue or want to improve documentation?
 
 ---
 
-**Last Updated**: November 22, 2025  
+**Last Updated**: May 25, 2026  
 **Documentation Version**: 1.0.0 (Post-Rebranding)
