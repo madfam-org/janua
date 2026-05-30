@@ -14,43 +14,43 @@ kind: Kustomization
 namespace: janua-staging
 
 resources:
-  - ../../base
+- ../../base
 
 replicas:
-  - name: janua-api
-    count: 1
-  - name: janua-admin
-    count: 1
-  - name: janua-dashboard
-    count: 1
-  - name: janua-docs
-    count: 1
-  - name: janua-website
-    count: 1
+- count: 1
+  name: janua-api
+- count: 1
+  name: janua-admin
+- count: 1
+  name: janua-dashboard
+- count: 1
+  name: janua-docs
+- count: 1
+  name: janua-website
 
 # Staging image digests — CI overwrites on each main-branch push.
 images:
-  - name: ghcr.io/madfam-org/janua-admin
-    newName: ghcr.io/madfam-org/janua-admin
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-  - name: ghcr.io/madfam-org/janua-api
-    newName: ghcr.io/madfam-org/janua-api
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-  - name: ghcr.io/madfam-org/janua-dashboard
-    newName: ghcr.io/madfam-org/janua-dashboard
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-  - name: ghcr.io/madfam-org/janua-docs
-    newName: ghcr.io/madfam-org/janua-docs
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-  - name: ghcr.io/madfam-org/janua-website
-    newName: ghcr.io/madfam-org/janua-website
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+- digest: sha256:6fc0ed28201fe404779df0335045eecb3611151fbbce9171152906f6d45c3509
+  name: ghcr.io/madfam-org/janua-admin
+  newName: ghcr.io/madfam-org/janua-admin
+- digest: sha256:e949cfe67cf252eabb69506c59e8812a9f64801a2ced656d8500fb6544358285
+  name: ghcr.io/madfam-org/janua-api
+  newName: ghcr.io/madfam-org/janua-api
+- digest: sha256:c5a97120042ad97ae52d07579365dd1cd86856697f6875c8e2ee6c2c2a545e50
+  name: ghcr.io/madfam-org/janua-dashboard
+  newName: ghcr.io/madfam-org/janua-dashboard
+- digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  name: ghcr.io/madfam-org/janua-docs
+  newName: ghcr.io/madfam-org/janua-docs
+- digest: sha256:8e5bbb43bee93b9e5fa8dbb9f036928a32d174c5a3c4226d0e0ceff1692d0678
+  name: ghcr.io/madfam-org/janua-website
+  newName: ghcr.io/madfam-org/janua-website
 
 patches:
-  - path: env-patch-api.yaml
-    target:
-      kind: Deployment
-      name: janua-api
-  - path: hpa-disable-patch.yaml
-    target:
-      kind: HorizontalPodAutoscaler
+- path: env-patch-api.yaml
+  target:
+    kind: Deployment
+    name: janua-api
+- path: hpa-disable-patch.yaml
+  target:
+    kind: HorizontalPodAutoscaler
