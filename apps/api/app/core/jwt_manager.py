@@ -7,7 +7,7 @@ Supports RS256 (asymmetric) for production and HS256 (symmetric) for testing
 import base64
 import secrets
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jwt
 import structlog
@@ -222,7 +222,16 @@ class JWTManager:
             headers=self._get_token_headers(),
         )
 
-    def verify_token(self, token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
+    def get_unverified_claims(self, token: str) -> Dict[str, Any]:
+        """Decode JWT claims without validating signature, issuer, audience, or expiry."""
+        return jwt.decode(token, options={"verify_signature": False})
+
+    def verify_token(
+        self,
+        token: str,
+        token_type: str = "access",
+        audience: Optional[str | Sequence[str]] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Verify and decode a JWT token"""
         try:
             payload = jwt.decode(
@@ -230,7 +239,7 @@ class JWTManager:
                 self._get_verification_key(),
                 algorithms=[self.algorithm],
                 issuer=self.issuer,
-                audience=self.audience,
+                audience=audience or self.audience,
             )
 
             # Verify token type

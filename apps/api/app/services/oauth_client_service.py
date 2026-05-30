@@ -103,7 +103,7 @@ class OAuthClientService:
             redirect_uris=data.redirect_uris,
             allowed_scopes=data.allowed_scopes or ["openid", "profile", "email"],
             grant_types=data.grant_types or ["authorization_code", "refresh_token"],
-            audience=data.audience,
+            audience=data.audience or data.client_key,
             logo_url=data.logo_url,
             website_url=data.website_url,
             is_confidential=data.is_confidential if data.is_confidential is not None else True,

@@ -149,7 +149,8 @@
       "@sveltejs/kit": ">=2.57.1",
       "svelte": ">=5.55.7",
       "devalue": ">=5.8.1",
-      "socket.io-parser": "4.2.6",
+      "socket.io-parser": ">=4.2.6",
+      "socket.io-parser@>=4.0.0 <4.2.6": ">=4.2.6",
       "yaml": ">=2.8.3"
     }
   }

@@ -46,6 +46,14 @@ class OAuthClientCreate(BaseModel):
             "use their organization_id query parameter."
         ),
     )
+    client_key: Optional[str] = Field(
+        None,
+        max_length=255,
+        description=(
+            "Stable logical key for internal /register reconciliation. "
+            "When no separate storage exists, this should match audience."
+        ),
+    )
     logo_url: Optional[str] = Field(None, max_length=500, description="Client logo URL")
     website_url: Optional[str] = Field(None, max_length=500, description="Client website URL")
     is_confidential: Optional[bool] = Field(

@@ -31,13 +31,17 @@ if _sentry_dsn:
 
         sentry_sdk.init(
             dsn=_sentry_dsn,
-            environment=os.environ.get("SENTRY_ENVIRONMENT", os.environ.get("ENVIRONMENT", "development")),
+            environment=os.environ.get(
+                "SENTRY_ENVIRONMENT", os.environ.get("ENVIRONMENT", "development")
+            ),
             traces_sample_rate=0.1,
             integrations=[FastApiIntegration()],
         )
     except ImportError:
         pass  # sentry-sdk not installed
 
+
+from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -48,7 +52,6 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from urllib.parse import urlparse
 
 # Secure password hashing context - using bcrypt 2b to avoid passlib wrap bug detection issue
 pwd_context = CryptContext(
@@ -82,13 +85,28 @@ from app.routers.v1 import (
     admin as admin_v1,
 )
 from app.routers.v1 import (
+    alerts as alerts_v1,
+)
+from app.routers.v1 import (
+    api_keys as api_keys_v1,
+)
+from app.routers.v1 import (
     audit_logs as audit_logs_v1,
 )
 from app.routers.v1 import (
     auth as auth_v1,
 )
 from app.routers.v1 import (
+    billing as billing_v1,
+)
+from app.routers.v1 import (
     devices as devices_v1,
+)
+from app.routers.v1 import (
+    guest as guest_v1,
+)
+from app.routers.v1 import (
+    guest_invites as guest_invites_v1,
 )
 from app.routers.v1 import (
     integrations as integrations_v1,
@@ -97,8 +115,10 @@ from app.routers.v1 import (
     invitations as invitations_v1,
 )
 from app.routers.v1 import (
-    alerts as alerts_v1,
     localization as localization_v1,
+)
+from app.routers.v1 import (
+    me as me_v1,
 )
 from app.routers.v1 import (
     mfa as mfa_v1,
@@ -131,6 +151,9 @@ from app.routers.v1 import (
     rbac as rbac_v1,
 )
 from app.routers.v1 import (
+    roles as roles_v1,
+)
+from app.routers.v1 import (
     sessions as sessions_v1,
 )
 from app.routers.v1 import (
@@ -141,21 +164,6 @@ from app.routers.v1 import (
 )
 from app.routers.v1 import (
     webhooks_dhanam as webhooks_dhanam_v1,
-)
-from app.routers.v1 import (
-    api_keys as api_keys_v1,
-)
-from app.routers.v1 import (
-    roles as roles_v1,
-)
-from app.routers.v1 import (
-    billing as billing_v1,
-)
-from app.routers.v1 import (
-    guest as guest_v1,
-)
-from app.routers.v1 import (
-    guest_invites as guest_invites_v1,
 )
 
 # Additional feature routers with optional loading
@@ -1079,6 +1087,7 @@ app.include_router(localization_v1.router, prefix="/api/v1")  # Localization mod
 app.include_router(billing_v1.router, prefix="/api/v1")  # Billing and plans
 app.include_router(guest_v1.router, prefix="/api/v1")  # Guest access tokens
 app.include_router(guest_invites_v1.router, prefix="/api/v1")  # Guest invite CRUD
+app.include_router(me_v1.router, prefix="/api/v1")  # Caller-scoped (entitlements)
 
 # Internal service API routers (for MADFAM service-to-service communication)
 try:
@@ -1122,6 +1131,7 @@ async def startup_event():
 
     # Initialize PostHog analytics (no-op if POSTHOG_API_KEY is not set)
     from app.analytics import init_posthog
+
     init_posthog()
 
     # CRITICAL: Validate SECRET_KEY in production
@@ -1216,6 +1226,7 @@ async def shutdown_event():
 
     # Flush pending PostHog events
     from app.analytics import shutdown as posthog_shutdown
+
     posthog_shutdown()
 
     try:

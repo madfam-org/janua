@@ -39,6 +39,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/oauth/clients", tags=["oauth-clients"])
 
 
+def _safe_oauth_client_name(name: Optional[str]) -> str:
+    """Sanitize user-provided OAuth client names before logging."""
+    return "".join(ch for ch in (name or "")[:128] if ch.isprintable() and ch not in "\r\n")
+
+
 async def get_oauth_client_service(
     db: AsyncSession = Depends(get_db),
 ) -> OAuthClientService:
@@ -61,14 +66,40 @@ async def register_oauth_client(
     Consumer services call this from their own bootstrap scripts using the
     shared INTERNAL_API_KEY, without needing a human login.
 
-    **Idempotent**: If a client with the same name already exists, returns
-    the existing client (HTTP 200, no secret). On first creation, returns
-    HTTP 201 with the client_secret (only shown once).
+    **Idempotent and convergent**: If a client with the same stable key already
+    exists, reconciles non-secret fields from the request and returns the
+    existing client (HTTP 200, no secret). The stable key is `client_key`, or
+    `audience` when `client_key` is omitted. Legacy clients still fall back to
+    name matching. On first creation, returns HTTP 201 with the client_secret
+    for confidential clients (only shown once).
 
     **Auth**: X-Internal-API-Key header (shared secret from K8s).
     """
-    # Idempotency: check if client with this name already exists
-    existing_client = await service.get_client_by_name(data.name)
+    registration_key = data.client_key or data.audience
+    if data.client_key and data.audience and data.client_key != data.audience:
+        raise HTTPException(
+            status_code=400,
+            detail="client_key must match audience until a separate client key column exists",
+        )
+
+    existing_client = None
+    if registration_key:
+        existing = await db.execute(
+            select(OAuthClient)
+            .where(OAuthClient.audience == registration_key)
+            .order_by(OAuthClient.created_at)
+            .limit(1)
+        )
+        existing_client = existing.scalar_one_or_none()
+
+    if not existing_client:
+        existing_client = await service.get_client_by_name(data.name)
+
+    if not existing_client:
+        existing = await db.execute(
+            select(OAuthClient).where(OAuthClient.name == data.name).order_by(OAuthClient.created_at).limit(1)
+        )
+        existing_client = existing.scalar_one_or_none()
 
     if existing_client:
         if data.client_id and existing_client.client_id != data.client_id:
@@ -76,6 +107,27 @@ async def register_oauth_client(
                 status_code=409,
                 detail="Client name already registered with a different client_id",
             )
+        existing_client.name = data.name
+        existing_client.description = data.description
+        existing_client.redirect_uris = data.redirect_uris
+        existing_client.allowed_scopes = data.allowed_scopes or [
+            "openid",
+            "profile",
+            "email",
+        ]
+        existing_client.grant_types = data.grant_types or [
+            "authorization_code",
+            "refresh_token",
+        ]
+        existing_client.audience = data.audience or data.client_key
+        existing_client.logo_url = data.logo_url
+        existing_client.website_url = data.website_url
+        if data.is_confidential is not None:
+            existing_client.is_confidential = data.is_confidential
+        existing_client.updated_at = datetime.utcnow()
+        await db.commit()
+        await db.refresh(existing_client)
+
         response.status_code = 200
         return _client_detail_response(existing_client)
 
@@ -115,21 +167,20 @@ async def register_oauth_client(
         organization_id=org_uuid,
     )
 
-    # Sanitize user-provided name to prevent log injection (CRLF / control chars)
-    safe_name = "".join(ch for ch in (data.name or "")[:128] if ch.isprintable() and ch not in "\r\n")
+    safe_name = _safe_oauth_client_name(data.name)
     logger.info("OAuth client registered via bootstrap: %s (client_id=%s)", safe_name, client.client_id)
 
     response.status_code = 201
     return OAuthClientDetailResponse(
         id=str(client.id),
         client_id=client.client_id,
-        client_secret=plain_secret,
+        client_secret=plain_secret if client.is_confidential else None,
         name=client.name,
         description=client.description,
         redirect_uris=client.redirect_uris or [],
         allowed_scopes=client.allowed_scopes or [],
         grant_types=client.grant_types or [],
-        audience=getattr(client, "audience", None),
+        audience=client.audience,
         logo_url=client.logo_url,
         website_url=client.website_url,
         is_active=client.is_active,
@@ -222,7 +273,7 @@ async def create_oauth_client(
         redirect_uris=client.redirect_uris or [],
         allowed_scopes=client.allowed_scopes or [],
         grant_types=client.grant_types or [],
-        audience=getattr(client, "audience", None),
+        audience=client.audience,
         logo_url=client.logo_url,
         website_url=client.website_url,
         is_active=client.is_active,
@@ -324,7 +375,7 @@ async def get_oauth_client(
         redirect_uris=client.redirect_uris or [],
         allowed_scopes=client.allowed_scopes or [],
         grant_types=client.grant_types or [],
-        audience=getattr(client, "audience", None),
+        audience=client.audience,
         logo_url=client.logo_url,
         website_url=client.website_url,
         is_active=client.is_active,
@@ -371,6 +422,7 @@ async def update_oauth_client(
         redirect_uris=client.redirect_uris or [],
         allowed_scopes=client.allowed_scopes or [],
         grant_types=client.grant_types or [],
+        audience=client.audience,
         logo_url=client.logo_url,
         website_url=client.website_url,
         is_active=client.is_active,

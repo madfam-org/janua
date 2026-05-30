@@ -1,6 +1,6 @@
 # Janua Integration Guide
 
-**Last Updated**: 2026-02-24
+**Last Updated**: 2026-05-06
 **Audience**: Any developer integrating Janua as their OAuth2/OIDC identity provider
 
 ---
@@ -10,6 +10,17 @@
 ### Register an OAuth Client
 
 Create an OAuth client for your application using one of these methods.
+
+For MADFAM ecosystem apps, the preferred method is product-owned zero-touch bootstrap:
+
+```bash
+curl -X POST https://auth.madfam.io/api/v1/oauth/clients/register \
+  -H "X-Internal-API-Key: $JANUA_INTERNAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d @infra/oauth-redirect-uris.json
+```
+
+The bootstrap endpoint is idempotent and convergent. If the client already exists, Janua reconciles non-secret fields and returns the client without re-exposing `client_secret`.
 
 **Via Dashboard UI** (preferred):
 
@@ -468,12 +479,15 @@ Clients with pre-assigned IDs: `enclii-dispatch`, `enclii-switchyard`, `dhanam-w
 
 ### Adding a New Ecosystem Client
 
-1. Add a new entry to the `ECOSYSTEM_CLIENTS` list in `apps/api/scripts/seed_ecosystem_clients.py`
-2. Include both production and localhost `redirect_uris` for dev/prod parity
-3. If the consumer app already has a hardcoded `client_id`, add it as a `"client_id"` field in the entry
-4. Run the seed script against your target database
-5. Copy the generated `jnc_*` / `jns_*` credentials into the app's `.env`
-6. Update the app's `.env.example` with a comment pointing to the seed script
+1. Add `infra/oauth-redirect-uris.json` to the consumer repo.
+2. Include both production and localhost `redirect_uris` for dev/prod parity.
+3. Set `is_confidential=false` for browser/mobile public PKCE clients and `true` only for server-side clients that can hold a secret.
+4. Add a consumer-owned bootstrap script that posts the file to `/api/v1/oauth/clients/register` with `X-Internal-API-Key`.
+5. Run the bootstrap script against the target Janua environment.
+6. Store the generated `jnc_*` client ID in public build env only when appropriate; store `jns_*` secrets only in server-side secret stores.
+7. Update the app's `.env.example` with the required Janua variables and audience.
+
+Do not add ordinary products to Janua seed scripts. Seed scripts are only for core bootstrap and disaster recovery.
 
 For client management operations (rotation, deactivation), see `docs/guides/PROVIDER_OPERATIONS.md`.
 

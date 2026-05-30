@@ -1,0 +1,8 @@
+{
+  "checked_at": "2026-05-30T20:40:54.423735+00:00",
+  "api_url": "https://api.janua.dev",
+  "issuer_url": "https://auth.madfam.io",
+  "passed": 6,
+  "failed": 0,
+  "skipped": 1
+}
