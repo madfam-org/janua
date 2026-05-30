@@ -1,7 +1,8 @@
 # ADR-002: Universal Keyring (Connected Accounts)
 
-**Status:** PROPOSED
-**Date:** 2026-01-17
+**Status:** ACCEPTED (implementation in progress — Coupler Program P1)  
+**Date:** 2026-01-17  
+**Implementation target:** 2026-07-25 (Coupler P1 gate)
 **Authors:** Galaxy Engineering
 **Deciders:** Platform Architecture Team
 

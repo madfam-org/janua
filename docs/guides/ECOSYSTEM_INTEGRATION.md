@@ -493,3 +493,23 @@ This section lists the known MADFAM ecosystem applications and their Janua clien
 | **Yantra4D Studio** (4d-app.madfam.io) | Missing env vars in CI. Needs `JANUA_BASE_URL` + `JANUA_CLIENT_ID` secrets. | `yantra4d-api` | `https://4d-app.madfam.io/auth/callback` |
 | **Yantra4D Admin** (4d-admin.madfam.io) | Admin panel. | `yantra4d-api` | `https://4d-admin.madfam.io/auth/callback` |
 | **Stratum-TCG** (stratum-tcg.dev) | Auth disabled. Needs integration. | `stratum-tcg-api` | `https://stratum-tcg.dev/api/auth/callback` |
+| **Coupler** (tools plane, TBD domain) | Planned — Phase 0 bootstrap. See [Appendix C](#appendix-c-coupler-agent-tool-plane). | `coupler-api` | TBD (`coupler` repo `janua.client.yaml`) |
+
+---
+
+## Appendix C: Coupler (Agent Tool Plane)
+
+Coupler is the fourth MADFAM platform for **delegated SaaS tool execution** (Composio-class). Janua provides ConnectedAccount storage and OAuth; Coupler executes tools.
+
+**Janua responsibilities:**
+
+- Implement ADR-002 `ConnectedAccount` (P1 blocker)
+- OAuth broker for GitHub, Slack, Google, Notion, Linear (v1 seed list)
+- `POST /api/v1/connections/:id/token` for Coupler service delegation
+- Audit ingest for connection and delegation events
+
+**Janua MUST NOT:** host connector API logic, MCP for SaaS, or tool execution logs.
+
+**Registration:** add `coupler-api` client via `janua provision apply` from `madfam-org/coupler` (not seed script).
+
+**Docs:** [COUPLER_PROGRAM.md](../COUPLER_PROGRAM.md) · [enclii AGENT_TOOL_PLANE](https://github.com/madfam-org/enclii/blob/main/docs/strategy/AGENT_TOOL_PLANE.md)

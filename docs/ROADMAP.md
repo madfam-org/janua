@@ -504,6 +504,22 @@ We build in public and welcome community input:
 
 ---
 
-**Last Updated**: November 17, 2025  
-**Next Review**: January 1, 2026  
+## Coupler Program — ConnectedAccount / Keyring (Jun–Jul 2026)
+
+**Objective:** Universal Keyring (ADR-002) so Coupler can execute delegated SaaS tools without storing refresh tokens in the tool plane.
+
+| Milestone | Target | Doc |
+|-----------|--------|-----|
+| ADR-002 implementation kickoff | 2026-06-16 | [ADR-002](./architecture/ADR-002_UNIVERSAL_KEYRING.md) |
+| Connections CRUD + encryption | 2026-07-05 | [COUPLER_PROGRAM.md](./COUPLER_PROGRAM.md) |
+| OAuth GitHub + Slack + token API | 2026-07-25 | P1 gate — Coupler staging execute |
+
+**Blocks:** Coupler P2 production execute (not Enclii Commercial GA).
+
+Runs parallel to Q2 2026 roadmap items below.
+
+---
+
+**Last Updated**: May 30, 2026  
+**Next Review**: July 1, 2026  
 **Maintained By**: Janua Core Team
