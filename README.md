@@ -1,6 +1,13 @@
 # Janua - Self-Hosted Authentication
 
 > [!IMPORTANT]
+> Janua is the ecosystem identity provider. Keep examples placeholder-only; do
+> not commit or paste user records, OAuth client secrets, session/refresh/access
+> tokens, JWKS/private keys, MFA/passkey/backup-code material, SAML/SCIM
+> metadata, webhook payloads, migration exports, database URLs, npm tokens,
+> GitHub tokens, or production credentials.
+
+> [!IMPORTANT]
 > MADFAM-ENCLII-FIRST-LEGACY-RAW v1: This document contains legacy raw infrastructure command examples.
 > Routine production operations must use Enclii web, API, or CLI. Treat raw
 > `kubectl`, `helm`, SSH, provider CLI/API, `docker exec`, and direct container

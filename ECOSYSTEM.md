@@ -1,6 +1,9 @@
 # janua — Ecosystem Context
 
 > [!IMPORTANT]
+> Janua owns ecosystem identity: users, tenants, OAuth/OIDC clients, sessions, token signing keys, MFA/passkeys, SAML/SCIM metadata, webhooks, and migration exports. Treat identity data and auth-provider operations as sensitive and side-effectful; keep examples placeholder-only. This is the identity-data side-effect doctrine for ecosystem context.
+
+> [!IMPORTANT]
 > MADFAM-ENCLII-FIRST-LEGACY-RAW v1: This document contains legacy raw infrastructure command examples.
 > Routine production operations must use Enclii web, API, or CLI. Treat raw
 > `kubectl`, `helm`, SSH, provider CLI/API, `docker exec`, and direct container
@@ -48,14 +51,14 @@ Janua is MADFAM's Auth0 replacement: OIDC/OAuth 2.0 with RS256 JWTs, multi-tenan
 ### Downstream consumers (this repo is consumed by)
 
 - enclii (switchyard-api, dispatch) — OIDC SSO
-- dhanam, karafiel, forgesight, tezca, fortuna, digifab-quoting, autoswarm-office, pravara-mes, yantra4d, avala, phynd-crm, routecraft, symbiosis-hcm — all verify tokens via JWKS
+- dhanam, karafiel, forgesight, tezca, fortuna, digifab-quoting, selva-office, pravara-mes, yantra4d, avala, phynd-crm, routecraft, symbiosis-hcm — all verify tokens via JWKS
 
 ### Key environment variables
 
-- `JANUA_DATABASE_URL — Postgres connection`
-- `JANUA_REDIS_URL — session + rate-limit store`
-- `JANUA_JWT_PRIVATE_KEY / PUBLIC_KEY — RS256 signing material`
-- `GITHUB_OAUTH_CLIENT_ID / SECRET — GitHub identity federation`
+- `JANUA_DATABASE_URL` — Postgres connection.
+- `JANUA_REDIS_URL` / `REDIS_URL` — session and rate-limit store.
+- `JANUA_JWT_PRIVATE_KEY` / `JANUA_JWT_PUBLIC_KEY` — RS256 signing material.
+- `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` — GitHub identity federation.
 
 ---
 
@@ -71,7 +74,7 @@ below is embedded here so this document stands alone.
 | **Enclii** | `madfam-org/enclii` | PaaS control plane — all deploys go through this |
 | **Janua** | `madfam-org/janua` | OIDC/OAuth 2.0 provider — RS256 JWKS at `auth.madfam.io/.well-known/jwks.json` |
 | **Dhanam** | `madfam-org/dhanam` | Billing + payment gateways (Stripe, Mercado Pago, SPEI, etc.) |
-| **Selva** | `madfam-org/autoswarm-office` | LLM inference routing + agent orchestration |
+| **Selva** | `madfam-org/selva-office` | LLM inference routing + agent orchestration |
 | **Karafiel** | `madfam-org/karafiel` | Operational compliance — CFDI, NOM-151, e.firma, SAT-adjacent. Owns legal-ops / contract templates |
 | **Tezca** | `madfam-org/tezca` | Mexican law oracle (informational only — feeds Karafiel) |
 | **Cotiza** | `madfam-org/digifab-quoting` | MADFAM's quoting engine (fabrication + services) |
@@ -89,7 +92,7 @@ below is embedded here so this document stands alone.
 - **Billing**: credit metering + entitlements flow through Dhanam. See
   `madfam-org/dhanam` for the meter/entitlement/invoice APIs.
 - **Inference**: every LLM call should route through Selva
-  (`autoswarm-office`) at `/v1` (OpenAI-compatible). Do not talk directly
+  (`selva-office`) at `/v1` (OpenAI-compatible). Do not talk directly
   to OpenAI / Anthropic from service code.
 - **CORS**: explicit allowlist per service. Wildcards are banned
   (audit 2026-04-23 H2/H5/H6).

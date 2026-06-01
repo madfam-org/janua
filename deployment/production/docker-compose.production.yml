@@ -61,7 +61,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-janua}
       POSTGRES_USER: ${POSTGRES_USER:-janua}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD:"${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in an untracked local env file}"
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
     ports:
       - "5432:5432"

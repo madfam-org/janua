@@ -6,7 +6,7 @@ services:
     container_name: janua-postgres
     environment:
       POSTGRES_USER: janua
-      POSTGRES_PASSWORD: janua_dev
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in an untracked local env file}"
       POSTGRES_DB: janua_db
     ports:
       - "5432:5432"
@@ -35,9 +35,9 @@ services:
     ports:
       - "4100:4100"
     environment:
-      DATABASE_URL: postgresql://janua:janua_dev@janua-postgres:5432/janua_db
-      REDIS_URL: redis://janua-redis:6379/0
-      SECRET_KEY: dev-secret-key-change-in-production
+      DATABASE_URL: "${DATABASE_URL:?set DATABASE_URL in an untracked local env file}"
+      REDIS_URL: "${REDIS_URL:?set REDIS_URL in an untracked local env file}"
+      SECRET_KEY: "${SECRET_KEY:?set SECRET_KEY in an untracked local env file}"
       DEBUG: "true"
       PORT: "4100"
     depends_on:

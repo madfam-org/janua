@@ -18,9 +18,9 @@ services:
       - "8000:8000"
     environment:
       - ENVIRONMENT=test
-      - DATABASE_URL=postgresql://test_user:test_pass@postgres:5432/janua_test
-      - REDIS_URL=redis://redis:6379/0
-      - JWT_SECRET=test_jwt_secret_key_for_journey_tests_only
+      - DATABASE_URL=${DATABASE_URL:?set DATABASE_URL in an untracked local env file}
+      - REDIS_URL=${REDIS_URL:?set REDIS_URL in an untracked local env file}
+      - JWT_SECRET=${JWT_SECRET_KEY:?set JWT_SECRET_KEY in an untracked local env file}
       - API_KEY=test-api-key-journey-validation
       - CORS_ORIGINS=http://localhost:3000,http://localhost:3001
       - LOG_LEVEL=info
@@ -101,7 +101,7 @@ services:
       - "5432:5432"
     environment:
       - POSTGRES_USER=test_user
-      - POSTGRES_PASSWORD=test_pass
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in an untracked local env file}
       - POSTGRES_DB=janua_test
     volumes:
       - postgres-test-data:/var/lib/postgresql/data

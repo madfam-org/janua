@@ -43,6 +43,10 @@ on:
         description: "Why are you rolling back? (shown in audit log; required)"
         required: true
         type: string
+      rollback_ack:
+        description: "Type rollback to acknowledge this mutates production identity GitOps state"
+        required: true
+        type: string
 
 concurrency:
   group: prod-promote
@@ -60,6 +64,20 @@ jobs:
           token: ${{ secrets.MADFAM_BOT_PAT || secrets.GITHUB_TOKEN }}
           fetch-depth: 100
 
+
+      - name: Require rollback acknowledgement
+        env:
+          ROLLBACK_ACK: ${{ inputs.rollback_ack }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          if [ "$ROLLBACK_ACK" != "rollback" ]; then
+            echo "Production rollback requires rollback_ack=rollback" >&2
+            exit 1
+          fi
+          if [ ${#REASON} -lt 12 ]; then
+            echo "Production rollback requires a reason of at least 12 characters" >&2
+            exit 1
+          fi
       - name: Resolve target digest
         id: target
         env:

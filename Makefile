@@ -34,6 +34,7 @@ install:
 
 # Development
 dev:
+	node scripts/require-local-services.mjs
 	npm run dev
 
 # Build all packages
@@ -57,6 +58,7 @@ typecheck:
 
 # Clean build artifacts
 clean:
+	node scripts/require-local-destructive.mjs
 	rm -rf node_modules
 	rm -rf apps/*/node_modules
 	rm -rf packages/*/node_modules
@@ -68,29 +70,36 @@ clean:
 
 # Docker commands
 docker-up:
+	node scripts/require-local-services.mjs
 	docker-compose up -d
 
 docker-down:
+	node scripts/require-local-destructive.mjs
 	docker-compose down
 
 docker-logs:
 	docker-compose logs -f
 
 docker-build:
+	node scripts/require-local-services.mjs
 	docker-compose build
 
 docker-restart:
+	node scripts/require-local-services.mjs
 	docker-compose restart
 
 # Database commands
 db-migrate:
+	node scripts/require-local-db.mjs
 	docker-compose exec api alembic upgrade head
 
 db-reset:
+	node scripts/require-local-db.mjs
 	docker-compose exec api alembic downgrade base
 	docker-compose exec api alembic upgrade head
 
 db-seed:
+	node scripts/require-local-db.mjs
 	docker-compose exec api python -m scripts.seed_database
 
 # Production build
@@ -108,7 +117,7 @@ deploy-staging:
 deploy-prod:
 	@echo "Deploying to production..."
 	@echo "Run: enclii deploy --environment production"
-	@echo "Or manually: ssh root@${CONTROL_PLANE_IP} 'cd /opt/solarpunk/janua && docker-compose -f deployment/production/docker-compose.production.yml up -d'"
+	@echo "Raw SSH/docker-compose production deploys are break-glass only. Record the Enclii adapter gap instead of normalizing raw access."
 
 # Run security scan
 security-scan:
@@ -121,6 +130,7 @@ docs-api:
 
 # Start individual services
 start-api:
+	node scripts/require-local-services.mjs
 	cd apps/api && uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 start-admin:

@@ -13,9 +13,9 @@ services:
       - NODE_ENV=development
       - PORT=4100
       - API_PORT=4100
-      - DATABASE_URL=postgresql://janua:janua_dev@postgres:5432/janua_dev
-      - REDIS_URL=redis://redis:6379/0
-      - JWT_SECRET=dev-jwt-secret-change-in-production
+      - DATABASE_URL=${DATABASE_URL:?set DATABASE_URL in an untracked local env file}
+      - REDIS_URL=${REDIS_URL:?set REDIS_URL in an untracked local env file}
+      - JWT_SECRET=${JWT_SECRET_KEY:?set JWT_SECRET_KEY in an untracked local env file}
       - COOKIE_SECRET=dev-cookie-secret-change-in-production
       - LOG_LEVEL=debug
     volumes:
@@ -37,7 +37,7 @@ services:
       - "5432:5432"
     environment:
       - POSTGRES_USER=janua
-      - POSTGRES_PASSWORD=janua_dev
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in an untracked local env file}
       - POSTGRES_DB=janua_dev
     volumes:
       - postgres_data:/var/lib/postgresql/data

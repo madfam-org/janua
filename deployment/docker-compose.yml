@@ -8,11 +8,11 @@ services:
       dockerfile: Dockerfile
     container_name: janua-api
     environment:
-      DATABASE_URL: postgresql://madfam:madfam_dev_password@madfam-postgres-shared:5432/janua_db
-      REDIS_URL: redis://:redis_dev_password@madfam-redis-shared:6379/0
-      SECRET_KEY: development-secret-key-change-in-production
+      DATABASE_URL: "${DATABASE_URL:?set DATABASE_URL in an untracked local env file}"
+      REDIS_URL: "${REDIS_URL:?set REDIS_URL in an untracked local env file}"
+      SECRET_KEY: "${SECRET_KEY:?set SECRET_KEY in an untracked local env file}"
       # Shared JWT secret for cross-service authentication (MADFAM ecosystem)
-      JWT_SECRET_KEY: dev-shared-janua-secret-32chars!!
+      JWT_SECRET_KEY:"${JWT_SECRET_KEY:?set JWT_SECRET_KEY in an untracked local env file}"
       DEBUG: "true"
       ENVIRONMENT: development
       BASE_URL: http://localhost:4100

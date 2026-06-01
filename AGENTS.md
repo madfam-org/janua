@@ -28,6 +28,23 @@ redirect and should not become the source of truth again.
   emergencies when Enclii is unavailable or lacks an implemented adapter.
 - Record any missing Enclii adapter gap instead of normalizing raw production
   access in docs or runbooks.
+- Treat user identities, email/phone/profile data, organizations/tenants,
+  OAuth clients, redirect URIs, sessions, refresh/access tokens, JWKS/private
+  keys, MFA/passkeys/backup codes, SAML/SCIM metadata, webhooks, audit logs,
+  migration exports, and service-to-service API keys as sensitive identity data.
+  Do not expose sample records, tokens, key material, client secrets, payloads,
+  screenshots, logs, or credentials in commits, PRs, issues, chat, CI logs, or
+  MCP memory.
+- Treat OAuth client mutations, key rotation, user/session migration, SAML/SCIM
+  provisioning, webhook delivery, hosted-auth synthetics against production,
+  database migrations/seeds/resets, local docker stacks, SDK/package publishing,
+  and GitOps deploy/promote/rollback workflows as side-effectful. Require an
+  explicit operator request plus the appropriate local guard env before running
+  mutating commands.
+- Keep examples placeholder-only: Janua signing keys, OAuth/SAML/SCIM secrets,
+  database/Redis URLs, GitHub/OAuth provider secrets, Resend/email keys, R2/S3
+  credentials, npm/GitHub tokens, Enclii tokens, and production credentials must
+  stay in approved secret stores or local operator environments.
 
 ## Repo entrypoints
 
