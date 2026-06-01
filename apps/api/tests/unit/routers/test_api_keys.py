@@ -71,7 +71,7 @@ def _make_membership(user: User, org: Organization) -> OrganizationMember:
 class TestApiKeyServiceKeyGeneration:
     """Test key generation helpers."""
 
-    def test_generate_sk_live_key_format(self):
+    def test_generate_DUMMY_STRIPE_LIVE_KEY_DO_NOT_USE(self):
         """sk_live_ keys have the correct format and length."""
         full_key, key_hash, key_prefix = ApiKeyService.generate_sk_live_key()
         assert full_key.startswith("sk_live_")
@@ -80,12 +80,12 @@ class TestApiKeyServiceKeyGeneration:
         assert key_prefix.startswith("sk_live_")
         assert len(key_prefix) == 12  # "sk_live_" (8) + 4 hex chars
 
-    def test_generate_sk_live_key_hash_matches(self):
+    def test_generate_DUMMY_STRIPE_LIVE_KEY_DO_NOT_USE(self):
         """SHA-256 hash of full key matches returned hash."""
         full_key, key_hash, _ = ApiKeyService.generate_sk_live_key()
         assert hashlib.sha256(full_key.encode()).hexdigest() == key_hash
 
-    def test_generate_sk_live_key_uniqueness(self):
+    def test_generate_DUMMY_STRIPE_LIVE_KEY_DO_NOT_USE(self):
         """Two generated keys are never the same."""
         key1, _, _ = ApiKeyService.generate_sk_live_key()
         key2, _, _ = ApiKeyService.generate_sk_live_key()

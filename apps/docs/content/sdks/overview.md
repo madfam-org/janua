@@ -1567,7 +1567,7 @@ def handle_webhook():
     payload = request.get_data(as_text=True)
     signature = request.headers.get('X-Janua-Signature')
     timestamp = request.headers.get('X-Janua-Timestamp')
-    secret = 'whsec_your_secret'
+    secret = 'DUMMY_WEBHOOK_SECRET_DO_NOT_USE'
     
     if not verify_webhook_signature(payload, signature, secret, timestamp):
         return jsonify({'error': 'Invalid signature'}), 401

@@ -779,7 +779,7 @@ class TestAppleOAuth:
                 client_id="com.example.app",
                 team_id="TEAM123",
                 key_id="KEY123",
-                private_key="-----BEGIN PRIVATE KEY-----\nMOCK\n-----END PRIVATE KEY-----",
+                private_key="__DUMMY_PRIVATE_KEY_BLOCK_REMOVED_FOR_PUBLIC_REPO__",
             )
 
             assert secret == "mock_jwt"

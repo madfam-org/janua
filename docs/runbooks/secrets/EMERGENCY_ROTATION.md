@@ -119,7 +119,7 @@ kubectl logs -n janua janua-postgres-0 --since=1h | grep -i "connection\|auth"
 2. **Update Kubernetes secret:**
    ```bash
    # Encode new key
-   NEW_KEY="sk_live_NEW_KEY_HERE"
+   NEW_KEY="DUMMY_STRIPE_LIVE_KEY_DO_NOT_USE"
    ENCODED=$(echo -n "$NEW_KEY" | base64)
 
    # Update secret

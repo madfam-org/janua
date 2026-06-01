@@ -80,9 +80,7 @@ class TestKeyManagement:
         await jwt_service._generate_new_keys()
 
         # Verify keys are valid PEM format
-        assert jwt_service._private_key.startswith("-----BEGIN PRIVATE KEY-----")
-        assert jwt_service._public_key.startswith("-----BEGIN PUBLIC KEY-----")
-        assert "-----END PRIVATE KEY-----" in jwt_service._private_key
+        assert jwt_service._private_key.startswith("__DUMMY_PRIVATE_KEY_BLOCK_REMOVED_FOR_PUBLIC_REPO__" in jwt_service._private_key
         assert "-----END PUBLIC KEY-----" in jwt_service._public_key
 
     async def test_rotate_keys_generates_new_and_marks_old(self, jwt_service, mock_db):

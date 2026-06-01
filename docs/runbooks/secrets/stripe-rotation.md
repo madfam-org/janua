@@ -55,7 +55,7 @@ Stripe supports rolling keys with a grace period:
 
 ```bash
 # Set the new secret key
-NEW_KEY="sk_live_PASTE_NEW_KEY_HERE"
+NEW_KEY="DUMMY_STRIPE_LIVE_KEY_DO_NOT_USE"
 
 # Encode and update
 kubectl patch secret janua-secrets -n janua --type='json' \
@@ -119,7 +119,7 @@ After 24 hours, the old key automatically expires.
 
 ```bash
 # Set the new webhook secret
-NEW_WEBHOOK="whsec_PASTE_NEW_SECRET_HERE"
+NEW_WEBHOOK="DUMMY_WEBHOOK_SECRET_DO_NOT_USE"
 
 # Encode and update
 kubectl patch secret janua-secrets -n janua --type='json' \
