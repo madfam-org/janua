@@ -28,7 +28,7 @@ import hashlib
 
 app = FastAPI()
 
-WEBHOOK_SECRET = "whsec_your_webhook_secret"
+WEBHOOK_SECRET = "DUMMY_WEBHOOK_SECRET_DO_NOT_USE"
 
 @app.post("/webhooks/janua")
 async def handle_janua_webhook(request: Request):
@@ -67,7 +67,7 @@ const express = require('express');
 const crypto = require('crypto');
 
 const app = express();
-const WEBHOOK_SECRET = 'whsec_your_webhook_secret';
+const WEBHOOK_SECRET = 'DUMMY_WEBHOOK_SECRET_DO_NOT_USE';
 
 app.post('/webhooks/janua', express.raw({type: 'application/json'}), (req, res) => {
   const signature = req.headers['x-janua-signature'];
@@ -211,7 +211,7 @@ Authorization: Bearer <token>
 ```json
 {
   "id": "wh_abc123",
-  "secret": "whsec_new_secret_xyz..."
+  "secret": "DUMMY_WEBHOOK_SECRET_DO_NOT_USE..."
 }
 ```
 

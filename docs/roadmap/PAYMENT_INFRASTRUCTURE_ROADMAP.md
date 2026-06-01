@@ -1103,16 +1103,16 @@ def verify_stripe_webhook(payload: bytes, signature: str) -> bool:
 ```env
 # Polar Configuration
 POLAR_ACCESS_TOKEN=polar_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-POLAR_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+POLAR_WEBHOOK_SECRET=DUMMY_WEBHOOK_SECRET_DO_NOT_USE
 POLAR_SANDBOX=false
 
 # Conekta Configuration
 CONEKTA_API_KEY=key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-CONEKTA_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+CONEKTA_WEBHOOK_SECRET=DUMMY_WEBHOOK_SECRET_DO_NOT_USE
 
 # Stripe Configuration
-STRIPE_SECRET_KEY=sk_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+STRIPE_SECRET_KEY=DUMMY_STRIPE_LIVE_KEY_DO_NOT_USE
+STRIPE_WEBHOOK_SECRET=DUMMY_WEBHOOK_SECRET_DO_NOT_USE
 ```
 
 ---

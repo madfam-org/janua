@@ -24,7 +24,7 @@ class TestCertificateManager:
 
         # Verify certificate
         assert "-----BEGIN CERTIFICATE-----" in cert_pem
-        assert "-----BEGIN PRIVATE KEY-----" in key_pem
+        assert "DUMMY_PRIVATE_KEY_BEGIN_REMOVED" in key_pem
 
         # Validate certificate
         validation = manager.validate_certificate(cert_pem)

@@ -603,7 +603,7 @@ class TestWebhookSecurityFeatures:
         response = WebhookEndpointResponse(
             id=uuid.uuid4(),
             url="https://example.com/webhook",
-            secret="whsec_supersecretkey123",
+            secret="DUMMY_WEBHOOK_SECRET_DO_NOT_USE",
             events=["user.created"],
             is_active=True,
             description=None,

@@ -429,9 +429,7 @@ stringData:
   REDIS_URL: "redis://:password@redis-service:6379/0"
   SECRET_KEY: "your-secret-key-here"
   JWT_PRIVATE_KEY: |
-    -----BEGIN RSA PRIVATE KEY-----
-    ... your private key ...
-    -----END RSA PRIVATE KEY-----
+    __DUMMY_PRIVATE_KEY_BLOCK_REMOVED_FOR_PUBLIC_REPO__
 ```
 
 **4. Deployment** (`k8s/deployment.yaml`):
