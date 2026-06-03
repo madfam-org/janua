@@ -7,7 +7,7 @@
 # exit codes via kube-state-metrics — pages on-call.
 #
 # Pattern mirrors the revenue-loop-probe CronJob already in-flight
-# at autoswarm-office/packages/revenue-loop-probe/k8s/.
+# at selva-office/packages/revenue-loop-probe/k8s/.
 #
 # Apply:
 #   kubectl apply -f rotation-monitor-cronjob.yaml
