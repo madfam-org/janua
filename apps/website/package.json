@@ -59,7 +59,7 @@
     "eslint-config-next": "15.2.4",
     "identity-obj-proxy": "^3.0.0",
     "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
+    "jest-environment-jsdom": "^30.4.1",
     "postcss": "^8.5.15",
     "tailwindcss": "4.3.0",
     "tailwindcss-animate": "^1.0.7",
