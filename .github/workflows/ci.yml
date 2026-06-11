@@ -222,7 +222,7 @@ jobs:
             --ignore=tests/unit/core/test_redis_circuit_breaker.py
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: apps/api/coverage.xml
           flags: api
