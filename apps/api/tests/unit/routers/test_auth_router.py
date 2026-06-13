@@ -1063,16 +1063,23 @@ class TestLoginFormAuthRequestId:
             "login_form must fall back to '/' when auth request is expired or not found"
         )
 
-    def test_login_form_preserves_auth_request_id_in_error_page(self):
-        """Error pages must preserve auth_request_id so retries work."""
+    def test_login_form_preserves_client_id_in_error_page(self):
+        """Error pages must preserve client_id for OAuth recovery after retries."""
         import inspect
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
-        # The error page hidden field should use auth_request_id when available
-        assert "error_hidden_field" in source, (
-            "login_form must build conditional hidden field for error page retries"
-        )
+        assert "_oauth_context_hidden_fields_html" in source
+        assert "client_id=client_id" in source
+
+    def test_login_page_restarts_stale_auth_request(self):
+        """Stale auth_request_id bookmarks should restart OAuth when possible."""
+        import inspect
+        from app.routers.v1.auth import login_page
+
+        source = inspect.getsource(login_page)
+        assert "login_page.stale_auth_request_restarted" in source
+        assert "_recover_authorize_url_from_client" in source
 
     def test_login_form_filters_none_params_from_url(self):
         """The reconstructed authorize URL must not include None-valued params."""
