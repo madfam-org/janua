@@ -954,25 +954,30 @@ class TestLoginPageAuthRequestId:
         assert param.default is None, "auth_request_id should default to None"
 
     def test_login_page_passes_auth_request_id_as_hidden_field(self):
-        """login_page must pass auth_request_id as a hidden form field."""
-        import inspect
-        from app.routers.v1.auth import login_page
+        """The OAuth-context hidden fields must include auth_request_id."""
+        from app.routers.v1.auth import _oauth_context_hidden_fields_html
 
-        source = inspect.getsource(login_page)
-        assert 'name="auth_request_id"' in source, (
-            "login_page must include auth_request_id as a hidden form field"
+        fields = _oauth_context_hidden_fields_html(
+            auth_request_id="req-123", client_id=None, client_name=None
+        )
+        assert 'name="auth_request_id"' in fields, (
+            "OAuth context fields must include auth_request_id as a hidden form field"
         )
 
     def test_login_page_does_not_include_next_when_auth_request_id_present(self):
-        """When auth_request_id is present, login_page should NOT include
-        a 'next' hidden field (to avoid double-encoding)."""
-        import inspect
-        from app.routers.v1.auth import login_page
+        """When auth_request_id is present, 'next' must be omitted (to avoid
+        double-encoding); auth_request_id takes precedence over next_url."""
+        from app.routers.v1.auth import _oauth_context_hidden_fields_html
 
-        source = inspect.getsource(login_page)
-        # The code should have conditional logic: if auth_request_id, use it; else use next
-        assert "if auth_request_id:" in source, (
-            "login_page must conditionally choose between auth_request_id and next"
+        fields = _oauth_context_hidden_fields_html(
+            auth_request_id="req-123",
+            client_id=None,
+            client_name=None,
+            next_url="/dashboard",
+        )
+        assert 'name="auth_request_id"' in fields
+        assert 'name="next"' not in fields, (
+            "next must not be emitted when auth_request_id is present"
         )
 
     def test_login_page_still_supports_next_param(self):
@@ -1099,23 +1104,25 @@ class TestLoginFormOAuthRecovery:
         """login_page must include client_id as a hidden field so /login-form
         can recover OAuth context if the Redis-stored auth_request_id has
         expired by the time the form is submitted."""
-        import inspect
-        from app.routers.v1.auth import login_page
+        from app.routers.v1.auth import _oauth_context_hidden_fields_html
 
-        source = inspect.getsource(login_page)
-        assert 'name="client_id"' in source, (
-            "login_page must include client_id as a hidden form field for OAuth recovery"
+        fields = _oauth_context_hidden_fields_html(
+            auth_request_id=None, client_id="client-abc", client_name=None
+        )
+        assert 'name="client_id"' in fields, (
+            "OAuth context fields must include client_id as a hidden form field for OAuth recovery"
         )
 
     def test_login_page_passes_client_name_as_hidden_field(self):
-        """login_page must include client_name as a hidden field for the
-        expired-session error page to display the application name."""
-        import inspect
-        from app.routers.v1.auth import login_page
+        """The OAuth-context hidden fields must include client_name so the
+        expired-session error page can display the application name."""
+        from app.routers.v1.auth import _oauth_context_hidden_fields_html
 
-        source = inspect.getsource(login_page)
-        assert 'name="client_name"' in source, (
-            "login_page must include client_name as a hidden form field"
+        fields = _oauth_context_hidden_fields_html(
+            auth_request_id=None, client_id=None, client_name="My App"
+        )
+        assert 'name="client_name"' in fields, (
+            "OAuth context fields must include client_name as a hidden form field"
         )
 
     def test_login_form_accepts_client_id_param(self):
@@ -1143,14 +1150,14 @@ class TestLoginFormOAuthRecovery:
         present, login_form must attempt to look up the OAuth client and
         reconstruct an authorize URL from its registered redirect_uris."""
         import inspect
-        from app.routers.v1.auth import login_form
+        from app.routers.v1.auth import _recover_authorize_url_from_client
 
-        source = inspect.getsource(login_form)
+        source = inspect.getsource(_recover_authorize_url_from_client)
         assert "OAuthClient" in source, (
-            "login_form must reference OAuthClient model to recover from expired Redis keys"
+            "recovery must reference the OAuthClient model to recover from expired Redis keys"
         )
         assert "redirect_uris" in source, (
-            "login_form must read redirect_uris from the OAuth client for recovery"
+            "recovery must read redirect_uris from the OAuth client to rebuild the authorize URL"
         )
 
     def test_login_form_renders_expired_page_on_unrecoverable_oauth_state(self):
