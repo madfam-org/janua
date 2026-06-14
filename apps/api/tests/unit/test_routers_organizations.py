@@ -50,6 +50,27 @@ def test_organizations_router_imports(mock_env):
         pytest.skip(f"Organizations router imports failed: {e}")
 
 
+def _collect_route_paths(routes):
+    """Collect endpoint paths from a router, recursing into included sub-routers.
+
+    Newer FastAPI/Starlette can represent ``include_router`` results as wrapper
+    objects (``_IncludedRouter``/``Mount``) that expose nested ``.routes`` (or
+    ``.router.routes``) rather than a top-level ``.path``.
+    """
+    paths = []
+    for route in routes:
+        path = getattr(route, "path", None)
+        if isinstance(path, str):
+            paths.append(path)
+        nested = getattr(route, "routes", None)
+        if not nested:
+            inner = getattr(route, "router", None)
+            nested = getattr(inner, "routes", None) if inner is not None else None
+        if nested:
+            paths.extend(_collect_route_paths(nested))
+    return paths
+
+
 def test_organizations_router_structure(mock_env):
     """Test organizations router has expected route structure"""
     try:
@@ -63,7 +84,7 @@ def test_organizations_router_structure(mock_env):
             from app.routers.v1.organizations import router
 
             # Extract route paths
-            route_paths = [route.path for route in router.routes if hasattr(route, "path")]
+            route_paths = _collect_route_paths(router.routes)
 
             # Check for expected organization endpoints
             org_routes = [
@@ -267,15 +288,11 @@ def test_organizations_audit_logging(mock_env):
             assert router is not None
             assert hasattr(router, "routes")
 
-            # Check that audit logging structure exists. Included sub-routers
-            # (Mount/_IncludedRouter) are not endpoints and expose neither
-            # attribute; assert only on actual API routes.
-            endpoint_routes = [
-                route
-                for route in router.routes
-                if hasattr(route, "endpoint") or hasattr(route, "path")
-            ]
-            assert endpoint_routes, "organizations router should expose endpoint routes"
+            # Check that audit logging structure exists. Resolve routes
+            # recursively so included sub-routers (Mount/_IncludedRouter) count.
+            assert _collect_route_paths(router.routes), (
+                "organizations router should expose endpoint routes"
+            )
 
     except ImportError as e:
         pytest.skip(f"Organizations audit logging test failed: {e}")
