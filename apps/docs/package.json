@@ -37,8 +37,8 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.10",
-    "@types/mdx": "^2.0.10",
+    "@tailwindcss/typography": "^0.5.20",
+    "@types/mdx": "^2.0.14",
     "@types/node": "^25",
     "@types/prismjs": "^1.26.6",
     "@types/react": "^18",
@@ -47,7 +47,7 @@
     "eslint": "^8",
     "eslint-config-next": "15.2.4",
     "postcss": "^8",
-    "tailwindcss": "4.3.0",
+    "tailwindcss": "4.3.1",
     "typescript": "^5.7.2"
   }
 }
