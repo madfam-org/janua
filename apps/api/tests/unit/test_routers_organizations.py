@@ -63,7 +63,7 @@ def test_organizations_router_structure(mock_env):
             from app.routers.v1.organizations import router
 
             # Extract route paths
-            route_paths = [route.path for route in router.routes]
+            route_paths = [route.path for route in router.routes if hasattr(route, "path")]
 
             # Check for expected organization endpoints
             org_routes = [
@@ -156,7 +156,7 @@ def test_organizations_member_management(mock_env):
             from app.routers.v1.organizations import router
 
             # Check for member management routes
-            route_paths = [route.path for route in router.routes]
+            route_paths = [route.path for route in router.routes if hasattr(route, "path")]
             member_routes = [
                 path
                 for path in route_paths
@@ -235,7 +235,7 @@ def test_organizations_settings_management(mock_env):
             from app.routers.v1.organizations import router
 
             # Check for settings-related routes
-            route_paths = [route.path for route in router.routes]
+            route_paths = [route.path for route in router.routes if hasattr(route, "path")]
             settings_routes = [
                 path
                 for path in route_paths
@@ -267,10 +267,15 @@ def test_organizations_audit_logging(mock_env):
             assert router is not None
             assert hasattr(router, "routes")
 
-            # Check that audit logging structure exists
-            for route in router.routes:
-                # This tests that the route structure supports audit logging
-                assert hasattr(route, "endpoint") or hasattr(route, "path")
+            # Check that audit logging structure exists. Included sub-routers
+            # (Mount/_IncludedRouter) are not endpoints and expose neither
+            # attribute; assert only on actual API routes.
+            endpoint_routes = [
+                route
+                for route in router.routes
+                if hasattr(route, "endpoint") or hasattr(route, "path")
+            ]
+            assert endpoint_routes, "organizations router should expose endpoint routes"
 
     except ImportError as e:
         pytest.skip(f"Organizations audit logging test failed: {e}")

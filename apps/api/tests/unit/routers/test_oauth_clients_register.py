@@ -160,9 +160,12 @@ async def test_register_pinned_client_id_is_idempotent(oauth_register_client: As
 
 @pytest.mark.asyncio
 async def test_register_rejects_client_id_name_mismatch(oauth_register_client: AsyncClient):
-    pinned = "jnc_conflictClientId0123456789012"
+    """Registration is idempotent/convergent for the same stable key, but an
+    existing registration must NOT be silently rebound to a *different* pinned
+    client_id — that is a 409. (Same-id re-registration with field changes is
+    reconciled to 200; covered by the idempotency tests.)"""
     payload = _client_payload("register-conflict-a")
-    payload["client_id"] = pinned
+    payload["client_id"] = "jnc_conflictClientId0123456789012"
     first = await oauth_register_client.post(
         REGISTER_URL,
         json=payload,
@@ -170,7 +173,8 @@ async def test_register_rejects_client_id_name_mismatch(oauth_register_client: A
     )
     assert first.status_code == 201
 
-    payload["name"] = "register-conflict-b"
+    # Same stable key (audience) + name, but a DIFFERENT pinned client_id.
+    payload["client_id"] = "jnc_conflictClientId9876543210987"
     second = await oauth_register_client.post(
         REGISTER_URL,
         json=payload,
