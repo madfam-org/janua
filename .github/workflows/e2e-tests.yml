@@ -27,6 +27,9 @@ jobs:
     services:
       postgres:
         image: postgres:15-alpine
+        credentials:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
         env:
           POSTGRES_USER: janua
           POSTGRES_PASSWORD: janua
@@ -41,6 +44,9 @@ jobs:
 
       redis:
         image: redis:7-alpine
+        credentials:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
         ports:
           - 6379:6379
         options: >-
