@@ -50,27 +50,6 @@ def test_organizations_router_imports(mock_env):
         pytest.skip(f"Organizations router imports failed: {e}")
 
 
-def _collect_route_paths(routes):
-    """Collect endpoint paths from a router, recursing into included sub-routers.
-
-    Newer FastAPI/Starlette can represent ``include_router`` results as wrapper
-    objects (``_IncludedRouter``/``Mount``) that expose nested ``.routes`` (or
-    ``.router.routes``) rather than a top-level ``.path``.
-    """
-    paths = []
-    for route in routes:
-        path = getattr(route, "path", None)
-        if isinstance(path, str):
-            paths.append(path)
-        nested = getattr(route, "routes", None)
-        if not nested:
-            inner = getattr(route, "router", None)
-            nested = getattr(inner, "routes", None) if inner is not None else None
-        if nested:
-            paths.extend(_collect_route_paths(nested))
-    return paths
-
-
 def test_organizations_router_structure(mock_env):
     """Test organizations router has expected route structure"""
     try:
@@ -84,17 +63,13 @@ def test_organizations_router_structure(mock_env):
             from app.routers.v1.organizations import router
 
             # Extract route paths
-            route_paths = _collect_route_paths(router.routes)
-
-            # Check for expected organization endpoints
-            org_routes = [
-                path
-                for path in route_paths
-                if any(keyword in path.lower() for keyword in ["org", "team", "company", "tenant"])
-            ]
-            assert (
-                len(org_routes) > 0
-            ), "Organizations router should have organization-related routes"
+            # Route-object introspection is FastAPI-version fragile here
+            # (include/mount wrappers), so assert the router's configuration
+            # directly: it mounts at /organizations and registers routes.
+            assert getattr(router, "prefix", "") == "/organizations", (
+                "organizations router should mount at /organizations"
+            )
+            assert len(router.routes) > 0, "organizations router should register routes"
 
     except ImportError as e:
         pytest.skip(f"Organizations router structure test failed: {e}")
@@ -288,11 +263,10 @@ def test_organizations_audit_logging(mock_env):
             assert router is not None
             assert hasattr(router, "routes")
 
-            # Check that audit logging structure exists. Resolve routes
-            # recursively so included sub-routers (Mount/_IncludedRouter) count.
-            assert _collect_route_paths(router.routes), (
-                "organizations router should expose endpoint routes"
-            )
+            # Verify the router is configured and registers routes (robust to
+            # FastAPI include/mount route representations).
+            assert router is not None and hasattr(router, "routes")
+            assert len(router.routes) > 0, "organizations router should register routes"
 
     except ImportError as e:
         pytest.skip(f"Organizations audit logging test failed: {e}")
