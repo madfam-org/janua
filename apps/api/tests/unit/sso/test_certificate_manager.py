@@ -117,7 +117,7 @@ class TestCertificateGeneration:
         )
 
         assert cert_pem.startswith("-----BEGIN CERTIFICATE-----")
-        assert key_pem.startswith("DUMMY_PRIVATE_KEY_BEGIN_REMOVED")
+        assert key_pem.startswith("-----BEGIN RSA PRIVATE KEY-----")
 
     def test_generate_certificate_with_organization(self, certificate_manager):
         """Should include organization in certificate"""
