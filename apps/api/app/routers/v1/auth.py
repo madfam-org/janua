@@ -483,6 +483,63 @@ async def check_session(
     }
 
 
+def _oauth_context_hidden_fields_html(
+    *,
+    auth_request_id: Optional[str],
+    client_id: Optional[str],
+    client_name: Optional[str],
+    next_url: Optional[str] = None,
+) -> str:
+    """Hidden form fields that preserve OAuth context across retries."""
+    import html
+
+    parts: list[str] = []
+    if auth_request_id:
+        parts.append(
+            f'<input type="hidden" name="auth_request_id" value="{html.escape(auth_request_id)}">'
+        )
+    elif next_url:
+        parts.append(f'<input type="hidden" name="next" value="{html.escape(next_url)}">')
+    if client_id:
+        parts.append(
+            f'<input type="hidden" name="client_id" value="{html.escape(client_id)}">'
+        )
+    if client_name:
+        parts.append(
+            f'<input type="hidden" name="client_name" value="{html.escape(client_name)}">'
+        )
+    return "".join(parts)
+
+
+async def _recover_authorize_url_from_client(client_id: str, db) -> Optional[str]:
+    """Rebuild a minimal /oauth/authorize URL when Redis pre-login state expired."""
+    from ...models import OAuthClient as _OAuthClient
+
+    stmt = select(_OAuthClient).where(_OAuthClient.client_id == client_id)
+    result = await db.execute(stmt)
+    oauth_client = result.scalar_one_or_none()
+    if not oauth_client or not oauth_client.is_active or not oauth_client.redirect_uris:
+        return None
+
+    redirect_uris = oauth_client.redirect_uris
+    if isinstance(redirect_uris, str):
+        try:
+            redirect_uris = json.loads(redirect_uris)
+        except json.JSONDecodeError:
+            redirect_uris = []
+    if not redirect_uris:
+        return None
+
+    fallback_scope = " ".join(oauth_client.allowed_scopes or ["openid"])
+    query_params = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": redirect_uris[0],
+        "scope": fallback_scope,
+    }
+    return f"/api/v1/oauth/authorize?{urlencode(query_params)}"
+
+
 # GET /login - Render login form for OAuth flows
 @router.get("/login")
 async def login_page(
@@ -491,6 +548,8 @@ async def login_page(
     auth_request_id: Optional[str] = None,
     client_id: Optional[str] = None,
     client_name: Optional[str] = None,
+    db=Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis),
 ):
     """
     Render login page for OAuth authorization flows.
@@ -506,46 +565,34 @@ async def login_page(
     - client_id: OAuth client requesting authorization
     - client_name: Human-readable name of the OAuth client
     """
-    # Escape values for HTML safety
     import html
 
-    from fastapi.responses import HTMLResponse
+    from fastapi.responses import HTMLResponse, RedirectResponse
+
+    # Stale bookmarked login URLs carry an expired auth_request_id. Restart the
+    # OAuth flow instead of rendering a form that cannot complete.
+    if auth_request_id and client_id:
+        stored_data = await redis.get(f"oauth:pre_login:{auth_request_id}")
+        if not stored_data:
+            recovered = await _recover_authorize_url_from_client(client_id, db)
+            if recovered:
+                logger.info(
+                    "login_page.stale_auth_request_restarted",
+                    auth_request_id=auth_request_id,
+                    client_id=client_id,
+                )
+                return RedirectResponse(url=recovered, status_code=302)
 
     # SECURITY: Validate the 'next' URL to prevent open redirect attacks (CWE-601)
     safe_next = validate_redirect_url(next or "/", default_url="/")
-    next_url = html.escape(safe_next)
     app_name = html.escape(client_name or "Application")
 
-    # Build hidden fields for the form: prefer auth_request_id over next URL
-    # to avoid double-encoding issues with complex OAuth redirect URLs.
-    #
-    # IMPORTANT: also preserve client_id (and client_name for display) as hidden
-    # fields so that if `auth_request_id` has expired in Redis by the time the
-    # user submits, /login-form can still recover the OAuth context by looking
-    # up the registered client and reconstructing a valid /oauth/authorize URL.
-    # Without this, a slightly-stale login URL produces a silent redirect to
-    # `auth.madfam.io/` (raw JSON) — the "Sign In does nothing" UX bug.
-    escaped_auth_request_id = html.escape(auth_request_id or "")
-    escaped_client_id = html.escape(client_id or "")
-    escaped_client_name_field = html.escape(client_name or "")
-    oauth_context_fields = ""
-    if client_id:
-        oauth_context_fields += (
-            f'<input type="hidden" name="client_id" value="{escaped_client_id}">'
-        )
-    if client_name:
-        oauth_context_fields += (
-            f'<input type="hidden" name="client_name" value="{escaped_client_name_field}">'
-        )
-    if auth_request_id:
-        hidden_fields = (
-            f'<input type="hidden" name="auth_request_id" value="{escaped_auth_request_id}">'
-            + oauth_context_fields
-        )
-    else:
-        hidden_fields = (
-            f'<input type="hidden" name="next" value="{next_url}">' + oauth_context_fields
-        )
+    hidden_fields = _oauth_context_hidden_fields_html(
+        auth_request_id=auth_request_id,
+        client_id=client_id,
+        client_name=client_name,
+        next_url=safe_next if not auth_request_id else None,
+    )
 
     html_content = f"""
 <!DOCTYPE html>
@@ -795,56 +842,34 @@ async def login_form(
         # nothing". The user still needs to re-consent / re-grant if scopes
         # changed, but they land somewhere meaningful.
         if oauth_recovery_attempted and client_id:
-            from ...models import OAuthClient as _OAuthClient
-
-            stmt = select(_OAuthClient).where(_OAuthClient.client_id == client_id)
-            result = await db.execute(stmt)
-            oauth_client = result.scalar_one_or_none()
-            if oauth_client and oauth_client.is_active and oauth_client.redirect_uris:
-                redirect_uris = oauth_client.redirect_uris
-                # redirect_uris is JSONB → may be a list or a JSON string
-                if isinstance(redirect_uris, str):
-                    try:
-                        redirect_uris = json.loads(redirect_uris)
-                    except json.JSONDecodeError:
-                        redirect_uris = []
-                if redirect_uris:
-                    # Use the first registered redirect_uri; the OAuth flow
-                    # will validate it on the authorize endpoint.
-                    fallback_redirect = redirect_uris[0]
-                    fallback_scope = " ".join(oauth_client.allowed_scopes or ["openid"])
-                    query_params = {
-                        "response_type": "code",
-                        "client_id": client_id,
-                        "redirect_uri": fallback_redirect,
-                        "scope": fallback_scope,
-                    }
-                    safe_next = f"/api/v1/oauth/authorize?{urlencode(query_params)}"
-                    redirect_branch = "redis_miss_oauth_recovered"
-                    logger.info(
-                        "login_form.redirect_branch",
-                        branch=redirect_branch,
-                        client_id=client_id,
-                        fallback_redirect=fallback_redirect,
-                    )
+            recovered = await _recover_authorize_url_from_client(client_id, db)
+            if recovered:
+                safe_next = recovered
+                redirect_branch = "redis_miss_oauth_recovered"
+                logger.info(
+                    "login_form.redirect_branch",
+                    branch=redirect_branch,
+                    client_id=client_id,
+                )
             else:
                 logger.warning(
                     "login_form.redirect_branch",
                     branch="redis_miss_no_recovery",
                     client_id=client_id,
-                    client_found=bool(oauth_client),
                 )
                 redirect_branch = "redis_miss_no_recovery"
     else:
         # Fallback: validate the 'next' URL for non-OAuth logins (CWE-601)
         safe_next = validate_redirect_url(next, default_url="/")
 
-    # Build the hidden field for error page retries — preserve auth_request_id
-    # so the OAuth context survives failed login attempts
-    if auth_request_id:
-        error_hidden_field = f'<input type="hidden" name="auth_request_id" value="{html.escape(auth_request_id)}">'
-    else:
-        error_hidden_field = f'<input type="hidden" name="next" value="{html.escape(safe_next)}">'
+    # Preserve full OAuth context on error-page retries (including client_id so
+    # Redis expiry recovery still works after a wrong-password attempt).
+    error_hidden_field = _oauth_context_hidden_fields_html(
+        auth_request_id=auth_request_id,
+        client_id=client_id,
+        client_name=client_name,
+        next_url=safe_next if not auth_request_id else None,
+    )
 
     # Helper to return error page
     def make_error_page(error_message: str) -> HTMLResponse:
