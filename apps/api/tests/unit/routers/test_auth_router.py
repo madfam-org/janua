@@ -445,7 +445,7 @@ class TestRouterConfiguration:
         """Test router has all required routes."""
         from app.routers.v1.auth import router
 
-        route_paths = [route.path for route in router.routes]
+        route_paths = [route.path for route in router.routes if hasattr(route, "path")]
 
         # Check for core auth routes (routes include /auth prefix)
         required_routes = [
@@ -805,7 +805,7 @@ class TestRateLimitingConfiguration:
         from app.routers.v1.auth import router
 
         # Rate limited endpoints should exist (routes include /auth prefix)
-        route_paths = {route.path for route in router.routes}
+        route_paths = {route.path for route in router.routes if hasattr(route, "path")}
 
         rate_limited_routes = ["/auth/signup", "/auth/signin", "/auth/login", "/auth/login-form"]
 
