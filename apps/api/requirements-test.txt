@@ -17,3 +17,9 @@ respx==0.20.2
 freezegun==1.2.2
 pytest-xdist==3.5.0
 pytest-html==4.1.1
+
+# Lint & type tooling (invoked by the API Tests workflow lint/typecheck steps;
+# previously missing, which caused exit-127 "command not found" in CI)
+ruff>=0.8.0
+black>=24.10.0
+mypy>=1.13.0
