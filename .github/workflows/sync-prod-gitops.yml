@@ -44,6 +44,10 @@ jobs:
 
       - name: Configure kubeconfig (break-glass fallback)
         run: |
+          if [ -n "${KUBERNETES_SERVICE_HOST:-}" ]; then
+            echo "In-cluster runner detected — using mounted service account kubeconfig"
+            exit 0
+          fi
           if [ -n "${{ secrets.KUBECONFIG_PRODUCTION }}" ]; then
             mkdir -p ~/.kube
             echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
