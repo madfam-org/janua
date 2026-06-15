@@ -1,0 +1,45 @@
+# Kyverno PolicyException — GitOps rollout unblock for Janua production.
+#
+# janua-website digest promotes were failing Argo sync with:
+#   verify-image-signatures / autogen-check-signature: GHCR manifest pull DENIED
+# during cosign verification (private package + Kyverno registry credentials gap).
+#
+# Scoped to Janua workload names in the janua namespace only — does not disable
+# cluster-wide signature verification. Prefer cosign-signed digests from
+# docker-publish; this exception unblocks reconcile until GHCR visibility or
+# Kyverno registry credentials are aligned with madfam-bot read:packages.
+
+apiVersion: kyverno.io/v2beta1
+kind: PolicyException
+metadata:
+  name: janua-gitops-rollout-signature
+  namespace: janua
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  labels:
+    app.kubernetes.io/part-of: janua
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  exceptions:
+    - policyName: verify-image-signatures
+      ruleNames:
+        - check-signature
+        - autogen-check-signature
+        - autogen-cronjob-check-signature
+  match:
+    any:
+      - resources:
+          kinds:
+            - Deployment
+            - Pod
+            - ReplicaSet
+            - CronJob
+            - Job
+          namespaces:
+            - janua
+          names:
+            - janua-api*
+            - janua-admin*
+            - janua-dashboard*
+            - janua-docs*
+            - janua-website*
