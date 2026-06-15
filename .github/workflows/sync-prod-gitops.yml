@@ -43,15 +43,23 @@ jobs:
           kustomize-version: '5.3.0'
 
       - name: Configure kubeconfig (break-glass fallback)
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_PRODUCTION }}
         run: |
-          if [ -n "${KUBERNETES_SERVICE_HOST:-}" ]; then
-            echo "In-cluster runner detected — using mounted service account kubeconfig"
+          set -euo pipefail
+          if [ -z "${KUBECONFIG_B64:-}" ]; then
+            echo "::warning::KUBECONFIG_PRODUCTION not configured"
             exit 0
           fi
-          if [ -n "${{ secrets.KUBECONFIG_PRODUCTION }}" ]; then
-            mkdir -p ~/.kube
-            echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
-            chmod 600 ~/.kube/config
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          if [ -n "${KUBERNETES_SERVICE_HOST:-}" ]; then
+            CURRENT_CONTEXT="$(kubectl config current-context)"
+            CLUSTER_NAME="$(kubectl config view --raw -o jsonpath="{.contexts[?(@.name==\"${CURRENT_CONTEXT}\")].context.cluster}")"
+            kubectl config set-cluster "${CLUSTER_NAME}" \
+              --server="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT:-443}"
+            echo "ARC runner: repointed kubeconfig to in-cluster API server"
           fi
 
       - name: Test cluster connectivity
