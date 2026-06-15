@@ -84,7 +84,7 @@ export default function DemoLayout({
                 Sign Up Free
               </Link>
               <Link
-                href="/docs"
+                href="https://docs.janua.dev"
                 className="px-6 py-3 border border-white text-white font-semibold rounded-lg hover:bg-white/10 transition-colors"
               >
                 View Docs

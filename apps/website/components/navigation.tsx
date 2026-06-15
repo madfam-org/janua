@@ -12,11 +12,11 @@ const navigation = [
     name: 'Product',
     href: '#',
     children: [
-      { name: 'Features', href: '#features' },
-      { name: 'Security', href: '#security' },
-      { name: 'Performance', href: '#performance' },
-      { name: 'Integrations', href: '#integrations' }
-    ]
+      { name: 'Features', href: '/#features' },
+      { name: 'Security', href: '/#security' },
+      { name: 'Performance', href: '/#performance' },
+      { name: 'Integrations', href: '/#integrations' },
+    ],
   },
   {
     name: 'Demo',

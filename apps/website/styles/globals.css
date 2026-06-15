@@ -1,6 +1,7 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Inter is self-hosted via next/font/google in app/layout.tsx */
+
+@config "../tailwind.config.js";
+@import "tailwindcss";
 
 @layer base {
   :root {
@@ -45,40 +46,71 @@
   * {
     border-color: hsl(var(--border));
   }
-  
+
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
   }
-  
-  h1, h2, h3, h4, h5, h6 {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     color: hsl(var(--foreground));
     font-weight: 600;
   }
-  
-  a {
+
+  /* Scope default link color to prose — avoid fighting nav/footer/button links */
+  .prose a {
     color: hsl(var(--primary));
     transition: color 150ms ease;
   }
 
-  a:hover {
+  .prose a:hover {
     color: hsl(var(--primary) / 0.8);
   }
 }
 
-/* Animation utilities */
 @layer utilities {
   .animate-fade-in {
     animation: fadeIn 0.5s ease-in-out;
   }
-  
+
   .animate-slide-up {
     animation: slideUp 0.6s ease-out;
   }
-  
+
   .animate-bounce-gentle {
     animation: bounceGentle 2s infinite;
+  }
+
+  .bg-grid-slate-100 {
+    background-image:
+      linear-gradient(to right, rgb(241 245 249 / 0.35) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(241 245 249 / 0.35) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .dark .bg-grid-slate-800,
+  .bg-grid-slate-800 {
+    background-image:
+      linear-gradient(to right, rgb(30 41 59 / 0.45) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(30 41 59 / 0.45) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .bg-grid-white\/5 {
+    background-image:
+      linear-gradient(to right, rgb(255 255 255 / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .scroll-mt-nav {
+    scroll-margin-top: 5rem;
   }
 }
 
@@ -103,7 +135,11 @@
 }
 
 @keyframes bounceGentle {
-  0%, 20%, 50%, 80%, 100% {
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
     transform: translateY(0);
   }
   40% {
@@ -114,7 +150,6 @@
   }
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }
