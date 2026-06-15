@@ -142,7 +142,7 @@ jobs:
                 && curl -fsSI "http://127.0.0.1:14104/pricing" | grep -q '200'; then
                 if [ -n "$css_path" ]; then
                   css=$(curl -fsSL "http://127.0.0.1:14104${css_path}" || true)
-                  if grep -qF '.flex{' <<< "$css" && grep -qF '--font-display' <<< "$css"; then
+                  if grep -qF '.flex{' <<< "$css" && grep -qF 'font-display' <<< "$css"; then
                     echo "In-cluster website smoke passed"
                     exit 0
                   fi

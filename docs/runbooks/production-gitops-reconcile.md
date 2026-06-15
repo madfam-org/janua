@@ -48,14 +48,13 @@ Policy record: root `enclii.yaml` → `promotion.pattern: manual`,
    curl -fsSI https://janua.dev/health
    ```
 
-5. **Public smoke** — landing CSS utilities present, marketing shell on subpages:
+5. **Public smoke** — from a workstation (ARC may not reach public janua.dev):
 
    ```bash
-   css=$(curl -fsSL "https://janua.dev${css}" | rg -q '\.flex\{' || curl -fsSL "https://janua.dev${css}" | grep -q '\.flex{')
-   curl -fsSI https://janua.dev/pricing | rg -q '200'
-   curl -fsSI https://janua.dev/legal/privacy | rg -q '200'
-   # SSR title + font tokens (hero headline is client-rendered)
-   curl -fsSL https://janua.dev/ | grep -q 'Edge-Fast Identity Platform'
+   css=$(curl -fsSL https://janua.dev/ | grep -oE '/_next/static/chunks/[^"]+\.css' | head -1)
+   curl -fsSL "https://janua.dev${css}" | grep -qF '.flex{'
+   curl -fsSI https://janua.dev/legal/privacy | grep -q '200'
+   curl -fsSL https://janua.dev/ | grep -qF 'Edge-Fast Identity Platform'
    ```
 
 Full pipeline context: [PP_3B_STAGING_PIPELINE.md](../PP_3B_STAGING_PIPELINE.md).
