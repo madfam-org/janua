@@ -60,6 +60,25 @@ jobs:
             echo "::warning::Cluster API unreachable from this runner — Enclii API path remains primary."
           fi
 
+      - name: Refresh GHCR pull secret in janua namespace
+        if: steps.connectivity.outputs.connected == 'true'
+        run: |
+          set -euo pipefail
+          if kubectl get secret ghcr-credentials -n dhanam &>/dev/null; then
+            kubectl get secret ghcr-credentials -n dhanam -o json | python3 -c '
+          import json, sys
+          s = json.load(sys.stdin)
+          meta = s.setdefault("metadata", {})
+          meta["namespace"] = "janua"
+          for k in ("resourceVersion", "uid", "creationTimestamp", "managedFields"):
+              meta.pop(k, None)
+          json.dump(s, sys.stdout)
+          ' | kubectl apply -f -
+            echo "Refreshed janua/ghcr-credentials from dhanam"
+          else
+            echo "::warning::dhanam/ghcr-credentials missing — cannot refresh janua pull secret"
+          fi
+
       - name: Clear stuck Argo operation (in-cluster)
         if: steps.connectivity.outputs.connected == 'true'
         run: |
