@@ -132,10 +132,11 @@ jobs:
             if [ -n "$css_path" ]; then
               css=$(curl -fsSL "https://janua.dev${css_path}" || true)
               if echo "$css" | grep -q '\.flex{' \
-                && echo "$home_html" | grep -q 'Stop writing OAuth' \
+                && echo "$css" | grep -q -- '--font-display' \
+                && echo "$home_html" | grep -q 'Edge-Fast Identity Platform' \
                 && curl -fsSI "https://janua.dev/pricing" | grep -q '200' \
                 && curl -fsSI "https://janua.dev/legal/privacy" | grep -q '200'; then
-                echo "Landing, pricing, legal, and Tailwind utilities present"
+                echo "Landing metadata, pricing, legal, and Tailwind utilities present"
                 exit 0
               fi
             fi
