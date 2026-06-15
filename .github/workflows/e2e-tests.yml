@@ -26,10 +26,7 @@ jobs:
     # This properly exposes ports to localhost unlike docker-compose
     services:
       postgres:
-        image: postgres:15-alpine
-        credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        image: public.ecr.aws/docker/library/postgres:15-alpine
         env:
           POSTGRES_USER: janua
           POSTGRES_PASSWORD: janua
@@ -43,10 +40,7 @@ jobs:
           --health-retries 5
 
       redis:
-        image: redis:7-alpine
-        credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        image: public.ecr.aws/docker/library/redis:7-alpine
         ports:
           - 6379:6379
         options: >-
