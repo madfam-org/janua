@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/react'
 import { ThemeProvider, FloatingThemeToggle } from '@janua/ui'
 import { PostHogProvider } from '@/components/PostHogProvider'
+import { EcosystemBannerClient } from '@/components/EcosystemBannerClient'
 import '../styles/globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -55,7 +56,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
-      <body className={`${inter.className} antialiased bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100`}>
+      <body className={`${inter.className} antialiased bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100 pb-8`}>
         <ThemeProvider>
           <Suspense fallback={null}>
             <PostHogProvider>
@@ -65,6 +66,7 @@ export default function RootLayout({
             </PostHogProvider>
           </Suspense>
           <FloatingThemeToggle />
+          <EcosystemBannerClient />
         </ThemeProvider>
         <Analytics />
       </body>
