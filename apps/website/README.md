@@ -1,61 +1,53 @@
-# Janua Marketing
+# Janua Website
 
-> **Landing pages and marketing site** for Janua platform
+> **Public marketing site** for the Janua identity platform
 
-**Status:** Production Ready · **Domain:** `janua.dev` · **Port:** 3003
+**Status:** Production · **Domain:** `janua.dev` · **Port:** `3000` (`@janua/website`)
 
-## 📋 Overview
+## Overview
 
-The Janua Marketing site is the primary landing experience showcasing the platform's capabilities, pricing, and documentation. Features interactive 3D visualizations, optimized performance, and conversion-focused design.
+The Janua website is the public landing experience: product positioning, pricing, legal pages, interactive demo, and developer resources. Built with Next.js 15, Tailwind CSS v4, and the shared `@janua/ui` design system.
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Node.js 18+
-- Yarn workspace management
-- GPU support recommended (for Three.js)
-
-### Installation
+## Quick start
 
 ```bash
 # From monorepo root
-yarn install
+pnpm install
 
-# Navigate to marketing app
-cd apps/marketing
-
-# Start development server
-yarn dev
+# Website dev server
+pnpm --filter @janua/website dev
 ```
 
-Marketing site will be available at [http://localhost:3003](http://localhost:3003)
+Site: [http://localhost:3000](http://localhost:3000)
 
-### Environment Setup
+### Environment
 
-Create a `.env.local` file:
+Copy `apps/website/.env.example` to `.env.local`. Key variables:
 
 ```env
-# API Configuration
-NEXT_PUBLIC_API_URL=https://api.janua.dev
-NEXT_PUBLIC_APP_URL=https://app.janua.dev
-
-# Analytics
-NEXT_PUBLIC_GA_ID=your-ga-id
-NEXT_PUBLIC_POSTHOG_KEY=your-posthog-key
-NEXT_PUBLIC_CLARITY_ID=your-clarity-id
-
-# Marketing
-NEXT_PUBLIC_CONVERTKIT_KEY=your-convertkit-key
-NEXT_PUBLIC_HUBSPOT_ID=your-hubspot-id
-
-# Features
-NEXT_PUBLIC_ENABLE_BLOG=true
-NEXT_PUBLIC_ENABLE_CHANGELOG=true
-NEXT_PUBLIC_ENABLE_3D=true
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_POSTHOG_KEY=   # optional analytics
 ```
 
-## 🏗️ Architecture
+## Routes (marketing)
+
+| Path | Purpose |
+|------|---------|
+| `/` | Home |
+| `/pricing` | Plans |
+| `/demo` | Interactive auth demo |
+| `/legal/privacy`, `/legal/terms`, `/legal/cookies` | Legal |
+| `/deploy/enclii` | Enclii co-marketing deploy guide |
+
+Full pipeline docs: [docs/runbooks/production-gitops-reconcile.md](../../docs/runbooks/production-gitops-reconcile.md)
+
+---
+
+## Legacy reference
+
+The sections below describe an older marketing app layout (`apps/marketing`, port 3003). The canonical app is `apps/website` on port 3000.
+
+## Features
 
 ### Project Structure
 

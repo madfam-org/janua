@@ -629,6 +629,43 @@ test.describe('Focused Link and Interactive Element Testing', () => {
     }
   });
 
+  test('Legal pages load', async ({ page }) => {
+    const legalRoutes = [
+      { path: '/legal/privacy', heading: 'Privacy Policy' },
+      { path: '/legal/terms', heading: 'Terms of Service' },
+      { path: '/legal/cookies', heading: 'Cookie Policy' },
+    ];
+
+    for (const route of legalRoutes) {
+      try {
+        await page.goto(route.path);
+        await page.waitForLoadState('networkidle');
+        const heading = page.locator('h1').first();
+        await heading.waitFor({ state: 'visible', timeout: 10000 });
+        const text = await heading.textContent();
+
+        addResult({
+          element: `Legal page: ${route.path}`,
+          location: route.path,
+          action: 'Load legal page',
+          expected: `Should render ${route.heading}`,
+          result: text?.includes(route.heading) ? 'SUCCESS' : 'FAILURE',
+          actualBehavior: text ?? undefined,
+          error: text?.includes(route.heading) ? undefined : `Heading mismatch: ${text}`,
+        });
+      } catch (error) {
+        addResult({
+          element: `Legal page: ${route.path}`,
+          location: route.path,
+          action: 'Load legal page',
+          expected: `Should render ${route.heading}`,
+          result: 'FAILURE',
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  });
+
   test('Footer Links and Social Media', async ({ page }) => {
     // Scroll to footer to ensure it's loaded
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -637,9 +674,10 @@ test.describe('Focused Link and Interactive Element Testing', () => {
     // Test footer navigation links
     const footerLinkTexts = [
       'Janua', 'About', 'Blog', 'Careers', 'Contact',
-      'Pricing', 'Changelog', 'Documentation', 'API Reference',
-      'SDKs', 'Examples', 'Playground', 'Status',
-      'E-commerce', 'SaaS Platforms', 'Enterprise'
+      'Pricing', 'Documentation', 'API Reference',
+      'SDKs', 'Examples', 'Live demo', 'Deploy with Enclii', 'Status',
+      'E-commerce', 'SaaS Platforms', 'Enterprise', 'Healthcare',
+      'Privacy Policy', 'Terms of Service', 'Cookie Policy',
     ];
 
     for (const linkText of footerLinkTexts) {

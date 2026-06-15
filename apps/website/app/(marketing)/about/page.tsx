@@ -6,7 +6,7 @@ export default function AboutPage() {
     <main className="min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <AboutSection />
-        <div className="mt-24 py-24 bg-gradient-to-br from-blue-600 to-purple-600 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+        <div className="mt-24 py-24 bg-brand-gradient-br rounded-3xl px-4 sm:px-6 lg:px-8 shadow-brand">
           <CTASection />
         </div>
       </div>

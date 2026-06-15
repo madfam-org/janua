@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Github, Twitter, Linkedin, Mail, ArrowRight } from 'lucide-react'
+import { Github, Twitter, Linkedin, Mail, ArrowRight, BookOpen } from 'lucide-react'
 import { Button } from '@janua/ui'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -20,6 +20,7 @@ const navigation = {
     { name: 'SDKs', href: 'https://docs.janua.dev/sdks' },
     { name: 'Examples', href: 'https://docs.janua.dev/examples' },
     { name: 'Live demo', href: '/demo' },
+    { name: 'Deploy with Enclii', href: '/deploy/enclii' },
     { name: 'Status', href: 'https://status.janua.dev' },
   ],
   solutions: [
@@ -35,8 +36,9 @@ const navigation = {
     { name: 'Contact', href: '/contact' },
   ],
   legal: [
-    { name: 'Privacy Policy', href: 'https://madfam.io/privacy' },
-    { name: 'Terms of Service', href: 'https://madfam.io/terms' },
+    { name: 'Privacy Policy', href: '/legal/privacy' },
+    { name: 'Terms of Service', href: '/legal/terms' },
+    { name: 'Cookie Policy', href: '/legal/cookies' },
   ],
 }
 
@@ -48,7 +50,7 @@ const socialLinks = [
   },
   {
     name: 'GitHub',
-    href: 'https://github.com/madfam-io/janua',
+    href: 'https://github.com/madfam-org/janua',
     icon: Github
   },
   {
@@ -65,10 +67,9 @@ const socialLinks = [
 
 export function Footer() {
   return (
-    <footer className="bg-gray-900 text-white">
+    <footer className="bg-slate-950 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Newsletter section */}
-        <div className="py-12 border-b border-gray-800">
+        <div className="py-12 border-b border-slate-800">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -76,44 +77,46 @@ export function Footer() {
             transition={{ duration: 0.6 }}
             className="max-w-2xl mx-auto text-center"
           >
-            <h3 className="text-2xl font-bold mb-4">
-              Stay up to date with Janua
+            <h3 className="font-display text-2xl font-bold mb-4">
+              Build with open identity infrastructure
             </h3>
-            <p className="text-gray-400 mb-8">
-              Get the latest updates on new features, security insights, and developer resources.
+            <p className="text-slate-400 mb-8">
+              Star the repo, read the docs, or run the live demo — no mailing list required.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
-              <input
-                type="email"
-                placeholder="Enter your email"
-                className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 px-6">
-                Subscribe
-                <ArrowRight className="ml-2 h-4 w-4" />
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button asChild className="bg-brand-gradient hover:opacity-90 text-white px-6">
+                <Link href="https://github.com/madfam-org/janua" target="_blank" rel="noopener noreferrer">
+                  <Github className="mr-2 h-4 w-4" />
+                  View on GitHub
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="border-slate-700 text-white hover:bg-slate-900">
+                <Link href="https://docs.janua.dev">
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  Documentation
+                </Link>
               </Button>
             </div>
           </motion.div>
         </div>
 
-        {/* Main footer content */}
         <div className="py-12">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
-            {/* Brand */}
             <div className="col-span-2 lg:col-span-2">
               <Link href="/" className="flex items-center space-x-2 mb-6">
-                <Image 
-                  src="/images/janua-logo.png" 
-                  alt="Janua Logo" 
-                  width={32} 
+                <Image
+                  src="/images/janua-logo.png"
+                  alt="Janua Logo"
+                  width={32}
                   height={32}
                   className="w-8 h-8 object-contain"
                 />
-                <span className="text-xl font-bold">Janua</span>
+                <span className="font-display text-xl font-bold">Janua</span>
               </Link>
-              <p className="text-gray-400 mb-6 max-w-sm">
-                Secure identity infrastructure that moves at the speed of your users. 
-                Sub-30ms verification, passkeys-first, your data under your control.
+              <p className="text-slate-400 mb-6 max-w-sm">
+                Secure identity infrastructure that moves at the speed of your users.
+                Passkeys-first, your data under your control.
               </p>
               <div className="flex space-x-4">
                 {socialLinks.map((item) => {
@@ -122,7 +125,7 @@ export function Footer() {
                     <Link
                       key={item.name}
                       href={item.href}
-                      className="text-gray-400 hover:text-white transition-colors"
+                      className="text-slate-400 hover:text-white transition-colors"
                       aria-label={item.name}
                     >
                       <Icon className="h-5 w-5" />
@@ -132,9 +135,8 @@ export function Footer() {
               </div>
             </div>
 
-            {/* Product */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-100 uppercase tracking-wider mb-4">
+              <h3 className="text-sm font-semibold text-slate-100 uppercase tracking-wider mb-4">
                 Product
               </h3>
               <ul className="space-y-3">
@@ -142,7 +144,7 @@ export function Footer() {
                   <li key={item.name}>
                     <Link
                       href={item.href}
-                      className="text-gray-400 hover:text-white transition-colors text-sm"
+                      className="text-slate-400 hover:text-white transition-colors text-sm"
                     >
                       {item.name}
                     </Link>
@@ -151,9 +153,8 @@ export function Footer() {
               </ul>
             </div>
 
-            {/* Developers */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-100 uppercase tracking-wider mb-4">
+              <h3 className="text-sm font-semibold text-slate-100 uppercase tracking-wider mb-4">
                 Developers
               </h3>
               <ul className="space-y-3">
@@ -161,7 +162,7 @@ export function Footer() {
                   <li key={item.name}>
                     <Link
                       href={item.href}
-                      className="text-gray-400 hover:text-white transition-colors text-sm"
+                      className="text-slate-400 hover:text-white transition-colors text-sm"
                     >
                       {item.name}
                     </Link>
@@ -170,9 +171,8 @@ export function Footer() {
               </ul>
             </div>
 
-            {/* Solutions */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-100 uppercase tracking-wider mb-4">
+              <h3 className="text-sm font-semibold text-slate-100 uppercase tracking-wider mb-4">
                 Solutions
               </h3>
               <ul className="space-y-3">
@@ -180,7 +180,7 @@ export function Footer() {
                   <li key={item.name}>
                     <Link
                       href={item.href}
-                      className="text-gray-400 hover:text-white transition-colors text-sm"
+                      className="text-slate-400 hover:text-white transition-colors text-sm"
                     >
                       {item.name}
                     </Link>
@@ -189,9 +189,8 @@ export function Footer() {
               </ul>
             </div>
 
-            {/* Company */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-100 uppercase tracking-wider mb-4">
+              <h3 className="text-sm font-semibold text-slate-100 uppercase tracking-wider mb-4">
                 Company
               </h3>
               <ul className="space-y-3">
@@ -199,7 +198,7 @@ export function Footer() {
                   <li key={item.name}>
                     <Link
                       href={item.href}
-                      className="text-gray-400 hover:text-white transition-colors text-sm"
+                      className="text-slate-400 hover:text-white transition-colors text-sm"
                     >
                       {item.name}
                     </Link>
@@ -210,31 +209,33 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Bottom section */}
-        <div className="py-8 border-t border-gray-800">
+        <div className="py-8 border-t border-slate-800">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-6 mb-4 lg:mb-0">
-              <p className="text-gray-400 text-sm">
-                © 2024 Janua by Innovaciones MADFAM. All rights reserved.
+              <p className="text-slate-400 text-sm">
+                © 2026 Janua by Innovaciones MADFAM. All rights reserved.
               </p>
-              <div className="flex space-x-6">
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
                 {navigation.legal.map((item) => (
                   <Link
                     key={item.name}
                     href={item.href}
-                    className="text-gray-400 hover:text-white transition-colors text-sm"
+                    className="text-slate-400 hover:text-white transition-colors text-sm"
                   >
                     {item.name}
                   </Link>
                 ))}
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2 text-sm text-gray-400">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <Link
+                href="https://status.janua.dev"
+                className="flex items-center space-x-2 text-sm text-slate-400 hover:text-white transition-colors"
+              >
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                 <span>All systems operational</span>
-              </div>
+              </Link>
             </div>
           </div>
         </div>

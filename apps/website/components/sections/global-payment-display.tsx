@@ -271,7 +271,7 @@ export function GlobalPaymentDisplay() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-12 text-center text-white"
+          className="bg-brand-gradient-br rounded-2xl p-12 text-center text-white shadow-brand"
         >
           <Globe className="w-16 h-16 mx-auto mb-6 text-white/80" />
           <h3 className="text-3xl font-bold mb-4">

@@ -52,7 +52,7 @@ export default function Error({
           <div className="flex gap-3">
             <Button
               onClick={reset}
-              className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              className="flex-1 bg-brand-gradient hover:opacity-90 text-white"
             >
               <RefreshCw className="mr-2 h-4 w-4" />
               Try Again

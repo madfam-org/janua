@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Runtime auth config type system (`JanuaAuthConfig`) covering branding, auth methods, social providers, SSO, MFA, flow settings, and locale strings
 
 ### Fixed
+- **Production website rollout (2026-06-15):** Documented and remediated git-vs-cluster lag for `janua-website` — Kyverno PolicyException, ARC `sync-prod-gitops`, Enclii GHCR rotate. See [runbooks/incidents/2026-06-15-janua-website-prod-rollout.md](runbooks/incidents/2026-06-15-janua-website-prod-rollout.md).
+- **Public marketing site (`janua.dev`):** Tailwind v4 CSS compilation + shared `(marketing)` nav/footer ([#419](https://github.com/madfam-org/janua/pull/419)).
+- **Website Phase 2 UX:** Sora + DM Sans typography, brand gradient tokens, local legal pages, branded 404, footer/nav polish.
+- **Website Phase 3 UX:** Honest blog page, careers copy, Enclii deploy wired in nav/footer, e2e footer/legal tests refreshed.
 - **TypeScript strict mode** (`@janua/ui@0.1.4`): Resolved 17 strict mode errors across 15 source files that caused consumer build failures when `tsc` evaluated uncompiled `.tsx` sources
   - Added explicit `return undefined` in `useEffect` hooks with conditional early returns (email-verification, magic-link-form, mfa-challenge, phone-verification)
   - Added nullish fallbacks for array indexing (`split()[n]`) in audit-log, user-button, sso-email-detector, bulk-invite-upload

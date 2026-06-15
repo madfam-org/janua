@@ -13,7 +13,7 @@ import Link from 'next/link'
 export function LandingCTA() {
   return (
     <section className="py-24 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto rounded-3xl bg-gradient-to-br from-blue-600 to-cyan-600 p-12 text-white">
+      <div className="max-w-5xl mx-auto rounded-3xl bg-brand-gradient-br p-12 text-white shadow-brand">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}

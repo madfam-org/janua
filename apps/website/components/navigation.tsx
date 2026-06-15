@@ -10,7 +10,7 @@ import Image from 'next/image'
 const navigation = [
   {
     name: 'Product',
-    href: '#',
+    href: '/#features',
     children: [
       { name: 'Features', href: '/#features' },
       { name: 'Security', href: '/#security' },
@@ -24,17 +24,18 @@ const navigation = [
   },
   {
     name: 'Developers',
-    href: '#',
+    href: 'https://docs.janua.dev',
     children: [
       { name: 'Documentation', href: 'https://docs.janua.dev' },
       { name: 'API Reference', href: 'https://docs.janua.dev/api' },
       { name: 'SDKs', href: 'https://docs.janua.dev/sdks' },
-      { name: 'Live Demo', href: '/demo' }
+      { name: 'Live Demo', href: '/demo' },
+      { name: 'Deploy with Enclii', href: '/deploy/enclii' },
     ]
   },
   {
     name: 'Solutions',
-    href: '#',
+    href: '/solutions/saas',
     children: [
       { name: 'E-commerce', href: '/solutions/ecommerce' },
       { name: 'SaaS', href: '/solutions/saas' },
@@ -48,7 +49,7 @@ const navigation = [
   },
   {
     name: 'Company',
-    href: '#',
+    href: '/about',
     children: [
       { name: 'About', href: '/about' },
       { name: 'Blog', href: '/blog' },
@@ -58,31 +59,85 @@ const navigation = [
   }
 ]
 
+function NavParent({
+  item,
+  activeDropdown,
+  setActiveDropdown,
+}: {
+  item: (typeof navigation)[number]
+  activeDropdown: string | null
+  setActiveDropdown: (name: string | null) => void
+}) {
+  const hasChildren = Boolean(item.children)
+
+  if (!hasChildren) {
+    return (
+      <Link
+        href={item.href}
+        className="flex items-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors font-medium"
+      >
+        {item.name}
+      </Link>
+    )
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="flex items-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors font-medium"
+        aria-expanded={activeDropdown === item.name}
+        onMouseEnter={() => setActiveDropdown(item.name)}
+        onFocus={() => setActiveDropdown(item.name)}
+      >
+        {item.name}
+        <ChevronDown className="ml-1 h-4 w-4" />
+      </button>
+      {activeDropdown === item.name && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800 py-2"
+        >
+          {item.children!.map((child) => (
+            <Link
+              key={child.name}
+              href={child.href}
+              className="block px-4 py-2 text-sm text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              {child.name}
+            </Link>
+          ))}
+        </motion.div>
+      )}
+    </>
+  )
+}
+
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
 
   return (
-    <nav className="fixed top-0 w-full bg-white/80 dark:bg-gray-950/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 z-50">
+    <nav className="fixed top-0 w-full bg-white/85 dark:bg-slate-950/85 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center space-x-2">
-              <Image 
-                src="/images/janua-logo.png" 
-                alt="Janua Logo" 
-                width={32} 
+            <Link href="/" className="flex items-center space-x-2 group">
+              <Image
+                src="/images/janua-logo.png"
+                alt="Janua Logo"
+                width={32}
                 height={32}
-                className="w-8 h-8 object-contain"
+                className="w-8 h-8 object-contain transition-transform group-hover:scale-105"
               />
-              <span className="text-xl font-bold text-gray-900 dark:text-white">
+              <span className="font-display text-xl font-bold text-slate-900 dark:text-white">
                 Janua
               </span>
             </Link>
           </div>
 
-          {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
             {navigation.map((item) => (
               <div
@@ -91,53 +146,27 @@ export function Navigation() {
                 onMouseEnter={() => item.children && setActiveDropdown(item.name)}
                 onMouseLeave={() => setActiveDropdown(null)}
               >
-                <Link
-                  href={item.href}
-                  className="flex items-center text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors font-medium"
-                >
-                  {item.name}
-                  {item.children && (
-                    <ChevronDown className="ml-1 h-4 w-4" />
-                  )}
-                </Link>
-
-                {/* Dropdown */}
-                {item.children && activeDropdown === item.name && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2"
-                  >
-                    {item.children.map((child) => (
-                      <Link
-                        key={child.name}
-                        href={child.href}
-                        className="block px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                      >
-                        {child.name}
-                      </Link>
-                    ))}
-                  </motion.div>
-                )}
+                <NavParent
+                  item={item}
+                  activeDropdown={activeDropdown}
+                  setActiveDropdown={setActiveDropdown}
+                />
               </div>
             ))}
           </div>
 
-          {/* Desktop CTA */}
           <div className="hidden md:flex items-center space-x-4">
             <Link href="https://app.janua.dev/auth/signin">
               <Button variant="ghost">Sign In</Button>
             </Link>
             <Link href="https://app.janua.dev/auth/signup">
-              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+              <Button className="bg-brand-gradient hover:opacity-90 text-white shadow-brand">
                 Start Free
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
           </div>
 
-          {/* Mobile menu button */}
           <div className="md:hidden">
             <Button
               variant="ghost"
@@ -154,20 +183,20 @@ export function Navigation() {
           </div>
         </div>
 
-        {/* Mobile Navigation */}
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-t border-gray-200 dark:border-gray-700 py-4"
+            className="md:hidden border-t border-slate-200 dark:border-slate-800 py-4"
           >
             <div className="flex flex-col space-y-4">
               {navigation.map((item) => (
                 <div key={item.name}>
                   <Link
                     href={item.href}
-                    className="block text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium"
+                    className="block text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-medium"
+                    onClick={() => setIsOpen(false)}
                   >
                     {item.name}
                   </Link>
@@ -177,7 +206,8 @@ export function Navigation() {
                         <Link
                           key={child.name}
                           href={child.href}
-                          className="block text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                          className="block text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                          onClick={() => setIsOpen(false)}
                         >
                           {child.name}
                         </Link>
@@ -186,15 +216,15 @@ export function Navigation() {
                   )}
                 </div>
               ))}
-              
-              <div className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
                 <Link href="https://app.janua.dev/auth/signin" className="block">
                   <Button variant="outline" className="w-full">
                     Sign In
                   </Button>
                 </Link>
                 <Link href="https://app.janua.dev/auth/signup" className="block">
-                  <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600">
+                  <Button className="w-full bg-brand-gradient hover:opacity-90 text-white">
                     Start Free
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>

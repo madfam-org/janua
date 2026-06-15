@@ -168,8 +168,8 @@ export default function RegisterPage() {
             <h4 className="font-medium text-gray-900 dark:text-white mb-2">With Custom Terms URL</h4>
             <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto text-sm">
 {`<SignUp
-  termsUrl="/legal/terms-of-service"
-  privacyUrl="/legal/privacy-policy"
+  termsUrl="/legal/terms"
+  privacyUrl="/legal/privacy"
   onSuccess={(data) => {
     // Send welcome email
     await sendWelcomeEmail(data.user.email)

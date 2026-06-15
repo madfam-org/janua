@@ -64,6 +64,10 @@ Complete documentation for the Janua self-hosted authentication platform.
 
 ### For DevOps
 - [Deployment Guide](deployment/DEPLOYMENT.md)
+- [Production GitOps reconcile](runbooks/production-gitops-reconcile.md) — promote, Argo sync, Kyverno, GHCR
+- [Runbooks index](runbooks/README.md)
+- [Incident: 2026-06-15 website rollout](runbooks/incidents/2026-06-15-janua-website-prod-rollout.md)
+- [PP.3b staging → prod pipeline](PP_3B_STAGING_PIPELINE.md)
 - [Monitoring Setup](deployment/MONITORING_SETUP.md)
 - [Production Readiness](deployment/PRODUCTION_READINESS_REPORT.md)
 - [Commercial GA Remediation](internal/operations/COMMERCIAL_GA_REMEDIATION_PLAN.md)

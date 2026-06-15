@@ -149,6 +149,19 @@ Update `infra/secrets/SECRETS_REGISTRY.yaml`:
   next_rotation: "YYYY-MM-DD"  # +365 days
 ```
 
+## Automated rotation via Enclii (preferred)
+
+When pods fail with `403 Forbidden` on `ghcr.io/token` after a digest promote:
+
+1. Open **madfam-org/enclii** → Actions → **Rotate GHCR credentials (namespace)**
+2. `namespace`: `janua` (or target namespace)
+3. `reason`: audit string (≥12 characters)
+
+Workflow: `enclii/.github/workflows/rotate-ghcr-namespace.yml` — uses
+`GHCR_PAT` and in-cluster kubeconfig on ARC runners.
+
+See [production-gitops-reconcile.md](../production-gitops-reconcile.md).
+
 ## Automated Script
 
 **File:** `scripts/secrets/rotate-ghcr-credentials.sh`
@@ -258,12 +271,13 @@ kubectl delete pods -n janua -l app=janua-api
 
 ## Related Documents
 
+- [production-gitops-reconcile.md](../production-gitops-reconcile.md)
 - [SECRETS_REGISTRY.yaml](../../../infra/secrets/SECRETS_REGISTRY.yaml)
 - [EMERGENCY_ROTATION.md](./EMERGENCY_ROTATION.md)
 - [GitHub PAT Documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
 
 ---
 
-**Last Updated:** 2026-01-16
+**Last Updated:** 2026-06-15
 **Review Frequency:** Annual
 **Cross-Project:** Coordinate Janua + Enclii rotation together

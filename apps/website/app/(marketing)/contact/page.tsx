@@ -17,7 +17,7 @@ export default function ContactPage() {
           <div className="text-center max-w-4xl mx-auto">
             <h1 className="text-5xl font-bold tracking-tight text-slate-900 dark:text-white mb-8">
               Get in{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-600">
+              <span className="text-brand-gradient">
                 Touch
               </span>
             </h1>

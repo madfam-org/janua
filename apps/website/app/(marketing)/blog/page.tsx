@@ -1,117 +1,104 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { ArrowRight, Calendar, User, Clock } from 'lucide-react'
+import { ArrowRight, BookOpen, Github, Mail, Rss } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'Blog | Janua',
-  description: 'Stay updated with the latest in authentication, security, and developer insights from the Janua team.',
+  description:
+    'Technical writing on authentication and identity infrastructure from the Janua team. The blog is in progress — follow releases and docs in the meantime.',
+  robots: {
+    index: false,
+    follow: true,
+  },
 }
+
+const resources = [
+  {
+    icon: BookOpen,
+    title: 'Documentation',
+    description: 'Guides, API reference, and self-hosting runbooks.',
+    href: 'https://docs.janua.dev',
+    cta: 'Read docs',
+  },
+  {
+    icon: Github,
+    title: 'GitHub releases',
+    description: 'Ship notes and changelog entries as we cut versions.',
+    href: 'https://github.com/madfam-org/janua/releases',
+    cta: 'View releases',
+  },
+  {
+    icon: Rss,
+    title: 'Live demo',
+    description: 'Try auth flows before we publish long-form posts.',
+    href: '/demo',
+    cta: 'Open demo',
+  },
+]
 
 export default function BlogPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
-      <section className="relative pt-12 pb-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-4xl mx-auto">
-            <h1 className="text-5xl font-bold tracking-tight text-slate-900 dark:text-white mb-8">
-              Security & Developer{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-600">
-                Insights
-              </span>
-            </h1>
-            <p className="text-xl text-slate-600 dark:text-slate-300 mb-10">
-              Deep dives into authentication, security best practices, and the future of edge-native development.
-            </p>
-          </div>
+      <section className="relative pt-12 pb-24 overflow-hidden">
+        <div className="absolute inset-0 bg-hero-surface" />
+        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-3 py-1 text-xs font-medium uppercase tracking-wider text-brand mb-6">
+            Blog in progress
+          </p>
+          <h1 className="font-display text-5xl sm:text-6xl font-bold tracking-tight text-slate-900 dark:text-white mb-6">
+            Writing is{' '}
+            <span className="text-brand-gradient">on the roadmap</span>
+          </h1>
+          <p className="text-xl text-slate-600 dark:text-slate-300 mb-4">
+            We are not publishing placeholder articles. When the blog launches,
+            expect deep dives on passkeys, OIDC, self-hosting, and audit-ready
+            identity design.
+          </p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-10">
+            Until then, follow releases and docs — that is where we ship facts first.
+          </p>
+          <Button asChild className="bg-brand-gradient hover:opacity-90 text-white">
+            <Link href="mailto:hello@janua.dev?subject=Janua%20blog%20updates">
+              <Mail className="mr-2 h-4 w-4" />
+              Notify me at launch
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </section>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-16">
-            <article className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-              <div className="p-6">
-                <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-3">
-                  <Calendar className="w-4 h-4" />
-                  <span>Coming Soon</span>
-                </div>
-                <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-                  The Future of Passwordless Authentication
-                </h2>
-                <p className="text-slate-600 dark:text-slate-400 mb-4">
-                  Exploring how WebAuthn and passkeys are revolutionizing user authentication and security.
-                </p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                    <User className="w-4 h-4" />
-                    <span>Janua Team</span>
+      <section className="pb-24">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="font-display text-2xl font-bold text-slate-900 dark:text-white mb-8 text-center">
+            Read now
+          </h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {resources.map((item) => {
+              const Icon = item.icon
+              return (
+                <article
+                  key={item.title}
+                  className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-6 flex flex-col"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-brand-muted flex items-center justify-center mb-4">
+                    <Icon className="w-5 h-5 text-brand" />
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                    <Clock className="w-4 h-4" />
-                    <span>5 min read</span>
-                  </div>
-                </div>
-              </div>
-            </article>
-
-            <article className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-              <div className="p-6">
-                <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-3">
-                  <Calendar className="w-4 h-4" />
-                  <span>Coming Soon</span>
-                </div>
-                <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-                  Building Edge-Native Applications
-                </h2>
-                <p className="text-slate-600 dark:text-slate-400 mb-4">
-                  Best practices for leveraging edge computing to create globally fast applications.
-                </p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                    <User className="w-4 h-4" />
-                    <span>Janua Team</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                    <Clock className="w-4 h-4" />
-                    <span>8 min read</span>
-                  </div>
-                </div>
-              </div>
-            </article>
-
-            <article className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-              <div className="p-6">
-                <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-3">
-                  <Calendar className="w-4 h-4" />
-                  <span>Coming Soon</span>
-                </div>
-                <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-                  Security Compliance Made Simple
-                </h2>
-                <p className="text-slate-600 dark:text-slate-400 mb-4">
-                  How to meet SOC 2, HIPAA, and GDPR requirements without compromising developer velocity.
-                </p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                    <User className="w-4 h-4" />
-                    <span>Janua Team</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                    <Clock className="w-4 h-4" />
-                    <span>6 min read</span>
-                  </div>
-                </div>
-              </div>
-            </article>
-          </div>
-
-          <div className="text-center mt-16">
-            <p className="text-slate-600 dark:text-slate-400 mb-8">
-              Our blog is launching soon with in-depth technical content and industry insights.
-            </p>
-            <Button className="group" asChild>
-              <Link href="/contact">
-                Subscribe for Updates
-                <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
-              </Link>
-            </Button>
+                  <h3 className="font-display text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                    {item.title}
+                  </h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 flex-1">
+                    {item.description}
+                  </p>
+                  <Button variant="outline" className="w-full" asChild>
+                    <Link href={item.href}>
+                      {item.cta}
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </Button>
+                </article>
+              )
+            })}
           </div>
         </div>
       </section>
