@@ -25,7 +25,7 @@
 8. **Mobile Menu Toggle** - Successfully toggles on mobile viewports
 
 #### ❌ Issues Identified:
-1. **Pricing Navigation Link** - Navigates to `/pricing` but page returns 404 (page not implemented yet)
+1. **Pricing page** — `/pricing` is implemented and linked from nav/footer
 
 ---
 
@@ -76,8 +76,9 @@
 **Status**: ✅ 100% Success Rate (25/25 working)
 
 #### Footer Navigation Links:
-- ✅ **Product Section**: Features, Security, Performance, Integrations, Pricing, Changelog
-- ✅ **Developer Section**: Documentation, API Reference, SDKs, Examples, Playground, Status
+- ✅ **Product Section**: Features, Security, Performance, Integrations, Pricing
+- ✅ **Developer Section**: Documentation, API Reference, SDKs, Examples, Live demo, Deploy with Enclii, Status
+- ✅ **Legal Section**: Privacy Policy, Terms of Service, Cookie Policy (local `/legal/*`)
 - ✅ **Solutions Section**: E-commerce, SaaS Platforms, Enterprise
 
 #### Social Media Integration:
@@ -116,7 +117,7 @@
 5. **Interactive Features**: Performance demo and filters operational
 
 ### ⚠️ Minor Issues (Non-Critical)
-1. **Pricing Page 404**: The `/pricing` URL returns 404 - page needs to be implemented
+1. **Blog placeholder content** — resolved: honest “blog in progress” page (no fake articles)
 2. **Copy Button Feedback**: Copy buttons exist but may lack visual feedback confirmation
 
 ### 🔍 Technical Observations
@@ -138,7 +139,7 @@
 ## Recommendations
 
 ### 🎯 High Priority
-1. **Implement Pricing Page**: Create `/pricing` route to resolve 404 error
+1. **Legal counsel review** — privacy/terms copy is engineering draft; legal review before GA
 2. **Copy Button Enhancement**: Add visual feedback for copy operations
 
 ### 📈 Quality Improvements

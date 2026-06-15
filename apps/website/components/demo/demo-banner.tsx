@@ -20,7 +20,7 @@ export function DemoBanner() {
         initial={{ opacity: 0, y: -50 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -50 }}
-        className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+        className="bg-brand-gradient text-white"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-3">

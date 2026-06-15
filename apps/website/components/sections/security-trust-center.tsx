@@ -128,7 +128,7 @@ export function SecurityTrustCenter() {
           </Badge>
           <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-6">
             Enterprise-Grade Security,
-            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
+            <span className="block text-brand-gradient">
               Built Into Every Layer
             </span>
           </h2>
@@ -270,7 +270,7 @@ export function SecurityTrustCenter() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-12 text-center"
+          className="bg-brand-gradient-br rounded-2xl p-12 text-center shadow-brand"
         >
           <h3 className="text-3xl font-bold text-white mb-4">
             Security questions? Talk to us.

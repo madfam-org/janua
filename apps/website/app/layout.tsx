@@ -1,12 +1,22 @@
+import { Sora, DM_Sans } from 'next/font/google'
 import { Suspense } from 'react'
-import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/react'
 import { ThemeProvider, FloatingThemeToggle } from '@janua/ui'
 import { PostHogProvider } from '@/components/PostHogProvider'
 import { EcosystemBannerClient } from '@/components/EcosystemBannerClient'
 import '../styles/globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+const sora = Sora({
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+})
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  display: 'swap',
+})
 
 export const metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://janua.dev'),
@@ -57,7 +67,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
       <body
-        className={`${inter.className} antialiased bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100 pb-[calc(2.75rem+env(safe-area-inset-bottom,0px))]`}
+        className={`${dmSans.variable} ${sora.variable} font-sans antialiased pb-[calc(2.75rem+env(safe-area-inset-bottom,0px))]`}
       >
         <ThemeProvider>
           <Suspense fallback={null}>

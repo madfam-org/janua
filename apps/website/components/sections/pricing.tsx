@@ -184,7 +184,7 @@ export function PricingSection() {
           >
             {plan.featured && (
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+                <span className="bg-brand-gradient text-white text-xs font-semibold px-3 py-1 rounded-full">
                   MOST POPULAR
                 </span>
               </div>
@@ -229,7 +229,7 @@ export function PricingSection() {
                 className={cn(
                   "w-full mb-6",
                   plan.featured
-                    ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                    ? "bg-brand-gradient hover:opacity-90 text-white"
                     : ""
                 )}
                 variant={plan.featured ? "default" : "outline"}

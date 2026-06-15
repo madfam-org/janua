@@ -60,6 +60,7 @@ flowchart LR
 | Workflow | Trigger | Effect |
 |----------|---------|--------|
 | `promote-to-prod.yml` | `workflow_dispatch` (or schedule if `AUTO_PROMOTE_ENABLED=true`) | Validates ≥30min soak, writes staging digest(s) → `k8s/overlays/production/` |
+| `sync-prod-gitops.yml` | `workflow_dispatch` (break-glass) | ARC in-cluster apply when Argo/GHCR block reconcile |
 | `rollback-prod.yml` | `workflow_dispatch` (human only) | Writes previous or explicit digest to production overlay; RTO target <5min |
 
 Policy record: `enclii.yaml` → `promotion.pattern: manual`, `min_soak_minutes: 30`.
@@ -166,6 +167,17 @@ Store client IDs/secrets in `janua-staging-secrets`.
    - Component: `all` (or single service)
    - Reason: required audit string
 5. Monitor ArgoCD `janua` App reconcile (~3 min).
+
+**Post-promote reconcile (required):** Updating git does not guarantee live pods
+adopt the digest. After every prod promote:
+
+1. `enclii ops apps diff janua-services -n argocd --json` — confirm drift
+2. `enclii ops apps sync janua-services -n argocd --apply --reason "..."` if OutOfSync
+3. If `janua-website` (or any service) shows `ImagePullBackOff`, refresh
+   `janua/ghcr-credentials` via Enclii **Rotate GHCR credentials (namespace)**
+   on `madfam-org/enclii` (see [production-gitops-reconcile.md](./runbooks/production-gitops-reconcile.md))
+
+Argo CD Application name is **`janua-services`** (not `janua`).
 
 ### 6. Rollback (incident)
 

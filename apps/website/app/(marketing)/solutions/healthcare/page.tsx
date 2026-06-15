@@ -13,7 +13,7 @@ export default function HealthcarePage() {
     <div className="min-h-screen bg-white dark:bg-slate-950">
       {/* Hero Section */}
       <section className="relative pt-12 pb-20 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-green-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-green-950" />
+        <div className="absolute inset-0 bg-hero-surface" />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-4xl mx-auto">
@@ -24,7 +24,7 @@ export default function HealthcarePage() {
 
             <h1 className="text-5xl sm:text-6xl font-bold tracking-tight text-slate-900 dark:text-white mb-8">
               HIPAA-Compliant{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-blue-600">
+              <span className="text-brand-gradient">
                 Authentication
               </span>
             </h1>
@@ -154,7 +154,7 @@ export default function HealthcarePage() {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-green-100 to-blue-100 dark:from-green-900/20 dark:to-blue-900/20 rounded-2xl p-8">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-8">
               <div className="text-center">
                 <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">
                   Secure Healthcare Innovation

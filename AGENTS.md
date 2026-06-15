@@ -641,7 +641,12 @@ variable `AUTO_PROMOTE_ENABLED=true`.
 |---|---|---|
 | `docker-publish.yml` | push to main (apps/packages/Dockerfile paths) | Builds images, commits digests to `k8s/overlays/staging/`, ArgoCD syncs staging (after ops bootstrap) |
 | `promote-to-prod.yml` | workflow_dispatch (manual) | Promotes soaked staging digest(s) → `k8s/overlays/production/` |
+| `sync-prod-gitops.yml` | workflow_dispatch (break-glass) | ARC apply + GHCR refresh when cluster lags git |
 | `rollback-prod.yml` | workflow_dispatch (incident) | Rolls back prod digest from git history or explicit input |
+
+Post-promote reconcile and common blockers (Kyverno, GHCR pull, Argo app name):
+[docs/runbooks/production-gitops-reconcile.md](docs/runbooks/production-gitops-reconcile.md).
+Incident record (2026-06-15 website): [docs/runbooks/incidents/2026-06-15-janua-website-prod-rollout.md](docs/runbooks/incidents/2026-06-15-janua-website-prod-rollout.md).
 
 Canonical operator guide: [docs/PP_3B_STAGING_PIPELINE.md](docs/PP_3B_STAGING_PIPELINE.md).
 

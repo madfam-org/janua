@@ -17,12 +17,13 @@ export default function CareersPage() {
           <div className="text-center max-w-4xl mx-auto">
             <h1 className="text-5xl font-bold tracking-tight text-slate-900 dark:text-white mb-8">
               Build the Future of{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-cyan-600">
+              <span className="text-brand-gradient">
                 Authentication
               </span>
             </h1>
             <p className="text-xl text-slate-600 dark:text-slate-300 mb-10">
-              Join our remote-first team building edge-native authentication that powers millions of users worldwide.
+              Join our remote-first team building open identity infrastructure.
+              We are early-stage — every hire shapes the product and the culture.
             </p>
           </div>
         </div>

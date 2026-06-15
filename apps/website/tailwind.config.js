@@ -16,7 +16,17 @@ module.exports = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        display: ['var(--font-display)', 'var(--font-sans)', 'system-ui', 'sans-serif'],
+      },
       colors: {
+        brand: {
+          DEFAULT: 'hsl(var(--brand))',
+          deep: 'hsl(var(--brand-deep))',
+          accent: 'hsl(var(--brand-accent))',
+          muted: 'hsl(var(--brand-muted))',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

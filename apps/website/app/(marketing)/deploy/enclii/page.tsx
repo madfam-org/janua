@@ -142,7 +142,7 @@ export default function DeployOnEncliiPage() {
 
             <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
               Deploy Janua on{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
+              <span className="text-brand-gradient">
                 Your Infrastructure
               </span>
             </h1>
@@ -378,7 +378,7 @@ export default function DeployOnEncliiPage() {
       {/* CTA Section */}
       <section className="py-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-gradient-to-r from-blue-600 to-cyan-600 rounded-3xl p-12 text-center">
+          <div className="bg-brand-gradient-br rounded-3xl p-12 text-center shadow-brand">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
               Ready to Own Your Auth?
             </h2>

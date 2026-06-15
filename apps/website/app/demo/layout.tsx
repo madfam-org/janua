@@ -69,7 +69,7 @@ export default function DemoLayout({
           <main>{children}</main>
 
           {/* CTA Footer */}
-          <footer className="mt-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-8 text-center">
+          <footer className="mt-12 bg-brand-gradient rounded-lg p-8 text-center shadow-brand">
             <h2 className="text-2xl font-bold text-white mb-2">
               Ready to get started?
             </h2>
@@ -78,8 +78,8 @@ export default function DemoLayout({
             </p>
             <div className="flex justify-center gap-4">
               <Link
-                href="https://app.janua.dev/signup"
-                className="px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-colors"
+                href="https://app.janua.dev/auth/signup"
+                className="px-6 py-3 bg-white text-brand font-semibold rounded-lg hover:bg-blue-50 transition-colors"
               >
                 Sign Up Free
               </Link>
@@ -90,6 +90,15 @@ export default function DemoLayout({
                 View Docs
               </Link>
             </div>
+            <p className="mt-6 text-xs text-blue-100">
+              <Link href="/legal/terms" className="underline underline-offset-2 hover:text-white">
+                Terms
+              </Link>
+              {' · '}
+              <Link href="/legal/privacy" className="underline underline-offset-2 hover:text-white">
+                Privacy
+              </Link>
+            </p>
           </footer>
         </div>
       </div>

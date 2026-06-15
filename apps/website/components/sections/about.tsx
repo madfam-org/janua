@@ -74,7 +74,7 @@ export function AboutSection() {
         transition={{ duration: 0.5, delay: 0.1 }}
         className="mb-24"
       >
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-12 text-white">
+        <div className="bg-brand-gradient-br rounded-2xl p-12 text-white shadow-brand">
           <h2 className="text-3xl font-bold mb-6">Our Mission</h2>
           <p className="text-lg leading-relaxed mb-6">
             To make secure identity management accessible to every developer and 
@@ -111,7 +111,7 @@ export function AboutSection() {
                 className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-700"
               >
                 <div className="flex items-center mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                  <div className="w-12 h-12 bg-brand-gradient-br rounded-lg flex items-center justify-center">
                     <Icon className="h-6 w-6 text-white" />
                   </div>
                   <h3 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
@@ -164,7 +164,7 @@ export function AboutSection() {
             </div>
           </div>
           <div className="relative h-96 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-950 dark:to-purple-950 rounded-2xl flex items-center justify-center">
-            <div className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-blue-600 to-purple-600">
+            <div className="text-6xl font-bold text-brand-gradient">
               P
             </div>
           </div>
