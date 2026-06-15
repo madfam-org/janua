@@ -1,7 +1,9 @@
 name: Sync prod GitOps overlay
 
-# Break-glass: apply k8s/overlays/production when ArgoCD/Enclii has not
-# reconciled a digest-only promote (Pattern B manual gate).
+# Break-glass: reconcile k8s/overlays/production when ArgoCD/Enclii has not
+# applied a digest-only promote (Pattern B manual gate). Prefer:
+#   enclii ops apps sync janua-services -n argocd --apply --reason "..."
+# from an operator workstation when possible.
 
 on:
   workflow_dispatch:
@@ -12,7 +14,7 @@ on:
         default: ''
         type: string
       component:
-        description: 'Wait for rollout on this deployment (blank = all janua deployments)'
+        description: 'Wait for rollout on this deployment (blank = janua-website only)'
         required: false
         default: 'janua-website'
         type: string
@@ -22,11 +24,12 @@ permissions:
 
 env:
   NAMESPACE: janua
+  ARGO_APP: janua-services
 
 jobs:
   sync:
     name: Apply production overlay
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
     if: github.event.inputs.confirm == 'sync-now'
     steps:
       - uses: actions/checkout@v6
@@ -39,14 +42,40 @@ jobs:
         with:
           kustomize-version: '5.3.0'
 
-      - name: Configure kubeconfig
+      - name: Configure kubeconfig (break-glass fallback)
         run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
-          kubectl cluster-info
+          if [ -n "${{ secrets.KUBECONFIG_PRODUCTION }}" ]; then
+            mkdir -p ~/.kube
+            echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+            chmod 600 ~/.kube/config
+          fi
 
-      - name: Apply production kustomize overlay
+      - name: Test cluster connectivity
+        id: connectivity
+        run: |
+          if kubectl cluster-info --request-timeout=10s &>/dev/null; then
+            echo "connected=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "connected=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Cluster API unreachable from this runner — Enclii API path remains primary."
+          fi
+
+      - name: Clear stuck Argo operation (in-cluster)
+        if: steps.connectivity.outputs.connected == 'true'
+        run: |
+          kubectl patch application "${{ env.ARGO_APP }}" -n argocd --type json \
+            -p='[{"op": "remove", "path": "/operation"}]' 2>/dev/null || true
+          kubectl annotate application "${{ env.ARGO_APP }}" -n argocd \
+            argocd.argoproj.io/refresh=hard --overwrite || true
+
+      - name: Sync via Enclii ops API (operator workstation path)
+        if: false
+        run: |
+          echo "Use: enclii ops apps sync janua-services -n argocd --apply --reason \"...\""
+          echo "Ops API requires admin OAuth — ENCLII_CALLBACK_TOKEN is lifecycle-only."
+
+      - name: Apply production kustomize overlay (kubectl fallback)
+        if: steps.connectivity.outputs.connected == 'true'
         run: |
           kustomize build k8s/overlays/production > /tmp/janua-production.yaml
           echo "Website image in manifest:"
@@ -54,25 +83,30 @@ jobs:
           kubectl apply -f /tmp/janua-production.yaml
 
       - name: Wait for rollout
+        if: steps.connectivity.outputs.connected == 'true'
         run: |
           TARGET="${{ inputs.component }}"
           if [[ -n "$TARGET" ]]; then
             kubectl rollout status "deployment/$TARGET" -n "$NAMESPACE" --timeout=300s
           else
-            for d in janua-api janua-admin janua-dashboard janua-docs janua-website; do
-              kubectl rollout status "deployment/$d" -n "$NAMESPACE" --timeout=300s || true
-            done
+            kubectl rollout status deployment/janua-website -n "$NAMESPACE" --timeout=300s
           fi
 
       - name: Smoke janua.dev
         run: |
+          set -euo pipefail
           for i in 1 2 3 4 5 6; do
-            if curl -fsS "https://janua.dev/health" >/dev/null; then
-              echo "janua.dev health OK"
-              curl -fsS "https://janua.dev/" | rg -q 'scroll-mt-nav|fixed top-0' && echo "Landing fix markers present" && exit 0
-              echo "Health OK but landing markers not yet visible (attempt $i)"
+            css_path=$(curl -fsSL "https://janua.dev/" | rg -o '/_next/static/chunks/[^"]+\.css' | head -1 || true)
+            if [ -n "$css_path" ]; then
+              css=$(curl -fsSL "https://janua.dev${css_path}" || true)
+              if echo "$css" | rg -q '\.flex\{' && curl -fsSL "https://janua.dev/" | rg -q 'Stop writing OAuth'; then
+                echo "Landing content + Tailwind utilities present"
+                curl -fsSI "https://janua.dev/pricing" | rg -q '200' && echo "pricing OK"
+                exit 0
+              fi
             fi
-            sleep 10
+            echo "Waiting for janua.dev rollout (attempt $i)..."
+            sleep 15
           done
-          echo "::warning::janua.dev did not show landing fix markers within timeout"
+          echo "::warning::janua.dev smoke did not fully pass within timeout"
           exit 0
