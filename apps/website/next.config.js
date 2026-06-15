@@ -17,7 +17,7 @@ const nextConfig = {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://images.unsplash.com https://github.com",
       "font-src 'self'",
-      "connect-src 'self'",
+      "connect-src 'self' https://analytics.madfam.io https://us.i.posthog.com https://eu.i.posthog.com",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",

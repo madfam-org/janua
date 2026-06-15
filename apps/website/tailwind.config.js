@@ -4,6 +4,7 @@ module.exports = {
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
+    './vendor/**/*.{js,ts,jsx,tsx}',
     '../../packages/ui/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {

@@ -8,47 +8,36 @@ import Image from 'next/image'
 
 const navigation = {
   product: [
-    { name: 'Features', href: '#features' },
-    { name: 'Security', href: '#security' },
-    { name: 'Performance', href: '#performance' },
-    { name: 'Integrations', href: '#integrations' },
-    { name: 'Pricing', href: '/pricing' }
-    // 'Changelog' removed — no /changelog page exists yet (was 404).
-    // Re-add when apps/website/app/changelog/page.tsx ships, sourced
-    // from docs/CHANGELOG.md.
+    { name: 'Features', href: '/#features' },
+    { name: 'Security', href: '/#security' },
+    { name: 'Performance', href: '/#performance' },
+    { name: 'Integrations', href: '/#integrations' },
+    { name: 'Pricing', href: '/pricing' },
   ],
   developers: [
     { name: 'Documentation', href: 'https://docs.janua.dev' },
     { name: 'API Reference', href: 'https://docs.janua.dev/api' },
     { name: 'SDKs', href: 'https://docs.janua.dev/sdks' },
     { name: 'Examples', href: 'https://docs.janua.dev/examples' },
-    { name: 'Playground', href: '#playground' },
-    { name: 'Status', href: 'https://status.janua.dev' }
+    { name: 'Live demo', href: '/demo' },
+    { name: 'Status', href: 'https://status.janua.dev' },
   ],
   solutions: [
     { name: 'E-commerce', href: '/solutions/ecommerce' },
     { name: 'SaaS Platforms', href: '/solutions/saas' },
     { name: 'Enterprise', href: '/solutions/enterprise' },
     { name: 'Healthcare', href: '/solutions/healthcare' },
-    { name: 'Education', href: '/solutions/education' },
-    { name: 'Financial Services', href: '/solutions/fintech' }
   ],
   company: [
     { name: 'About', href: '/about' },
     { name: 'Blog', href: '/blog' },
     { name: 'Careers', href: '/careers' },
     { name: 'Contact', href: '/contact' },
-    { name: 'Press Kit', href: '/press' },
-    { name: 'Partners', href: '/partners' }
   ],
   legal: [
-    { name: 'Privacy Policy', href: '/privacy' },
-    { name: 'Terms of Service', href: '/terms' },
-    { name: 'Cookie Policy', href: '/cookies' }
-    // 'Security' (/security) and 'Compliance' (/compliance) removed —
-    // both 404. Re-add only after thin honest pages exist (e.g. linking
-    // to /.well-known/security.txt and the in-progress audit status).
-  ]
+    { name: 'Privacy Policy', href: 'https://madfam.io/privacy' },
+    { name: 'Terms of Service', href: 'https://madfam.io/terms' },
+  ],
 }
 
 const socialLinks = [

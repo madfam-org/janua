@@ -56,7 +56,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
-      <body className={`${inter.className} antialiased bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100 pb-8`}>
+      <body
+        className={`${inter.className} antialiased bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100 pb-[calc(2.75rem+env(safe-area-inset-bottom,0px))]`}
+      >
         <ThemeProvider>
           <Suspense fallback={null}>
             <PostHogProvider>
@@ -65,7 +67,7 @@ export default function RootLayout({
               </div>
             </PostHogProvider>
           </Suspense>
-          <FloatingThemeToggle />
+          <FloatingThemeToggle className="!bottom-[calc(2.75rem+env(safe-area-inset-bottom,0px)+0.5rem)]" />
           <EcosystemBannerClient />
         </ThemeProvider>
         <Analytics />
