@@ -1,0 +1,78 @@
+name: Sync prod GitOps overlay
+
+# Break-glass: apply k8s/overlays/production when ArgoCD/Enclii has not
+# reconciled a digest-only promote (Pattern B manual gate).
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "sync-now" to apply production overlay to cluster'
+        required: true
+        default: ''
+        type: string
+      component:
+        description: 'Wait for rollout on this deployment (blank = all janua deployments)'
+        required: false
+        default: 'janua-website'
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  NAMESPACE: janua
+
+jobs:
+  sync:
+    name: Apply production overlay
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'sync-now'
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: azure/setup-kubectl@v5
+        with:
+          version: 'v1.29.0'
+
+      - uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: '5.3.0'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_PRODUCTION }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl cluster-info
+
+      - name: Apply production kustomize overlay
+        run: |
+          kustomize build k8s/overlays/production > /tmp/janua-production.yaml
+          echo "Website image in manifest:"
+          rg 'image: ghcr.io/madfam-org/janua-website' /tmp/janua-production.yaml || true
+          kubectl apply -f /tmp/janua-production.yaml
+
+      - name: Wait for rollout
+        run: |
+          TARGET="${{ inputs.component }}"
+          if [[ -n "$TARGET" ]]; then
+            kubectl rollout status "deployment/$TARGET" -n "$NAMESPACE" --timeout=300s
+          else
+            for d in janua-api janua-admin janua-dashboard janua-docs janua-website; do
+              kubectl rollout status "deployment/$d" -n "$NAMESPACE" --timeout=300s || true
+            done
+          fi
+
+      - name: Smoke janua.dev
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS "https://janua.dev/health" >/dev/null; then
+              echo "janua.dev health OK"
+              curl -fsS "https://janua.dev/" | rg -q 'scroll-mt-nav|fixed top-0' && echo "Landing fix markers present" && exit 0
+              echo "Health OK but landing markers not yet visible (attempt $i)"
+            fi
+            sleep 10
+          done
+          echo "::warning::janua.dev did not show landing fix markers within timeout"
+          exit 0
