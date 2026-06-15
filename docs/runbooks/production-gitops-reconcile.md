@@ -173,6 +173,7 @@ unavailable; use `enclii ops apps sync` from an authenticated operator session.
 - [ ] `enclii ops pods diagnose <deployment> -n janua` — single Ready pod on expected digest
 - [ ] Public URL health (`https://janua.dev/health`, `https://api.janua.dev/health`)
 - [ ] For website: Tailwind utilities in CSS; `(marketing)` layout on `/pricing`
+- [ ] For website: `/legal/privacy` returns 200 (post Phase 2 UX)
 - [ ] Footer links match current `apps/website/components/footer.tsx` (no dead 404s)
 
 ---

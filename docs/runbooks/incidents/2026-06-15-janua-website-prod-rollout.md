@@ -133,7 +133,8 @@ refreshed `janua/ghcr-credentials` with `madfam-bot` + `GHCR_PAT`, then
 | P2 | Add `prod-post-promote.yml` (mirror Dhanam) — Enclii lifecycle callback + best-effort Argo refresh | Platform |
 | P2 | Rotate or retire stale external `KUBECONFIG_PRODUCTION` secret; document ARC-only path | Platform |
 | P3 | Kyverno long-term: public GHCR packages or registry creds for verify-image-signatures | Security |
-| P3 | Phase 2 UX: typography beyond Inter, gradient cleanup, legal pages | Product |
+| P3 | Phase 2 UX: typography beyond Inter, gradient cleanup, legal pages | **Done** (#423, prod `sha256:92a73b80…`) |
+| P3 | `sync-prod-gitops` smoke: use `grep` not `rg` on ARC runners | **Done** |
 
 ---
 

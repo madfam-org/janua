@@ -110,7 +110,7 @@ jobs:
         run: |
           kustomize build k8s/overlays/production > /tmp/janua-production.yaml
           echo "Website image in manifest:"
-          rg 'image: ghcr.io/madfam-org/janua-website' /tmp/janua-production.yaml || true
+          grep 'image: ghcr.io/madfam-org/janua-website' /tmp/janua-production.yaml || true
           kubectl apply -f /tmp/janua-production.yaml
 
       - name: Wait for rollout
@@ -127,17 +127,20 @@ jobs:
         run: |
           set -euo pipefail
           for i in 1 2 3 4 5 6; do
-            css_path=$(curl -fsSL "https://janua.dev/" | rg -o '/_next/static/chunks/[^"]+\.css' | head -1 || true)
+            home_html=$(curl -fsSL "https://janua.dev/" || true)
+            css_path=$(echo "$home_html" | grep -oE '/_next/static/chunks/[^"]+\.css' | head -1 || true)
             if [ -n "$css_path" ]; then
               css=$(curl -fsSL "https://janua.dev${css_path}" || true)
-              if echo "$css" | rg -q '\.flex\{' && curl -fsSL "https://janua.dev/" | rg -q 'Stop writing OAuth'; then
-                echo "Landing content + Tailwind utilities present"
-                curl -fsSI "https://janua.dev/pricing" | rg -q '200' && echo "pricing OK"
+              if echo "$css" | grep -q '\.flex{' \
+                && echo "$home_html" | grep -q 'Stop writing OAuth' \
+                && curl -fsSI "https://janua.dev/pricing" | grep -q '200' \
+                && curl -fsSI "https://janua.dev/legal/privacy" | grep -q '200'; then
+                echo "Landing, pricing, legal, and Tailwind utilities present"
                 exit 0
               fi
             fi
             echo "Waiting for janua.dev rollout (attempt $i)..."
             sleep 15
           done
-          echo "::warning::janua.dev smoke did not fully pass within timeout"
-          exit 0
+          echo "::error::janua.dev smoke did not pass within timeout"
+          exit 1

@@ -89,10 +89,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15
-        credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        image: public.ecr.aws/docker/library/postgres:15
         env:
           POSTGRES_USER: janua
           POSTGRES_PASSWORD: janua
@@ -106,10 +103,7 @@ jobs:
           - 5432:5432
 
       redis:
-        image: redis:7
-        credentials:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        image: public.ecr.aws/docker/library/redis:7
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
