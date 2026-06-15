@@ -123,25 +123,42 @@ jobs:
             kubectl rollout status deployment/janua-website -n "$NAMESPACE" --timeout=300s
           fi
 
-      - name: Smoke janua.dev
+      - name: Smoke janua-website (in-cluster)
+        if: steps.connectivity.outputs.connected == 'true'
         run: |
-          set -euo pipefail
+          set -eu
+          kubectl port-forward -n "$NAMESPACE" "deployment/janua-website" 14104:4104 >/tmp/pf.log 2>&1 &
+          PF_PID=$!
+          cleanup() { kill "$PF_PID" 2>/dev/null || true; wait "$PF_PID" 2>/dev/null || true; }
+          trap cleanup EXIT
+          sleep 3
+
           for i in 1 2 3 4 5 6; do
-            home_html=$(curl -fsSL "https://janua.dev/" || true)
-            css_path=$(echo "$home_html" | grep -oE '/_next/static/chunks/[^"]+\.css' | head -1 || true)
-            if [ -n "$css_path" ]; then
-              css=$(curl -fsSL "https://janua.dev${css_path}" || true)
-              if echo "$css" | grep -q '\.flex{' \
-                && echo "$css" | grep -q -- '--font-display' \
-                && echo "$home_html" | grep -q 'Edge-Fast Identity Platform' \
-                && curl -fsSI "https://janua.dev/pricing" | grep -q '200' \
-                && curl -fsSI "https://janua.dev/legal/privacy" | grep -q '200'; then
-                echo "Landing metadata, pricing, legal, and Tailwind utilities present"
-                exit 0
+            if curl -fsS "http://127.0.0.1:14104/health" >/dev/null 2>&1; then
+              home_html=$(curl -fsSL "http://127.0.0.1:14104/" || true)
+              css_path=$(printf '%s' "$home_html" | grep -oE '/_next/static/chunks/[^"]+\.css' | head -1 || true)
+              if grep -qF 'Edge-Fast Identity Platform' <<< "$home_html" \
+                && curl -fsSI "http://127.0.0.1:14104/legal/privacy" | grep -q '200' \
+                && curl -fsSI "http://127.0.0.1:14104/pricing" | grep -q '200'; then
+                if [ -n "$css_path" ]; then
+                  css=$(curl -fsSL "http://127.0.0.1:14104${css_path}" || true)
+                  if grep -qF '.flex{' <<< "$css" && grep -qF '--font-display' <<< "$css"; then
+                    echo "In-cluster website smoke passed"
+                    exit 0
+                  fi
+                fi
               fi
             fi
-            echo "Waiting for janua.dev rollout (attempt $i)..."
+            echo "Waiting for in-cluster website smoke (attempt $i)..."
             sleep 15
           done
-          echo "::error::janua.dev smoke did not pass within timeout"
+          echo "::error::Website in-cluster smoke did not pass within timeout"
           exit 1
+
+      - name: Smoke janua.dev (external)
+        run: |
+          if curl -fsSI "https://janua.dev/health" | grep -q '200'; then
+            echo "External janua.dev health OK"
+          else
+            echo "::warning::External janua.dev unreachable from this runner (hairpin/NAT); in-cluster smoke is authoritative"
+          fi
