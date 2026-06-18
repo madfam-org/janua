@@ -56,25 +56,51 @@ logout_router = APIRouter(tags=["OAuth Provider"])
 CSRF_TOKEN_TTL = 600
 
 
-def _accepted_audiences_for_client(client: OAuthClient) -> list[str]:
+def _audiences_from_claims(claims: dict) -> list[str]:
+    """Extract audience values embedded in a JWT (string or array claim)."""
+    audiences: list[str] = []
+    token_aud = claims.get("aud")
+    if isinstance(token_aud, str):
+        audiences.append(token_aud)
+    elif isinstance(token_aud, list):
+        audiences.extend(str(value) for value in token_aud if value)
+    return audiences
+
+
+def _merge_audiences(*groups: list[str]) -> list[str]:
+    """Return de-duplicated audience strings preserving order."""
+    merged: list[str] = []
+    for group in groups:
+        for audience in group:
+            if audience and audience not in merged:
+                merged.append(audience)
+    return merged
+
+
+def _accepted_audiences_for_client(client: OAuthClient | None) -> list[str]:
     """Return accepted token audiences for an OAuth client, including legacy global aud."""
-    audiences = [client.audience or settings.JWT_AUDIENCE, settings.JWT_AUDIENCE]
-    return list(dict.fromkeys(audience for audience in audiences if audience))
+    if not client:
+        return [settings.JWT_AUDIENCE]
+    return _merge_audiences(
+        [client.audience or settings.JWT_AUDIENCE, settings.JWT_AUDIENCE],
+    )
 
 
 async def _resolve_token_client(
     token: str,
     db: AsyncSession,
     expected_client: Optional[OAuthClient] = None,
+    claims: Optional[dict] = None,
 ) -> Optional[OAuthClient]:
     """Resolve the OAuth client bound to a token before audience validation."""
     if expected_client:
         return expected_client
 
-    try:
-        claims = jwt_manager.get_unverified_claims(token)
-    except Exception:
-        return None
+    if claims is None:
+        try:
+            claims = jwt_manager.get_unverified_claims(token)
+        except Exception:
+            return None
 
     client_id = claims.get("client_id")
     if not client_id:
@@ -92,28 +118,41 @@ async def _verify_oauth_token(
     db: AsyncSession,
     expected_client: Optional[OAuthClient] = None,
 ) -> Optional[dict]:
-    """Verify OAuth tokens against the bound client's audience plus legacy global aud."""
-    client = await _resolve_token_client(token, db, expected_client)
-    if not client:
-        return jwt_manager.verify_token(token, token_type=token_type)
+    """Verify OAuth tokens against client + token audiences (e.g. karafiel-api)."""
+    try:
+        claims = jwt_manager.get_unverified_claims(token)
+    except Exception:
+        return None
+
+    client = await _resolve_token_client(
+        token,
+        db,
+        expected_client,
+        claims=claims,
+    )
+    audiences = _merge_audiences(
+        _accepted_audiences_for_client(client),
+        _audiences_from_claims(claims),
+    )
 
     payload = jwt_manager.verify_token(
         token,
         token_type=token_type,
-        audience=_accepted_audiences_for_client(client),
+        audience=audiences,
     )
     if not payload:
         return None
 
-    token_client_id = payload.get("client_id")
-    if token_client_id and token_client_id != client.client_id:
-        logger.warning(
-            "OAuth token client mismatch",
-            expected=client.client_id,
-            got=token_client_id,
-            token_type=token_type,
-        )
-        return None
+    if client:
+        token_client_id = payload.get("client_id")
+        if token_client_id and token_client_id != client.client_id:
+            logger.warning(
+                "OAuth token client mismatch",
+                expected=client.client_id,
+                got=token_client_id,
+                token_type=token_type,
+            )
+            return None
 
     return payload
 
@@ -1733,13 +1772,14 @@ async def userinfo(
 
     if "profile" in scope or "openid" in scope:
         response.name = getattr(user, "name", None)
-        # Split name into given/family if possible
-        if response.name:
-            parts = response.name.split(" ", 1)
-            response.given_name = parts[0]
-            response.family_name = parts[1] if len(parts) > 1 else None
+        response.given_name = user.first_name or None
+        response.family_name = user.last_name or None
+        if not response.name and (response.given_name or response.family_name):
+            response.name = " ".join(
+                part for part in (response.given_name, response.family_name) if part
+            )
 
-        response.picture = getattr(user, "avatar_url", None)
+        response.picture = user.avatar_url or user.profile_image_url or None
         if hasattr(user, "updated_at") and user.updated_at:
             response.updated_at = int(user.updated_at.timestamp())
 
