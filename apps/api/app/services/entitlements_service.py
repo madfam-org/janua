@@ -52,6 +52,23 @@ from app.models import (
 
 logger = structlog.get_logger()
 
+
+async def _rollback_after_read_failure(
+    db: AsyncSession,
+    exc: Exception,
+    *,
+    event: str,
+    **log_kw: object,
+) -> None:
+    """Clear a poisoned transaction after a best-effort read failed.
+
+    PostgreSQL aborts the whole transaction on the first SQL error. OAuth
+    token issuance treats entitlement lookups as optional, so we must roll
+    back before any later commit (e.g. oauth_clients.last_used_at).
+    """
+    logger.warning(event, error=str(exc), **log_kw)
+    await db.rollback()
+
 # Admin catch-all: these products are always granted at `admin` tier to any
 # user marked `is_admin=True`. Keeps first-run admin access working before
 # any subscription data exists. Specific to the MADFAM ecosystem; new
@@ -171,10 +188,11 @@ async def get_user_entitlements(
     except Exception as exc:
         # Failure to read org tiers must not block JWT issuance — degrade
         # gracefully to "no inherited grants" and log loudly so ops can see.
-        logger.warning(
-            "Failed to fetch org product_tiers for entitlements",
+        await _rollback_after_read_failure(
+            db,
+            exc,
+            event="Failed to fetch org product_tiers for entitlements",
             user_id=str(user.id),
-            error=str(exc),
         )
         org_tiers = {}
 
@@ -191,10 +209,11 @@ async def get_user_entitlements(
     try:
         user_rows = await _fetch_user_rows(user.id, db)
     except Exception as exc:
-        logger.warning(
-            "Failed to fetch user_entitlements rows",
+        await _rollback_after_read_failure(
+            db,
+            exc,
+            event="Failed to fetch user_entitlements rows",
             user_id=str(user.id),
-            error=str(exc),
         )
         user_rows = []
 

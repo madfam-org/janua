@@ -53,7 +53,7 @@ class User(Base):
     # MFA fields
     mfa_enabled = Column(Boolean, default=False)
     mfa_secret = Column(EncryptedString())
-    mfa_backup_codes = Column(EncryptedString())
+    mfa_backup_codes = Column(JSONB, nullable=True)
 
     # Account lockout fields
     failed_login_attempts = Column(Integer, default=0)

@@ -261,6 +261,7 @@ async def _get_user_entitlements(
             user_id=str(user.id),
             error=str(e),
         )
+        await db.rollback()
 
     return entitlements
 

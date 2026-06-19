@@ -106,6 +106,20 @@ class TestGetUserEntitlements:
         out = await get_user_entitlements(user, db)
         assert out == []
 
+    async def test_missing_user_entitlements_table_rolls_back_session(self):
+        user = _user()
+        db = _make_db_with_results(("first", None))
+        db.execute = AsyncMock(
+            side_effect=[
+                MagicMock(first=MagicMock(return_value=None)),
+                Exception('relation "user_entitlements" does not exist'),
+            ]
+        )
+        db.rollback = AsyncMock()
+        out = await get_user_entitlements(user, db)
+        assert out == []
+        db.rollback.assert_awaited_once()
+
     async def test_admin_bootstrap_grants_every_product(self):
         user = _user(is_admin=True)
         db = _make_db_with_results(
