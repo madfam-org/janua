@@ -969,6 +969,7 @@ class Translation(Base):
 
 # Import enterprise models
 from app.models.enterprise import SSOConfiguration, SSOProvider, SSOStatus  # noqa: E402
+from app.models.connected_account import ConnectedAccount, ProviderType  # noqa: E402,F401
 
 # Import compliance models
 

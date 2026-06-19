@@ -1,6 +1,6 @@
 # Janua — Coupler Program (ConnectedAccount / Keyring)
 
-**Status:** execution-ready (P1 blocker for Coupler v1 GA)  
+**Status:** P1 implementation in progress (migration 008, connections API shipped 2026-06-19)  
 **Program start:** 2026-06-16 (target)  
 **ADR:** [architecture/ADR-002_UNIVERSAL_KEYRING.md](./architecture/ADR-002_UNIVERSAL_KEYRING.md) — **ACCEPTED** (implementation in progress)  
 **Cross-repo plan:** [enclii/docs/strategy/COUPLER_REMEDIATION_PLAN.md](https://github.com/madfam-org/enclii/blob/main/docs/strategy/COUPLER_REMEDIATION_PLAN.md)

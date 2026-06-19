@@ -100,6 +100,9 @@ from app.routers.v1 import (
     billing as billing_v1,
 )
 from app.routers.v1 import (
+    connections as connections_v1,
+)
+from app.routers.v1 import (
     devices as devices_v1,
 )
 from app.routers.v1 import (
@@ -1066,6 +1069,7 @@ app.include_router(admin_v1.router, prefix="/api/v1")
 app.include_router(webhooks_v1.router, prefix="/api/v1")
 app.include_router(webhooks_dhanam_v1.router, prefix="/api/v1")
 app.include_router(integrations_v1.router, prefix="/api/v1")
+app.include_router(connections_v1.router, prefix="/api/v1")
 app.include_router(api_keys_v1.router, prefix="/api/v1")
 app.include_router(roles_v1.router, prefix="/api/v1")
 
