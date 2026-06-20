@@ -122,7 +122,7 @@ class ConnectedAccountService:
                 oauth_scopes=[],
                 oauth_expires_at=oauth.token_expires_at,
                 status=ConnectedAccountStatus.ACTIVE.value,
-                metadata={"source": "oauth_account_sync"},
+                account_metadata={"source": "oauth_account_sync"},
                 created_by=user.id,
             )
             self.db.add(account)

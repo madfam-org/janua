@@ -54,7 +54,7 @@ class ConnectedAccount(Base):
     oauth_expires_at = Column(DateTime, nullable=True)
 
     status = Column(String(20), default=ConnectedAccountStatus.ACTIVE.value)
-    metadata = Column(JSONB, default=dict)
+    account_metadata = Column("metadata", JSONB, default=dict)
     last_used_at = Column(DateTime, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
