@@ -98,6 +98,12 @@ spec:
                 secretKeyRef:
                   name: janua-secrets
                   key: dhanam-webhook-secret
+            - name: JANUA_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: janua-secrets
+                  key: janua-service-token
+                  optional: true
             # Metrics auth (gates /metrics, /metrics/performance, /metrics/scalability).
             # Optional: when unset in production, /metrics* return 404 (fail-closed).
             # In-cluster Prometheus must send `Authorization: Bearer $METRICS_TOKEN`.
