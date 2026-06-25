@@ -86,7 +86,7 @@ jobs:
       short: ${{ steps.resolve.outputs.short }}
       reason: ${{ steps.resolve.outputs.reason }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 100
 
@@ -228,7 +228,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
