@@ -83,7 +83,7 @@
   },
   "dependencies": {
     "@apollo/client": "^3.8.0",
-    "axios": "^1.18.0",
+    "axios": "^1.18.1",
     "graphql": "^16.13.2",
     "graphql-ws": "^6.0.8"
   },
