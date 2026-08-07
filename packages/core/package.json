@@ -41,7 +41,7 @@
     "jest": "^29.7.0",
     "stripe": "^18.5.0",
     "ts-jest": "^29.4.12",
-    "typescript": "^5.7.2"
+    "typescript": "^6.0.3"
   },
   "optionalDependencies": {
     "messagebird": "^4.0.1",
