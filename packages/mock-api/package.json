@@ -14,8 +14,8 @@
     "cors": "^2.8.6",
     "jsonwebtoken": "^9.0.3",
     "bcryptjs": "^2.4.3",
-    "uuid": "^14.0.1",
-    "express-rate-limit": "^8.3.1",
+    "uuid": "^14.0.2",
+    "express-rate-limit": "^8.6.2",
     "cookie-parser": "^1.4.6"
   },
   "devDependencies": {
