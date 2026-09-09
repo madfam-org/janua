@@ -12,7 +12,7 @@
     "test:monitoring": "curl -s http://localhost:3004/api/metrics | head -20"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.3.4",
+    "@hookform/resolvers": "^5.7.1",
     "@janua/feature-flags": "workspace:*",
     "@janua/react-sdk": "workspace:*",
     "@janua/typescript-sdk": "workspace:*",
