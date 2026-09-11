@@ -539,6 +539,51 @@ Downstream services treat an absent claim as the free/community tier.
 The `foundry_tier` claim uses legacy Enclii naming for backwards compatibility:
 `essentials` maps to `community`, `pro` maps to `sovereign`, `madfam` maps to `ecosystem`.
 
+## Entitlement Resolution and the `/entitlements` Reads
+
+The per-product `*_tier` claims above are the legacy, per-consumer projection.
+The general model — used by the `madfam_entitled_products` JWT claim and the
+`/me/entitlements` endpoint — lives in
+`apps/api/app/services/entitlements_service.py`. It resolves what a user can
+reach by merging three sources in priority order (highest wins on a duplicate
+product slug):
+
+1. **Per-user grants** (`user_entitlements` table) — written by the Dhanam
+   subscription webhook and by admin tooling. Explicit and authoritative.
+2. **Org membership inheritance** — the user's **primary** organization's
+   `product_tiers` JSONB, used as a fallback for members with no explicit
+   per-user row.
+3. **Admin catch-all** — `is_admin=True` users get an `admin`-tier bootstrap set
+   so first-run access resolves before any subscription data exists.
+
+Rows with `expires_at` in the past are dropped. The result is sorted by slug so
+the JWT claim string form is stable across token refreshes.
+
+### Two read surfaces, two questions
+
+| Endpoint | Auth | Answers |
+|---|---|---|
+| `GET /api/v1/me/entitlements` | user bearer (`get_current_user`) | "What can the CALLING USER reach?" — per-user rows + the user's primary-org inheritance + admin bootstrap |
+| `GET /api/v1/internal/orgs/{org_id}/entitlements` | `X-Internal-API-Key` (`verify_internal_api_key`) | "What does THIS ORGANIZATION grant?" — the org's `product_tiers`, independent of any viewer |
+
+Both return the **same shape** — `products` (a list of
+`{slug, tier, expires_at, source}` rows) plus `claim_string_form` (the
+`["<slug>:<tier>", ...]` strings that mirror the JWT claim) — so a caller that
+parses one parses the other with no new contract.
+
+The org-level read (`get_org_entitlements(org_id)`, added in janua#611) exists
+because `/me/entitlements` is `get_current_user`-scoped and so structurally
+**cannot** answer for an organization other than the caller's own. That gap
+matters for the Nauta ERP: a MADFAM advisor viewing a client's workspace must
+resolve the **client org's** tiles, not the advisor's own (empty/MADFAM) ones.
+Nauta calls the internal endpoint with the viewed workspace's janua org id for
+that case. It is a service-credential surface on purpose — an org's product mix
+must not be enumerable by any user who names an org id. Every row it returns
+carries `source: "inherited"`, because that is what an org `product_tiers` entry
+is; it applies no per-user layer and no admin bootstrap, since neither is a
+property of the organization. See
+`docs/architecture/CLAIMS_DE_ORGANIZACION_Y_SERVICE_PRINCIPALS.md` §6.
+
 ## Support
 
 - **Documentation**: This guide and linked references
