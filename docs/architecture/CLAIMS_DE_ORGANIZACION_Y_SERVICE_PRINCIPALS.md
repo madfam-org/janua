@@ -56,7 +56,7 @@ alguien deja de trabajar— o abierta — alguien gana un tenant).
 | `org_slug` | string | igual que `org_id` | slug del tenant primario |
 | `madfam_org_roles` | lista de strings | igual que `org_id` | rol de organización **en esa org** |
 | `roles` | lista de strings | **solo** con concesiones vivas | roles de **aplicación** (`hcm:hr`), ver §5 |
-| `is_service_account` | `true` | **solo** si la identidad es técnica | ver §6 |
+| `is_service_account` | `true` | **solo** si la identidad es técnica | ver §4 |
 
 **«Sin ambigüedad»** significa: exactamente una membresía activa, o
 `user.tenant_id` nombra una de ellas. Con varias organizaciones y sin ancla, se
@@ -465,7 +465,66 @@ Misma autenticación que el resto de los endpoints internos
 
 ---
 
-## 6. Pasos de operador
+## 6. Entitlements por organización (lectura interna, janua#611)
+
+`GET /api/v1/me/entitlements` contesta **qué puede alcanzar el usuario que
+llama**: está acotado a `get_current_user` y mezcla las concesiones per-usuario
+del portador, la herencia de su organización primaria y el catch-all de admin
+(ver `app/services/entitlements_service.py`). Es la pregunta correcta para un
+cliente que lee **su propio** espacio, y la equivocada para un asesor de MADFAM
+que **ve el espacio de un cliente**: el token del asesor nombra los entitlements
+del asesor (vacíos / de MADFAM), no los del cliente, así que un hub que se apoye
+en él pinta cada producto del cliente como «no contratado».
+
+Este endpoint contesta una pregunta **distinta**: «¿qué otorga **esta
+organización**?», independiente de cualquier viewer, leído directo del
+`product_tiers` de la org.
+
+| Endpoint | Qué hace |
+|---|---|
+| `GET /api/v1/internal/orgs/{org_id}/entitlements` | Entitlements que **la organización** otorga, por id de org. **422** si `org_id` no es un UUID; conjunto **vacío** si la org no existe o no tiene `product_tiers` («esta org no otorga nada», nunca «desconocido») |
+
+- **Autenticación.** `verify_internal_api_key` — el mismo `X-Internal-API-Key`
+  que `internal_users`, `internal_app_roles` e `internal_oauth_client_scopes`.
+  **No** debe ser alcanzable con el token de acceso de un usuario: los
+  entitlements de una org son un hecho **sobre la org**, y contestarlo para
+  cualquier portador que nombre un id de org dejaría que un cliente enumerara el
+  mix de productos de otro. Una credencial de servicio es la autoridad correcta,
+  igual que la escritura org-scoped (`set_org_product_tier`) tampoco vive en la
+  superficie de usuario.
+- **Forma de la respuesta.** Idéntica a la de `/me/entitlements`
+  (`EntitlementsResponse`): `products` es la lista de filas
+  `{slug, tier, expires_at, source}` y `claim_string_form` son las mismas cadenas
+  `"<slug>:<tier>"` del claim JWT. Quien ya parsea una parsea la otra sin contrato
+  nuevo. Cada fila trae `source: "inherited"`, porque eso es lo que es un tier de
+  org.
+- **Sin capa per-usuario ni catch-all de admin.** Ninguno es una propiedad de la
+  organización; incluirlos contestaría una pregunta diferente de la que el caso
+  del asesor necesita. Es una **lectura pura** — sin escritura, sin concesión, sin
+  mutación de auditoría —, así que no acarrea efecto que un operador tenga que
+  revertir.
+
+**El modelo de entitlements, resumido.** `entitlements_service` deriva lo que un
+usuario alcanza mezclando, en orden de prioridad: (1) filas per-usuario
+(`user_entitlements`, escritas por el webhook de suscripción de Dhanam y por
+herramientas de admin); (2) herencia de la organización **primaria** del usuario
+(su `product_tiers`); (3) catch-all de admin (`is_admin=True`). La fila de mayor
+prioridad gana ante slugs duplicados. `get_org_entitlements(org_id)` reutiliza
+sólo la capa (2) —el `product_tiers` de la org proyectado a la misma forma— pero
+para **una org nombrada**, no para la org primaria del portador.
+
+**Quién lo consume, y por qué cierra el hueco de la §5.** El ERP de nauta lee
+este endpoint con el id de la org janua del **espacio que se está viendo** cuando
+el viewer es un asesor (miembro `ADVISOR` o «ver como»), en lugar del
+`/me/entitlements` del propio asesor. Esa es la contraparte de la nota de alcance
+de la §5: la **puerta** del ERP de Crea vive en el `WorkspaceMember` de nauta, y
+las **fichas** que el ERP pinta se resuelven contra el `product_tiers` de la org
+del cliente — leído por aquí. janua sigue siendo la única autoridad de
+entitlements; nauta sólo pregunta.
+
+---
+
+## 7. Pasos de operador
 
 1. **Aplicar la migración `015_user_is_service_acct`** deliberadamente contra la
    base de datos objetivo. `promote` **no corre migraciones** en este
@@ -502,7 +561,7 @@ Misma autenticación que el resto de los endpoints internos
    Verificar en la respuesta que `emits_app_role` es `true` — si es `false`, o
    el cliente no tiene `organization_id`, o el scope está mal escrito.
 
-## 7. Referencias
+## 8. Referencias
 
 - `apps/api/app/services/org_claims_service.py` — el resolvedor, fuente única
 - `apps/api/app/models/app_role.py` — la tabla de concesiones (§5)
@@ -520,5 +579,10 @@ Misma autenticación que el resto de los endpoints internos
 - `apps/api/alembic/versions/015_user_is_service_account.py` — la migración
 - `apps/api/tests/unit/services/test_org_claims_service.py`
 - `apps/api/tests/unit/services/test_service_principal.py`
+- `apps/api/app/routers/v1/internal_org_entitlements.py` — la lectura por org de la §6
+- `apps/api/app/services/entitlements_service.py` — `get_org_entitlements` y `get_user_entitlements`
+- `apps/api/tests/unit/routers/test_internal_org_entitlements.py`
+- `apps/api/tests/unit/services/test_entitlements_service.py`
+- `nauta/apps/web/src/server/erp-entitlements.ts` — el consumidor (asesor ⇒ org del espacio visto)
 - `symbiosis-hcm/apps/api/core/roles.py` — el otro lado de §2
 - ADR-003 (multi-tenancy), ADR-004 (capability links), `docs/service-tokens.md`
