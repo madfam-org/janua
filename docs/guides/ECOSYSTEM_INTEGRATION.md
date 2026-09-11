@@ -60,6 +60,25 @@ curl -X POST https://api.janua.dev/api/v1/oauth/clients \
   ...
 ```
 
+> **Interactive login vs. service client — register the right one.** A client is
+> either for **browser logins** (grant `authorization_code`, PKCE, and one or more
+> `redirect_uris`) or for **machine-to-machine** calls (grant `client_credentials`,
+> no `redirect_uris`). They are not interchangeable: point a browser flow at a
+> `client_credentials` client and `/oauth/authorize` returns "Not Found" — there is
+> no authorize flow to serve without a redirect URI and the authorization-code grant.
+> Note that `enclii secrets provision oidc` mints a **service** (`client_credentials`)
+> client; a surface with an interactive login must register a **separate**
+> authorization-code client (with its callback URIs) for its browser sessions.
+>
+> **`allowed_scopes` is a whitelist, not a filter.** Janua validates a request's
+> scopes with `requested.issubset(allowed_scopes)` (`_parse_requested_scopes`) and
+> rejects anything outside the set with `400 invalid_scope: <scope>` — it does not
+> silently drop the extra scope. So a client's `allowed_scopes` must be a **superset**
+> of every scope the app asks for at `/oauth/authorize`. If the app requests
+> `openid profile email roles`, register `roles` too; add a later scope with an admin
+> `PATCH /api/v1/oauth/clients/{id}`. A missing scope aborts the login at the tail of
+> an already-completed flow, which reads as an application bug and is not.
+
 ### Add Environment Variables
 
 Copy the credentials into your application's environment:
