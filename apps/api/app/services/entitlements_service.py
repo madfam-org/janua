@@ -241,6 +241,65 @@ def entitlements_to_claim(entitlements: Iterable[Entitlement]) -> list[str]:
     return [e.to_claim() for e in sorted(entitlements, key=lambda e: e.product)]
 
 
+async def get_org_entitlements(
+    org_id: UuidType,
+    db: AsyncSession,
+) -> list[Entitlement]:
+    """
+    Resolve the entitlements an ORGANIZATION grants, keyed by org id.
+
+    This is the org's OWN tiles — the `product_tiers` JSONB projected into the
+    same `Entitlement` shape `get_user_entitlements` produces, so a caller can
+    render or claim-encode them identically. It deliberately answers a DIFFERENT
+    question from `get_user_entitlements`:
+
+      - `get_user_entitlements(user)` merges per-user rows, the user's PRIMARY
+        org inheritance, and admin bootstrap — it answers "what can THIS PERSON
+        reach", scoped to `get_current_user`.
+      - `get_org_entitlements(org_id)` answers "what does THIS WORKSPACE'S ORG
+        grant", independent of any viewer. There is no per-user layer and no
+        admin bootstrap, because neither is a property of the organization.
+
+    WHY THIS EXISTS. Nauta's ERP resolves a viewer's tiles from the viewer's own
+    `/me/entitlements`. That is correct for a client reading their own workspace,
+    but wrong for a MADFAM ADVISOR viewing a client's workspace: the advisor's
+    own token names the advisor's (empty/MADFAM) entitlements, not the client's,
+    so every client product slice 404s. An advisor viewing a workspace must
+    resolve the WORKSPACE'S org tiles, and `/me/entitlements` cannot answer that
+    — it is `get_current_user`-scoped by construction. This function is the
+    org-scoped read that closes the gap, exposed over a service-credential
+    endpoint (see `routers/v1/internal_org_entitlements.py`) rather than the
+    user-scoped `/me` surface.
+
+    Source is `INHERITED` for every row: these come from the org's `product_tiers`,
+    which is exactly what `_fetch_org_tiers` reads and what `get_user_entitlements`
+    tags `INHERITED` when it inherits them. Result is sorted by product slug for
+    deterministic claim ordering, matching `get_user_entitlements`.
+
+    Returns an EMPTY list when the org does not exist or has no `product_tiers` —
+    an org that grants nothing, which the caller renders as "no tiles", never as
+    "unknown". The distinction between "org has no tiers" and "the read failed"
+    is the caller's (a 404 vs a network error at the transport), not this
+    function's: it answers only about an org that was found.
+    """
+    org_result = await db.execute(select(Organization).where(Organization.id == org_id))
+    org = org_result.scalar_one_or_none()
+    if org is None or not org.product_tiers:
+        return []
+
+    # product_tiers is JSONB shaped like {"karafiel": "pro", "dhanam": "pro"}.
+    entitlements = [
+        Entitlement(
+            product=str(product),
+            tier=str(tier),
+            expires_at=None,
+            source=EntitlementSource.INHERITED,
+        )
+        for product, tier in dict(org.product_tiers).items()
+    ]
+    return sorted(entitlements, key=lambda e: e.product)
+
+
 async def upsert_entitlement(
     db: AsyncSession,
     *,

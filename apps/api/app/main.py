@@ -1139,6 +1139,17 @@ try:
 except Exception as e:
     logger.warning(f"Internal app roles router not available: {e}")
 
+# Internal by-org entitlement read (the VIEWED WORKSPACE's org tiles, for the
+# nauta ERP advisor case: a service credential reads an org's entitlements by id,
+# where `/me/entitlements` can only answer for the calling user)
+try:
+    from app.routers.v1 import internal_org_entitlements as internal_org_entitlements_v1
+
+    app.include_router(internal_org_entitlements_v1.router, prefix="/api/v1/internal")
+    logger.info("Registered internal org entitlements router successfully")
+except Exception as e:
+    logger.warning(f"Internal org entitlements router not available: {e}")
+
 # Internal OAuth-client scope grants (`allowed_scopes` IS a service client's
 # grant record: an org-bound client's namespaced scopes become `roles` app roles)
 try:
