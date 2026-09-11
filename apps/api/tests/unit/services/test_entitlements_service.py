@@ -22,6 +22,7 @@ from app.services.entitlements_service import (
     Entitlement,
     cancel_entitlement,
     entitlements_to_claim,
+    get_org_entitlements,
     get_user_entitlements,
     remove_org_product_tier,
     set_org_product_tier,
@@ -396,3 +397,63 @@ class TestRemoveOrgProductTier:
         db = _make_db_with_results(("scalar_one_or_none", org))
         out = await remove_org_product_tier(db, org_id=uuid4(), product="kalya")
         assert out == {"dhanam": "pro"}
+
+
+class TestGetOrgEntitlements:
+    """The by-org resolver — the org's OWN tiles, independent of any viewer.
+
+    This is the read behind the nauta ERP advisor case: an advisor viewing a
+    client workspace must resolve the WORKSPACE'S org tiers, not the advisor's
+    own `/me` entitlements. It answers a different question from
+    `get_user_entitlements` — no per-user layer, no admin bootstrap.
+    """
+
+    async def test_returns_empty_when_org_missing(self):
+        db = _make_db_with_results(("scalar_one_or_none", None))
+        out = await get_org_entitlements(uuid4(), db)
+        assert out == []
+
+    async def test_returns_empty_when_org_has_no_tiers(self):
+        org = MagicMock(product_tiers=None)
+        db = _make_db_with_results(("scalar_one_or_none", org))
+        out = await get_org_entitlements(uuid4(), db)
+        assert out == []
+
+    async def test_returns_empty_when_org_tiers_is_empty_dict(self):
+        org = MagicMock(product_tiers={})
+        db = _make_db_with_results(("scalar_one_or_none", org))
+        out = await get_org_entitlements(uuid4(), db)
+        assert out == []
+
+    async def test_projects_product_tiers_as_inherited(self):
+        org = MagicMock(product_tiers={"kalya": "team", "karafiel": "contador"})
+        db = _make_db_with_results(("scalar_one_or_none", org))
+        out = await get_org_entitlements(uuid4(), db)
+        # Sorted by product slug for deterministic claim ordering.
+        assert [e.product for e in out] == ["kalya", "karafiel"]
+        assert [e.tier for e in out] == ["team", "contador"]
+        # Every row is INHERITED — that is what an org tier is.
+        assert all(e.source == EntitlementSource.INHERITED for e in out)
+        # Org tiers never carry an expiry.
+        assert all(e.expires_at is None for e in out)
+
+    async def test_claim_shape_matches_me_endpoint(self):
+        """The by-org read renders to the same `<slug>:<tier>` claim shape."""
+        org = MagicMock(product_tiers={"nauta": "team", "crea-map": "clinico"})
+        db = _make_db_with_results(("scalar_one_or_none", org))
+        out = await get_org_entitlements(uuid4(), db)
+        assert entitlements_to_claim(out) == ["crea-map:clinico", "nauta:team"]
+
+    async def test_no_admin_bootstrap_and_no_per_user_layer(self):
+        """A single execute() call — the org row — and nothing else.
+
+        Unlike `get_user_entitlements`, this never reads per-user rows and never
+        applies the admin bootstrap set, so the resolved set is EXACTLY the org's
+        product_tiers and nothing more.
+        """
+        org = MagicMock(product_tiers={"dhanam": "pro"})
+        db = _make_db_with_results(("scalar_one_or_none", org))
+        out = await get_org_entitlements(uuid4(), db)
+        assert [e.product for e in out] == ["dhanam"]
+        # Only ONE query was issued (the org lookup); no user_entitlements read.
+        assert db.execute.await_count == 1
