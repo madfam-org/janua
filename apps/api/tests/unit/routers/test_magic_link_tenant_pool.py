@@ -5,11 +5,15 @@ janua#583 made every email lookup pool-scoped, and `send_magic_link` declared
 the untenanted pool. But the internal provisioning API writes CTM staff with
 `users.tenant_id = <org id>` (crea-map sends `tenant_id` in its provision
 body), so the lookup missed them, the "not found → create" branch ran, and the
-INSERT hit `ix_users_email` — which in PRODUCTION is still the GLOBAL unique
-index from 000_init, because migration 013's per-tenant partial indexes were
-never applied (prod `alembic_version` is 011, the DB is hand-migrated). Every
-such request became an IntegrityError → 503, and the requesting product showed
-«revisa tu correo» while nobody got a link.
+INSERT hit `ix_users_email` — which in PRODUCTION was then still the GLOBAL
+unique index from 000_init, because migration 013's per-tenant partial indexes
+had not been applied (prod `alembic_version` was 011, the DB hand-migrated).
+Every such request became an IntegrityError → 503, and the requesting product
+showed «revisa tu correo» while nobody got a link.
+
+013 was applied and stamped on 2026-09-06 (`apps/api/alembic/PROD_ALEMBIC_STATE.json`,
+converged at 016), so prod now runs the two partial indexes. The consequence for
+these tests is case 4 below: it stopped being hypothetical.
 
 These tests pin the four behaviours of the fix:
   1. a tenant-pooled user gets a link and NO second row is inserted;
@@ -213,8 +217,9 @@ class TestIntegrityErrorGuard:
 
 class TestAmbiguityIsRefused:
     async def test_two_pools_holding_the_email_refuse_with_400(self):
-        """Impossible while ix_users_email is global; the guard is for the day
-        migration 013 lands. Never pick a pool arbitrarily."""
+        """Reachable in production since 013 landed (2026-09-06): one address
+        may legitimately hold a row in the platform pool and one in each tenant
+        pool. Never pick a pool arbitrarily."""
         db = _db(
             untenanted=None,
             across_pools=[_user(tenant_id=uuid.uuid4()), _user(tenant_id=uuid.uuid4())],

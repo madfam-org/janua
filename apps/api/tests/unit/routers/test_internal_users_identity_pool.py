@@ -9,7 +9,8 @@ This is the upstream half of this PR's outage. `provision_user` used one field �
 `tenant_id` — for BOTH jobs, so every CTM staff member crea-map provisioned
 landed in a tenant pool where the bare-email magic-link lookup could not see
 them; the handler then took its create branch and collided with the still-global
-`ix_users_email` (prod alembic_version 011, migration 013 unapplied) → 503.
+`ix_users_email` (prod alembic_version was 011, migration 013 not yet
+applied; it landed 2026-09-06) → 503.
 
 The request now separates the two concerns:
   * `organization_id` (preferred) / `tenant_id` (deprecated alias) — the org;
@@ -142,8 +143,8 @@ class TestPlatformPoolIsTheDefault:
     async def test_two_orgs_share_one_platform_identity(self, provisioning_env):
         """A colleague who works with two orgs is ONE person in the platform pool.
 
-        Under the old model this produced two user rows — and, on prod's global
-        ix_users_email, the second INSERT would have 503'd.
+        Under the old model this produced two user rows — and, on the
+        then-global ix_users_email, the second INSERT would have 503'd.
         """
         client, session_factory = provisioning_env
         email = "compartida@crea.example.com"

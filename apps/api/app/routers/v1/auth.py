@@ -1854,11 +1854,15 @@ async def _dispatch_password_reset(
     # Untenanted / staff pool (see /signin note); enumeration-safe either way.
     # Same silent-miss as the magic-link handler had: a user the internal
     # provisioning API created WITH a tenant_id is invisible here, so recovery
-    # quietly did nothing for them. Fall back to the across-pools bridge (exact
-    # while prod's ix_users_email is global). No redirect_url is available here
-    # to name a preferred pool, so genuine ambiguity simply declines to send —
-    # which is also the enumeration-safe answer this function already gives for
-    # "no match".
+    # quietly did nothing for them. Fall back to the across-pools bridge. Since
+    # migration 013 landed in production (2026-09-06, see
+    # apps/api/alembic/PROD_ALEMBIC_STATE.json) that bridge is a RESOLUTION and
+    # no longer an exact lookup: an address may sit in the platform pool and in
+    # several tenant pools at once. No redirect_url is available here to name a
+    # preferred pool, so genuine ambiguity simply declines to send — which is
+    # also the enumeration-safe answer this function already gives for "no
+    # match". It is silent to the caller BY DESIGN, which is exactly why it has
+    # to be loud in the logs; see the handler below.
     user = await get_user_by_email(db, email, tenant_id=None, active_only=True)
     if not user:
         try:
@@ -2364,18 +2368,22 @@ async def send_magic_link(
     # meaning of this bare-email platform entry (see /signin note), but a MISS
     # there may not mean "no such user":
     #
-    #   Production runs the GLOBAL unique index ix_users_email (migration 013's
-    #   per-tenant partial indexes are unapplied; prod alembic_version is 011),
-    #   while the internal provisioning API writes users WITH a tenant_id — CTM
+    #   The internal provisioning API writes users WITH a tenant_id — CTM
     #   staff, provisioned by crea-map. Those rows are invisible to the
-    #   untenanted lookup, so this handler fell through to the create branch and
-    #   the INSERT hit ix_users_email → IntegrityError → 503. The requesting
-    #   product showed «revisa tu correo» and no link was ever sent
-    #   (2026-09-03, 21 users).
+    #   untenanted lookup, so this handler fell through to the create branch
+    #   and, under the then-global unique index ix_users_email, the INSERT hit
+    #   it → IntegrityError → 503. The requesting product showed «revisa tu
+    #   correo» and no link was ever sent (2026-09-03, 21 users).
     #
-    # So on a miss, resolve across pools before considering a create. While the
-    # schema is globally unique that resolution is exact; the redirect host's
-    # OAuth client supplies the preferred pool for the day 013 does land.
+    # So on a miss, resolve across pools before considering a create. Migration
+    # 013 is APPLIED in production now (2026-09-06; the ledger is
+    # apps/api/alembic/PROD_ALEMBIC_STATE.json, converged at
+    # 016_org_member_app_roles), so ix_users_email is gone and that resolution
+    # is no longer exact: one address may legitimately hold a row in the
+    # platform pool and in N tenant pools. The redirect host's OAuth client
+    # supplies the preferred pool; when it cannot decide, the resolver raises
+    # and this handler answers 400 rather than signing anyone into an arbitrary
+    # tenant. That 400 is REACHABLE in production — it was not, before 013.
     user = await get_user_by_email(
         db, magic_link_data.email, tenant_id=None, active_only=True
     )
@@ -2416,8 +2424,10 @@ async def send_magic_link(
             await db.commit()
             await db.refresh(user)
         except IntegrityError:
-            # Lost a race, or the row exists in a state the lookups above do not
-            # see (a non-ACTIVE row still occupies the global unique index).
+            # Lost a race, or the row exists in a state the lookups above do
+            # not see (a non-ACTIVE row still occupies its pool's unique
+            # index — uq_users_email_global for platform rows,
+            # uq_users_tenant_email for tenant-pooled ones).
             # Re-select instead of 503ing: the address is taken, so the user
             # exists — find them rather than telling the product the service is
             # down.

@@ -87,12 +87,18 @@ class TestGetUserByEmail:
 
 
 class TestResolveUserByEmailAcrossPools:
-    """The bridge helper for bare-email entry points while prod's ix_users_email
-    is still the GLOBAL unique index (migration 013 unapplied).
+    """The bridge helper for bare-email entry points, which have no tenant
+    context to declare.
 
     Regression cover for 2026-09-03: magic link looked only in the untenanted
     pool, missed users the internal provisioning API had created WITH a
-    tenant_id, and the create branch then collided with the global index.
+    tenant_id, and the create branch then collided with the then-global
+    ix_users_email.
+
+    Migration 013 is applied in production as of 2026-09-06
+    (apps/api/alembic/PROD_ALEMBIC_STATE.json), so the address is no longer
+    globally unique and the two refusal tests below cover a branch production
+    can actually reach.
     """
 
     @staticmethod
