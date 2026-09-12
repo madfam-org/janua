@@ -42,15 +42,24 @@ war_room_link: "https://meet.google.com/janua-incident"
 curl -I https://api.janua.dev/health
 curl -I https://app.janua.dev
 
-# Check recent deployments
-gh run list --limit 5
+# What is production actually RUNNING? The answer is a digest in git.
+git log --oneline -5 -- k8s/overlays/production/kustomization.yaml
+gh run list --workflow "Promote staging -> prod" --limit 5
 
-# Check error rates
-# In Sentry/DataDog dashboard
+# Does the cluster agree with git? (git being right is not the same as
+# the pods having adopted it.)
+enclii ops apps diff janua-services -n argocd --json
+enclii ops pods diagnose janua-api -n janua --json
 
 # Check current traffic
-# In Cloudflare/CDN dashboard
+# In Cloudflare dashboard
 ```
+
+> **Read this before you touch anything.** Production is reconciled from
+> `k8s/overlays/production/kustomization.yaml` by the ArgoCD application
+> **`janua-services`** (note: not `janua`) into namespace `janua`. Nothing ships
+> by pushing to `main` — a merge only updates the **staging** overlay. See
+> [`docs/DEPLOYMENT.md`](/docs/DEPLOYMENT.md#madfam-production-ghcr--digest--argocd).
 
 ### 1.3 Severity Classification
 
@@ -115,20 +124,32 @@ Next Update: [Time, max 30 minutes]
 
 **For Service Outages:**
 ```bash
-# 1. Check deployment status
-cd apps/api
-git log --oneline -10
+# 1. What changed? Production only changes when the prod overlay changes.
+git log --oneline -10 -- k8s/overlays/production/kustomization.yaml
 
-# 2. Rollback if recent deployment
-git revert HEAD
-git push origin main --force-with-lease
+# 2. Roll back a bad promote — workflow_dispatch, human only, RTO target <5min.
+#    Leave `digest` blank to restore the previous production digest.
+gh workflow run rollback-prod.yml \
+  -f component=api \
+  -f reason="P1: <what is broken>" \
+  -f rollback_ack=rollback
+#    Then make the cluster adopt it:
+enclii ops apps sync janua-services -n argocd --apply --reason "rollback <sha>"
 
-# 3. Scale up if load issue
-# Via Railway/Vercel dashboard
+# 3. Scale up if load issue — HPA lives in k8s/base/hpa-janua-api.yaml
+enclii service describe janua-api
 
-# 4. Restart services
-# Via platform dashboard
+# 4. Restart
+enclii ops pods diagnose janua-api -n janua --json
 ```
+
+> **Never** `git revert` + force-push `main` to roll production back. It races
+> the bot that commits staging digests, and it changes nothing that ArgoCD is
+> reconciling until a promote or rollback rewrites the production overlay — so
+> it looks like a fix and is not one. Use `rollback-prod.yml`.
+>
+> **Check for an in-flight JWT key rotation before rolling back.** Rolling back
+> across a rotation boundary invalidates tokens ecosystem-wide.
 
 **For Database Issues:**
 ```bash
@@ -167,14 +188,16 @@ export EMERGENCY_MODE=true
 - [ ] Check feature flags
 
 ```bash
-# View recent logs
-heroku logs --tail -a janua-api  # or platform equivalent
+# View recent logs. Routine reads go through Enclii; if there is no Enclii log
+# adapter for janua-api, record that adapter gap rather than normalizing raw
+# access. Break-glass form:
+kubectl -n janua logs deploy/janua-api --since=1h --tail=500
 
-# Check for errors
-grep -i error /var/log/janua/*.log | tail -100
+# Check for errors (logs are structlog JSON — grep the event name)
+kubectl -n janua logs deploy/janua-api --since=1h | grep -E '"level":"error"'
 
-# Recent deployments
-git log --since="2 hours ago" --oneline
+# Recent deployments (prod changes ONLY via the production overlay)
+git log --since="2 hours ago" --oneline -- k8s/overlays/production/kustomization.yaml
 ```
 
 **Infrastructure Layer:**
@@ -574,11 +597,23 @@ Suspend, or move the pool.
 ## Tools & Resources
 
 ### Monitoring Dashboards
-- **Application Metrics:** https://app.datadog.com/dashboard/janua
-- **Error Tracking:** https://sentry.io/organizations/janua
-- **Infrastructure:** https://dashboard.railway.app
+
+> Janua runs on MADFAM's own k3s cluster. There is no hosting-provider console
+> to open: the cluster is the infrastructure, and ArgoCD is the deployment view.
+
+- **Deployment / cluster state:** ArgoCD application `janua-services` (namespace `argocd`), or `enclii ops apps diff janua-services -n argocd --json`
+- **Workloads:** `enclii ops pods diagnose janua-api -n janua --json`
+- **What is deployed:** `k8s/overlays/production/kustomization.yaml` in this repo
 - **CDN/WAF:** https://dash.cloudflare.com
 - **Status Page:** https://status.janua.dev
+- **Named log alerts:** [Alert Definitions](#alert-definitions)
+
+> **Application metrics are NOT available today.** `/metrics` is token-gated and
+> returns 404 when `METRICS_TOKEN` is unset, the scrape annotation advertises
+> port 8000 while the Service targets 8080, there is no `ServiceMonitor`, and
+> `app/main.py` serves a private registry of hardcoded sample values. Do not
+> plan an incident response around a Prometheus dashboard for janua-api — there
+> isn't one. The log stream is the signal.
 
 ### Useful Commands
 
@@ -587,7 +622,7 @@ Suspend, or move the pool.
 curl -s https://api.janua.dev/health | jq .
 
 # Check recent errors
-heroku logs --app janua-api --tail | grep ERROR
+kubectl -n janua logs deploy/janua-api --since=15m | grep -E '"level":"error"'
 
 # Database connection check
 psql $DATABASE_URL -c "SELECT 1"
@@ -595,17 +630,17 @@ psql $DATABASE_URL -c "SELECT 1"
 # Redis connection check
 redis-cli ping
 
-# View current deployment
-git rev-parse HEAD
+# View current deployment (the digest ArgoCD is reconciling)
+grep -A2 'janua-api' k8s/overlays/production/kustomization.yaml
 
-# Emergency rollback
-git revert HEAD --no-edit && git push
+# Emergency rollback (NEVER git revert + push — see Phase 2.3)
+gh workflow run rollback-prod.yml -f component=api -f reason="..." -f rollback_ack=rollback
 
 # Clear all caches
 redis-cli FLUSHALL
 
-# Restart all services (platform specific)
-heroku restart --app janua-api
+# Force the cluster to reconcile the overlay
+enclii ops apps sync janua-services -n argocd --apply --reason "incident <id>"
 ```
 
 ### Communication Channels

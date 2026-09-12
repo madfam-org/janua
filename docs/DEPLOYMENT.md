@@ -14,6 +14,16 @@
 
 This guide covers deploying Janua authentication platform to production environments with Docker, Kubernetes, and cloud providers.
 
+> **Two audiences, one file.** Most of this guide is for **self-hosters** —
+> people standing Janua up on their own infrastructure, for whom Docker Compose
+> is a reasonable answer. **MADFAM's own production is not any of those setups.**
+> It is Kubernetes: GitHub Actions builds a signed image to GHCR, the digest is
+> committed to a kustomize overlay, and ArgoCD reconciles it onto MADFAM's k3s
+> cluster. If you are operating `auth.madfam.io`, the only section that
+> describes your system is
+> [MADFAM Production (GHCR → digest → ArgoCD)](#madfam-production-ghcr--digest--argocd);
+> the rest is reference material for other people's deployments.
+
 ---
 
 ## Table of Contents
@@ -24,7 +34,8 @@ This guide covers deploying Janua authentication platform to production environm
   - [Docker Compose (Recommended for Getting Started)](#docker-compose)
   - [Docker Production Deployment](#docker-production)
   - [Kubernetes Deployment](#kubernetes-deployment)
-  - [Cloud Platforms](#cloud-platforms)
+  - [**MADFAM Production (GHCR → digest → ArgoCD)**](#madfam-production-ghcr--digest--argocd) ← how `auth.madfam.io` actually ships
+  - [Other Platforms (self-hosting)](#other-platforms-self-hosting)
 - [Environment Configuration](#environment-configuration)
 - [Database Setup](#database-setup)
 - [Security Hardening](#security-hardening)
@@ -626,90 +637,168 @@ kubectl exec -it $(kubectl get pod -l app=janua-api -n janua -o jsonpath='{.item
 
 ---
 
-### Hetzner + Enclii Deployment (Recommended)
+### MADFAM Production (GHCR → digest → ArgoCD)
 
-**Best for**: Full infrastructure control, data sovereignty, cost-effective at scale
+**This is how `auth.madfam.io` ships.** It is not Docker Compose, not a PaaS,
+and not a deploy webhook. Every step between a merge and a running pod is a git
+commit, and production is reconciled from this repository.
 
-Janua's primary production deployment uses MADFAM's self-hosted infrastructure on Hetzner bare metal servers with Cloudflare Tunnel for zero-trust ingress.
+#### The pipeline
 
-#### Architecture
 ```
-Cloudflare Edge (DNS + WAF) → Cloudflare Tunnel → Hetzner Server → Docker Compose
+merge to main
+   │
+   ├─▶ .github/workflows/docker-publish.yml   ("Docker Publish")
+   │     builds the five root Dockerfiles (Dockerfile.api, .admin, .dashboard,
+   │       .docs, .website) with the REPO ROOT as build context
+   │     pushes ghcr.io/madfam-org/janua-<svc>   tagged :main and :<sha>
+   │     signs each image keyless with cosign — an unsigned image is a hard
+   │       failure, because Kyverno will refuse to admit it
+   │     runs on ARC self-hosted runners (madfam-runners-blue)
+   │
+   ├─▶ same workflow, job "Commit Digests to Staging Kustomization"
+   │     kustomize edit set image …janua-<svc>@sha256:…
+   │     commits "chore(staging): update N janua service digest(s)"
+   │     → k8s/overlays/staging/kustomization.yaml
+   │     AUTOMATIC on every merge to main. No gate, no soak, no approval.
+   │
+   │   ArgoCD application  janua-staging   →  namespace janua-staging
+   │                                          issuer https://staging-auth.madfam.io
+   │
+   └─▶ .github/workflows/promote-to-prod.yml  ("Promote staging -> prod")
+         workflow_dispatch ONLY — a human runs it and must state a reason
+         copies the SAME digest into k8s/overlays/production/kustomization.yaml
+         commits "deploy(prod): promote <short-sha>"
+
+       ArgoCD application  janua-services  (in namespace argocd)
+                                          →  namespace janua
+                                             issuer https://auth.madfam.io
 ```
 
-#### Port Allocation (MADFAM Standard 4100-4199)
-| Service | Port | Domain |
-|---------|------|--------|
-| API | 4100 | api.janua.dev |
-| Dashboard | 4101 | app.janua.dev |
-| Admin | 4102 | admin.janua.dev |
-| Docs | 4103 | docs.janua.dev |
-| Website | 4104 | janua.dev |
+**Promotion never rebuilds.** It copies the digest that has been serving staging
+into the production overlay. That is the single most important invariant of the
+pipeline: the bytes that soaked are the bytes that ship.
 
-#### Container-to-Container Communication
+#### Why the gate is manual
 
-**Critical**: Next.js API routes must communicate with the FastAPI backend using Docker internal networking:
+Janua is **RFC 0001 Pattern B (manual promote gate)**. It is the ecosystem's
+auth floor — every other MADFAM service depends on its JWTs, so a wrong promote
+breaks every downstream login. The scheduled auto-promote job exists in the
+workflow but exits early unless the repo variable `AUTO_PROMOTE_ENABLED` is
+`"true"`, and `enclii.yaml` declares the policy:
 
 ```yaml
-# docker-compose.production.yml
-janua-dashboard:
-  environment:
-    # Server-side API calls (runtime) - Docker network hostname
-    - INTERNAL_API_URL=http://janua-api:8000
-    # Client-side API calls (build-time) - Public URL
-    - NEXT_PUBLIC_API_URL=https://api.janua.dev
+promotion:
+  pattern: manual
+  min_soak_minutes: 30
+  require_smoke_pass: true
 ```
 
-#### CI/CD Pipeline
+Promotes also serialize with JWT key rotation. The `prod-promote` concurrency
+group serializes promotes against each other and against rollbacks; coordinating
+with a key rotation is human discipline. A simultaneous rotation and promote is
+the most reliable way to brick logins ecosystem-wide.
 
-GitHub Actions builds Docker images and deploys via Enclii webhook:
+#### The two gates before anything is written
 
-```yaml
-# .github/workflows/deploy.yml
-deploy:
-  steps:
-    - name: Deploy via Enclii
-      run: |
-        curl -X POST "${{ secrets.ENCLII_DEPLOY_WEBHOOK }}" \
-          -H "Authorization: Bearer ${{ secrets.ENCLII_DEPLOY_TOKEN }}" \
-          -d '{"service": "janua", "tag": "${{ github.sha }}"}'
+| Gate | What it does | How it fails |
+| --- | --- | --- |
+| `migrations-guard` | Compares the repo's alembic head against `apps/api/alembic/PROD_ALEMBIC_STATE.json` | Unrecorded revisions stop the promote unless the operator ticks `migrations_acknowledged` |
+| Soak | The digest must have been in the staging overlay for ≥ `MIN_SOAK_MINUTES` (default **30**) | `break_glass_without_soak` bypasses it, recorded in the audit log |
+
+`migrations-guard` runs on a GitHub-hosted runner with **no route to the
+production database**, so it cannot ask what prod's schema is. Handing the job
+that already holds `contents: write` a production database credential to improve
+an error message is a trade this repo declines. It compares against the ledger
+instead, and converts a silent assumption into a loud question.
+
+#### Migrations are applied by the operator, never by promote
+
+**Promote runs no alembic. That is the design, not an oversight.** The
+consequence is real and has bitten: promoted code can expect a schema production
+does not have, and the first signal is 500s from the auth floor.
+
+A migration reaches production only when a human applies it from inside the
+`janua-api` pod — the only place with a route to the database — and then stamps
+and records it:
+
+```bash
+# 1. Read-only verification. Writes nothing, runs no DDL.
+kubectl -n janua exec deploy/janua-api -- python scripts/alembic_converge.py --check
+
+# 2. Only once --check is clean, seal the revision.
+kubectl -n janua exec -it deploy/janua-api -- python scripts/alembic_converge.py --stamp
+
+# 3. Confirm.
+kubectl -n janua exec deploy/janua-api -- python -m alembic current
 ```
 
-#### Cloudflare Tunnel Configuration
+(Routine operations are Enclii-first; the raw `kubectl` above is the documented
+break-glass form for a surface Enclii does not yet adapt.)
 
-```yaml
-# /etc/cloudflared/config.yml
-tunnel: janua-tunnel
-credentials-file: /etc/cloudflared/credentials.json
+Then refresh **`apps/api/alembic/PROD_ALEMBIC_STATE.json`** in the same PR as
+the migration. That file is a **ledger, not a source of truth** — the database
+is the truth; the file records the last time a human read it. Stale fails safe
+(the guard demands one extra checkbox); edited forward without running `--check`
+it defeats the guard entirely, which is why `verified_at` and `verified_by` are
+required. Full procedure:
+[`docs/runbooks/ALEMBIC_CONVERGENCE.md`](/docs/runbooks/ALEMBIC_CONVERGENCE.md).
 
-ingress:
-  - hostname: api.janua.dev
-    service: http://localhost:4100
-  - hostname: app.janua.dev
-    service: http://localhost:4101
-  - hostname: janua.dev
-    service: http://localhost:4104
-  - service: http_status:404
+#### After the promote
+
+Updating git does **not** guarantee the live pods adopt the digest. The
+post-promote reconcile is required:
+
+```bash
+enclii ops apps diff janua-services -n argocd --json
+enclii ops apps sync janua-services -n argocd --apply --reason "promote <sha>"
+enclii ops pods diagnose janua-api -n janua --json
+curl -fsSI https://janua.dev/health
 ```
 
-See [deployment/DEPLOYMENT.md](deployment/DEPLOYMENT.md) for complete Hetzner/Enclii deployment guide.
+The ArgoCD Application is named **`janua-services`**, not `janua` — the wrong
+name in a runbook was a contributing factor in the 2026-06-15 website rollout
+incident. Known blockers (stuck Argo syncs, Kyverno signature denials, stale
+`janua/ghcr-credentials`) and their fixes are in
+[`docs/runbooks/production-gitops-reconcile.md`](/docs/runbooks/production-gitops-reconcile.md).
+
+#### Rollback
+
+[`rollback-prod.yml`](/.github/workflows/rollback-prod.yml), `workflow_dispatch`
+only — there is no auto-trigger, a rollback is always a human call. It writes the
+previous (or an explicit) digest to the production overlay; RTO target < 5 min.
+It shares the `prod-promote` concurrency group. Do **not** roll back across a JWT
+key-rotation boundary without checking the rotation first.
+
+> **Never** roll production back by reverting a commit and force-pushing `main`.
+> That races the digest-committing bot, and it does not change what ArgoCD is
+> reconciling until a promote or rollback writes the production overlay.
+
+#### Reference
+
+| What | Where |
+| --- | --- |
+| Operator walkthrough of the whole pipeline | [`docs/PP_3B_STAGING_PIPELINE.md`](/docs/PP_3B_STAGING_PIPELINE.md) |
+| Reconcile / break-glass | [`docs/runbooks/production-gitops-reconcile.md`](/docs/runbooks/production-gitops-reconcile.md) |
+| Schema convergence | [`docs/runbooks/ALEMBIC_CONVERGENCE.md`](/docs/runbooks/ALEMBIC_CONVERGENCE.md) |
+| Staging digests (CI writes) | `k8s/overlays/staging/kustomization.yaml` |
+| Production digests (promote writes) | `k8s/overlays/production/kustomization.yaml` |
+| Schema ledger | `apps/api/alembic/PROD_ALEMBIC_STATE.json` |
 
 ---
 
-### Alternative Deployments (Optional)
+### Other Platforms (self-hosting)
 
-#### Kubernetes
+Janua is designed to be self-hostable, and the sections above give you Docker
+Compose and raw Kubernetes manifests. Beyond those, the container images are
+ordinary OCI images and will run anywhere that accepts one:
 
-Kubernetes manifests are provided for organizations requiring container orchestration. See the Kubernetes section above.
-
-#### Other Cloud Platforms
-
-While Janua is designed for self-hosting, it can run on any platform supporting Docker:
 - AWS ECS/Fargate
 - Google Cloud Run
 - Azure Container Apps
 
-Consult platform-specific documentation for deployment details.
+Consult platform-specific documentation for deployment details. Note that these
+are options **for you**; none of them is how MADFAM runs Janua.
 
 ---
 
@@ -840,7 +929,7 @@ default_pool_size = 25
 
 ### Production Security Checklist
 
-- [ ] **Secrets Management**: Use secrets manager (AWS Secrets Manager, HashiCorp Vault, Railway variables)
+- [ ] **Secrets Management**: Use a secrets manager. MADFAM production uses External Secrets into the `janua-secrets` Kubernetes Secret (`janua-staging-secrets` in staging) — never a literal in a manifest. Self-hosters: AWS Secrets Manager, HashiCorp Vault, or your platform's equivalent
 - [ ] **HTTPS Only**: Enforce SSL/TLS with valid certificates (Let's Encrypt, Cloudflare)
 - [ ] **Firewall Rules**: Restrict database/Redis to application subnet only
 - [ ] **Rate Limiting**: Enable Redis-backed rate limiting (configured in `.env.production`)
