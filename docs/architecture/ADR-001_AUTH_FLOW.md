@@ -231,20 +231,34 @@ Standard Authorization Code flow with PKCE for public clients:
 4. **Brute Force Protection**: Rate limiting on auth endpoints
 5. **Session Anomaly Detection**: Alert on unusual login patterns
 
-## Email lookup pools and the 013 schema/code drift
+## Email lookup pools (the 013 drift, and its resolution)
 
-**Status: ACTIVE DRIFT — read before touching any email lookup.**
+**Status: RESOLVED 2026-09-06 — the code and the schema now agree. Read before
+touching any email lookup, because what the agreement means has changed.**
 
 Since janua#583 («per-tenant email uniqueness», BaaS Phase 1) the application
 treats `users.email` as unique PER POOL: once per tenant, plus once in the
 untenanted (staff / platform) pool. `app/services/user_lookup.py` is the single
 primitive for that, and every call site must declare which pool it means.
 
-**The database does not agree.** Migration `013_per_tenant_email_uniqueness` was
-written but **never applied in production**: prod's `alembic_version` is `011`,
-the database is hand-migrated, and `users.email` still carries the GLOBAL unique
-index `ix_users_email` from `000_init`. The per-tenant partial indexes
-(`uq_users_tenant_email`, `uq_users_email_global`) do not exist there.
+**The database agreed late.** For three days it did not: migration
+`013_per_tenant_email_uniqueness` had been written but not applied in
+production, prod's `alembic_version` was `011`, and `users.email` still carried
+the GLOBAL unique index `ix_users_email` from `000_init`. That drift is what
+broke magic link on 2026-09-03 (below).
+
+It was closed on **2026-09-06**: 013 and 014 were applied with the `postgres`
+role (`users`, `oauth_clients` and `alembic_version` are owned by `enclii`; the
+app role `janua` cannot `CREATE INDEX`), the database was stamped to
+`016_org_member_app_roles`, and `scripts/alembic_converge.py --check` reported
+0 divergences from the `janua-api` pod. The ledger of that reading is
+[`apps/api/alembic/PROD_ALEMBIC_STATE.json`](/apps/api/alembic/PROD_ALEMBIC_STATE.json)
+— the database is the truth, that file records the last time a human read it.
+
+So `ix_users_email` is **gone** in production and the two partial unique indexes
+(`uq_users_tenant_email` WHERE `tenant_id IS NOT NULL`, `uq_users_email_global`
+WHERE `tenant_id IS NULL`) are **live**. One address may now legitimately hold a
+row in the platform pool and a row in each of N tenant pools.
 
 ### What that drift cost (2026-09-03)
 
@@ -269,15 +283,25 @@ that.
 
 `resolve_user_by_email_across_pools()` in `user_lookup.py` is the documented
 bridge for **bare-email entry points only** — those that have no tenant context
-to declare (magic link, password reset). While the schema enforces global
-uniqueness this resolution is **exact**: at most one row can hold the address.
-It is not an abandonment of pool discipline:
+to declare (magic link, password reset, internal lifecycle by address). Before
+013 landed this resolution was **exact**, because at most one row could hold the
+address. **It is not exact any more.** It is a resolution:
 
 - it takes a `preferred_tenant_id` — the organization of the OAuth client that
-  owns the request's redirect host — consulted first, so it still resolves
-  correctly the day 013 lands;
-- with several matches and no preference it **raises** rather than returning an
-  arbitrary row; the handler answers **400**, never a silent cross-tenant login.
+  owns the request's redirect host — consulted first, and that preference is now
+  load-bearing rather than anticipatory;
+- with several matches and no preference it **raises**
+  `AmbiguousEmailAcrossPools` rather than returning an arbitrary row; the
+  handler answers **400** (**409** on the internal provisioning surface), never
+  a silent cross-tenant login.
+
+**That refusal is a reachable production branch as of 2026-09-06.** It was
+unreachable while the address stayed globally unique. Nothing in the database
+prevents the collision now, so it must be observable rather than merely
+correct: every site that turns the exception into a response emits
+`auth.ambiguous_email_across_pools` (`app/services/user_lookup.py`), and the
+alert plus its triage steps live in
+[the incident playbook](/docs/internal/operations/INCIDENT_RESPONSE_PLAYBOOK.md#januaambiguousemailacrosspools).
 
 Every caller that *does* know its tenant (OAuth end-user flows, SCIM, SSO,
 admin, provisioning) must keep using pool-scoped `get_user_by_email()`.
@@ -293,9 +317,12 @@ admin, provisioning) must keep using pool-scoped `get_user_by_email()`.
 
 ### Follow-ups for the owner (not decided here)
 
-1. **Apply migration 013 in production, or retire it.** The code and the schema
-   must stop disagreeing. Note the deploy pipeline **promotes images and runs no
-   alembic**, so this is a deliberate operator action either way.
+1. ~~**Apply migration 013 in production, or retire it.**~~ **DONE 2026-09-06**
+   — applied and stamped by the operator, prod converged at
+   `016_org_member_app_roles`; ledger refreshed in
+   [`PROD_ALEMBIC_STATE.json`](/apps/api/alembic/PROD_ALEMBIC_STATE.json). Note
+   the deploy pipeline **promotes images and runs no alembic**, which is why
+   this was a deliberate operator action and why the next one will be too.
 2. ~~**Should org STAFF carry `users.tenant_id` at all?**~~ **DECIDED by the
    owner 2026-09-03 17:00Z: no.** Under Phase-1 semantics `tenant_id` marks an
    *end-user pool*; organization staff belong in the untenanted (platform) pool

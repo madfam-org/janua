@@ -35,7 +35,7 @@ to the untenanted pool, with an organization membership. Conflating the two —
 using the organization id as the identity pool, which is what this endpoint did
 before — put 21 CTM staff accounts in a tenant pool where the bare-email entry
 points (magic link, password reset) could not find them, and the magic-link
-handler's create branch then collided with the still-global ``ix_users_email``
+handler's create branch then collided with the then-global ``ix_users_email``
 and 503'd. See ADR-001 «Email lookup pools and the 013 schema/code drift».
 
 Scope guarantee
@@ -69,6 +69,7 @@ from app.services.audit_logger import AuditEventType, AuditLogger
 from app.services.user_lookup import (
     AmbiguousEmailAcrossPools,
     get_user_by_email,
+    log_ambiguous_email,
     resolve_user_by_email_across_pools,
 )
 
@@ -209,6 +210,11 @@ async def _resolve_provisioned_user(db: AsyncSession, email: str, organization_i
                 db, email, preferred_tenant_id=organization_id, active_only=False
             )
         except AmbiguousEmailAcrossPools as exc:
+            log_ambiguous_email(
+                exc,
+                entry_point="internal_user_lifecycle",
+                organization_id=(str(organization_id) if organization_id is not None else None),
+            )
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
@@ -292,9 +298,14 @@ async def provision_user(
 
     # Re-provisioning someone who was created under the OLD tenant-pooled
     # default must converge on that SAME row, not mint a duplicate in the
-    # platform pool — the duplicate would collide with prod's still-global
-    # ix_users_email and 503 the caller (this PR's outage, from the other
-    # direction). So a platform-pool miss also checks the organization's pool.
+    # platform pool. Before migration 013 reached production the duplicate
+    # collided with the global ix_users_email and 503'd the caller (janua#594's
+    # outage, from the other direction). Since 013 landed (2026-09-06) it no
+    # longer collides — the two rows sit in two different partial indexes — and
+    # that is WORSE, not better: it silently mints a second identity for one
+    # person, which the bare-email entry points then cannot disambiguate
+    # (AmbiguousEmailAcrossPools → 4xx on their next magic link). So a
+    # platform-pool miss still checks the organization's pool.
     if existing is None and body.identity_pool == "platform" and organization_id is not None:
         existing = await get_user_by_email(db, email, tenant_id=organization_id)
 

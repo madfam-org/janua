@@ -5,11 +5,15 @@ janua#583 made every email lookup pool-scoped, and `send_magic_link` declared
 the untenanted pool. But the internal provisioning API writes CTM staff with
 `users.tenant_id = <org id>` (crea-map sends `tenant_id` in its provision
 body), so the lookup missed them, the "not found → create" branch ran, and the
-INSERT hit `ix_users_email` — which in PRODUCTION is still the GLOBAL unique
-index from 000_init, because migration 013's per-tenant partial indexes were
-never applied (prod `alembic_version` is 011, the DB is hand-migrated). Every
-such request became an IntegrityError → 503, and the requesting product showed
-«revisa tu correo» while nobody got a link.
+INSERT hit `ix_users_email` — which in PRODUCTION was then still the GLOBAL
+unique index from 000_init, because migration 013's per-tenant partial indexes
+had not been applied (prod `alembic_version` was 011, the DB hand-migrated).
+Every such request became an IntegrityError → 503, and the requesting product
+showed «revisa tu correo» while nobody got a link.
+
+013 was applied and stamped on 2026-09-06 (`apps/api/alembic/PROD_ALEMBIC_STATE.json`,
+converged at 016), so prod now runs the two partial indexes. The consequence for
+these tests is case 4 below: it stopped being hypothetical.
 
 These tests pin the four behaviours of the fix:
   1. a tenant-pooled user gets a link and NO second row is inserted;
@@ -31,7 +35,9 @@ from starlette.requests import Request
 
 import app.routers.v1.auth as auth_mod
 from app.models import User, UserStatus
-from app.routers.v1.auth import MagicLinkRequest, send_magic_link
+from app.routers.v1.auth import MagicLinkRequest, _dispatch_password_reset, send_magic_link
+from app.services import user_lookup as user_lookup_mod
+from app.services.user_lookup import AMBIGUOUS_EMAIL_EVENT
 
 pytestmark = pytest.mark.asyncio
 
@@ -213,8 +219,9 @@ class TestIntegrityErrorGuard:
 
 class TestAmbiguityIsRefused:
     async def test_two_pools_holding_the_email_refuse_with_400(self):
-        """Impossible while ix_users_email is global; the guard is for the day
-        migration 013 lands. Never pick a pool arbitrarily."""
+        """Reachable in production since 013 landed (2026-09-06): one address
+        may legitimately hold a row in the platform pool and one in each tenant
+        pool. Never pick a pool arbitrarily."""
         db = _db(
             untenanted=None,
             across_pools=[_user(tenant_id=uuid.uuid4()), _user(tenant_id=uuid.uuid4())],
@@ -226,3 +233,61 @@ class TestAmbiguityIsRefused:
         assert excinfo.value.status_code == 400
         assert "more than one tenant pool" in excinfo.value.detail
         assert _created_users(db) == [], "ambiguity must never fall through to a create"
+
+
+class TestAmbiguityIsLogged:
+    """The 400 above is correct and invisible.
+
+    Nothing counted it, nothing alerted on it, and the one caller that cannot
+    be told (password reset, which must stay enumeration-safe) produced no
+    signal at all. These pin the event an operator alerts on — see
+    `docs/internal/operations/INCIDENT_RESPONSE_PLAYBOOK.md`.
+    """
+
+    async def test_the_magic_link_refusal_emits_the_event(self):
+        db = _db(
+            untenanted=None,
+            across_pools=[_user(tenant_id=uuid.uuid4()), _user(tenant_id=uuid.uuid4())],
+        )
+
+        with patch.object(user_lookup_mod, "logger") as log:
+            with pytest.raises(HTTPException):
+                await _send(db)
+
+        log.warning.assert_called_once()
+        assert log.warning.call_args[0][0] == AMBIGUOUS_EMAIL_EVENT
+        fields = log.warning.call_args[1]
+        assert fields["entry_point"] == "magic_link"
+        assert fields["pool_count"] == 2
+        assert EMAIL not in repr(log.warning.call_args)
+
+    async def test_password_reset_emits_even_though_the_caller_is_told_nothing(self):
+        """The important one. `_dispatch_password_reset` returns None on
+        ambiguity so absence stays indistinguishable from success; the log line
+        is therefore the ONLY evidence that recovery is broken for this person.
+        """
+        db = _db(
+            untenanted=None,
+            across_pools=[_user(tenant_id=uuid.uuid4()), _user(tenant_id=uuid.uuid4())],
+        )
+        background = MagicMock()
+
+        with patch.object(user_lookup_mod, "logger") as log:
+            result = await _dispatch_password_reset(EMAIL, None, background, db)
+
+        assert result is None
+        background.add_task.assert_not_called()
+        log.warning.assert_called_once()
+        assert log.warning.call_args[0][0] == AMBIGUOUS_EMAIL_EVENT
+        assert log.warning.call_args[1]["entry_point"] == "password_reset"
+
+    async def test_an_unambiguous_send_logs_nothing(self):
+        """The event marks a broken identity. Emitting it on the healthy path
+        would train an operator to ignore it."""
+        pooled = _user(tenant_id=uuid.uuid4())
+        db = _db(untenanted=None, across_pools=[pooled])
+
+        with patch.object(user_lookup_mod, "logger") as log:
+            await _send(db)
+
+        log.warning.assert_not_called()
