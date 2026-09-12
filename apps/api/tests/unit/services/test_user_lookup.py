@@ -9,14 +9,18 @@ single-row).
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 
+from app.services import user_lookup as user_lookup_mod
 from app.services.user_lookup import (
+    AMBIGUOUS_EMAIL_EVENT,
     AmbiguousEmailAcrossPools,
     get_user_by_email,
+    log_ambiguous_email,
+    redact_email,
     resolve_user_by_email_across_pools,
 )
 
@@ -161,3 +165,81 @@ class TestResolveUserByEmailAcrossPools:
             await resolve_user_by_email_across_pools(
                 db, "alice@example.com", preferred_tenant_id=uuid4()
             )
+
+
+class TestAmbiguityIsObservable:
+    """The refusal became reachable on 2026-09-06 and nothing watched it.
+
+    `AmbiguousEmailAcrossPools` surfaces as a 400 on magic link, a 409 on the
+    internal lifecycle surface, and — worst — as an ordinary 200 on password
+    reset, where enumeration safety forbids telling the caller anything. Until
+    these emissions existed, a login path could stop working for a person and
+    leave no trace anywhere.
+    """
+
+    def test_the_event_name_is_stable(self):
+        """An alert queries this string. It is part of the contract, not a
+        detail of the call site, which is why it is a module constant."""
+        assert AMBIGUOUS_EMAIL_EVENT == "auth.ambiguous_email_across_pools"
+
+    def test_it_logs_the_event_with_the_operator_fields(self):
+        exc = AmbiguousEmailAcrossPools("alice@creatumundo.mx", 2)
+
+        with patch.object(user_lookup_mod, "logger") as log:
+            log_ambiguous_email(exc, entry_point="magic_link")
+
+        log.warning.assert_called_once()
+        event = log.warning.call_args[0][0]
+        fields = log.warning.call_args[1]
+        assert event == AMBIGUOUS_EMAIL_EVENT
+        assert fields["entry_point"] == "magic_link"
+        assert fields["pool_count"] == 2
+
+    def test_the_raw_address_never_reaches_the_log(self):
+        """The whole point of the redaction. A log stream is not an identity
+        store, and this event fires on an address that by definition belongs to
+        someone with accounts in more than one place."""
+        exc = AmbiguousEmailAcrossPools("alice@creatumundo.mx", 2)
+
+        with patch.object(user_lookup_mod, "logger") as log:
+            log_ambiguous_email(exc, entry_point="magic_link")
+
+        rendered = repr(log.warning.call_args)
+        assert "alice@creatumundo.mx" not in rendered
+        assert log.warning.call_args[1]["email"] == "al***@creatumundo.mx"
+
+    def test_it_is_a_warning_not_an_error(self):
+        """The request was refused correctly; the service is fine. What is
+        broken is the data, and that is a repair, not a page."""
+        exc = AmbiguousEmailAcrossPools("alice@creatumundo.mx", 2)
+
+        with patch.object(user_lookup_mod, "logger") as log:
+            log_ambiguous_email(exc, entry_point="magic_link")
+
+        log.error.assert_not_called()
+        log.info.assert_not_called()
+        log.warning.assert_called_once()
+
+    def test_extra_context_rides_along(self):
+        org = uuid4()
+        exc = AmbiguousEmailAcrossPools("alice@creatumundo.mx", 3)
+
+        with patch.object(user_lookup_mod, "logger") as log:
+            log_ambiguous_email(
+                exc, entry_point="internal_user_lifecycle", organization_id=str(org)
+            )
+
+        assert log.warning.call_args[1]["organization_id"] == str(org)
+
+    def test_the_domain_survives_because_it_is_what_identifies_the_pools(self):
+        assert redact_email("ana@ctm.example.com") == "an***@ctm.example.com"
+
+    def test_a_one_character_local_part_is_still_redacted(self):
+        """`a***@x` must not degenerate into the address itself."""
+        assert redact_email("a@example.com") == "a***@example.com"
+
+    def test_a_malformed_address_redacts_wholesale(self):
+        """Nothing parseable means nothing safe to show."""
+        assert redact_email("not-an-address") == "[redacted]"
+        assert redact_email("") == "[redacted]"
+

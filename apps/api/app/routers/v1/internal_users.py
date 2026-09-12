@@ -69,6 +69,7 @@ from app.services.audit_logger import AuditEventType, AuditLogger
 from app.services.user_lookup import (
     AmbiguousEmailAcrossPools,
     get_user_by_email,
+    log_ambiguous_email,
     resolve_user_by_email_across_pools,
 )
 
@@ -209,6 +210,11 @@ async def _resolve_provisioned_user(db: AsyncSession, email: str, organization_i
                 db, email, preferred_tenant_id=organization_id, active_only=False
             )
         except AmbiguousEmailAcrossPools as exc:
+            log_ambiguous_email(
+                exc,
+                entry_point="internal_user_lifecycle",
+                organization_id=(str(organization_id) if organization_id is not None else None),
+            )
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(

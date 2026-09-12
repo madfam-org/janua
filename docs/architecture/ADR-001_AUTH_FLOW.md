@@ -297,7 +297,11 @@ address. **It is not exact any more.** It is a resolution:
 
 **That refusal is a reachable production branch as of 2026-09-06.** It was
 unreachable while the address stayed globally unique. Nothing in the database
-prevents the collision now, so it must be observable rather than merely correct.
+prevents the collision now, so it must be observable rather than merely
+correct: every site that turns the exception into a response emits
+`auth.ambiguous_email_across_pools` (`app/services/user_lookup.py`), and the
+alert plus its triage steps live in
+[the incident playbook](/docs/internal/operations/INCIDENT_RESPONSE_PLAYBOOK.md#januaambiguousemailacrosspools).
 
 Every caller that *does* know its tenant (OAuth end-user flows, SCIM, SSO,
 admin, provisioning) must keep using pool-scoped `get_user_by_email()`.

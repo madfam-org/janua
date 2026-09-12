@@ -33,6 +33,7 @@ war_room_link: "https://meet.google.com/janua-incident"
 - [ ] User reports via support
 - [ ] Health check failures
 - [ ] Security scanner alerts
+- [ ] Named log alerts — see [Alert Definitions](#alert-definitions)
 - [ ] Manual discovery
 
 ### 1.2 Initial Assessment Checklist
@@ -441,6 +442,134 @@ curl -X POST $SECURITY_WEBHOOK \
   -H "Content-Type: application/json" \
   -d '{"alert": "Security breach detected and contained"}'
 ```
+
+## Alert Definitions
+
+> **Read this before writing another rule here.** Janua ships **no alerting for
+> its own services**. The single `PrometheusRule` in the repo
+> (`infra/monitoring/alerts/secrets-rotation.yaml`) covers secrets rotation, is
+> hand-applied into the `monitoring` namespace, and is referenced by no
+> kustomization. There is **no `ServiceMonitor` and no `PodMonitor` anywhere in
+> the repo**, so the rules below are written against the **log stream**, which
+> is the signal that actually exists today.
+>
+> Do not convert one of these into a `janua_*` Prometheus rule without first
+> fixing the scrape path, which is dead in at least three places at once:
+> `/metrics` is token-gated and **fail-closed 404** when `METRICS_TOKEN` is
+> unset (`k8s/base/deployments/janua-api.yaml`); the scrape annotation
+> advertises port **8000** while the Service targets **8080**; and
+> `app/main.py`'s `/metrics` handler builds its **own** `CollectorRegistry` of
+> hardcoded sample values, so the real counters in `app/monitoring/metrics.py`
+> are never served. A rule over a metric none of that emits is a green
+> dashboard, not an alarm.
+
+### `JanuaAmbiguousEmailAcrossPools`
+
+**What broke, and when it became possible.** Migration `013` gave every tenant
+its own email namespace. It reached production on **2026-09-06** (ledger:
+`apps/api/alembic/PROD_ALEMBIC_STATE.json`), which removed the global unique
+index on `users.email`. From that moment one address may legitimately hold a row
+in the platform pool **and** a row in each of N tenant pools — and the
+bare-email login paths, which are handed an address and no tenant, can no longer
+always tell which person is asking.
+
+When they cannot, `resolve_user_by_email_across_pools` raises
+`AmbiguousEmailAcrossPools` and the handler **refuses** rather than signing the
+requester into an arbitrary tenant. That refusal is correct. It is also, for the
+affected person, a login that has stopped working — and on the password-reset
+path it is **completely silent**, because enumeration safety requires that
+absence be indistinguishable from success. Before this alert, that person's
+account could be unrecoverable with no trace anywhere.
+
+**Signal:** the structured log event
+
+```
+auth.ambiguous_email_across_pools
+```
+
+emitted by `app/services/user_lookup.py:log_ambiguous_email` at every site that
+turns the exception into a response. Fields: `entry_point` (`magic_link` |
+`magic_link_create_race` | `password_reset` | `internal_user_lifecycle`),
+`pool_count`, `email` (redacted to `ab***@domain`, never the raw address), plus
+`redirect_host` / `preferred_tenant_id` / `organization_id` where the call site
+knows them.
+
+**Rule** (Loki ruler / Alertmanager grammar — the same `groups:`/`alert:` shape
+as `infra/monitoring/alerts/secrets-rotation.yaml`, so it can move to a
+`PrometheusRule` unchanged once a working metrics path exists):
+
+```yaml
+groups:
+  - name: janua.identity
+    interval: 5m
+    rules:
+      - alert: JanuaAmbiguousEmailAcrossPools
+        # Any occurrence is a person who cannot log in. Not a rate threshold:
+        # one is already an outage of one, and this fires in single digits or
+        # not at all.
+        expr: |
+          sum by (entry_point) (
+            count_over_time(
+              {namespace="janua", app="janua-api"}
+                | json
+                | event = "auth.ambiguous_email_across_pools"
+              [15m]
+            )
+          ) > 0
+        for: 0m
+        labels:
+          severity: warning
+          service: janua-api
+          team: identity
+        annotations:
+          summary: "An email resolves to more than one identity pool ({{ $labels.entry_point }})"
+          description: >-
+            A bare-email login path refused because one address holds rows in
+            several pools. The request was declined correctly; the DATA is
+            wrong. On entry_point=password_reset the user was told nothing, so
+            this log line is the only evidence.
+          runbook: "docs/internal/operations/INCIDENT_RESPONSE_PLAYBOOK.md#januaambiguousemailacrosspools"
+```
+
+**Severity: warning, not critical.** The service is healthy and the refusal is
+the correct answer. What is broken is one person's identity data, and the repair
+is human. Paging on it would be wrong; ignoring it would be worse.
+
+**Triage.**
+
+1. Read the event's `email` (redacted) and `pool_count`. Routine log reads go
+   through Enclii; if there is no Enclii log adapter for `janua-api`, **record
+   that adapter gap** rather than normalizing raw access. Break-glass form:
+   ```bash
+   kubectl -n janua logs deploy/janua-api --since=24h \
+     | grep auth.ambiguous_email_across_pools
+   ```
+2. Find the rows. From the `janua-api` pod, with the redacted local part and
+   the domain from the event:
+   ```sql
+   SELECT id, email, tenant_id, status, created_at
+     FROM users
+    WHERE email = :address
+    ORDER BY created_at;
+   ```
+   Expect one row with `tenant_id IS NULL` (platform / staff) and one or more
+   with a `tenant_id` (tenant pools).
+3. Decide which pool the person belongs to. Per ADR-001 and the owner's
+   2026-09-03 decision: **organization STAFF belong in the platform pool**
+   (`tenant_id IS NULL`) with their org expressed by `organization_members`.
+   A `tenant_id` is for real BaaS end users only.
+4. The usual cause is provisioning: a caller sending `tenant_id` (the
+   deprecated alias) instead of `organization_id` on the internal provisioning
+   API, which mints a tenant-pooled identity for someone who should be
+   platform-pooled. Fix the caller, then reconcile the duplicate row.
+5. Re-run the user's magic link to confirm the path resolves again.
+
+**Do not** resolve an ambiguity by deleting an identity row: the internal
+provisioning surface has no delete by design, and the audit trail is the point.
+Suspend, or move the pool.
+
+**Related:** [ADR-001 — Email lookup pools](/docs/architecture/ADR-001_AUTH_FLOW.md),
+[Alembic convergence runbook](/docs/runbooks/ALEMBIC_CONVERGENCE.md).
 
 ## Tools & Resources
 

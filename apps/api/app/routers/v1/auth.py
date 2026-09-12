@@ -30,6 +30,7 @@ from app.services.auth_service import AuthService
 from app.services.user_lookup import (
     AmbiguousEmailAcrossPools,
     get_user_by_email,
+    log_ambiguous_email,
     resolve_user_by_email_across_pools,
 )
 from app.services.audit_logger import AuditEventType, AuditLogger
@@ -1867,7 +1868,11 @@ async def _dispatch_password_reset(
     if not user:
         try:
             user = await resolve_user_by_email_across_pools(db, email, active_only=True)
-        except AmbiguousEmailAcrossPools:
+        except AmbiguousEmailAcrossPools as exc:
+            # The caller is told nothing (enumeration safety), so this log line
+            # is the ONLY place the failure exists. Recovery is silently broken
+            # for this person until someone reconciles their two rows.
+            log_ambiguous_email(exc, entry_point="password_reset")
             return
     if not (user and settings.EMAIL_ENABLED):
         return
@@ -2389,17 +2394,29 @@ async def send_magic_link(
     )
 
     if not user:
+        # Hoisted out of the call below only so the log line can say WHICH pool
+        # was preferred — the single most useful field when asking why the
+        # preference failed to resolve. Same call, same arguments, same order.
+        preferred_tenant_id = await _preferred_pool_for_redirect(
+            db, magic_link_data.redirect_url
+        )
         try:
             user = await resolve_user_by_email_across_pools(
                 db,
                 magic_link_data.email,
-                preferred_tenant_id=await _preferred_pool_for_redirect(
-                    db, magic_link_data.redirect_url
-                ),
+                preferred_tenant_id=preferred_tenant_id,
                 active_only=True,
             )
         except AmbiguousEmailAcrossPools as exc:
             # Refuse rather than sign someone into an arbitrary tenant.
+            log_ambiguous_email(
+                exc,
+                entry_point="magic_link",
+                redirect_host=urlparse(magic_link_data.redirect_url or "").hostname,
+                preferred_tenant_id=(
+                    str(preferred_tenant_id) if preferred_tenant_id else None
+                ),
+            )
             raise HTTPException(
                 status_code=400,
                 detail=(
@@ -2441,6 +2458,13 @@ async def send_magic_link(
                         db, magic_link_data.email, active_only=True
                     )
                 except AmbiguousEmailAcrossPools as exc:
+                    log_ambiguous_email(
+                        exc,
+                        entry_point="magic_link_create_race",
+                        redirect_host=urlparse(
+                            magic_link_data.redirect_url or ""
+                        ).hostname,
+                    )
                     raise HTTPException(
                         status_code=400,
                         detail=(

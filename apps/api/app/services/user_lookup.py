@@ -26,10 +26,13 @@ from __future__ import annotations
 from typing import Optional
 from uuid import UUID
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import User, UserStatus
+
+logger = structlog.get_logger()
 
 
 def _scope_by_pool(stmt, tenant_id: Optional[UUID]):
@@ -81,6 +84,58 @@ class AmbiguousEmailAcrossPools(Exception):
         self.email = email
         self.count = count
         super().__init__(f"{count} active users share the email {email!r} across pools")
+
+
+AMBIGUOUS_EMAIL_EVENT = "auth.ambiguous_email_across_pools"
+
+
+def redact_email(email: str) -> str:
+    """``ab***@domain.tld`` — enough for an operator to act on, not the address.
+
+    An ambiguity is only fixable if someone can find the two rows, and the
+    domain is what identifies WHOSE pools collided (a tenant's own domain, or
+    madfam.io for a staff row). The local part is the part that identifies a
+    person, so it does not go to a log stream. Matches the shape
+    ``app/auth/router.py`` already uses for the same purpose.
+
+    Deliberately NOT a hash: a hash is unreadable at 03:00 and still a stable
+    identifier for the same address, so it trades away the operator and keeps
+    the correlation risk.
+    """
+    if not email or "@" not in email:
+        return "[redacted]"
+    local, domain = email.split("@", 1)
+    if len(local) <= 2:
+        return f"{local[:1]}***@{domain}"
+    return f"{local[:2]}***@{domain}"
+
+
+def log_ambiguous_email(exc: AmbiguousEmailAcrossPools, *, entry_point: str, **context) -> None:
+    """Emit the ONE event an operator can alert on when ambiguity is hit.
+
+    Every call site that turns :class:`AmbiguousEmailAcrossPools` into a
+    response goes through here, so the event name and the field names cannot
+    drift apart across four handlers and an alert needs one query rather than
+    an enumeration of entry points. ``entry_point`` is the discriminator —
+    the same shape as this codebase's ``login_form.redirect_branch``.
+
+    WARNING, not error: the request was refused correctly and the service is
+    healthy. What is unhealthy is the DATA — one person holding identities in
+    two pools — and that is a human repair, not a page.
+
+    Emitting it is not optional politeness. Two of these call sites are
+    user-invisible by design: ``_dispatch_password_reset`` must stay
+    enumeration-safe, so it declines to send and returns the same 200 as
+    success. Without this line, a user whose recovery silently stopped working
+    generates no signal anywhere.
+    """
+    logger.warning(
+        AMBIGUOUS_EMAIL_EVENT,
+        entry_point=entry_point,
+        pool_count=exc.count,
+        email=redact_email(exc.email),
+        **context,
+    )
 
 
 async def resolve_user_by_email_across_pools(
