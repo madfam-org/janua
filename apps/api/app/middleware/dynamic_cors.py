@@ -204,7 +204,10 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
 
         except Exception as e:
             # Log but don't fail - database might not have the table yet
-            logger.debug(f"Could not load CORS origins from database: {e}")
+            # Never fail a request over this — but never hide it either. A DEBUG
+            # line here concealed a missing import for months, during which only
+            # the static CORS_ORIGINS list ever applied.
+            logger.warning(f"Could not load CORS origins from database: {e}")
 
         return origins
 
@@ -244,7 +247,9 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
                 )
 
         except Exception as e:
-            logger.debug(f"Could not load CORS origins from OAuth clients: {e}")
+            # See _load_database_origins: loud, not fatal. Every registered
+            # client's origin depends on this loader.
+            logger.warning(f"Could not load CORS origins from OAuth clients: {e}")
 
         return origins
 
