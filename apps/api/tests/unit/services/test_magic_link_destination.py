@@ -202,12 +202,20 @@ def test_get_callback_must_not_spend_the_token():
 def test_send_route_refuses_a_disallowed_destination_loudly():
     """The 400 must happen at request time. Silently nulling the redirect
     mails a link that signs the user in and then strands them — the exact
-    rehearsal failure this file exists to prevent."""
+    rehearsal failure this file exists to prevent.
+
+    Since 2026-09-17 the body of POST /magic-link lives in
+    `_issue_magic_link`, shared with the hosted login page's magic-link form
+    (POST /login-form/magic-link). The guard is asserted on that shared body,
+    and the route is pinned to it, so both entry points keep refusing loudly."""
     import inspect
 
     from app.routers.v1 import auth
 
-    source = inspect.getsource(auth.send_magic_link)
+    assert "_issue_magic_link(" in inspect.getsource(auth.send_magic_link), (
+        "POST /magic-link must issue through the shared helper"
+    )
+    source = inspect.getsource(auth._issue_magic_link)
     assert "raise HTTPException" in source.split("safe_redirect_url = validate_redirect_url")[1].split(
         "magic_token"
     )[0], "failed redirect validation must raise, not proceed"

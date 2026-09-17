@@ -320,3 +320,50 @@ async def test_form_without_mail_offers_the_password_form(hosted_client, monkeyp
     resp = await hosted_client.post(MAGIC_FORM_URL, data={"email": "a@studio-test.io", "next": "/"})
     assert resp.status_code == 400
     assert PASSWORD_FORM_ACTION in resp.text
+
+
+# ── the client name is text, never markup ──────────────────────────────────
+#
+# `client_name` arrives from the query string (GET /login) and from the form
+# (POST /login-form/magic-link); both pages print it. The page renderers own
+# the escaping, so a caller cannot forget it and cannot double-escape it.
+
+HOSTILE_NAME = '<script>alert("x")</script> & Co'
+ESCAPED_NAME = "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; Co"
+
+
+@pytest.mark.asyncio
+async def test_login_page_escapes_the_client_name(hosted_client):
+    resp = await hosted_client.get(
+        LOGIN_URL, params={"client_name": HOSTILE_NAME, "login_method": "magic_link"}
+    )
+    assert resp.status_code == 200
+    assert HOSTILE_NAME not in resp.text
+    assert f"Signing in to <strong>{ESCAPED_NAME}</strong>" in resp.text
+    # the hidden field carries it back, escaped as an attribute value
+    assert f'name="client_name" value="{ESCAPED_NAME}"' in resp.text
+
+
+@pytest.mark.asyncio
+async def test_magic_form_error_page_escapes_the_client_name(hosted_client):
+    with patch("app.routers.v1.auth.send_magic_link_email_task", MagicMock()):
+        resp = await hosted_client.post(
+            MAGIC_FORM_URL,
+            data={"email": "not-an-email", "next": "/", "client_name": HOSTILE_NAME},
+        )
+    assert resp.status_code == 400
+    assert HOSTILE_NAME not in resp.text
+    assert f"Signing in to <strong>{ESCAPED_NAME}</strong>" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_check_inbox_page_escapes_the_client_name_once(hosted_client):
+    with patch("app.routers.v1.auth.send_magic_link_email_task", MagicMock()):
+        resp = await hosted_client.post(
+            MAGIC_FORM_URL,
+            data={"email": "a@studio-test.io", "next": "/", "client_name": HOSTILE_NAME},
+        )
+    assert resp.status_code == 200
+    assert HOSTILE_NAME not in resp.text
+    assert f"continue to <strong>{ESCAPED_NAME}</strong>" in resp.text
+    assert "&amp;amp;" not in resp.text

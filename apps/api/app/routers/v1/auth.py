@@ -1063,7 +1063,8 @@ def _hosted_login_page_html(
     `method` is already resolved (app/auth/login_method.py); `switch_url` is
     the link to the same page with the other method, or None when magic
     links cannot be offered on this deployment (then only the password form
-    exists, exactly as before 2026-09-17).
+    exists, exactly as before 2026-09-17). `app_name` and `error_message` are
+    plain text and escaped here; `hidden_fields` is already HTML.
     """
     import html as _html
 
@@ -1234,7 +1235,7 @@ def _hosted_login_page_html(
         </div>
 
         <div class="app-info">
-            <span>Signing in to <strong>{app_name}</strong></span>
+            <span>Signing in to <strong>{_html.escape(app_name)}</strong></span>
         </div>
 
         {error_html}
@@ -1277,8 +1278,6 @@ async def login_page(
     - client_id: OAuth client requesting authorization
     - client_name: Human-readable name of the OAuth client
     """
-    import html
-
     from fastapi.responses import HTMLResponse, RedirectResponse
 
     # Stale bookmarked login URLs carry an expired auth_request_id. Restart the
@@ -1297,7 +1296,8 @@ async def login_page(
 
     # SECURITY: Validate the 'next' URL to prevent open redirect attacks (CWE-601)
     safe_next = validate_redirect_url(next or "/", default_url="/")
-    app_name = html.escape(client_name or "Application")
+    # Plain: both page renderers HTML-escape the name themselves.
+    app_name = client_name or "Application"
     hidden_fields = _oauth_context_hidden_fields_html(
         auth_request_id=auth_request_id,
         client_id=client_id,
@@ -3353,7 +3353,7 @@ async def login_form_magic_link(
     logger.info(
         "login_form_magic_link.sent",
         auth_request_id=auth_request_id,
-        client_id=client_id or magic_link_data.redirect_url and None,
+        client_id=client_id,
     )
     return HTMLResponse(
         content=_check_inbox_page_html(
