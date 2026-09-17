@@ -19,6 +19,12 @@ from sqlalchemy.orm import Session
 
 import structlog
 
+from app.auth.login_method import (
+    LOGIN_METHOD_MAGIC_LINK,
+    LOGIN_METHOD_PASSWORD,
+    effective_login_method,
+    magic_link_login_available,
+)
 from app.config import settings
 from app.core.locale import locale_from_request
 from app.core.redis import ResilientRedisClient, get_redis
@@ -993,61 +999,92 @@ async def _resolve_oauth_redirect_target(
     return validate_redirect_url(next_url, default_url="/")
 
 
-# GET /login - Render login form for OAuth flows
-@router.get("/login")
-async def login_page(
-    request: Request,
-    next: Optional[str] = None,
-    auth_request_id: Optional[str] = None,
-    client_id: Optional[str] = None,
-    client_name: Optional[str] = None,
-    db=Depends(get_db),
-    redis: ResilientRedisClient = Depends(get_redis),
-):
+def _password_form_html(hidden_fields: str) -> str:
+    """The historical email + password form."""
+    return f"""<form id="loginForm" method="POST" action="/api/v1/auth/login-form">
+            {hidden_fields}
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required autocomplete="email" autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
+                <div class="aux-link"><a href="/api/v1/auth/forgot-password">Forgot your password?</a></div>
+            </div>
+            <button type="submit" id="submitBtn">Sign In</button>
+        </form>"""
+
+
+def _magic_link_form_html(hidden_fields: str) -> str:
+    """Email-only form: Janua mails a sign-in link, no password involved."""
+    return f"""<form id="magicLinkForm" method="POST" action="/api/v1/auth/login-form/magic-link">
+            {hidden_fields}
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required autocomplete="email" autofocus>
+            </div>
+            <p class="hint">We'll email you a link that signs you in &mdash; no password needed.</p>
+            <button type="submit" id="submitBtn">Email me a sign-in link</button>
+        </form>"""
+
+
+def _login_page_switch_url(
+    *,
+    method: str,
+    auth_request_id: Optional[str],
+    client_id: Optional[str],
+    client_name: Optional[str],
+    next_url: Optional[str],
+) -> str:
+    """The same login page, other method first, OAuth context preserved."""
+    params: dict[str, str] = {"login_method": method}
+    if auth_request_id:
+        params["auth_request_id"] = auth_request_id
+    elif next_url:
+        params["next"] = next_url
+    if client_id:
+        params["client_id"] = client_id
+    if client_name:
+        params["client_name"] = client_name
+    return f"/api/v1/auth/login?{urlencode(params)}"
+
+
+def _hosted_login_page_html(
+    *,
+    app_name: str,
+    hidden_fields: str,
+    method: str,
+    switch_url: Optional[str],
+    error_message: Optional[str] = None,
+) -> str:
+    """The hosted login page with ONE method first and the other one click away.
+
+    `method` is already resolved (app/auth/login_method.py); `switch_url` is
+    the link to the same page with the other method, or None when magic
+    links cannot be offered on this deployment (then only the password form
+    exists, exactly as before 2026-09-17). `app_name` and `error_message` are
+    plain text and escaped here; `hidden_fields` is already HTML.
     """
-    Render login page for OAuth authorization flows.
+    import html as _html
 
-    This endpoint serves an HTML login form that:
-    1. Accepts email/password credentials
-    2. POSTs to /api/v1/auth/login-form
-    3. On success, redirects to the OAuth authorize endpoint
-
-    Query params:
-    - auth_request_id: Opaque ID for Redis-stored OAuth params (preferred for OAuth flows)
-    - next: URL to redirect to after successful login (fallback for non-OAuth logins)
-    - client_id: OAuth client requesting authorization
-    - client_name: Human-readable name of the OAuth client
-    """
-    import html
-
-    from fastapi.responses import HTMLResponse, RedirectResponse
-
-    # Stale bookmarked login URLs carry an expired auth_request_id. Restart the
-    # OAuth flow instead of rendering a form that cannot complete.
-    if auth_request_id and client_id:
-        stored_data = await redis.get(f"oauth:pre_login:{auth_request_id}")
-        if not stored_data:
-            recovered = await _recover_authorize_url_from_client(client_id, db)
-            if recovered:
-                logger.info(
-                    "login_page.stale_auth_request_restarted",
-                    auth_request_id=auth_request_id,
-                    client_id=client_id,
-                )
-                return RedirectResponse(url=recovered, status_code=302)
-
-    # SECURITY: Validate the 'next' URL to prevent open redirect attacks (CWE-601)
-    safe_next = validate_redirect_url(next or "/", default_url="/")
-    app_name = html.escape(client_name or "Application")
-
-    hidden_fields = _oauth_context_hidden_fields_html(
-        auth_request_id=auth_request_id,
-        client_id=client_id,
-        client_name=client_name,
-        next_url=safe_next if not auth_request_id else None,
+    if method == LOGIN_METHOD_MAGIC_LINK:
+        form_html = _magic_link_form_html(hidden_fields)
+        switch_label = "Use a password instead"
+    else:
+        form_html = _password_form_html(hidden_fields)
+        switch_label = "Email me a sign-in link instead"
+    switch_html = (
+        f'<div class="switch"><a href="{_html.escape(switch_url)}">{switch_label}</a></div>'
+        if switch_url
+        else ""
     )
-
-    html_content = f"""
+    error_html = (
+        f'<div class="error" id="error" style="display:block">{_html.escape(error_message)}</div>'
+        if error_message
+        else '<div class="error" id="error"></div>'
+    )
+    return f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1165,6 +1202,23 @@ async def login_page(
         .aux-link a:hover {{
             text-decoration: underline;
         }}
+        .hint {{
+            color: #666;
+            font-size: 13px;
+            margin: -8px 0 16px;
+        }}
+        .switch {{
+            text-align: center;
+            margin-top: 18px;
+        }}
+        .switch a {{
+            color: #667eea;
+            font-size: 14px;
+            text-decoration: none;
+        }}
+        .switch a:hover {{
+            text-decoration: underline;
+        }}
         .footer {{
             text-align: center;
             margin-top: 24px;
@@ -1181,24 +1235,13 @@ async def login_page(
         </div>
 
         <div class="app-info">
-            <span>Signing in to <strong>{app_name}</strong></span>
+            <span>Signing in to <strong>{_html.escape(app_name)}</strong></span>
         </div>
 
-        <div class="error" id="error"></div>
+        {error_html}
 
-        <form id="loginForm" method="POST" action="/api/v1/auth/login-form">
-            {hidden_fields}
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" id="email" name="email" required autocomplete="email" autofocus>
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required autocomplete="current-password">
-                <div class="aux-link"><a href="/api/v1/auth/forgot-password">Forgot your password?</a></div>
-            </div>
-            <button type="submit" id="submitBtn">Sign In</button>
-        </form>
+        {form_html}
+        {switch_html}
 
         <div class="footer">
             Powered by Janua &bull; Secure Authentication
@@ -1207,6 +1250,80 @@ async def login_page(
 </body>
 </html>
 """
+
+
+# GET /login - Render login form for OAuth flows
+@router.get("/login")
+async def login_page(
+    request: Request,
+    next: Optional[str] = None,
+    auth_request_id: Optional[str] = None,
+    client_id: Optional[str] = None,
+    client_name: Optional[str] = None,
+    login_method: Optional[str] = None,
+    db=Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis),
+):
+    """
+    Render login page for OAuth authorization flows.
+
+    This endpoint serves an HTML login form that:
+    1. Accepts email/password credentials
+    2. POSTs to /api/v1/auth/login-form
+    3. On success, redirects to the OAuth authorize endpoint
+
+    Query params:
+    - auth_request_id: Opaque ID for Redis-stored OAuth params (preferred for OAuth flows)
+    - next: URL to redirect to after successful login (fallback for non-OAuth logins)
+    - client_id: OAuth client requesting authorization
+    - client_name: Human-readable name of the OAuth client
+    """
+    from fastapi.responses import HTMLResponse, RedirectResponse
+
+    # Stale bookmarked login URLs carry an expired auth_request_id. Restart the
+    # OAuth flow instead of rendering a form that cannot complete.
+    if auth_request_id and client_id:
+        stored_data = await redis.get(f"oauth:pre_login:{auth_request_id}")
+        if not stored_data:
+            recovered = await _recover_authorize_url_from_client(client_id, db)
+            if recovered:
+                logger.info(
+                    "login_page.stale_auth_request_restarted",
+                    auth_request_id=auth_request_id,
+                    client_id=client_id,
+                )
+                return RedirectResponse(url=recovered, status_code=302)
+
+    # SECURITY: Validate the 'next' URL to prevent open redirect attacks (CWE-601)
+    safe_next = validate_redirect_url(next or "/", default_url="/")
+    # Plain: both page renderers HTML-escape the name themselves.
+    app_name = client_name or "Application"
+    hidden_fields = _oauth_context_hidden_fields_html(
+        auth_request_id=auth_request_id,
+        client_id=client_id,
+        client_name=client_name,
+        next_url=safe_next if not auth_request_id else None,
+    )
+
+    # Which method comes first: the request's hint (carried from /authorize or
+    # the switch link), then the deployment default. Magic link is offered only
+    # when this deployment can mail one — app/auth/login_method.py.
+    method = effective_login_method(login_method)
+    switch_url = None
+    if magic_link_login_available():
+        switch_url = _login_page_switch_url(
+            method=LOGIN_METHOD_PASSWORD if method == LOGIN_METHOD_MAGIC_LINK else LOGIN_METHOD_MAGIC_LINK,
+            auth_request_id=auth_request_id,
+            client_id=client_id,
+            client_name=client_name,
+            next_url=safe_next if not auth_request_id else None,
+        )
+    html_content = _hosted_login_page_html(
+        app_name=app_name,
+        hidden_fields=hidden_fields,
+        method=method,
+        switch_url=switch_url,
+    )
     return HTMLResponse(content=html_content)
 
 
@@ -1977,7 +2094,7 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     return {"message": message}
 
 
-def _recovery_page_html(body: str) -> str:
+def _recovery_page_html(body: str, title: str = "Password recovery - Janua") -> str:
     """Visual shell for the hosted recovery pages — same look as the hosted
     login page (whose CSS is inlined per-page by existing convention)."""
     return f"""
@@ -1986,7 +2103,7 @@ def _recovery_page_html(body: str) -> str:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Password recovery - Janua</title>
+    <title>{title}</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{
@@ -2363,6 +2480,23 @@ async def send_magic_link(
     db: Session = Depends(get_db),
 ):
     """Send magic link for passwordless signin"""
+    await _issue_magic_link(request, magic_link_data, background_tasks, db)
+    return {"message": "Magic link sent to email"}
+
+
+async def _issue_magic_link(
+    request: Request,
+    magic_link_data: MagicLinkRequest,
+    background_tasks: BackgroundTasks,
+    db,
+) -> User:
+    """Find-or-create the user, mint the link, queue the email.
+
+    This is the body of POST /magic-link, lifted so the hosted login page
+    (POST /login-form/magic-link, 2026-09-17) issues links through the very
+    same pool resolution, allow-list check and mailer. Raises HTTPException
+    exactly as the endpoint does; the caller decides how to render it.
+    """
     if not settings.ENABLE_MAGIC_LINKS:
         raise HTTPException(status_code=403, detail="Magic links are disabled")
 
@@ -2540,7 +2674,7 @@ async def send_magic_link(
         hosted_hop=magic_link_data.hosted_hop,
     )
 
-    return {"message": "Magic link sent to email"}
+    return user
 
 
 async def _session_audience_for_redirect(db: Session, redirect_url: Optional[str]) -> Optional[str]:
@@ -3028,4 +3162,201 @@ async def verify_magic_link(
             refresh_token=refresh_token,
             expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         ),
+    )
+
+
+def _mask_email(email: str) -> str:
+    """`a***@example.com` — enough to confirm the address, not to leak it."""
+    local, _, domain = email.partition("@")
+    if not domain:
+        return "***"
+    return f"{local[:1]}***@{domain}"
+
+
+async def _oauth_continuation_url(
+    *,
+    auth_request_id: Optional[str],
+    client_id: Optional[str],
+    next_url: Optional[str],
+    redis: ResilientRedisClient,
+    db,
+) -> Optional[str]:
+    """The absolute URL a browser must land on, WITH a Janua session, to finish
+    what it started.
+
+    For an OAuth login this rebuilds `/api/v1/oauth/authorize?…` from the
+    `oauth:pre_login:<id>` payload the same way `login_form` does on its
+    `redis_hit` branch: the stored params carry the client's `state` and PKCE
+    challenge, so the continuation is a COMPLETE authorize request the client's
+    callback will accept. It is absolute on `public_base_url` because an emailed
+    link is opened wherever the person reads mail — often a different tab: the
+    link lands on janua's own callback, which mints the session cookie and then
+    forwards here, and `/authorize` recognises the cookie and issues the code.
+
+    On a Redis miss it falls back to the client's registered origin (a fresh
+    start, the same recovery `login_form` uses), and a non-OAuth login goes to
+    its validated `next`. None means nothing safe can be rebuilt.
+    """
+    base = settings.public_base_url.rstrip("/")
+    if auth_request_id:
+        stored = await redis.get(f"oauth:pre_login:{auth_request_id}")
+        if stored:
+            try:
+                params = json.loads(stored)
+                query = {
+                    key: params[key]
+                    for key in (
+                        "response_type", "client_id", "redirect_uri", "scope",
+                        "state", "nonce", "code_challenge", "code_challenge_method",
+                    )
+                    if params.get(key) is not None
+                }
+                return f"{base}/api/v1/oauth/authorize?{urlencode(query)}"
+            except (json.JSONDecodeError, TypeError, KeyError) as exc:
+                logger.warning(
+                    "login_form_magic_link.pre_login_unparseable",
+                    auth_request_id=auth_request_id,
+                    error=str(exc),
+                )
+        if client_id:
+            return await _recover_authorize_url_from_client(client_id, db)
+        return None
+    safe_next = validate_redirect_url(next_url or "/", default_url="/")
+    return safe_next if safe_next.startswith(("http://", "https://")) else f"{base}{safe_next}"
+
+
+def _check_inbox_page_html(*, app_name: str, email: str, password_url: Optional[str]) -> str:
+    import html as _html
+
+    switch = (
+        f'<p class="lead"><a href="{_html.escape(password_url)}">Use a password instead</a></p>'
+        if password_url
+        else ""
+    )
+    return _recovery_page_html(
+        f"""<h1>&#9993;&#65039; Check your inbox</h1>
+        <p class="lead">We emailed a sign-in link to <strong>{_html.escape(_mask_email(email))}</strong>.
+        Open it on this device to continue to <strong>{_html.escape(app_name)}</strong>.</p>
+        <p class="hint">The link works once and expires in 15 minutes. Nothing there? Check your
+        spam folder, then go back and request another.</p>
+        {switch}""",
+        title="Check your inbox - Janua",
+    )
+
+
+# Hosted-login half of "sign in by email link": the page's magic-link form posts
+# here. Issues the link through the same path as POST /magic-link, with the
+# pending OAuth authorization as the link's destination.
+@router.post("/login-form/magic-link")
+@limiter.limit(lambda: settings.MAGIC_LINK_RATE_LIMIT)
+async def login_form_magic_link(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    email: str = Form(...),
+    next: str = Form("/"),
+    auth_request_id: Optional[str] = Form(None),
+    client_id: Optional[str] = Form(None),
+    client_name: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis),
+):
+    """Email a sign-in link whose destination resumes the pending OAuth request.
+
+    The password form (`/login-form`) signs the person in on the spot and
+    redirects to the rebuilt authorize URL. This form cannot: the proof arrives
+    later, by mail, in whatever tab the person reads it. So the rebuilt
+    authorize URL becomes the magic link's `redirect_url` — the emailed
+    callback mints the session cookie on this origin and forwards there, and
+    `/authorize` completes as if the person had just typed a password. The
+    `oauth:pre_login` key is deliberately NOT consumed here: "Use a password
+    instead" must still work after a link was requested.
+    """
+    from fastapi.responses import HTMLResponse
+    from pydantic import ValidationError
+
+    safe_next = validate_redirect_url(next or "/", default_url="/")
+    hidden_fields = _oauth_context_hidden_fields_html(
+        auth_request_id=auth_request_id,
+        client_id=client_id,
+        client_name=client_name,
+        next_url=safe_next if not auth_request_id else None,
+    )
+    app_name = client_name or "Application"
+
+    def _password_url() -> str:
+        return _login_page_switch_url(
+            method=LOGIN_METHOD_PASSWORD,
+            auth_request_id=auth_request_id,
+            client_id=client_id,
+            client_name=client_name,
+            next_url=safe_next if not auth_request_id else None,
+        )
+
+    def _rerender(message: str, status_code: int) -> HTMLResponse:
+        return HTMLResponse(
+            content=_hosted_login_page_html(
+                app_name=app_name,
+                hidden_fields=hidden_fields,
+                method=LOGIN_METHOD_MAGIC_LINK,
+                switch_url=_password_url(),
+                error_message=message,
+            ),
+            status_code=status_code,
+        )
+
+    if not magic_link_login_available():
+        return HTMLResponse(
+            content=_hosted_login_page_html(
+                app_name=app_name,
+                hidden_fields=hidden_fields,
+                method=LOGIN_METHOD_PASSWORD,
+                switch_url=None,
+                error_message="Sign-in links are not available right now. Please use your password.",
+            ),
+            status_code=400,
+        )
+
+    continuation = await _oauth_continuation_url(
+        auth_request_id=auth_request_id,
+        client_id=client_id,
+        next_url=next,
+        redis=redis,
+        db=db,
+    )
+    if continuation is None:
+        logger.warning(
+            "login_form_magic_link.no_continuation",
+            auth_request_id=auth_request_id,
+            client_id_present=bool(client_id),
+        )
+        return HTMLResponse(
+            content=_recovery_page_html(
+                "<h1>Sign-in session expired</h1>"
+                '<p class="lead">This sign-in request is no longer valid. Go back to the '
+                "application and start signing in again.</p>",
+                title="Sign in - Janua",
+            ),
+            status_code=400,
+        )
+
+    try:
+        magic_link_data = MagicLinkRequest(email=email, redirect_url=continuation)
+    except ValidationError:
+        return _rerender("Enter a valid email address.", 400)
+
+    try:
+        user = await _issue_magic_link(request, magic_link_data, background_tasks, db)
+    except HTTPException as exc:
+        detail = exc.detail if isinstance(exc.detail, str) else "We could not send a sign-in link."
+        return _rerender(detail, exc.status_code if exc.status_code in (400, 403) else 400)
+
+    logger.info(
+        "login_form_magic_link.sent",
+        auth_request_id=auth_request_id,
+        client_id=client_id,
+    )
+    return HTMLResponse(
+        content=_check_inbox_page_html(
+            app_name=app_name, email=user.email, password_url=_password_url()
+        )
     )

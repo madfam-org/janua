@@ -388,6 +388,14 @@ class Settings(BaseSettings):
         description="Service token for internal on-behalf endpoints (oauth_on_behalf.py).",
     )
     ENABLE_MAGIC_LINKS: bool = Field(default=True)
+    # Which method the hosted login page (GET /api/v1/auth/login — where an OAuth
+    # /authorize sends a browser without a session) offers FIRST: "password"
+    # (the historical form) or "magic_link" (email a sign-in link; the other
+    # method stays one click away). A client overrides it per request with
+    # `login_method=` on /authorize — the Yantra4D Studio asks for magic_link,
+    # a public PKCE client whose users may hold no password. Kept "password" so
+    # no existing product's login changes by default. See app/auth/login_method.py.
+    HOSTED_LOGIN_DEFAULT_METHOD: str = Field(default="password")
     ENABLE_OAUTH: bool = Field(default=True)
     ENABLE_MFA: bool = Field(default=True)
     # Enforce MFA at the login paths (OAuth browser login, /authorize, magic-link)

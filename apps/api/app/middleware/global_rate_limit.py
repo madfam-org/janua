@@ -61,6 +61,7 @@ class EndpointRateLimitConfig:
         "/api/v1/auth/password/reset": (3, 3600),  # 3 per hour
         "/api/v1/auth/password/forgot": (3, 3600),  # 3 per hour
         "/api/v1/auth/magic-link": (5, 3600),  # 5 per hour
+        "/api/v1/auth/login-form/magic-link": (5, 3600),  # hosted form, same budget
         "/api/v1/auth/refresh": (20, 300),  # 20 per 5 minutes
         "/api/v1/auth/signout": (10, 60),  # 10 per minute
     }
