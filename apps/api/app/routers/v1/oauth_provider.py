@@ -50,6 +50,7 @@ from app.models import OAuthClient, Organization, OrganizationMember, User
 from app.models import Session as UserSession
 from app.services.audit_logger import AuditEventType, AuditLogger
 from app.services.consent_service import ConsentService
+from app.auth.login_method import normalize_login_method
 from app.services.entitlements_service import (
     entitlements_to_claim,
     get_user_entitlements,
@@ -1069,6 +1070,15 @@ async def authorize_get(
             "interactive path."
         ),
     ),
+    login_method: Optional[str] = Query(
+        None,
+        description=(
+            "Which method the hosted login page offers first when the browser "
+            "holds no session: 'magic_link' (email a sign-in link) or "
+            "'password'. Unknown values are ignored; absent means the "
+            "deployment default (HOSTED_LOGIN_DEFAULT_METHOD)."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -1178,6 +1188,10 @@ async def authorize_get(
         # that caused redirect loops when the 'next' URL contained query params.
         # Pattern matches the consent flow storage at lines 580-596.
         pre_login_id = secrets.token_urlsafe(16)
+        # The client's preferred first method travels with the request: the
+        # hosted page reads it from the login URL, and the hosted magic-link
+        # form finds the rest of the authorize request under this key.
+        requested_login_method = normalize_login_method(login_method)
         pre_login_data = {
             "response_type": response_type,
             "client_id": client_id,
@@ -1187,6 +1201,7 @@ async def authorize_get(
             "nonce": nonce,
             "code_challenge": code_challenge,
             "code_challenge_method": code_challenge_method,
+            "login_method": requested_login_method,
         }
         await redis.setex(
             f"oauth:pre_login:{pre_login_id}",
@@ -1195,13 +1210,14 @@ async def authorize_get(
         )
 
         # Pass only the opaque ID plus display-only params to the login page
-        login_params = urlencode(
-            {
-                "auth_request_id": pre_login_id,
-                "client_id": client_id,
-                "client_name": client.name,
-            }
-        )
+        login_param_values = {
+            "auth_request_id": pre_login_id,
+            "client_id": client_id,
+            "client_name": client.name,
+        }
+        if requested_login_method:
+            login_param_values["login_method"] = requested_login_method
+        login_params = urlencode(login_param_values)
         login_url = f"/api/v1/auth/login?{login_params}"
         return RedirectResponse(url=login_url, status_code=302)
 
