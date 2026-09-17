@@ -175,6 +175,16 @@ async def get_async_db():
             await session.close()
 
 
+# The name app.middleware.rate_limit imports (nothing defined it until
+# 2026-09-17; the ImportError was swallowed and the billing-plan lookup never
+# ran). Same contract as get_async_db above.
+@asynccontextmanager
+async def get_db_session():
+    """Context manager for an async session outside FastAPI — see get_async_db."""
+    async with get_async_db() as session:
+        yield session
+
+
 # Initialize database (create tables)
 async def init_db():
     """

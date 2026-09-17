@@ -354,3 +354,38 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await session.close()
+
+
+@asynccontextmanager
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Standalone session for code that runs OUTSIDE FastAPI's dependency injection.
+
+    Middleware and background loaders cannot take ``Depends(get_db)``; they
+    open a session themselves. Commits on success, rolls back on error, always
+    closes — the same contract as ``app.database.get_async_db``.
+
+    This name was imported for months by three call sites while nothing
+    defined it: ``app.middleware.dynamic_cors`` (origins derived from OAuth
+    clients' redirect URIs and the ``allowed_cors_origins`` table),
+    ``app.core.tenant_context`` (subdomain and tier lookups) and
+    ``app.middleware.rate_limit`` (billing plan). Each wrapped the import in a
+    broad ``except`` that logged at DEBUG, so the ImportError was invisible and
+    every database-derived CORS origin silently never loaded — only the static
+    ``CORS_ORIGINS`` list ever applied, which is how a freshly registered
+    client's origin (yantra4d-studio, 2026-09-17) got no CORS at all. Keep this
+    name: those imports are the contract.
+
+    Usage::
+
+        async with get_db_session() as db:
+            result = await db.execute(select(...))
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()

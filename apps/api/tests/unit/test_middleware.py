@@ -117,3 +117,109 @@ class TestMiddleware:
     def test_placeholder(self):
         """Placeholder test"""
         assert True
+
+
+class TestDynamicCORSDatabaseOrigins:
+    """The client-derived CORS allow-list must actually load.
+
+    ``_load_oauth_client_origins`` and ``_load_database_origins`` import
+    ``get_db_session`` from ``app.core.database``. For months nothing defined
+    that name; the ImportError was caught by the loaders' broad ``except`` and
+    logged at DEBUG, so only the static ``CORS_ORIGINS`` list ever applied and a
+    freshly registered client's origin (yantra4d-studio, 2026-09-17) got no
+    CORS. These tests pin the import target and the derivation.
+    """
+
+    def _middleware(self, static=("https://static.example.test",)):
+        from app.middleware.dynamic_cors import DynamicCORSMiddleware
+
+        app = Starlette(routes=[Route("/", lambda r: PlainTextResponse("ok"))])
+        with patch("app.middleware.dynamic_cors.settings") as mock_settings:
+            mock_settings.cors_origins_list = list(static)
+            return DynamicCORSMiddleware(app, enable_database_origins=True)
+
+    def test_get_db_session_is_defined_where_the_loaders_import_it(self):
+        from app.core.database import get_db_session as core_session
+        from app.database import get_db_session as legacy_session
+
+        for factory in (core_session, legacy_session):
+            cm = factory()
+            assert hasattr(cm, "__aenter__") and hasattr(cm, "__aexit__"), (
+                "get_db_session must be an async context manager (async with ... as db)"
+            )
+
+    async def test_oauth_client_origins_are_derived_from_active_clients(self):
+        from contextlib import asynccontextmanager
+
+        class FakeResult:
+            def all(self):
+                return [
+                    (["https://app.yantra4d.com", "http://localhost:5173"],),
+                    (["https://app.example.test/api/auth/callback"],),
+                    (None,),
+                ]
+
+        class FakeDB:
+            async def execute(self, _stmt):
+                return FakeResult()
+
+        @asynccontextmanager
+        async def fake_session():
+            yield FakeDB()
+
+        with patch("app.core.database.get_db_session", fake_session):
+            origins = await self._middleware()._load_oauth_client_origins()
+
+        assert origins == {
+            "https://app.yantra4d.com",
+            "http://localhost:5173",
+            "https://app.example.test",
+        }
+
+    async def test_allowed_origins_merge_static_and_derived(self):
+        import app.middleware.dynamic_cors as dc
+
+        middleware = self._middleware()
+        dc.invalidate_cors_cache()
+
+        async def db_origins():
+            return {"https://table.example.test"}
+
+        async def client_origins():
+            return {"https://app.yantra4d.com"}
+
+        with (
+            patch.object(middleware, "_load_database_origins", db_origins),
+            patch.object(middleware, "_load_oauth_client_origins", client_origins),
+        ):
+            allowed = await middleware._get_allowed_origins()
+
+        assert allowed == {
+            "https://static.example.test",
+            "https://table.example.test",
+            "https://app.yantra4d.com",
+        }
+        assert middleware._is_origin_allowed("https://app.yantra4d.com", allowed)
+        dc.invalidate_cors_cache()
+
+    async def test_loader_failure_is_loud_but_not_fatal(self, caplog):
+        import logging
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def broken_session():
+            raise RuntimeError("database unavailable")
+            yield  # pragma: no cover
+
+        with (
+            patch("app.core.database.get_db_session", broken_session),
+            caplog.at_level(logging.WARNING, logger="app.middleware.dynamic_cors"),
+        ):
+            origins = await self._middleware()._load_oauth_client_origins()
+
+        assert origins == set()
+        assert any(
+            "Could not load CORS origins from OAuth clients" in rec.getMessage()
+            and rec.levelno == logging.WARNING
+            for rec in caplog.records
+        ), "a failing loader must be visible at WARNING, not buried at DEBUG"
