@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Runtime auth config type system (`JanuaAuthConfig`) covering branding, auth methods, social providers, SSO, MFA, flow settings, and locale strings
 
 ### Fixed
+- **Hosted magic-link login loop** ([#620](https://github.com/madfam-org/janua/pull/620)): the hosted sign-in form (`POST /login-form/magic-link`) emailed a link to `/oauth/authorize?…&token=`, which cannot redeem a one-time magic-link token — so passwordless users were bounced to the password form in an endless loop (found live 2026-09-17). The form now forces the hosted hop, so the link lands on `/magic-link/callback`, which spends the token and mints the session cookie before forwarding to `/authorize`. See [architecture/SILENT_SSO_SESSION.md](architecture/SILENT_SSO_SESSION.md) → *The hosted login form forces the hop*.
 - **Production website rollout (2026-06-15):** Documented and remediated git-vs-cluster lag for `janua-website` — Kyverno PolicyException, ARC `sync-prod-gitops`, Enclii GHCR rotate. See [runbooks/incidents/2026-06-15-janua-website-prod-rollout.md](runbooks/incidents/2026-06-15-janua-website-prod-rollout.md).
 - **Public marketing site (`janua.dev`):** Tailwind v4 CSS compilation + shared `(marketing)` nav/footer ([#419](https://github.com/madfam-org/janua/pull/419)).
 - **Website Phase 2 UX:** Sora + DM Sans typography, brand gradient tokens, local legal pages, branded 404, footer/nav polish.
