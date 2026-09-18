@@ -291,6 +291,17 @@ async def test_form_issues_link_whose_destination_resumes_the_authorize_request(
     mailer.assert_called_once()
     args = mailer.call_args.args
     assert args[0] == users[0].email and args[1] == link.token and args[2] == destination
+    # ...and it FORCES THE HOSTED HOP. The destination is janua's OWN
+    # /oauth/authorize URL, which is on the cookie domain — so the DERIVED hop
+    # rule (should_use_hosted_hop) declines, and the emailed link would be built
+    # as `{authorize_url}&token=…`. But /authorize never redeems the one-time
+    # token (only /magic-link/callback does), so that link bounces the person to
+    # the password form in an endless loop (found live 2026-09-17, caro@ on the
+    # yantra4d hosted login). hosted_hop=True routes the mail through the
+    # callback, which spends the token and mints the session cookie before
+    # forwarding here. Without this assertion the destination looked correct and
+    # the bug shipped.
+    assert mailer.call_args.kwargs.get("hosted_hop") is True
     # "Use a password instead" must still work: the pre-login request survives.
     assert await redis.get("oauth:pre_login:req-1") is not None
 
