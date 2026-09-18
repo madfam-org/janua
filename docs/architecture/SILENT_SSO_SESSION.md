@@ -422,7 +422,8 @@ Consequences worth stating:
   way.
 - `hosted_hop: true|false` on `POST /api/v1/auth/magic-link` overrides the rule
   in either direction. It is an escape hatch (a rehearsal host, a future tenant
-  zone), never the mechanism.
+  zone), never the mechanism — with one exception, Janua's own hosted login
+  form, which forces it (see *The hosted login form forces the hop*, below).
 - **An unset `COOKIE_DOMAIN` never hops.** The predicate answers "cannot
   receive" for every host when no cookie domain is configured — truthfully,
   since there is then no estate cookie for anyone to relay — but "estate SSO is
@@ -432,6 +433,31 @@ Consequences worth stating:
   onto janua's callback: the first-contact failure of 2026-08-15. Prod and
   staging both set `COOKIE_DOMAIN=.madfam.io`, so the guard costs the brand
   hosts nothing.
+
+### The hosted login form forces the hop
+
+The derived rule reasons about **product** destinations — a host whose own
+`/portal/verify` page redeems the forwarded `?token=`. Janua's **own hosted
+login form** (`POST /api/v1/auth/login-form/magic-link`) is the one place where
+`hosted_hop=True` is the mechanism rather than an escape hatch, and it sets it
+unconditionally (`login_form_magic_link`, `routers/v1/auth.py`).
+
+Its emailed link's destination is always the **rebuilt `/oauth/authorize` URL on
+`auth.madfam.io`** — a host *inside* `COOKIE_DOMAIN`, so the derived rule says
+"can receive the cookie, no hop needed" and would mail `{authorize_url}&token=…`.
+But `/oauth/authorize` never redeems a magic-link token — only
+`/magic-link/callback` does — so that link sets no session and `/authorize`
+bounces the browser straight back to the login form. Rendered without a
+`login_method`, that is the **password** form, and a passwordless magic-link user
+has nothing to type: an endless loop. Forcing the hop routes the link through
+`/magic-link/callback`, which mints the `janua_sso` cookie on this origin and
+then forwards to the authorize URL, which now completes.
+
+This shipped broken in the first hosted-login release and was fixed in #620
+(found live 2026-09-17, on the Yantra4D hosted login). The regression guard is a
+behavioural one: the router test asserts the `hosted_hop=True` kwarg reaches the
+mailer, not merely that the destination is the authorize URL — the earlier test
+checked only the destination, which is how the bug shipped green.
 
 ### What the hop does not touch (J6 × J8 × J10)
 
