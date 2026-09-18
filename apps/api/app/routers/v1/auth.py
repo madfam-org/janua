@@ -3340,7 +3340,21 @@ async def login_form_magic_link(
         )
 
     try:
-        magic_link_data = MagicLinkRequest(email=email, redirect_url=continuation)
+        # FORCE THE HOSTED HOP. This flow's destination is ALWAYS janua's own
+        # rebuilt /oauth/authorize URL, which lives on the cookie domain
+        # (auth.madfam.io), so the DERIVED rule in should_use_hosted_hop()
+        # declines the hop: it asks whether the destination can RECEIVE the
+        # estate cookie, but /authorize never REDEEMS the one-time token — only
+        # /magic-link/callback does. Without the hop the emailed link is
+        # `{authorize_url}&token=…`; authorize ignores the token, no session is
+        # set, and the person is bounced to the password form in a loop (found
+        # live 2026-09-17, caro@ on the yantra4d hosted login — the first click
+        # of any hosted-form link since J6/#618 shipped). Forcing the hop routes
+        # the link through /magic-link/callback, which mints the session cookie
+        # on this origin and then forwards to the authorize URL.
+        magic_link_data = MagicLinkRequest(
+            email=email, redirect_url=continuation, hosted_hop=True
+        )
     except ValidationError:
         return _rerender("Enter a valid email address.", 400)
 
