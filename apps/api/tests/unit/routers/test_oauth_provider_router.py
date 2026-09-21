@@ -919,7 +919,7 @@ class TestPreLoginRedisStorage:
 
 
 class TestOidcEndSession:
-    """Tests for OIDC RP-Initiated Logout (GET /logout)."""
+    """Tests for OIDC RP-Initiated Logout (GET and POST /logout)."""
 
     @pytest.fixture
     def mock_client(self):
@@ -986,6 +986,85 @@ class TestOidcEndSession:
 
         assert exc_info.value.status_code == 400
         assert "post_logout_redirect_uri" in exc_info.value.detail
+
+    async def test_logout_forwards_state_to_redirect_uri(self, mock_db):
+        from app.routers.v1.oauth_provider import oidc_end_session
+
+        response = await oidc_end_session(
+            client_id="jnc_test",
+            post_logout_redirect_uri="https://app.ceq.lol/",
+            state="opaque-123",
+            db=mock_db,
+        )
+
+        assert response.status_code == 302
+        assert response.headers["location"] == "https://app.ceq.lol/?state=opaque-123"
+
+    async def test_logout_clears_the_sso_cookie(self, mock_db):
+        from app.auth.sso_cookie import SSO_COOKIE_NAME
+        from app.routers.v1.oauth_provider import oidc_end_session
+
+        response = await oidc_end_session(
+            client_id="jnc_test",
+            post_logout_redirect_uri="https://app.ceq.lol/",
+            state=None,
+            db=mock_db,
+        )
+
+        # A Max-Age=0 Set-Cookie for janua_sso must be on the redirect response.
+        set_cookies = response.headers.getlist("set-cookie")
+        assert any(
+            SSO_COOKIE_NAME in c and ("Max-Age=0" in c or "max-age=0" in c) for c in set_cookies
+        ), set_cookies
+
+    async def test_post_logout_redirects_to_post_logout_uri(self, mock_db):
+        """OIDC RP-Initiated Logout permits POST; it must behave like GET."""
+        from app.routers.v1.oauth_provider import oidc_end_session_post
+
+        response = await oidc_end_session_post(
+            client_id="jnc_test",
+            post_logout_redirect_uri="https://app.ceq.lol/",
+            state=None,
+            db=mock_db,
+        )
+
+        assert response.status_code == 302
+        assert response.headers["location"] == "https://app.ceq.lol/"
+
+    async def test_post_logout_rejects_unregistered_post_logout_uri(self, mock_db):
+        from fastapi import HTTPException
+
+        from app.routers.v1.oauth_provider import oidc_end_session_post
+
+        with pytest.raises(HTTPException) as exc_info:
+            await oidc_end_session_post(
+                client_id="jnc_test",
+                post_logout_redirect_uri="https://evil.com/",
+                state=None,
+                db=mock_db,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "post_logout_redirect_uri" in exc_info.value.detail
+
+    async def test_post_logout_rejects_unknown_client(self, mock_db):
+        from fastapi import HTTPException
+
+        from app.routers.v1.oauth_provider import oidc_end_session_post
+
+        result = mock_db.execute.return_value
+        result.scalar_one_or_none.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            await oidc_end_session_post(
+                client_id="jnc_missing",
+                post_logout_redirect_uri="https://app.ceq.lol/",
+                state=None,
+                db=mock_db,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail == "invalid_client"
 
 
 class TestUserOrgClaims:
