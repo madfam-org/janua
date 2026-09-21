@@ -30,9 +30,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.sessions_cookie import (
+    SESSIONS_COOKIE_NAME,
+    read_sessions_cookie,
+)
 from app.auth.sso_cookie import (
     SSO_COOKIE_NAME,
     clear_sso_cookie,
+    resolve_session_by_id,
     resolve_sso_cookie_session,
     revoke_sso_cookie_session,
 )
@@ -1021,6 +1026,112 @@ def _is_first_party_preconsented(client: OAuthClient) -> bool:
     return _is_silent_auth_allowed(client)
 
 
+async def _resolve_held_accounts(
+    held_sids: list[str], db: AsyncSession
+) -> list[tuple[str, Any]]:
+    """Resolve each held `sid` to `(sid, user)`, dropping any that no longer live.
+
+    Order is preserved (most-recent-last, as `janua_sessions` stores it). A `sid`
+    whose row is revoked, expired, or whose user is not active is silently
+    omitted — the chooser only ever offers accounts a switch could actually front.
+    """
+    resolved: list[tuple[str, Any]] = []
+    for sid in held_sids:
+        user, session = await resolve_session_by_id(sid, db)
+        if user is not None and session is not None:
+            resolved.append((sid, user))
+    return resolved
+
+
+def _account_chooser_html(
+    accounts: list[tuple[str, Any]],
+    *,
+    authorize_next: str,
+    add_account_url: str,
+    client_name: str,
+) -> str:
+    """Render the `prompt=select_account` chooser over the held estate accounts.
+
+    Each account is a form that POSTs its `sid` to `/api/v1/auth/switch-session`
+    with `next` set to the rebuilt authorize URL, so choosing an account re-points
+    `janua_sso` and lands back at `/authorize` for that account. "Use another
+    account" is a normal interactive login. All user-controlled text is HTML
+    escaped (XSS), and only the opaque `sid` and the pre-validated `next` travel
+    in the forms — no token, no email in a query string.
+    """
+    escaped_client = html.escape(client_name or "the application")
+    escaped_next = html.escape(authorize_next)
+    escaped_add = html.escape(add_account_url)
+
+    rows = ""
+    for sid, user in accounts:
+        label = getattr(user, "email", None) or getattr(user, "username", None) or "Account"
+        display = html.escape(str(label))
+        escaped_sid = html.escape(str(sid))
+        rows += f"""
+        <form method="post" action="/api/v1/auth/switch-session" class="account">
+            <input type="hidden" name="sid" value="{escaped_sid}">
+            <input type="hidden" name="next" value="{escaped_next}">
+            <button type="submit" class="account-btn">
+                <span class="account-avatar">{display[:1].upper()}</span>
+                <span class="account-email">{display}</span>
+            </button>
+        </form>
+        """
+
+    return f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Choose an account - Janua</title>
+    <style>
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh; display: flex; align-items: center;
+            justify-content: center; padding: 20px;
+        }}
+        .chooser {{
+            background: white; border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px; width: 100%; max-width: 420px;
+        }}
+        h1 {{ font-size: 22px; color: #333; margin-bottom: 6px; text-align: center; }}
+        p.sub {{ color: #666; font-size: 14px; margin-bottom: 24px; text-align: center; }}
+        .account {{ margin-bottom: 10px; }}
+        .account-btn {{
+            width: 100%; display: flex; align-items: center; gap: 12px;
+            padding: 12px 14px; border: 1px solid #e2e2e2; border-radius: 10px;
+            background: #fafafa; cursor: pointer; font-size: 15px; color: #222;
+        }}
+        .account-btn:hover {{ background: #f0f0ff; border-color: #764ba2; }}
+        .account-avatar {{
+            width: 34px; height: 34px; border-radius: 50%;
+            background: #764ba2; color: white; display: flex;
+            align-items: center; justify-content: center; font-weight: 600;
+        }}
+        .add {{
+            display: block; margin-top: 18px; text-align: center;
+            color: #764ba2; text-decoration: none; font-size: 14px;
+        }}
+        .add:hover {{ text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    <div class="chooser">
+        <h1>Choose an account</h1>
+        <p class="sub">to continue to {escaped_client}</p>
+        {rows}
+        <a class="add" href="{escaped_add}">Use another account</a>
+    </div>
+</body>
+</html>
+"""
+
+
 def _redirect_with_oauth_error(
     redirect_uri: str,
     error: str,
@@ -1068,8 +1179,8 @@ async def authorize_get(
             "cookie is present, otherwise redirect with error=login_required); "
             "'login' (force the interactive login form even when the session "
             "cookie is valid — never auto-issue a code); 'select_account' "
-            "(render the account chooser; with only one known session it degrades "
-            "to 'login'). 'none' is mutually exclusive with the others; if "
+            "(render a chooser over the sessions this browser holds; with no held "
+            "session it degrades to 'login'). 'none' is mutually exclusive with the others; if "
             "combined, the interactive force wins. Absent: the default "
             "interactive path (reuse a valid session, otherwise show login). "
             "MFA and consent gates are preserved under every value."
@@ -1115,13 +1226,15 @@ async def authorize_get(
     prompt_values = {p for p in (prompt or "").strip().lower().split() if p}
     silent_auth = "none" in prompt_values
     # `prompt=login` forces re-authentication; `prompt=select_account` asks for an
-    # account chooser. With no chooser yet (Layer 3), `select_account` degrades to
+    # account chooser. select_account renders a chooser over the sessions this
+    # browser holds (`janua_sessions`); with no held session it degrades to
     # `login` — the spec-permitted fallback when the AS cannot offer a selection.
-    # Either one forces the interactive login form even when a valid session
-    # cookie is present. `none` is mutually exclusive with these per OIDC; if a
-    # client sends `none` with `login`/`select_account`, silent auth is refused
-    # below and the force applies, which is the safe (interactive) resolution.
+    # Either one forces the interactive path even when a valid session cookie is
+    # present. `none` is mutually exclusive with these per OIDC; if a client sends
+    # `none` with `login`/`select_account`, silent auth is refused below and the
+    # force applies, which is the safe (interactive) resolution.
     force_login = ("login" in prompt_values) or ("select_account" in prompt_values)
+    wants_chooser = "select_account" in prompt_values
     # If a client illegally combines `none` with `login`/`select_account`, the
     # interactive force wins — never auto-issue a code when re-auth was demanded.
     if force_login:
@@ -1253,6 +1366,42 @@ async def authorize_get(
             login_param_values["login_method"] = requested_login_method
         login_params = urlencode(login_param_values)
         login_url = f"/api/v1/auth/login?{login_params}"
+
+        # prompt=select_account: render a chooser over the accounts this browser
+        # holds, rather than jumping straight to a login form. With no held
+        # account that still lives, fall through to the login form — the
+        # spec-permitted degrade. The chooser only lists accounts a switch could
+        # actually front (each `sid` re-checked live), and each choice re-points
+        # janua_sso then lands back here for that account; "Use another account"
+        # is this same login form.
+        if wants_chooser:
+            held_sids = read_sessions_cookie(request.cookies.get(SESSIONS_COOKIE_NAME))
+            accounts = await _resolve_held_accounts(held_sids, db)
+            if accounts:
+                authorize_params = {
+                    "response_type": response_type,
+                    "client_id": client_id,
+                    "redirect_uri": redirect_uri,
+                    "scope": scope,
+                }
+                for key, value in (
+                    ("state", state),
+                    ("nonce", nonce),
+                    ("code_challenge", code_challenge),
+                    ("code_challenge_method", code_challenge_method),
+                ):
+                    if value is not None:
+                        authorize_params[key] = value
+                authorize_next = f"/api/v1/oauth/authorize?{urlencode(authorize_params)}"
+                return HTMLResponse(
+                    content=_account_chooser_html(
+                        accounts,
+                        authorize_next=authorize_next,
+                        add_account_url=login_url,
+                        client_name=client.name or "",
+                    )
+                )
+
         return RedirectResponse(url=login_url, status_code=302)
 
     # SECURITY: Require email verification for OAuth authorization
