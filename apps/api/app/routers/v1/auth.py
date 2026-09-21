@@ -50,10 +50,23 @@ from app.services.email_service import (
 from app.models.system_settings import SettingKeys
 from app.services.system_settings_service import SystemSettingsService
 from app.services.webhooks import WebhookEventType, trigger_user_webhook
+from app.auth.sessions_cookie import (
+    SESSIONS_COOKIE_NAME,
+    append_sid,
+    clear_sessions_cookie,
+    read_sessions_cookie,
+    remove_sid,
+    set_sessions_cookie,
+)
 from app.auth.sso_cookie import (
+    SSO_COOKIE_NAME,
     clear_sso_cookie,
+    mint_sso_cookie_value,
+    resolve_session_by_id,
     revoke_sso_cookie_session,
+    revoke_sso_session,
     set_sso_cookie,
+    sso_cookie_kwargs,
 )
 
 from ...models import ActivityLog, EmailVerification, MagicLink, PasswordReset, User, UserStatus
@@ -917,6 +930,7 @@ def _set_session_cookies(
     *,
     user=None,
     session=None,
+    request=None,
 ) -> None:
     """Set the hosted-flow session cookies on a response.
 
@@ -934,6 +948,14 @@ def _set_session_cookies(
     are keyword-only and optional so no existing caller changes behaviour by
     accident: a caller that cannot name the session row emits no `janua_sso`
     rather than one that could never be revoked.
+
+    Multi-account (Layer 3): when `request` is also supplied, this APPENDS the
+    new session's `sid` to `janua_sessions` — the companion cookie that remembers
+    every estate account this browser holds — without disturbing the others.
+    `janua_sso` stays the pointer to the freshly-fronted session; `janua_sessions`
+    keeps the full set so a later switch need not re-authenticate. Optional and
+    keyword-only so a caller with no request in scope emits `janua_sso` alone,
+    exactly as before. See `app/auth/sessions_cookie.py`.
     """
     access_cookie_kwargs: dict = {
         "httponly": False,
@@ -956,6 +978,10 @@ def _set_session_cookies(
 
     if user is not None and session is not None:
         set_sso_cookie(response, str(getattr(user, "id", "")), session)
+        session_id = getattr(session, "id", None)
+        if request is not None and session_id:
+            held = read_sessions_cookie(request.cookies.get(SESSIONS_COOKIE_NAME))
+            set_sessions_cookie(response, append_sid(held, str(session_id)))
 
 
 async def _resolve_oauth_redirect_target(
@@ -1681,7 +1707,9 @@ async def login_form(
         response = RedirectResponse(url=safe_next, status_code=302)
 
     # Set session cookies (shared with the second-factor path — see helper).
-    _set_session_cookies(response, access_token, refresh_token, user=user, session=session)
+    _set_session_cookies(
+        response, access_token, refresh_token, user=user, session=session, request=request
+    )
 
     return response
 
@@ -1805,7 +1833,9 @@ async def login_form_mfa(
     from fastapi.responses import RedirectResponse
 
     response = RedirectResponse(url=safe_next, status_code=302)
-    _set_session_cookies(response, access_token, refresh_token, user=user, session=session)
+    _set_session_cookies(
+        response, access_token, refresh_token, user=user, session=session, request=request
+    )
     return response
 
 
@@ -1939,6 +1969,190 @@ async def sign_out(
         pass
 
     return {"message": "Successfully signed out"}
+
+
+# ============================================================================
+# Multi-account: hold several estate sessions, front one at a time (Layer 3)
+# ============================================================================
+
+
+class SwitchSessionRequest(BaseModel):
+    """Body of POST /auth/switch-session and the per-account sign-out."""
+
+    sid: str = Field(..., description="Session id (sessions.id) to bring to the front")
+    next: Optional[str] = Field(
+        None, description="Where to send the browser after switching (validated)"
+    )
+
+
+def _held_sids(request: Optional[Request]) -> list[str]:
+    """The verified list of session ids `janua_sessions` carries on this request."""
+    if request is None:
+        return []
+    return read_sessions_cookie(request.cookies.get(SESSIONS_COOKIE_NAME))
+
+
+def _fronted_sid(request: Optional[Request]) -> Optional[str]:
+    """The `sid` `janua_sso` currently points at, if the cookie verifies.
+
+    Signature/type/expiry are enforced by the SSO token verifier; a forged or
+    wrong-typed value yields None. This does NOT prove the row is live — callers
+    that re-front or revoke re-read the row — it only says which sid is fronted.
+    """
+    if request is None:
+        return None
+    from app.auth.sso_cookie import SSO_TOKEN_TYPE
+    from app.core.jwt_manager import jwt_manager
+
+    value = request.cookies.get(SSO_COOKIE_NAME)
+    if not value:
+        return None
+    payload = jwt_manager.verify_token(value, token_type=SSO_TOKEN_TYPE, verify_audience=False)
+    if not payload:
+        return None
+    sid = payload.get("sid")
+    return str(sid) if sid else None
+
+
+@router.post("/switch-session")
+async def switch_session(
+    body: SwitchSessionRequest,
+    req: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """Bring a held estate account to the front, without re-authentication.
+
+    Multi-account (Layer 3): re-points `janua_sso` at `body.sid` — but only when
+    that sid is BOTH vouched for by this browser's signed `janua_sessions` cookie
+    AND still a live, active `sessions` row of an active user. The signed cookie
+    stops a browser inventing a sid it was never granted; the live-row re-read is
+    what actually authorises the switch, so a revoked or expired session in the
+    held list can never be fronted. No bearer is needed and none is minted — the
+    switch only moves the pointer among sessions already proven live.
+
+    On success `janua_sso` is set to the chosen sid and the response 302-redirects
+    to a validated `next` (default `/`). A sid not in the held set, or whose row is
+    not live, is refused with 400 rather than silently ignored.
+    """
+    held = _held_sids(req)
+    if body.sid not in held:
+        raise HTTPException(
+            status_code=400,
+            detail="invalid_request: session is not held by this browser",
+        )
+
+    user, session = await resolve_session_by_id(body.sid, db)
+    if user is None or session is None:
+        raise HTTPException(
+            status_code=400,
+            detail="invalid_request: session is not active",
+        )
+
+    from fastapi.responses import RedirectResponse
+
+    safe_next = validate_redirect_url(getattr(body, "next", None) or "/", default_url="/")
+    redirect = RedirectResponse(url=safe_next, status_code=302)
+    # Re-point the fronted-session cookie on the redirect that is actually sent.
+    # `janua_sessions` is left intact — the held set does not change on a switch,
+    # only which one is fronted.
+    redirect.set_cookie(
+        key=SSO_COOKIE_NAME,
+        value=mint_sso_cookie_value(str(user.id), str(session.id)),
+        **sso_cookie_kwargs(),
+    )
+    return redirect
+
+
+@router.post("/sessions/sign-out-one")
+async def sign_out_one_account(
+    body: SwitchSessionRequest,
+    req: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """Sign out ONE held account, keeping the others signed in.
+
+    Removes `body.sid` from `janua_sessions` and revokes that `sessions` row
+    (best-effort — the removal from the held set is the half that clears this
+    browser, the revocation is the half that stops a copy of the pointer taken
+    earlier). If the removed account was the fronted one, `janua_sso` is
+    re-pointed at the most-recent remaining held account, or cleared when none
+    remain. The sid must be in the held set; an unheld sid is refused so this
+    endpoint cannot be used to revoke arbitrary sessions.
+    """
+    held = _held_sids(req)
+    if body.sid not in held:
+        raise HTTPException(
+            status_code=400,
+            detail="invalid_request: session is not held by this browser",
+        )
+
+    # Revoke the row (best-effort; never fail sign-out on it).
+    try:
+        if await revoke_sso_session(body.sid, db):
+            await db.commit()
+    except Exception:
+        logger.warning("Failed to revoke session on per-account sign-out", exc_info=True)
+
+    remaining = remove_sid(held, body.sid)
+    set_sessions_cookie(response, remaining)
+
+    # If we just signed out the fronted account, re-front another held one.
+    if _fronted_sid(req) == body.sid:
+        new_front = None
+        for candidate in reversed(remaining):
+            user, session = await resolve_session_by_id(candidate, db)
+            if user is not None and session is not None:
+                new_front = (user, session)
+                break
+        if new_front is not None:
+            user, session = new_front
+            response.set_cookie(
+                key=SSO_COOKIE_NAME,
+                value=mint_sso_cookie_value(str(user.id), str(session.id)),
+                **sso_cookie_kwargs(),
+            )
+        else:
+            clear_sso_cookie(response)
+
+    return {"message": "Signed out of the account", "remaining": len(remaining)}
+
+
+@router.post("/sessions/sign-out-all")
+async def sign_out_all_accounts(
+    req: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """Sign out of EVERY held account and clear both estate cookies.
+
+    Revokes every `sessions` row named in `janua_sessions` (plus whatever
+    `janua_sso` points at, in case it drifted from the list), then deletes both
+    cookies with the exact Domain/Path they were set with. Best-effort revocation
+    per row, exactly like `sign_out` — clearing the browser must never fail
+    because one revocation could not complete.
+    """
+    held = _held_sids(req)
+    fronted = _fronted_sid(req)
+    to_revoke = list(dict.fromkeys([*held, *([fronted] if fronted else [])]))
+
+    revoked_any = False
+    for sid in to_revoke:
+        try:
+            if await revoke_sso_session(sid, db):
+                revoked_any = True
+        except Exception:
+            logger.warning("Failed to revoke a session on sign-out-all", exc_info=True)
+    if revoked_any:
+        try:
+            await db.commit()
+        except Exception:
+            logger.warning("Failed to commit revocations on sign-out-all", exc_info=True)
+
+    clear_sso_cookie(response)
+    clear_sessions_cookie(response)
+    return {"message": "Signed out of all accounts", "revoked": len(to_revoke)}
 
 
 @router.get("/me", response_model=UserResponse)
@@ -3055,7 +3269,9 @@ async def magic_link_callback(
     # the one moment the issuer can set its own cookie on a magic-link login.
     # Without it `/authorize?prompt=none` has no session to recognise and every
     # silent hop between products falls back to a fresh magic link.
-    _set_session_cookies(redirect, access_token, refresh_token, user=user, session=session)
+    _set_session_cookies(
+        redirect, access_token, refresh_token, user=user, session=session, request=req
+    )
     return redirect
 
 
@@ -3141,7 +3357,9 @@ async def verify_magic_link(
 
     # SSO (B1): same tokens the body carries, also as issuer session cookies.
     # The response body below is byte-for-byte what it was before.
-    _set_session_cookies(response, access_token, refresh_token, user=user, session=session)
+    _set_session_cookies(
+        response, access_token, refresh_token, user=user, session=session, request=req
+    )
 
     return SignInResponse(
         user=UserResponse(
