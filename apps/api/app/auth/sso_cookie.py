@@ -277,6 +277,41 @@ async def resolve_sso_cookie_session(
     return user, session
 
 
+async def resolve_session_by_id(
+    session_id: Any, db: AsyncSession
+) -> tuple[Optional[User], Optional[Any]]:
+    """Resolve `(user, session_row)` for a raw session id, or `(None, None)`.
+
+    The row-and-user half of `resolve_sso_cookie_session`, addressed by a plain
+    `sid` rather than a signed cookie. Used by account switching: the `sid` a
+    caller asks to front is validated to still be a live, active session of an
+    active user — the same live-row check every other estate-cookie path makes —
+    before `janua_sso` is re-pointed at it. The `sid` itself proves nothing; this
+    live read is what authorises the switch, so a revoked or expired row is
+    refused exactly as it is at `/authorize`.
+    """
+    try:
+        session_uuid = UUID(str(session_id))
+    except (ValueError, AttributeError, TypeError):
+        return None, None
+
+    result = await db.execute(select(UserSession).where(UserSession.id == session_uuid))
+    session = result.scalar_one_or_none()
+    if session is None:
+        return None, None
+    if not _session_is_live(session):
+        return None, None
+
+    user_result = await db.execute(select(User).where(User.id == session.user_id))
+    user: Optional[User] = user_result.scalar_one_or_none()
+    if user is None:
+        return None, None
+    status = getattr(user, "status", None)
+    if status is not None and status != UserStatus.ACTIVE:
+        return None, None
+    return user, session
+
+
 async def resolve_sso_cookie_user(cookie_value: str, db: AsyncSession) -> Optional[User]:
     """Resolve the person behind a `janua_sso` cookie, or `None`.
 
