@@ -610,6 +610,72 @@ class TestAuthorizeAcceptsTheEstateCookie:
         assert resp.status_code == 302
         assert "error=login_required" in resp.headers["location"]
 
+    async def test_prompt_login_forces_the_login_form_despite_a_live_cookie(self):
+        """prompt=login must re-authenticate even with a valid estate session."""
+        user = _user()
+        session = _session_row(user.id)
+        resp = await self._run("login", user=user, session=session)
+        assert resp.status_code == 302
+        loc = resp.headers["location"]
+        assert "/api/v1/auth/login" in loc
+        # A forced re-auth must NOT hand back a code off the still-valid cookie.
+        assert "code=" not in loc
+        assert "error=" not in loc
+
+    async def test_prompt_select_account_degrades_to_login_with_one_session(self):
+        """With no chooser yet, select_account forces the login form (spec fallback)."""
+        user = _user()
+        session = _session_row(user.id)
+        resp = await self._run("select_account", user=user, session=session)
+        assert resp.status_code == 302
+        loc = resp.headers["location"]
+        assert "/api/v1/auth/login" in loc
+        assert "code=" not in loc
+
+    async def test_prompt_login_in_a_set_is_honored(self):
+        """prompt is a space-delimited set — 'login consent' must still force login."""
+        user = _user()
+        session = _session_row(user.id)
+        resp = await self._run("login consent", user=user, session=session)
+        assert resp.status_code == 302
+        assert "/api/v1/auth/login" in resp.headers["location"]
+        assert "code=" not in resp.headers["location"]
+
+    async def test_absent_prompt_still_reuses_the_session(self):
+        """Regression: absent prompt is unchanged — a valid cookie issues a code."""
+        user = _user()
+        session = _session_row(user.id)
+        resp = await self._run(None, user=user, session=session)
+        assert resp.status_code == 302
+        assert "code=" in resp.headers["location"]
+        assert "/auth/login" not in resp.headers["location"]
+
+    async def test_prompt_none_still_issues_a_code(self):
+        """Regression: prompt=none is unchanged — silent hop still succeeds."""
+        user = _user()
+        session = _session_row(user.id)
+        resp = await self._run("none", user=user, session=session)
+        assert resp.status_code == 302
+        assert "code=" in resp.headers["location"]
+
+    async def test_prompt_login_does_not_issue_a_code_for_an_mfa_user(self):
+        """prompt=login must not bypass MFA: no code, back to the login form.
+
+        The forced-login redirect happens before the MFA gate, so the code path
+        cannot issue a code off the cookie; MFA is then proven at the login form.
+        """
+        user = _user()
+        session = _session_row(user.id)
+        with patch(
+            "app.auth.mfa_enforcement.mfa_required_for",
+            MagicMock(return_value=True),
+        ):
+            resp = await self._run("login", user=user, session=session)
+        assert resp.status_code == 302
+        loc = resp.headers["location"]
+        assert "code=" not in loc
+        assert "/api/v1/auth/login" in loc
+
 
 # --------------------------------------------------------------------------
 # 7. Logout clears AND revokes
