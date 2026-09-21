@@ -1,7 +1,7 @@
 # Silent SSO: where the browser session comes from
 
-**Status**: B1, B2, B6, R1, J9 and J6 landed in Janua; B3/B4 are operator steps;
-B5 lives in nauta and B7 in crea-map. **R1 chose option 3 of the security note
+**Status**: B1, B2, B6, R1, J9, J6 and the account-switching layers L1–L3 landed
+in Janua; B3/B4 are operator steps; B5 lives in nauta and B7 in crea-map. **R1 chose option 3 of the security note
 below** — a separate HttpOnly estate cookie, `janua_sso`; see "R1 — the
 `janua_sso` estate cookie". **J9 makes that cookie outrank a stale
 `janua_access_token` at `/authorize`**; see "J9 — the estate session outranks a
@@ -47,6 +47,10 @@ land, not a menu.
 | **R1n** | nauta adds the same relay | nauta | landed |
 | **J9** | `janua_sso` outranks `janua_access_token` at `/authorize` | Janua `routers/v1/oauth_provider.py` | landed |
 | **J6** | Magic links land on Janua first for hosts outside `COOKIE_DOMAIN`; the callback GET stops spending the token | Janua `auth/hosted_hop.py`, `services/email_service.py`, `routers/v1/auth.py` | landed |
+| **L1** | POST form of the OIDC RP-initiated logout (`end_session`) endpoint | Janua `routers/v1/oauth_provider.py` | landed |
+| **L2** | `/authorize` honors `prompt=login` and `prompt=select_account`, not only `prompt=none` | Janua `routers/v1/oauth_provider.py` | landed |
+| **L3** | Multi-account estate sessions — `janua_sessions` companion cookie, hold-many-front-one | Janua `auth/sessions_cookie.py`, `auth/sso_cookie.py`, `routers/v1/auth.py`, `routers/v1/oauth_provider.py` | landed |
+| **L3t** | Per-tab session focus — `X-Janua-Session` header honored at `/authorize` (two-tab focus) | Janua `auth/sessions_cookie.py`, `routers/v1/auth.py`, `routers/v1/oauth_provider.py` | landed |
 
 **B2 is a silent prerequisite of B1.** A magic-link session carries the audience
 of the product the link forwards to (`_session_audience_for_redirect`) —
@@ -229,9 +233,12 @@ on a cross-site POST at all. Three independent reasons a `janua_sso` cookie alon
 cannot forge a consent grant.
 
 Within `/authorize` the cookie authenticates the person for **both** `prompt=none`
-and the interactive flow — a valid estate session skipping the login page is what
-SSO means. It resolves *who* the person is and never *whether they may proceed*:
-email verification, MFA and third-party consent are enforced exactly as before.
+and the default interactive flow — a valid estate session skipping the login page
+is what SSO means. It resolves *who* the person is and never *whether they may
+proceed*: email verification, MFA and third-party consent are enforced exactly as
+before. (`prompt=login` and `prompt=select_account` deliberately override the
+reuse and send the browser back through the login form or an account chooser — see
+"Account switching (L1–L3)".)
 
 ## J9 — the estate session outranks a stale hosted-login cookie
 
@@ -325,6 +332,13 @@ set with — a deletion differing on either attribute addresses a different cook
 and leaves the live one in place. The cookie's signature is verified before
 anything is revoked, so a forged value cannot end someone else's session.
 
+The OIDC `end_session` endpoint is exposed as **both** `GET` and `POST` (L1). The
+POST form exists because the OIDC RP-initiated-logout spec lets the RP submit the
+logout as a form POST, and because a POST is not attachable by a cross-site link
+the way a GET is; both forms run the identical validation (known client,
+registered `post_logout_redirect_uri`, `state` passthrough) and the identical
+row-revoke-then-clear-cookie sequence.
+
 ### Which paths emit it, and which deliberately do not
 
 The cookie is emitted from `_set_session_cookies`, so all four paths that
@@ -346,6 +360,92 @@ Each of these becomes a one-line change (`user=` / `session=` on the helper, or
 An invalid or expired magic link, a wrong password, an MFA interrupt, or a
 destination the allowlist rejects at redemption all emit no `janua_sso` — there
 is no session, so there is nothing to reference.
+
+## Account switching (L1–L3)
+
+The estate cookie above lets a browser silently re-front **one** account. L1–L3
+build account switching on top of it — honoring the two other OIDC `prompt`
+values, and remembering more than one live session per browser — **without
+weakening the security boundary R1/J9 established**: every browser-wide cookie
+still carries only session-id references, never a bearer, and every reference is
+re-read from its `sessions` row on every use.
+
+**Ecosystem directive.** Every MADFAM platform inherits this switching model
+through Janua's honored `prompt` values — an RP asks, Janua enforces —
+**except Crea Tu Mundo MAP**, which stays single-account by design.
+
+### L2 — which `prompt` values `/authorize` honors
+
+`prompt` is a space-delimited **set** (OIDC), lower-cased and split before use.
+Previously only `none` changed behaviour; `/authorize` now honors three values:
+
+| `prompt` value | Behaviour at `/authorize` |
+|---|---|
+| `none` | Silent auth. A valid estate/hosted session issues a code immediately; no session ⇒ redirect with `error=login_required`. First-party clients only. Never renders a screen. |
+| `login` | Force re-authentication. Even with a valid session cookie, the browser is sent to the login form — **no code is auto-issued off the cookie**. MFA and consent are re-proven at the form. |
+| `select_account` | Render a chooser over the accounts this browser holds (`janua_sessions`); with no held session that still lives, it degrades to `login` (the spec-permitted fallback). |
+| *(absent)* | Default interactive path: reuse a valid session, otherwise show the login form. |
+
+`none` is mutually exclusive with `login`/`select_account` per OIDC. If a client
+illegally combines them the **interactive force wins** (`silent_auth` is cleared),
+so an illegal `none login` lands on the login form rather than either auto-issuing
+a code or short-circuiting to `login_required`. MFA and consent gates are
+preserved under every value.
+
+### L3 — multi-account estate sessions (`janua_sessions`)
+
+`janua_sso` points at exactly **one** fronted session. `janua_sessions` is the
+companion cookie that remembers the *others* a browser has signed into, so a
+second sign-in adds an account rather than evicting the first.
+
+- **Value.** A signed JWT with `type: "sso_session_set"` — a type distinct from
+  `janua_sso`'s `"sso_session"` and from every bearer's `"access"`, so it can be
+  presented in no other cookie's place and as no bearer. Its one extra claim is
+  `sids`: a capped (`MAX_HELD_SESSIONS = 10`), de-duplicated JSON list of the
+  same `sessions.id`s `janua_sso` references. **It carries no credential** — a
+  `sid` is a pointer a live row check must confirm on every use, exactly as
+  `janua_sso`'s.
+- **Attributes.** Set with the same `HttpOnly`, `Secure`, `SameSite=Lax`,
+  `Path=/`, estate `Domain` and refresh lifetime as `janua_sso`, so the two
+  cookies are set, sent and expire together.
+- **Add** (on login): the new `sid` is appended most-recent-last (moved to the
+  end if already present), and `janua_sso` is re-pointed at it.
+- **Switch** (`POST /api/v1/auth/switch-session`): re-point `janua_sso` at
+  another `sid` the held-set already vouches for **and** whose row is live — no
+  re-authentication, because that session is already proven. An unheld or dead
+  `sid` is rejected.
+- **Sign out one** (`sign-out-one`): remove that `sid` from the held-set and
+  re-front another held account; an unheld `sid` is rejected.
+- **Sign out all** (`sign-out-all`): clear both `janua_sso` and `janua_sessions`.
+
+### L3t — per-tab session focus (`X-Janua-Session`)
+
+Cookies are per-browser; a person who wants two tabs on two accounts at once
+needs per-tab state. A tab stores its chosen `sid` in `sessionStorage` and sends
+it on its API calls in the **`X-Janua-Session`** header.
+
+It is honored at exactly one place — `get_user_from_cookie_or_header`, the sole
+reader of `janua_sso` — and ranks just **above** the `janua_sso` cookie it
+overrides and **below** an explicit `Authorization: Bearer`. It **cannot
+escalate**, by construction:
+
+- It is honored **only** when its `sid` is BOTH in this browser's signed
+  `janua_sessions` held-set AND a live `sessions` row of an active user — the
+  same two-part check `switch-session` uses. An unheld or dead `sid` is
+  **ignored** (resolution falls through to `janua_sso`), never an error.
+- It carries **no secret and mints no token** — a `sid` is the same opaque
+  reference the cookies carry; it decides *who*, never *whether they may
+  proceed* (email-verified, MFA, consent are unchanged).
+- A custom request header is not attachable by a cross-site form or top-level
+  navigation, so honoring it is a **CSRF gain** over the ambient cookie it
+  overrides — the worst it can do in one tab is front an account the browser
+  already holds and could already front browser-wide via `switch-session`.
+
+The two-tab focus design is ratified; this section documents it, it does not
+reopen it.
+
+**No migration.** L1–L3 add no table, no column and no alembic revision —
+`janua_sessions` is a cookie, and `sids` reference the existing `sessions` rows.
 
 ## Operator steps
 
