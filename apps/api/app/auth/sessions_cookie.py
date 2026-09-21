@@ -65,6 +65,25 @@ SESSIONS_TOKEN_TYPE = "sso_session_set"
 #: a new one pushes past the cap.
 MAX_HELD_SESSIONS = 10
 
+#: Per-tab session override header (two-tab focus, the Layer 3 follow-on).
+#:
+#: A tab that wants to be a *different* held account than the browser-wide
+#: `janua_sso` pointer sends this header on its API calls, carrying one `sid`.
+#: `sessionStorage` is per-tab where cookies are per-browser, so this is how two
+#: tabs hold two identities at once without either touching the shared cookie.
+#:
+#: SECURITY: this is a session-id *reference*, not a bearer. It is honored at
+#: exactly one place — the authorize resolver, the sole reader of `janua_sso` —
+#: and only when its `sid` is BOTH in this browser's signed `janua_sessions`
+#: held-set AND a live `sessions` row. It mints no token and widens no scope: the
+#: worst it can do is front, in one tab, an account the browser already holds and
+#: could already front browser-wide via `switch-session`. A custom request header
+#: is not attachable by a cross-site form or navigation (unlike the ambient
+#: cookie), so it is also a CSRF *gain* over the cookie it overrides. See the
+#: resolver docstring in `routers/v1/oauth_provider.py` for where it slots into
+#: precedence and why it cannot escalate.
+TAB_SESSION_HEADER = "X-Janua-Session"
+
 
 def sessions_cookie_kwargs() -> dict[str, Any]:
     """`set_cookie` kwargs for `janua_sessions`.

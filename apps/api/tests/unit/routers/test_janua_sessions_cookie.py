@@ -216,6 +216,38 @@ class TestSwitchSession:
         payload = jwt_manager.verify_token(value, token_type=SSO_TOKEN_TYPE, verify_audience=False)
         assert payload["sid"] == str(target.id)
 
+    async def test_default_next_carries_no_sid_fragment(self):
+        """Byte-for-byte #624: without return_sid the target has no fragment."""
+        user = _user()
+        target = _session_row(user.id)
+        req = _req({SESSIONS_COOKIE_NAME: mint_sessions_cookie_value([str(target.id)])})
+        body = auth_router.SwitchSessionRequest(sid=str(target.id), next="/")
+        with patch(
+            "app.routers.v1.auth.resolve_session_by_id",
+            AsyncMock(return_value=(user, target)),
+        ):
+            resp = await auth_router.switch_session(body, req, Response(), db=AsyncMock())
+        assert "#" not in resp.headers["location"]
+
+    async def test_return_sid_appends_the_sid_as_a_fragment(self):
+        """Two-tab opt-in: the chosen sid rides back as a URL fragment.
+
+        A fragment is never sent to a server, so the sid leaks to no host log; the
+        tab reads it client-side and asserts it per-tab via X-Janua-Session.
+        """
+        user = _user()
+        target = _session_row(user.id)
+        req = _req({SESSIONS_COOKIE_NAME: mint_sessions_cookie_value([str(target.id)])})
+        body = auth_router.SwitchSessionRequest(
+            sid=str(target.id), next="/", return_sid=True
+        )
+        with patch(
+            "app.routers.v1.auth.resolve_session_by_id",
+            AsyncMock(return_value=(user, target)),
+        ):
+            resp = await auth_router.switch_session(body, req, Response(), db=AsyncMock())
+        assert resp.headers["location"].endswith(f"#janua_sid={target.id}")
+
     async def test_rejects_an_unheld_sid(self):
         req = _req({SESSIONS_COOKIE_NAME: mint_sessions_cookie_value([str(uuid4())])})
         body = auth_router.SwitchSessionRequest(sid=str(uuid4()), next="/")

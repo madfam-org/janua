@@ -1983,6 +1983,19 @@ class SwitchSessionRequest(BaseModel):
     next: Optional[str] = Field(
         None, description="Where to send the browser after switching (validated)"
     )
+    return_sid: bool = Field(
+        False,
+        description=(
+            "Two-tab focus opt-in. When true, the switch redirect carries the "
+            "chosen sid back to the landing page as a URL FRAGMENT "
+            "(`#janua_sid=<sid>`) so a tab can store it in sessionStorage and "
+            "assert it per-tab via the `X-Janua-Session` header. A fragment is "
+            "never sent to any server, so this leaks the sid to no host log; and "
+            "the sid is only ever a reference gated by the held-set, so it "
+            "escalates nothing (see sessions_cookie.py / the authorize resolver). "
+            "Default false keeps the browser-wide chooser flow byte-for-byte."
+        ),
+    )
 
 
 def _held_sids(request: Optional[Request]) -> list[str]:
@@ -2052,6 +2065,18 @@ async def switch_session(
     from fastapi.responses import RedirectResponse
 
     safe_next = validate_redirect_url(getattr(body, "next", None) or "/", default_url="/")
+    if getattr(body, "return_sid", False):
+        # Two-tab focus: hand the chosen sid to the landing page as a FRAGMENT.
+        # Appended AFTER validation, and only to the already-validated same-origin
+        # target, so it cannot be used to smuggle a redirect. A fragment is never
+        # transmitted to a server, so the sid appears in no request line or log;
+        # the tab reads it client-side, stores it in sessionStorage, and strips
+        # it from the address bar. The sid is only a reference the held-set gates
+        # (see the authorize resolver), so surfacing it here escalates nothing.
+        # `validate_redirect_url` returns fragment-free targets for the paths this
+        # flow uses; if one ever carried its own fragment we keep ours last, which
+        # is the one the tab reads.
+        safe_next = f"{safe_next}#janua_sid={session.id}"
     redirect = RedirectResponse(url=safe_next, status_code=302)
     # Re-point the fronted-session cookie on the redirect that is actually sent.
     # `janua_sessions` is left intact — the held set does not change on a switch,
