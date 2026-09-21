@@ -32,6 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.sessions_cookie import (
     SESSIONS_COOKIE_NAME,
+    TAB_SESSION_HEADER,
     read_sessions_cookie,
 )
 from app.auth.sso_cookie import (
@@ -393,10 +394,14 @@ async def get_user_from_cookie_or_header(
     db: AsyncSession,
 ) -> Optional[User]:
     """
-    Get authenticated user from either:
+    Get authenticated user from, in precedence order:
     1. Bearer token in Authorization header (API clients)
-    2. janua_sso cookie (the estate session — J5/R1)
-    3. janua_access_token cookie (the hosted-login browser session)
+    2. X-Janua-Session header (per-tab override — two-tab focus, Layer 3
+       follow-on): honored ONLY when its sid is in this browser's signed
+       janua_sessions held-set AND names a live sessions row. Otherwise ignored
+       and resolution falls through to the cookie — never an escalation.
+    3. janua_sso cookie (the estate session — J5/R1)
+    4. janua_access_token cookie (the hosted-login browser session)
 
     This enables the OAuth authorize endpoint to work with browser sessions
     after the user logs in via the login form, or after a magic link (B1).
@@ -441,12 +446,15 @@ async def get_user_from_cookie_or_header(
     session cannot be shown to be newer, so the estate session keeps precedence —
     as it does on an exact tie. Same user in both cookies: no contest.
 
-    This function is the ONLY reader of `janua_sso`, and its only callers are the
-    authorize flow (`GET /authorize`) and its consent continuation
-    (`POST /consent`). The cookie is never a bearer substitute: it carries
-    `type: "sso_session"`, and every bearer path — `get_current_user`,
-    `_verify_own_access_token` above — verifies `token_type="access"`, so
-    presenting it as `Authorization: Bearer …` fails verification.
+    This function is the ONLY reader of `janua_sso` — and, deliberately, the ONLY
+    reader of the `X-Janua-Session` per-tab header, so that header can never
+    become a general auth input or a second bearer channel. Its only callers are
+    the authorize flow (`GET /authorize`) and its consent continuation
+    (`POST /consent`). Neither the cookie nor the header is a bearer substitute:
+    the cookie carries `type: "sso_session"`, the held-set that gates the header
+    carries `type: "sso_session_set"`, and every bearer path — `get_current_user`,
+    `_verify_own_access_token` above — verifies `token_type="access"`, so neither
+    can be presented as `Authorization: Bearer …`.
     """
     # First, the Authorization header. Unchanged and still first: an API client
     # that attaches a bearer token is naming the identity it means to act as,
@@ -463,6 +471,46 @@ async def get_user_from_cookie_or_header(
                     return user
         except Exception:
             pass  # Intentionally ignoring - JWT verification failure handled by trying cookie auth next
+
+    # Between the bearer and the estate cookie: the per-tab session override
+    # (two-tab focus, the Layer 3 follow-on). A tab that wants to be a different
+    # held account than the browser-wide `janua_sso` pointer sends `sid` in the
+    # `X-Janua-Session` header. It is honored ONLY when that sid is BOTH vouched
+    # for by this browser's signed `janua_sessions` held-set AND still a live,
+    # active `sessions` row of an active user — the same two-part construction
+    # `switch-session` uses, applied per-tab instead of browser-wide.
+    #
+    # Why this cannot escalate (and why it ranks here, just above the cookie it
+    # overrides, never above an explicit bearer):
+    #   - The header carries no secret — a `sid` is the same opaque id the two
+    #     estate cookies already carry, and every use re-reads the row, so a
+    #     revoked/expired sid authenticates nothing (exactly as at `/authorize`).
+    #   - It is useless without the HttpOnly, signed `janua_sessions` cookie
+    #     proving the browser holds that sid: an unheld sid is IGNORED (it falls
+    #     through to `janua_sso` below — never an error, never an escalation), so
+    #     the header adds no authority the browser did not already have.
+    #   - It mints no token. Like `janua_sso`, it only decides *who* the person
+    #     is; every gate after this point (email-verified, MFA, consent) is
+    #     unchanged and decides *whether they may proceed*.
+    # A custom request header is also not attachable by a cross-site form or
+    # top-level navigation, so this is a CSRF gain over the ambient cookie.
+    tab_sid = request.headers.get(TAB_SESSION_HEADER)
+    if tab_sid:
+        try:
+            held = read_sessions_cookie(request.cookies.get(SESSIONS_COOKIE_NAME))
+            if tab_sid in held:
+                tab_user, _tab_session = await resolve_session_by_id(tab_sid, db)
+                if tab_user is not None:
+                    return tab_user
+                logger.info(
+                    "X-Janua-Session names a held sid whose row is not live; ignoring"
+                )
+            else:
+                # A sid not in the signed held-set is refused deliberately: the
+                # header can never front an account this browser was not granted.
+                logger.info("X-Janua-Session sid is not in the held set; ignoring")
+        except Exception:
+            logger.warning("X-Janua-Session header resolution failed", exc_info=True)
 
     # Second, the estate cookie — see the docstring for why it outranks the
     # hosted one. Unlike the header above this is not a token the holder could
