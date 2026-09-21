@@ -2506,29 +2506,19 @@ def _clear_janua_session_cookies(response: RedirectResponse) -> None:
     clear_sso_cookie(response)
 
 
-@logout_router.get("/logout")
-async def oidc_end_session(
-    client_id: str = Query(..., description="OAuth client ID"),
-    post_logout_redirect_uri: str = Query(
-        ..., description="URI to redirect after logout (must match client registration)"
-    ),
-    state: Optional[str] = Query(None, description="Opaque state forwarded to redirect URI"),
-    db: AsyncSession = Depends(get_db),
-    request: Request = None,
-):
-    """
-    OIDC RP-Initiated Logout endpoint (end_session_endpoint).
+async def _perform_oidc_end_session(
+    client_id: str,
+    post_logout_redirect_uri: str,
+    state: Optional[str],
+    db: AsyncSession,
+    request: Optional[Request],
+) -> RedirectResponse:
+    """Shared body for the GET and POST forms of RP-Initiated Logout.
 
-    Clears Janua session cookies and redirects to the registered post-logout URI.
-
-    SSO (J5/R1): deleting `janua_sso` is the cosmetic half. The half that matters
-    is revoking the `sessions` row it references — a copy of the cookie taken
-    before logout must stop working, not merely disappear from this browser. The
-    cookie's signature is verified before anything is revoked, so a forged value
-    cannot end someone else's session.
-
-    `request` is declared last and optional so FastAPI still injects it on the
-    real route while the existing keyword-only callers keep working unchanged.
+    Clears Janua session cookies, revokes the `janua_sso` row, and 302-redirects
+    to an allowlisted `post_logout_redirect_uri`. Both the GET route (used by a
+    top-level browser navigation) and the POST route (used by a form submission)
+    call this so the two verbs cannot drift apart in their security checks.
     """
     client = await _get_oauth_client(client_id, db)
     if not client or not client.is_active:
@@ -2544,6 +2534,9 @@ async def oidc_end_session(
         except json.JSONDecodeError:
             allowed_uris = []
 
+    # SECURITY (CWE-601): the same open-redirect discipline the authorize
+    # endpoint documents — an unlisted post_logout_redirect_uri is refused, never
+    # redirected to.
     if not validate_post_logout_redirect_uri(post_logout_redirect_uri, allowed_uris):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -2556,8 +2549,8 @@ async def oidc_end_session(
         redirect_url = f"{redirect_url}{separator}{urlencode({'state': state})}"
 
     # Revoke before clearing: the cookie is the only handle we have on the row.
-    # `request` is optional (and last) so the existing direct callers and tests,
-    # which invoke this as a plain coroutine with keyword args, keep working.
+    # `request` is optional so the existing direct callers and tests, which invoke
+    # the wrappers as plain coroutines with keyword args, keep working.
     try:
         if request is not None and await revoke_sso_cookie_session(
             request.cookies.get(SSO_COOKIE_NAME), db
@@ -2569,3 +2562,60 @@ async def oidc_end_session(
     response = RedirectResponse(url=redirect_url, status_code=302)
     _clear_janua_session_cookies(response)
     return response
+
+
+@logout_router.get("/logout")
+async def oidc_end_session(
+    client_id: str = Query(..., description="OAuth client ID"),
+    post_logout_redirect_uri: str = Query(
+        ..., description="URI to redirect after logout (must match client registration)"
+    ),
+    state: Optional[str] = Query(None, description="Opaque state forwarded to redirect URI"),
+    db: AsyncSession = Depends(get_db),
+    request: Request = None,
+):
+    """
+    OIDC RP-Initiated Logout endpoint (end_session_endpoint), GET form.
+
+    Clears Janua session cookies and redirects to the registered post-logout URI.
+    The GET form is what a top-level browser navigation uses — the only shape that
+    reliably lands the `janua_sso` (Domain=.madfam.io) deletion on the browser,
+    since an XHR from any single estate host cannot delete an estate-wide cookie.
+
+    SSO (J5/R1): deleting `janua_sso` is the cosmetic half. The half that matters
+    is revoking the `sessions` row it references — a copy of the cookie taken
+    before logout must stop working, not merely disappear from this browser. The
+    cookie's signature is verified before anything is revoked, so a forged value
+    cannot end someone else's session.
+
+    `request` is declared last and optional so FastAPI still injects it on the
+    real route while the existing keyword-only callers keep working unchanged.
+    """
+    return await _perform_oidc_end_session(
+        client_id, post_logout_redirect_uri, state, db, request
+    )
+
+
+@logout_router.post("/logout")
+async def oidc_end_session_post(
+    client_id: str = Form(..., description="OAuth client ID"),
+    post_logout_redirect_uri: str = Form(
+        ..., description="URI to redirect after logout (must match client registration)"
+    ),
+    state: Optional[str] = Form(None, description="Opaque state forwarded to redirect URI"),
+    db: AsyncSession = Depends(get_db),
+    request: Request = None,
+):
+    """
+    OIDC RP-Initiated Logout endpoint (end_session_endpoint), POST form.
+
+    OIDC RP-Initiated Logout 1.0 §2 permits either GET or POST at the
+    end_session_endpoint; the POST form reads its parameters from an
+    `application/x-www-form-urlencoded` body. Same allowlist validation, same
+    cookie clearing, and same `sessions`-row revocation as the GET form — they
+    share `_perform_oidc_end_session` so the two verbs cannot diverge on any
+    security check.
+    """
+    return await _perform_oidc_end_session(
+        client_id, post_logout_redirect_uri, state, db, request
+    )
