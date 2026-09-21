@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Account switching at the OIDC provider** (L1–L3): the identity-provider half of MADFAM-wide account switching. Every platform inherits it through Janua's honored `prompt` values, except Crea Tu Mundo MAP (single-account by design). See [architecture/SILENT_SSO_SESSION.md](architecture/SILENT_SSO_SESSION.md) → *Account switching (L1–L3)*.
+  - **POST form of the OIDC RP-initiated logout** (`end_session`) endpoint ([#622](https://github.com/madfam-org/janua/pull/622)) — same validation and row-revoke-then-clear-cookie sequence as the existing GET form.
+  - **`prompt=login` and `prompt=select_account` honored at `/authorize`** ([#623](https://github.com/madfam-org/janua/pull/623)) — previously only `prompt=none` changed behaviour. `login` forces the login form (never auto-issues a code off a valid cookie); `select_account` renders a chooser over held accounts and degrades to `login` when none is held. MFA and consent gates preserved under every value.
+  - **Multi-account estate sessions** ([#625](https://github.com/madfam-org/janua/pull/625)) — a `janua_sessions` companion cookie (signed, `type: "sso_session_set"`, session-id references only, no bearer) remembers the other accounts a browser holds so a second sign-in adds rather than evicts; `switch-session` / `sign-out-one` / `sign-out-all` endpoints re-point or clear the fronted account. Hold-many-front-one.
+  - **Per-tab session focus** ([#626](https://github.com/madfam-org/janua/pull/626)) — the `X-Janua-Session` header lets one tab front a different held account than the browser-wide cookie. Non-escalating: honored only when its `sid` is both in the signed held-set and a live session row; otherwise ignored. No migration.
 - **Auth Component Overhaul** (`@janua/ui`): Major UI SDK upgrade reaching feature parity with Clerk/Auth0/WorkOS
   - `JanuaThemeProvider` — React context for runtime theming with preset support (`default`, `madfam`, `solarpunk`), dark mode via `next-themes`, and granular color overrides
   - `JanuaAuthProvider` — Config-driven auth UI provider that fetches `JanuaAuthConfig` from API or accepts static config, enabling tenant customization from the Janua dashboard

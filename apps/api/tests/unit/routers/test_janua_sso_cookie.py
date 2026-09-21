@@ -641,6 +641,25 @@ class TestAuthorizeAcceptsTheEstateCookie:
         assert "/api/v1/auth/login" in resp.headers["location"]
         assert "code=" not in resp.headers["location"]
 
+    async def test_prompt_none_combined_with_login_forces_interactive(self):
+        """`none` is mutually exclusive with `login`/`select_account` per OIDC.
+
+        When a client illegally combines them, the interactive force must win:
+        silent auth is refused (`silent_auth = False`) so the browser is sent to
+        the login form rather than either auto-issuing a code off the still-valid
+        cookie OR short-circuiting to `error=login_required`. This pins the
+        documented `if force_login: silent_auth = False` resolution.
+        """
+        user = _user()
+        session = _session_row(user.id)
+        resp = await self._run("none login", user=user, session=session)
+        assert resp.status_code == 302
+        loc = resp.headers["location"]
+        assert "/api/v1/auth/login" in loc
+        # Neither silent outcome may leak through the illegal combination.
+        assert "code=" not in loc
+        assert "error=login_required" not in loc
+
     async def test_absent_prompt_still_reuses_the_session(self):
         """Regression: absent prompt is unchanged — a valid cookie issues a code."""
         user = _user()
