@@ -308,9 +308,35 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
             )
             results.append(result)
 
-        # Use the last result for the response (all should succeed or fail together)
-        last_result = results[-1] if results else None
-        message_id = last_result.message_id if last_result else None
+        # A Resend rejection comes back as a result with status "failed"/"bounced"
+        # (a VALUE, not an exception), so inspecting only for exceptions would
+        # report success:true for mail that never left. Callers (e.g. crea-map
+        # money mail) must be able to learn a send did not land, so treat any
+        # non-delivered recipient as a failure of the whole request.
+        # Delivered states: sent, delivered, disabled (dev/no-op console/sink).
+        delivered_states = {"sent", "delivered", "disabled"}
+        failed = [r for r in results if r.status not in delivered_states]
+        message_id = results[-1].message_id if results else None
+
+        if failed:
+            failed_states = ", ".join(sorted({r.status for r in failed}))
+            logger.error(
+                "Email send had failed recipients",
+                message_id=message_id,
+                source_app=request.source_app,
+                source_type=request.source_type,
+                recipients=len(request.to),
+                failed_recipients=len(failed),
+                failed_states=failed_states,
+            )
+            return EmailResponse(
+                success=False,
+                message_id=message_id,
+                error=(
+                    f"{len(failed)} of {len(request.to)} recipient(s) failed "
+                    f"(status: {failed_states})"
+                ),
+            )
 
         logger.info(
             "Email sent",
