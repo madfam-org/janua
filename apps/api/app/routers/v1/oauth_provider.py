@@ -1063,11 +1063,16 @@ async def authorize_get(
     prompt: Optional[str] = Query(
         None,
         description=(
-            "OIDC prompt parameter. Currently honored: 'none' (silent auth — "
-            "issue code immediately if a valid Janua session cookie is present, "
-            "otherwise redirect with error=login_required per OIDC spec). "
-            "Any other value is ignored; flow proceeds as the default "
-            "interactive path."
+            "OIDC prompt parameter — a space-delimited set. Honored: 'none' "
+            "(silent auth: issue a code immediately if a valid Janua session "
+            "cookie is present, otherwise redirect with error=login_required); "
+            "'login' (force the interactive login form even when the session "
+            "cookie is valid — never auto-issue a code); 'select_account' "
+            "(render the account chooser; with only one known session it degrades "
+            "to 'login'). 'none' is mutually exclusive with the others; if "
+            "combined, the interactive force wins. Absent: the default "
+            "interactive path (reuse a valid session, otherwise show login). "
+            "MFA and consent gates are preserved under every value."
         ),
     ),
     login_method: Optional[str] = Query(
@@ -1105,7 +1110,22 @@ async def authorize_get(
     """
     # Get user from header or cookie (supports browser-based OAuth flow)
     current_user = await get_user_from_cookie_or_header(request, db)
-    silent_auth = (prompt or "").strip().lower() == "none"
+
+    # OIDC `prompt` is a space-delimited SET of values, not a single token.
+    prompt_values = {p for p in (prompt or "").strip().lower().split() if p}
+    silent_auth = "none" in prompt_values
+    # `prompt=login` forces re-authentication; `prompt=select_account` asks for an
+    # account chooser. With no chooser yet (Layer 3), `select_account` degrades to
+    # `login` — the spec-permitted fallback when the AS cannot offer a selection.
+    # Either one forces the interactive login form even when a valid session
+    # cookie is present. `none` is mutually exclusive with these per OIDC; if a
+    # client sends `none` with `login`/`select_account`, silent auth is refused
+    # below and the force applies, which is the safe (interactive) resolution.
+    force_login = ("login" in prompt_values) or ("select_account" in prompt_values)
+    # If a client illegally combines `none` with `login`/`select_account`, the
+    # interactive force wins — never auto-issue a code when re-auth was demanded.
+    if force_login:
+        silent_auth = False
 
     # Validate response_type
     if response_type != "code":
@@ -1167,10 +1187,24 @@ async def authorize_get(
             client_validated=True,
         )
 
-    # If user not authenticated, redirect to login
-    if not current_user:
+    # If user not authenticated — or re-auth was demanded via prompt=login /
+    # prompt=select_account — send the browser through the interactive login form.
+    # A forced re-auth must NOT auto-issue a code off a still-valid session cookie;
+    # the login form is where the second factor and a fresh credential are proven,
+    # so this path preserves the MFA and consent gates (login re-runs them) rather
+    # than skipping straight to a code.
+    if not current_user or force_login:
+        if force_login:
+            logger.info(
+                "prompt forcing interactive login despite a session",
+                prompt_value=(
+                    "select_account" if "select_account" in prompt_values else "login"
+                ),
+                client_id=client_id,
+            )
         # OIDC prompt=none: must NOT prompt — return error and let the caller
-        # decide whether to fall back to interactive flow.
+        # decide whether to fall back to interactive flow. (Unreachable when
+        # force_login is set, since that clears silent_auth above.)
         if silent_auth:
             logger.info(
                 "prompt=none but no Janua session — emitting login_required",
