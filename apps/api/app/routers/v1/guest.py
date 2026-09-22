@@ -83,20 +83,29 @@ def _mint_guest_jwt(
     Uses the same JWT infrastructure as regular tokens but with the
     ``guest`` role and ``type=guest_access`` claim.
     """
+    from app.config import settings as _settings
     from app.core.jwt_manager import jwt_manager
 
-    expires_at = datetime.now(UTC) + timedelta(hours=ttl_hours)
+    now = datetime.now(UTC)
+    expires_at = now + timedelta(hours=ttl_hours)
 
-    token = jwt_manager.create_token(
-        data={
-            "sub": guest_id,
-            "roles": ["guest"],
-            "name": display_name,
-            "org_id": org_id,
-            "type": "guest_access",
-        },
-        expires_delta=timedelta(hours=ttl_hours),
-    )
+    # `jwt_manager` has no `create_token(data=, expires_delta=)` method — that call
+    # was a no-op that would raise AttributeError at runtime (it was never exercised
+    # by tests, which only cover the disabled/validation paths). Build the claims
+    # explicitly and sign with `encode_token`, the same primitive the service-token
+    # minter uses, so iss/aud/exp/iat are set here rather than relying on a helper.
+    claims = {
+        "sub": guest_id,
+        "roles": ["guest"],
+        "name": display_name,
+        "org_id": org_id,
+        "type": "guest_access",
+        "iss": _settings.JWT_ISSUER,
+        "aud": _settings.JWT_AUDIENCE,
+        "iat": int(now.timestamp()),
+        "exp": int(expires_at.timestamp()),
+    }
+    token = jwt_manager.encode_token(claims)
     return token, expires_at
 
 
