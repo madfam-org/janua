@@ -5,7 +5,6 @@ Replaces SendGrid with Resend for better developer experience and reliability
 
 import json
 import secrets
-import threading
 from dataclasses import dataclass
 from datetime import datetime
 from email.utils import formataddr
@@ -19,24 +18,11 @@ import structlog
 from app.config import settings
 from app.services.email_i18n import build_email_environment
 from app.services.email_sender import binding_for, sender_for_address
+from app.services.resend_transport import send_on_account
 from app.services.sender_binding import PROVIDER_SMTP
 from app.services.sender_credentials import SenderCredentialError, resolve_credential
 
-# Optional import for resend - gracefully handle if not installed
-try:
-    import resend
-
-    RESEND_AVAILABLE = True
-except ImportError:
-    RESEND_AVAILABLE = False
-    resend = None
-
 logger = structlog.get_logger()
-
-# Serialises the `resend.api_key` swap performed when a binding sends on a
-# TENANT's own provider account. See the send path for why the SDK forces a
-# global swap rather than a per-call credential.
-_ACCOUNT_LOCK = threading.Lock()
 
 
 class EmailPriority(Enum):
@@ -78,10 +64,6 @@ class ResendEmailService:
         # via t()/lang(), which must be registered on every environment
         # that loads this directory.
         self.jinja_env = build_email_environment(self.template_dir)
-
-        # Initialize Resend client
-        if settings.RESEND_API_KEY:
-            resend.api_key = settings.RESEND_API_KEY
 
     async def send_email(
         self,
@@ -139,7 +121,7 @@ class ResendEmailService:
         """
 
         if not settings.EMAIL_ENABLED:
-            logger.warning(f"Email service disabled, would send: {subject} to {to_email}")
+            logger.warning("Email service disabled; no message transmitted")
             return EmailDeliveryStatus(
                 message_id=f"disabled-{secrets.token_hex(8)}",
                 status="disabled",
@@ -177,9 +159,8 @@ class ResendEmailService:
             # is from; the binding says whose provider account carries it. They
             # are separate so a vCTO client can move to their own Resend
             # account without a code change — owner directive 2026-09-06. A
-            # binding on MADFAM's account resolves to None here and the module
-            # -level `resend.api_key` set in __init__ is used, byte-identical
-            # to the path that ran before this existed.
+            # binding on MADFAM's account uses the platform credential. Every
+            # adapter selects its account under the shared transport lock.
             binding = binding_for(redirect_url=redirect_url, org_id=org_id)
             api_key_override: Optional[str] = None
             if binding.provider == PROVIDER_SMTP:
@@ -276,36 +257,13 @@ class ResendEmailService:
             if metadata:
                 params["headers"]["X-Metadata"] = str(metadata)
 
-            # Send via Resend.
-            #
-            # WHY A LOCK AND A SWAP RATHER THAN A PER-CALL KEY. The Resend
-            # Python SDK reads the API key from the MODULE GLOBAL `resend.api_key`
-            # at request time (`resend/request.py`, the Authorization header);
-            # its `SendOptions` accepts only `idempotency_key`, so there is no
-            # supported per-call credential. Sending on a tenant's own account
-            # therefore means setting that global for the duration of one call.
-            #
-            # That is process-wide state, and this service runs inside FastAPI
-            # BackgroundTasks on a threadpool, so two concurrent sends could
-            # otherwise interleave and mail one tenant's message on another
-            # tenant's account. `_ACCOUNT_LOCK` serialises exactly the swap and
-            # the call, and the `finally` restores the previous value on every
-            # path including an exception. A send on MADFAM's account takes
-            # neither the lock nor the swap and is byte-identical to before.
-            if api_key_override:
-                with _ACCOUNT_LOCK:
-                    previous_key = resend.api_key
-                    resend.api_key = api_key_override
-                    try:
-                        response = resend.Emails.send(params)
-                    finally:
-                        resend.api_key = previous_key
-            else:
-                response = resend.Emails.send(params)
+            # All adapters share the lock, including platform sends and service
+            # construction. No request can inherit another tenant's SDK key.
+            response = send_on_account(params, api_key_override or settings.RESEND_API_KEY)
 
             # Resend returns {"id": "..."} on success
             delivery_status = EmailDeliveryStatus(
-                message_id=response.get("id", message_id),
+                message_id=response["id"],
                 status="sent",
                 timestamp=datetime.utcnow(),
                 metadata=metadata,
@@ -318,7 +276,6 @@ class ResendEmailService:
             logger.info(
                 "Email sent successfully via Resend",
                 message_id=delivery_status.message_id,
-                to_email=to_email,
             )
             return delivery_status
 
@@ -328,7 +285,7 @@ class ResendEmailService:
                 message_id=message_id,
                 status="failed",
                 timestamp=datetime.utcnow(),
-                error_message=str(e),
+                error_message="Email provider send failed",
                 metadata=metadata,
             )
 
@@ -338,8 +295,7 @@ class ResendEmailService:
             logger.error(
                 "Failed to send email via Resend",
                 message_id=message_id,
-                to_email=to_email,
-                error=str(e),
+                error_type=type(e).__name__,
             )
             return delivery_status
 
@@ -353,13 +309,12 @@ class ResendEmailService:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> EmailDeliveryStatus:
         """Console logging for development"""
-        logger.info(
-            f"[CONSOLE EMAIL] To: {to_email} | Subject: {subject} | ID: {message_id}",
-            html_preview=html_content[:200] + "..." if len(html_content) > 200 else html_content,
-        )
-
+        logger.info("Email simulated; no message transmitted", message_id=message_id)
         return EmailDeliveryStatus(
-            message_id=message_id, status="sent", timestamp=datetime.utcnow(), metadata=metadata
+            message_id=message_id,
+            status="simulated",
+            timestamp=datetime.utcnow(),
+            metadata=metadata,
         )
 
     async def _track_delivery(self, delivery_status: EmailDeliveryStatus):

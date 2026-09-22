@@ -26,6 +26,8 @@ import base64
 from typing import Any, Dict, List
 
 import pytest
+
+from app.services import resend_transport
 from httpx import ASGITransport, AsyncClient
 
 import app.services.resend_email_service as resend_module
@@ -68,8 +70,8 @@ def capture_resend(monkeypatch):
         return {"id": "resend-fixture-id"}
 
     # resend may be None if the SDK is absent; the send path needs it here.
-    assert resend_module.resend is not None, "resend SDK must be installed for this test"
-    monkeypatch.setattr(resend_module.resend.Emails, "send", staticmethod(_fake_send))
+    assert resend_transport.resend is not None, "resend SDK must be installed for this test"
+    monkeypatch.setattr(resend_transport.resend.Emails, "send", staticmethod(_fake_send))
     return captured
 
 

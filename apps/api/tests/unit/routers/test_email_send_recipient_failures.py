@@ -37,9 +37,7 @@ def _mock_resend(monkeypatch, status: str) -> None:
     a result with the given status."""
     instance = AsyncMock()
     instance.send_email = AsyncMock(return_value=_Result(status=status))
-    monkeypatch.setattr(
-        "app.routers.v1.email.ResendService", lambda *a, **k: instance
-    )
+    monkeypatch.setattr("app.routers.v1.email.ResendService", lambda *a, **k: instance)
 
 
 @pytest.fixture()
@@ -98,9 +96,92 @@ async def test_sent_recipient_returns_success_true(monkeypatch, client):
 
 
 @pytest.mark.asyncio
-async def test_disabled_state_is_treated_as_success(monkeypatch, client):
-    """The dev/no-op 'disabled' state (no Resend key) is not a failure."""
+async def test_disabled_state_is_reported_as_simulation(monkeypatch, client):
+    """A no-op never certifies transmission to the recipient."""
     _mock_resend(monkeypatch, status="disabled")
     async with client as c:
         resp = await c.post(SEND_URL, json=_body())
-    assert resp.json()["success"] is True
+    assert resp.json()["success"] is False
+    assert resp.json()["delivery_status"] == "simulated"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "send_status,expected",
+    [
+        ("sent", "accepted"),
+        ("delivered", "accepted"),
+        ("failed", "failed"),
+        ("bounced", "failed"),
+        ("pending", "failed"),
+        ("disabled", "simulated"),
+        ("simulated", "simulated"),
+    ],
+)
+async def test_template_reports_the_provider_outcome(monkeypatch, client, send_status, expected):
+    _mock_resend(monkeypatch, status=send_status)
+    async with client as c:
+        response = await c.post(
+            SEND_URL + "-template",
+            json={
+                "to": ["persona01@example.com"],
+                "template": "map/pago-confirmado",
+                "variables": {"periodo": "septiembre de 2026"},
+                "source_app": "crea-map",
+            },
+        )
+    assert response.status_code == 200
+    assert response.json()["delivery_status"] == expected
+    assert response.json()["success"] is (expected == "accepted")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", [SEND_URL, SEND_URL + "-template"])
+async def test_no_recipient_is_rejected_before_sending(monkeypatch, client, endpoint):
+    _mock_resend(monkeypatch, status="sent")
+    body = (
+        _body(to=[])
+        if endpoint == SEND_URL
+        else {
+            "to": [],
+            "template": "map/pago-confirmado",
+            "variables": {"periodo": "fixture"},
+            "source_app": "crea-map",
+        }
+    )
+    async with client as c:
+        response = await c.post(endpoint, json=body)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_template_partial_failure_is_not_success(monkeypatch, client):
+    instance = AsyncMock()
+    instance.send_email = AsyncMock(side_effect=[_Result("sent"), _Result("failed")])
+    monkeypatch.setattr("app.routers.v1.email.ResendService", lambda: instance)
+    async with client as c:
+        response = await c.post(
+            SEND_URL + "-template",
+            json={
+                "to": ["persona01@example.com", "persona02@example.com"],
+                "template": "map/pago-confirmado",
+                "variables": {"periodo": "fixture"},
+                "source_app": "crea-map",
+            },
+        )
+    assert response.json()["success"] is False
+    assert response.json()["delivery_status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_provider_exception_does_not_disclose_recipient_or_payload(
+    monkeypatch, client, caplog
+):
+    instance = AsyncMock()
+    instance.send_email = AsyncMock(side_effect=RuntimeError("private-provider-payload-fixture"))
+    monkeypatch.setattr("app.routers.v1.email.ResendService", lambda: instance)
+    async with client as c:
+        response = await c.post(SEND_URL, json=_body())
+    assert response.json()["success"] is False
+    assert "private-provider-payload-fixture" not in response.text
+    assert "private-provider-payload-fixture" not in caplog.text

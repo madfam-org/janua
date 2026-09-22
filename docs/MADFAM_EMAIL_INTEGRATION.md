@@ -2,6 +2,37 @@
 
 This document describes how to deploy and test the centralized Janua email service for all MADFAM applications.
 
+## Send receipt contract (2026-09-22)
+
+`POST /send` and `POST /send-template` return the same receipt:
+
+| `delivery_status` | `success` | Meaning |
+|---|---|---|
+| `accepted` | `true` | Every requested recipient has a provider acceptance result and message ID. This is not an inbox-delivery receipt. |
+| `simulated` | `false` | Email is disabled or using the development console. Nothing was transmitted. |
+| `failed` | `false` | A recipient was rejected, the provider failed, or no acceptance receipt was returned. |
+
+The `to` list must be nonempty. A partially accepted batch is `failed`; do not
+blindly replay the whole batch because some recipients may already have been
+accepted. The current response retains the final provider `message_id` for a
+successful batch. Consumers requiring individual receipts should send one
+recipient per request. A 2xx response alone is never evidence of acceptance.
+
+This intentionally changes the old disabled/console success behavior. Rehearsal
+clients must recognize `simulated` and must not stamp a real sent/delivered date.
+Delivery and bounce reconciliation, durable retries and provider idempotency
+remain separate work; this change does not establish exactly-once delivery.
+
+Both Python Resend adapters use the shared account transport. Service construction
+never changes the SDK's global credential. All platform and tenant sends select
+an explicit account under the same lock and restore the prior SDK state even on
+failure. Provider calls without an ID are rejected. Simulation and provider-error
+logs omit recipient addresses, message contents and provider exception payloads.
+
+Validation uses provider stubs and controlled concurrent threads; no real mail
+is sent. Promote through the normal isolated staging/soak workflow. Verify real
+provider acceptance only with an explicitly authorized test recipient.
+
 ## Architecture Overview
 
 ```

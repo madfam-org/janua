@@ -16,8 +16,9 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-import resend
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+
+from app.services.resend_transport import send_on_account
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +80,6 @@ class ResendService:
 
         if not self.api_key:
             raise ValueError("Resend API key is required")
-
-        # Initialize Resend client
-        resend.api_key = self.api_key
 
         # Initialize template engine
         template_path = template_dir or os.path.join(
@@ -163,7 +161,7 @@ class ResendService:
                 params["tags"] = tags
 
             # Send email
-            response = resend.Emails.send(params)
+            response = send_on_account(params, self.api_key)
 
             # Log success with redacted recipient - sanitized before logging
             redacted = _redact_emails(recipients)  # nosec B608 - data is redacted before logging

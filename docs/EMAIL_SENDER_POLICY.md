@@ -544,3 +544,17 @@ One field. Set CTM's `account` back to `madfam`, `credential_ref` to
 account again, gated by the global `RESEND_VERIFIED_DOMAINS` as in Phase 2.
 Deleting the secret alone is *not* a rollback: it degrades CTM to the platform
 sender rather than restoring the branded MADFAM-account send.
+
+### Provider account isolation (2026-09-22)
+
+All Python Resend send adapters now pass an explicit account credential to
+`app/services/resend_transport.py`. Only that transport may swap the SDK's
+process-global key. Platform sends use the same lock as tenant sends, and
+constructors do not mutate the key. This prevents concurrent platform sends or
+new service instances from borrowing or overwriting an in-flight tenant account.
+The selected credential is restored in `finally`, including provider failure.
+
+Provider acceptance requires a nonempty message ID. Disabled/console sends are
+simulated, with no recipient or body in logs. The internal email API's receipt
+contract is documented in `MADFAM_EMAIL_INTEGRATION.md`; acceptance is distinct
+from inbox delivery and from exactly-once retry guarantees.
