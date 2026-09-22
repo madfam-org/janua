@@ -70,9 +70,6 @@ class ToolSpec:
     body_is_whole: bool = False  # requestBody is a single object == the body
 
 
-_HTTP_METHODS = ("get", "put", "post", "delete", "patch", "options", "head")
-
-
 class GenerationError(RuntimeError):
     """Raised when the OpenAPI document cannot be mapped for a declared endpoint."""
 

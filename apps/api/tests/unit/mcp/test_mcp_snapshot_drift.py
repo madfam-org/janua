@@ -30,6 +30,7 @@ def test_committed_snapshot_matches_live_app():
         full = module._load_full_openapi()
     except Exception as exc:  # pragma: no cover - depends on install
         pytest.skip(f"live app not importable ({type(exc).__name__}); run the full-deps CI job")
+        return  # unreachable (pytest.skip raises); keeps `full` provably bound below
     rendered = module._serialize(module._prune(full))
     current = module.SNAPSHOT_PATH.read_text(encoding="utf-8")
     assert current == rendered, (
