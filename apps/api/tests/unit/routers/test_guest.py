@@ -87,3 +87,41 @@ class TestInviteValidation:
         if resp.status_code == 200:
             data = resp.json()
             assert data["valid"] is False
+
+
+class TestMintGuestJwt:
+    """Directly exercise _mint_guest_jwt against the REAL jwt_manager.
+
+    Regression guard: this helper previously called ``jwt_manager.create_token``,
+    a method that does not exist on JWTManager — it would AttributeError at
+    runtime, but no test ever called _mint_guest_jwt (the other tests cover only
+    disabled/validation paths), so it stayed green. Decoding the minted token
+    here would have caught it, and guards the encode_token-based fix.
+    """
+
+    def test_mints_a_decodable_guest_token_with_expected_claims(self):
+        from jose import jwt
+
+        from app.core.jwt_manager import jwt_manager
+        from app.routers.v1.guest import _mint_guest_jwt
+
+        token, expires_at = _mint_guest_jwt(
+            guest_id="guest-123",
+            display_name="Ada Lovelace",
+            org_id="org-xyz",
+            ttl_hours=2,
+        )
+        assert isinstance(token, str) and token.count(".") == 2  # a real JWT
+
+        claims = jwt.decode(
+            token,
+            jwt_manager._get_verification_key(),
+            algorithms=[jwt_manager.algorithm],
+            options={"verify_aud": False, "verify_iss": False},
+        )
+        assert claims["sub"] == "guest-123"
+        assert claims["roles"] == ["guest"]
+        assert claims["name"] == "Ada Lovelace"
+        assert claims["org_id"] == "org-xyz"
+        assert claims["type"] == "guest_access"
+        assert claims["exp"] > claims["iat"]
