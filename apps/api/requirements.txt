@@ -76,6 +76,7 @@ structlog>=24.4.0  # Updated
 webauthn>=2.2.0  # Updated for security
 slowapi>=0.1.9
 httpx>=0.28.0  # Updated for security fixes
+mcp>=2.2.0  # Model Context Protocol SDK — powers the janua MCP server (app/mcp); brings its own httpx2, no conflict with httpx above
 python-dateutil>=2.9.0  # Updated
 pytz>=2024.2  # Updated
 psutil>=6.1.0  # Updated
