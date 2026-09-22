@@ -81,6 +81,41 @@ at `/authorize`. It is the only session that reaches the browser across the
 estate, because products exchange magic links server-to-server and Node drops
 the `Set-Cookie` on a fetch response.
 
+## Email API surface — `apps/api/app/routers/v1/email.py`
+
+Two internal send endpoints under `/api/v1/internal/email/`:
+
+- `POST /send` — raw email: caller supplies `html`/`text`, subject, recipients.
+- `POST /send-template` — renders a registry template with `variables`.
+
+Also `GET /templates` (lists the registry live) and `GET /health` (reports
+`templates_available` as `len(EMAIL_TEMPLATES)`, a live count).
+
+The template registry is two paired dicts in the same file: `EMAIL_TEMPLATES`
+(id → description, `required`/`optional` variables, `subject`, optional
+`default_from_email`) and `TEMPLATE_FILENAMES` (id → whitelisted HTML filename
+under `templates/emails/`). An id must be in both. A template with no HTML file
+falls back to `generate_fallback_html()` rather than erroring.
+
+**Two render paths — do not conflate them.** The `send-template` route renders
+with **naive `{{key}}` string substitution** (`render_template()`): no Jinja
+conditionals, loops, or auto-escaping. Anything conditional is composed in
+Python first (e.g. `map/pago-confirmado` derives `{{sesiones_detalle}}` from an
+optional count in `_derive_template_variables()`). The **Jinja2** path
+(`FileSystemLoader`, autoescape) lives in `services/email_i18n.py` and
+`services/email/resend_service.py` and renders the localized auth/magic-link
+mail via `email_service.py` — a different template set, not this route.
+
+**Sender resolution** is not the caller's to dictate: the From line is chosen by
+`services/email_sender.py` under `EMAIL_SENDER_POLICY.md` (THE RULE above). A
+caller's explicit `from_email` is honoured only from a verified domain; a
+template may declare a `default_from_email` (e.g. `billing/cfdi` →
+`facturacion@madfam.io`); otherwise the sender resolves from `org_id` or the
+`redirect_url` host (e.g. `map/pago-confirmado` → Crea Tu Mundo). `attachments`
+on either endpoint are forwarded to Resend (used for CFDI XML+PDF delivery).
+
+Full walkthrough and the template table: `docs/MADFAM_EMAIL_INTEGRATION.md`.
+
 ## Repo entrypoints detected
 
 - `README.md`
