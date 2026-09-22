@@ -14,6 +14,11 @@ Compact LLM context index for this repository.
 - `docs/EMAIL_SENDER_POLICY.md` — who our email comes from. THE RULE (a client
   display name never pairs with a MADFAM address), the vCTO gate, and how a
   tenant sends on its own provider account.
+- `docs/MADFAM_EMAIL_INTEGRATION.md` — the internal email API surface: the two
+  send endpoints (`POST /send` raw, `POST /send-template` from the registry),
+  the template registry, the naive-vs-Jinja render split, and sender resolution.
+  The registry itself is `EMAIL_TEMPLATES` + `TEMPLATE_FILENAMES` in
+  `apps/api/app/routers/v1/email.py`, and `GET /templates` returns it live.
 - `docs/architecture/SILENT_SSO_SESSION.md` — one browser session across the
   estate: the `janua_sso` cookie, `prompt=none`, and the hosted hop for hosts
   outside the cookie domain.
