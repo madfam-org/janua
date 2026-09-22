@@ -100,6 +100,7 @@ class ResendEmailService:
         from_name: Optional[str] = None,
         redirect_url: Optional[str] = None,
         org_id: Optional[str] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
     ) -> EmailDeliveryStatus:
         """
         Send email via Resend API
@@ -123,6 +124,15 @@ class ResendEmailService:
                 yourself is harmless, claiming a domain is not)
             redirect_url: Tenant signal; its host selects the tenant sender
             org_id: Tenant signal that outranks the host when the caller knows it
+            attachments: File attachments to carry on the message. Each entry is
+                a dict already in Resend's shape — ``{"filename": str,
+                "content": <base64 str>, "content_type"?: str}`` (Resend's
+                ``Attachment`` TypedDict; ``content`` may also be a list of
+                ints, but Janua's EmailAttachment model carries base64 strings).
+                This is what unblocks CFDI delivery (stamped XML + PDF). When
+                omitted or empty the ``attachments`` key is never added to the
+                Resend payload, so a message with no files is byte-identical to
+                the pre-attachment path.
 
         Returns:
             EmailDeliveryStatus object with delivery information
@@ -248,6 +258,17 @@ class ResendEmailService:
 
             if tags:
                 params["tags"] = tags
+
+            # Attachments. The entries arrive already mapped to Resend's
+            # `Attachment` shape by the router (filename / base64 content /
+            # optional content_type), so this is a straight pass-through. The
+            # key is added ONLY when there is at least one file, so an ordinary
+            # message's payload is unchanged. This is the wiring that was
+            # missing: the field existed on the request model but never reached
+            # `resend.Emails.send`, so callers' attachments were silently
+            # dropped.
+            if attachments:
+                params["attachments"] = attachments
 
             # Add custom headers for tracking
             params["headers"] = {"X-Message-ID": message_id, "X-Priority": priority.value}

@@ -32,6 +32,29 @@ class EmailAttachment(BaseModel):
     content_type: str = "application/octet-stream"
 
 
+def _attachments_for_resend(
+    attachments: Optional[List["EmailAttachment"]],
+) -> Optional[List[Dict[str, str]]]:
+    """Map request EmailAttachment models to Resend's Attachment shape.
+
+    Resend's Python SDK (resend>=2.5) expects each attachment as
+    ``{"filename": str, "content": <base64 str | list[int]>, "content_type"?:
+    str}``. Janua's EmailAttachment already carries base64 ``content``, so this
+    is a field-name-preserving copy. Returns ``None`` for an absent/empty list
+    so the service never adds an empty ``attachments`` key to the payload.
+    """
+    if not attachments:
+        return None
+    return [
+        {
+            "filename": a.filename,
+            "content": a.content,
+            "content_type": a.content_type,
+        }
+        for a in attachments
+    ]
+
+
 class SendEmailRequest(BaseModel):
     to: List[EmailStr]
     subject: str
@@ -141,6 +164,24 @@ EMAIL_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "optional": ["reactivate_url", "feedback_url"],
         "subject": "Your subscription has been cancelled",
     },
+    # CFDI delivery (Mexico fiscal). Client-facing, so the BODY is Spanish;
+    # the message carries the stamped CFDI as attachments (XML + PDF), which is
+    # why this slice wired attachments through to Resend. The sender is a
+    # madfam.io FISCAL address — fiscal/vCTO comms come from madfam.io, never a
+    # client domain — set as a per-template default below; a caller may still
+    # override from_email, but it is honoured only on a RESEND_VERIFIED_DOMAINS
+    # domain (see resend_email_service / email_sender).
+    "billing/cfdi": {
+        "description": "CFDI (Mexican tax receipt) delivery — stamped XML + PDF attached",
+        "required": ["cliente_nombre", "folio_fiscal", "periodo", "total"],
+        "optional": ["rfc_receptor"],
+        "subject": "Tu CFDI — {periodo}",
+        # Per-template default sender. Applied only when the caller omits
+        # from_email (see send_template_email). facturacion@madfam.io is on the
+        # verified madfam.io domain, so it passes the sender gate.
+        "default_from_email": "facturacion@madfam.io",
+        "default_from_name": "MADFAM Facturación",
+    },
     # Transactional templates (app-specific)
     "transactional/quote-ready": {
         "description": "Quote ready notification (Digifab)",
@@ -249,6 +290,7 @@ TEMPLATE_FILENAMES: Dict[str, str] = {
     "billing/payment-failed": "billing_payment-failed.html",
     "billing/subscription-created": "billing_subscription-created.html",
     "billing/subscription-cancelled": "billing_subscription-cancelled.html",
+    "billing/cfdi": "billing_cfdi.html",
     "transactional/quote-ready": "transactional_quote-ready.html",
     "transactional/order-confirmation": "transactional_order-confirmation.html",
     "transactional/certificate": "transactional_certificate.html",
@@ -288,7 +330,9 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
         # from_email / from_name are now passed through, but they are NOT
         # trusted: `sender_for_address` honours an explicit address only when
         # its domain is in RESEND_VERIFIED_DOMAINS, and otherwise falls back to
-        # the tenant/host rule. Attachments are still not supported here.
+        # the tenant/host rule. Attachments are now forwarded to Resend (mapped
+        # to its Attachment shape) — this unblocks CFDI XML+PDF delivery.
+        resend_attachments = _attachments_for_resend(request.attachments)
         # Send to each recipient (service expects single email address)
         results = []
         for recipient in request.to:
@@ -305,6 +349,7 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
                 from_name=request.from_name,
                 redirect_url=request.redirect_url,
                 org_id=request.org_id,
+                attachments=resend_attachments,
             )
             results.append(result)
 
@@ -393,7 +438,16 @@ async def send_template_email(
         ]
 
         # from_email / from_name are passed through under the verified-domain
-        # gate (see /send above). Attachments remain unsupported here.
+        # gate (see /send above). A template may declare a default sender
+        # (e.g. the CFDI template defaults to the madfam.io fiscal address);
+        # the caller's explicit from_email always takes precedence when given.
+        from_email = request.from_email or template.get("default_from_email")
+        from_name = request.from_name or template.get("default_from_name")
+
+        # Attachments are now forwarded for template sends too — this is what
+        # lets a CFDI-delivery template carry its stamped XML + PDF.
+        resend_attachments = _attachments_for_resend(request.attachments)
+
         # Send to each recipient (service expects single email address)
         results = []
         for recipient in request.to:
@@ -402,10 +456,11 @@ async def send_template_email(
                 subject=subject,
                 html_content=html_content,
                 tags=tag_list,
-                from_email=request.from_email,
-                from_name=request.from_name,
+                from_email=from_email,
+                from_name=from_name,
                 redirect_url=request.redirect_url,
                 org_id=request.org_id,
+                attachments=resend_attachments,
             )
             results.append(result)
 
