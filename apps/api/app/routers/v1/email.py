@@ -273,6 +273,25 @@ EMAIL_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "optional": [],
         "subject": "Espacio de trabajo activo — {workspace_host}",
     },
+    # MAP (Crea Tu Mundo) — payment confirmation for an integrante.
+    #
+    # DELIBERATELY MONEY-LIGHT. This tells a colaboradora that the period's work
+    # was paid and thanks her; it carries NO amount, currency, rate, bank/CLABE,
+    # beca/percentage, or clinical field. Those figures live in HCM and the CFDI
+    # cockpit, never in this notice — it mirrors the MAP-side privacy boundary in
+    # crea-map/src/server/notifications-pago.ts and the money-email guard
+    # doctrine. `sesiones` is a non-fiscal session COUNT for enrichment only.
+    #
+    # SENDER: unlike billing/cfdi (a madfam.io FISCAL sender), this is a team
+    # notice FROM the CTM org, so it declares NO default_from_email — it resolves
+    # to CTM's own sender (Crea Tu Mundo <hola@creatumundo.mx>) via org_id, the
+    # same envelope as MAP's other campana mail. See app/services/email_sender.py.
+    "map/pago-confirmado": {
+        "description": "MAP — aviso a una integrante de que su pago mensual quedó confirmado",
+        "required": ["periodo"],
+        "optional": ["sesiones"],
+        "subject": "Tu pago quedó confirmado",
+    },
 }
 
 # ==========================================
@@ -302,6 +321,7 @@ TEMPLATE_FILENAMES: Dict[str, str] = {
     "transactional/agreement-accepted": "transactional_agreement-accepted.html",
     "transactional/workspace-activated": "transactional_workspace-activated.html",
     "transactional/request-filed": "transactional_request-filed.html",
+    "map/pago-confirmado": "map_pago-confirmado.html",
 }
 
 
@@ -569,6 +589,53 @@ def _get_safe_template_path(template_id: str) -> str:
     return str(resolved_path)
 
 
+def _sesiones_detalle(sesiones: Any) -> str:
+    """The Spanish session-count parenthetical for map/pago-confirmado, or "".
+
+    The renderer does naive ``{{key}}`` substitution and CANNOT do Jinja
+    conditionals or singular/plural, so the whole optional phrase is composed
+    here and exposed to the template as a single always-present ``{{sesiones_detalle}}``
+    slot. This is what keeps the count OPTIONAL without ever leaking a literal
+    ``{{sesiones}}`` into a family-facing message when the caller omits it.
+
+    Deliberately money-light: this renders only a non-fiscal session COUNT — no
+    amount, rate, or total (those live in HCM / the CFDI cockpit, never here).
+
+        absent / blank / <= 0  -> ""              (nothing shown)
+        1                      -> " (1 sesión)"
+        n > 1                  -> " (n sesiones)"
+
+    A non-integer value is ignored rather than rendered raw, so a malformed
+    caller can never inject arbitrary text into the body through this slot.
+    """
+    if sesiones is None:
+        return ""
+    try:
+        count = int(sesiones)
+    except (TypeError, ValueError):
+        return ""
+    if count <= 0:
+        return ""
+    palabra = "sesión" if count == 1 else "sesiones"
+    return f" ({count} {palabra})"
+
+
+def _derive_template_variables(template_id: str, variables: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a copy of ``variables`` with any template-derived slots added.
+
+    Derived slots are values the template body needs but the caller does not
+    pass directly — e.g. map/pago-confirmado composes ``sesiones_detalle`` from
+    the optional ``sesiones`` count so the naive substitution renderer never has
+    to decide singular/plural or hide an absent optional. The caller's dict is
+    not mutated; unrelated templates pass through untouched.
+    """
+    if template_id == "map/pago-confirmado":
+        derived = dict(variables)
+        derived["sesiones_detalle"] = _sesiones_detalle(variables.get("sesiones"))
+        return derived
+    return variables
+
+
 async def render_template(template_id: str, variables: Dict[str, Any]) -> str:
     """
     Render an email template with variables.
@@ -580,6 +647,10 @@ async def render_template(template_id: str, variables: Dict[str, Any]) -> str:
     file operations occur.
     """
     from pathlib import Path
+
+    # Compose any template-derived slots (e.g. the map/pago-confirmado session
+    # parenthetical) before substitution, without mutating the caller's dict.
+    variables = _derive_template_variables(template_id, variables)
 
     try:
         # Security: Get safe path using whitelist lookup (no user input in path)
