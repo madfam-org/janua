@@ -19,6 +19,11 @@ Compact LLM context index for this repository.
   the template registry, the naive-vs-Jinja render split, and sender resolution.
   The registry itself is `EMAIL_TEMPLATES` + `TEMPLATE_FILENAMES` in
   `apps/api/app/routers/v1/email.py`, and `GET /templates` returns it live.
+- `apps/api/app/mcp/README.md` — the janua **MCP server** (P1 pilot slice):
+  the transactional-email endpoints exposed as typed MCP tools, generated from
+  janua's OpenAPI, calling the HTTP API behind the same `X-Internal-API-Key`
+  gate (no back door). How to run it (`python -m app.mcp`), the generator
+  mapping, the auth model, and the drift guard tying tools to the schema.
 - `docs/architecture/SILENT_SSO_SESSION.md` — one browser session across the
   estate: the `janua_sso` cookie, `prompt=none`, and the hosted hop for hosts
   outside the cookie domain.
