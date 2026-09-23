@@ -155,7 +155,9 @@ async def test_tampered_body_is_401(env):
     assert await _rows(factory) == []
 
 
-@pytest.mark.parametrize("offset", [-301, 301, -3600])
+# Margins of 10 s either side of the 300 s tolerance: `int(time.time())` floors
+# and the request takes time, so an offset of exactly 301 can land at 300.x.
+@pytest.mark.parametrize("offset", [-310, 310, -3600])
 async def test_stale_or_future_timestamp_is_401(env, offset):
     client, factory = env
     raw, headers = _signed(_payload("email.delivered"), timestamp=int(time.time()) + offset)
@@ -164,7 +166,7 @@ async def test_stale_or_future_timestamp_is_401(env, offset):
     assert await _rows(factory) == []
 
 
-@pytest.mark.parametrize("offset", [-299, 299])
+@pytest.mark.parametrize("offset", [-290, 290])
 async def test_timestamp_inside_tolerance_is_accepted(env, offset):
     client, _ = env
     raw, headers = _signed(_payload("email.delivered"), timestamp=int(time.time()) + offset)
