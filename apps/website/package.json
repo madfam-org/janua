@@ -57,7 +57,7 @@
     "@typescript-eslint/eslint-plugin": "^8.66.0",
     "@typescript-eslint/parser": "^8.66.0",
     "autoprefixer": "^10.5.4",
-    "babel-jest": "^29.7.0",
+    "babel-jest": "^30.4.1",
     "eslint": "^9.39.2",
     "identity-obj-proxy": "^3.0.0",
     "jest": "^29.7.0",
