@@ -64,8 +64,8 @@ ssh ssh.madfam.io
 **Server Details:**
 | Property | Value |
 |----------|-------|
-| Control Plane | foundry-cp (37.27.235.104) |
-| Worker Node | foundry-worker-01 (95.217.198.239) |
+| Control Plane | control-plane node (identity: see the private operations record) |
+| Worker Node | worker node (identity: see the private operations record) |
 | SSH Host | ssh.madfam.io |
 | OS | Ubuntu 24.04 LTS |
 | Provider | Hetzner |

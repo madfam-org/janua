@@ -63,12 +63,12 @@ The deployment step produces the following sequence every run:
 2. **Is there a Switchyard admission webhook or mutating webhook** that could prevent new ReplicaSets from being created even when the annotation is set?
 3. **Are there resource quotas or LimitRanges** in the `janua` namespace that could block pod scheduling?
 4. **Is the `ghcr-credentials` imagePullSecret still valid** in the `janua` namespace? (The GHCR token refresh step runs in the workflow, but credential expiry could cause silent pull failures)
-5. **Are there node resource exhaustion issues on `foundry-core`** preventing new pods from scheduling?
+5. **Are there node resource exhaustion issues on the control-plane node** preventing new pods from scheduling?
 6. **Is there a PodDisruptionBudget or other policy** blocking the rolling update from progressing?
 
 ## 6. Requested Actions
 
-Run these diagnostic commands on `foundry-core` and report the output:
+Run these diagnostic commands on the control-plane node (access per the private operations record) and report the output:
 
 ```bash
 # 1. Deployment state and conditions
@@ -97,7 +97,7 @@ kubectl get mutatingwebhookconfigurations,validatingwebhookconfigurations -o wid
 
 | Parameter | Value |
 |-----------|-------|
-| **Cluster** | foundry-core (K3s, <CONTROL_PLANE_IP>) |
+| **Cluster** | production K3s, control-plane node (node identity: see the private operations record) |
 | **Namespace** | `janua` |
 | **Deployment** | `janua-api` (2 replicas, RollingUpdate, maxSurge=1, maxUnavailable=0) |
 | **Image** | `ghcr.io/madfam-org/janua-api:main-<sha>` |
