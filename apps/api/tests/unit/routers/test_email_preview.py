@@ -290,9 +290,69 @@ async def test_sender_resolution_per_org(client, monkeypatch):
     assert (await _preview(client, {**raw, "org_id": other_org})).json()["from"] == MADFAM_FROM
 
 
-async def test_invalid_org_id_is_rejected(client):
+async def test_non_uuid_org_id_resolves_like_a_send(client):
+    """org_id is a plain string on /send; an id the resolver does not know
+    yields the platform sender there, so it does here too (no 422)."""
     response = await _preview(client, {"kind": "raw", "subject": "s", "org_id": "not-a-uuid"})
-    assert response.status_code == 422
+    assert response.status_code == 200
+    assert response.json()["from"] == MADFAM_FROM
+
+
+def _map_send_body() -> Dict[str, Any]:
+    """Exactly what crea-map's notify-email.ts POSTs to /internal/email/send,
+    plus every optional SendEmailRequest field and one unknown field."""
+    url = "https://map.creatumundo.mx/notificaciones/123"
+    text = "Tienes una nueva nota en el expediente."
+    return {
+        "to": ["persona@example.com"],
+        "subject": "Nueva nota — MAP",
+        "text": f"{text}\n\n{url}",
+        "html": (
+            '<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.6;'
+            f'color:#1c1b18"><p style="margin:0">{text}</p><p style="margin:16px 0 0">'
+            f'<a href="{url}" style="color:#1a2a8f;font-weight:600">Abrir en el MAP →</a>'
+            "</p></div>"
+        ),
+        "from_name": "MAP · Crea Tu Mundo",
+        "source_app": "crea-map",
+        "source_type": "notification",
+        "org_id": CTM_ORG_ID,
+        "reply_to": "hola@creatumundo.mx",
+        "cc": ["copia@example.com"],
+        "bcc": ["oculta@example.com"],
+        "tags": {"kind": "nota"},
+        "attachments": [{"filename": "a.txt", "content": "aG9sYQ==", "content_type": "text/plain"}],
+        "some_future_field": {"ignored": True},
+    }
+
+
+@pytest.mark.parametrize("tracked_domains", ["", "creatumundo.mx"])
+async def test_raw_preview_of_a_real_map_send_body_matches_the_send(
+    client, sdk_sends, ctm_key, monkeypatch, tracked_domains
+):
+    monkeypatch.setattr(settings, "EMAIL_TRACKED_SENDER_DOMAINS", tracked_domains)
+    logger = MagicMock()
+    monkeypatch.setattr(resend_module, "logger", logger)
+    body = _map_send_body()
+
+    preview = await _preview(client, {"kind": "raw", **body})
+    assert preview.status_code == 200
+    # Spy: the preview reached no transport and emitted no send-path log line.
+    assert sdk_sends == []
+    assert logger.method_calls == []
+    shown = preview.json()
+    assert shown["from"] == "MAP · Crea Tu Mundo <hola@creatumundo.mx>"
+    assert "template" not in shown
+
+    sent = await client.post("/api/v1/internal/email/send", headers=AUTH, json=body)
+    assert sent.json()["success"] is True
+    (wire,) = sdk_sends
+    assert resend_module.formataddr(_split(shown["from"])) == wire["from"]
+    assert shown["subject"] == wire["subject"]
+    assert shown["html"] == wire.get("html")
+    assert shown["text"] == wire.get("text")
+    # No token link in MAP's notification: HTML survives even on a tracked domain.
+    assert shown["html"] == body["html"] and shown["text"] == body["text"]
 
 
 # --------------------------------------------------------------------------

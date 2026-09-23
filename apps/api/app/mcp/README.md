@@ -12,7 +12,7 @@ MCP face on janua.
 
 ## What it exposes (the pilot slice)
 
-Four tools, one per endpoint of the internal-email surface
+Seven tools, one per endpoint of the internal-email surface
 (`/api/v1/internal/email`, defined in `app/routers/v1/email.py`):
 
 | Tool | Endpoint | Purpose |
@@ -21,6 +21,9 @@ Four tools, one per endpoint of the internal-email surface
 | `janua_email_send_template` | `POST /api/v1/internal/email/send-template` | Send from the server-side template registry. |
 | `janua_email_list_templates` | `GET /api/v1/internal/email/templates` | List renderable templates. |
 | `janua_email_health` | `GET /api/v1/internal/email/health` | Report email-subsystem health. |
+| `janua_email_events_feed` | `GET /api/v1/internal/email/events` | Per-app Resend events (delivered/opened/clicked/bounced), cursor-paginated. |
+| `janua_email_preview` | `POST /api/v1/internal/email/preview` | Render what a send would hand to Resend, without sending. |
+| `janua_email_preview_templates` | `GET /api/v1/internal/email/preview/templates` | Previewable templates and their required variables. |
 
 Why this slice and not all ~45 janua routers: it is the cleanest self-contained
 sub-surface behind a single uniform auth gate, and none of the four is irreversible in

@@ -6,10 +6,13 @@ THE CONTRACT (sending apps code against this; keep it exact). Same
     POST /api/v1/internal/email/preview
       {"kind": "template", "template": "map/pago-confirmado",
        "context": {"periodo": "septiembre de 2026"}, "org_id": "<uuid>"?}
-      {"kind": "raw", "subject": "...", "text": "..."?, "html": "..."?,
-       "org_id": "<uuid>"?}
-      Optional on both, mirroring the send routes: from_email, from_name,
-      redirect_url; and on "raw": contains_token_link (as on /send).
+      {"kind": "raw", <the same body as POST /internal/email/send>}
+      Optional on both, mirroring the send routes: org_id, from_email,
+      from_name, redirect_url. "raw" accepts the whole SendEmailRequest schema
+      (to/cc/bcc optional and ignored; reply_to, source_app, source_type, tags,
+      attachments, contains_token_link accepted and applied as a send would --
+      none of them changes subject, From or bodies) and IGNORES unknown fields,
+      so a caller can preview the exact body it is about to send.
 
     200 {"subject": str, "from": "Display <addr>" (decoded, human-readable),
          "html": str|null,
@@ -35,7 +38,6 @@ WHAT A PREVIEW NEVER DOES: send, call Resend, open a database session, write
 an audit/log row, or emit the send path's operational log lines.
 """
 
-import uuid
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from fastapi import APIRouter, Body, Depends
@@ -55,7 +57,9 @@ router = APIRouter(prefix="/email", tags=["email"])
 
 
 class _SenderSignals(BaseModel):
-    org_id: Optional[uuid.UUID] = None
+    # str, like SendEmailRequest/SendTemplateEmailRequest: an org id the
+    # resolver does not know resolves to the platform sender, as on a send.
+    org_id: Optional[str] = None
     from_email: Optional[str] = None
     from_name: Optional[str] = None
     redirect_url: Optional[str] = None
@@ -68,11 +72,25 @@ class TemplatePreviewRequest(_SenderSignals):
 
 
 class RawPreviewRequest(_SenderSignals):
+    """SendEmailRequest's schema, with every field that cannot change the
+    rendered message accepted loosely so a real send body never 422s here."""
+
+    model_config = ConfigDict(extra="ignore")
+
     kind: Literal["raw"]
     subject: str
     text: Optional[str] = None
     html: Optional[str] = None
     contains_token_link: bool = False
+    # Accepted and ignored: recipients and envelope-only fields.
+    to: Optional[Any] = None
+    cc: Optional[Any] = None
+    bcc: Optional[Any] = None
+    reply_to: Optional[Any] = None
+    attachments: Optional[Any] = None
+    tags: Optional[Any] = None
+    source_app: Optional[Any] = None
+    source_type: Optional[Any] = None
 
 
 PreviewRequest = Annotated[
@@ -140,7 +158,7 @@ async def preview_email(
         from_email=from_email,
         from_name=from_name,
         redirect_url=request.redirect_url,
-        org_id=str(request.org_id) if request.org_id else None,
+        org_id=request.org_id,
         token_link=token_link,
         observe=False,
     )
