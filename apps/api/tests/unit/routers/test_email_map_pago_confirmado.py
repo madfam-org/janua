@@ -36,6 +36,8 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 
 import pytest
+
+from app.services import resend_transport
 from httpx import ASGITransport, AsyncClient
 
 import app.services.resend_email_service as resend_module
@@ -109,8 +111,8 @@ def capture_resend(monkeypatch):
         captured.append(params)
         return {"id": "resend-fixture-id"}
 
-    assert resend_module.resend is not None, "resend SDK must be installed for this test"
-    monkeypatch.setattr(resend_module.resend.Emails, "send", staticmethod(_fake_send))
+    assert resend_transport.resend is not None, "resend SDK must be installed for this test"
+    monkeypatch.setattr(resend_transport.resend.Emails, "send", staticmethod(_fake_send))
     return captured
 
 

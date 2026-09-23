@@ -12,6 +12,8 @@ Operator guides for production GitOps, secrets rotation, and incident records.
 
 ## Email
 
+- [Recoverable payment notices](payment-notice-recovery.md): scoped service tokens, bounded provider retries, and immutable acceptance receipts.
+
 | Document | When to use |
 |----------|-------------|
 | [resend-domain-onboarding.md](./resend-domain-onboarding.md) | Adding a client sending domain to Resend (Phase 2 of `../EMAIL_SENDER_POLICY.md`) |

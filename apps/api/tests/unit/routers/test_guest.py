@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -100,7 +99,7 @@ class TestMintGuestJwt:
     """
 
     def test_mints_a_decodable_guest_token_with_expected_claims(self):
-        from jose import jwt
+        import jwt
 
         from app.core.jwt_manager import jwt_manager
         from app.routers.v1.guest import _mint_guest_jwt

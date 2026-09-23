@@ -121,6 +121,10 @@ jobs:
           # that test can reach the postgres service above. Unset in CI, it
           # fails rather than skips; see tests/unit/test_migration_reentrancy.py.
           MIGRATION_TEST_DATABASE_URL: postgresql+asyncpg://janua:janua_test@localhost:5432/janua_test
+          # Separate guarded URL: payment-mail concurrency tests must use real
+          # PostgreSQL despite pytest.ini overriding the application's URL.
+          LOCAL_DB: 'yes'
+          JANUA_MAIL_TEST_DATABASE_URL: postgresql+asyncpg://janua:janua_test@127.0.0.1:5432/janua_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key-do-not-use-in-production
           PYTHONPATH: ${{ github.workspace }}/apps/api

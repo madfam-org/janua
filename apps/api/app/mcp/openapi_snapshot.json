@@ -26,6 +26,16 @@
       },
       "EmailResponse": {
         "properties": {
+          "delivery_status": {
+            "default": "failed",
+            "enum": [
+              "accepted",
+              "simulated",
+              "failed"
+            ],
+            "title": "Delivery Status",
+            "type": "string"
+          },
           "error": {
             "anyOf": [
               {
@@ -234,6 +244,7 @@
               "format": "email",
               "type": "string"
             },
+            "minItems": 1,
             "title": "To",
             "type": "array"
           }
@@ -331,6 +342,7 @@
               "format": "email",
               "type": "string"
             },
+            "minItems": 1,
             "title": "To",
             "type": "array"
           },

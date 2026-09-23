@@ -3,11 +3,11 @@ Janua Internal Email API
 Centralized email service for all MADFAM applications via Resend
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from app.config import settings
 from app.dependencies import verify_internal_api_key
@@ -56,7 +56,7 @@ def _attachments_for_resend(
 
 
 class SendEmailRequest(BaseModel):
-    to: List[EmailStr]
+    to: List[EmailStr] = Field(min_length=1)
     subject: str
     html: Optional[str] = None
     text: Optional[str] = None
@@ -78,7 +78,7 @@ class SendEmailRequest(BaseModel):
 
 
 class SendTemplateEmailRequest(BaseModel):
-    to: List[EmailStr]
+    to: List[EmailStr] = Field(min_length=1)
     template: str  # Template ID from registry
     variables: Dict[str, Any]
     from_email: Optional[str] = None
@@ -92,8 +92,25 @@ class SendTemplateEmailRequest(BaseModel):
 
 class EmailResponse(BaseModel):
     success: bool
+    delivery_status: Literal["accepted", "simulated", "failed"] = "failed"
     message_id: Optional[str] = None
     error: Optional[str] = None
+
+
+def _email_response(results: list[Any]) -> EmailResponse:
+    """Provider acceptance is distinct from disabled/console simulation and delivery."""
+    if not results:
+        return EmailResponse(success=False, error="No recipients processed")
+    if all(r.status in {"disabled", "simulated"} for r in results):
+        return EmailResponse(
+            success=False, delivery_status="simulated", error="No message transmitted"
+        )
+    failed = [r for r in results if r.status not in {"sent", "delivered"} or not r.message_id]
+    if failed:
+        return EmailResponse(success=False, error=f"{len(failed)} recipient(s) failed acceptance")
+    return EmailResponse(
+        success=True, delivery_status="accepted", message_id=results[-1].message_id
+    )
 
 
 class TemplateInfo(BaseModel):
@@ -373,49 +390,13 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
             )
             results.append(result)
 
-        # A Resend rejection comes back as a result with status "failed"/"bounced"
-        # (a VALUE, not an exception), so inspecting only for exceptions would
-        # report success:true for mail that never left. Callers (e.g. crea-map
-        # money mail) must be able to learn a send did not land, so treat any
-        # non-delivered recipient as a failure of the whole request.
-        # Delivered states: sent, delivered, disabled (dev/no-op console/sink).
-        delivered_states = {"sent", "delivered", "disabled"}
-        failed = [r for r in results if r.status not in delivered_states]
-        message_id = results[-1].message_id if results else None
-
-        if failed:
-            failed_states = ", ".join(sorted({r.status for r in failed}))
-            logger.error(
-                "Email send had failed recipients",
-                message_id=message_id,
-                source_app=request.source_app,
-                source_type=request.source_type,
-                recipients=len(request.to),
-                failed_recipients=len(failed),
-                failed_states=failed_states,
-            )
-            return EmailResponse(
-                success=False,
-                message_id=message_id,
-                error=(
-                    f"{len(failed)} of {len(request.to)} recipient(s) failed "
-                    f"(status: {failed_states})"
-                ),
-            )
-
-        logger.info(
-            "Email sent",
-            message_id=message_id,
-            source_app=request.source_app,
-            source_type=request.source_type,
-            recipients=len(request.to),
-        )
-
-        return EmailResponse(success=True, message_id=message_id)
+        return _email_response(results)
 
     except Exception as e:
-        logger.error("Failed to send email", error=str(e), source_app=request.source_app)
-        return EmailResponse(success=False, error=str(e))
+        logger.error(
+            "Failed to send email", error_type=type(e).__name__, source_app=request.source_app
+        )
+        return EmailResponse(success=False, error="Email provider send failed")
 
 
 @router.post("/send-template", response_model=EmailResponse)
@@ -484,27 +465,16 @@ async def send_template_email(
             )
             results.append(result)
 
-        # Use the last result for the response
-        last_result = results[-1] if results else None
-        message_id = last_result.message_id if last_result else None
-
-        logger.info(
-            "Template email sent",
-            message_id=message_id,
-            template=request.template,
-            source_app=request.source_app,
-        )
-
-        return EmailResponse(success=True, message_id=message_id)
+        return _email_response(results)
 
     except Exception as e:
         logger.error(
             "Failed to send template email",
-            error=str(e),
+            error_type=type(e).__name__,
             template=request.template,
             source_app=request.source_app,
         )
-        return EmailResponse(success=False, error=str(e))
+        return EmailResponse(success=False, error="Email provider send failed")
 
 
 @router.get("/templates", response_model=List[TemplateInfo])

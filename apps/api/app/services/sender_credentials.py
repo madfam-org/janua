@@ -290,3 +290,17 @@ async def has_credential(binding: SenderBinding) -> bool:
         return await resolve_credential(binding) is not None
     except SenderCredentialError:
         return False
+
+
+async def resolve_bound_credential(binding: SenderBinding) -> str:
+    """Resolve exactly the configured account for a durable transactional intent.
+
+    Unlike the legacy adapter, this never asks the caller to use ambient SDK
+    state. The platform key is valid only when explicitly named by this binding.
+    Missing alternate credentials cannot fall back to the platform account.
+    """
+    ref = (binding.credential_ref or "").strip()
+    value = await _read_reference(ref) if ref else None
+    if not value:
+        raise SenderCredentialError("Bound email credential is unavailable")
+    return value

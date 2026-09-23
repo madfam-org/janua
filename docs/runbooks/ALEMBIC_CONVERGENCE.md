@@ -236,3 +236,14 @@ python scripts/alembic_promote_guard.py --acknowledged # lo que hace la casilla
 | Reentrancia de migraciones | `apps/api/tests/unit/test_migration_reentrancy.py` |
 | Pipeline de promote | `.github/workflows/promote-to-prod.yml`, `docs/PP_3B_STAGING_PIPELINE.md` |
 | Reconciliación GitOps | `docs/runbooks/production-gitops-reconcile.md` |
+
+## Revisión 017: aplicar, no inferir del catálogo histórico
+
+`017_payment_mail_dispatch` agrega recibos durables para avisos de pago y
+compuertas PostgreSQL que **no** crea `Base.metadata.create_all`. El convergidor
+histórico de 012–016 no demuestra que esas compuertas existan y no debe usarse
+para sellar 017. Aplique la migración real por la vía autorizada de Enclii antes
+de habilitar el nuevo endpoint; consulte [la receta de recuperación](payment-notice-recovery.md).
+El libro `PROD_ALEMBIC_STATE.json` conserva la última verificación real: no se
+actualiza al escribir código ni por pasar pruebas locales. Con filas en el nuevo
+ledger, el downgrade se rechaza para preservar evidencia; revierta la aplicación.
