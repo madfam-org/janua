@@ -16,16 +16,17 @@
     "verified_at and verified_by are required and why the runbook makes reading the",
     "database the step that precedes editing this file."
   ],
-  "recorded_revision": "016_org_member_app_roles",
-  "schema_revision": "016_org_member_app_roles",
-  "verified_at": "2026-09-06",
-  "verified_by": "Dirección Tecnológica (operator run of operador/one-shot-2026-09-06-parte7b.sh, block 2, ~18:3x CDMX: 013_per_tenant_email_uniqueness and 014_capability_links applied with the postgres role via DIRECT_DATABASE_URL, `alembic stamp 016_org_member_app_roles`, then `alembic_converge.py --check` in the janua-api pod: «Convergente: alembic_version (016_org_member_app_roles) ya cubre el esquema» — 0 desvíos)",
+  "recorded_revision": "017_payment_mail_dispatch",
+  "schema_revision": "017_payment_mail_dispatch",
+  "verified_at": "2026-09-23",
+  "verified_by": "Dirección Tecnológica (operator run, 2026-09-23 ~09:05Z / ~03:05 CDMX): pre-flight read in the data/postgres pod (alembic_version=016_org_member_app_roles; payment_mail_dispatches and guard_payment_mail_dispatch absent; organizations/oauth_clients/alembic_version owned by `enclii`; app role `janua` holds UPDATE on oauth_clients), then 017_payment_mail_dispatch applied by hand in ONE transaction (psql -U postgres -d janua, SET LOCAL ROLE enclii, lock_timeout 5s: CREATE TABLE payment_mail_dispatches + guard_payment_mail_dispatch() + 2 triggers verbatim from the migration, GRANT SELECT/INSERT/UPDATE to janua, alembic_version 016→017 guarded to exactly 1 row). Catalog verification after COMMIT: version=017_payment_mail_dispatch, table present, triggers payment_mail_dispatch_guard + payment_mail_dispatch_no_truncate, janua INSERT/UPDATE/SELECT=true DELETE=false, 0 rows, owner=enclii. alembic_converge.py --check was NOT run: the api image does not ship apps/api/scripts (see notes).",
   "notes": [
     "2026-09-04: 012, 013(absent), 014(absent), 015 and 016 were out of step with alembic_version=011 (see git history of this file).",
     "2026-09-06: converged. 013 and 014 needed the postgres role (users/oauth_clients/alembic_version are owned by `enclii`;",
     "the app role `janua` cannot CREATE INDEX), applied from /app/apps/api with DIRECT_DATABASE_URL, then stamped to 016.",
     "Pre-013 backup on the postgres pod: /tmp/janua-pre-013-20260906T192436Z.dump. 0 duplicate emails, so 013 was safe.",
     "Next time the head moves: apply/stamp in the pod, run alembic_converge.py --check, and refresh this file in the same PR",
-    "as the migration — a promote that carries an unrecorded migration stops on the drift guard until then."
+    "as the migration — a promote that carries an unrecorded migration stops on the drift guard until then.",
+    "2026-09-23: 017 applied by hand (additive; payment_mail_dispatches + guard function + 2 triggers; no existing table changed). Dockerfile.api does not copy apps/api/scripts, so alembic_converge.py must be piped into /tmp for --check; the post-promote pod drift check (Base.metadata vs information_schema) is the runtime verification for this revision."
   ]
 }
