@@ -40,6 +40,8 @@ def migrate(conn, action):
 @pytest_asyncio.fixture
 async def pg(monkeypatch):
     raw = os.getenv("JANUA_MAIL_TEST_DATABASE_URL")
+    if not raw and os.getenv("CI") == "true":
+        pytest.fail("CI must supply JANUA_MAIL_TEST_DATABASE_URL for the PostgreSQL proof")
     if not raw:
         pytest.skip(
             "Set JANUA_MAIL_TEST_DATABASE_URL and LOCAL_DB=yes for isolated PostgreSQL proof"

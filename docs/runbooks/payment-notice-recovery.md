@@ -97,7 +97,8 @@ the real template renderer, exact replay, unknown receipts, drift, deadlines,
 and shared-account locking. PostgreSQL tests exercise actual Alembic upgrade,
 empty downgrade/re-upgrade, duplicate first claims, concurrent leases, rollback,
 late workers, lost receipt commits, tenant mismatch and database evidence guards.
-The dedicated CI step runs against the disposable PostgreSQL service.
+The active API test job supplies the dedicated fixture URL and runs these tests
+against its disposable PostgreSQL service; a missing URL fails in CI.
 
 For local PostgreSQL proof set `LOCAL_DB=yes` and
 `JANUA_MAIL_TEST_DATABASE_URL` to a loopback `postgresql+asyncpg` URL for a
