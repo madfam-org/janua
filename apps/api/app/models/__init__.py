@@ -1121,3 +1121,4 @@ User.privacy_settings = relationship(
 # Import system settings models
 
 from app.models.email_dispatch import PaymentMailDispatch  # noqa: E402,F401
+from app.models.email_event import EmailEvent  # noqa: E402,F401
