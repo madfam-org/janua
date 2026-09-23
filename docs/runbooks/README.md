@@ -13,6 +13,7 @@ Operator guides for production GitOps, secrets rotation, and incident records.
 ## Email
 
 - [Recoverable payment notices](payment-notice-recovery.md): scoped service tokens, bounded provider retries, and immutable acceptance receipts.
+- [Resend email events](resend-email-events.md): signed webhook receiver, per-app events feed, render-only preview, and the never-track-token-links rule.
 
 | Document | When to use |
 |----------|-------------|

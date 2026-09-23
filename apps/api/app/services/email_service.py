@@ -39,6 +39,8 @@ from app.services.email_i18n import (
     template_candidates,
 )
 from app.services.email_sender import binding_for, sender_for
+from app.services.email_tags import build_tags
+from app.services.email_tracking import untracked_bodies
 from app.services.sender_credentials import SenderCredentialError, resolve_credential
 
 logger = structlog.get_logger()
@@ -171,7 +173,12 @@ class EmailService:
 
         # Send email
         success = await self._send_email(
-            to_email=email, subject=subject, html_content=html_content, text_content=text_content
+            to_email=email,
+            subject=subject,
+            html_content=html_content,
+            text_content=text_content,
+            template="verification",
+            token_link=True,
         )
 
         if success:
@@ -300,7 +307,12 @@ class EmailService:
 
         # Send email
         success = await self._send_email(
-            to_email=email, subject=subject, html_content=html_content, text_content=text_content
+            to_email=email,
+            subject=subject,
+            html_content=html_content,
+            text_content=text_content,
+            template="password_reset",
+            token_link=True,
         )
 
         if success:
@@ -343,7 +355,11 @@ class EmailService:
 
         # Send email
         success = await self._send_email(
-            to_email=email, subject=subject, html_content=html_content, text_content=text_content
+            to_email=email,
+            subject=subject,
+            html_content=html_content,
+            text_content=text_content,
+            template="welcome",
         )
 
         if success:
@@ -625,6 +641,8 @@ class EmailService:
             html_content=html_content,
             text_content=text_content,
             redirect_url=redirect_url,
+            template="magic_link",
+            token_link=True,
         )
         if sent:
             logger.info("Magic link email sent", email=_redact_email(email))
@@ -676,6 +694,8 @@ class EmailService:
             subject=subject,
             html_content=html_content,
             text_content=text_content,
+            template="invitation",
+            token_link=True,
         )
         if sent:
             logger.info("Invitation email sent", email=_redact_email(email))
@@ -690,6 +710,8 @@ class EmailService:
         html_content: str,
         text_content: str = None,
         redirect_url: str | None = None,
+        template: str | None = None,
+        token_link: bool = False,
     ) -> bool:
         """Send through Resend's HTTPS API.
 
@@ -741,7 +763,24 @@ class EmailService:
             "from": formataddr((name, address)),
             "to": [to_email],
             "subject": subject,
+            # Janua's own auth mail: source_app "janua", plus the tenant's
+            # org_id when the destination names one, so webhook events for it
+            # are attributable (app/services/email_tags.py).
+            "tags": build_tags(
+                source_app="janua",
+                source_type="auth",
+                org_id=binding.org_id,
+                template=template,
+            ),
         }
+        # A sign-in/reset/verify/invite link must never be rewritten by
+        # Resend's click tracking: on a tracked From domain the message goes
+        # out text-only (app/services/email_tracking.py).
+        html_content, text_content, forced_text_only = untracked_bodies(
+            address, html_content, text_content, token_link=token_link
+        )
+        if forced_text_only:
+            logger.info("email.token_link_sent_text_only", sender_domain=address.rsplit("@", 1)[-1])
         # Reply-To only when it differs from the From address: for the MADFAM
         # default the two are the same and the header would be pure noise. It
         # earns its place for a tenant whose mail is SENT by Resend on
@@ -779,6 +818,8 @@ class EmailService:
         html_content: str,
         text_content: str = None,
         redirect_url: str | None = None,
+        template: str | None = None,
+        token_link: bool = False,
     ) -> bool:
         """Send an email via the configured provider.
 
@@ -792,7 +833,13 @@ class EmailService:
         try:
             if settings.EMAIL_PROVIDER == "resend" and settings.RESEND_API_KEY:
                 return await self._send_via_resend(
-                    to_email, subject, html_content, text_content, redirect_url
+                    to_email,
+                    subject,
+                    html_content,
+                    text_content,
+                    redirect_url,
+                    template=template,
+                    token_link=token_link,
                 )
 
             # Check if email configuration is available
@@ -815,6 +862,10 @@ class EmailService:
             msg["To"] = to_email
             if smtp_reply_to and smtp_reply_to != smtp_address:
                 msg["Reply-To"] = smtp_reply_to
+            # smtp.resend.com applies the same per-domain tracking as the API.
+            html_content, text_content, _ = untracked_bodies(
+                smtp_address, html_content, text_content, token_link=token_link
+            )
 
             # Add text and HTML parts
             if text_content:
@@ -981,6 +1032,8 @@ async def send_verification_email_task(
             text_content=service._render_template(
                 "verification.txt", template_data, recipient_locale, recipient_formality
             ),
+            template="verification",
+            token_link=True,
         )
         if not sent:
             logger.warning("Verification email NOT sent", email=_redact_email(email))

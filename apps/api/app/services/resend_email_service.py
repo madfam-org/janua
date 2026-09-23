@@ -5,8 +5,9 @@ Replaces SendGrid with Resend for better developer experience and reliability
 
 import json
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
+from email.headerregistry import Address
 from email.utils import formataddr
 from enum import Enum
 from pathlib import Path
@@ -18,6 +19,8 @@ import structlog
 from app.config import settings
 from app.services.email_i18n import build_email_environment
 from app.services.email_sender import binding_for, sender_for_address
+from app.services.email_tags import normalize_tags
+from app.services.email_tracking import untracked_bodies
 from app.services.resend_transport import send_on_account
 from app.services.sender_binding import PROVIDER_SMTP
 from app.services.sender_credentials import SenderCredentialError, resolve_credential
@@ -43,6 +46,139 @@ class EmailDeliveryStatus:
     timestamp: datetime
     error_message: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class MessageEnvelope:
+    """The resolved From line, account and wire bodies of one message.
+
+    `api_key_override` is a credential VALUE (the tenant's own provider key)
+    and exists only for the transport; it is never serialized, logged or
+    returned by the preview endpoint.
+    """
+
+    sender_name: str
+    sender_address: str
+    sender_reply_to: Optional[str]
+    html: Optional[str]
+    text: Optional[str]
+    forced_text_only: bool = False
+    api_key_override: Optional[str] = field(default=None, repr=False)
+    #: Set when the resolved binding names a provider with no transport (smtp).
+    unsupported_provider_tenant: Optional[str] = None
+
+    @property
+    def from_header(self) -> str:
+        """The From exactly as handed to Resend (RFC 2047-encoded when non-ASCII)."""
+        return formataddr((self.sender_name, self.sender_address))
+
+    @property
+    def from_display(self) -> str:
+        """The same From, human-readable: `MAP · Crea Tu Mundo <hola@creatumundo.mx>`."""
+        return str(Address(display_name=self.sender_name, addr_spec=self.sender_address))
+
+
+async def resolve_message_envelope(
+    *,
+    html_content: Optional[str],
+    text_content: Optional[str],
+    from_email: Optional[str] = None,
+    from_name: Optional[str] = None,
+    redirect_url: Optional[str] = None,
+    org_id: Optional[str] = None,
+    token_link: bool = False,
+    message_id: Optional[str] = None,
+    observe: bool = True,
+) -> MessageEnvelope:
+    """Resolve sender, provider account and wire bodies WITHOUT sending.
+
+    Shared by `ResendEmailService.send_email` and the preview endpoint
+    (app/routers/v1/email_preview.py). `observe=False` silences the operational
+    log lines, so a preview never raises a "credential missing" alert.
+    """
+    # Phase 2: the From line follows the tenant when that tenant's domain is
+    # Resend-verified, and falls back to the PLATFORM sender WHOLE — `MADFAM
+    # <hola@madfam.io>`, name and address — when it is not (owner directive
+    # 2026-09-07; the earlier partial downgrade put the tenant's name on
+    # MADFAM's address and reached a real inbox).
+    sender_name, sender_address, sender_reply_to = sender_for_address(
+        from_email=from_email,
+        from_name=from_name,
+        redirect_url=redirect_url,
+        org_id=org_id,
+    )
+
+    # WHICH ACCOUNT SENDS THIS. The From line above says who the mail is from;
+    # the binding says whose provider account carries it. They are separate so
+    # a vCTO client can move to their own Resend account without a code change
+    # — owner directive 2026-09-06. A binding on MADFAM's account uses the
+    # platform credential.
+    binding = binding_for(redirect_url=redirect_url, org_id=org_id)
+    api_key_override: Optional[str] = None
+    if binding.provider == PROVIDER_SMTP:
+        # The SMTP provider stub is a BINDING-level declaration with no
+        # transport behind it yet. Sending it through Resend anyway would be a
+        # silent lie about how the mail left, so this fails visibly. Recipient
+        # deliberately absent from the log.
+        if observe:
+            logger.error(
+                "email.smtp_provider_not_implemented",
+                tenant=binding.tenant,
+                message_id=message_id,
+            )
+        return MessageEnvelope(
+            sender_name=sender_name,
+            sender_address=sender_address,
+            sender_reply_to=sender_reply_to,
+            html=html_content,
+            text=text_content,
+            unsupported_provider_tenant=binding.tenant,
+        )
+    if binding.is_on_tenant_account:
+        try:
+            api_key_override = await resolve_credential(binding)
+        except SenderCredentialError as exc:
+            # The tenant's own key is missing. Fall back to the PLATFORM sender
+            # on the platform account rather than dropping a sign-in link: a
+            # mail from hola@madfam.io is a degraded outcome, a mail nobody
+            # receives is an outage.
+            if observe:
+                logger.error(
+                    "email.tenant_credential_unavailable_falling_back",
+                    tenant=binding.tenant,
+                    credential_ref=binding.credential_ref,  # a name, not a value
+                    error=str(exc),
+                )
+            # `from_name` is deliberately NOT carried over: a fallback to the
+            # platform account sends as the platform, whole (2026-09-07).
+            sender_name, sender_address, sender_reply_to = sender_for_address(
+                from_email=None,
+                from_name=None,
+                redirect_url=None,
+                org_id=None,
+            )
+            api_key_override = None
+
+    # Token links never pass through Resend's tracking: decided on the From
+    # address that will actually be used (after any fallback).
+    wire_html, wire_text, forced_text_only = untracked_bodies(
+        sender_address, html_content, text_content, token_link=token_link
+    )
+    if forced_text_only and observe:
+        logger.info(
+            "email.token_link_sent_text_only",
+            message_id=message_id,
+            sender_domain=sender_address.rsplit("@", 1)[-1],
+        )
+    return MessageEnvelope(
+        sender_name=sender_name,
+        sender_address=sender_address,
+        sender_reply_to=sender_reply_to,
+        html=wire_html,
+        text=wire_text,
+        forced_text_only=forced_text_only,
+        api_key_override=api_key_override,
+    )
 
 
 class ResendEmailService:
@@ -83,6 +219,7 @@ class ResendEmailService:
         redirect_url: Optional[str] = None,
         org_id: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
+        token_link: bool = False,
     ) -> EmailDeliveryStatus:
         """
         Send email via Resend API
@@ -115,6 +252,12 @@ class ResendEmailService:
                 omitted or empty the ``attachments`` key is never added to the
                 Resend payload, so a message with no files is byte-identical to
                 the pre-attachment path.
+            token_link: The body carries a one-time or signed link (or other
+                credential). On a sender domain listed in
+                EMAIL_TRACKED_SENDER_DOMAINS the message is then sent
+                TEXT-ONLY so Resend's click/open tracking never touches it.
+                Credential-looking link parameters are also detected in the
+                HTML regardless of this flag. See app/services/email_tracking.py.
 
         Returns:
             EmailDeliveryStatus object with delivery information
@@ -139,94 +282,50 @@ class ResendEmailService:
                     to_email, subject, html_content, text_content, message_id, metadata
                 )
 
-            # Production mode: Resend API
-            # Phase 2: the From line follows the tenant when that tenant's
-            # domain is Resend-verified, and falls back to the PLATFORM sender
-            # WHOLE — `MADFAM <hola@madfam.io>`, name and address — when it is
-            # not (owner directive 2026-09-07; the earlier partial downgrade
-            # put the tenant's name on MADFAM's address and reached a real
-            # inbox). This used to be an unconditional f-string over settings,
-            # which meant a CTM message went out as MADFAM no matter what the
-            # caller asked for.
-            sender_name, sender_address, sender_reply_to = sender_for_address(
+            # Production mode: Resend API. Who the mail is FROM, which account
+            # carries it, and which bodies go on the wire are resolved by
+            # `resolve_message_envelope` -- the same function the preview
+            # endpoint uses, so a preview is exactly what this sends.
+            envelope = await resolve_message_envelope(
+                html_content=html_content,
+                text_content=text_content,
                 from_email=from_email,
                 from_name=from_name,
                 redirect_url=redirect_url,
                 org_id=org_id,
+                token_link=token_link,
+                message_id=message_id,
             )
-
-            # WHICH ACCOUNT SENDS THIS. The From line above says who the mail
-            # is from; the binding says whose provider account carries it. They
-            # are separate so a vCTO client can move to their own Resend
-            # account without a code change — owner directive 2026-09-06. A
-            # binding on MADFAM's account uses the platform credential. Every
-            # adapter selects its account under the shared transport lock.
-            binding = binding_for(redirect_url=redirect_url, org_id=org_id)
-            api_key_override: Optional[str] = None
-            if binding.provider == PROVIDER_SMTP:
-                # The SMTP provider stub is a BINDING-level declaration with no
-                # transport behind it yet. Sending it through Resend anyway
-                # would be a silent lie about how the mail left, so this fails
-                # visibly rather than quietly using the wrong provider.
-                # Recipient deliberately absent: the tenant and the message id
-                # are what diagnose this, and a misconfiguration log is not a
-                # reason to put an address in the log stream.
-                logger.error(
-                    "email.smtp_provider_not_implemented",
-                    tenant=binding.tenant,
-                    message_id=message_id,
-                )
+            if envelope.unsupported_provider_tenant is not None:
                 return EmailDeliveryStatus(
                     message_id=message_id,
                     status="failed",
                     timestamp=datetime.utcnow(),
                     error_message=(
-                        f"binding {binding.tenant!r} declares provider 'smtp', "
-                        "which has no transport implementation yet"
+                        f"binding {envelope.unsupported_provider_tenant!r} declares provider "
+                        "'smtp', which has no transport implementation yet"
                     ),
                 )
-            if binding.is_on_tenant_account:
-                try:
-                    api_key_override = await resolve_credential(binding)
-                except SenderCredentialError as exc:
-                    # The tenant's own key is missing. Fall back to the
-                    # PLATFORM sender on the platform account rather than
-                    # dropping a sign-in link: a mail from hola@madfam.io is a
-                    # degraded outcome, a mail nobody receives is an outage.
-                    logger.error(
-                        "email.tenant_credential_unavailable_falling_back",
-                        tenant=binding.tenant,
-                        credential_ref=binding.credential_ref,  # a name, not a value
-                        error=str(exc),
-                    )
-                    # `from_name` is deliberately NOT carried over. Passing
-                    # the tenant's resolved display name here would rebuild
-                    # `Crea Tu Mundo <hola@madfam.io>` on the one path that
-                    # skips the gates — the credential failure — which is the
-                    # header the 2026-09-07 reversal forbids. A fallback to the
-                    # platform account sends as the platform, whole.
-                    sender_name, sender_address, sender_reply_to = sender_for_address(
-                        from_email=None,
-                        from_name=None,
-                        redirect_url=None,
-                        org_id=None,
-                    )
-                    api_key_override = None
+            sender_name, sender_address = envelope.sender_name, envelope.sender_address
+            sender_reply_to = envelope.sender_reply_to
+            wire_html, wire_text = envelope.html, envelope.text
+            api_key_override = envelope.api_key_override
 
-            params = {
+            params: Dict[str, Any] = {
                 "from": formataddr((sender_name, sender_address)),
                 "to": [to_email],
                 "subject": subject,
-                "html": html_content,
             }
+            if wire_html:
+                params["html"] = wire_html
             # An explicit reply_to from the caller wins; otherwise the resolved
             # one is set only when it differs from From (see email_sender).
             if not reply_to and sender_reply_to and sender_reply_to != sender_address:
                 reply_to = sender_reply_to
 
             # Add optional parameters
-            if text_content:
-                params["text"] = text_content
+            if wire_text:
+                params["text"] = wire_text
 
             if reply_to:
                 params["reply_to"] = reply_to
@@ -237,8 +336,11 @@ class ResendEmailService:
             if bcc:
                 params["bcc"] = bcc
 
-            if tags:
-                params["tags"] = tags
+            # Every send is tagged with its source_app (default "janua") and,
+            # when known, org_id: Resend echoes tags on every webhook event,
+            # which is how events are scoped per app. Sanitized to Resend's
+            # tag charset, since one illegal tag fails the whole send.
+            params["tags"] = normalize_tags(tags, org_id=org_id)
 
             # Attachments. The entries arrive already mapped to Resend's
             # `Attachment` shape by the router (filename / base64 content /
@@ -417,6 +519,7 @@ class ResendEmailService:
         return await self.send_email(
             to_email=to_email,
             subject="Verify your Janua account",
+            token_link=True,
             html_content=html_content,
             text_content=text_content,
             priority=EmailPriority.HIGH,
@@ -443,6 +546,7 @@ class ResendEmailService:
         return await self.send_email(
             to_email=to_email,
             subject="Reset your Janua password",
+            token_link=True,
             html_content=html_content,
             text_content=text_content,
             priority=EmailPriority.HIGH,
@@ -508,6 +612,7 @@ class ResendEmailService:
         return await self.send_email(
             to_email=to_email,
             subject=f"{inviter_name} invited you to join {organization_name} on Janua",
+            token_link=True,
             html_content=html_content,
             text_content=text_content,
             priority=EmailPriority.HIGH,
@@ -684,6 +789,7 @@ class ResendEmailService:
         return await self.send_email(
             to_email=to_email,
             subject="Your Data Export is Ready",
+            token_link=True,
             html_content=html_content,
             text_content=text_content,
             priority=EmailPriority.HIGH,
@@ -720,6 +826,7 @@ class ResendEmailService:
         return await self.send_email(
             to_email=to_email,
             subject="MFA Recovery Codes - Janua",
+            token_link=True,
             html_content=html_content,
             text_content=text_content,
             priority=EmailPriority.HIGH,

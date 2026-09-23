@@ -3,6 +3,7 @@ Janua Internal Email API
 Centralized email service for all MADFAM applications via Resend
 """
 
+from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional
 
 import structlog
@@ -11,6 +12,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from app.config import settings
 from app.dependencies import verify_internal_api_key
+from app.services.email_tags import build_tags
 from app.services.resend_email_service import ResendEmailService as ResendService
 
 logger = structlog.get_logger()
@@ -75,6 +77,12 @@ class SendEmailRequest(BaseModel):
     # an unverified sending domain onto the wire — see app/services/email_sender.py.
     redirect_url: Optional[str] = None
     org_id: Optional[str] = None
+    # Set when the body carries a one-time or signed link (sign-in, reset,
+    # invitation, ...). On a sender domain with Resend tracking enabled the
+    # message then goes out text-only, so the link is never rewritten through
+    # Resend's redirector. Janua also detects credential-looking link
+    # parameters on its own; this flag is for links it cannot recognise.
+    contains_token_link: bool = False
 
 
 class SendTemplateEmailRequest(BaseModel):
@@ -137,18 +145,21 @@ EMAIL_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "required": ["reset_link", "expires_in"],
         "optional": ["user_name", "support_email"],
         "subject": "Reset your password",
+        "token_link": True,
     },
     "auth/email-verification": {
         "description": "Email address verification",
         "required": ["verification_link", "expires_in"],
         "optional": ["user_name"],
         "subject": "Verify your email address",
+        "token_link": True,
     },
     "auth/magic-link": {
         "description": "Passwordless login link",
         "required": ["magic_link", "expires_in"],
         "optional": ["user_name", "app_name"],
         "subject": "Your login link",
+        "token_link": True,
     },
     # Billing templates
     "billing/invoice": {
@@ -236,12 +247,14 @@ EMAIL_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "required": ["inviter_name", "team_name", "invite_url"],
         "optional": ["role", "expires_in", "message"],
         "subject": "{inviter_name} invited you to join {team_name}",
+        "token_link": True,
     },
     "invitation/creator-invite": {
         "description": "Creator platform invitation (Forj)",
         "required": ["invite_url"],
         "optional": ["role", "expires_in", "inviter_name"],
         "subject": "You're invited to join Forj",
+        "token_link": True,
     },
     # Onboarding templates
     "onboarding/complete": {
@@ -356,13 +369,15 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
     try:
         resend_service = ResendService()
 
-        # Build tags for tracking (convert dict to list format expected by Resend)
-        tag_list = [
-            {"name": "source_app", "value": request.source_app},
-            {"name": "source_type", "value": request.source_type or "notification"},
-        ]
-        if request.tags:
-            tag_list.extend([{"name": k, "value": v} for k, v in request.tags.items()])
+        # Resend tags scope every webhook event back to the sending app and
+        # tenant (app/services/email_tags.py). Reserved names cannot be
+        # overridden by the caller's own `tags`.
+        tag_list = build_tags(
+            source_app=request.source_app,
+            source_type=request.source_type or "notification",
+            org_id=request.org_id,
+            extra=request.tags,
+        )
 
         # from_email / from_name are now passed through, but they are NOT
         # trusted: `sender_for_address` honours an explicit address only when
@@ -387,6 +402,7 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
                 redirect_url=request.redirect_url,
                 org_id=request.org_id,
                 attachments=resend_attachments,
+                token_link=request.contains_token_link,
             )
             results.append(result)
 
@@ -407,43 +423,46 @@ async def send_template_email(
     Send an email using a predefined template.
     Templates are rendered server-side with provided variables.
     """
-    # Validate template exists
-    template = EMAIL_TEMPLATES.get(request.template)
-    if not template:
+    # Validate and render with the same helper the preview endpoint uses.
+    try:
+        rendered = await render_registered_template(request.template, request.variables)
+    except UnknownTemplateError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown template: {request.template}"
         )
-
-    # Validate required variables
-    missing = [v for v in template["required"] if v not in request.variables]
-    if missing:
+    except MissingTemplateVariablesError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Missing required variables: {', '.join(missing)}",
+            detail=f"Missing required variables: {', '.join(exc.missing)}",
         )
+    except Exception as e:  # rendering failure: same answer as a failed send
+        logger.error(
+            "Failed to render template email",
+            error_type=type(e).__name__,
+            template=request.template,
+            source_app=request.source_app,
+        )
+        return EmailResponse(success=False, error="Email provider send failed")
 
     try:
         resend_service = ResendService()
+        subject = rendered.subject
+        html_content = rendered.html
 
-        # Generate subject from template
-        subject = template["subject"].format(**request.variables)
-
-        # Render HTML from template
-        html_content = await render_template(request.template, request.variables)
-
-        # Build tags list format expected by Resend
-        tag_list = [
-            {"name": "source_app", "value": request.source_app},
-            {"name": "source_type", "value": request.source_type or "notification"},
-            {"name": "template", "value": request.template},
-        ]
+        # Resend tags (sanitized: "auth/magic-link" is not a legal tag value).
+        tag_list = build_tags(
+            source_app=request.source_app,
+            source_type=request.source_type or "notification",
+            org_id=request.org_id,
+            template=request.template,
+        )
 
         # from_email / from_name are passed through under the verified-domain
         # gate (see /send above). A template may declare a default sender
         # (e.g. the CFDI template defaults to the madfam.io fiscal address);
         # the caller's explicit from_email always takes precedence when given.
-        from_email = request.from_email or template.get("default_from_email")
-        from_name = request.from_name or template.get("default_from_name")
+        from_email = request.from_email or rendered.default_from_email
+        from_name = request.from_name or rendered.default_from_name
 
         # Attachments are now forwarded for template sends too — this is what
         # lets a CFDI-delivery template carry its stamped XML + PDF.
@@ -462,6 +481,7 @@ async def send_template_email(
                 redirect_url=request.redirect_url,
                 org_id=request.org_id,
                 attachments=resend_attachments,
+                token_link=rendered.token_link,
             )
             results.append(result)
 
@@ -604,6 +624,57 @@ def _derive_template_variables(template_id: str, variables: Dict[str, Any]) -> D
         derived["sesiones_detalle"] = _sesiones_detalle(variables.get("sesiones"))
         return derived
     return variables
+
+
+class UnknownTemplateError(LookupError):
+    """The template id is not in EMAIL_TEMPLATES."""
+
+
+class MissingTemplateVariablesError(ValueError):
+    """The context lacks variables the template needs (names in `missing`)."""
+
+    def __init__(self, missing: List[str]):
+        super().__init__(", ".join(missing))
+        self.missing = missing
+
+
+@dataclass(frozen=True)
+class RenderedTemplate:
+    template_id: str
+    subject: str
+    html: str
+    default_from_email: Optional[str]
+    default_from_name: Optional[str]
+    token_link: bool
+
+
+async def render_registered_template(
+    template_id: str, variables: Dict[str, Any]
+) -> RenderedTemplate:
+    """Validate and render one registry template. Render-only: never sends.
+
+    The single implementation behind POST /send-template and POST /preview,
+    so a preview is byte-for-byte the subject and HTML a send would produce.
+    """
+    template = EMAIL_TEMPLATES.get(template_id)
+    if not template:
+        raise UnknownTemplateError(template_id)
+    missing = [v for v in template["required"] if v not in variables]
+    if missing:
+        raise MissingTemplateVariablesError(missing)
+    try:
+        subject = template["subject"].format(**variables)
+    except KeyError as exc:  # a subject slot outside the declared contract
+        raise MissingTemplateVariablesError([str(exc.args[0])])
+    html = await render_template(template_id, variables)
+    return RenderedTemplate(
+        template_id=template_id,
+        subject=subject,
+        html=html,
+        default_from_email=template.get("default_from_email"),
+        default_from_name=template.get("default_from_name"),
+        token_link=bool(template.get("token_link")),
+    )
 
 
 async def render_template(template_id: str, variables: Dict[str, Any]) -> str:

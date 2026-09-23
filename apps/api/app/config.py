@@ -266,6 +266,36 @@ class Settings(BaseSettings):
         pattern="^[a-z]{2}(-[A-Za-z0-9]{2,8})?$",
         description="Default language for transactional email (BCP 47 tag, e.g. es, es-MX, en)",
     )
+    # Resend webhook signing secrets, ONE PER RESEND ACCOUNT. Resend signs each
+    # webhook Svix-style with the endpoint's `whsec_...` secret, and a webhook
+    # endpoint belongs to one account: CTM's own account (the tenant binding in
+    # app/services/sender_binding.py) and MADFAM's platform account each create
+    # their own endpoint and get their own secret. The receiver is
+    # POST /api/v1/email/webhooks/resend/{cuenta}; an account whose secret is
+    # unset answers 404, exactly like an unknown account. Vault: secret/janua
+    # #resend_webhook_secret_ctm / #resend_webhook_secret_platform.
+    RESEND_WEBHOOK_SECRET_CTM: Optional[str] = Field(
+        default=None, description="Svix signing secret (whsec_...) of CTM's Resend webhook"
+    )
+    RESEND_WEBHOOK_SECRET_PLATFORM: Optional[str] = Field(
+        default=None, description="Svix signing secret (whsec_...) of MADFAM's Resend webhook"
+    )
+    # Sending domains on which Resend OPEN/CLICK TRACKING is enabled. Tracking
+    # is a per-domain Resend setting: click tracking rewrites every link in the
+    # HTML part and open tracking adds a pixel. A rewritten sign-in or reset
+    # link is a one-time token passing through a third-party redirector, and
+    # Resend itself warns it can break verification links. So any message that
+    # carries a token link and goes out FROM one of these domains is sent
+    # TEXT-ONLY (Resend never rewrites or pixels a text part). Empty by default:
+    # list a domain here only once tracking is actually enabled on it. Exact
+    # domain match, comma-separated. See app/services/email_tracking.py.
+    EMAIL_TRACKED_SENDER_DOMAINS: str = Field(
+        default="",
+        description=(
+            "Comma-separated sender domains with Resend open/click tracking enabled; "
+            "token-link mail from them is sent text-only."
+        ),
+    )
 
     # SMTP Configuration (for development/self-hosted)
     SMTP_HOST: Optional[str] = Field(default=None)
@@ -712,6 +742,17 @@ class Settings(BaseSettings):
         return [d.strip().lower().lstrip("@") for d in raw.split(",") if d.strip()]
 
     @property
+    def email_tracked_sender_domains_list(self) -> List[str]:
+        """Sender domains with Resend open/click tracking enabled, lowercased.
+
+        Unlike `resend_verified_domains_list`, blank means EMPTY: no domain is
+        tracked until an operator says so, which is the safe direction here
+        (an untracked domain only loses analytics; nothing is suppressed).
+        """
+        raw = (self.EMAIL_TRACKED_SENDER_DOMAINS or "").strip()
+        return [d.strip().lower().lstrip("@") for d in raw.split(",") if d.strip()]
+
+    @property
     def service_url(self) -> str:
         """
         Returns internal URL for service-to-service communication if available,
@@ -796,6 +837,8 @@ class Settings(BaseSettings):
             "CONEKTA_WEBHOOK_SECRET",
             "STRIPE_WEBHOOK_SECRET",
             "DHANAM_WEBHOOK_SECRET",
+            "RESEND_WEBHOOK_SECRET_CTM",
+            "RESEND_WEBHOOK_SECRET_PLATFORM",
             "FEDERATION_API_TOKEN",
             "CLOUDFLARE_TURNSTILE_SECRET",
             "CLOUDFLARE_R2_SECRET_KEY",
