@@ -416,3 +416,51 @@ async def test_template_listing(client):
     assert listing["auth/magic-link"]["token_link"] is True
     assert listing["invitation/team-invite"]["token_link"] is True
     assert listing["auth/magic-link"]["required_variables"] == ["magic_link", "expires_in"]
+
+
+# --------------------------------------------------------------------------
+# Text-only correctness: a blank HTML part is never handed to Resend
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "html_field",
+    [{}, {"html": None}, {"html": ""}, {"html": "   \n\t "}],
+    ids=["absent", "null", "empty", "whitespace"],
+)
+async def test_text_only_send_has_no_html_key_and_preview_says_null(
+    client, sdk_sends, ctm_key, html_field
+):
+    body = {
+        "to": ["persona@example.com"],
+        "subject": "Aviso",
+        "text": "Solo texto.",
+        "source_app": "crea-map",
+        "org_id": CTM_ORG_ID,
+        **html_field,
+    }
+    preview = (await _preview(client, {"kind": "raw", **body})).json()
+    assert sdk_sends == []
+    sent = await client.post("/api/v1/internal/email/send", headers=AUTH, json=body)
+    assert sent.json()["success"] is True
+    (wire,) = sdk_sends
+    assert "html" not in wire  # spy on the Resend params: no empty HTML part
+    assert wire["text"] == "Solo texto."
+    assert preview["html"] is None
+    assert preview["text"] == wire["text"]
+
+
+async def test_non_empty_html_is_sent_and_previewed(client, sdk_sends, ctm_key):
+    body = {
+        "to": ["persona@example.com"],
+        "subject": "Aviso",
+        "text": "Hola",
+        "html": "<p>Hola</p>",
+        "source_app": "crea-map",
+        "org_id": CTM_ORG_ID,
+    }
+    preview = (await _preview(client, {"kind": "raw", **body})).json()
+    await client.post("/api/v1/internal/email/send", headers=AUTH, json=body)
+    (wire,) = sdk_sends
+    assert wire["html"] == "<p>Hola</p>" == preview["html"]
+    assert wire["text"] == "Hola" == preview["text"]

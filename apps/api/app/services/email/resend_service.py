@@ -140,8 +140,10 @@ class ResendService:
                 "from": self._format_from(from_email),
                 "to": recipients,
                 "subject": subject,
-                "html": html,
             }
+            # A blank HTML part can render as an empty message: omit it.
+            if html and html.strip():
+                params["html"] = html
 
             if text:
                 params["text"] = text

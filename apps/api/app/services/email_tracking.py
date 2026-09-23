@@ -156,6 +156,17 @@ def html_to_text(html: str) -> str:
     return _parse(html).text()
 
 
+def _present(body: Optional[str]) -> Optional[str]:
+    """The body, or None when it is missing, empty or whitespace-only.
+
+    An empty `"html": ""` handed to Resend is not "no HTML": it can arrive as
+    a blank HTML part that mail clients prefer over the real text part, so a
+    text-only message reads as an empty email. Every transport omits a body
+    this returns None for.
+    """
+    return body if body is not None and body.strip() else None
+
+
 def untracked_bodies(
     from_address: Optional[str],
     html: Optional[str],
@@ -165,13 +176,16 @@ def untracked_bodies(
 ) -> Tuple[Optional[str], Optional[str], bool]:
     """(html, text, forced_text_only) to put on the wire for one message.
 
-    Returns the bodies unchanged unless the message is token-bearing AND its
-    From domain is tracked; then the HTML is dropped and the text part is the
-    caller's own, or one derived from the HTML so the link still arrives.
+    Blank bodies come back as None (see `_present`), so a text-only message
+    never carries an empty HTML part. Otherwise the bodies are unchanged unless
+    the message is token-bearing AND its From domain is tracked; then the HTML
+    is dropped and the text part is the caller's own, or one derived from the
+    HTML so the link still arrives.
     """
+    html, text = _present(html), _present(text)
     if not is_tracked_sender(from_address):
         return html, text, False
     if not (token_link or html_carries_token_link(html)):
         return html, text, False
-    plain = text if text and text.strip() else html_to_text(html or "")
-    return None, plain, True
+    plain = text if text is not None else html_to_text(html or "")
+    return None, _present(plain), True
