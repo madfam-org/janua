@@ -25,6 +25,7 @@ rate-limit factories construct their middleware without registering it.
 """
 
 import json
+from typing import List
 
 import structlog
 from fastapi import APIRouter, Depends, Request
@@ -61,9 +62,15 @@ async def receive_resend_webhook(
     if secret is None:
         return JSONResponse(status_code=404, content=_NOT_FOUND)
 
-    body = await request.body()
-    if len(body) > MAX_BODY_BYTES:
-        return JSONResponse(status_code=413, content={"detail": "Payload too large"})
+    # Read with a cap instead of buffering whatever arrives: the route is public.
+    chunks: List[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > MAX_BODY_BYTES:
+            return JSONResponse(status_code=413, content={"detail": "Payload too large"})
+        chunks.append(chunk)
+    body = b"".join(chunks)
 
     svix_id = request.headers.get("svix-id")
     try:
