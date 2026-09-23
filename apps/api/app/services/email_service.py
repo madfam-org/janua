@@ -776,7 +776,7 @@ class EmailService:
         # A sign-in/reset/verify/invite link must never be rewritten by
         # Resend's click tracking: on a tracked From domain the message goes
         # out text-only (app/services/email_tracking.py).
-        html_content, text_content, forced_text_only = untracked_bodies(
+        wire_html, wire_text, forced_text_only = untracked_bodies(
             address, html_content, text_content, token_link=token_link
         )
         if forced_text_only:
@@ -787,10 +787,10 @@ class EmailService:
         # creatumundo.mx but RECEIVED in that domain's own mailbox.
         if reply_to and reply_to != address:
             payload["reply_to"] = reply_to
-        if html_content:
-            payload["html"] = html_content
-        if text_content:
-            payload["text"] = text_content
+        if wire_html:
+            payload["html"] = wire_html
+        if wire_text:
+            payload["text"] = wire_text
 
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
@@ -863,17 +863,17 @@ class EmailService:
             if smtp_reply_to and smtp_reply_to != smtp_address:
                 msg["Reply-To"] = smtp_reply_to
             # smtp.resend.com applies the same per-domain tracking as the API.
-            html_content, text_content, _ = untracked_bodies(
+            smtp_html, smtp_text, _ = untracked_bodies(
                 smtp_address, html_content, text_content, token_link=token_link
             )
 
             # Add text and HTML parts
-            if text_content:
-                text_part = MIMEText(text_content, "plain", "utf-8")
+            if smtp_text:
+                text_part = MIMEText(smtp_text, "plain", "utf-8")
                 msg.attach(text_part)
 
-            if html_content:
-                html_part = MIMEText(html_content, "html", "utf-8")
+            if smtp_html:
+                html_part = MIMEText(smtp_html, "html", "utf-8")
                 msg.attach(html_part)
 
             # Send via SMTP
