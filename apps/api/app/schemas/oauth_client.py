@@ -121,7 +121,12 @@ class OAuthClientCreate(BaseModel):
         for scope in v:
             if scope in base_scopes:
                 continue
-            if not re.match(r"^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$", scope):
+            # Hyphens are allowed on both sides, matching the app-role shape the
+            # token endpoint already emits (oauth_provider.APP_ROLE_SCOPE_PATTERN)
+            # and the scope #635's payment-notice boundary requires
+            # (``crea-map:payment-mail``). Without this, Janua's own client
+            # registration refused the only scope that endpoint accepts.
+            if not re.match(r"^[a-z][a-z0-9_-]*:[a-z][a-z0-9_-]*$", scope):
                 raise ValueError(
                     f"Invalid scope: {scope}. "
                     f"Use base scopes ({', '.join(sorted(base_scopes))}) "
