@@ -59,9 +59,10 @@ agent, bounce diagnostic text, the query string or fragment of a clicked link.
 4. **Tracking**: enable open/click tracking on `creatumundo.mx` in Resend (it
    is a per-domain setting and needs its tracking subdomain verified), then set
    `EMAIL_TRACKED_SENDER_DOMAINS=creatumundo.mx` on janua-api. From then on,
-   any token-bearing message from that domain goes out text-only. Set the env
-   var no later than enabling tracking; setting it earlier only costs HTML on
-   token mail, never correctness.
+   any token-bearing message from that domain goes out text-only. Roll the env
+   var out FIRST, then flip tracking in Resend: setting it early only costs HTML
+   on token mail, setting it late leaves a window where sign-in links are
+   rewritten.
 5. **Ledger PR**: after reading the database, record `018_email_events` in
    `apps/api/alembic/PROD_ALEMBIC_STATE.json` (see ALEMBIC_CONVERGENCE.md).
 6. **Promote.**
