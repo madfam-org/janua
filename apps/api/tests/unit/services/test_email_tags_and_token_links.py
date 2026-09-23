@@ -17,9 +17,11 @@ keys are fakes, and recipients are example.com addresses.
 from __future__ import annotations
 
 import os
+import re
 import uuid
 from typing import Any, Dict, List
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import urlsplit
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -46,7 +48,6 @@ from app.services.email_tracking import (
     untracked_bodies,
 )
 from app.services.payment_mail_auth import PaymentMailPrincipal
-from app.services.resend_email_service import ResendEmailService
 
 CTM_CREDENTIAL_ENV = "CTM_RESEND_API_KEY"
 FAKE_CTM_KEY = "re_test_ctm_key_not_real"
@@ -233,7 +234,7 @@ async def test_send_template_tag_is_sanitized(client, sdk_sends):
 
 
 async def test_service_methods_default_to_source_app_janua(sdk_sends):
-    await ResendEmailService().send_invitation_email(
+    await resend_module.ResendEmailService().send_invitation_email(
         to_email="persona@example.com",
         inviter_name="Ana",
         organization_name="Crea Tu Mundo",
@@ -514,12 +515,14 @@ async def test_send_on_tracked_ctm(client, sdk_sends, ctm_key, tracked, body, ex
     params = sdk_sends[0]
     assert ("html" in params) is expect_html
     if not expect_html:
-        assert "https://map.creatumundo.mx/" in params["text"]
+        # The link survives into the text part (compared by parsed host, not substring).
+        hosts = {urlsplit(u).hostname for u in re.findall(r"https?://\S+", params["text"])}
+        assert "map.creatumundo.mx" in hosts
 
 
 async def test_resend_service_reset_on_tracked_madfam_is_text_only(sdk_sends, tracked):
     tracked("madfam.io")
-    await ResendEmailService().send_password_reset_email(
+    await resend_module.ResendEmailService().send_password_reset_email(
         "persona@example.com", "Ana", "https://auth.madfam.io/r?token=abc"
     )
     params = sdk_sends[0]
