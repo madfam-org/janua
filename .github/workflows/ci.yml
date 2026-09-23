@@ -221,6 +221,13 @@ jobs:
             --ignore=tests/unit/models/test_user.py \
             --ignore=tests/unit/core/test_redis_circuit_breaker.py
 
+      - name: Prove payment-mail database concurrency and evidence guards
+        working-directory: apps/api
+        env:
+          LOCAL_DB: 'yes'
+          JANUA_MAIL_TEST_DATABASE_URL: postgresql+asyncpg://janua:janua@127.0.0.1:5432/janua_test
+        run: pytest tests/unit/services/test_payment_mail_postgres.py --no-cov
+
       - name: Upload coverage
         uses: codecov/codecov-action@v7
         with:

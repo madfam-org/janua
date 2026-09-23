@@ -85,3 +85,52 @@ async def test_console_is_simulation_and_does_not_log_message_contents(caplog):
     assert result.status == "simulated"
     assert "persona01@example.com" not in caplog.text
     assert "private fixture" not in caplog.text
+
+
+def test_stable_provider_key_is_forwarded_and_account_restored(monkeypatch):
+    from datetime import datetime, timedelta
+    from unittest.mock import Mock
+
+    provider = Mock(return_value={"id": "fixture-provider-id"})
+    monkeypatch.setattr(transport.resend.Emails, "send", provider)
+    monkeypatch.setattr(transport.resend, "api_key", "ambient-fixture")
+    transport.send_on_account(
+        {"subject": "fixture"},
+        "tenant-fixture",
+        idempotency_key="fixture-command",
+        send_before=datetime.utcnow() + timedelta(minutes=1),
+    )
+    provider.assert_called_once_with({"subject": "fixture"}, {"idempotency_key": "fixture-command"})
+    assert transport.resend.api_key == "ambient-fixture"
+
+
+def test_deadline_is_checked_after_waiting_for_shared_account_lock(monkeypatch):
+    from datetime import datetime, timedelta
+    from unittest.mock import Mock
+
+    provider = Mock()
+    monkeypatch.setattr(transport.resend.Emails, "send", provider)
+    monkeypatch.setattr(transport.resend, "api_key", "ambient-fixture")
+    # The lock changes the test clock as it would advance during a stalled send.
+    now = datetime.utcnow()
+    clock = Mock()
+    clock.utcnow.return_value = now
+    monkeypatch.setattr(transport, "datetime", clock)
+
+    class DelayedLock:
+        def __enter__(self):
+            clock.utcnow.return_value = now + timedelta(hours=24)
+
+        def __exit__(self, *_):
+            pass
+
+    monkeypatch.setattr(transport, "_ACCOUNT_LOCK", DelayedLock())
+    with pytest.raises(TimeoutError, match="window expired"):
+        transport.send_on_account(
+            {},
+            "tenant-fixture",
+            idempotency_key="fixture-command",
+            send_before=now + timedelta(hours=23),
+        )
+    provider.assert_not_called()
+    assert transport.resend.api_key == "ambient-fixture"

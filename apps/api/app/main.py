@@ -1103,6 +1103,11 @@ app.include_router(guest_v1.router, prefix="/api/v1")  # Guest access tokens
 app.include_router(guest_invites_v1.router, prefix="/api/v1")  # Guest invite CRUD
 app.include_router(me_v1.router, prefix="/api/v1")  # Caller-scoped (entitlements)
 
+# Narrow service-token mail boundary; registration failures must fail startup.
+from app.routers.v1 import payment_notices as payment_notices_v1
+
+app.include_router(payment_notices_v1.router, prefix="/api/v1")
+
 # Internal service API routers (for MADFAM service-to-service communication)
 try:
     from app.routers.v1 import email as email_v1

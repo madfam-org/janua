@@ -49,7 +49,7 @@ def test_the_repo_chain_is_linear_and_ends_at_the_expected_head() -> None:
     """A branch would make "how many revisions ahead" ambiguous."""
     order = guard.linear_history(guard.load_graph())
     assert order[0] == "000"
-    assert order[-1] == "016_org_member_app_roles"
+    assert order[-1] == "017_payment_mail_dispatch"
     assert len(order) == len(set(order))
 
 
@@ -130,7 +130,7 @@ def _run(monkeypatch, tmp_path, recorded, argv) -> int:
 def test_blocks_when_the_ledger_is_behind(monkeypatch, tmp_path, capsys) -> None:
     assert _run(monkeypatch, tmp_path, "011_invitation_columns", []) == guard.EXIT_BLOCKED
     out = capsys.readouterr()
-    assert "016_org_member_app_roles" in out.out
+    assert "017_payment_mail_dispatch" in out.out
     assert "alembic_converge.py --check" in (out.out + out.err)
 
 
@@ -141,16 +141,16 @@ def test_passes_when_acknowledged(monkeypatch, tmp_path) -> None:
 
 
 def test_passes_when_the_ledger_is_at_head(monkeypatch, tmp_path) -> None:
-    assert _run(monkeypatch, tmp_path, "016_org_member_app_roles", []) == guard.EXIT_OK
+    assert _run(monkeypatch, tmp_path, "017_payment_mail_dispatch", []) == guard.EXIT_OK
 
 
 def test_max_drift_widens_the_tolerance(monkeypatch, tmp_path) -> None:
     assert (
-        _run(monkeypatch, tmp_path, "015_user_is_service_acct", ["--max-drift", "1"])
+        _run(monkeypatch, tmp_path, "016_org_member_app_roles", ["--max-drift", "1"])
         == guard.EXIT_OK
     )
     assert (
-        _run(monkeypatch, tmp_path, "014_capability_links", ["--max-drift", "1"])
+        _run(monkeypatch, tmp_path, "015_user_is_service_acct", ["--max-drift", "1"])
         == guard.EXIT_BLOCKED
     )
 
