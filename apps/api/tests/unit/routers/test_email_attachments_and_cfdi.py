@@ -108,18 +108,12 @@ async def test_send_forwards_attachments_to_resend(capture_resend, client):
 
 
 @pytest.mark.asyncio
-async def test_send_template_forwards_attachments_to_resend(capture_resend, client):
+async def test_send_template_forwards_attachments_to_resend(capture_resend, client, cfdi_variables):
     """/email/send-template must also forward attachments (CFDI delivery)."""
     body = {
         "to": ["cliente@example.com"],
         "template": "billing/cfdi",
-        "variables": {
-            "cliente_nombre": "Cliente Prueba",
-            "folio_fiscal": "11111111-2222-3333-4444-555555555555",
-            "periodo": "Septiembre 2026",
-            "total": "$1,160.00 MXN",
-            "rfc_receptor": "XAXX010101000",
-        },
+        "variables": cfdi_variables,
         "attachments": _attachments_payload(),
         "source_app": "nauta",
         "source_type": "billing",
@@ -136,18 +130,15 @@ async def test_send_template_forwards_attachments_to_resend(capture_resend, clie
 
 
 @pytest.mark.asyncio
-async def test_send_template_cfdi_defaults_to_madfam_fiscal_sender(capture_resend, client):
+async def test_send_template_cfdi_defaults_to_madfam_fiscal_sender(
+    capture_resend, client, cfdi_variables
+):
     """With no caller from_email, the CFDI template sends from the madfam.io
     fiscal address (facturacion@madfam.io), never a client domain."""
     body = {
         "to": ["cliente@example.com"],
         "template": "billing/cfdi",
-        "variables": {
-            "cliente_nombre": "Cliente Prueba",
-            "folio_fiscal": "11111111-2222-3333-4444-555555555555",
-            "periodo": "Septiembre 2026",
-            "total": "$1,160.00 MXN",
-        },
+        "variables": cfdi_variables,
         "source_app": "nauta",
         "source_type": "billing",
     }
@@ -196,32 +187,25 @@ async def test_send_without_attachments_omits_the_key(capture_resend, client):
     assert "attachments" not in capture_resend[0]
 
 
-def test_cfdi_template_is_registered_with_required_vars():
+def test_cfdi_template_is_registered_with_required_vars(cfdi_variables):
     entry = EMAIL_TEMPLATES.get("billing/cfdi")
     assert entry is not None, "billing/cfdi template must be registered"
-    assert set(entry["required"]) == {"cliente_nombre", "folio_fiscal", "periodo", "total"}
+    # The v2 contract: every fiscal value is required (see test_email_cfdi_v2.py).
+    assert set(entry["required"]) == set(cfdi_variables)
+    assert entry["optional"] == ["portal_url"]
     assert entry["default_from_email"] == "facturacion@madfam.io"
 
 
 @pytest.mark.asyncio
-async def test_cfdi_template_renders_with_required_vars():
+async def test_cfdi_template_renders_with_required_vars(cfdi_variables):
     """The CFDI template file exists and its placeholders are substituted (not
     falling back to the generic HTML), and the body is Spanish."""
-    variables = {
-        "cliente_nombre": "Cliente Prueba",
-        "folio_fiscal": "11111111-2222-3333-4444-555555555555",
-        "periodo": "Septiembre 2026",
-        "total": "$1,160.00 MXN",
-        "rfc_receptor": "XAXX010101000",
-    }
-    html = await render_template("billing/cfdi", variables)
+    html = await render_template("billing/cfdi", cfdi_variables)
 
     # Values are substituted (proves the backing file resolved, not fallback).
-    for value in variables.values():
-        assert value in html
-    # No unrendered placeholders remain for the provided vars.
-    assert "{{folio_fiscal}}" not in html
-    assert "{{total}}" not in html
+    assert cfdi_variables["folio_fiscal"] in html
+    assert cfdi_variables["total"] in html
+    assert "{{" not in html
     # Spanish, client-facing.
     assert "comprobante fiscal" in html.lower()
     assert 'lang="es"' in html

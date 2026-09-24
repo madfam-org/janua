@@ -1,0 +1,31 @@
+MADFAM · Facturación
+
+SU COMPROBANTE FISCAL (CFDI)
+
+Estimado equipo de {{cliente_nombre}}:
+
+Le enviamos el comprobante fiscal digital por Internet (CFDI) correspondiente al periodo {{periodo}}. Adjuntamos el archivo XML, que tiene validez fiscal ante el SAT, y su representación impresa en PDF.
+
+Total: {{total}}
+Subtotal: {{subtotal}} · IVA trasladado: {{iva}}
+
+Serie y folio: {{serie_folio}}
+Folio fiscal (UUID): {{folio_fiscal}}
+Fecha de emisión: {{fecha_emision}}
+Emisor: {{emisor_nombre}} (RFC {{rfc_emisor}})
+Receptor: {{receptor_nombre}} (RFC {{rfc_receptor}})
+Forma de pago: {{forma_pago}}
+Método de pago: {{metodo_pago}}
+
+Verifique este CFDI en el SAT:
+{{verificacion_url}}
+
+{{portal_texto}}Conserve el archivo XML: es el comprobante con validez fiscal. El PDF es una representación impresa para su consulta.
+
+¿Detecta algún dato incorrecto? Responda a este correo y lo revisamos con gusto.
+
+--
+{{emisor_nombre}} · RFC {{rfc_emisor}} · Cuernavaca, Morelos, México
+Recibe este correo porque es cliente de MADFAM.
+Aviso de privacidad: https://madfam.io/es/privacy
+madfam.io · © {{anio}} MADFAM

@@ -1,139 +1,192 @@
 <!DOCTYPE html>
 <!--
-  CFDI delivery template (Mexico fiscal receipt).
+  CFDI delivery (billing/cfdi): MADFAM → client, Spanish, usted register.
 
-  Client-facing and Spanish-first (this reaches a Mexican client). Rendered by
-  the router's render_template(), which does NAIVE {{key}} string substitution
-  (NOT Jinja) — so this file is intentionally self-contained: the base.html
-  chrome is inlined rather than pulled in with {% extends %}, and there are no
-  {% if %}/{% for %} tags, which the substitution renderer would leave in the
-  output verbatim.
+  Rendered by render_template(): NAIVE {{key}} substitution, not Jinja. So
+  there are no {% if %}/{% for %} tags; optional content arrives as derived,
+  always-present slots composed in Python (portal_bloque, anio). Every
+  caller-supplied value is HTML-escaped before substitution (the registry entry
+  sets escape_html), and render_registered_template refuses to render if any
+  undeclared {{placeholder}} would survive. A broken fiscal email never
+  reaches a client.
 
-  Required variables: cliente_nombre, folio_fiscal (UUID timbre fiscal),
-  periodo, total.  Optional: rfc_receptor.
+  Email-client constraints this file is written for:
+  - Inline styles and table layout (Outlook desktop ignores most <style>).
+  - The logo is a hosted PNG (Gmail and Outlook do not render SVG), backed by a
+    live-text wordmark, so the header still reads MADFAM with images blocked.
+  - No web-font requests: system font stacks led by the brand faces (Poppins,
+    Inter, Space Mono), so opening the email makes no third-party call.
+  - color-scheme: light, because the logo and palette are designed for a
+    light ground.
 
-  The stamped CFDI itself (XML + PDF) travels as message ATTACHMENTS, not in
-  this body — see the attachments wiring in resend_email_service.send_email.
+  The stamped CFDI itself (XML + PDF) travels as attachments. Every fiscal
+  value here is read by the caller from that same stamped XML.
 -->
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Tu CFDI — {{periodo}}</title>
-    <style>
-        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
-        table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
-        img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
-        body {
-            margin: 0;
-            padding: 0;
-            width: 100% !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f3f4f6;
-        }
-        .email-container { max-width: 600px; margin: 0 auto; }
-        .header { background-color: #1f2937; padding: 24px; text-align: center; }
-        .logo { color: #ffffff; font-size: 24px; font-weight: 700; text-decoration: none; }
-        .content { background-color: #ffffff; padding: 32px 24px; }
-        .content h1 { margin: 0 0 16px 0; font-size: 24px; font-weight: 700; color: #111827; line-height: 1.3; }
-        .content p { margin: 0 0 16px 0; font-size: 16px; line-height: 1.6; color: #374151; }
-        .content p:last-child { margin-bottom: 0; }
-        .info-box { background-color: #f3f4f6; border-left: 4px solid #2563eb; padding: 16px; margin: 24px 0; }
-        .info-box p { margin: 0; font-size: 14px; color: #4b5563; }
-        .details-table { width: 100%; margin: 24px 0; border-collapse: collapse; }
-        .details-table td { padding: 12px 0; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
-        .details-table td:first-child { color: #6b7280; font-weight: 500; }
-        .details-table td:last-child { color: #111827; text-align: right; }
-        .footer { background-color: #f9fafb; padding: 24px; text-align: center; }
-        .footer p { margin: 0 0 8px 0; font-size: 14px; color: #6b7280; }
-        .footer a { color: #2563eb; text-decoration: none; }
-        .footer a:hover { text-decoration: underline; }
-        @media only screen and (max-width: 600px) {
-            .content { padding: 24px 16px; }
-            .content h1 { font-size: 20px; }
-            .content p { font-size: 14px; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Su CFDI {{serie_folio}} de MADFAM</title>
+<style>
+  @media only screen and (max-width: 620px) {
+    .mf-card { width: 100% !important; }
+    .mf-pad { padding-left: 20px !important; padding-right: 20px !important; }
+    .mf-total { font-size: 28px !important; }
+    .mf-row td { display: block !important; width: 100% !important; text-align: left !important; }
+    .mf-row td.mf-label { padding-bottom: 2px !important; border-bottom: 0 !important; }
+  }
+</style>
 </head>
-<body>
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-        <tr>
-            <td style="padding: 40px 20px;">
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0" class="email-container">
-                    <!-- Header -->
-                    <tr>
-                        <td class="header">
-                            <a href="https://madfam.io" class="logo">MADFAM</a>
-                        </td>
-                    </tr>
+<body style="margin:0; padding:0; background-color:#f4f4f0; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+<!-- Preheader: the inbox preview line. -->
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#f4f4f0;">Total {{total}} · Serie y folio {{serie_folio}} · Emitido el {{fecha_emision}} · XML y PDF adjuntos.</div>
 
-                    <!-- Content -->
-                    <tr>
-                        <td class="content">
-                            <h1>Tu comprobante fiscal (CFDI)</h1>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f4f4f0;">
+<tr>
+<td align="center" style="padding:32px 12px;">
 
-                            <p>Hola {{cliente_nombre}},</p>
+  <table role="presentation" class="mf-card" width="600" cellspacing="0" cellpadding="0" border="0" style="width:600px; max-width:600px; background-color:#ffffff; border:1px solid #e2e3dc; border-radius:12px; overflow:hidden;">
 
-                            <p>
-                                Adjuntamos tu Comprobante Fiscal Digital por Internet (CFDI)
-                                correspondiente al periodo <strong>{{periodo}}</strong>. Encontrarás
-                                el archivo <strong>XML</strong> (el comprobante con validez fiscal ante
-                                el SAT) y su representación impresa en <strong>PDF</strong> adjuntos a
-                                este correo.
-                            </p>
+    <!-- Brand stripe: the logo's green, purple and gold. -->
+    <tr>
+      <td style="padding:0; font-size:0; line-height:0;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td width="34%" height="5" style="background-color:#2c8136; font-size:0; line-height:0;">&nbsp;</td>
+            <td width="33%" height="5" style="background-color:#58326f; font-size:0; line-height:0;">&nbsp;</td>
+            <td width="33%" height="5" style="background-color:#eebc15; font-size:0; line-height:0;">&nbsp;</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
 
-                            <table class="details-table">
-                                <tr>
-                                    <td>Folio fiscal (UUID)</td>
-                                    <td>{{folio_fiscal}}</td>
-                                </tr>
-                                <tr>
-                                    <td>RFC del receptor</td>
-                                    <td>{{rfc_receptor}}</td>
-                                </tr>
-                                <tr>
-                                    <td>Periodo</td>
-                                    <td>{{periodo}}</td>
-                                </tr>
-                                <tr>
-                                    <td>Total</td>
-                                    <td><strong>{{total}}</strong></td>
-                                </tr>
-                            </table>
-
-                            <div class="info-box">
-                                <p>
-                                    Conserva el archivo XML: es la versión con validez fiscal.
-                                    El PDF es únicamente una representación para tu lectura.
-                                </p>
-                            </div>
-
-                            <p>
-                                Si detectas algún dato incorrecto en tu comprobante, responde a este
-                                correo y con gusto te apoyamos.
-                            </p>
-                        </td>
-                    </tr>
-
-                    <!-- Footer -->
-                    <tr>
-                        <td class="footer">
-                            <p>
-                                Este correo fue enviado por <strong>MADFAM</strong><br>
-                                Facturación
-                            </p>
-                            <p>
-                                <a href="https://madfam.io">Sitio web</a>
-                            </p>
-                            <p style="margin-top: 16px; font-size: 12px; color: #9ca3af;">
-                                © MADFAM. Todos los derechos reservados.
-                            </p>
-                        </td>
-                    </tr>
-                </table>
+    <!-- Header: logo + live-text wordmark. -->
+    <tr>
+      <td class="mf-pad" style="padding:28px 40px 8px 40px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td style="vertical-align:middle; padding-right:14px;">
+              <a href="https://madfam.io" style="text-decoration:none;"><img src="https://madfam.io/assets/brand/email/madfam-logo-112.png" width="56" height="57" alt="MADFAM" style="display:block; width:56px; height:57px; border:0; outline:none;"></a>
             </td>
-        </tr>
-    </table>
+            <td style="vertical-align:middle;">
+              <div style="font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:22px; font-weight:700; letter-spacing:3px; color:#030303; line-height:1.1;">MADFAM</div>
+              <div style="font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; color:#5d5e5a; line-height:1.4; padding-top:2px;">Facturación</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Title and message. -->
+    <tr>
+      <td class="mf-pad" style="padding:20px 40px 0 40px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; color:#2f302c;">
+        <h1 style="margin:0 0 16px 0; font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:24px; line-height:1.3; font-weight:700; color:#030303;">Su comprobante fiscal (CFDI)</h1>
+        <p style="margin:0 0 14px 0; font-size:16px; line-height:1.6;">Estimado equipo de {{cliente_nombre}}:</p>
+        <p style="margin:0; font-size:16px; line-height:1.6;">Le enviamos el comprobante fiscal digital por Internet (CFDI) correspondiente al periodo <strong style="color:#030303;">{{periodo}}</strong>. Adjuntamos el archivo <strong style="color:#030303;">XML</strong>, que tiene validez fiscal ante el SAT, y su representación impresa en <strong style="color:#030303;">PDF</strong>.</p>
+      </td>
+    </tr>
+
+    <!-- Amount. -->
+    <tr>
+      <td class="mf-pad" style="padding:24px 40px 0 40px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f6f7f2; border:1px solid #e2e3dc; border-radius:10px;">
+          <tr>
+            <td style="padding:18px 22px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif;">
+              <div style="font-size:12px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#5d5e5a;">Total</div>
+              <div class="mf-total" style="font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:32px; font-weight:700; color:#2c8136; line-height:1.25; padding-top:2px;">{{total}}</div>
+              <div style="font-size:14px; color:#5d5e5a; line-height:1.5; padding-top:4px;">Subtotal {{subtotal}} &nbsp;·&nbsp; IVA trasladado {{iva}}</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Fiscal detail. -->
+    <tr>
+      <td class="mf-pad" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:14px; line-height:1.5;">
+          <tr class="mf-row">
+            <td class="mf-label" width="38%" style="padding:10px 12px 10px 0; color:#5d5e5a; border-bottom:1px solid #eceee7; vertical-align:top;">Serie y folio</td>
+            <td style="padding:10px 0; color:#030303; border-bottom:1px solid #eceee7; text-align:right; font-weight:600;">{{serie_folio}}</td>
+          </tr>
+          <tr class="mf-row">
+            <td class="mf-label" width="38%" style="padding:10px 12px 10px 0; color:#5d5e5a; border-bottom:1px solid #eceee7; vertical-align:top;">Folio fiscal (UUID)</td>
+            <td style="padding:10px 0; color:#030303; border-bottom:1px solid #eceee7; text-align:right; font-family:'Space Mono','SFMono-Regular',Menlo,Consolas,'Courier New',monospace; font-size:12px; word-break:break-all;">{{folio_fiscal}}</td>
+          </tr>
+          <tr class="mf-row">
+            <td class="mf-label" width="38%" style="padding:10px 12px 10px 0; color:#5d5e5a; border-bottom:1px solid #eceee7; vertical-align:top;">Fecha de emisión</td>
+            <td style="padding:10px 0; color:#030303; border-bottom:1px solid #eceee7; text-align:right;">{{fecha_emision}}</td>
+          </tr>
+          <tr class="mf-row">
+            <td class="mf-label" width="38%" style="padding:10px 12px 10px 0; color:#5d5e5a; border-bottom:1px solid #eceee7; vertical-align:top;">Emisor</td>
+            <td style="padding:10px 0; color:#030303; border-bottom:1px solid #eceee7; text-align:right;">{{emisor_nombre}}<br><span style="font-family:'Space Mono','SFMono-Regular',Menlo,Consolas,'Courier New',monospace; font-size:12px; color:#5d5e5a;">RFC {{rfc_emisor}}</span></td>
+          </tr>
+          <tr class="mf-row">
+            <td class="mf-label" width="38%" style="padding:10px 12px 10px 0; color:#5d5e5a; border-bottom:1px solid #eceee7; vertical-align:top;">Receptor</td>
+            <td style="padding:10px 0; color:#030303; border-bottom:1px solid #eceee7; text-align:right;">{{receptor_nombre}}<br><span style="font-family:'Space Mono','SFMono-Regular',Menlo,Consolas,'Courier New',monospace; font-size:12px; color:#5d5e5a;">RFC {{rfc_receptor}}</span></td>
+          </tr>
+          <tr class="mf-row">
+            <td class="mf-label" width="38%" style="padding:10px 12px 10px 0; color:#5d5e5a; border-bottom:1px solid #eceee7; vertical-align:top;">Forma de pago</td>
+            <td style="padding:10px 0; color:#030303; border-bottom:1px solid #eceee7; text-align:right;">{{forma_pago}}</td>
+          </tr>
+          <tr class="mf-row">
+            <td class="mf-label" width="38%" style="padding:10px 12px 10px 0; color:#5d5e5a; vertical-align:top;">Método de pago</td>
+            <td style="padding:10px 0; color:#030303; text-align:right;">{{metodo_pago}}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Verify at SAT (bulletproof button). -->
+    <tr>
+      <td class="mf-pad" style="padding:24px 40px 0 40px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td style="border-radius:8px; background-color:#2c8136;">
+              <a href="{{verificacion_url}}" target="_blank" style="display:inline-block; padding:12px 22px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">Verificar este CFDI en el SAT</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Client portal link (derived; empty when the client has none). -->
+    {{portal_bloque}}
+
+    <!-- Keep-the-XML note. -->
+    <tr>
+      <td class="mf-pad" style="padding:24px 40px 0 40px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#fdf7e3; border-left:4px solid #eebc15;">
+          <tr>
+            <td style="padding:14px 16px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:14px; line-height:1.55; color:#2f302c;">Conserve el archivo <strong style="color:#030303;">XML</strong>: es el comprobante con validez fiscal. El PDF es una representación impresa para su consulta.</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Help. -->
+    <tr>
+      <td class="mf-pad" style="padding:20px 40px 32px 40px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:15px; line-height:1.6; color:#2f302c;">
+        ¿Detecta algún dato incorrecto? Responda a este correo y lo revisamos con gusto.
+      </td>
+    </tr>
+
+    <!-- Footer. -->
+    <tr>
+      <td class="mf-pad" style="padding:20px 40px 24px 40px; background-color:#f6f7f2; border-top:1px solid #e2e3dc; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#5d5e5a;">
+        <strong style="color:#030303;">{{emisor_nombre}}</strong> &nbsp;·&nbsp; RFC {{rfc_emisor}} &nbsp;·&nbsp; Cuernavaca, Morelos, México<br>
+        Recibe este correo porque es cliente de MADFAM. Tratamos sus datos conforme a nuestro <a href="https://madfam.io/es/privacy" target="_blank" style="color:#58326f; text-decoration:underline;">aviso de privacidad</a>.<br>
+        <a href="https://madfam.io" target="_blank" style="color:#2c8136; text-decoration:none; font-weight:600;">madfam.io</a> &nbsp;·&nbsp; © {{anio}} MADFAM
+      </td>
+    </tr>
+
+  </table>
+
+</td>
+</tr>
+</table>
 </body>
 </html>
