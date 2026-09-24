@@ -62,7 +62,9 @@ class TokenExchangeResponse(BaseModel):
     token_type: str = "Bearer"
     expires_in: int
     expires_at: str
+    #: Space-separated (RFC 8693 `scope`) and as a list; both always present.
     scope: str
+    scopes: list[str]
     purpose: str
     provider_type: str
     connection_id: str
@@ -171,7 +173,11 @@ async def exchange_for_provider_token(
 ):
     """Exchange a user's access token + a service's token for a provider token.
 
-    Form-encoded, RFC 8693 shape. Every rule fails closed with a reason.
+    Form-encoded (`application/x-www-form-urlencoded`), RFC 8693 shape. The
+    actor authenticates ONLY through `actor_token`; no `Authorization` header
+    is read, and one that is sent is ignored. Every rule fails closed with a
+    reason in `error.message`. The wire contract is pinned by
+    `tests/unit/routers/test_connections_census_contract.py`.
     """
     if grant_type != TOKEN_EXCHANGE_GRANT:
         raise _refuse(400, "unsupported_grant_type")
@@ -218,6 +224,7 @@ async def exchange_for_provider_token(
         expires_in=expires_in,
         expires_at=payload["expires_at"],
         scope=" ".join(payload["scopes"]),
+        scopes=list(payload["scopes"]),
         purpose=consent_purpose.id,
         provider_type=connection.provider_type,
         connection_id=str(connection.id),

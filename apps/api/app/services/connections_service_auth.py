@@ -189,15 +189,20 @@ async def verify_subject_token(
     """Verify the user's own access token presented as the exchange subject.
 
     Accepts only an RS256 Janua access token for a real, active person whose
-    audience the purpose allowlists. Service tokens, service principals and
-    tokens for any other audience are refused.
+    audience the purpose allowlists. Every refusal uses ONE reason,
+    ``invalid_subject_token`` (a wire contract consumers branch on): 401 when
+    the token itself does not verify (malformed, signature, issuer, expiry,
+    audience outside the allowlist, bad ``sub``), 403 when it verifies but
+    names no eligible person (a service token, a service principal, an
+    inactive user). The log line carries the precise cause.
     """
     _require_rs256()
     if not looks_like_jwt(token):
         raise _unauthorized("invalid_subject_token")
     allowed = sorted(purpose.allowed_subject_audiences)
     if not allowed:
-        raise _forbidden("subject_audience_not_allowed")
+        logger.warning("Subject refused: purpose %s allowlists no audience", purpose.id)
+        raise _forbidden("invalid_subject_token")
     payload = jwt_manager.verify_token(token, token_type="access", audience=allowed)
     if not payload or not _lifetime_ok(payload):
         # Signature, issuer, expiry, type — or an audience outside the allowlist.
@@ -207,7 +212,8 @@ async def verify_subject_token(
     audience_list = audiences if isinstance(audiences, list) else [audiences]
     matched = [a for a in audience_list if a in purpose.allowed_subject_audiences]
     if not matched:
-        raise _forbidden("subject_audience_not_allowed")
+        logger.warning("Subject refused: audience %r not allowlisted", audiences)
+        raise _unauthorized("invalid_subject_token")
 
     if (
         payload.get("token_use") == "client_credentials"
@@ -215,7 +221,8 @@ async def verify_subject_token(
         or payload.get("is_service_account") is True
         or str(payload.get("sub", "")).startswith("service-account:")
     ):
-        raise _forbidden("subject_must_be_user")
+        logger.warning("Subject refused: service token presented as subject")
+        raise _forbidden("invalid_subject_token")
 
     try:
         user_id = uuid.UUID(str(payload.get("sub")))
@@ -227,7 +234,8 @@ async def verify_subject_token(
     )
     user = result.scalar_one_or_none()
     if user is None or getattr(user, "is_service_account", False):
-        raise _forbidden("subject_user_unavailable")
+        logger.warning("Subject refused: user %s inactive or a service principal", user_id)
+        raise _forbidden("invalid_subject_token")
 
     return SubjectPrincipal(user=user, audience=matched[0], jti=payload.get("jti"))
 

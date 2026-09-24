@@ -88,8 +88,10 @@ def mint_service_token(
     *,
     scope: str = CONNECTIONS_DELEGATE_SCOPE,
     audience: str = CONNECTIONS_AUDIENCE,
+    expires_in: timedelta = timedelta(seconds=3600),
 ) -> str:
     """Mint exactly the claim shape `_handle_client_credentials_grant` mints."""
+    now = datetime.utcnow()
     token, _, _ = jwt_manager.create_access_token(
         user_id=f"service-account:{client_id}",
         email=f"{client_id}@service.example.com",
@@ -100,7 +102,8 @@ def mint_service_token(
             "actor_type": "service_account",
             "roles": ["service_account"],
             "aud": audience,
-            "exp": datetime.utcnow() + timedelta(seconds=3600),
+            "iat": now if expires_in > timedelta(0) else now + expires_in - timedelta(seconds=60),
+            "exp": now + expires_in,
         },
     )
     return token

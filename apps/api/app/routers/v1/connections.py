@@ -70,6 +70,8 @@ class TokenDelegationResponse(BaseModel):
     purpose: str
     provider_type: str
     scopes: list[str] = Field(default_factory=list)
+    #: Set on the purpose (offline) path; omitted on the legacy static path.
+    connection_id: Optional[str] = None
 
 
 #: Providers the legacy static-token (ATP) caller may receive tokens for.
@@ -222,7 +224,11 @@ async def revoke_connection(
     }
 
 
-@router.post("/{connection_id}/token", response_model=TokenDelegationResponse)
+@router.post(
+    "/{connection_id}/token",
+    response_model=TokenDelegationResponse,
+    response_model_exclude_none=True,
+)
 async def delegate_connection_token(
     connection_id: str,
     body: TokenDelegationRequest,
@@ -358,4 +364,4 @@ async def _offline_purpose_delegation(
         path="offline",
         ttl_seconds=body.ttl_seconds,
     )
-    return TokenDelegationResponse(**payload)
+    return TokenDelegationResponse(**payload, connection_id=str(connection.id))

@@ -178,7 +178,7 @@ async def test_service_token_as_subject_is_refused(env):
     token = mint_service_token(CENSUS_ID, audience="creator-census-api")
     resp = await _exchange(env, subject=token)
     assert resp.status_code == 403
-    assert reason(resp) == "subject_must_be_user"
+    assert reason(resp) == "invalid_subject_token"
 
 
 async def test_actor_token_replayed_as_subject_is_refused(env):
@@ -199,14 +199,14 @@ async def test_suspended_subject_is_refused(env):
     await add_connection(env["factory"], user_id=suspended.id, purposes=granted())
     resp = await _exchange(env, subject=mint_user_token(suspended.id))
     assert resp.status_code == 403
-    assert reason(resp) == "subject_user_unavailable"
+    assert reason(resp) == "invalid_subject_token"
 
 
 async def test_service_principal_subject_is_refused(env):
     bot = await add_user(env["factory"], "bot@example.com", service_account=True)
     resp = await _exchange(env, subject=mint_user_token(bot.id))
     assert resp.status_code == 403
-    assert reason(resp) == "subject_user_unavailable"
+    assert reason(resp) == "invalid_subject_token"
 
 
 # ---- actor rules ----------------------------------------------------------------
