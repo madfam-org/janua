@@ -13,7 +13,14 @@ import uuid
 from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timedelta
 from typing import AsyncIterator, Callable, Iterator
+from unittest.mock import AsyncMock, patch
+from urllib.parse import parse_qs
 
+# Imported at module import (collection) time on purpose: a session-scoped
+# autouse fixture elsewhere in this directory swaps sys.modules["httpx"] for a
+# Mock, so a lazy `import httpx` inside a helper can receive the Mock.
+import httpx
+import respx
 from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
@@ -253,11 +260,6 @@ def mocked_google_revoke(*responses) -> Iterator[tuple]:
     AsyncMock so tests stay fast and can assert the schedule. Yields
     (route, sleep_mock).
     """
-    from unittest.mock import AsyncMock, patch
-
-    import httpx
-    import respx
-
     with respx.mock(assert_all_called=False) as router:
         route = router.post(GOOGLE_REVOKE_URL)
         if responses:
@@ -271,7 +273,5 @@ def mocked_google_revoke(*responses) -> Iterator[tuple]:
 
 def revoked_token(route, call: int = 0) -> str:
     """The `token` form field Google received on the given call."""
-    from urllib.parse import parse_qs
-
     body = route.calls[call].request.content.decode()
     return parse_qs(body)["token"][0]

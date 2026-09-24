@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 import pytest
+import respx
 
 from app.config import settings
 from app.models import OAuthProvider
@@ -129,8 +130,6 @@ def no_backoff():
 
 class TestRevokeProviderToken:
     async def test_200_is_revoked(self, no_backoff):
-        import respx
-
         with respx.mock:
             route = respx.post(REVOKE_URL).mock(return_value=httpx.Response(200))
             result = await OAuthService.revoke_provider_token(OAuthProvider.GOOGLE, "rt")
@@ -138,8 +137,6 @@ class TestRevokeProviderToken:
         assert route.calls[0].request.content == b"token=rt"
 
     async def test_invalid_token_is_already_invalid(self, no_backoff):
-        import respx
-
         with respx.mock:
             respx.post(REVOKE_URL).mock(
                 return_value=httpx.Response(400, json={"error": "invalid_token"})
@@ -148,8 +145,6 @@ class TestRevokeProviderToken:
         assert result == {"outcome": "already_invalid", "attempts": 1}
 
     async def test_429_and_5xx_are_retried_then_fail(self, no_backoff):
-        import respx
-
         with respx.mock:
             route = respx.post(REVOKE_URL).mock(
                 side_effect=[httpx.Response(429), httpx.Response(500), httpx.Response(503)]
@@ -160,8 +155,6 @@ class TestRevokeProviderToken:
         assert [c.args[0] for c in no_backoff.await_args_list] == [0.5, 1.5]
 
     async def test_network_error_then_success(self, no_backoff):
-        import respx
-
         with respx.mock:
             respx.post(REVOKE_URL).mock(
                 side_effect=[httpx.ConnectError("boom"), httpx.Response(200)]
