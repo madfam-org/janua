@@ -3,8 +3,12 @@ Janua Internal Email API
 Centralized email service for all MADFAM applications via Resend
 """
 
+import html as html_lib
+import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
+from zoneinfo import ZoneInfo
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -12,6 +16,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from app.config import settings
 from app.dependencies import verify_internal_api_key
+from app.routers.v1.email_cfdi import cfdi_portal_slots
 from app.services.email_tags import build_tags
 from app.services.resend_email_service import ResendEmailService as ResendService
 
@@ -92,6 +97,10 @@ class SendTemplateEmailRequest(BaseModel):
     from_email: Optional[str] = None
     from_name: Optional[str] = None
     attachments: Optional[List[EmailAttachment]] = None
+    # Where replies go. A template's From is often a sending-only address (the
+    # CFDI template sends from facturacion@madfam.io); a caller that knows who
+    # should answer (the client's advisor) says so here.
+    reply_to: Optional[EmailStr] = None
     source_app: str
     source_type: Optional[str] = "notification"
     redirect_url: Optional[str] = None
@@ -171,7 +180,7 @@ EMAIL_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "billing/payment-succeeded": {
         "description": "Payment confirmation",
         "required": ["amount", "currency"],
-        "optional": ["invoice_number", "receipt_url", "next_billing_date"],
+        "optional": ["invoice_number", "receipt_url", "next_billing_date", "payment_date"],
         "subject": "Payment received - Thank you!",
     },
     "billing/payment-failed": {
@@ -199,11 +208,36 @@ EMAIL_TEMPLATES: Dict[str, Dict[str, Any]] = {
     # client domain — set as a per-template default below; a caller may still
     # override from_email, but it is honoured only on a RESEND_VERIFIED_DOMAINS
     # domain (see resend_email_service / email_sender).
+    #
+    # v2 (2026-09-24), after the first real send (CTM Ciclo 2) went out with a
+    # literal {rfc_receptor} placeholder, an unformatted total, the tú register
+    # and no MADFAM branding. Every fiscal value is now REQUIRED and pre-formatted
+    # by the caller from the stamped XML it attaches, so the body always matches
+    # the CFDI. The one optional value (portal_url) reaches the HTML only through
+    # a derived slot (portal_bloque / portal_texto). Values are HTML-escaped
+    # (escape_html), and a plain-text part rides along (text_template).
     "billing/cfdi": {
         "description": "CFDI (Mexican tax receipt) delivery — stamped XML + PDF attached",
-        "required": ["cliente_nombre", "folio_fiscal", "periodo", "total"],
-        "optional": ["rfc_receptor"],
-        "subject": "Tu CFDI — {periodo}",
+        "required": [
+            "cliente_nombre",
+            "receptor_nombre",
+            "rfc_receptor",
+            "emisor_nombre",
+            "rfc_emisor",
+            "serie_folio",
+            "folio_fiscal",
+            "fecha_emision",
+            "periodo",
+            "subtotal",
+            "iva",
+            "total",
+            "forma_pago",
+            "metodo_pago",
+            "verificacion_url",
+        ],
+        "optional": ["portal_url"],
+        "subject": "Su CFDI {serie_folio} de MADFAM — {periodo}",
+        "escape_html": True,
         # Per-template default sender. Applied only when the caller omits
         # from_email (see send_template_email). facturacion@madfam.io is on the
         # verified madfam.io domain, so it passes the sender gate.
@@ -354,6 +388,13 @@ TEMPLATE_FILENAMES: Dict[str, str] = {
     "map/pago-confirmado": "map_pago-confirmado.html",
 }
 
+# Plain-text companions, whitelisted exactly like TEMPLATE_FILENAMES. A template
+# listed here is sent multipart (HTML + text): better deliverability at strict
+# consumer mailboxes (Hotmail/Outlook.com) and readable in text-only clients.
+TEXT_TEMPLATE_FILENAMES: Dict[str, str] = {
+    "billing/cfdi": "billing_cfdi.txt",
+}
+
 
 # ==========================================
 # Endpoints
@@ -430,6 +471,11 @@ async def send_template_email(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unknown template: {request.template}"
         )
+    except UnresolvedTemplateVariablesError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Template placeholders without a value: {', '.join(exc.missing)}",
+        )
     except MissingTemplateVariablesError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -475,7 +521,9 @@ async def send_template_email(
                 to_email=recipient,
                 subject=subject,
                 html_content=html_content,
+                text_content=rendered.text,
                 tags=tag_list,
+                reply_to=request.reply_to,
                 from_email=from_email,
                 from_name=from_name,
                 redirect_url=request.redirect_url,
@@ -623,6 +671,14 @@ def _derive_template_variables(template_id: str, variables: Dict[str, Any]) -> D
         derived = dict(variables)
         derived["sesiones_detalle"] = _sesiones_detalle(variables.get("sesiones"))
         return derived
+    if template_id == "billing/cfdi":
+        derived = dict(variables)
+        derived["portal_bloque"], derived["portal_texto"] = cfdi_portal_slots(
+            variables.get("portal_url")
+        )
+        # The footer's copyright year, as of the send (CDMX), never hardcoded.
+        derived["anio"] = str(datetime.now(ZoneInfo("America/Mexico_City")).year)
+        return derived
     return variables
 
 
@@ -638,6 +694,87 @@ class MissingTemplateVariablesError(ValueError):
         self.missing = missing
 
 
+class UnresolvedTemplateVariablesError(MissingTemplateVariablesError):
+    """The template body uses placeholders nothing fills.
+
+    Neither passed, derived, nor declared optional (names in ``missing``). The
+    send is refused instead of mailing a literal placeholder to a client: the
+    2026-09-24 CTM CFDI went out showing its RFC slot as raw template text.
+    """
+
+
+#: A ``{{name}}`` placeholder as the substitution renderer understands it.
+_PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
+
+#: HTML comments, except Outlook conditionals (``<!--[if mso]>`` / ``<!--<![endif]-->``).
+#: Template comments are notes for maintainers and must not ship in a client's email.
+_HTML_COMMENT = re.compile(r"<!--(?!\[if)(?!<!\[endif).*?-->", re.DOTALL)
+
+
+def _strip_html_comments(source: str) -> str:
+    return _HTML_COMMENT.sub("", source)
+
+
+def _read_template_source(template_id: str) -> Optional[str]:
+    """The HTML template body (comments stripped), or None when it has no file."""
+    from pathlib import Path
+
+    try:
+        path = Path(_get_safe_template_path(template_id))
+    except ValueError:
+        return None
+    return _strip_html_comments(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def _read_text_template_source(template_id: str) -> Optional[str]:
+    """The plain-text companion body, or None. Whitelisted like the HTML files."""
+    from pathlib import Path
+
+    filename = TEXT_TEMPLATE_FILENAMES.get(template_id)
+    if filename is None or template_id not in EMAIL_TEMPLATES:
+        return None
+    base = (Path(__file__).parent.parent.parent.parent / "templates" / "emails").resolve()
+    path = (base / filename).resolve()
+    try:
+        path.relative_to(base)
+    except ValueError:
+        raise ValueError(f"Invalid text template path detected: {template_id}")
+    return path.read_text(encoding="utf-8") if path.exists() else None
+
+
+def _unresolved_placeholders(template_id: str, variables: Dict[str, Any]) -> List[str]:
+    """Placeholders the template bodies use that nothing will fill.
+
+    Checked against the template SOURCE, not the rendered output, so a value that
+    happens to contain braces can never trip it.
+    """
+    template = EMAIL_TEMPLATES.get(template_id, {})
+    used: set = set()
+    for source in (_read_template_source(template_id), _read_text_template_source(template_id)):
+        if source:
+            used.update(_PLACEHOLDER.findall(source))
+    filled = set(_derive_template_variables(template_id, variables))
+    return sorted(used - filled - set(template.get("optional", [])))
+
+
+#: A Mustache-style section, ``{{#name}}…{{/name}}``: kept when ``name`` has a
+#: value, dropped otherwise. Two legacy templates (auth/password-reset,
+#: invitation/team-invite) were written with sections the renderer never
+#: understood, so they leaked the tags verbatim.
+_SECTION = re.compile(r"\{\{#([A-Za-z_][A-Za-z0-9_]*)\}\}(.*?)\{\{/\1\}\}", re.DOTALL)
+
+
+def _substitute(source: str, template_id: str, variables: Dict[str, Any]) -> str:
+    """Resolve sections, fill ``{{key}}`` slots, then blank declared optionals left empty."""
+    source = _SECTION.sub(lambda m: m.group(2) if variables.get(m.group(1)) else "", source)
+    for key, value in variables.items():
+        source = source.replace(f"{{{{{key}}}}}", str(value))
+    for name in EMAIL_TEMPLATES.get(template_id, {}).get("optional", []):
+        if name not in variables:
+            source = source.replace(f"{{{{{name}}}}}", "")
+    return source
+
+
 @dataclass(frozen=True)
 class RenderedTemplate:
     template_id: str
@@ -646,6 +783,8 @@ class RenderedTemplate:
     default_from_email: Optional[str]
     default_from_name: Optional[str]
     token_link: bool
+    # The plain-text part, for templates with a TEXT_TEMPLATE_FILENAMES companion.
+    text: Optional[str] = None
 
 
 async def render_registered_template(
@@ -666,7 +805,11 @@ async def render_registered_template(
         subject = template["subject"].format(**variables)
     except KeyError as exc:  # a subject slot outside the declared contract
         raise MissingTemplateVariablesError([str(exc.args[0])])
+    unresolved = _unresolved_placeholders(template_id, variables)
+    if unresolved:
+        raise UnresolvedTemplateVariablesError(unresolved)
     html = await render_template(template_id, variables)
+    text = await render_text_template(template_id, variables)
     return RenderedTemplate(
         template_id=template_id,
         subject=subject,
@@ -674,6 +817,7 @@ async def render_registered_template(
         default_from_email=template.get("default_from_email"),
         default_from_name=template.get("default_from_name"),
         token_link=bool(template.get("token_link")),
+        text=text,
     )
 
 
@@ -691,7 +835,15 @@ async def render_template(template_id: str, variables: Dict[str, Any]) -> str:
 
     # Compose any template-derived slots (e.g. the map/pago-confirmado session
     # parenthetical) before substitution, without mutating the caller's dict.
+    caller_keys = set(variables)
     variables = _derive_template_variables(template_id, variables)
+    if EMAIL_TEMPLATES.get(template_id, {}).get("escape_html"):
+        # Caller values are data, not markup; derived slots are composed (and
+        # escaped) in Python, so they pass through as-is.
+        variables = {
+            k: html_lib.escape(str(v), quote=True) if k in caller_keys else v
+            for k, v in variables.items()
+        }
 
     try:
         # Security: Get safe path using whitelist lookup (no user input in path)
@@ -700,11 +852,8 @@ async def render_template(template_id: str, variables: Dict[str, Any]) -> str:
 
         if template_path.exists():
             # Security: Path has been validated by _get_safe_template_path
-            template_content: str = template_path.read_text(encoding="utf-8")
-            # Simple variable substitution
-            for key, value in variables.items():
-                template_content = template_content.replace(f"{{{{{key}}}}}", str(value))
-            return template_content
+            template_content: str = _strip_html_comments(template_path.read_text(encoding="utf-8"))
+            return _substitute(template_content, template_id, variables)
 
     except ValueError:
         # Template not in whitelist - fall through to fallback
@@ -712,6 +861,14 @@ async def render_template(template_id: str, variables: Dict[str, Any]) -> str:
 
     # Fallback: Generate simple HTML from variables
     return generate_fallback_html(template_id, variables)
+
+
+async def render_text_template(template_id: str, variables: Dict[str, Any]) -> Optional[str]:
+    """The plain-text part for templates that have one, else None. Never escaped."""
+    source = _read_text_template_source(template_id)
+    if source is None:
+        return None
+    return _substitute(source, template_id, _derive_template_variables(template_id, variables))
 
 
 def generate_fallback_html(template_id: str, variables: Dict[str, Any]) -> str:

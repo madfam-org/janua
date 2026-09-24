@@ -49,6 +49,7 @@ from app.routers.v1.email import (
     EMAIL_TEMPLATES,
     MissingTemplateVariablesError,
     UnknownTemplateError,
+    UnresolvedTemplateVariablesError,
     render_registered_template,
 )
 from app.services.resend_email_service import resolve_message_envelope
@@ -134,6 +135,11 @@ async def preview_email(
             rendered = await render_registered_template(request.template, request.context)
         except UnknownTemplateError:
             return JSONResponse(status_code=404, content={"detail": "Unknown template"})
+        except UnresolvedTemplateVariablesError as exc:
+            return JSONResponse(
+                status_code=422,
+                content={"detail": "Template placeholders without a value", "missing": exc.missing},
+            )
         except MissingTemplateVariablesError as exc:
             return JSONResponse(
                 status_code=422,
@@ -141,7 +147,7 @@ async def preview_email(
             )
         template_id, subject = rendered.template_id, rendered.subject
         html: Optional[str] = rendered.html
-        text: Optional[str] = None  # /send-template sends HTML only
+        text: Optional[str] = rendered.text  # the plain-text part, when the template has one
         token_link = rendered.token_link
         # Same default-sender precedence as /send-template.
         from_email = from_email or rendered.default_from_email
