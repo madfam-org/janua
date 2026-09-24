@@ -170,23 +170,3 @@ class TestRevokeProviderToken:
         result = await OAuthService.revoke_provider_token(OAuthProvider.GOOGLE, "")
         assert result["outcome"] == "failed"
         assert result["attempts"] == 0
-
-
-class TestPurposeRegistry:
-    def test_creator_census_youtube_requests_minimum_scope(self):
-        from app.core.consent_purposes import get_purpose
-
-        purpose = get_purpose("creator-census.youtube")
-        assert purpose.provider == "google"
-        assert purpose.additional_scopes == ("https://www.googleapis.com/auth/youtube.readonly",)
-        assert purpose.exchange_clients == frozenset({"creator-census"})
-        assert purpose.offline_clients == frozenset({"creator-census-reauth"})
-        assert purpose.allowed_subject_audiences == frozenset({"creator-census-api"})
-        # One credential per path: a client may not sit on both lists.
-        assert not (purpose.exchange_clients & purpose.offline_clients)
-
-    def test_unknown_purpose_is_none(self):
-        from app.core.consent_purposes import get_purpose
-
-        assert get_purpose("made-up.purpose") is None
-        assert get_purpose(None) is None

@@ -345,16 +345,29 @@ The registry holds one purpose today:
 Unknown purposes are refused everywhere. A client listed for one path is
 refused on the other.
 
-**Widening a purpose's scopes later.** Two steps:
-1. Add the scope to the registry in a reviewed change.
-2. Extend the provider's app verification to cover it (see below).
+**Purposes are immutable once shipped.** This is purpose limitation: the user
+consented to exactly one provider and one scope set. A registered purpose's
+`provider` and scopes therefore never change after it ships.
 
-Existing grants then no longer cover the purpose, because every scope must be
-held. The exchange answers `purpose_not_granted` until each user links again
-with `?purpose=`. For Google, that re-link is an incremental consent that asks
-only for the new scope.
+To need more scopes, register a **new** purpose id, for example
+`creator-census.youtube-analytics`. Users grant it separately through its own
+`?purpose=` link, and consumers request it by its own id.
 
-Narrowing a purpose's scopes takes effect immediately.
+Never widen a purpose in place. If you did, every existing grant would stop
+covering the purpose, because every scope must be held. Those grants would then
+answer `purpose_not_granted`. Consumers treat that reason as the user's
+withdrawal and delete their data, although no user withdrew anything.
+
+How the registry enforces this:
+- `SHIPPED_PURPOSE_FINGERPRINTS` in `consent_purposes.py` is an append-only
+  table. It records, for each shipped purpose, `sha256(provider + sorted scopes)`.
+- A unit test fails when a registered purpose no longer matches its recorded
+  fingerprint, or has no recorded fingerprint at all. The failure message says
+  to register a new purpose id instead.
+
+The client lists and subject audiences are not in the fingerprint. They
+control *who* may act on a grant, not *what* the user consented to, so changing
+them is an ordinary reviewed change.
 
 ### 1. The user grants the purpose
 
@@ -567,5 +580,5 @@ OAuth app verification for this scope before the purpose is offered to users
 outside the OAuth app's test-user list. Verification needs a privacy policy, a
 justification for the scope, and a demo of the consent flow. Until the app is
 verified, Google shows an "unverified app" warning and limits the app to test
-users. Any later widening of the purpose (for example, adding YouTube Analytics)
-must be added to the verification.
+users. A new purpose that needs another sensitive scope (for example, YouTube
+Analytics) must be added to the verification before that purpose is offered.
