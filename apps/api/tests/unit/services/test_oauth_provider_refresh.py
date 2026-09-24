@@ -116,3 +116,84 @@ class TestRefreshAccessToken:
         monkeypatch.setattr(settings, "OAUTH_GOOGLE_CLIENT_SECRET", None)
         with pytest.raises(ProviderRefreshUnavailable):
             await OAuthService.refresh_access_token(OAuthProvider.GOOGLE, "rt")
+
+
+REVOKE_URL = "https://oauth2.googleapis.com/revoke"
+
+
+@pytest.fixture
+def no_backoff():
+    with patch("app.services.oauth.asyncio.sleep", AsyncMock()) as sleep:
+        yield sleep
+
+
+class TestRevokeProviderToken:
+    async def test_200_is_revoked(self, no_backoff):
+        import respx
+
+        with respx.mock:
+            route = respx.post(REVOKE_URL).mock(return_value=httpx.Response(200))
+            result = await OAuthService.revoke_provider_token(OAuthProvider.GOOGLE, "rt")
+        assert result == {"outcome": "revoked", "attempts": 1}
+        assert route.calls[0].request.content == b"token=rt"
+
+    async def test_invalid_token_is_already_invalid(self, no_backoff):
+        import respx
+
+        with respx.mock:
+            respx.post(REVOKE_URL).mock(
+                return_value=httpx.Response(400, json={"error": "invalid_token"})
+            )
+            result = await OAuthService.revoke_provider_token(OAuthProvider.GOOGLE, "rt")
+        assert result == {"outcome": "already_invalid", "attempts": 1}
+
+    async def test_429_and_5xx_are_retried_then_fail(self, no_backoff):
+        import respx
+
+        with respx.mock:
+            route = respx.post(REVOKE_URL).mock(
+                side_effect=[httpx.Response(429), httpx.Response(500), httpx.Response(503)]
+            )
+            result = await OAuthService.revoke_provider_token(OAuthProvider.GOOGLE, "rt")
+        assert route.call_count == 3
+        assert result == {"outcome": "failed", "attempts": 3, "error": "provider_status_503"}
+        assert [c.args[0] for c in no_backoff.await_args_list] == [0.5, 1.5]
+
+    async def test_network_error_then_success(self, no_backoff):
+        import respx
+
+        with respx.mock:
+            respx.post(REVOKE_URL).mock(
+                side_effect=[httpx.ConnectError("boom"), httpx.Response(200)]
+            )
+            result = await OAuthService.revoke_provider_token(OAuthProvider.GOOGLE, "rt")
+        assert result == {"outcome": "revoked", "attempts": 2}
+
+    async def test_provider_without_revocation_is_unsupported(self):
+        result = await OAuthService.revoke_provider_token(OAuthProvider.GITHUB, "rt")
+        assert result == {"outcome": "unsupported", "attempts": 0}
+
+    async def test_empty_token_fails_without_a_call(self):
+        result = await OAuthService.revoke_provider_token(OAuthProvider.GOOGLE, "")
+        assert result["outcome"] == "failed"
+        assert result["attempts"] == 0
+
+
+class TestPurposeRegistry:
+    def test_creator_census_youtube_requests_minimum_scope(self):
+        from app.core.consent_purposes import get_purpose
+
+        purpose = get_purpose("creator-census.youtube")
+        assert purpose.provider == "google"
+        assert purpose.additional_scopes == ("https://www.googleapis.com/auth/youtube.readonly",)
+        assert purpose.exchange_clients == frozenset({"creator-census"})
+        assert purpose.offline_clients == frozenset({"creator-census-reauth"})
+        assert purpose.allowed_subject_audiences == frozenset({"creator-census-api"})
+        # One credential per path: a client may not sit on both lists.
+        assert not (purpose.exchange_clients & purpose.offline_clients)
+
+    def test_unknown_purpose_is_none(self):
+        from app.core.consent_purposes import get_purpose
+
+        assert get_purpose("made-up.purpose") is None
+        assert get_purpose(None) is None
