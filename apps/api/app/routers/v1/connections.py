@@ -9,14 +9,15 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.consent_purposes import get_purpose
+from app.core.consent_purposes import PURPOSE_STATUS_GRANTED, get_purpose
+from app.core.redis import ResilientRedisClient, get_redis
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, security
 from app.models import ActivityLog, User
 from app.models.connected_account import ConnectedAccountStatus
 from app.services.connected_account_service import (
@@ -24,11 +25,14 @@ from app.services.connected_account_service import (
     ProviderTemporarilyUnavailable,
     ReauthorizationRequired,
     has_active_purpose_grant,
+    purpose_grants,
 )
 from app.services.connections_service_auth import (
     DelegationServicePrincipal,
+    bearer_token,
     current_delegation_client,
     looks_like_jwt,
+    require_purpose_for_client,
     verify_delegation_service_token,
 )
 
@@ -47,6 +51,8 @@ class ConnectionSummary(BaseModel):
     expires_at: Optional[datetime] = None
     last_used_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    #: Granted consent purposes. On the service listing, only the queried one.
+    purposes: list[str] = Field(default_factory=list)
 
 
 class ConnectionListResponse(BaseModel):
@@ -129,7 +135,15 @@ def _resolve_delegation_caller(
     raise HTTPException(status_code=401, detail="invalid_service_credentials")
 
 
-def _to_summary(conn) -> ConnectionSummary:
+def _granted_purposes(conn) -> list[str]:
+    return sorted(
+        purpose_id
+        for purpose_id, grant in purpose_grants(conn).items()
+        if isinstance(grant, dict) and grant.get("status") == PURPOSE_STATUS_GRANTED
+    )
+
+
+def _to_summary(conn, purposes: Optional[list[str]] = None) -> ConnectionSummary:
     return ConnectionSummary(
         id=str(conn.id),
         provider_type=conn.provider_type,
@@ -140,18 +154,69 @@ def _to_summary(conn) -> ConnectionSummary:
         expires_at=conn.oauth_expires_at,
         last_used_at=conn.last_used_at,
         created_at=conn.created_at,
+        purposes=purposes if purposes is not None else _granted_purposes(conn),
     )
 
 
 @router.get("", response_model=ConnectionListResponse)
 async def list_connections(
+    request: Request,
+    purpose: Optional[str] = Query(
+        None,
+        description=(
+            "Service listing: the consent purpose to filter by. Requires a Janua "
+            "service token (aud janua-connections, scope connections:delegate) "
+            "from a client allowed for the purpose, plus X-Acting-User-Id."
+        ),
+    ),
+    x_acting_user_id: Optional[str] = Header(None, alias="X-Acting-User-Id"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    redis: ResilientRedisClient = Depends(get_redis),
 ):
-    """List delegated SaaS connections for the authenticated user (no secrets)."""
+    """List connections (never tokens).
+
+    Without `purpose`: the signed-in user's own connections (session token),
+    unchanged. With `purpose`: a service lists ONLY the acting user's live
+    connections that hold a grant for that purpose.
+    """
+    if purpose is None:
+        credentials = await security(request)
+        current_user = await get_current_user(credentials, db, redis)
+        svc = ConnectedAccountService(db)
+        connections = await svc.list_for_user(current_user, sync_oauth=True)
+        summaries = [_to_summary(c) for c in connections]
+        return ConnectionListResponse(connections=summaries, count=len(summaries))
+
+    return await _list_for_purpose(
+        db, request.headers.get("authorization"), purpose, x_acting_user_id
+    )
+
+
+async def _list_for_purpose(
+    db: AsyncSession,
+    authorization: Optional[str],
+    purpose_id: str,
+    x_acting_user_id: Optional[str],
+) -> ConnectionListResponse:
+    """Service listing: fails closed on every rule, returns no secrets."""
+    token = bearer_token(authorization)
+    if not looks_like_jwt(token):
+        raise _refuse(401, "invalid_service_token")
+    principal = verify_delegation_service_token(token)
+    client = await current_delegation_client(db, principal)
+    purpose = require_purpose_for_client(client, purpose_id)
+
+    if not x_acting_user_id:
+        raise _refuse(400, "acting_user_required", client=client.name)
+    try:
+        acting_user_id = uuid.UUID(x_acting_user_id)
+    except ValueError:
+        raise _refuse(400, "invalid_acting_user_id", client=client.name)
+
     svc = ConnectedAccountService(db)
-    connections = await svc.list_for_user(current_user, sync_oauth=True)
-    summaries = [_to_summary(c) for c in connections]
+    candidates = await svc.list_live_for_provider(acting_user_id, purpose.provider)
+    matched = [c for c in candidates if has_active_purpose_grant(c, purpose)]
+    summaries = [_to_summary(c, purposes=[purpose.id]) for c in matched]
     return ConnectionListResponse(connections=summaries, count=len(summaries))
 
 
@@ -161,14 +226,21 @@ async def revoke_connection(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Revoke a connection: locally first (always), then at the provider.
+
+    The local revocation is committed before the provider is contacted, so a
+    provider outage can never keep a connection delegable. The provider
+    outcome is returned and audited as `consent.provider.revoked`.
+    """
     svc = ConnectedAccountService(db)
     try:
         cid = uuid.UUID(connection_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="invalid_connection_id")
-    ended_purposes = await svc.revoke(current_user, cid)
-    if ended_purposes is None:
+    revoked = await svc.revoke(current_user, cid)
+    if revoked is None:
         raise HTTPException(status_code=404, detail="connection_not_found")
+    connection, ended_purposes = revoked
     activity = ActivityLog(
         user_id=current_user.id,
         action="connection.revoked",
@@ -188,7 +260,18 @@ async def revoke_connection(
             )
         )
     await db.commit()
-    return {"revoked": True, "id": connection_id, "purposes_ended": ended_purposes}
+
+    provider_revocation = await svc.revoke_at_provider(
+        user_id=current_user.id, connections=[connection]
+    )
+    return {
+        "revoked": True,
+        "id": connection_id,
+        "purposes_ended": ended_purposes,
+        "provider_revocation": [
+            {k: o.get(k) for k in ("provider", "outcome", "attempts")} for o in provider_revocation
+        ],
+    }
 
 
 @router.post("/{connection_id}/token", response_model=TokenDelegationResponse)
@@ -273,14 +356,7 @@ async def _delegate_for_purpose(
     if caller.service is None:  # defensive: the resolver never builds this
         raise _refuse(401, "invalid_service_token")
     client = await current_delegation_client(db, caller.service)
-
-    purpose = get_purpose(body.purpose)
-    if purpose is None:
-        raise _refuse(403, "unknown_purpose", client=client.name, purpose=body.purpose)
-    if client.name not in purpose.allowed_service_clients:
-        raise _refuse(
-            403, "service_client_not_allowed_for_purpose", client=client.name, purpose=purpose.id
-        )
+    purpose = require_purpose_for_client(client, body.purpose)
 
     svc = ConnectedAccountService(db)
     connection = await svc.get_by_id_any_status(connection_id)

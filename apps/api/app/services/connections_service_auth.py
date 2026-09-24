@@ -14,6 +14,7 @@ audience, or the legacy static token.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from time import time
 from typing import Optional
@@ -22,9 +23,16 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.consent_purposes import CONNECTIONS_AUDIENCE, CONNECTIONS_DELEGATE_SCOPE
+from app.core.consent_purposes import (
+    CONNECTIONS_AUDIENCE,
+    CONNECTIONS_DELEGATE_SCOPE,
+    ConsentPurpose,
+    get_purpose,
+)
 from app.core.jwt_manager import jwt_manager
 from app.models import OAuthClient
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -103,8 +111,30 @@ async def current_delegation_client(
     return client
 
 
+def require_purpose_for_client(client: OAuthClient, purpose_id: Optional[str]) -> ConsentPurpose:
+    """The purpose must be registered and allowlist this client (by name)."""
+    purpose = get_purpose(purpose_id)
+    if purpose is None:
+        logger.warning("Service client %s refused: unknown_purpose %r", client.name, purpose_id)
+        raise _forbidden("unknown_purpose")
+    if client.name not in purpose.allowed_service_clients:
+        logger.warning(
+            "Service client %s refused: not allowed for purpose %s", client.name, purpose.id
+        )
+        raise _forbidden("service_client_not_allowed_for_purpose")
+    return purpose
+
+
+def bearer_token(authorization: Optional[str]) -> Optional[str]:
+    if authorization and authorization.lower().startswith("bearer "):
+        return authorization[7:].strip() or None
+    return None
+
+
 __all__ = [
     "DelegationServicePrincipal",
+    "bearer_token",
+    "require_purpose_for_client",
     "current_delegation_client",
     "looks_like_jwt",
     "verify_delegation_service_token",

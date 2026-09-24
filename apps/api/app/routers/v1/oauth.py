@@ -20,7 +20,7 @@ from app.core.consent_purposes import get_purpose
 from app.core.locale import locale_from_request
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.services.connected_account_service import ConnectedAccountService
+from app.services.connected_account_service import ConnectedAccountService, ProviderTokenRef
 from app.services.oauth import OAuthService
 
 from ...models import ActivityLog, OAuthAccount, OAuthProvider, Passkey, User
@@ -784,12 +784,23 @@ async def unlink_oauth_account(
                 detail="Cannot unlink the only authentication method. Please set a password first.",
             )
 
+        # Capture the link's own provider credential before the row goes, so
+        # it can be revoked at the provider after the local unlink commits.
+        link_token_ref = ProviderTokenRef(
+            provider_type=oauth_provider.value,
+            token=oauth_account.refresh_token or oauth_account.access_token,
+            token_kind="refresh" if oauth_account.refresh_token else "access",
+            resource_type="oauth_account",
+            resource_id=str(oauth_account.id),
+        )
+
         # Delete OAuth account
         await db.delete(oauth_account)
 
         # Unlinking a provider ends every delegated connection and purpose
         # consent built on it; nothing may keep borrowing its token.
-        ended_purposes = await ConnectedAccountService(db).revoke_for_provider(
+        connection_svc = ConnectedAccountService(db)
+        revoked_connections, ended_purposes = await connection_svc.revoke_for_provider(
             current_user.id, oauth_provider.value
         )
         for purpose_id in ended_purposes:
@@ -811,6 +822,14 @@ async def unlink_oauth_account(
         db.add(activity)
 
         await db.commit()
+
+        # Local unlink is committed; now remove access at the provider too.
+        # Never raises: a provider failure is audited, not surfaced as an error.
+        await connection_svc.revoke_at_provider(
+            user_id=current_user.id,
+            connections=revoked_connections,
+            oauth_account_tokens=[link_token_ref],
+        )
 
         return {"message": f"{provider} account unlinked successfully", "provider": provider}
 

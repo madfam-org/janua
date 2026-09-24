@@ -2,6 +2,7 @@
 OAuth service for handling third-party authentication
 """
 
+import asyncio
 import logging
 import secrets
 from datetime import datetime, timedelta
@@ -41,6 +42,7 @@ class OAuthService:
         OAuthProvider.GOOGLE: {
             "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
             "token_url": "https://oauth2.googleapis.com/token",
+            "revoke_url": "https://oauth2.googleapis.com/revoke",
             "user_info_url": "https://www.googleapis.com/oauth2/v1/userinfo",
             "scopes": ["openid", "email", "profile"],
             "client_id_setting": "OAUTH_GOOGLE_CLIENT_ID",
@@ -350,6 +352,69 @@ class OAuthService:
         if not isinstance(tokens, dict) or not tokens.get("access_token"):
             raise ProviderRefreshUnavailable("provider_malformed_response")
         return tokens
+
+    #: Attempts and backoff for provider token revocation (seconds between tries).
+    REVOKE_BACKOFF_SECONDS: Tuple[float, ...] = (0.5, 1.5)
+    REVOKE_TIMEOUT_SECONDS = 5.0
+
+    @classmethod
+    async def revoke_provider_token(cls, provider: OAuthProvider, token: str) -> Dict[str, Any]:
+        """Revoke a token at the provider, retrying transient failures with backoff.
+
+        Returns an outcome dict and never raises: the caller's own revocation
+        must not depend on the provider being reachable.
+
+        - ``revoked``: the provider accepted the revocation.
+        - ``already_invalid``: the provider says the token is already
+          expired or revoked (Google: HTTP 400 ``invalid_token``). Nothing
+          left to remove.
+        - ``failed``: the provider refused for another reason, or stayed
+          unreachable/5xx/429 through every attempt. The operator must retry.
+        - ``unsupported``: Janua has no revocation endpoint for this provider.
+        """
+        config = cls.PROVIDERS.get(provider) or {}
+        revoke_url = config.get("revoke_url")
+        if not revoke_url:
+            return {"outcome": "unsupported", "attempts": 0}
+        if not token:
+            return {"outcome": "failed", "attempts": 0, "error": "no_token"}
+
+        attempts = 0
+        last_error = "unknown"
+        delays = (0.0,) + tuple(cls.REVOKE_BACKOFF_SECONDS)
+        for delay in delays:
+            if delay:
+                await asyncio.sleep(delay)
+            attempts += 1
+            try:
+                async with httpx.AsyncClient(timeout=cls.REVOKE_TIMEOUT_SECONDS) as client:
+                    response = await client.post(
+                        revoke_url,
+                        data={"token": token},
+                        headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    )
+            except httpx.HTTPError as e:
+                last_error = f"provider_unreachable:{type(e).__name__}"
+                continue
+
+            if response.status_code == 200:
+                return {"outcome": "revoked", "attempts": attempts}
+            if response.status_code == 429 or response.status_code >= 500:
+                last_error = f"provider_status_{response.status_code}"
+                continue
+
+            error_code = f"provider_status_{response.status_code}"
+            try:
+                body = response.json()
+                if isinstance(body, dict) and body.get("error"):
+                    error_code = str(body["error"])
+            except ValueError:
+                pass
+            if error_code == "invalid_token":
+                return {"outcome": "already_invalid", "attempts": attempts}
+            return {"outcome": "failed", "attempts": attempts, "error": error_code}
+
+        return {"outcome": "failed", "attempts": attempts, "error": last_error}
 
     @classmethod
     async def get_user_info(

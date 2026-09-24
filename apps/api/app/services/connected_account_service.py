@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Iterable, Optional
 
@@ -16,7 +17,7 @@ from app.core.consent_purposes import (
     PURPOSES_METADATA_KEY,
     ConsentPurpose,
 )
-from app.models import OAuthAccount, OAuthProvider, User
+from app.models import ActivityLog, OAuthAccount, OAuthProvider, User
 from app.models.connected_account import ConnectedAccount, ConnectedAccountStatus
 from app.services.oauth import (
     OAuthService,
@@ -39,6 +40,25 @@ _REFRESHABLE_PROVIDERS = {"google"}
 
 #: Refresh when the stored access token has less than this left.
 TOKEN_REFRESH_SKEW = timedelta(seconds=120)
+
+
+#: Statuses a connection can be revoked from (REVOKED is terminal history).
+_LIVE_STATUSES = [ConnectedAccountStatus.ACTIVE.value, ConnectedAccountStatus.EXPIRED.value]
+
+#: Providers whose tokens Janua revokes at the provider on connection revoke/unlink.
+_PROVIDER_REVOCATION = {"google"}
+
+
+@dataclass(frozen=True)
+class ProviderTokenRef:
+    """One provider credential to revoke at the provider, and where it came from."""
+
+    provider_type: str
+    token: Optional[str]
+    token_kind: str  # "refresh" | "access"
+    resource_type: str  # "connected_account" | "oauth_account"
+    resource_id: str
+    connection: Optional[ConnectedAccount] = None
 
 
 class ReauthorizationRequired(Exception):
@@ -104,6 +124,19 @@ class ConnectedAccountService:
         )
         return result.scalar_one_or_none()
 
+    async def list_live_for_provider(
+        self, user_id: uuid.UUID, provider_type: str
+    ) -> list[ConnectedAccount]:
+        """The user's active or expired connections for one provider."""
+        result = await self.db.execute(
+            select(ConnectedAccount).where(
+                ConnectedAccount.user_id == user_id,
+                ConnectedAccount.provider_type == provider_type,
+                ConnectedAccount.status.in_(_LIVE_STATUSES),
+            )
+        )
+        return list(result.scalars().all())
+
     async def get_by_id_any_status(self, connection_id: uuid.UUID) -> Optional[ConnectedAccount]:
         """Load a connection whatever its status, so callers can refuse specifically."""
         result = await self.db.execute(
@@ -133,41 +166,154 @@ class ConnectedAccountService:
             connection.account_metadata = metadata
         return ended
 
-    async def revoke(self, user: User, connection_id: uuid.UUID) -> Optional[list[str]]:
-        """Revoke a connection and end every purpose granted on it.
+    async def revoke(
+        self, user: User, connection_id: uuid.UUID
+    ) -> Optional[tuple[ConnectedAccount, list[str]]]:
+        """Revoke a connection locally and end every purpose granted on it.
 
-        Returns the list of purpose ids that were ended (possibly empty), or
-        None when the connection does not exist for this user.
+        Commits. Returns ``(connection, ended_purpose_ids)``, or None when the
+        user has no live (active or expired) connection with that id. The
+        provider-side revocation is a separate step (`revoke_at_provider`)
+        so that it can never block or undo this one.
         """
-        account = await self.get_for_user(user, connection_id)
+        result = await self.db.execute(
+            select(ConnectedAccount).where(
+                ConnectedAccount.id == connection_id,
+                ConnectedAccount.user_id == user.id,
+                ConnectedAccount.status.in_(_LIVE_STATUSES),
+            )
+        )
+        account = result.scalar_one_or_none()
         if not account:
             return None
         ended = self._end_purposes(account, "connection_revoked")
         account.status = ConnectedAccountStatus.REVOKED.value
         account.updated_at = datetime.utcnow()
         await self.db.commit()
-        return ended
+        return account, ended
 
-    async def revoke_for_provider(self, user_id: uuid.UUID, provider_type: str) -> list[str]:
+    async def revoke_for_provider(
+        self, user_id: uuid.UUID, provider_type: str
+    ) -> tuple[list[ConnectedAccount], list[str]]:
         """Revoke every live connection for a provider (used when it is unlinked).
 
-        Does not commit; the caller owns the transaction. Returns ended purposes.
+        Does not commit; the caller owns the transaction. Returns the revoked
+        rows and the ended purpose ids.
         """
         result = await self.db.execute(
             select(ConnectedAccount).where(
                 ConnectedAccount.user_id == user_id,
                 ConnectedAccount.provider_type == provider_type,
-                ConnectedAccount.status.in_(
-                    [ConnectedAccountStatus.ACTIVE.value, ConnectedAccountStatus.EXPIRED.value]
-                ),
+                ConnectedAccount.status.in_(_LIVE_STATUSES),
             )
         )
+        accounts = list(result.scalars().all())
         ended: list[str] = []
-        for account in result.scalars().all():
+        for account in accounts:
             ended.extend(self._end_purposes(account, "provider_unlinked"))
             account.status = ConnectedAccountStatus.REVOKED.value
             account.updated_at = datetime.utcnow()
-        return ended
+        return accounts, ended
+
+    async def revoke_at_provider(
+        self,
+        *,
+        user_id: uuid.UUID,
+        connections: Iterable[ConnectedAccount] = (),
+        oauth_account_tokens: Iterable[ProviderTokenRef] = (),
+    ) -> list[dict[str, Any]]:
+        """Revoke already-locally-revoked credentials at the provider.
+
+        Run AFTER the local revocation is committed. Prefers the refresh
+        token (revoking it ends the whole provider grant), else the access
+        token. Each attempt set is audited as ``consent.provider.revoked``
+        with its outcome. On success the vault copy of the tokens is wiped;
+        on failure the tokens are kept on the (already REVOKED, never
+        delegable) row and ``account_metadata.provider_revocation`` records
+        the failure so an operator can retry. Never raises.
+        """
+        refs: list[ProviderTokenRef] = []
+        for conn in connections:
+            token = conn.refresh_token_encrypted or conn.access_token_encrypted
+            refs.append(
+                ProviderTokenRef(
+                    provider_type=conn.provider_type,
+                    token=token,
+                    token_kind="refresh" if conn.refresh_token_encrypted else "access",
+                    resource_type="connected_account",
+                    resource_id=str(conn.id),
+                    connection=conn,
+                )
+            )
+        refs.extend(oauth_account_tokens)
+
+        outcomes: list[dict[str, Any]] = []
+        seen_tokens: dict[str, dict[str, Any]] = {}
+        try:
+            for ref in refs:
+                provider = _PROVIDER_MAP.get(ref.provider_type)
+                if provider is None or ref.provider_type not in _PROVIDER_REVOCATION:
+                    continue  # no provider-side revocation implemented (e.g. GitHub/Slack)
+                if not ref.token:
+                    result = {"outcome": "no_token", "attempts": 0}
+                elif ref.token in seen_tokens:
+                    result = {**seen_tokens[ref.token], "deduplicated": True}
+                else:
+                    result = await OAuthService.revoke_provider_token(provider, ref.token)
+                    seen_tokens[ref.token] = result
+                outcome = {
+                    "provider": ref.provider_type,
+                    "resource_type": ref.resource_type,
+                    "resource_id": ref.resource_id,
+                    "token_kind": ref.token_kind,
+                    **result,
+                }
+                outcomes.append(outcome)
+                self._apply_provider_revocation(ref.connection, outcome)
+                self.db.add(
+                    ActivityLog(
+                        user_id=user_id,
+                        action="consent.provider.revoked",
+                        resource_type=ref.resource_type,
+                        resource_id=ref.resource_id,
+                        activity_metadata=outcome,
+                    )
+                )
+                if outcome["outcome"] in ("failed", "no_token"):
+                    logger.error(
+                        "Provider revocation not confirmed for %s %s: %s",
+                        ref.resource_type,
+                        ref.resource_id,
+                        outcome,
+                    )
+            await self.db.commit()
+        except Exception:  # noqa: BLE001 - must never undo the local revocation
+            logger.exception("Provider revocation bookkeeping failed for user %s", user_id)
+            try:
+                await self.db.rollback()
+            except Exception:  # noqa: BLE001
+                logger.exception("Rollback after provider revocation failure failed")
+            outcomes.append({"outcome": "failed", "error": "internal_error"})
+        return outcomes
+
+    @staticmethod
+    def _apply_provider_revocation(
+        connection: Optional[ConnectedAccount], outcome: dict[str, Any]
+    ) -> None:
+        if connection is None:
+            return
+        metadata = dict(connection.account_metadata or {})
+        metadata["provider_revocation"] = {
+            "status": outcome["outcome"],
+            "attempts": outcome.get("attempts", 0),
+            "error": outcome.get("error"),
+            "at": _utcnow_iso(),
+        }
+        connection.account_metadata = metadata
+        if outcome["outcome"] in ("revoked", "already_invalid"):
+            # Nothing left at the provider; drop the vault copy too.
+            connection.access_token_encrypted = None
+            connection.refresh_token_encrypted = None
 
     async def record_purpose_grant(
         self,
