@@ -190,6 +190,23 @@ spec:
                   name: janua-secrets
                   key: ctm-resend-api-key
                   optional: true
+            # Resend webhook signing secrets (whsec_...), one per Resend account,
+            # for POST /api/v1/email/webhooks/resend/{ctm,platform}. Vault
+            # secret/janua#resend_webhook_secret_ctm / #resend_webhook_secret_platform
+            # through the enclii-managed janua-secrets ExternalSecret. Optional:
+            # an account without its secret answers 404 and stores nothing.
+            - name: RESEND_WEBHOOK_SECRET_CTM
+              valueFrom:
+                secretKeyRef:
+                  name: janua-secrets
+                  key: resend-webhook-secret-ctm
+                  optional: true
+            - name: RESEND_WEBHOOK_SECRET_PLATFORM
+              valueFrom:
+                secretKeyRef:
+                  name: janua-secrets
+                  key: resend-webhook-secret-platform
+                  optional: true
             # SMTP transport for the real mailer (email_service.py) — Resend's
             # SMTP interface with the SAME api key as password. No new secret:
             # this is what makes password-reset email physically send (PR#473;

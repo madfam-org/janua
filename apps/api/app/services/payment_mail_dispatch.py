@@ -168,6 +168,11 @@ async def _envelope(principal, intent):
             {"name": "source_app", "value": "crea-map"},
             {"name": "source_type", "value": "payment"},
             {"name": "template", "value": TEMPLATE.replace("/", "_")},
+            # Scopes webhook events to the tenant (app/services/email_events.py).
+            # Part of the envelope hash: a retry of a pre-tag attempt is a
+            # different payload under the same idempotency key, which Resend
+            # refuses, so such a row correctly goes to review.
+            {"name": "org_id", "value": str(principal.org_id)},
         ],
     }
     if reply:

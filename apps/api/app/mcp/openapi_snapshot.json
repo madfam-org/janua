@@ -24,6 +24,94 @@
         "title": "EmailAttachment",
         "type": "object"
       },
+      "EmailEventItem": {
+        "properties": {
+          "bounce_subtype": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bounce Subtype"
+          },
+          "bounce_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bounce Type"
+          },
+          "click_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Click Link"
+          },
+          "cursor": {
+            "title": "Cursor",
+            "type": "integer"
+          },
+          "email_id": {
+            "title": "Email Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cursor",
+          "provider",
+          "email_id",
+          "type",
+          "occurred_at"
+        ],
+        "title": "EmailEventItem",
+        "type": "object"
+      },
+      "EmailEventsPage": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/EmailEventItem"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "next_cursor": {
+            "title": "Next Cursor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "events",
+          "next_cursor"
+        ],
+        "title": "EmailEventsPage",
+        "type": "object"
+      },
       "EmailResponse": {
         "properties": {
           "delivery_status": {
@@ -82,6 +170,266 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "PreviewResponse": {
+        "properties": {
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Html"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "required": [
+          "subject",
+          "from",
+          "html",
+          "text"
+        ],
+        "title": "PreviewResponse",
+        "type": "object"
+      },
+      "PreviewTemplateInfo": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "optional_variables": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Optional Variables",
+            "type": "array"
+          },
+          "required_variables": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Variables",
+            "type": "array"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "token_link": {
+            "title": "Token Link",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "subject",
+          "required_variables",
+          "optional_variables",
+          "token_link"
+        ],
+        "title": "PreviewTemplateInfo",
+        "type": "object"
+      },
+      "RawPreviewRequest": {
+        "description": "SendEmailRequest's schema, with every field that cannot change the\nrendered message accepted loosely so a real send body never 422s here.",
+        "properties": {
+          "attachments": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attachments"
+          },
+          "bcc": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bcc"
+          },
+          "cc": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cc"
+          },
+          "contains_token_link": {
+            "default": false,
+            "title": "Contains Token Link",
+            "type": "boolean"
+          },
+          "from_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Email"
+          },
+          "from_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Name"
+          },
+          "html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Html"
+          },
+          "kind": {
+            "const": "raw",
+            "title": "Kind",
+            "type": "string"
+          },
+          "org_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Id"
+          },
+          "redirect_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          },
+          "reply_to": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply To"
+          },
+          "source_app": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source App"
+          },
+          "source_type": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Type"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "tags": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "to": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          }
+        },
+        "required": [
+          "kind",
+          "subject"
+        ],
+        "title": "RawPreviewRequest",
+        "type": "object"
+      },
       "SendEmailRequest": {
         "properties": {
           "attachments": {
@@ -127,6 +475,11 @@
               }
             ],
             "title": "Cc"
+          },
+          "contains_token_link": {
+            "default": false,
+            "title": "Contains Token Link",
+            "type": "boolean"
           },
           "from_email": {
             "anyOf": [
@@ -395,6 +748,75 @@
         "title": "TemplateInfo",
         "type": "object"
       },
+      "TemplatePreviewRequest": {
+        "properties": {
+          "context": {
+            "additionalProperties": true,
+            "title": "Context",
+            "type": "object"
+          },
+          "from_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Email"
+          },
+          "from_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Name"
+          },
+          "kind": {
+            "const": "template",
+            "title": "Kind",
+            "type": "string"
+          },
+          "org_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Id"
+          },
+          "redirect_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          },
+          "template": {
+            "minLength": 1,
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "template"
+        ],
+        "title": "TemplatePreviewRequest",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -444,6 +866,82 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/internal/email/events": {
+      "get": {
+        "operationId": "email_events_feed_api_v1_internal_email_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source_app",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Source App",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "After",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Internal-API-Key",
+            "required": true,
+            "schema": {
+              "title": "X-Internal-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailEventsPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Email Events Feed",
+        "tags": [
+          "email"
+        ]
+      }
+    },
     "/api/v1/internal/email/health": {
       "get": {
         "description": "Health check for email service.",
@@ -459,6 +957,113 @@
           }
         },
         "summary": "Health Check",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/internal/email/preview": {
+      "post": {
+        "operationId": "preview_email_api_v1_internal_email_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Internal-API-Key",
+            "required": true,
+            "schema": {
+              "title": "X-Internal-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TemplatePreviewRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RawPreviewRequest"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Email",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/internal/email/preview/templates": {
+      "get": {
+        "description": "Every Janua-owned template previewable (and sendable via /send-template).",
+        "operationId": "list_preview_templates_api_v1_internal_email_preview_templates_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Internal-API-Key",
+            "required": true,
+            "schema": {
+              "title": "X-Internal-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PreviewTemplateInfo"
+                  },
+                  "title": "Response List Preview Templates Api V1 Internal Email Preview Templates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Preview Templates",
         "tags": [
           "email"
         ]

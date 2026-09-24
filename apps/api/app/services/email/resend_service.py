@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
+from app.services.email_tags import normalize_tags
 from app.services.resend_transport import send_on_account
 
 logger = logging.getLogger(__name__)
@@ -139,8 +140,10 @@ class ResendService:
                 "from": self._format_from(from_email),
                 "to": recipients,
                 "subject": subject,
-                "html": html,
             }
+            # A blank HTML part can render as an empty message: omit it.
+            if html and html.strip():
+                params["html"] = html
 
             if text:
                 params["text"] = text
@@ -157,8 +160,11 @@ class ResendService:
             if attachments:
                 params["attachments"] = attachments
 
-            if tags:
-                params["tags"] = tags
+            # Resend takes a list of {"name","value"}; this method's dict form
+            # never matched the API. Sanitized and always carrying source_app.
+            params["tags"] = normalize_tags(
+                [{"name": k, "value": v} for k, v in (tags or {}).items()]
+            )
 
             # Send email
             response = send_on_account(params, self.api_key)

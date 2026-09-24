@@ -247,3 +247,20 @@ de habilitar el nuevo endpoint; consulte [la receta de recuperación](payment-no
 El libro `PROD_ALEMBIC_STATE.json` conserva la última verificación real: no se
 actualiza al escribir código ni por pasar pruebas locales. Con filas en el nuevo
 ledger, el downgrade se rechaza para preservar evidencia; revierta la aplicación.
+
+## Revisión 018: `email_events`, aplicada con el SQL del dueño
+
+`018_email_events` agrega **una** tabla nueva (`email_events`, eventos de
+webhook de Resend minimizados) y dos índices; no toca ninguna tabla existente.
+Se aplica a mano con [`docs/ops/sql/018_email_events.sql`](../ops/sql/018_email_events.sql):
+una transacción, `SET LOCAL ROLE enclii`, `lock_timeout` de 5 s, `GRANT SELECT,
+INSERT` (sin UPDATE ni DELETE) al rol `janua` más `USAGE` en la secuencia, y
+`alembic_version` 017 → 018 protegido (exige exactamente una fila en 017 o 018;
+reejecutarlo no cambia nada). `tests/unit/test_email_events_migration.py`
+aplica el SQL y la revisión Alembic a bases desechables y compara el catálogo.
+
+Hasta que el dueño lo aplique y el ledger registre 018 en un PR aparte, el
+guardia de promote se detiene (`revisions ahead: 1`) salvo
+`migrations_acknowledged=true`. Promover el código ANTES de aplicar el SQL es
+seguro para todo lo existente; solo el receptor de webhooks y el feed fallarían
+(500 al insertar/leer `email_events`), y Resend reintenta los webhooks.

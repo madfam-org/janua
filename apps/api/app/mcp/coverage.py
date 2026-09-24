@@ -84,6 +84,32 @@ PILOT_SCOPE: tuple[Endpoint, ...] = (
         tool_name="janua_email_health",
         summary="Report whether janua's email subsystem is configured and healthy.",
     ),
+    # Read-only / render-only additions (2026-09-23): the per-app Resend events
+    # feed and the send preview. Neither sends, writes or grants anything.
+    Endpoint(
+        method="GET",
+        path=f"{INTERNAL_PREFIX}/email/events",
+        tool_name="janua_email_events_feed",
+        summary=(
+            "Read delivered/opened/clicked/bounced events for one sending app's mail, "
+            "cursor-paginated (no recipient data)."
+        ),
+    ),
+    Endpoint(
+        method="POST",
+        path=f"{INTERNAL_PREFIX}/email/preview",
+        tool_name="janua_email_preview",
+        summary=(
+            "Render exactly what a send or template send would hand to Resend "
+            "(subject, resolved From, bodies) without sending."
+        ),
+    ),
+    Endpoint(
+        method="GET",
+        path=f"{INTERNAL_PREFIX}/email/preview/templates",
+        tool_name="janua_email_preview_templates",
+        summary="List previewable templates with their required context variables.",
+    ),
 )
 
 
@@ -128,7 +154,9 @@ EXEMPTIONS: tuple[Exemption, ...] = (
     # internal_app_roles -- app-role grants that flow into JWT `roles`.
     Exemption("POST", f"{INTERNAL_PREFIX}/app-roles/grant", _READ_OR_GRANT),
     Exemption("POST", f"{INTERNAL_PREFIX}/app-roles/revoke", _DESTRUCTIVE),
-    Exemption("GET", f"{INTERNAL_PREFIX}/app-roles/{{organization_id}}/{{user_id}}", _READ_OR_GRANT),
+    Exemption(
+        "GET", f"{INTERNAL_PREFIX}/app-roles/{{organization_id}}/{{user_id}}", _READ_OR_GRANT
+    ),
     # internal_capability_links -- capability grants between orgs/apps.
     Exemption("POST", f"{INTERNAL_PREFIX}/capability-links", _READ_OR_GRANT),
     Exemption("POST", f"{INTERNAL_PREFIX}/capability-links/resolve", _READ_OR_GRANT),
