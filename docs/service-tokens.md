@@ -8,6 +8,7 @@ Cross-service identity for the RFC 0024 §P4 consolidations:
 | RouteCraft → Dhanam billing (§P4.3) | `routecraft-billing-relay` | `billing:events` | `dhanam-api` | Dhanam API |
 | Nauta → Karafiel legal drafts (D3.5) | `nauta-legal-drafts` | `legal:draft`, `legal:client-profile` | `karafiel-api` | Karafiel API |
 | Forj → Yantra4D catalog render | `forj-catalog-materializer` | `yantra4d:render` | `yantra4d-api` | Yantra4D render API |
+| creator-census → Janua delegated provider token | `creator-census` | `connections:delegate` | `janua-connections` | Janua connections API (see [Purpose-scoped provider consent](#purpose-scoped-provider-consent)) |
 
 Both migration plans (`zavlo/docs/karafiel-cfdi-migration-plan.md`,
 `routecraft/docs/dhanam-payments-migration-plan.md`) are gated on this
@@ -308,3 +309,130 @@ server's own Janua client credentials).
   RouteCraft→Dhanam. New edges get new clients with their own scopes.
 - Widening a client's `allowed_scopes` is an operator action on the Janua
   side (seed script re-run or admin API) and must be reflected here.
+
+## Purpose-scoped provider consent
+
+Some services need to act on a user's **own** third-party account — for
+example, reading a creator's own YouTube channel statistics and analytics
+through the official API. Janua brokers this without handing the service a
+long-lived credential: the user consents to a named **purpose**, Janua keeps
+the provider tokens in its encrypted ConnectedAccount vault, and the service
+asks Janua for a short-lived provider access token each time it needs one.
+
+### Purpose registry
+
+Purposes are an allowlist in code (`apps/api/app/core/consent_purposes.py`),
+not runtime configuration: widening who may borrow a user's provider token is
+a reviewed change. Each purpose pins one provider, the extra provider scopes it
+requests, and the Janua service clients (by registration **name**) allowed to
+receive delegated tokens for it. Unknown purposes are refused everywhere.
+
+| Purpose | Provider | Extra scopes | Allowed service clients |
+|---|---|---|---|
+| `creator-census.youtube` | `google` | `https://www.googleapis.com/auth/youtube.readonly`, `https://www.googleapis.com/auth/yt-analytics.readonly` | `creator-census` |
+
+### 1. The user grants the purpose
+
+The user, signed in to Janua, starts a link for the purpose:
+
+```http
+POST /api/v1/auth/oauth/link/google?purpose=creator-census.youtube&redirect_uri=/settings/connections
+Authorization: Bearer <user session token>
+```
+
+- The purpose must exist and belong to the provider in the path, otherwise
+  `400 unknown_purpose` / `400 purpose_provider_mismatch`.
+- The purpose's scopes are requested on top of the provider's sign-in scopes.
+  For Google, Janua also sends `include_granted_scopes=true` (incremental
+  authorization), `access_type=offline` and `prompt=consent`, so a refresh
+  token is issued.
+- If the provider is **already linked**, the purpose turns the link into a
+  scope upgrade instead of `400 already linked`. The upgrade must come back
+  from the same provider account (`400 provider_account_mismatch` otherwise).
+- On callback, Janua records the grant only if **every** purpose scope appears
+  in the provider's token response. A partial grant (the user unticked a
+  scope) records nothing and returns `purpose_scopes_not_granted` (as a
+  `400`, or as `?error=` on the redirect).
+- The grant is stored on the user's ConnectedAccount for the provider (the
+  existing `oauth_scopes` and `account_metadata.purposes` JSON fields; no
+  schema change) and audited as `consent.purpose.granted`.
+
+Without `purpose`, linking behaves exactly as before.
+
+### 2. The service obtains a service token
+
+Register the service's client once (operator step), with exactly this grant:
+
+```jsonc
+{
+  "name": "creator-census",
+  "audience": "janua-connections",
+  "allowed_scopes": ["connections:delegate"],
+  "grant_types": ["client_credentials"],
+  "redirect_uris": [],
+  "is_confidential": true
+}
+```
+
+Then mint tokens with `grant_type=client_credentials` as described above.
+
+### 3. The service requests a delegated provider token
+
+```http
+POST /api/v1/connections/{connection_id}/token
+Authorization: Bearer <service token, aud=janua-connections, scope=connections:delegate>
+X-Acting-User-Id: <the consenting user's Janua id>
+Content-Type: application/json
+
+{"purpose": "creator-census.youtube", "ttl_seconds": 300}
+```
+
+Response: `access_token` (the provider's), `expires_at` (never later than the
+provider token's own expiry), `purpose`, `provider_type`, `scopes`. The call is
+audited as `tool.delegation.issued` with the purpose and the service client.
+The service must not persist the provider token beyond `expires_at`.
+
+Every rule fails closed with a specific reason (`error.message`):
+
+| Status | Reason | When |
+|---|---|---|
+| 401 | `service_token_requires_rs256` | Janua is not signing with RS256 |
+| 401 | `invalid_service_token` | bad signature/issuer/expiry, wrong audience, or not a `client_credentials` token |
+| 403 | `service_token_missing_scope` | token lacks `connections:delegate` |
+| 403 | `service_client_grant_unavailable` | client deactivated, or its registration no longer carries the audience/scope/grant |
+| 403 | `unknown_purpose` | purpose not in the registry |
+| 403 | `service_client_not_allowed_for_purpose` | client not in the purpose's allowlist |
+| 404 | `connection_not_found` | no such connection |
+| 403 | `acting_user_mismatch` | connection does not belong to `X-Acting-User-Id` |
+| 403 | `connection_revoked` | the user revoked the connection (or unlinked the provider) |
+| 403 | `purpose_provider_mismatch` | connection is for another provider |
+| 403 | `purpose_not_granted` | the user never granted this purpose on this connection, or its scopes are no longer held |
+| 409 | `reauthorization_required` | the provider rejected the refresh token, there is none, or the refreshed grant no longer covers the purpose; the connection is marked `expired` until the user re-consents |
+| 503 | `provider_refresh_unavailable` | the provider could not be reached to refresh; transient, the consent is kept |
+
+**Freshness.** If the stored Google access token is expired or within two
+minutes of expiry, Janua refreshes it with the stored refresh token before
+answering. Janua never returns a stale token.
+
+**Revocation.** `DELETE /api/v1/connections/{id}` (or unlinking the provider)
+revokes the connection and ends every purpose granted on it
+(`consent.purpose.revoked`); later delegation for it is refused. A user who
+wants the purpose back links again with `?purpose=`.
+
+### Legacy static service token
+
+The shared `JANUA_SERVICE_TOKEN` (Coupler tool execute) keeps working unchanged
+for GitHub and Slack connections. It cannot request a registered purpose
+(`403 purpose_requires_service_token`) and cannot receive tokens for any other
+provider (`403 provider_requires_service_token`); those are reachable only
+with a service token as above.
+
+### Google verification before production
+
+Google classifies the YouTube read scopes (`youtube.readonly`,
+`yt-analytics.readonly`) as **sensitive**. Before this purpose is offered to
+users outside the OAuth app's test-user list, the Google Cloud OAuth consent
+screen must pass Google's OAuth app verification for those scopes (privacy
+policy, scope justification, and a demo of the consent flow). Until then,
+Google shows an "unverified app" warning and limits the app to test users.
+
