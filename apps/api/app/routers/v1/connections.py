@@ -14,10 +14,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.consent_purposes import get_purpose
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import ActivityLog, User
-from app.core.consent_purposes import get_purpose
 from app.models.connected_account import ConnectedAccountStatus
 from app.services.connected_account_service import (
     ConnectedAccountService,
@@ -81,8 +81,10 @@ class _DelegationCaller:
 
 
 def _static_token_matches(candidate: Optional[str], expected: str) -> bool:
-    return bool(candidate) and bool(expected) and hmac.compare_digest(
-        candidate.encode("utf-8"), expected.encode("utf-8")
+    return (
+        bool(candidate)
+        and bool(expected)
+        and hmac.compare_digest(candidate.encode("utf-8"), expected.encode("utf-8"))
     )
 
 

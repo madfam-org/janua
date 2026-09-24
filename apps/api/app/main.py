@@ -685,6 +685,7 @@ def openid_configuration():
             "billing:events",
             "legal:draft",
             "legal:client-profile",
+            "connections:delegate",
         ],
         "token_endpoint_auth_methods_supported": [
             "client_secret_basic",

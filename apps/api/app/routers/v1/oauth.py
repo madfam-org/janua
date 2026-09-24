@@ -4,8 +4,11 @@ OAuth authentication endpoints
 
 import json
 import logging
+from datetime import datetime, timedelta
 from typing import Optional
+from urllib.parse import urlencode as _urlencode
 from urllib.parse import urlparse
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
@@ -13,9 +16,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.core.consent_purposes import get_purpose
 from app.core.locale import locale_from_request
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.services.connected_account_service import ConnectedAccountService
 from app.services.oauth import OAuthService
 
 from ...models import ActivityLog, OAuthAccount, OAuthProvider, Passkey, User
@@ -69,6 +74,12 @@ def validate_redirect_url(url: Optional[str]) -> Optional[str]:
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid redirect URL: {str(e)}")
+
+
+def _append_query(url: str, **params: str) -> str:
+    """Append query parameters to an already-validated redirect URL."""
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}{_urlencode(params)}"
 
 
 class OAuthInitRequest(BaseModel):
@@ -180,16 +191,15 @@ async def oauth_authorize(
     except (ValueError, KeyError, TypeError, RuntimeError) as e:
         logger.warning(
             "OAuth authorization error",
-            error_type=type(e).__name__,
-            error=str(e),
-            provider=provider,
+            extra={
+                "error_type": type(e).__name__,
+                "error": str(e),
+                "provider": provider,
+            },
         )
         raise HTTPException(status_code=400, detail=f"OAuth initialization failed: {str(e)}")
-    except Exception as e:
-        logger.exception(
-            "Unexpected error in OAuth authorization",
-            provider=provider,
-        )
+    except Exception:
+        logger.exception("Unexpected error in OAuth authorization", extra={"provider": provider})
         raise HTTPException(status_code=500, detail="OAuth initialization failed")
 
 
@@ -323,16 +333,15 @@ async def oauth_callback(
     except (ValueError, KeyError, TypeError) as e:
         logger.warning(
             "OAuth callback error",
-            error_type=type(e).__name__,
-            error=str(e),
-            provider=provider,
+            extra={
+                "error_type": type(e).__name__,
+                "error": str(e),
+                "provider": provider,
+            },
         )
         raise HTTPException(status_code=400, detail=f"OAuth callback failed: {str(e)}")
-    except Exception as e:
-        logger.exception(
-            "Unexpected error in OAuth callback",
-            provider=provider,
-        )
+    except Exception:
+        logger.exception("Unexpected error in OAuth callback", extra={"provider": provider})
         raise HTTPException(status_code=500, detail="OAuth callback processing failed")
 
 
@@ -343,12 +352,25 @@ async def link_oauth_account(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     redirect_uri: Optional[str] = Query(None),
+    purpose: Optional[str] = Query(
+        None,
+        description=(
+            "Registered consent purpose (e.g. `creator-census.youtube`). Requests "
+            "the purpose's extra provider scopes and records the grant on callback."
+        ),
+    ),
 ):
     """Link an OAuth account to existing user.
 
     The redirect_uri parameter is where the user will be redirected AFTER
     the OAuth flow completes (i.e., after Janua processes the callback).
     Janua always uses its own callback URL when talking to OAuth providers.
+
+    With `purpose`, the link doubles as purpose-scoped consent: the purpose
+    must be registered for this provider, its scopes are requested on top of
+    the sign-in scopes (Google: incremental authorization), and an already
+    linked provider is re-authorized as a scope upgrade instead of refused.
+    Without `purpose`, behaviour is unchanged.
     """
     try:
         # Validate redirect_uri if provided (prevents open redirect)
@@ -360,6 +382,14 @@ async def link_oauth_account(
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid provider: {provider}")
 
+        consent_purpose = None
+        if purpose is not None:
+            consent_purpose = get_purpose(purpose)
+            if consent_purpose is None:
+                raise HTTPException(status_code=400, detail="unknown_purpose")
+            if consent_purpose.provider != oauth_provider.value:
+                raise HTTPException(status_code=400, detail="purpose_provider_mismatch")
+
         # Check if provider is already linked
         result = await db.execute(
             select(OAuthAccount).where(
@@ -368,7 +398,7 @@ async def link_oauth_account(
         )
         existing = result.scalar_one_or_none()
 
-        if existing:
+        if existing and consent_purpose is None:
             raise HTTPException(status_code=400, detail=f"{provider} account is already linked")
 
         # Check if provider is configured
@@ -390,6 +420,9 @@ async def link_oauth_account(
             "action": "link",
             "final_redirect": final_redirect,  # Where to redirect after OAuth completes
         }
+        if consent_purpose is not None:
+            state_data["purpose"] = consent_purpose.id
+            state_data["upgrade"] = existing is not None
         await redis_client.set(
             f"oauth_state:{link_state}",
             json.dumps(state_data),
@@ -404,34 +437,41 @@ async def link_oauth_account(
 
         # Get authorization URL using Janua's callback
         auth_url = OAuthService.get_authorization_url(
-            oauth_provider, oauth_callback_uri, link_state, None
+            oauth_provider,
+            oauth_callback_uri,
+            link_state,
+            list(consent_purpose.additional_scopes) if consent_purpose else None,
+            include_granted_scopes=consent_purpose is not None,
         )
 
         if not auth_url:
             raise HTTPException(status_code=500, detail="Failed to generate authorization URL")
 
-        return {
+        response_body = {
             "authorization_url": auth_url,
             "state": link_state,
             "provider": provider,
             "action": "link",
         }
+        if consent_purpose is not None:
+            response_body["purpose"] = consent_purpose.id
+            response_body["scope_upgrade"] = existing is not None
+        return response_body
 
     except HTTPException:
         raise
     except (ValueError, KeyError, TypeError) as e:
         logger.warning(
             "OAuth link error",
-            error_type=type(e).__name__,
-            error=str(e),
-            provider=provider,
+            extra={
+                "error_type": type(e).__name__,
+                "error": str(e),
+                "provider": provider,
+            },
         )
         raise HTTPException(status_code=400, detail=f"OAuth link failed: {str(e)}")
-    except Exception as e:
-        logger.exception(
-            "Unexpected error in OAuth link",
-            provider=provider,
-        )
+    except Exception:
+        logger.exception("Unexpected error in OAuth link", extra={"provider": provider})
         raise HTTPException(status_code=500, detail="OAuth link initialization failed")
 
 
@@ -514,7 +554,6 @@ async def link_oauth_callback(
             )
 
         # Get the user from database
-        from uuid import UUID
 
         result = await db.execute(select(User).where(User.id == UUID(user_id)))
         user = result.scalar_one_or_none()
@@ -522,15 +561,26 @@ async def link_oauth_callback(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # Check if this OAuth account is already linked to another user
-        provider_user_id = str(user_info.get("id") or user_info.get("sub"))
+        # Check if this OAuth account is already linked to another user.
+        # `get_user_info` returns the NORMALIZED shape, whose id key is
+        # `provider_user_id`; the raw `id`/`sub` keys are kept only as a
+        # fallback. Reading only `id`/`sub` stored the literal "None" for every
+        # link, which made every second linker collide with the first.
+        raw_provider_user_id = (
+            user_info.get("provider_user_id") or user_info.get("id") or user_info.get("sub")
+        )
+        if not raw_provider_user_id:
+            raise HTTPException(
+                status_code=401, detail="Failed to get user info from OAuth provider"
+            )
+        provider_user_id = str(raw_provider_user_id)
         existing_result = await db.execute(
             select(OAuthAccount).where(
                 OAuthAccount.provider == oauth_provider,
                 OAuthAccount.provider_user_id == provider_user_id,
             )
         )
-        existing_account = existing_result.scalar_one_or_none()
+        existing_account = existing_result.scalars().first()
 
         if existing_account:
             if str(existing_account.user_id) != user_id:
@@ -542,53 +592,127 @@ async def link_oauth_callback(
                     )
                 raise HTTPException(status_code=400, detail=error_msg)
 
-        # Build provider_data with scopes from token response
-        # GitHub returns scope as a comma-separated string in the token response
-        granted_scopes = []
-        if tokens.get("scope"):
-            # GitHub returns comma-separated scopes, other providers may use space
-            scope_str = tokens.get("scope", "")
-            if "," in scope_str:
-                granted_scopes = [s.strip() for s in scope_str.split(",")]
-            else:
-                granted_scopes = scope_str.split()
+        # Purpose-scoped consent (set by POST /link/{provider}?purpose=...)
+        purpose_id = state_data.get("purpose")
+        consent_purpose = get_purpose(purpose_id) if purpose_id else None
+        if purpose_id and (
+            consent_purpose is None or consent_purpose.provider != oauth_provider.value
+        ):
+            raise HTTPException(status_code=400, detail="unknown_purpose")
 
-        # Fallback to configured scopes if provider doesn't return them
-        if not granted_scopes:
-            config = OAuthService.get_provider_config(oauth_provider)
-            if config:
-                granted_scopes = config.get("scopes", [])
+        # Granted scopes as the provider reported them in the token response
+        granted_scopes = OAuthService._parse_scopes_from_tokens(tokens, oauth_provider)
+
+        if consent_purpose is not None:
+            missing = [s for s in consent_purpose.additional_scopes if s not in granted_scopes]
+            if missing:
+                # The user unticked a requested scope on the provider's
+                # consent screen. Record nothing: a partial grant is not a grant.
+                logger.warning(
+                    "Purpose consent incomplete",
+                    extra={
+                        "provider": provider,
+                        "purpose": consent_purpose.id,
+                        "missing_scopes": missing,
+                    },
+                )
+                if final_redirect:
+                    return RedirectResponse(
+                        url=_append_query(final_redirect, error="purpose_scopes_not_granted"),
+                        status_code=302,
+                    )
+                raise HTTPException(status_code=400, detail="purpose_scopes_not_granted")
 
         provider_data = {
             "scopes": granted_scopes,
             "raw_user_info": user_info,
         }
-
-        # Create OAuth account link
-        oauth_account = OAuthAccount(
-            user_id=UUID(user_id),
-            provider=oauth_provider,
-            provider_user_id=provider_user_id,
-            provider_email=user_info.get("email"),
-            access_token=tokens["access_token"],
-            refresh_token=tokens.get("refresh_token"),
-            token_expires_at=tokens.get("expires_at"),
-            provider_data=provider_data,
+        token_expires_at = (
+            datetime.utcnow() + timedelta(seconds=int(tokens["expires_in"]))
+            if tokens.get("expires_in")
+            else None
         )
-        db.add(oauth_account)
 
-        # Log activity
-        activity = ActivityLog(
-            user_id=UUID(user_id),
-            action="oauth_linked",
-            activity_metadata={"provider": provider, "provider_email": user_info.get("email")},
-        )
-        db.add(activity)
+        user_link = None
+        if consent_purpose is not None:
+            link_result = await db.execute(
+                select(OAuthAccount).where(
+                    OAuthAccount.user_id == UUID(user_id),
+                    OAuthAccount.provider == oauth_provider,
+                )
+            )
+            user_link = link_result.scalars().first()
+
+        if user_link is not None:
+            # Scope upgrade of an existing link. It must be the SAME provider
+            # account; rows written before the provider_user_id fix hold the
+            # literal "None" and are repaired here.
+            if user_link.provider_user_id not in (provider_user_id, "None", None, ""):
+                error_code = "provider_account_mismatch"
+                if final_redirect:
+                    return RedirectResponse(
+                        url=_append_query(final_redirect, error=error_code),
+                        status_code=302,
+                    )
+                raise HTTPException(status_code=400, detail=error_code)
+            user_link.provider_user_id = provider_user_id
+            user_link.provider_email = user_info.get("email") or user_link.provider_email
+            user_link.access_token = tokens["access_token"]
+            if tokens.get("refresh_token"):
+                user_link.refresh_token = tokens["refresh_token"]
+            user_link.token_expires_at = token_expires_at
+            user_link.provider_data = provider_data
+            oauth_account = user_link
+        else:
+            # Create OAuth account link
+            oauth_account = OAuthAccount(
+                user_id=UUID(user_id),
+                provider=oauth_provider,
+                provider_user_id=provider_user_id,
+                provider_email=user_info.get("email"),
+                access_token=tokens["access_token"],
+                refresh_token=tokens.get("refresh_token"),
+                token_expires_at=token_expires_at,
+                provider_data=provider_data,
+            )
+            db.add(oauth_account)
+
+            # Log activity
+            activity = ActivityLog(
+                user_id=UUID(user_id),
+                action="oauth_linked",
+                activity_metadata={"provider": provider, "provider_email": user_info.get("email")},
+            )
+            db.add(activity)
+
+        if consent_purpose is not None:
+            connection = await ConnectedAccountService(db).record_purpose_grant(
+                user_id=UUID(user_id),
+                oauth_account=oauth_account,
+                purpose=consent_purpose,
+                granted_scopes=granted_scopes,
+            )
+            db.add(
+                ActivityLog(
+                    user_id=UUID(user_id),
+                    action="consent.purpose.granted",
+                    resource_type="connected_account",
+                    resource_id=str(connection.id),
+                    activity_metadata={
+                        "purpose": consent_purpose.id,
+                        "provider": consent_purpose.provider,
+                        "scopes": list(consent_purpose.additional_scopes),
+                        "scope_upgrade": user_link is not None,
+                    },
+                )
+            )
 
         await db.commit()
 
         # SECURITY: Use parameterized logging to prevent log injection
-        logger.info("Successfully linked OAuth account", provider=provider, user_id=user_id)
+        logger.info(
+            "Successfully linked OAuth account", extra={"provider": provider, "user_id": user_id}
+        )
 
         # Redirect to final destination or return success
         if final_redirect:
@@ -606,16 +730,15 @@ async def link_oauth_callback(
     except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
         logger.warning(
             "OAuth link callback error",
-            error_type=type(e).__name__,
-            error=str(e),
-            provider=provider,
+            extra={
+                "error_type": type(e).__name__,
+                "error": str(e),
+                "provider": provider,
+            },
         )
         raise HTTPException(status_code=400, detail=f"OAuth link callback failed: {str(e)}")
-    except Exception as e:
-        logger.exception(
-            "Unexpected error in OAuth link callback",
-            provider=provider,
-        )
+    except Exception:
+        logger.exception("Unexpected error in OAuth link callback", extra={"provider": provider})
         raise HTTPException(status_code=500, detail="OAuth link callback processing failed")
 
 
@@ -664,6 +787,21 @@ async def unlink_oauth_account(
         # Delete OAuth account
         await db.delete(oauth_account)
 
+        # Unlinking a provider ends every delegated connection and purpose
+        # consent built on it; nothing may keep borrowing its token.
+        ended_purposes = await ConnectedAccountService(db).revoke_for_provider(
+            current_user.id, oauth_provider.value
+        )
+        for purpose_id in ended_purposes:
+            db.add(
+                ActivityLog(
+                    user_id=current_user.id,
+                    action="consent.purpose.revoked",
+                    resource_type="connected_account",
+                    activity_metadata={"purpose": purpose_id, "reason": "provider_unlinked"},
+                )
+            )
+
         # Log activity
         activity = ActivityLog(
             user_id=current_user.id,
@@ -681,16 +819,15 @@ async def unlink_oauth_account(
     except (ValueError, KeyError, TypeError) as e:
         logger.warning(
             "OAuth unlink error",
-            error_type=type(e).__name__,
-            error=str(e),
-            provider=provider,
+            extra={
+                "error_type": type(e).__name__,
+                "error": str(e),
+                "provider": provider,
+            },
         )
         raise HTTPException(status_code=400, detail=f"OAuth unlink failed: {str(e)}")
-    except Exception as e:
-        logger.exception(
-            "Unexpected error in OAuth unlink",
-            provider=provider,
-        )
+    except Exception:
+        logger.exception("Unexpected error in OAuth unlink", extra={"provider": provider})
         raise HTTPException(status_code=500, detail="Failed to unlink OAuth account")
 
 

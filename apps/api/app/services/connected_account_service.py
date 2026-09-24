@@ -83,7 +83,9 @@ class ConnectedAccountService:
         )
         return list(result.scalars().all())
 
-    async def get_for_user(self, user: User, connection_id: uuid.UUID) -> Optional[ConnectedAccount]:
+    async def get_for_user(
+        self, user: User, connection_id: uuid.UUID
+    ) -> Optional[ConnectedAccount]:
         result = await self.db.execute(
             select(ConnectedAccount).where(
                 ConnectedAccount.id == connection_id,
@@ -254,9 +256,7 @@ class ConnectedAccountService:
             await self._mark_expired(connection, f"refresh_rejected:{e}")
             raise ReauthorizationRequired(str(e)) from e
         except ProviderRefreshUnavailable as e:
-            logger.warning(
-                "Provider refresh unavailable for connection %s: %s", connection.id, e
-            )
+            logger.warning("Provider refresh unavailable for connection %s: %s", connection.id, e)
             raise ProviderTemporarilyUnavailable(str(e)) from e
 
         connection.access_token_encrypted = tokens["access_token"]
@@ -313,9 +313,7 @@ class ConnectedAccountService:
 
     async def _sync_from_oauth_accounts(self, user: User) -> None:
         """Bootstrap ConnectedAccount rows from legacy OAuthAccount linkages."""
-        result = await self.db.execute(
-            select(OAuthAccount).where(OAuthAccount.user_id == user.id)
-        )
+        result = await self.db.execute(select(OAuthAccount).where(OAuthAccount.user_id == user.id))
         oauth_accounts = result.scalars().all()
         if not oauth_accounts:
             return

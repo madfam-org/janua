@@ -301,7 +301,9 @@ class OAuthService:
             return None
 
     @classmethod
-    async def refresh_access_token(cls, provider: OAuthProvider, refresh_token: str) -> Dict[str, Any]:
+    async def refresh_access_token(
+        cls, provider: OAuthProvider, refresh_token: str
+    ) -> Dict[str, Any]:
         """Exchange a stored provider refresh token for a fresh access token.
 
         Fails loudly, never silently: a provider that *rejects* the refresh
