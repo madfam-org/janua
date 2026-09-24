@@ -1,12 +1,18 @@
-"""Service-token authority for delegated provider tokens (`/connections/{id}/token`).
+"""Token verification for purpose-scoped provider-token delegation.
 
-Per the cross-service auth decision (`docs/service-tokens.md`), a service that
-borrows a user's provider credential authenticates with a Janua-issued RS256
-`client_credentials` token — audience `janua-connections`, scope
-`connections:delegate` — not with a shared static secret. This module verifies
-such a token and then re-checks the client's *current* grant in the database,
-so a client that was deactivated or had the scope removed after minting is
-refused even while its token is still unexpired.
+Two kinds of credential meet here:
+
+- the **actor**: a Janua-issued RS256 `client_credentials` service token
+  (audience `janua-connections`, scope `connections:delegate`). The purpose
+  registry then decides which path the client may use: user-bound token
+  exchange (`exchange_clients`) or user-absent offline delegation
+  (`offline_clients`). After the signature
+  checks, the client's *current* registration is re-read, so a client that was
+  deactivated or lost the scope is refused while its token is still unexpired;
+- the **subject**: the user's OWN Janua RS256 access token, issued to the
+  service's user-facing API (an audience the purpose registry allowlists). It
+  binds a delegation to a request the user is actually making, so a service
+  that holds only its own credential cannot borrow tokens for absent users.
 
 Every refusal names its reason. Nothing here falls back to HS256, an omitted
 audience, or the legacy static token.
@@ -15,6 +21,7 @@ audience, or the legacy static token.
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass
 from time import time
 from typing import Optional
@@ -30,7 +37,7 @@ from app.core.consent_purposes import (
     get_purpose,
 )
 from app.core.jwt_manager import jwt_manager
-from app.models import OAuthClient
+from app.models import OAuthClient, User, UserStatus
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +49,23 @@ class DelegationServicePrincipal:
     client_id: str
 
 
+@dataclass(frozen=True)
+class SubjectPrincipal:
+    """A verified user access token presented as a token-exchange subject."""
+
+    user: User
+    audience: str
+    jti: Optional[str]
+
+
 def looks_like_jwt(token: Optional[str]) -> bool:
     return bool(token) and token.count(".") == 2
+
+
+def bearer_token(authorization: Optional[str]) -> Optional[str]:
+    if authorization and authorization.lower().startswith("bearer "):
+        return authorization[7:].strip() or None
+    return None
 
 
 def _unauthorized(reason: str) -> HTTPException:
@@ -54,19 +76,37 @@ def _forbidden(reason: str) -> HTTPException:
     return HTTPException(status_code=403, detail=reason)
 
 
-def verify_delegation_service_token(token: str) -> DelegationServicePrincipal:
-    """Verify signature, issuer, audience, expiry, token shape and scope."""
+def _require_rs256() -> None:
     if jwt_manager.algorithm != "RS256":
         # A symmetric key would let anything holding the HS secret mint
-        # service identities. This boundary is RS256-only, including in tests.
+        # identities. This boundary is RS256-only, including in tests.
         raise _unauthorized("service_token_requires_rs256")
+
+
+def _lifetime_ok(payload: dict) -> bool:
+    issued, expires = payload.get("iat"), payload.get("exp")
+    now = time()
+    return (
+        type(issued) in (int, float)
+        and type(expires) in (int, float)
+        and expires > now
+        and issued <= now + 60
+        and expires > issued
+    )
+
+
+def verify_delegation_service_token(
+    token: Optional[str], required_scope: str = CONNECTIONS_DELEGATE_SCOPE
+) -> DelegationServicePrincipal:
+    """Verify an actor token: signature, issuer, audience, expiry, shape, scope."""
+    _require_rs256()
+    if not looks_like_jwt(token):
+        raise _unauthorized("invalid_service_token")
     payload = jwt_manager.verify_token(token, audience=CONNECTIONS_AUDIENCE)
     if not payload:
         raise _unauthorized("invalid_service_token")
 
     client_id = payload.get("client_id")
-    issued, expires = payload.get("iat"), payload.get("exp")
-    now = time()
     if (
         payload.get("aud") != CONNECTIONS_AUDIENCE
         or payload.get("token_use") != "client_credentials"
@@ -74,23 +114,22 @@ def verify_delegation_service_token(token: str) -> DelegationServicePrincipal:
         or not isinstance(client_id, str)
         or not client_id
         or payload.get("sub") != f"service-account:{client_id}"
-        or type(issued) not in (int, float)
-        or type(expires) not in (int, float)
-        or not 0 < expires - issued <= 3600
-        or expires <= now
-        or issued > now + 60
+        or not _lifetime_ok(payload)
+        or payload["exp"] - payload["iat"] > 3600
     ):
         raise _unauthorized("invalid_service_token")
 
     scope = payload.get("scope")
-    if not isinstance(scope, str) or CONNECTIONS_DELEGATE_SCOPE not in scope.split():
+    if not isinstance(scope, str) or required_scope not in scope.split():
         raise _forbidden("service_token_missing_scope")
 
     return DelegationServicePrincipal(client_id=client_id)
 
 
-async def current_delegation_client(
-    db: AsyncSession, principal: DelegationServicePrincipal
+async def current_service_client(
+    db: AsyncSession,
+    principal: DelegationServicePrincipal,
+    required_scope: str = CONNECTIONS_DELEGATE_SCOPE,
 ) -> OAuthClient:
     """Re-check the client's live grant; a revoked grant beats a live token."""
     result = await db.execute(
@@ -104,38 +143,105 @@ async def current_delegation_client(
         or not client.is_active
         or not client.is_confidential
         or client.audience != CONNECTIONS_AUDIENCE
-        or CONNECTIONS_DELEGATE_SCOPE not in (client.allowed_scopes or [])
+        or required_scope not in (client.allowed_scopes or [])
         or "client_credentials" not in (client.grant_types or [])
     ):
         raise _forbidden("service_client_grant_unavailable")
     return client
 
 
-def require_purpose_for_client(client: OAuthClient, purpose_id: Optional[str]) -> ConsentPurpose:
-    """The purpose must be registered and allowlist this client (by name)."""
+# Backwards-compatible name for the delegate scope check.
+async def current_delegation_client(
+    db: AsyncSession, principal: DelegationServicePrincipal
+) -> OAuthClient:
+    return await current_service_client(db, principal, CONNECTIONS_DELEGATE_SCOPE)
+
+
+def require_purpose(purpose_id: Optional[str]) -> ConsentPurpose:
     purpose = get_purpose(purpose_id)
     if purpose is None:
-        logger.warning("Service client %s refused: unknown_purpose %r", client.name, purpose_id)
+        logger.warning("Connections request refused: unknown_purpose %r", purpose_id)
         raise _forbidden("unknown_purpose")
-    if client.name not in purpose.allowed_service_clients:
-        logger.warning(
-            "Service client %s refused: not allowed for purpose %s", client.name, purpose.id
-        )
-        raise _forbidden("service_client_not_allowed_for_purpose")
     return purpose
 
 
-def bearer_token(authorization: Optional[str]) -> Optional[str]:
-    if authorization and authorization.lower().startswith("bearer "):
-        return authorization[7:].strip() or None
-    return None
+def require_exchange_client(client: OAuthClient, purpose_id: Optional[str]) -> ConsentPurpose:
+    """Registered purpose whose `exchange_clients` names this client."""
+    purpose = require_purpose(purpose_id)
+    if client.name not in purpose.exchange_clients:
+        logger.warning("Client %s refused token exchange for purpose %s", client.name, purpose.id)
+        raise _forbidden("client_not_permitted")
+    return purpose
+
+
+def require_offline_client(client: OAuthClient, purpose: ConsentPurpose) -> None:
+    """Header-only (user-absent) delegation is for `offline_clients` only."""
+    if client.name not in purpose.offline_clients:
+        logger.warning(
+            "Client %s refused offline delegation for purpose %s", client.name, purpose.id
+        )
+        raise _forbidden("user_binding_required")
+
+
+async def verify_subject_token(
+    db: AsyncSession, token: Optional[str], purpose: ConsentPurpose
+) -> SubjectPrincipal:
+    """Verify the user's own access token presented as the exchange subject.
+
+    Accepts only an RS256 Janua access token for a real, active person whose
+    audience the purpose allowlists. Service tokens, service principals and
+    tokens for any other audience are refused.
+    """
+    _require_rs256()
+    if not looks_like_jwt(token):
+        raise _unauthorized("invalid_subject_token")
+    allowed = sorted(purpose.allowed_subject_audiences)
+    if not allowed:
+        raise _forbidden("subject_audience_not_allowed")
+    payload = jwt_manager.verify_token(token, token_type="access", audience=allowed)
+    if not payload or not _lifetime_ok(payload):
+        # Signature, issuer, expiry, type — or an audience outside the allowlist.
+        raise _unauthorized("invalid_subject_token")
+
+    audiences = payload.get("aud")
+    audience_list = audiences if isinstance(audiences, list) else [audiences]
+    matched = [a for a in audience_list if a in purpose.allowed_subject_audiences]
+    if not matched:
+        raise _forbidden("subject_audience_not_allowed")
+
+    if (
+        payload.get("token_use") == "client_credentials"
+        or payload.get("actor_type") == "service_account"
+        or payload.get("is_service_account") is True
+        or str(payload.get("sub", "")).startswith("service-account:")
+    ):
+        raise _forbidden("subject_must_be_user")
+
+    try:
+        user_id = uuid.UUID(str(payload.get("sub")))
+    except ValueError:
+        raise _unauthorized("invalid_subject_token")
+
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.status == UserStatus.ACTIVE)
+    )
+    user = result.scalar_one_or_none()
+    if user is None or getattr(user, "is_service_account", False):
+        raise _forbidden("subject_user_unavailable")
+
+    return SubjectPrincipal(user=user, audience=matched[0], jti=payload.get("jti"))
 
 
 __all__ = [
     "DelegationServicePrincipal",
+    "SubjectPrincipal",
     "bearer_token",
-    "require_purpose_for_client",
     "current_delegation_client",
+    "current_service_client",
     "looks_like_jwt",
+    "require_purpose",
+    "require_exchange_client",
+    "require_offline_client",
     "verify_delegation_service_token",
+    "verify_subject_token",
 ]

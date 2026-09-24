@@ -20,6 +20,7 @@ from consent_helpers import (
     activity,
     add_user,
     as_user,
+    mocked_google_revoke,
     reason,
     sqlite_app,
 )
@@ -194,7 +195,7 @@ async def test_first_link_with_purpose_creates_link_and_grant(env):
 async def test_partial_grant_is_not_recorded(env):
     await _link_google(env, factory_account=True)
     start = await env["client"].post(f"/api/v1/auth/oauth/link/google?purpose={YT_PURPOSE}")
-    resp = await _callback(env, start.json()["state"], scopes=GOOGLE_BASE_SCOPES + YT_SCOPES[:1])
+    resp = await _callback(env, start.json()["state"], scopes=GOOGLE_BASE_SCOPES)
     assert resp.status_code == 400
     assert reason(resp) == "purpose_scopes_not_granted"
     assert await _connections(env) == []
@@ -243,10 +244,17 @@ async def test_unlink_revokes_connection_and_ends_purposes(env):
     start = await env["client"].post(f"/api/v1/auth/oauth/link/google?purpose={YT_PURPOSE}")
     await _callback(env, start.json()["state"], scopes=GOOGLE_BASE_SCOPES + YT_SCOPES)
 
-    resp = await env["client"].delete("/api/v1/auth/oauth/unlink/google")
+    with mocked_google_revoke() as (route, _):
+        resp = await env["client"].delete("/api/v1/auth/oauth/unlink/google")
     assert resp.status_code == 200, resp.text
+    # Link and connection share one Google grant: revoked once, audited twice.
+    assert route.call_count == 1
     (conn,) = await _connections(env)
     assert conn.status == ConnectedAccountStatus.REVOKED.value
     assert conn.account_metadata["purposes"][YT_PURPOSE]["status"] == "revoked"
     (log,) = await activity(env["factory"], "consent.purpose.revoked")
     assert log.activity_metadata == {"purpose": YT_PURPOSE, "reason": "provider_unlinked"}
+    provider_logs = await activity(env["factory"], "consent.provider.revoked")
+    assert sorted(p.resource_type for p in provider_logs) == ["connected_account", "oauth_account"]
+    assert {p.activity_metadata["outcome"] for p in provider_logs} == {"revoked"}
+    assert conn.refresh_token_encrypted is None  # vault copy wiped after provider revoke

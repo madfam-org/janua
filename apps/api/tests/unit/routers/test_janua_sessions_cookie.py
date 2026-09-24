@@ -238,9 +238,7 @@ class TestSwitchSession:
         user = _user()
         target = _session_row(user.id)
         req = _req({SESSIONS_COOKIE_NAME: mint_sessions_cookie_value([str(target.id)])})
-        body = auth_router.SwitchSessionRequest(
-            sid=str(target.id), next="/", return_sid=True
-        )
+        body = auth_router.SwitchSessionRequest(sid=str(target.id), next="/", return_sid=True)
         with patch(
             "app.routers.v1.auth.resolve_session_by_id",
             AsyncMock(return_value=(user, target)),

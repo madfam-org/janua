@@ -43,7 +43,9 @@ def _admin_user() -> User:
 
 
 def _non_admin_user() -> User:
-    return User(id=uuid.uuid4(), email="mallory@example.com", password_hash="hashed", is_admin=False)
+    return User(
+        id=uuid.uuid4(), email="mallory@example.com", password_hash="hashed", is_admin=False
+    )
 
 
 def _owner_user(email="creatumundoautismo@hotmail.com") -> User:
@@ -239,9 +241,7 @@ class TestGuards:
         with pytest.raises(HTTPException) as exc:
             await _update(
                 str(org.id),
-                AdminOrganizationUpdateRequest(
-                    owner_email="o@x.com", owner_id=str(uuid.uuid4())
-                ),
+                AdminOrganizationUpdateRequest(owner_email="o@x.com", owner_id=str(uuid.uuid4())),
                 _admin_user(),
                 db,
             )

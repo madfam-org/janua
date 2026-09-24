@@ -21,6 +21,7 @@ Three production bugs (browser-verified for admin@madfam.io on app.janua.dev):
 These tests construct the response models directly with rows containing the
 nullable fields set to None and assert no validation error is raised.
 """
+
 from datetime import datetime
 from uuid import uuid4
 
@@ -154,7 +155,9 @@ class TestAdminOrganizationsNullableColumns:
         assert response.updated_at == org.created_at
 
 
-def _build_user_org_response(org: Organization, owner_email=None, member_count=0) -> OrganizationResponse:
+def _build_user_org_response(
+    org: Organization, owner_email=None, member_count=0
+) -> OrganizationResponse:
     """Mirror organizations/core.list_organizations() construction (non-admin path)."""
     return OrganizationResponse(
         id=str(org.id),

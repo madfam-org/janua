@@ -10,9 +10,9 @@ does it — no symmetric fallback.
 from __future__ import annotations
 
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timedelta
-from typing import AsyncIterator, Callable
+from typing import AsyncIterator, Callable, Iterator
 
 from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import ASGITransport, AsyncClient
@@ -32,10 +32,8 @@ from app.models import ActivityLog, Base, OAuthClient, User, UserStatus
 from app.models.connected_account import ConnectedAccount, ConnectedAccountStatus
 
 YT_PURPOSE = "creator-census.youtube"
-YT_SCOPES = [
-    "https://www.googleapis.com/auth/youtube.readonly",
-    "https://www.googleapis.com/auth/yt-analytics.readonly",
-]
+YT_SCOPES = ["https://www.googleapis.com/auth/youtube.readonly"]
+CENSUS_API_AUDIENCE = "creator-census-api"
 GOOGLE_BASE_SCOPES = ["openid", "https://www.googleapis.com/auth/userinfo.email"]
 
 
@@ -101,13 +99,39 @@ def mint_service_token(
     return token
 
 
-async def add_user(factory, email: str) -> User:
+def mint_user_token(
+    user_id: uuid.UUID,
+    *,
+    audience: str = CENSUS_API_AUDIENCE,
+    expires_in: timedelta = timedelta(minutes=15),
+    extra: dict | None = None,
+) -> str:
+    """A person's Janua access token as the census API would receive it."""
+    now = datetime.utcnow()
+    claims = {
+        "aud": audience,
+        "client_id": "jnc_census_web_fixture",
+        "scope": "openid profile email",
+        "iat": now - timedelta(seconds=5),
+        "exp": now + expires_in,
+    }
+    claims.update(extra or {})
+    token, _, _ = jwt_manager.create_access_token(
+        user_id=str(user_id), email="person@example.com", additional_claims=claims
+    )
+    return token
+
+
+async def add_user(
+    factory, email: str, *, status: UserStatus = UserStatus.ACTIVE, service_account: bool = False
+) -> User:
     async with factory() as db:
         user = User(
             id=uuid.uuid4(),
             email=email,
-            status=UserStatus.ACTIVE,
+            status=status,
             password_hash="not-a-real-hash",
+            is_service_account=service_account,
         )
         db.add(user)
         await db.commit()
@@ -215,3 +239,39 @@ def as_user(user: User) -> Callable:
 def reason(resp) -> str:
     """The refusal reason from Janua's error envelope (`error.message`)."""
     return resp.json()["error"]["message"]
+
+
+GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
+
+
+@contextmanager
+def mocked_google_revoke(*responses) -> Iterator[tuple]:
+    """Mock Google's revoke endpoint (and block every other outbound call).
+
+    `responses` are returned in order (an Exception instance is raised);
+    with none, every call answers 200. Backoff sleeps are replaced with an
+    AsyncMock so tests stay fast and can assert the schedule. Yields
+    (route, sleep_mock).
+    """
+    from unittest.mock import AsyncMock, patch
+
+    import httpx
+    import respx
+
+    with respx.mock(assert_all_called=False) as router:
+        route = router.post(GOOGLE_REVOKE_URL)
+        if responses:
+            route.mock(side_effect=list(responses))
+        else:
+            route.mock(return_value=httpx.Response(200))
+        sleep = AsyncMock()
+        with patch("app.services.oauth.asyncio.sleep", sleep):
+            yield route, sleep
+
+
+def revoked_token(route, call: int = 0) -> str:
+    """The `token` form field Google received on the given call."""
+    from urllib.parse import parse_qs
+
+    body = route.calls[call].request.content.decode()
+    return parse_qs(body)["token"][0]
