@@ -96,7 +96,9 @@ class TestSignUpRequest:
 
         # Too long (max 50)
         with pytest.raises(ValidationError):
-            SignUpRequest(email="test@example.com", password="SecurePass123!", username="a" * 51)
+            SignUpRequest(
+                email="test@example.com", password="SecurePass123!", username="a" * 51
+            )
 
     def test_signup_name_length_limits(self):
         """Test name field length validation."""
@@ -104,7 +106,9 @@ class TestSignUpRequest:
 
         # Name too long (max 100)
         with pytest.raises(ValidationError):
-            SignUpRequest(email="test@example.com", password="SecurePass123!", first_name="a" * 101)
+            SignUpRequest(
+                email="test@example.com", password="SecurePass123!", first_name="a" * 101
+            )
 
 
 class TestSignInRequest:
@@ -377,7 +381,9 @@ class TestTokenResponse:
         """Test token_type defaults to bearer."""
         from app.routers.v1.auth import TokenResponse
 
-        response = TokenResponse(access_token="token", refresh_token="refresh", expires_in=3600)
+        response = TokenResponse(
+            access_token="token", refresh_token="refresh", expires_in=3600
+        )
 
         assert response.token_type == "bearer"
 
@@ -637,7 +643,9 @@ class TestModelSerialization:
         """Test TokenResponse serializes to dict."""
         from app.routers.v1.auth import TokenResponse
 
-        response = TokenResponse(access_token="access", refresh_token="refresh", expires_in=900)
+        response = TokenResponse(
+            access_token="access", refresh_token="refresh", expires_in=900
+        )
 
         data = response.model_dump()
 
@@ -663,7 +671,9 @@ class TestModelSerialization:
             updated_at=now,
             last_sign_in_at=None,
         )
-        tokens = TokenResponse(access_token="access", refresh_token="refresh", expires_in=900)
+        tokens = TokenResponse(
+            access_token="access", refresh_token="refresh", expires_in=900
+        )
 
         response = SignInResponse(user=user, tokens=tokens)
         data = response.model_dump()
@@ -752,7 +762,9 @@ class TestResponseModelEdgeCases:
         """Test token response with zero expiry."""
         from app.routers.v1.auth import TokenResponse
 
-        response = TokenResponse(access_token="token", refresh_token="refresh", expires_in=0)
+        response = TokenResponse(
+            access_token="token", refresh_token="refresh", expires_in=0
+        )
 
         assert response.expires_in == 0
 
@@ -847,14 +859,7 @@ class TestAuditEventMap:
         """Test _AUDIT_EVENT_MAP covers all auth actions."""
         from app.routers.v1.auth import _AUDIT_EVENT_MAP
 
-        expected_actions = [
-            "signup",
-            "signin",
-            "signout",
-            "password_change",
-            "password_reset",
-            "email_verified",
-        ]
+        expected_actions = ["signup", "signin", "signout", "password_change", "password_reset", "email_verified"]
         for action in expected_actions:
             assert action in _AUDIT_EVENT_MAP, f"Missing audit event mapping for '{action}'"
 
@@ -883,9 +888,7 @@ class TestSignOutResilience:
 
         source = inspect.getsource(sign_out)
         assert "verify_token" in source, "sign_out should use AuthService.verify_token"
-        assert (
-            "decode_token" not in source
-        ), "sign_out should NOT reference decode_token (method does not exist)"
+        assert "decode_token" not in source, "sign_out should NOT reference decode_token (method does not exist)"
 
     def test_sign_out_wraps_log_activity_in_try_except(self):
         """log_activity in sign_out must be wrapped in try/except for resilience."""
@@ -894,9 +897,7 @@ class TestSignOutResilience:
 
         source = inspect.getsource(sign_out)
         # Verify try/except wrapping around log_activity
-        assert (
-            source.count("try:") >= 2
-        ), "sign_out should have multiple try/except blocks for resilience"
+        assert source.count("try:") >= 2, "sign_out should have multiple try/except blocks for resilience"
         assert "log_activity" in source
         assert "log_audit_event" in source
 
@@ -947,9 +948,9 @@ class TestLoginPageAuthRequestId:
         from app.routers.v1.auth import login_page
 
         sig = inspect.signature(login_page)
-        assert (
-            "auth_request_id" in sig.parameters
-        ), "login_page must accept auth_request_id query param"
+        assert "auth_request_id" in sig.parameters, (
+            "login_page must accept auth_request_id query param"
+        )
         param = sig.parameters["auth_request_id"]
         assert param.default is None, "auth_request_id should default to None"
 
@@ -960,9 +961,9 @@ class TestLoginPageAuthRequestId:
         fields = _oauth_context_hidden_fields_html(
             auth_request_id="req-123", client_id=None, client_name=None
         )
-        assert (
-            'name="auth_request_id"' in fields
-        ), "OAuth context fields must include auth_request_id as a hidden form field"
+        assert 'name="auth_request_id"' in fields, (
+            "OAuth context fields must include auth_request_id as a hidden form field"
+        )
 
     def test_login_page_does_not_include_next_when_auth_request_id_present(self):
         """When auth_request_id is present, 'next' must be omitted (to avoid
@@ -976,9 +977,9 @@ class TestLoginPageAuthRequestId:
             next_url="/dashboard",
         )
         assert 'name="auth_request_id"' in fields
-        assert (
-            'name="next"' not in fields
-        ), "next must not be emitted when auth_request_id is present"
+        assert 'name="next"' not in fields, (
+            "next must not be emitted when auth_request_id is present"
+        )
 
     def test_login_page_still_supports_next_param(self):
         """login_page must retain backward compatibility with the 'next' param."""
@@ -986,9 +987,9 @@ class TestLoginPageAuthRequestId:
         from app.routers.v1.auth import login_page
 
         sig = inspect.signature(login_page)
-        assert (
-            "next" in sig.parameters
-        ), "login_page must still accept 'next' param for backward compatibility"
+        assert "next" in sig.parameters, (
+            "login_page must still accept 'next' param for backward compatibility"
+        )
 
 
 class TestLoginFormAuthRequestId:
@@ -1000,9 +1001,9 @@ class TestLoginFormAuthRequestId:
         from app.routers.v1.auth import login_form
 
         sig = inspect.signature(login_form)
-        assert (
-            "auth_request_id" in sig.parameters
-        ), "login_form must accept auth_request_id form field"
+        assert "auth_request_id" in sig.parameters, (
+            "login_form must accept auth_request_id form field"
+        )
 
     def test_login_form_accepts_redis_dependency(self):
         """login_form must accept a Redis dependency for auth request retrieval."""
@@ -1010,7 +1011,9 @@ class TestLoginFormAuthRequestId:
         from app.routers.v1.auth import login_form
 
         sig = inspect.signature(login_form)
-        assert "redis" in sig.parameters, "login_form must accept Redis dependency"
+        assert "redis" in sig.parameters, (
+            "login_form must accept Redis dependency"
+        )
 
     def test_login_form_retrieves_params_from_redis(self):
         """login_form must retrieve OAuth params from Redis when auth_request_id is present."""
@@ -1018,9 +1021,9 @@ class TestLoginFormAuthRequestId:
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
-        assert (
-            "oauth:pre_login:" in source
-        ), "login_form must look up OAuth params in Redis using key prefix 'oauth:pre_login:'"
+        assert "oauth:pre_login:" in source, (
+            "login_form must look up OAuth params in Redis using key prefix 'oauth:pre_login:'"
+        )
 
     def test_login_form_reconstructs_authorize_url(self):
         """login_form must reconstruct the OAuth authorize URL from stored params."""
@@ -1028,12 +1031,12 @@ class TestLoginFormAuthRequestId:
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
-        assert (
-            "/api/v1/oauth/authorize?" in source
-        ), "login_form must reconstruct the authorize URL path"
-        assert (
-            "urlencode" in source
-        ), "login_form must use urlencode to build the query string from stored params"
+        assert "/api/v1/oauth/authorize?" in source, (
+            "login_form must reconstruct the authorize URL path"
+        )
+        assert "urlencode" in source, (
+            "login_form must use urlencode to build the query string from stored params"
+        )
 
     def test_login_form_deletes_redis_key_after_success(self):
         """login_form must delete the Redis key after successful login (single-use)."""
@@ -1041,9 +1044,9 @@ class TestLoginFormAuthRequestId:
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
-        assert (
-            "redis.delete" in source
-        ), "login_form must delete the Redis key after successful authentication"
+        assert "redis.delete" in source, (
+            "login_form must delete the Redis key after successful authentication"
+        )
 
     def test_login_form_falls_back_to_next_param(self):
         """login_form must fall back to 'next' param when auth_request_id is absent."""
@@ -1051,9 +1054,9 @@ class TestLoginFormAuthRequestId:
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
-        assert (
-            "validate_redirect_url(next" in source
-        ), "login_form must fall back to validate_redirect_url(next) when no auth_request_id"
+        assert "validate_redirect_url(next" in source, (
+            "login_form must fall back to validate_redirect_url(next) when no auth_request_id"
+        )
 
     def test_login_form_handles_expired_auth_request(self):
         """login_form must handle missing/expired Redis keys gracefully."""
@@ -1062,9 +1065,9 @@ class TestLoginFormAuthRequestId:
 
         source = inspect.getsource(login_form)
         # When Redis returns None (expired key), should fall back to "/"
-        assert (
-            'safe_next = "/"' in source
-        ), "login_form must fall back to '/' when auth request is expired or not found"
+        assert 'safe_next = "/"' in source, (
+            "login_form must fall back to '/' when auth request is expired or not found"
+        )
 
     def test_login_form_preserves_client_id_in_error_page(self):
         """Error pages must preserve client_id for OAuth recovery after retries."""
@@ -1090,9 +1093,9 @@ class TestLoginFormAuthRequestId:
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
-        assert (
-            "is not None" in source
-        ), "login_form must filter out None values when reconstructing the authorize URL"
+        assert "is not None" in source, (
+            "login_form must filter out None values when reconstructing the authorize URL"
+        )
 
 
 class TestLoginFormOAuthRecovery:
@@ -1107,9 +1110,9 @@ class TestLoginFormOAuthRecovery:
         fields = _oauth_context_hidden_fields_html(
             auth_request_id=None, client_id="client-abc", client_name=None
         )
-        assert (
-            'name="client_id"' in fields
-        ), "OAuth context fields must include client_id as a hidden form field for OAuth recovery"
+        assert 'name="client_id"' in fields, (
+            "OAuth context fields must include client_id as a hidden form field for OAuth recovery"
+        )
 
     def test_login_page_passes_client_name_as_hidden_field(self):
         """The OAuth-context hidden fields must include client_name so the
@@ -1119,9 +1122,9 @@ class TestLoginFormOAuthRecovery:
         fields = _oauth_context_hidden_fields_html(
             auth_request_id=None, client_id=None, client_name="My App"
         )
-        assert (
-            'name="client_name"' in fields
-        ), "OAuth context fields must include client_name as a hidden form field"
+        assert 'name="client_name"' in fields, (
+            "OAuth context fields must include client_name as a hidden form field"
+        )
 
     def test_login_form_accepts_client_id_param(self):
         """login_form must accept client_id as an optional form field."""
@@ -1129,9 +1132,9 @@ class TestLoginFormOAuthRecovery:
         from app.routers.v1.auth import login_form
 
         sig = inspect.signature(login_form)
-        assert (
-            "client_id" in sig.parameters
-        ), "login_form must accept client_id form field for OAuth recovery"
+        assert "client_id" in sig.parameters, (
+            "login_form must accept client_id form field for OAuth recovery"
+        )
 
     def test_login_form_accepts_client_name_param(self):
         """login_form must accept client_name as an optional form field."""
@@ -1139,7 +1142,9 @@ class TestLoginFormOAuthRecovery:
         from app.routers.v1.auth import login_form
 
         sig = inspect.signature(login_form)
-        assert "client_name" in sig.parameters, "login_form must accept client_name form field"
+        assert "client_name" in sig.parameters, (
+            "login_form must accept client_name form field"
+        )
 
     def test_login_form_attempts_oauth_client_recovery_on_redis_miss(self):
         """When Redis returns None for an auth_request_id but client_id is
@@ -1149,12 +1154,12 @@ class TestLoginFormOAuthRecovery:
         from app.routers.v1.auth import _recover_authorize_url_from_client
 
         source = inspect.getsource(_recover_authorize_url_from_client)
-        assert (
-            "OAuthClient" in source
-        ), "recovery must reference the OAuthClient model to recover from expired Redis keys"
-        assert (
-            "redirect_uris" in source
-        ), "recovery must read redirect_uris from the OAuth client to rebuild the authorize URL"
+        assert "OAuthClient" in source, (
+            "recovery must reference the OAuthClient model to recover from expired Redis keys"
+        )
+        assert "redirect_uris" in source, (
+            "recovery must read redirect_uris from the OAuth client to rebuild the authorize URL"
+        )
 
     def test_login_form_renders_expired_page_on_unrecoverable_oauth_state(self):
         """When neither Redis nor OAuth client lookup yields a redirect target,
@@ -1164,9 +1169,9 @@ class TestLoginFormOAuthRecovery:
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
-        assert (
-            "Sign-in session expired" in source
-        ), "login_form must render an explicit expired-session page on unrecoverable OAuth state"
+        assert "Sign-in session expired" in source, (
+            "login_form must render an explicit expired-session page on unrecoverable OAuth state"
+        )
 
     def test_login_form_logs_redirect_branch_for_observability(self):
         """Each redirect branch in login_form must emit a structured log so

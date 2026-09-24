@@ -89,7 +89,9 @@ class TestVerifyOwnAccessToken:
 class TestGetUserFromCookieOrHeader:
     def _db_returning(self, user):
         return SimpleNamespace(
-            execute=AsyncMock(return_value=SimpleNamespace(scalar_one_or_none=lambda: user))
+            execute=AsyncMock(
+                return_value=SimpleNamespace(scalar_one_or_none=lambda: user)
+            )
         )
 
     def _request(self, *, cookie=None, header=None):

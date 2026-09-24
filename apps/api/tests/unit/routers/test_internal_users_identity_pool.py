@@ -96,9 +96,7 @@ class TestPlatformPoolIsTheDefault:
         client, session_factory = provisioning_env
         email = "buscable@crea.example.com"
 
-        await client.post(
-            PROVISION_URL, json=_payload(email, organization_id=TENANT_A), headers=AUTH
-        )
+        await client.post(PROVISION_URL, json=_payload(email, organization_id=TENANT_A), headers=AUTH)
 
         from app.services.user_lookup import get_user_by_email
 
@@ -131,13 +129,11 @@ class TestPlatformPoolIsTheDefault:
         client, session_factory = provisioning_env
 
         first = await client.post(
-            PROVISION_URL,
-            json=_payload("Mixta@Crea.Example.Com", organization_id=TENANT_A),
+            PROVISION_URL, json=_payload("Mixta@Crea.Example.Com", organization_id=TENANT_A),
             headers=AUTH,
         )
         second = await client.post(
-            PROVISION_URL,
-            json=_payload("mixta@crea.example.com", organization_id=TENANT_A),
+            PROVISION_URL, json=_payload("mixta@crea.example.com", organization_id=TENANT_A),
             headers=AUTH,
         )
 
@@ -175,9 +171,8 @@ class TestTenantPoolStillAvailable:
 
         response = await client.post(
             PROVISION_URL,
-            json=_payload(
-                "enduser@cliente.example.com", organization_id=TENANT_A, identity_pool="tenant"
-            ),
+            json=_payload("enduser@cliente.example.com", organization_id=TENANT_A,
+                          identity_pool="tenant"),
             headers=AUTH,
         )
 
@@ -189,9 +184,8 @@ class TestTenantPoolStillAvailable:
         client, session_factory = provisioning_env
         response = await client.post(
             PROVISION_URL,
-            json=_payload(
-                "enduser2@cliente.example.com", organization_id=TENANT_A, identity_pool="tenant"
-            ),
+            json=_payload("enduser2@cliente.example.com", organization_id=TENANT_A,
+                          identity_pool="tenant"),
             headers=AUTH,
         )
         assert await _membership(session_factory, response.json()["id"], TENANT_A) is not None
@@ -226,9 +220,8 @@ class TestOrganizationIdAlias:
         """No defensible way to pick one — provisioning into the wrong org."""
         response = await provisioning_client.post(
             PROVISION_URL,
-            json=_payload(
-                "conflicto@crea.example.com", organization_id=TENANT_A, tenant_id=TENANT_B
-            ),
+            json=_payload("conflicto@crea.example.com", organization_id=TENANT_A,
+                          tenant_id=TENANT_B),
             headers=AUTH,
         )
         assert response.status_code == 422
@@ -307,8 +300,7 @@ class TestLifecycleResolvesEitherPool:
 
     async def test_lifecycle_for_an_unknown_email_is_404(self, provisioning_client):
         response = await provisioning_client.post(
-            SUSPEND_URL,
-            json={"email": "nadie@crea.example.com", "organization_id": TENANT_A},
+            SUSPEND_URL, json={"email": "nadie@crea.example.com", "organization_id": TENANT_A},
             headers=AUTH,
         )
         assert response.status_code == 404
@@ -324,7 +316,8 @@ class TestCreaMapCallerUnchanged:
 
         alta = await client.post(
             PROVISION_URL,
-            json={"email": email, "first_name": "Ana", "last_name": "Ruiz", "tenant_id": TENANT_A},
+            json={"email": email, "first_name": "Ana", "last_name": "Ruiz",
+                  "tenant_id": TENANT_A},
             headers=AUTH,
         )
         assert alta.status_code == 201

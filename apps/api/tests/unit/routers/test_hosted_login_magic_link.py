@@ -95,7 +95,6 @@ async def hosted_client(mail_enabled):
 
 # ── the vocabulary ─────────────────────────────────────────────────────────
 
-
 class TestLoginMethodPrecedence:
     def test_normalises_and_never_rejects(self):
         assert normalize_login_method("magic_link") == "magic_link"
@@ -120,12 +119,9 @@ class TestLoginMethodPrecedence:
 
 # ── the page ───────────────────────────────────────────────────────────────
 
-
 @pytest.mark.asyncio
 async def test_default_page_is_password_with_a_link_to_magic(hosted_client):
-    resp = await hosted_client.get(
-        LOGIN_URL, params={"auth_request_id": "req-1", "client_id": "c1", "client_name": "Studio"}
-    )
+    resp = await hosted_client.get(LOGIN_URL, params={"auth_request_id": "req-1", "client_id": "c1", "client_name": "Studio"})
     assert resp.status_code == 200
     body = resp.text
     assert PASSWORD_FORM_ACTION in body
@@ -142,12 +138,7 @@ async def test_default_page_is_password_with_a_link_to_magic(hosted_client):
 async def test_login_method_magic_link_renders_email_first(hosted_client):
     resp = await hosted_client.get(
         LOGIN_URL,
-        params={
-            "auth_request_id": "req-1",
-            "client_id": "c1",
-            "client_name": "Studio",
-            "login_method": "magic_link",
-        },
+        params={"auth_request_id": "req-1", "client_id": "c1", "client_name": "Studio", "login_method": "magic_link"},
     )
     assert resp.status_code == 200
     body = resp.text
@@ -187,7 +178,6 @@ async def test_unknown_method_is_ignored(hosted_client):
 
 # ── /authorize carries the hint ────────────────────────────────────────────
 
-
 def _client_stub():
     return SimpleNamespace(
         client_id="jnc_studio",
@@ -205,14 +195,8 @@ def _client_stub():
 async def test_authorize_stores_and_forwards_login_method():
     redis = AsyncMock()
     with (
-        patch(
-            "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
-            AsyncMock(return_value=None),
-        ),
-        patch(
-            "app.routers.v1.oauth_provider._get_oauth_client",
-            AsyncMock(return_value=_client_stub()),
-        ),
+        patch("app.routers.v1.oauth_provider.get_user_from_cookie_or_header", AsyncMock(return_value=None)),
+        patch("app.routers.v1.oauth_provider._get_oauth_client", AsyncMock(return_value=_client_stub())),
         patch("app.routers.v1.oauth_provider._validate_redirect_uri", MagicMock(return_value=True)),
     ):
         resp = await authorize_get(
@@ -248,30 +232,15 @@ async def test_authorize_stores_and_forwards_login_method():
 async def test_authorize_without_hint_leaves_login_url_unchanged():
     redis = AsyncMock()
     with (
-        patch(
-            "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
-            AsyncMock(return_value=None),
-        ),
-        patch(
-            "app.routers.v1.oauth_provider._get_oauth_client",
-            AsyncMock(return_value=_client_stub()),
-        ),
+        patch("app.routers.v1.oauth_provider.get_user_from_cookie_or_header", AsyncMock(return_value=None)),
+        patch("app.routers.v1.oauth_provider._get_oauth_client", AsyncMock(return_value=_client_stub())),
         patch("app.routers.v1.oauth_provider._validate_redirect_uri", MagicMock(return_value=True)),
     ):
         resp = await authorize_get(
-            request=MagicMock(),
-            response_type="code",
-            client_id="jnc_studio",
-            redirect_uri="https://app.yantra4d.com",
-            scope="openid",
-            state="s",
-            nonce=None,
-            code_challenge="abc",
-            code_challenge_method="S256",
-            prompt=None,
-            login_method="bogus",
-            db=AsyncMock(),
-            redis=redis,
+            request=MagicMock(), response_type="code", client_id="jnc_studio",
+            redirect_uri="https://app.yantra4d.com", scope="openid", state="s", nonce=None,
+            code_challenge="abc", code_challenge_method="S256", prompt=None, login_method="bogus",
+            db=AsyncMock(), redis=redis,
         )
     assert "login_method" not in resp.headers["location"]
     assert json.loads(redis.setex.await_args.args[2])["login_method"] is None
@@ -279,37 +248,24 @@ async def test_authorize_without_hint_leaves_login_url_unchanged():
 
 # ── the hosted form issues a link that resumes the authorize request ──────
 
-
 @pytest.mark.asyncio
 async def test_form_issues_link_whose_destination_resumes_the_authorize_request(hosted_client):
     redis = hosted_client.__dict__["_redis"]
     await redis.set(
         "oauth:pre_login:req-1",
-        json.dumps(
-            {
-                "response_type": "code",
-                "client_id": "jnc_studio",
-                "redirect_uri": "https://app.yantra4d.com",
-                "scope": "openid profile email",
-                "state": "csrf-1",
-                "nonce": None,
-                "code_challenge": "abc",
-                "code_challenge_method": "S256",
-                "login_method": "magic_link",
-            }
-        ),
+        json.dumps({
+            "response_type": "code", "client_id": "jnc_studio",
+            "redirect_uri": "https://app.yantra4d.com", "scope": "openid profile email",
+            "state": "csrf-1", "nonce": None, "code_challenge": "abc",
+            "code_challenge_method": "S256", "login_method": "magic_link",
+        }),
     )
     mailer = MagicMock()
     with patch("app.routers.v1.auth.send_magic_link_email_task", mailer):
         resp = await hosted_client.post(
             MAGIC_FORM_URL,
             # A deliverable-looking domain: the validator rejects reserved names such as .test
-            data={
-                "email": "Aldo@Studio-Test.io",
-                "auth_request_id": "req-1",
-                "client_id": "jnc_studio",
-                "client_name": "Studio",
-            },
+            data={"email": "Aldo@Studio-Test.io", "auth_request_id": "req-1", "client_id": "jnc_studio", "client_name": "Studio"},
         )
     assert resp.status_code == 200, resp.text
     assert "Check your inbox" in resp.text
@@ -353,9 +309,7 @@ async def test_form_issues_link_whose_destination_resumes_the_authorize_request(
 @pytest.mark.asyncio
 async def test_form_with_expired_context_says_so(hosted_client):
     with patch("app.routers.v1.auth.send_magic_link_email_task", MagicMock()) as mailer:
-        resp = await hosted_client.post(
-            MAGIC_FORM_URL, data={"email": "a@studio-test.io", "auth_request_id": "gone"}
-        )
+        resp = await hosted_client.post(MAGIC_FORM_URL, data={"email": "a@studio-test.io", "auth_request_id": "gone"})
     assert resp.status_code == 400
     assert "Sign-in session expired" in resp.text
     mailer.assert_not_called()

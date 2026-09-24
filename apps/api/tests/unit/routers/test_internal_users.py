@@ -615,7 +615,9 @@ async def test_provision_reactivates_a_removed_membership(provisioning_env):
     async with session_factory() as session:
         row = (
             await session.execute(
-                select(OrganizationMember).where(OrganizationMember.user_id == uuid.UUID(user_id))
+                select(OrganizationMember).where(
+                    OrganizationMember.user_id == uuid.UUID(user_id)
+                )
             )
         ).scalar_one()
         row.status = "removed"

@@ -132,9 +132,7 @@ class TestInteractiveConsentScreen:
                 AsyncMock(return_value=False),
             ),
             patch("app.routers.v1.oauth_provider._store_auth_code", AsyncMock()),
-            patch(
-                "app.routers.v1.oauth_provider._generate_csrf_token", AsyncMock(return_value="c")
-            ),
+            patch("app.routers.v1.oauth_provider._generate_csrf_token", AsyncMock(return_value="c")),
             patch(
                 "app.routers.v1.oauth_provider.settings",
                 MagicMock(REQUIRE_EMAIL_VERIFICATION=False),

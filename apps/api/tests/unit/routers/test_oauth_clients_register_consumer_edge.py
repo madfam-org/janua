@@ -132,7 +132,9 @@ class TestMultipleClientsPerAudience:
     async def test_second_name_same_audience_creates_a_second_client(self, registry):
         api, session_factory = registry
 
-        first = await _register(api, _machine_payload("zavlo-cfdi-emitter", scopes=["cfdi:issue"]))
+        first = await _register(
+            api, _machine_payload("zavlo-cfdi-emitter", scopes=["cfdi:issue"])
+        )
         assert first.status_code == 201, first.text
         assert first.json()["client_secret"] is not None
 
@@ -172,11 +174,15 @@ class TestMultipleClientsPerAudience:
         """
         api, session_factory = registry
 
-        first = await _register(api, _machine_payload("zavlo-cfdi-emitter", scopes=["cfdi:issue"]))
+        first = await _register(
+            api, _machine_payload("zavlo-cfdi-emitter", scopes=["cfdi:issue"])
+        )
         assert first.status_code == 201, first.text
         first_client_id = first.json()["client_id"]
 
-        await _register(api, _machine_payload("nauta-legal-drafts", scopes=["legal:draft"]))
+        await _register(
+            api, _machine_payload("nauta-legal-drafts", scopes=["legal:draft"])
+        )
 
         async with session_factory() as session:
             preserved = (
@@ -242,8 +248,12 @@ class TestMultipleClientsPerAudience:
         """
         api, _ = registry
 
-        zavlo = await _register(api, _machine_payload("zavlo-cfdi-emitter", scopes=["cfdi:issue"]))
-        nauta = await _register(api, _machine_payload("nauta-legal-drafts", scopes=["legal:draft"]))
+        zavlo = await _register(
+            api, _machine_payload("zavlo-cfdi-emitter", scopes=["cfdi:issue"])
+        )
+        nauta = await _register(
+            api, _machine_payload("nauta-legal-drafts", scopes=["legal:draft"])
+        )
         assert zavlo.status_code == 201 and nauta.status_code == 201
 
         for issued, scope in ((zavlo, "cfdi:issue"), (nauta, "legal:draft")):
@@ -306,13 +316,17 @@ class TestSameNameStillUpdates:
 
         async with session_factory() as session:
             count = len(
-                (
-                    await session.execute(
-                        select(OAuthClient).where(OAuthClient.name == "zavlo-cfdi-emitter")
+                
+                    (
+                        await session.execute(
+                            select(OAuthClient).where(
+                                OAuthClient.name == "zavlo-cfdi-emitter"
+                            )
+                        )
                     )
-                )
-                .scalars()
-                .all()
+                    .scalars()
+                    .all()
+                
             )
         assert count == 1
 
@@ -322,10 +336,7 @@ class TestSameNameStillUpdates:
         api, session_factory = registry
 
         first = await _register(
-            api,
-            _machine_payload(
-                "routecraft-billing-relay", audience="dhanam-api", scopes=["billing:events"]
-            ),
+            api, _machine_payload("routecraft-billing-relay", audience="dhanam-api", scopes=["billing:events"])
         )
         assert first.status_code == 201
 
@@ -343,7 +354,9 @@ class TestSameNameStillUpdates:
             rows = (
                 (
                     await session.execute(
-                        select(OAuthClient).where(OAuthClient.name == "routecraft-billing-relay")
+                        select(OAuthClient).where(
+                            OAuthClient.name == "routecraft-billing-relay"
+                        )
                     )
                 )
                 .scalars()
@@ -372,7 +385,9 @@ class TestInternalRegistrationAuditRows:
         )
         assert created.status_code == 201
 
-        rows = await self._audit_rows(session_factory, "oauth_client_registered_internal_created")
+        rows = await self._audit_rows(
+            session_factory, "oauth_client_registered_internal_created"
+        )
         assert len(rows) == 1
         row = rows[0]
         assert row.resource_type == "oauth_client"
@@ -389,10 +404,14 @@ class TestInternalRegistrationAuditRows:
         api, session_factory = registry
 
         await _register(api, _machine_payload("zavlo-cfdi-emitter", scopes=["cfdi:issue"]))
-        again = await _register(api, _machine_payload("zavlo-cfdi-emitter", scopes=["cfdi:issue"]))
+        again = await _register(
+            api, _machine_payload("zavlo-cfdi-emitter", scopes=["cfdi:issue"])
+        )
         assert again.status_code == 200
 
-        rows = await self._audit_rows(session_factory, "oauth_client_registered_internal_updated")
+        rows = await self._audit_rows(
+            session_factory, "oauth_client_registered_internal_updated"
+        )
         assert len(rows) == 1
         assert rows[0].details["name"] == "zavlo-cfdi-emitter"
         assert rows[0].user_id is None
@@ -427,7 +446,9 @@ class TestInternalRegistrationAuditRows:
         await _register(api, _machine_payload("zavlo-cfdi-emitter", scopes=["cfdi:issue"]))
         await _register(api, _machine_payload("nauta-legal-drafts", scopes=["legal:draft"]))
 
-        rows = await self._audit_rows(session_factory, "oauth_client_registered_internal_created")
+        rows = await self._audit_rows(
+            session_factory, "oauth_client_registered_internal_created"
+        )
         assert sorted(r.details["name"] for r in rows) == [
             "nauta-legal-drafts",
             "zavlo-cfdi-emitter",

@@ -351,7 +351,9 @@ async def test_list_reports_live_claim_values_and_the_full_history(app_roles_env
     await client.post(GRANT_URL, json=_payload(org_id, user_id, role="admin"), headers=AUTH)
     await client.post(REVOKE_URL, json=_payload(org_id, user_id, role="admin"), headers=AUTH)
 
-    response = await client.get(f"/api/v1/internal/app-roles/{org_id}/{user_id}", headers=AUTH)
+    response = await client.get(
+        f"/api/v1/internal/app-roles/{org_id}/{user_id}", headers=AUTH
+    )
 
     assert response.status_code == 200
     body = response.json()
@@ -483,7 +485,9 @@ async def test_another_orgs_grant_never_reaches_the_claim_from_the_real_table(ap
             )
         await session.commit()
 
-    granted = await client.post(GRANT_URL, json=_payload(str(org_a), str(user_id)), headers=AUTH)
+    granted = await client.post(
+        GRANT_URL, json=_payload(str(org_a), str(user_id)), headers=AUTH
+    )
     assert granted.status_code == 201
 
     async with session_factory() as session:

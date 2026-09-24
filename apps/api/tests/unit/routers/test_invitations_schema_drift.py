@@ -151,9 +151,9 @@ def test_scoped_by_column_that_exists():
         "invitations has no tenant_id column; organization_id is the tenancy "
         "key, consistent with Policy, Role and OrganizationMember."
     )
-    assert "Invitation.tenant_id" not in _executable_source(
-        invitations_router
-    ), "the router filters on Invitation.tenant_id, which does not exist."
+    assert "Invitation.tenant_id" not in _executable_source(invitations_router), (
+        "the router filters on Invitation.tenant_id, which does not exist."
+    )
 
 
 def test_attrs_are_real_columns():
@@ -266,9 +266,7 @@ async def test_list_excludes_other_org(db):
     org_b, admin_b = await _org_with_admin(db, "globex")
     await _invite(db, org_b, admin_b, email="secret@globex.test")
 
-    result = await invitations_router.list_invitations(
-        current_user=admin_a, db=db, skip=0, limit=100
-    )
+    result = await invitations_router.list_invitations(current_user=admin_a, db=db, skip=0, limit=100)
     assert result.total == 0
     assert result.invitations == []
 

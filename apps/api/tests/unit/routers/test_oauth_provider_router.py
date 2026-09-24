@@ -140,7 +140,9 @@ class TestRedirectURIValidation:
 
         allowed = ["https://app.example.com/callback"]
 
-        with patch.object(oauth_provider_module, "validate_oauth_redirect_uri", return_value=True):
+        with patch.object(
+            oauth_provider_module, "validate_oauth_redirect_uri", return_value=True
+        ):
             result = _validate_redirect_uri("https://app.example.com/callback", allowed)
             assert result is True
 
@@ -150,7 +152,9 @@ class TestRedirectURIValidation:
 
         allowed = ["https://app.example.com/callback"]
 
-        with patch.object(oauth_provider_module, "validate_oauth_redirect_uri", return_value=False):
+        with patch.object(
+            oauth_provider_module, "validate_oauth_redirect_uri", return_value=False
+        ):
             result = _validate_redirect_uri("https://malicious.com/callback", allowed)
             assert result is False
 
@@ -361,7 +365,9 @@ class TestSafeCallbackURLBuilder:
         from app.routers.v1.oauth_provider import _build_safe_callback_url
 
         with pytest.raises(ValueError):
-            _build_safe_callback_url("javascript:alert(1)", {"code": "abc"}, client_validated=True)
+            _build_safe_callback_url(
+                "javascript:alert(1)", {"code": "abc"}, client_validated=True
+            )
 
         with pytest.raises(ValueError):
             _build_safe_callback_url(
@@ -393,9 +399,7 @@ class TestUserEntitlements:
 
         # Mock no memberships
         mock_db.execute = AsyncMock(
-            return_value=MagicMock(
-                scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
-            )
+            return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[]))))
         )
 
         result = await _get_user_entitlements(mock_user, mock_db)
@@ -412,9 +416,7 @@ class TestUserEntitlements:
         mock_user.is_admin = True
 
         mock_db.execute = AsyncMock(
-            return_value=MagicMock(
-                scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[])))
-            )
+            return_value=MagicMock(scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[]))))
         )
 
         result = await _get_user_entitlements(mock_user, mock_db)
@@ -849,12 +851,12 @@ class TestPreLoginRedisStorage:
         source = inspect.getsource(authorize_get)
 
         # Must use Redis-backed storage pattern (not urlencode of full authorize URL)
-        assert (
-            "oauth:pre_login:" in source
-        ), "authorize_get should store params in Redis with key prefix 'oauth:pre_login:'"
-        assert (
-            "auth_request_id" in source
-        ), "authorize_get should pass auth_request_id to login page"
+        assert "oauth:pre_login:" in source, (
+            "authorize_get should store params in Redis with key prefix 'oauth:pre_login:'"
+        )
+        assert "auth_request_id" in source, (
+            "authorize_get should pass auth_request_id to login page"
+        )
         # Must NOT build a 'next' URL containing the full authorize path+query
         # (this was the root cause of the double-encoding redirect loop)
         assert 'f"{scheme}://{request_host}{request.url.path}?{request.url.query}"' not in source, (
@@ -882,9 +884,9 @@ class TestPreLoginRedisStorage:
             '"code_challenge_method"',
         ]
         for param in required_params:
-            assert (
-                param in source
-            ), f"pre_login_data must include {param} for authorize URL reconstruction"
+            assert param in source, (
+                f"pre_login_data must include {param} for authorize URL reconstruction"
+            )
 
     async def test_pre_login_redis_key_format(self, mock_redis):
         """Verify the Redis key format follows the existing convention."""
@@ -911,9 +913,9 @@ class TestPreLoginRedisStorage:
 
         # In the unauthenticated branch, login_params should include auth_request_id
         # and should NOT include a 'next' key with scheme://host/path?query
-        assert (
-            '"auth_request_id": pre_login_id' in source
-        ), "login_params must include auth_request_id"
+        assert '"auth_request_id": pre_login_id' in source, (
+            "login_params must include auth_request_id"
+        )
 
 
 class TestOidcEndSession:

@@ -21,6 +21,7 @@ from httpx import ASGITransport, AsyncClient
 from app.models import Organization, OrganizationMember, User, UserStatus
 from app.services.api_key_service import ApiKeyService
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -202,7 +203,6 @@ async def test_app():
     """Create a test app with mocked dependencies."""
     # We need to mock at the dependency level
     from app.main import app as _app
-
     return _app
 
 
@@ -236,7 +236,9 @@ class TestVerifyEndpoint:
         mock_api_key.scopes = scopes
         mock_api_key.id = key_id
 
-        with patch("app.routers.v1.api_keys.ApiKeyService") as MockService:
+        with patch(
+            "app.routers.v1.api_keys.ApiKeyService"
+        ) as MockService:
             instance = MockService.return_value
             instance.verify_key_for_service = AsyncMock(return_value=mock_api_key)
 
@@ -256,7 +258,9 @@ class TestVerifyEndpoint:
 
     async def test_verify_invalid_key(self, test_app):
         """Invalid key returns valid=False, not an HTTP error."""
-        with patch("app.routers.v1.api_keys.ApiKeyService") as MockService:
+        with patch(
+            "app.routers.v1.api_keys.ApiKeyService"
+        ) as MockService:
             instance = MockService.return_value
             instance.verify_key_for_service = AsyncMock(return_value=None)
 

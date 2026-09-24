@@ -188,7 +188,9 @@ class TestSignupHandlerHonoursToggle:
         ):
             resp = await sign_up(
                 request=self._request(),
-                signup_data=SignUpRequest(email="allowed@example.com", password="Str0ng!Passw0rd"),
+                signup_data=SignUpRequest(
+                    email="allowed@example.com", password="Str0ng!Passw0rd"
+                ),
                 background_tasks=MagicMock(),
                 db=db,
             )
@@ -196,7 +198,5 @@ class TestSignupHandlerHonoursToggle:
         assert resp.user.email == "allowed@example.com"
         from app.models import User
 
-        created = [
-            c.args[0] for c in db.add.call_args_list if c.args and isinstance(c.args[0], User)
-        ]
+        created = [c.args[0] for c in db.add.call_args_list if c.args and isinstance(c.args[0], User)]
         assert len(created) == 1

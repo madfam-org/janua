@@ -37,7 +37,9 @@ async def test_resolves_audience_by_redirect_host_not_full_uri():
             _client("nauta-portal", ["https://crea.madfam.io/api/auth/callback/janua"]),
         ]
     )
-    audience = await _session_audience_for_redirect(db, "https://crea.madfam.io/portal/verify")
+    audience = await _session_audience_for_redirect(
+        db, "https://crea.madfam.io/portal/verify"
+    )
     assert audience == "nauta-portal"
 
 
@@ -49,7 +51,9 @@ async def test_double_encoded_redirect_uris_still_resolve():
     db = _db_returning(
         [_client("nauta-portal", '["https://crea.madfam.io/api/auth/callback/janua"]')]
     )
-    audience = await _session_audience_for_redirect(db, "https://crea.madfam.io/portal/verify")
+    audience = await _session_audience_for_redirect(
+        db, "https://crea.madfam.io/portal/verify"
+    )
     assert audience == "nauta-portal"
 
 

@@ -100,9 +100,8 @@ class TestOnBehalfEndpoints_BearerAcceptance:
         # the user lookup — which returns 404 since we don't have a real
         # DB in this test. We stop here rather than mocking the full DB
         # query; the integration test suite covers end-to-end.
-        with (
-            patch("app.routers.v1.oauth_on_behalf.settings") as mock_settings,
-            patch("app.routers.v1.oauth_on_behalf.get_db"),
+        with patch("app.routers.v1.oauth_on_behalf.settings") as mock_settings, patch(
+            "app.routers.v1.oauth_on_behalf.get_db"
         ):
             mock_settings.JANUA_SERVICE_TOKEN = "secret-xyz"
             mock_settings.API_BASE_URL = "https://api.janua.dev"
