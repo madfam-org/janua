@@ -551,10 +551,10 @@ Other service domains (api, dashboard, admin, docs) are managed via static tunne
 See [Enclii Service Spec Reference](https://docs.enclii.dev/reference/service-spec) for the full schema.
 
 ### Production Infrastructure
-**Control Plane**: foundry-cp (EX44, 37.27.235.104, i5-13500 14C/20T, 128GB) via Cloudflare Tunnel
-**Worker Node**: foundry-worker-01 (AX41, 95.217.198.239) -- formerly foundry-core
-**Builder Node**: foundry-builder-01
-**K3s API**: 37.27.235.104:6443
+**Control-plane node**: dedicated bare-metal (control-plane + primary workload); reached only via Cloudflare Tunnel
+**Worker node**: dedicated bare-metal (worker + Longhorn 2nd replica)
+**CI builder node**: cloud compute instance (ARC runners only)
+**K3s API**: not published here. Node hostnames, addresses and hardware live only in the private operations record (`madfam-org/internal-devops`).
 **K8s Cluster**: K3s 3-node cluster on Hetzner dedicated servers (CP + worker + builder)
 **Namespace**: janua
 
