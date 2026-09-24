@@ -670,6 +670,18 @@
             ],
             "title": "Redirect Url"
           },
+          "reply_to": {
+            "anyOf": [
+              {
+                "format": "email",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply To"
+          },
           "source_app": {
             "title": "Source App",
             "type": "string"
