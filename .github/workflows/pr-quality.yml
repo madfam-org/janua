@@ -283,7 +283,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Run Trivy security scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297 # master (2026-09-23)
         with:
           scan-type: "fs"
           scan-ref: "."
