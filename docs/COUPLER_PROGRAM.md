@@ -72,9 +72,11 @@ Body: { "purpose": "tool_execute", "ttl_seconds": 300 }
 Returns short-lived access token or opaque delegation handle. Coupler MUST NOT persist refresh tokens.
 
 The endpoint also accepts Janua RS256 `client_credentials` service tokens
-(audience `janua-connections`, scope `connections:delegate`) for registered
-consent purposes — see [Purpose-scoped provider consent](./service-tokens.md#purpose-scoped-provider-consent).
-The shared static token remains supported for GitHub/Slack tool execute.
+(audience `janua-connections`, scope `connections:delegate`) from a registered
+consent purpose's `offline_clients`. User-present delegation for a purpose uses
+`POST /api/v1/connections/token-exchange` instead. See
+[Purpose-scoped provider consent](./service-tokens.md#purpose-scoped-provider-consent).
+The shared static token remains supported for GitHub/Slack tool execute only.
 
 ### 3.4 Audit ingest
 
