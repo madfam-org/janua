@@ -89,11 +89,13 @@ MADFAM_BRANDING: Dict[str, str] = {
 # typographic frame, not a replacement for it.
 #
 # WHY HOTLINKED, NOT INLINE. The MADFAM default header ships an inline base64
-# PNG (blocked-image-proof). CTM's marks are hotlinked from crea-map.madfam.io
-# instead, deliberately: they are ALREADY LIVE and public there, they are the
+# PNG (blocked-image-proof). CTM's marks are hotlinked from the MAP's canonical
+# host map.creatumundo.mx instead, deliberately: they are ALREADY LIVE and public there, they are the
 # byte-identical assets the kalya emails use (one source of truth for the CTM
 # brand across both mailers), and they proved to render in Proton. Keeping the
-# alt text as the brand name preserves the images-off case.
+# alt text as the brand name preserves the images-off case. The URLs name the
+# canonical host, never the crea-map.madfam.io alias: the alias answers 301,
+# and mail image proxies do not reliably follow redirects.
 # --------------------------------------------------------------------------
 CTM_ORG_ID = "e6cbd51d-8329-4c4e-8c74-aba643ab4575"
 
@@ -109,8 +111,8 @@ CTM_BRANDING: Dict[str, str] = {
     # The gold Crea mark on the indigo header ground (60px, flat RGB, ~10KB),
     # and the MADFAM mark for the "Con tecnología de MADFAM" footer (28px).
     # Same public assets as the kalya booking emails (crea-map origin).
-    "header_logo_url": "https://crea-map.madfam.io/crea-logo-email.png",
-    "footer_logo_url": "https://crea-map.madfam.io/madfam-logo.png",
+    "header_logo_url": "https://map.creatumundo.mx/crea-logo-email.png",
+    "footer_logo_url": "https://map.creatumundo.mx/madfam-logo.png",
 }
 
 # Hosts whose sign-in redirect identifies a CTM user. Matched on exact host or
@@ -118,6 +120,8 @@ CTM_BRANDING: Dict[str, str] = {
 # resolve. NOT a catch-all: `madfam.io` itself is deliberately absent — it is
 # MADFAM's own host and must keep MADFAM branding.
 CTM_HOSTS: Tuple[str, ...] = (
+    # Legacy 301 alias of map.creatumundo.mx; kept while the alias lives so a
+    # redirect that still names it keeps CTM branding.
     "crea-map.madfam.io",
     "ensayo-map.madfam.io",
     "kalya.app",

@@ -91,8 +91,8 @@ class TestResolveBranding:
         assert b["header_bg"] == "#1a2a8f"
         # CTM carries the client's header mark and MADFAM's footer mark (the
         # same public crea-map assets the kalya booking emails use).
-        assert b["header_logo_url"] == "https://crea-map.madfam.io/crea-logo-email.png"
-        assert b["footer_logo_url"] == "https://crea-map.madfam.io/madfam-logo.png"
+        assert b["header_logo_url"] == "https://map.creatumundo.mx/crea-logo-email.png"
+        assert b["footer_logo_url"] == "https://map.creatumundo.mx/madfam-logo.png"
 
     def test_madfam_default_has_no_hotlinked_logos(self):
         """The MADFAM default keeps its INLINE mark; the hotlinked slots are
