@@ -435,7 +435,13 @@ Janua then:
 3. Refreshes the provider token if it is stale.
 4. Returns `access_token` (the provider's), `issued_token_type`, `token_type`,
    `expires_in` and `expires_at` (never later than the provider token's own
-   expiry), `scope`, `purpose`, `provider_type` and `connection_id`.
+   expiry), `scope` (space-separated), `scopes` (the same, as a list),
+   `purpose`, `provider_type` and `connection_id`.
+
+The actor authenticates **only** through `actor_token`. The exchange reads no
+`Authorization` header, and one that is sent is ignored. `ttl_seconds` may be
+sent as a string (form fields are strings) and must be 60–900; outside that
+range the request is refused with `422`. A JSON body is refused with `422`.
 
 The call is audited as `tool.delegation.issued` with `path: exchange`, the
 actor client and the subject user.
@@ -484,15 +490,34 @@ names where the reason applies: exchange, offline, or both.
 | 403 | `unknown_purpose` | both | The purpose is not in the registry. |
 | 403 | `client_not_permitted` | exchange | The client is not in the purpose's `exchange_clients`. |
 | 403 | `user_binding_required` | offline | The client is not in `offline_clients`. The legacy static token also gets this reason for any purpose-scoped or non-GitHub/Slack credential. |
-| 401 | `invalid_subject_token` | exchange | The subject token has a bad signature, is expired, or is for an audience the purpose does not list. |
-| 403 | `subject_must_be_user` | exchange | The subject is a service token. |
-| 403 | `subject_user_unavailable` | exchange | The subject user is inactive or is a service principal. |
+| 401 | `invalid_subject_token` | exchange | The subject token does not verify: malformed, bad signature, expired, or for an audience the purpose does not list. |
+| 403 | `invalid_subject_token` | exchange | The subject token verifies but names no eligible person: it is a service token, or the user is inactive or a service principal. |
 | 404 | `connection_not_found` | offline | No such connection. |
 | 403 | `acting_user_mismatch` | offline | The connection does not belong to `X-Acting-User-Id`. |
 | 403 | `purpose_provider_mismatch` | offline | The connection is for another provider. |
 | 403 | `purpose_not_granted` | both | No active grant for the purpose: never granted, revoked, unlinked, or its scopes are no longer held. |
 | 409 | `reauthorization_required` | both | The provider rejected the refresh token, there is none, or the refreshed grant no longer covers the purpose. The connection is marked `expired` until the user consents again. |
 | 503 | `provider_refresh_unavailable` | both | The provider could not be reached to refresh. This is transient, and the consent is kept. |
+
+### Wire contract
+
+Consumers branch on these exact strings. Changing any of them, or a response
+field listed above, is a breaking change and must be coordinated with the
+consuming services first. `apps/api/tests/unit/routers/test_connections_census_contract.py`
+pins the contract.
+
+- Refusal reasons are in `error.message` (Janua's error envelope).
+- The offline path returns the same body fields as the exchange response, with
+  `connection_id` included. The legacy static-token body is unchanged.
+- **User-withdrawal reasons.** A consumer may treat these as "the user withdrew
+  consent" and delete the data it holds: `acting_user_mismatch`,
+  `connection_revoked`, `connection_not_active`, `connection_not_found`,
+  `purpose_provider_mismatch`, `purpose_not_granted`. Today a revoked or
+  unlinked connection answers `purpose_not_granted`.
+- Credential, configuration and transient failures never use a withdrawal
+  reason. These include `invalid_service_token`, `invalid_subject_token`,
+  `client_not_permitted`, `user_binding_required`, `reauthorization_required`
+  and `provider_refresh_unavailable`.
 
 **Freshness.** If the stored Google access token is expired or has less than
 two minutes left, Janua refreshes it with the stored refresh token before
