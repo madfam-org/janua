@@ -68,6 +68,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
+from urllib.parse import urlsplit
 
 from app.services.email_branding import CTM_HOSTS, CTM_ORG_ID, _host_matches
 
@@ -162,6 +163,17 @@ class SenderBinding:
     #: vCTO gate reads `product_tiers` from — see `sender_policy.py`.
     org_id: Optional[str] = None
 
+    #: The NAME of the setting holding this binding's FIRST-PARTY tracking origin
+    #: (e.g. `CTM_TRACKING_HOST` -> `https://enlaces.creatumundo.mx`). A name,
+    #: like `credential_ref`, read at send time by `tracking_host_for`, so an
+    #: operator turns measurement on or off with env alone. None = this binding
+    #: is never instrumented. See app/services/email_engagement.py.
+    tracking_host_setting: Optional[str] = None
+
+    #: Where a first-party tracking link that cannot be resolved (unknown token,
+    #: bad index) sends the reader: the tenant's own public site.
+    default_site: str = "https://madfam.io"
+
     @property
     def is_on_tenant_account(self) -> bool:
         """True when this binding sends on the TENANT's own provider account."""
@@ -254,6 +266,9 @@ CTM_BINDING = SenderBinding(
     verified_domains=("creatumundo.mx",),
     hosts=CTM_HOSTS,
     org_id=CTM_ORG_ID,
+    # First-party open/click links live on CTM's own domain, never madfam.io.
+    tracking_host_setting="CTM_TRACKING_HOST",
+    default_site="https://creatumundo.mx",
 )
 
 
@@ -347,6 +362,42 @@ def resolve_binding(tenant: Optional[str]) -> SenderBinding:
     return _BINDINGS.get(tenant, PLATFORM_BINDING)
 
 
+def _normalize_tracking_origin(raw: object) -> Optional[str]:
+    """`https://host` from a configured tracking origin, or None if unusable.
+
+    Only an https origin with a real hostname and nothing else (no path, query,
+    fragment, userinfo or port) is accepted: the links built from it go into
+    real inboxes, and a half-valid value must disable measurement rather than
+    produce broken links.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        parts = urlsplit(raw.strip())
+        host = parts.hostname
+        port = parts.port
+    except ValueError:
+        return None
+    if parts.scheme.lower() != "https" or not host or port is not None:
+        return None
+    if parts.path not in ("", "/") or parts.query or parts.fragment or parts.username:
+        return None
+    return f"https://{host.lower()}"
+
+
+def tracking_host_for(binding: SenderBinding) -> Optional[str]:
+    """The binding's first-party tracking origin (`https://host`), or None.
+
+    Read from settings at call time (never cached on the frozen binding), so
+    unsetting `CTM_TRACKING_HOST` turns measurement off at the next send.
+    """
+    if not binding.tracking_host_setting:
+        return None
+    from app.config import settings
+
+    return _normalize_tracking_origin(getattr(settings, binding.tracking_host_setting, None))
+
+
 def all_bindings() -> Dict[str, SenderBinding]:
     """A copy of the client binding registry, for operator tooling and tests.
 
@@ -354,3 +405,18 @@ def all_bindings() -> Dict[str, SenderBinding]:
     who every subsequent message in the process comes from.
     """
     return dict(_BINDINGS)
+
+
+def tracking_bindings() -> Dict[str, SenderBinding]:
+    """Every binding (platform included) with a usable tracking origin, by hostname.
+
+    Used by the public tracking endpoints to pick the fallback site from the
+    request's Host alone (so an unknown token and a known one on the same host
+    get the same answer), and by main.py to trust those hosts.
+    """
+    found: Dict[str, SenderBinding] = {}
+    for binding in (*_BINDINGS.values(), PLATFORM_BINDING):
+        origin = tracking_host_for(binding)
+        if origin:
+            found[origin.removeprefix("https://")] = binding
+    return found

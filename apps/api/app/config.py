@@ -297,6 +297,17 @@ class Settings(BaseSettings):
         ),
     )
 
+    # FIRST-PARTY engagement measurement (opens/clicks measured by Janua itself,
+    # NOT by Resend). One tracking origin per sender binding, on the TENANT's own
+    # domain: `https://enlaces.creatumundo.mx` for CTM. Unset = that binding is
+    # never instrumented. Only messages sent with `track_engagement=true` on
+    # /internal/email/send that carry no token link are instrumented. See
+    # app/services/email_engagement.py and docs/runbooks/resend-email-events.md.
+    CTM_TRACKING_HOST: Optional[str] = Field(
+        default=None,
+        description="https origin for CTM's first-party open/click links (e.g. https://enlaces.creatumundo.mx)",
+    )
+
     # SMTP Configuration (for development/self-hosted)
     SMTP_HOST: Optional[str] = Field(default=None)
     SMTP_PORT: int = Field(default=587)

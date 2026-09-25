@@ -72,9 +72,31 @@
             "title": "Occurred At",
             "type": "string"
           },
+          "possible_prefetch": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Possible Prefetch"
+          },
           "provider": {
             "title": "Provider",
             "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
           },
           "type": {
             "title": "Type",
@@ -600,6 +622,11 @@
             "minItems": 1,
             "title": "To",
             "type": "array"
+          },
+          "track_engagement": {
+            "default": false,
+            "title": "Track Engagement",
+            "type": "boolean"
           }
         },
         "required": [
