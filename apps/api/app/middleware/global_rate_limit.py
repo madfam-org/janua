@@ -155,6 +155,10 @@ class EndpointRateLimitConfig:
             ("/api/v1/health", (1000, 60)),
             ("/api/v1/webhooks", (30, 60)),
             ("/api/v1/graphql", (50, 60)),
+            # First-party email pixel / click redirect. Mail image proxies
+            # (Apple, Gmail) fetch from a few shared IPs, so the per-IP default
+            # would 429 real opens; the endpoints dedupe their own writes.
+            ("/e/", (600, 60)),
         ]:
             if path.startswith(prefix):
                 return limits

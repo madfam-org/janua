@@ -504,6 +504,11 @@ else:
                 f"*.{custom_domain.split('.', 1)[-1] if '.' in custom_domain else custom_domain}",
             ]
         )
+    # First-party tracking hosts (e.g. enlaces.creatumundo.mx), one per sender
+    # binding with a tracking origin configured. They serve only /e/o and /e/c.
+    from app.services.sender_binding import tracking_bindings
+
+    allowed_hosts.extend(tracking_bindings().keys())
     # Add test host for integration tests
     if settings.ENVIRONMENT == "test":
         allowed_hosts.extend(["test", "testserver", "testclient"])
@@ -1116,6 +1121,14 @@ from app.routers.v1 import internal_email_events as internal_email_events_v1
 
 app.include_router(email_webhooks_v1.router, prefix="/api/v1")
 app.include_router(internal_email_events_v1.router, prefix="/api/v1/internal")
+
+# First-party open pixel / click redirect (public, no auth, not in the schema),
+# served on each binding's tracking host (CTM_TRACKING_HOST). Mounted at the
+# root: `/e/o/{token}.gif`, `/e/c/{token}/{index}`. Registration failures must
+# fail startup: a missing redirect would break links in delivered mail.
+from app.routers.v1 import email_engagement as email_engagement_v1
+
+app.include_router(email_engagement_v1.router)
 
 # Render-only preview of what /internal/email/send{,-template} would hand to
 # Resend (same renderer, same sender resolution, same token-link rule).

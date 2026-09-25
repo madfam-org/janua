@@ -88,6 +88,13 @@ class SendEmailRequest(BaseModel):
     # Resend's redirector. Janua also detects credential-looking link
     # parameters on its own; this flag is for links it cannot recognise.
     contains_token_link: bool = False
+    # Opt in to FIRST-PARTY open/click measurement (Janua's own tracking host,
+    # never Resend's). Honoured only when the message is not token mail (the
+    # flag above is false AND no credential-looking link is detected) and the
+    # resolved sender binding has a tracking host on the From domain; otherwise
+    # the message is sent unmodified and the reason is logged. The text part is
+    # never modified. See app/services/email_engagement.py.
+    track_engagement: bool = False
 
 
 class SendTemplateEmailRequest(BaseModel):
@@ -444,6 +451,7 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
                 org_id=request.org_id,
                 attachments=resend_attachments,
                 token_link=request.contains_token_link,
+                track_engagement=request.track_engagement,
             )
             results.append(result)
 

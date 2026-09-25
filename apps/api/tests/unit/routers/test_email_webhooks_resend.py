@@ -419,6 +419,11 @@ def test_the_table_has_no_column_that_could_hold_pii():
         "bounce_subtype",
         "click_link",
         "received_at",
+        # 019 (first-party measurement), decided: who observed the event
+        # (`webhook` / `first_party`) and a coarse boolean computed in memory.
+        # Neither can hold PII; the request's IP and user agent are never stored.
+        "source",
+        "possible_prefetch",
     }
 
 
