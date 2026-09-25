@@ -28,8 +28,14 @@ spec:
       labels:
         app: janua-api
       annotations:
+        # /metrics is served by the API process on the http container port
+        # (8080); nothing listens on 8000. The endpoint is gated by
+        # METRICS_TOKEN (see env below), so an annotation-based scrape, which
+        # sends no Authorization header, is answered 404 by design. The
+        # authenticated scrape is the ServiceMonitor in
+        # k8s/overlays/production/servicemonitor-janua-api.yaml.
         prometheus.io/scrape: "true"
-        prometheus.io/port: "8000"
+        prometheus.io/port: "8080"
         prometheus.io/path: "/metrics"
     spec:
       securityContext:

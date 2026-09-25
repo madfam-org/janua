@@ -1,0 +1,47 @@
+# ServiceMonitor for janua-api's Prometheus endpoint (production only).
+#
+# Replaces the hand-applied `janua-api-monitor` object (kubectl-applied
+# 2026-04-14, not in any repo). That object scraped `/api/v1/health` on the
+# `http` port. That path is the JSON health check, not Prometheus text, so
+# every scrape failed to parse.
+#
+# The real exposition endpoint is GET /metrics on the API port (Service port
+# `http` -> container 8080). It is gated by `_require_metrics_token` in
+# apps/api/app/main.py: without `Authorization: Bearer <METRICS_TOKEN>` it
+# answers 404 (fail-closed), so the scrape presents the same token the
+# Deployment reads (janua-secrets / metrics-token).
+#
+# This file stays in the production overlay (not base) because the staging
+# overlay runs under a different secret name.
+#
+# This file alone does not make janua-api scrapable. As of 2026-09-25:
+#   1. janua-secrets has no `metrics-token` key (the ExternalSecret in enclii
+#      does not map one). Until it does, the operator cannot resolve the
+#      credential, and the pod's METRICS_TOKEN is empty, so /metrics answers 404.
+#   2. TrustedHostMiddleware answers 400 "Invalid host header" to requests
+#      whose Host is the pod IP, which is what Prometheus sends.
+#   3. The monitoring namespace is not admitted by the janua NetworkPolicies,
+#      which are owned by enclii (infra/k8s/policies/janua-network-policies.yaml).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: janua-api-monitor
+  namespace: janua
+  labels:
+    app: janua-api
+    app.kubernetes.io/part-of: janua
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  selector:
+    matchLabels:
+      app: janua-api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      authorization:
+        type: Bearer
+        credentials:
+          name: janua-secrets
+          key: metrics-token
