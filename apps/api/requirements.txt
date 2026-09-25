@@ -7,7 +7,7 @@ pydantic[email]>=2.10.0  # Updated for security fixes
 pydantic-settings>=2.6.0  # Updated for security fixes
 
 # Database
-sqlalchemy>=2.0.36  # Updated for security fixes
+sqlalchemy>=2.0.36,<2.1  # Updated for security fixes; <2.1: SQLAlchemy 2.1 makes psycopg (v3) the default driver for postgresql:// URLs, which janua does not install (psycopg2-binary)
 asyncpg>=0.30.0  # Updated for security fixes
 psycopg2-binary>=2.9.10  # Updated for security fixes
 alembic>=1.14.0  # Updated for security fixes
