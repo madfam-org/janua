@@ -28,8 +28,14 @@ spec:
       labels:
         app: janua-api
       annotations:
+        # Prometheus text is served ONLY by the internal metrics listener on
+        # the `metrics` container port (METRICS_PORT 9464, GET /metrics). The
+        # public app port 8080 serves no metrics. enclii's
+        # janua-api-ingress-monitoring NetworkPolicy admits only the monitoring
+        # namespace on 9464. The production ServiceMonitor scrapes the same
+        # port (k8s/overlays/production/servicemonitor-janua-api.yaml).
         prometheus.io/scrape: "true"
-        prometheus.io/port: "8000"
+        prometheus.io/port: "9464"
         prometheus.io/path: "/metrics"
     spec:
       securityContext:
@@ -55,6 +61,9 @@ spec:
           ports:
             - containerPort: 8080
               name: http
+              protocol: TCP
+            - containerPort: 9464
+              name: metrics
               protocol: TCP
           env:
             # Required - from secrets
@@ -139,9 +148,10 @@ spec:
                   name: janua-secrets
                   key: janua-service-token
                   optional: true
-            # Metrics auth (gates /metrics, /metrics/performance, /metrics/scalability).
-            # Optional: when unset in production, /metrics* return 404 (fail-closed).
-            # In-cluster Prometheus must send `Authorization: Bearer $METRICS_TOKEN`.
+            # Metrics auth for the JSON endpoints /metrics/performance and
+            # /metrics/scalability on the public app. Optional: when unset in
+            # production they return 404 (fail-closed). Prometheus does not use
+            # it: the scrape goes to the internal listener (METRICS_PORT below).
             - name: METRICS_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -151,6 +161,10 @@ spec:
             # Configuration
             - name: PORT
               value: "8080"
+            # Internal-only Prometheus listener (app/monitoring/metrics_server.py).
+            # Must match the `metrics` containerPort; must differ from PORT.
+            - name: METRICS_PORT
+              value: "9464"
             - name: ENVIRONMENT
               value: production
             - name: LOG_LEVEL

@@ -726,14 +726,17 @@ def jwks():
 # ---------------------------------------------------------------------------
 # Metrics auth guard
 #
-# /metrics, /metrics/performance, and /metrics/scalability disclose
-# endpoint inventory, latency profiles, and per-path call counters
+# /metrics/performance and /metrics/scalability (JSON, on the public app)
+# disclose endpoint inventory, latency profiles, and per-path call counters
 # (including paths probed by attackers). Public exposure on
 # api.janua.dev is an information-disclosure risk, so we gate them
 # behind a service-to-service token distinct from user auth.
 #
-# Set METRICS_TOKEN in the API deployment env. In-cluster Prometheus
-# scrapes must send it as `Authorization: Bearer <METRICS_TOKEN>`.
+# Prometheus text is not served on the public app at all: see the internal
+# metrics listener (app/monitoring/metrics_server.py, METRICS_PORT 9464).
+#
+# Set METRICS_TOKEN in the API deployment env; callers must send it as
+# `Authorization: Bearer <METRICS_TOKEN>`.
 # If METRICS_TOKEN is unset (e.g., local dev), the endpoints are open
 # only when ENVIRONMENT in {"development", "test"}; in any other
 # environment an unset token causes a 404 (fail-closed).
@@ -766,106 +769,10 @@ async def performance_metrics():
     return await get_performance_metrics()
 
 
-# Prometheus metrics endpoint
-@app.get("/metrics", dependencies=[Depends(_require_metrics_token)])
-async def prometheus_metrics():
-    """Prometheus metrics endpoint"""
-    from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, generate_latest
-    from prometheus_client.core import CounterMetricFamily, GaugeMetricFamily, HistogramMetricFamily
-    from starlette.responses import Response
-
-    class JanuaMetricsCollector:
-        """Custom collector that implements the collect() method for prometheus_client"""
-
-        def collect(self):
-            try:
-                import psutil
-
-                # System metrics
-                system_cpu = GaugeMetricFamily(
-                    "janua_system_cpu_percent", "System CPU usage percentage"
-                )
-                system_cpu.add_metric([], psutil.cpu_percent())
-                yield system_cpu
-
-                system_memory = GaugeMetricFamily(
-                    "janua_system_memory_percent", "System memory usage percentage"
-                )
-                system_memory.add_metric([], psutil.virtual_memory().percent)
-                yield system_memory
-
-                system_disk = GaugeMetricFamily(
-                    "janua_system_disk_free_bytes", "System disk free space in bytes"
-                )
-                system_disk.add_metric([], psutil.disk_usage("/").free)
-                yield system_disk
-
-                # Application health
-                app_health = GaugeMetricFamily(
-                    "janua_app_health_status",
-                    "Application health status (1=healthy, 0=unhealthy)",
-                )
-                app_health.add_metric([], 1)
-                yield app_health
-
-                # API metrics (sample data - in production from metrics_collector)
-                http_requests = CounterMetricFamily(
-                    "janua_http_requests_total",
-                    "Total HTTP requests",
-                    labels=["method", "endpoint", "status_code"],
-                )
-                http_requests.add_metric(["GET", "/health", "200"], 100)
-                http_requests.add_metric(["POST", "/api/v1/auth/login", "200"], 50)
-                http_requests.add_metric(["GET", "/metrics", "200"], 25)
-                yield http_requests
-
-                # Response time histogram
-                response_duration = HistogramMetricFamily(
-                    "janua_http_request_duration_seconds",
-                    "HTTP request duration in seconds",
-                    labels=["method", "endpoint"],
-                )
-                response_duration.add_metric(
-                    ["GET", "/health"],
-                    buckets=[
-                        ("0.01", 80),
-                        ("0.05", 95),
-                        ("0.1", 98),
-                        ("0.5", 100),
-                        ("+Inf", 100),
-                    ],
-                    sum_value=2.5,
-                )
-                yield response_duration
-
-                # Database connection pool
-                db_connections = GaugeMetricFamily(
-                    "janua_database_connections_active", "Active database connections"
-                )
-                db_connections.add_metric([], 5)
-                yield db_connections
-
-                # Redis connection status
-                redis_connected = GaugeMetricFamily(
-                    "janua_redis_connected",
-                    "Redis connection status (1=connected, 0=disconnected)",
-                )
-                redis_connected.add_metric([], 1)
-                yield redis_connected
-
-            except Exception:
-                # Fallback metric if system monitoring fails
-                error_metric = GaugeMetricFamily(
-                    "janua_metrics_collection_errors_total",
-                    "Total metrics collection errors",
-                )
-                error_metric.add_metric([], 1)
-                yield error_metric
-
-    registry = CollectorRegistry()
-    registry.register(JanuaMetricsCollector())
-
-    return Response(generate_latest(registry), media_type=CONTENT_TYPE_LATEST)
+# Prometheus exposition is NOT served here. The public app (8080) has no
+# /metrics route; the real default registry is served by the internal-only
+# listener on METRICS_PORT (9464), started in startup_event below. See
+# app/monitoring/metrics_server.py.
 
 
 # Scalability status endpoint
@@ -1208,10 +1115,36 @@ for router_name, router_module in enterprise_routers.items():
         logger.error(f"Failed to register {router_name} router: {e}")
 
 
+def _start_metrics_listener() -> None:
+    """Start the internal-only Prometheus listener (METRICS_PORT, default 9464).
+
+    Fatal on misconfiguration or a failed bind, unlike the degraded-mode
+    blocks in startup_event: a pod that serves traffic but no metrics reads as
+    down to every `up` alert. Skipped under ENVIRONMENT=test, where tests
+    start their own listener on an ephemeral port.
+    """
+    if settings.ENVIRONMENT == "test":
+        return
+    from app.monitoring.metrics_server import resolve_metrics_port, start_metrics_server
+
+    metrics_port = resolve_metrics_port()
+    app.state.metrics_server = start_metrics_server(metrics_port)
+    logger.info(f"Metrics listener serving GET /metrics on port {metrics_port}")
+
+
+def _stop_metrics_listener() -> None:
+    metrics_server = getattr(app.state, "metrics_server", None)
+    if metrics_server is not None:
+        metrics_server.close()
+        app.state.metrics_server = None
+
+
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting Janua API...")
+
+    _start_metrics_listener()
 
     # Initialize PostHog analytics (no-op if POSTHOG_API_KEY is not set)
     from app.analytics import init_posthog
@@ -1307,6 +1240,8 @@ async def _check_redis_health():
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Shutting down Janua API...")
+
+    _stop_metrics_listener()
 
     # Flush pending PostHog events
     from app.analytics import shutdown as posthog_shutdown

@@ -1,0 +1,32 @@
+# ServiceMonitor for janua-api's internal-only Prometheus listener
+# (production only).
+#
+# Replaces the hand-applied `janua-api-monitor` object (kubectl-applied
+# 2026-04-14, in no repo). That object scraped `/api/v1/health` on the
+# public `http` port, which is the JSON health check, not Prometheus text.
+#
+# The scrape target is the `metrics` Service port (9464): a dedicated
+# listener that serves only `GET /metrics` from the API process's default
+# registry (apps/api/app/monitoring/metrics_server.py). The public app on
+# 8080 serves no metrics. No credential is sent: enclii's
+# janua-api-ingress-monitoring NetworkPolicy admits only the monitoring
+# namespace on 9464, and the tunnel namespace is admitted on 8080 only.
+#
+# Production overlay only: enclii's NetworkPolicies admit monitoring into the
+# `janua` namespace, and the staging overlay's namespace is not deployed.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: janua-api-monitor
+  namespace: janua
+  labels:
+    app: janua-api
+spec:
+  selector:
+    matchLabels:
+      app: janua-api
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
