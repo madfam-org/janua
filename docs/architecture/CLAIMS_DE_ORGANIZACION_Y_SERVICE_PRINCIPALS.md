@@ -463,6 +463,39 @@ Misma autenticación que el resto de los endpoints internos
 > auditoría de SSO resolvió que ese control vive en el `WorkspaceMember` de
 > nauta. `hcm:*` autoriza dentro de symbiosis-hcm y nada más.
 
+### Administración delegada (el dueño de un producto gestiona a su equipo)
+
+La superficie interna exige un operador con acceso al clúster. Para que quien es
+dueño de un producto gestione el acceso de su propio equipo, existe una segunda
+superficie **de usuario** (`get_current_user`: el token de audiencia janua, el
+del dashboard; no un token de audiencia de producto):
+
+| Endpoint | Qué hace |
+|---|---|
+| `GET /api/v1/organizations/{org_id}/app-roles` | roles vivos **del propio llamador** en esa org, y `administered_apps` |
+| `GET /api/v1/organizations/{org_id}/app-roles/{app}` | concesiones vivas de esa app en esa org (id, email y nombre de cada miembro) + los miembros activos |
+| `POST /api/v1/organizations/{org_id}/app-roles/{app}/grant` | concede `<app>:<role>` a un miembro activo (`user_id` **o** `email`, resuelto solo entre los miembros activos de esa org). **201** / **200** |
+| `POST /api/v1/organizations/{org_id}/app-roles/{app}/revoke` | la retira (`revoked_at`), nunca borra |
+
+- **La regla, y nada más:** un miembro **activo** con una concesión **viva**
+  `<app>:admin` en esa org administra los roles **de esa app** para miembros
+  activos **de esa misma org**. Un `owner`/`admin` de la org **sin**
+  `<app>:admin` recibe 403: nada es implícito.
+- **Arranque:** el primer `<app>:admin` de cada app sigue concediéndolo un
+  operador por `POST /api/v1/internal/app-roles/grant`.
+- **Sin sonda de membresía:** llamador no miembro, org inexistente y destino no
+  miembro contestan el mismo 404 (`NO_MEMBERSHIP_DETAIL`).
+- **Nadie cambia su propio `<app>:admin`** (403) y **no se revoca el último**
+  `<app>:admin` de la org (409; las filas admin vivas se leen `FOR UPDATE`, así
+  que dos admins que se revocan a la vez no dejan la app sin admin).
+- **Auditoría con nombre:** `granted_by` / `revoked_by` guardan el id del
+  usuario que llama, no `internal-api-key`, y cada cambio va a `AuditLogger`.
+- **Cuándo llega al token:** en el siguiente mint (inicio de sesión o refresh),
+  y solo para una sesión cuya org primaria sea esta.
+- **Dashboard:** `https://app.janua.dev/organizations/{org_id}/app-roles/{app}`.
+- **Sin migración:** reutiliza `organization_member_app_roles`; `granted_by` y
+  `revoked_by` (`String(255)`) ya admiten un id de usuario.
+
 ---
 
 ## 6. Entitlements por organización (lectura interna, janua#611)
@@ -566,6 +599,8 @@ entitlements; nauta sólo pregunta.
 - `apps/api/app/services/org_claims_service.py` — el resolvedor, fuente única
 - `apps/api/app/models/app_role.py` — la tabla de concesiones (§5)
 - `apps/api/app/routers/v1/internal_app_roles.py` — conceder / revocar / listar
+- `apps/api/app/routers/v1/organization_app_roles.py` — la administración delegada (§5)
+- `apps/api/tests/unit/routers/test_organization_app_roles.py`
 - `apps/api/app/routers/v1/oauth_provider.py` — `_service_client_app_roles`, la
   regla de §4 para clientes de servicio
 - `apps/api/app/routers/v1/internal_oauth_client_scopes.py` — conceder /

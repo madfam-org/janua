@@ -40,6 +40,7 @@ import {
   FileText,
 } from 'lucide-react'
 import { januaClient } from '@/lib/janua-client'
+import { AdministeredApps } from '@/components/organizations/administered-apps'
 
 interface Organization {
   id: string
@@ -407,6 +408,8 @@ function OrganizationDetailContent() {
               </CardContent>
             </Card>
           )}
+
+          <AdministeredApps orgId={orgId} />
         </TabsContent>
 
         {/* Members Tab */}
