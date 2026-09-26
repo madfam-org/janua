@@ -145,6 +145,9 @@ from app.routers.v1 import (
     organization_members as organization_members_v1,
 )
 from app.routers.v1 import (
+    organization_app_roles as organization_app_roles_v1,
+)
+from app.routers.v1 import (
     organizations as organizations_v1,
 )
 from app.routers.v1 import (
@@ -998,6 +1001,10 @@ app.include_router(sessions_v1.router, prefix="/api/v1")
 app.include_router(devices_v1.router, prefix="/api/v1")
 app.include_router(organizations_v1.router, prefix="/api/v1")
 app.include_router(organization_members_v1.router, prefix="/api/v1")
+# Delegated app-role administration: an `<app>:admin` manages that app's roles
+# in their own org (user token). Imported at module top, so a broken router
+# fails startup instead of silently dropping the surface.
+app.include_router(organization_app_roles_v1.router, prefix="/api/v1")
 app.include_router(rbac_v1.router, prefix="/api/v1")
 app.include_router(mfa_v1.router, prefix="/api/v1")
 app.include_router(passkeys_v1.router, prefix="/api/v1")

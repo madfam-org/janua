@@ -871,6 +871,132 @@ HR?" without decoding a JWT. `grants` includes revoked rows, because who removed
 an authority and when is the question the table exists to answer. Scoped to one
 membership, so it never reports another organization's grants.
 
+## Delegated Application-Role Administration
+
+The internal surface above is the **operator** path. This one is the
+**self-service** path: a signed-in person (a normal janua-audience bearer token,
+the dashboard's — not a product-audience token and not the internal key)
+administers ONE app's roles in ONE organization.
+
+**The rule:** an **active** member of an organization who holds a **live
+`<app>:admin`** grant in that organization may list, grant and revoke roles of
+**that app only** (`<app>:<any role>`) for **active** members of **that same**
+organization. Nothing else.
+
+- **Nothing is implicit.** Organization roles (`owner`/`admin`/`member`) never
+  confer app administration. An org owner without `<app>:admin` gets `403`.
+- **Bootstrap.** The first `<app>:admin` of each app in each organization is
+  still granted by an operator through `POST /api/v1/internal/app-roles/grant`.
+- **No organization crossing.** The organization and the app come from the path.
+  A caller who is not an active member of the organization, an unknown
+  organization, and a target who is not an active member all answer the same
+  `404` message, so the surface cannot be used to probe membership.
+- **Self-change refused.** A caller may not grant or revoke their own
+  `<app>:admin` (`403`); another admin of the app must.
+- **No lockout.** A revoke that would leave the organization with zero live
+  `<app>:admin` grants is refused with `409`.
+- **Audit names the person.** `granted_by` / `revoked_by` store the caller's user
+  id, and each change is written to the audit log with the caller as the actor.
+- **When it takes effect.** A granted or revoked role reaches the member's token
+  at their next token mint (sign-in or refresh), and only for a session whose
+  primary organization is this one.
+- Mutating routes are rate-limited per client (30/minute).
+
+Errors use janua's standard error envelope (`{"error": {"code", "message"}}`).
+
+### List My Application Roles in an Organization
+
+```http
+GET /api/v1/organizations/{org_id}/app-roles
+Authorization: Bearer <access token>
+```
+
+The caller's own live roles in that organization. `administered_apps` lists the
+apps whose roles the caller may manage.
+
+```json
+{
+  "organization_id": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
+  "user_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "claim_values": ["creator-census:admin"],
+  "administered_apps": ["creator-census"]
+}
+```
+
+### List an App's Grants
+
+```http
+GET /api/v1/organizations/{org_id}/app-roles/{app}
+```
+
+Requires `<app>:admin` in `org_id`. Returns the app's live grants on active
+memberships, with each member's user id, email and name, the caller's own roles
+for the app, and the organization's active members (the grant picker).
+
+```json
+{
+  "organization_id": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
+  "app": "creator-census",
+  "caller_user_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "caller_roles": ["admin"],
+  "grants": [
+    {
+      "id": "9f8e7d6c-5b4a-4392-8180-7f6e5d4c3b2a",
+      "user_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+      "email": "owner@example.com",
+      "name": "Product Owner",
+      "role": "admin",
+      "claim_value": "creator-census:admin",
+      "granted_by": "internal-api-key",
+      "granted_at": "2026-09-25T12:00:00Z"
+    }
+  ],
+  "members": [
+    {"user_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", "email": "owner@example.com", "name": "Product Owner"}
+  ]
+}
+```
+
+### Grant a Role of the App
+
+```http
+POST /api/v1/organizations/{org_id}/app-roles/{app}/grant
+```
+
+Name the member by exactly one of `user_id` or `email`. An `email` is resolved
+only among the organization's **active** members, never globally.
+
+```json
+{ "email": "colleague@example.com", "role": "viewer" }
+```
+
+Same response as the internal grant: `201` when this call created the grant,
+`200` when a live one already existed (returned untouched). `404` when the target
+is not an active member; `409` when more than one active member has that email
+(use `user_id`).
+
+### Revoke a Role of the App
+
+```http
+POST /api/v1/organizations/{org_id}/app-roles/{app}/revoke
+```
+
+```json
+{ "user_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", "role": "viewer" }
+```
+
+Always `200` for an active target; `changed` reports whether this call stamped
+`revoked_at`. The row is retired, never deleted, and a later re-grant is a new
+row. `409` when it would remove the organization's last `<app>:admin`.
+
+### Dashboard
+
+The dashboard page for one app is
+`https://app.janua.dev/organizations/{org_id}/app-roles/{app}`. Products link
+to it for their access administration (for example Creator Census's
+`CENSUS_ACCESS_ADMIN_URL`). The organization page links to it for each app the
+caller administers.
+
 ---
 
 ## Status Codes
