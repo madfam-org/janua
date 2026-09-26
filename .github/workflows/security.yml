@@ -9,6 +9,8 @@ on:
     branches: [main, develop]
   schedule:
     - cron: '0 0 * * 1' # Weekly scan on Monday
+  # Manual full scan, DAST included (dast-zap otherwise runs only on pushes to main).
+  workflow_dispatch:
 
 env:
   PYTHON_VERSION: '3.11'
@@ -189,11 +191,17 @@ jobs:
   dast-zap:
     name: OWASP ZAP Scan
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
 
+    # Service images come from mirror.gcr.io (Google's pull-through mirror of the Docker Hub official images, same
+    # digests as public.ecr.aws/docker/library), not from Amazon ECR Public. ECR Public allows unauthenticated
+    # clients 500 GB a month, not adjustable. GitHub-hosted runners share egress IPs with every other GitHub
+    # customer, so on a runner IP that is past the limit "Initialize containers" fails with
+    # "toomanyrequests: Data limit exceeded" before any scan runs. Jobs on madfam-runners-blue keep public.ecr.aws:
+    # they pull from the cluster's own egress IP.
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:15
+        image: mirror.gcr.io/library/postgres:15
         ports:
           - 5432:5432
         env:
@@ -207,7 +215,7 @@ jobs:
           --health-retries 5
 
       redis:
-        image: public.ecr.aws/docker/library/redis:7
+        image: mirror.gcr.io/library/redis:7
         ports:
           - 6379:6379
         options: >-
