@@ -16,10 +16,10 @@
     "verified_at and verified_by are required and why the runbook makes reading the",
     "database the step that precedes editing this file."
   ],
-  "recorded_revision": "018_email_events",
-  "schema_revision": "018_email_events",
-  "verified_at": "2026-09-24",
-  "verified_by": "Claude Code orchestrator session, on the owner's explicit in-session authorization (2026-09-24 ~05:15Z / 2026-09-23 ~23:15 CDMX). Pre-flight read in the data/postgres pod: alembic_version=017_payment_mail_dispatch; email_events absent. Then docs/ops/sql/018_email_events.sql from origin/main applied in ONE transaction (psql -U postgres -d janua -v ON_ERROR_STOP=1; the file sets SET LOCAL ROLE enclii and lock_timeout 5s): CREATE TABLE email_events + 2 indexes, GRANT SELECT/INSERT on email_events and USAGE/SELECT on email_events_id_seq to janua, alembic_version 017->018 guarded to exactly 1 row. Catalog verification after COMMIT: version=018_email_events, owner=enclii, indexes ix_email_events_email_id, ix_email_events_source_app_id, pk_email_events, uq_email_events_svix_id; janua INSERT=true SELECT=true UPDATE=false DELETE=false, sequence USAGE=true; 0 rows. alembic_converge.py --check was NOT run: the api image still does not ship apps/api/scripts (see notes).",
+  "recorded_revision": "019_email_first_party_engagement",
+  "schema_revision": "019_email_first_party_engagement",
+  "verified_at": "2026-09-25",
+  "verified_by": "The owner applied docs/ops/sql/019_email_first_party_engagement.sql from main (76e5fb01, #648) in the data/postgres pod on 2026-09-25 (~16:43 CDMX): psql -U postgres -d janua -v ON_ERROR_STOP=1, one transaction; output BEGIN, SET, SET, DO, ALTER TABLE x2, CREATE TABLE, CREATE INDEX, GRANT, UPDATE 1, DO, COMMIT. Verification right after, by the Claude Code orchestrator session, read-only (BEGIN READ ONLY ... ROLLBACK) in the same pod: alembic_version=019_email_first_party_engagement; email_events.source character varying NOT NULL DEFAULT 'webhook'; email_events.possible_prefetch boolean NULL; email_tracking_links owner=enclii, indexes ix_email_tracking_links_email_id and pk_email_tracking_links; janua on email_tracking_links SELECT=true INSERT=true UPDATE=true DELETE=false; janua UPDATE on email_events=false (unchanged); email_events 0 rows; email_tracking_links 0 rows. alembic_converge.py --check was NOT run: the api image still does not ship apps/api/scripts (see notes).",
   "notes": [
     "2026-09-04: 012, 013(absent), 014(absent), 015 and 016 were out of step with alembic_version=011 (see git history of this file).",
     "2026-09-06: converged. 013 and 014 needed the postgres role (users/oauth_clients/alembic_version are owned by `enclii`;",
@@ -28,6 +28,7 @@
     "Next time the head moves: apply/stamp in the pod, run alembic_converge.py --check, and refresh this file in the same PR",
     "as the migration — a promote that carries an unrecorded migration stops on the drift guard until then.",
     "2026-09-23: 017 applied by hand (additive; payment_mail_dispatches + guard function + 2 triggers; no existing table changed). Dockerfile.api does not copy apps/api/scripts, so alembic_converge.py must be piped into /tmp for --check; the post-promote pod drift check (Base.metadata vs information_schema) is the runtime verification for this revision.",
-    "2026-09-24: 018 applied by hand (additive; email_events + 2 indexes; append-only grants to janua; no existing table changed). Unblocks promotes of #638 and later, which the drift guard had refused since 2026-09-24 01:24Z."
+    "2026-09-24: 018 applied by hand (additive; email_events + 2 indexes; append-only grants to janua; no existing table changed). Unblocks promotes of #638 and later, which the drift guard had refused since 2026-09-24 01:24Z.",
+    "2026-09-25: 019 applied by hand (additive: email_events gains source NOT NULL DEFAULT 'webhook', catalog-only on PostgreSQL 11+, and possible_prefetch; email_tracking_links + 1 index owned by enclii; janua SELECT/INSERT/UPDATE on it, no DELETE; no existing column or grant changed). Required by #648 (first-party open/click measurement): no image carrying #648 may run in production without it."
   ]
 }
