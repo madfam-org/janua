@@ -143,7 +143,9 @@ shape, plus `"source": "first_party"` (and `"possible_prefetch": true` when set)
 2. **Route the tracking host to janua-api** through Enclii: a DNS record and a
    tunnel route for `enlaces.creatumundo.mx` (or the chosen name) to the
    janua-api service, like `auth.madfam.io`. Only `/e/o/*` and `/e/c/*` are
-   meant to be served there. The host must reach janua with its own `Host`
+   served there: `TrackingHostScopeMiddleware` answers 404 to every other path
+   on a tracking host (and refuses websockets), so trusting the host does not
+   expose sign-in, reset or OIDC discovery under the tenant's domain. The host must reach janua with its own `Host`
    header: janua-api trusts it (TrustedHostMiddleware) because it is derived
    from `CTM_TRACKING_HOST` at startup.
 3. **Set `CTM_TRACKING_HOST=https://enlaces.creatumundo.mx`** on janua-api

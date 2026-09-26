@@ -505,7 +505,8 @@ else:
             ]
         )
     # First-party tracking hosts (e.g. enlaces.creatumundo.mx), one per sender
-    # binding with a tracking origin configured. They serve only /e/o and /e/c.
+    # binding with a tracking origin configured. Trusted here so /e/o and /e/c
+    # answer on them; TrackingHostScopeMiddleware (below) keeps them to that.
     from app.services.sender_binding import tracking_bindings
 
     allowed_hosts.extend(tracking_bindings().keys())
@@ -514,6 +515,15 @@ else:
         allowed_hosts.extend(["test", "testserver", "testclient"])
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+
+# A tracking host serves ONLY the first-party pixel and click redirect: trusting
+# it above is global, so without this it would also serve sign-in, password
+# reset and OIDC discovery under a tenant's marketing domain. Fixed at startup,
+# like the list above; applies with TRUST_ALL_HOSTS too.
+from app.middleware.tracking_host_scope import TrackingHostScopeMiddleware
+from app.services.sender_binding import tracking_bindings as _tracking_bindings
+
+app.add_middleware(TrackingHostScopeMiddleware, hosts=_tracking_bindings().keys())
 
 # Add security headers middleware (CSP connect-src uses the configured API host)
 _api_host = settings.JANUA_CUSTOM_DOMAIN or urlparse(settings.API_BASE_URL).netloc
