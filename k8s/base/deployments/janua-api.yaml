@@ -221,6 +221,17 @@ spec:
                   name: janua-secrets
                   key: resend-webhook-secret-platform
                   optional: true
+            # First-party email measurement for Crea Tu Mundo (#648, 2026-09-25):
+            # messages sent with track_engagement get their open pixel and their
+            # links on this host (/e/o/*, /e/c/*), which the enclii tunnel routes
+            # to janua-api; TrustedHostMiddleware admits it because it is derived
+            # from this value at startup. THIS IS THE ON-SWITCH: unset, CTM mail is
+            # never instrumented. Set it only once the host already reaches
+            # janua-api (a link rewritten to an unrouted host is a broken link in a
+            # family's email), and only after Dirección approves the privacy-notice
+            # change that MAP's /correos promises (§11.57).
+            - name: CTM_TRACKING_HOST
+              value: https://enlaces.creatumundo.mx
             # SMTP transport for the real mailer (email_service.py) — Resend's
             # SMTP interface with the SAME api key as password. No new secret:
             # this is what makes password-reset email physically send (PR#473;
