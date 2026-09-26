@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
+from app.monitoring.metrics import record_http_request
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,14 @@ class PerformanceMonitoringMiddleware(BaseHTTPMiddleware):
                 duration_ms=request_time * 1000,
                 status_code=response.status_code,
             )
+            # Prometheus counters and latency histogram (default registry,
+            # served by the internal metrics listener on METRICS_PORT).
+            record_http_request(
+                request.scope,
+                method=request.method,
+                status=response.status_code,
+                latency_ms=request_time * 1000,
+            )
 
             return response
 
@@ -83,6 +92,14 @@ class PerformanceMonitoringMiddleware(BaseHTTPMiddleware):
             logger.error(
                 f"Request error: {request.method} {request.url.path} "
                 f"failed after {request_time * 1000:.2f}ms: {str(e)}"
+            )
+            # An unhandled exception becomes a 500 in an outer middleware
+            # (ErrorHandlingMiddleware); count it as that 500 here.
+            record_http_request(
+                request.scope,
+                method=request.method,
+                status=500,
+                latency_ms=request_time * 1000,
             )
             raise
 

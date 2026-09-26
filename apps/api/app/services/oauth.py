@@ -2,6 +2,7 @@
 OAuth service for handling third-party authentication
 """
 
+import asyncio
 import logging
 import secrets
 from datetime import datetime, timedelta
@@ -21,6 +22,18 @@ from ..models import OAuthAccount, OAuthProvider, User, UserStatus
 logger = logging.getLogger(__name__)
 
 
+class ProviderRefreshError(Exception):
+    """A provider refresh-token exchange produced no usable access token."""
+
+
+class ProviderRefreshRejected(ProviderRefreshError):
+    """The provider refused the refresh token: the user must re-authorize."""
+
+
+class ProviderRefreshUnavailable(ProviderRefreshError):
+    """The provider could not be reached or answered unusably: transient."""
+
+
 class OAuthService:
     """Service for handling OAuth authentication"""
 
@@ -29,6 +42,7 @@ class OAuthService:
         OAuthProvider.GOOGLE: {
             "auth_url": "https://accounts.google.com/o/oauth2/v2/auth",
             "token_url": "https://oauth2.googleapis.com/token",
+            "revoke_url": "https://oauth2.googleapis.com/revoke",
             "user_info_url": "https://www.googleapis.com/oauth2/v1/userinfo",
             "scopes": ["openid", "email", "profile"],
             "client_id_setting": "OAUTH_GOOGLE_CLIENT_ID",
@@ -195,16 +209,22 @@ class OAuthService:
         redirect_uri: str,
         state: str,
         additional_scopes: Optional[list] = None,
+        include_granted_scopes: bool = False,
     ) -> Optional[str]:
-        """Generate OAuth authorization URL"""
+        """Generate OAuth authorization URL.
+
+        `include_granted_scopes` asks Google for incremental authorization:
+        the new grant is the union of what the user already granted this
+        client and what is requested now. Other providers ignore it.
+        """
         config = cls.get_provider_config(provider)
         if not config:
             return None
 
-        # Combine default and additional scopes
+        # Combine default and additional scopes (order-preserving, no repeats)
         scopes = config["scopes"].copy()
         if additional_scopes:
-            scopes.extend(additional_scopes)
+            scopes.extend(s for s in additional_scopes if s not in scopes)
 
         # Build authorization parameters
         params = {
@@ -219,6 +239,8 @@ class OAuthService:
         if provider == OAuthProvider.GOOGLE:
             params["access_type"] = "offline"
             params["prompt"] = "consent"
+            if include_granted_scopes:
+                params["include_granted_scopes"] = "true"
         elif provider == OAuthProvider.MICROSOFT:
             params["response_mode"] = "query"
         elif provider == OAuthProvider.APPLE:
@@ -279,6 +301,120 @@ class OAuthService:
         except Exception as e:
             logger.error(f"Error exchanging OAuth code: {e}")
             return None
+
+    @classmethod
+    async def refresh_access_token(
+        cls, provider: OAuthProvider, refresh_token: str
+    ) -> Dict[str, Any]:
+        """Exchange a stored provider refresh token for a fresh access token.
+
+        Fails loudly, never silently: a provider that *rejects* the refresh
+        token (HTTP 4xx, e.g. Google's `invalid_grant` after the user revoked
+        access) raises `ProviderRefreshRejected`, which means the user must
+        re-consent. A provider that cannot be *reached* (network error, 5xx,
+        malformed body, provider not configured) raises
+        `ProviderRefreshUnavailable`, which is transient. Neither case ever
+        yields a token.
+        """
+        config = cls.get_provider_config(provider)
+        if not config:
+            raise ProviderRefreshUnavailable("provider_not_configured")
+        if not refresh_token:
+            raise ProviderRefreshRejected("no_refresh_token")
+
+        data = {
+            "client_id": config["client_id"],
+            "client_secret": config["client_secret"],
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    config["token_url"], data=data, headers={"Accept": "application/json"}
+                )
+        except httpx.HTTPError as e:
+            raise ProviderRefreshUnavailable(f"provider_unreachable:{type(e).__name__}") from e
+
+        if 400 <= response.status_code < 500:
+            error_code = "rejected"
+            try:
+                error_code = str(response.json().get("error") or error_code)
+            except ValueError:
+                pass
+            raise ProviderRefreshRejected(error_code)
+        if response.status_code != 200:
+            raise ProviderRefreshUnavailable(f"provider_status_{response.status_code}")
+        try:
+            tokens = response.json()
+        except ValueError as e:
+            raise ProviderRefreshUnavailable("provider_malformed_response") from e
+        if not isinstance(tokens, dict) or not tokens.get("access_token"):
+            raise ProviderRefreshUnavailable("provider_malformed_response")
+        return tokens
+
+    #: Attempts and backoff for provider token revocation (seconds between tries).
+    REVOKE_BACKOFF_SECONDS: Tuple[float, ...] = (0.5, 1.5)
+    REVOKE_TIMEOUT_SECONDS = 5.0
+
+    @classmethod
+    async def revoke_provider_token(cls, provider: OAuthProvider, token: str) -> Dict[str, Any]:
+        """Revoke a token at the provider, retrying transient failures with backoff.
+
+        Returns an outcome dict and never raises: the caller's own revocation
+        must not depend on the provider being reachable.
+
+        - ``revoked``: the provider accepted the revocation.
+        - ``already_invalid``: the provider says the token is already
+          expired or revoked (Google: HTTP 400 ``invalid_token``). Nothing
+          left to remove.
+        - ``failed``: the provider refused for another reason, or stayed
+          unreachable/5xx/429 through every attempt. The operator must retry.
+        - ``unsupported``: Janua has no revocation endpoint for this provider.
+        """
+        config = cls.PROVIDERS.get(provider) or {}
+        revoke_url = config.get("revoke_url")
+        if not revoke_url:
+            return {"outcome": "unsupported", "attempts": 0}
+        if not token:
+            return {"outcome": "failed", "attempts": 0, "error": "no_token"}
+
+        attempts = 0
+        last_error = "unknown"
+        delays = (0.0,) + tuple(cls.REVOKE_BACKOFF_SECONDS)
+        for delay in delays:
+            if delay:
+                await asyncio.sleep(delay)
+            attempts += 1
+            try:
+                async with httpx.AsyncClient(timeout=cls.REVOKE_TIMEOUT_SECONDS) as client:
+                    response = await client.post(
+                        revoke_url,
+                        data={"token": token},
+                        headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    )
+            except httpx.HTTPError as e:
+                last_error = f"provider_unreachable:{type(e).__name__}"
+                continue
+
+            if response.status_code == 200:
+                return {"outcome": "revoked", "attempts": attempts}
+            if response.status_code == 429 or response.status_code >= 500:
+                last_error = f"provider_status_{response.status_code}"
+                continue
+
+            error_code = f"provider_status_{response.status_code}"
+            try:
+                body = response.json()
+                if isinstance(body, dict) and body.get("error"):
+                    error_code = str(body["error"])
+            except ValueError:
+                pass
+            if error_code == "invalid_token":
+                return {"outcome": "already_invalid", "attempts": attempts}
+            return {"outcome": "failed", "attempts": attempts, "error": error_code}
+
+        return {"outcome": "failed", "attempts": attempts, "error": last_error}
 
     @classmethod
     async def get_user_info(

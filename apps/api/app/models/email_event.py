@@ -15,11 +15,35 @@ sending app already knows who it wrote to: it joins on `email_id`, which is the
 `id` is the feed cursor of GET /api/v1/internal/email/events. BIGINT on
 PostgreSQL; plain INTEGER on SQLite, the only integer primary key SQLite
 auto-increments (the unit tests run there).
+
+TWO SOURCES (019_email_first_party_engagement). `source = 'webhook'` rows come
+from Resend's signed webhooks, as above. `source = 'first_party'` rows are
+opens and clicks Janua measured ITSELF on its tracking hosts (see
+app/services/email_engagement.py): `email.opened` / `email.clicked` only,
+`provider` still names the provider that carried the message, and `svix_id`
+holds a deterministic `fp:` key that makes each (message, kind, link) insert
+once — the same append-only ON CONFLICT DO NOTHING the webhook path uses.
+`possible_prefetch` is a coarse flag computed in memory from the request (an
+image proxy prefetch or a link scanner); the request itself is never stored.
+
+`EmailTrackingLink` is the other half: one row per instrumented message, keyed
+by the SHA-256 of its opaque token, holding the ORIGINAL link targets so a
+click redirect is always read from storage by index, never from the request.
 """
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 
 from app.models import Base
 
@@ -47,3 +71,26 @@ class EmailEvent(Base):
     bounce_subtype = Column(String(64), nullable=True)
     click_link = Column(String(2048), nullable=True)
     received_at = Column(DateTime(), nullable=False, default=datetime.utcnow)
+    #: `webhook` (Resend) or `first_party` (Janua's own tracking host).
+    source = Column(String(16), nullable=False, default="webhook", server_default="webhook")
+    #: First-party only: the hit looked like a prefetch or a link scanner.
+    possible_prefetch = Column(Boolean(), nullable=True)
+
+
+class EmailTrackingLink(Base):
+    """One instrumented message: its hashed token, its links, and its binding."""
+
+    __tablename__ = "email_tracking_links"
+    __table_args__ = (Index("ix_email_tracking_links_email_id", "email_id"),)
+
+    #: SHA-256 hex of the opaque token in the message's tracking URLs.
+    token_hash = Column(String(64), primary_key=True)
+    #: Which Resend account carried it (`ctm` / `platform`), like email_events.
+    cuenta = Column(String(32), nullable=False)
+    source_app = Column(String(64), nullable=True)
+    org_id = Column(String(64), nullable=True)
+    #: Resend's id for the message, bound right after the send is accepted.
+    email_id = Column(String(255), nullable=True)
+    #: JSON array of the ORIGINAL http(s) link targets, index = link number.
+    links = Column(Text(), nullable=False)
+    created_at = Column(DateTime(), nullable=False, default=datetime.utcnow)

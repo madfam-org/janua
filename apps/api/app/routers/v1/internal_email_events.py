@@ -17,7 +17,9 @@ THE CONTRACT (sending apps code against this; keep it exact):
           "occurred_at": "2026-09-23T15:04:05.123000Z",
           "bounce_type": "Permanent",          # only on bounced / suppressed
           "bounce_subtype": "Suppressed",      # only on bounced / suppressed
-          "click_link": "https://map.creatumundo.mx/agenda"   # only on clicked
+          "click_link": "https://map.creatumundo.mx/agenda",  # only on clicked
+          "source": "first_party",             # only on events Janua measured itself
+          "possible_prefetch": true            # only on first-party hits that looked automatic
         }
       ],
       "next_cursor": 1234                      # pass back as `after`
@@ -33,6 +35,11 @@ THE CONTRACT (sending apps code against this; keep it exact):
   `email_events.list_events` for why).
 - No recipient, subject, IP or user agent is ever returned: they are never
   stored. The app joins `email_id` to the message it recorded on send.
+- First-party events (opens/clicks measured on Janua's own tracking host for
+  messages sent with `track_engagement: true`) arrive in the SAME feed with the
+  SAME shape, types `opened` / `clicked`, plus `source: "first_party"`. Deduped:
+  one open per message and one click per link (and, separately, the first hit
+  that looked like a prefetch/scanner, flagged `possible_prefetch: true`).
 """
 
 from datetime import datetime
@@ -60,6 +67,8 @@ class EmailEventItem(BaseModel):
     bounce_type: Optional[str] = None
     bounce_subtype: Optional[str] = None
     click_link: Optional[str] = None
+    source: Optional[str] = None
+    possible_prefetch: Optional[bool] = None
 
 
 class EmailEventsPage(BaseModel):

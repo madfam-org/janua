@@ -108,6 +108,9 @@ class TenantMiddleware(BaseHTTPMiddleware):
             "/.well-known",
             "/api/status",
             "/beta",
+            # First-party email tracking (pixel / click redirect): hit by mail
+            # clients and scanners on a tenant tracking host, never tenant-scoped.
+            "/e",
         ]
 
         # Check if this is a public endpoint

@@ -12,5 +12,12 @@ spec:
       targetPort: 8080
       protocol: TCP
       name: http
+    # Internal-only Prometheus listener. enclii's janua-api-ingress-monitoring
+    # NetworkPolicy admits only the monitoring namespace on 9464; the tunnel
+    # namespace is admitted on 8080 only.
+    - port: 9464
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
   selector:
     app: janua-api

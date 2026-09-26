@@ -472,19 +472,26 @@ curl -X POST $SECURITY_WEBHOOK \
 > its own services**. The single `PrometheusRule` in the repo
 > (`infra/monitoring/alerts/secrets-rotation.yaml`) covers secrets rotation, is
 > hand-applied into the `monitoring` namespace, and is referenced by no
-> kustomization. There is **no `ServiceMonitor` and no `PodMonitor` anywhere in
-> the repo**, so the rules below are written against the **log stream**, which
-> is the signal that actually exists today.
+> kustomization. The rules below are written against the **log stream**,
+> which was the only signal until the metrics listener below shipped.
 >
-> Do not convert one of these into a `janua_*` Prometheus rule without first
-> fixing the scrape path, which is dead in at least three places at once:
-> `/metrics` is token-gated and **fail-closed 404** when `METRICS_TOKEN` is
-> unset (`k8s/base/deployments/janua-api.yaml`); the scrape annotation
-> advertises port **8000** while the Service targets **8080**; and
-> `app/main.py`'s `/metrics` handler builds its **own** `CollectorRegistry` of
-> hardcoded sample values, so the real counters in `app/monitoring/metrics.py`
-> are never served. A rule over a metric none of that emits is a green
-> dashboard, not an alarm.
+> **Scrape path.** Prometheus text is served only by an internal listener in
+> the API process: port **9464** (`METRICS_PORT`, container/Service port
+> `metrics`), `GET /metrics`, no token. It serves the process-wide default
+> registry: the real `janua_requests_total` and
+> `janua_request_latency_milliseconds` (fed by `PerformanceMonitoringMiddleware`,
+> labelled by route template, not raw path) plus the `python_*`/`process_*`
+> collectors. The public app on 8080 has **no** `/metrics` route (the old
+> handler served hardcoded sample values and was removed). Scrapers: the
+> pod-annotation job (main Prometheus) and `ServiceMonitor` `janua-api-monitor`
+> (`k8s/overlays/production/servicemonitor-janua-api.yaml`, rules-eval). The
+> port is reachable only from the `monitoring` namespace, through enclii's
+> `janua-api-ingress-monitoring` NetworkPolicy.
+>
+> Before converting a rule here into a `janua_*` Prometheus rule, confirm the
+> target is up (`up{namespace="janua"}`) and the series exist. Requests
+> rejected by outer middleware (trusted host, rate limit) never reach the
+> recording middleware, and `/health`, `/ready` are not counted.
 
 ### `JanuaAmbiguousEmailAcrossPools`
 
@@ -608,12 +615,11 @@ Suspend, or move the pool.
 - **Status Page:** https://status.janua.dev
 - **Named log alerts:** [Alert Definitions](#alert-definitions)
 
-> **Application metrics are NOT available today.** `/metrics` is token-gated and
-> returns 404 when `METRICS_TOKEN` is unset, the scrape annotation advertises
-> port 8000 while the Service targets 8080, there is no `ServiceMonitor`, and
-> `app/main.py` serves a private registry of hardcoded sample values. Do not
-> plan an incident response around a Prometheus dashboard for janua-api — there
-> isn't one. The log stream is the signal.
+> **Application metrics** come from the internal listener on port 9464 (see
+> [Alert Definitions](#alert-definitions) for what it serves and who scrapes
+> it). There is no janua-api dashboard or `janua_*` alert yet; check
+> `up{namespace="janua"}` before relying on the series. The log stream remains
+> the primary signal.
 
 ### Useful Commands
 

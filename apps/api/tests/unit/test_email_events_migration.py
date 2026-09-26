@@ -7,8 +7,9 @@ this applies BOTH to scratch PostgreSQL databases and compares the catalogs:
 columns (type, nullability, default), indexes and constraints. It also proves
 the SQL refuses a database at the wrong revision without touching it, is
 idempotent, leaves a database that a later `alembic upgrade head` treats as
-current, that the receiver's insert path works on PostgreSQL, and that the
-revision downgrades and re-upgrades cleanly.
+current at 018, and that the revision downgrades and re-upgrades cleanly. (The
+receiver's PostgreSQL insert path is exercised at head by
+test_email_engagement_migration.py.)
 
 Cost-conscious on purpose (the api-tests job has a 25-minute budget): two
 scratch databases and two full-chain upgrades for the whole module.
@@ -21,7 +22,6 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -113,7 +113,9 @@ def databases():
         assert created.returncode == 0, created.stderr
     urls = {kind: _with_database(base, name) for kind, name in names.items()}
     try:
-        _ok(_alembic(["upgrade", "head"], urls["head"]))
+        # Pinned to 018, not `head`: later revisions (019 adds columns to
+        # email_events) would make the catalogs differ by design.
+        _ok(_alembic(["upgrade", HEAD], urls["head"]))
         yield urls
     finally:
         for name in names.values():
@@ -164,39 +166,14 @@ def test_owner_sql_refuses_wrong_revision_then_matches_alembic_and_is_idempotent
     assert _ok(_psql("SELECT count(*) FROM alembic_version", hand)) == "1"
     assert _catalog(hand) == _catalog(head)
 
-    # Alembic sees the hand-applied database as current.
-    _ok(_alembic(["upgrade", "head"], hand))
+    # Alembic sees the hand-applied database as current at 018.
+    _ok(_alembic(["upgrade", HEAD], hand))
     assert _version(hand) == HEAD
 
 
-async def test_receiver_insert_path_is_idempotent_on_postgresql(databases) -> None:
-    """The production insert (ON CONFLICT DO NOTHING ... RETURNING on asyncpg)
-    against the migrated table: one row per svix_id, feed reads it back."""
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-    from app.services.email_events import ParsedEvent, list_events, record_event
-
-    url = databases["head"]
-    engine = create_async_engine(url.replace("postgresql://", "postgresql+asyncpg://"))
-    try:
-        factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-        event = ParsedEvent(
-            email_id="email-1",
-            event_type="email.delivered",
-            occurred_at=datetime(2026, 9, 23, 15, 0, 0),
-            source_app="crea-map",
-            org_id=None,
-        )
-        async with factory() as session:
-            assert await record_event(session, "ctm", "msg_pg_1", event) is True
-        async with factory() as session:
-            assert await record_event(session, "ctm", "msg_pg_1", event) is False
-        async with factory() as session:
-            assert await list_events(session, "crea-map", 0, 10) == []  # settling
-            rows = await list_events(session, "crea-map", 0, 10, settle_seconds=-60)
-            assert [r.svix_id for r in rows] == ["msg_pg_1"]
-    finally:
-        await engine.dispose()
+# The receiver's PostgreSQL insert path moved to test_email_engagement_migration.py:
+# since 019 it writes `source` / `possible_prefetch`, which exist only at 019+,
+# while this module pins its databases to 018.
 
 
 def test_alembic_downgrade_then_upgrade(databases) -> None:
@@ -209,6 +186,6 @@ def test_alembic_downgrade_then_upgrade(databases) -> None:
     assert _version(url) == PARENT
     assert _table_absent(url)
 
-    _ok(_alembic(["upgrade", "head"], url))
+    _ok(_alembic(["upgrade", HEAD], url))
     assert _version(url) == HEAD
     assert "uq_email_events_svix_id" in _catalog(url)["constraints"]

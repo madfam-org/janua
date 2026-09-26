@@ -14,6 +14,7 @@ namespace: janua
 resources:
   - ../../base
   - kyverno-policy-exception.yaml
+  - servicemonitor-janua-api.yaml
 
 # Production image digests — seeded from the former k8s/base/deployments
 # kustomization on PP.3b cutover. Updated exclusively by promote-to-prod.yml.
@@ -23,7 +24,7 @@ images:
     digest: sha256:ee858b91f2f3d2089e0330191a671be58ebf3d52d6ca19c698adaa4f29c038d4
   - name: ghcr.io/madfam-org/janua-api
     newName: ghcr.io/madfam-org/janua-api
-    digest: sha256:dc0941249c178a76f128c02c97231f67bbf739194af8224aa90b0963d1274f73
+    digest: sha256:3998d8ed3dbe5b1207fc1c05260299f3c02c3020cc0aafb17bd0fbdf06e16fb6
   - name: ghcr.io/madfam-org/janua-dashboard
     newName: ghcr.io/madfam-org/janua-dashboard
     digest: sha256:0bc2e20825f4ccedd3fc700bb20f74975bcc82a5ca7545a565037530958e2f8f

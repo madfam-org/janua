@@ -241,8 +241,21 @@ def parse_event(payload: object) -> Optional[ParsedEvent]:
     )
 
 
-async def record_event(db: AsyncSession, cuenta: str, svix_id: str, event: ParsedEvent) -> bool:
-    """Insert once per svix_id. True if stored now, False if it was a redelivery."""
+async def record_event(
+    db: AsyncSession,
+    cuenta: str,
+    svix_id: str,
+    event: ParsedEvent,
+    *,
+    source: str = "webhook",
+    possible_prefetch: Optional[bool] = None,
+) -> bool:
+    """Insert once per svix_id. True if stored now, False if it was a redelivery.
+
+    `source='first_party'` rows (app/services/email_engagement.py) use the same
+    insert with a deterministic `fp:` key in `svix_id`, which is what dedupes
+    them; `possible_prefetch` is only ever set on those.
+    """
     values = {
         "provider": PROVIDER,
         "cuenta": cuenta,
@@ -256,6 +269,8 @@ async def record_event(db: AsyncSession, cuenta: str, svix_id: str, event: Parse
         "bounce_subtype": event.bounce_subtype,
         "click_link": event.click_link,
         "received_at": datetime.utcnow(),
+        "source": source,
+        "possible_prefetch": possible_prefetch,
     }
     dialect = db.bind.dialect.name if db.bind is not None else ""
     if dialect == "postgresql":
@@ -314,6 +329,13 @@ def feed_item(row: EmailEvent) -> dict[str, Any]:
         value = getattr(row, key)
         if value:
             item[key] = value
+    # First-party rows (Janua's own tracking host) say so; webhook rows are
+    # byte-identical to before. `provider` stays the provider that carried the
+    # message, so a consumer that checks it (MAP) keeps accepting the event.
+    if getattr(row, "source", None) == "first_party":
+        item["source"] = "first_party"
+        if row.possible_prefetch:
+            item["possible_prefetch"] = True
     return item
 
 

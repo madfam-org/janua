@@ -17,6 +17,7 @@ import redis.asyncio as redis
 import structlog
 
 from app.config import settings
+from app.services.email_engagement import bind_email_id, prepare_engagement
 from app.services.email_i18n import build_email_environment
 from app.services.email_sender import binding_for, sender_for_address
 from app.services.email_tags import normalize_tags
@@ -220,6 +221,7 @@ class ResendEmailService:
         org_id: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
         token_link: bool = False,
+        track_engagement: bool = False,
     ) -> EmailDeliveryStatus:
         """
         Send email via Resend API
@@ -258,6 +260,10 @@ class ResendEmailService:
                 TEXT-ONLY so Resend's click/open tracking never touches it.
                 Credential-looking link parameters are also detected in the
                 HTML regardless of this flag. See app/services/email_tracking.py.
+            track_engagement: Ask for FIRST-PARTY open/click measurement. Honoured
+                only for non-token mail whose resolved binding has a tracking host
+                on the From domain; otherwise the message goes out unmodified and
+                the reason is logged. See app/services/email_engagement.py.
 
         Returns:
             EmailDeliveryStatus object with delivery information
@@ -353,6 +359,23 @@ class ResendEmailService:
             if attachments:
                 params["attachments"] = attachments
 
+            # FIRST-PARTY engagement measurement (opt-in, never on token mail).
+            # Decided on the bodies and the From that will actually go out, so a
+            # text-only or fallen-back message is never instrumented.
+            engagement = None
+            if track_engagement:
+                engagement = await prepare_engagement(
+                    requested=True,
+                    html=wire_html,
+                    token_link=token_link,
+                    binding=binding_for(redirect_url=redirect_url, org_id=org_id),
+                    sender_address=sender_address,
+                    tags=params["tags"],
+                    message_id=message_id,
+                )
+                if engagement is not None:
+                    params["html"] = engagement.html
+
             # Add custom headers for tracking
             params["headers"] = {"X-Message-ID": message_id, "X-Priority": priority.value}
 
@@ -370,6 +393,9 @@ class ResendEmailService:
                 timestamp=datetime.utcnow(),
                 metadata=metadata,
             )
+
+            if engagement is not None:
+                await bind_email_id(engagement.token_hash, delivery_status.message_id)
 
             # Track delivery if enabled
             if track_delivery:
