@@ -311,14 +311,20 @@ jobs:
           # checked -- it never re-reads the staging overlay of the newer main.
           patch_prod() {
             python3 <<'PY'
-          import os, re, pathlib
+          import os, re, pathlib, sys
           path = pathlib.Path("k8s/overlays/production/kustomization.yaml")
           text = path.read_text()
+          missing = []
 
           # Janua prod kustomization uses long-form image keys:
           #   - name: ghcr.io/madfam-org/janua-<comp>
           #     digest: sha256:...
           # (or the alt order seen in base/).
+          #
+          # Presence is decided by the match count, never by comparing text: an
+          # entry that already carries the target digest is a genuine no-op, but
+          # an entry that is NOT THERE used to fall through to "already at
+          # target" and exit 0 -- a promote that silently promoted nothing.
           def patch(text, image, digest):
               if not digest:
                   return text
@@ -329,10 +335,13 @@ jobs:
               alt = (
                   r'(digest:\s+)sha256:[a-f0-9]+(\s*\n\s+name:\s+' + re.escape(image) + r')'
               )
-              if re.search(pat, text):
-                  return re.sub(pat, lambda m: m.group(1) + digest, text)
-              if re.search(alt, text):
-                  return re.sub(alt, lambda m: m.group(1) + digest + m.group(2), text)
+              text, n = re.subn(pat, lambda m: m.group(1) + digest, text)
+              if n == 0:
+                  text, n = re.subn(alt, lambda m: m.group(1) + digest + m.group(2), text)
+              if n == 0:
+                  comp = image.rsplit("janua-", 1)[-1]
+                  print(f"::error::No digest entry for {comp} ({image}) in {path} — nothing to promote it onto.")
+                  missing.append(comp)
               return text
 
           text = patch(text, "ghcr.io/madfam-org/janua-api",       os.environ["API_DIGEST"])
@@ -340,6 +349,8 @@ jobs:
           text = patch(text, "ghcr.io/madfam-org/janua-dashboard", os.environ["DASHBOARD_DIGEST"])
           text = patch(text, "ghcr.io/madfam-org/janua-docs",      os.environ["DOCS_DIGEST"])
           text = patch(text, "ghcr.io/madfam-org/janua-website",   os.environ["WEBSITE_DIGEST"])
+          if missing:
+              sys.exit(1)
           path.write_text(text)
           PY
           }
