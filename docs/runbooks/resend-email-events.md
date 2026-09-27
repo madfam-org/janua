@@ -51,6 +51,9 @@ agent, bounce diagnostic text, the query string or fragment of a clicked link.
    The janua-api Deployment already reads `resend-webhook-secret-ctm` /
    `resend-webhook-secret-platform` as optional env vars. Until they exist the
    receiver answers 404 for that account and stores nothing.
+   Write it, check its shape and restart janua-api as in
+   [`secrets/resend-webhook-secret-rotation.md`](secrets/resend-webhook-secret-rotation.md)
+   (hidden prompt into `vault kv patch`, never `vault kv put`).
 3. **Resend (CTM account)**: Webhooks, add endpoint
    `https://auth.madfam.io/api/v1/email/webhooks/resend/ctm` with events
    `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`,

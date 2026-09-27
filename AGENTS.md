@@ -360,6 +360,51 @@ Docs: `apps/docs/app/cli/page.mdx`, `packages/cli/README.md`.
 | Webhook handler | `apps/api/app/routers/v1/webhooks_dhanam.py` |
 | Webhook tests | `apps/api/tests/unit/routers/test_webhooks_dhanam.py` |
 
+### Email events and first-party measurement
+
+Operator detail and owner steps: [`docs/runbooks/resend-email-events.md`](docs/runbooks/resend-email-events.md).
+Webhook secret rotation: [`docs/runbooks/secrets/resend-webhook-secret-rotation.md`](docs/runbooks/secrets/resend-webhook-secret-rotation.md).
+
+- **Resend webhook receiver** `POST /api/v1/email/webhooks/resend/{cuenta}`
+  (`cuenta` = `ctm` | `platform`, one per Resend ACCOUNT). Public; the
+  Svix-style signature is the authentication, verified with
+  `RESEND_WEBHOOK_SECRET_<CUENTA>` (`RESEND_WEBHOOK_SECRET_CTM`,
+  `RESEND_WEBHOOK_SECRET_PLATFORM`). Secret unset or blank: **404**, same body
+  as an unknown account. Bad or missing signature: **401**
+  `{"detail":"Invalid webhook signature"}`. Verified and stored: **200**
+  `{"status":"stored"}` (`duplicate` / `ignored` otherwise). Nothing is written
+  before the signature verifies; no recipient, subject, body, IP or user agent
+  is stored. The per-app feed is `GET /api/v1/internal/email/events`.
+- **First-party open/click measurement** (#648). Only for mail sent through
+  `POST /api/v1/internal/email/send` with `"track_engagement": true` that is
+  NOT token mail (`contains_token_link` false and no credential-looking link),
+  still has an HTML part, and whose sender binding has a tracking host on the
+  From domain actually used. Token-bearing mail (sign-in, reset, verification,
+  invitations) is never measured, and templates/preview are never
+  instrumented. Links become `{host}/e/c/{token}/{i}` and a pixel
+  `{host}/e/o/{token}.gif` is added; only the token's SHA-256 is stored.
+  Resend's own tracking stays OFF and `EMAIL_TRACKED_SENDER_DOMAINS` stays empty.
+- **Per-tenant tracking host**: `CTM_TRACKING_HOST` (https origin only, no path
+  or port) is the on-switch for CTM; unset or invalid means CTM mail is never
+  instrumented. Production sets `https://enlaces.creatumundo.mx` in
+  `k8s/base/deployments/janua-api.yaml` (#652). The platform binding has none.
+- **Tracking host scope** (#655): tracking hosts are added to
+  `TrustedHostMiddleware`'s list at startup, and `TrackingHostScopeMiddleware`
+  (registered after it, so it runs first) answers 404 to every path on a
+  tracking host except `/e/o/*` and `/e/c/*`, and closes websockets with 1008.
+  Sign-in, reset and OIDC discovery are never served under a tenant's domain.
+  Hosts are fixed at startup: changing `CTM_TRACKING_HOST` needs a restart.
+
+| Purpose | Location |
+|---------|----------|
+| Webhook receiver | `apps/api/app/routers/v1/email_webhooks.py` |
+| Signature, parsing, minimization | `apps/api/app/services/email_events.py` |
+| Pixel / click endpoints | `apps/api/app/routers/v1/email_engagement.py` |
+| Instrumentation rules | `apps/api/app/services/email_engagement.py` |
+| Tracking host per binding | `apps/api/app/services/sender_binding.py` (`tracking_host_for`, `tracking_bindings`) |
+| Host scope middleware | `apps/api/app/middleware/tracking_host_scope.py` |
+| Tests | `tests/unit/routers/test_email_webhooks_resend.py`, `test_email_engagement_endpoints.py`, `tests/unit/services/test_email_engagement.py`, `tests/unit/middleware/test_tracking_host_scope.py` (under `apps/api/`) |
+
 ---
 
 ## Environment Variables
@@ -407,6 +452,12 @@ RESEND_VERIFIED_DOMAINS=madfam.io # domains verified on MADFAM's account
 CTM_RESEND_API_KEY=re_XXXXX       # CTM's OWN Resend account (tenant binding).
                                   # Optional: absent => CTM degrades to the
                                   # platform sender, the link still sends.
+RESEND_WEBHOOK_SECRET_CTM=        # whsec_... of CTM's Resend webhook; unset =>
+                                  # /email/webhooks/resend/ctm answers 404
+RESEND_WEBHOOK_SECRET_PLATFORM=   # same, MADFAM's Resend account
+CTM_TRACKING_HOST=                # https origin for CTM first-party open/click
+                                  # links; unset => CTM mail never measured
+EMAIL_TRACKED_SENDER_DOMAINS=     # domains with RESEND tracking on; keep empty
 ```
 
 ### Admin Bootstrap
@@ -731,6 +782,19 @@ alembic upgrade head
 # Rollback if needed
 alembic downgrade -1
 ```
+
+**Production is different: migrations are applied by hand, and a ledger records
+them.** `promote-to-prod.yml` only moves image digests; nothing in the pipeline
+runs `alembic upgrade`. A new revision ships with owner-run SQL
+(`docs/ops/sql/<revision>.sql`, e.g. `018_email_events`,
+`019_email_first_party_engagement`), applied in the database pod BEFORE any
+image that needs it is promoted. After reading the database, a reviewed PR
+records the revision in `apps/api/alembic/PROD_ALEMBIC_STATE.json`
+(`recorded_revision`, `verified_at`, `verified_by`, a `notes` line). The promote
+guard (`apps/api/scripts/alembic_promote_guard.py`) compares the repo head with
+that ledger and blocks unless they match or `migrations_acknowledged=true`.
+Never edit the ledger forward without reading the database. Full procedure:
+[`docs/runbooks/ALEMBIC_CONVERGENCE.md`](docs/runbooks/ALEMBIC_CONVERGENCE.md).
 
 ### SDK Updates
 
