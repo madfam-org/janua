@@ -29,6 +29,15 @@ Compact LLM context index for this repository.
   outside the cookie domain.
 - `docs/runbooks/resend-domain-onboarding.md` — onboarding a client sending
   domain, and migrating a client to their own Resend account.
+- `docs/runbooks/resend-email-events.md` — the signed Resend webhook receiver,
+  the per-app events feed, the never-track-token-links rule, and first-party
+  open/click measurement on per-tenant tracking hosts.
+- `docs/runbooks/secrets/resend-webhook-secret-rotation.md` — the per-account
+  webhook signing secret: Vault → ExternalSecret → env, rotating it without
+  exposing it, and reading 404 vs 401.
+- `docs/runbooks/ALEMBIC_CONVERGENCE.md` — production migrations are applied
+  by hand and recorded in `apps/api/alembic/PROD_ALEMBIC_STATE.json`, which the
+  promote guard reads.
 
 ## Current state worth knowing (2026-09-07)
 
@@ -44,6 +53,22 @@ Compact LLM context index for this repository.
   credential degrades the sender to the platform From line; it never blocks a
   sign-in link.
 - A tenant display name is never paired with an address on MADFAM's domain.
+
+## Email events and measurement (2026-09-26)
+
+- Resend webhooks land on `POST /api/v1/email/webhooks/resend/{ctm|platform}`,
+  verified Svix-style with `RESEND_WEBHOOK_SECRET_CTM` /
+  `RESEND_WEBHOOK_SECRET_PLATFORM`. Secret unset: 404. Bad signature: 401
+  «Invalid webhook signature». Stored: 200 `{"status":"stored"}`.
+- Janua measures opens/clicks itself (Resend tracking stays OFF) only for mail
+  sent with `track_engagement: true` that carries no token link. Pixel
+  `/e/o/{token}.gif`, click `/e/c/{token}/{i}`, on the tenant's tracking host.
+  `CTM_TRACKING_HOST` is CTM's on-switch (production:
+  `https://enlaces.creatumundo.mx`).
+- A tracking host serves only `/e/o/*` and `/e/c/*`; everything else is 404
+  and websockets are closed (1008) by `TrackingHostScopeMiddleware`.
+- Production migrations are applied by hand; `PROD_ALEMBIC_STATE.json` records
+  them (at `019_email_first_party_engagement` since 2026-09-25).
 
 ## Production operations
 

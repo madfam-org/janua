@@ -82,6 +82,12 @@ available.
 - Per-tenant sending identity: a vCTO client's mail can carry its own From line
   and even send on the client's **own provider account**, as a config change
   rather than a migration ([`docs/EMAIL_SENDER_POLICY.md`](./docs/EMAIL_SENDER_POLICY.md))
+- Email delivery events and first-party measurement: a signed Resend webhook
+  receiver per provider account (`/api/v1/email/webhooks/resend/{account}`), and
+  open/click measurement for opted-in mail that carries no sign-in or reset
+  link, served from a tracking host on the tenant's own domain that answers
+  nothing but the pixel and the click redirect. No recipient address, IP or
+  user agent is stored ([`docs/runbooks/resend-email-events.md`](./docs/runbooks/resend-email-events.md))
 - Hosted health endpoints for operations
 
 **🔧 Implemented, hardening in progress** (in daily use; GA evidence being filed):
@@ -329,6 +335,12 @@ docker-compose -f docker-compose.production.yml up -d
 # Run migrations
 docker-compose exec janua-api alembic upgrade head
 ```
+
+> MADFAM's hosted production does not run migrations on deploy: each revision is
+> applied by hand before the image that needs it is promoted, and
+> `apps/api/alembic/PROD_ALEMBIC_STATE.json` records what production was last
+> verified at, which the promote guard checks
+> ([`docs/runbooks/ALEMBIC_CONVERGENCE.md`](docs/runbooks/ALEMBIC_CONVERGENCE.md)).
 
 **Build Docker Images:**
 ```bash

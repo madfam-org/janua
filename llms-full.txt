@@ -1,6 +1,6 @@
 # Janua Full LLM Context
 
-Generated: 2026-05-13 · contracts section updated 2026-09-07
+Generated: 2026-05-13 · contracts section updated 2026-09-07 · email events section 2026-09-27
 
 ## Purpose
 
@@ -115,6 +115,54 @@ template may declare a `default_from_email` (e.g. `billing/cfdi` →
 on either endpoint are forwarded to Resend (used for CFDI XML+PDF delivery).
 
 Full walkthrough and the template table: `docs/MADFAM_EMAIL_INTEGRATION.md`.
+
+## Email events and first-party measurement
+
+Operator guide: `docs/runbooks/resend-email-events.md`. Secret handling:
+`docs/runbooks/secrets/resend-webhook-secret-rotation.md`.
+
+### Webhook receiver — `routers/v1/email_webhooks.py`, `services/email_events.py`
+
+`POST /api/v1/email/webhooks/resend/{cuenta}`, one `cuenta` per Resend ACCOUNT
+(`ctm`, `platform`), because each account's endpoint has its own signing
+secret. The Svix-style signature is the only authentication, checked against
+`RESEND_WEBHOOK_SECRET_<CUENTA>` before anything is written. Unset or blank
+secret: 404, indistinguishable from an unknown account. Bad, stale or missing
+signature headers: 401 `{"detail":"Invalid webhook signature"}`. Stored: 200
+`{"status":"stored"}`. Rows are minimized: no recipient, sender, subject, body,
+IP, user agent, or link query string. The secret reaches the pod from Vault
+`secret/janua` through the enclii-managed `janua-secrets` ExternalSecret
+(`resend_webhook_secret_ctm` → `resend-webhook-secret-ctm` →
+`RESEND_WEBHOOK_SECRET_CTM`), read at process start.
+
+### First-party measurement — `services/email_engagement.py`, `routers/v1/email_engagement.py`
+
+Token-bearing mail is never measured. Only `POST /internal/email/send` with
+`track_engagement: true`, no token link (explicit `contains_token_link` or the
+credential-parameter detector), an HTML part, and a sender binding with a
+tracking host on the From domain actually used. Otherwise the message goes out
+unmodified. Resend's own tracking stays OFF and `EMAIL_TRACKED_SENDER_DOMAINS`
+stays empty, so branded sign-in mail keeps its HTML. `CTM_TRACKING_HOST` (https
+origin) is the per-tenant on-switch. Pixel `/e/o/{token}.gif` is constant; click
+`/e/c/{token}/{i}` redirects only to the target stored for that token and
+index, else to the tenant's site. Only the token's SHA-256 is stored.
+
+### Tracking host scope — `middleware/tracking_host_scope.py`
+
+Tracking hosts join `TrustedHostMiddleware`'s global list at startup, so
+`TrackingHostScopeMiddleware` (added after it, so it runs first) keeps them to
+`/e/o/*` and `/e/c/*`: 404 for any other path, websocket close 1008. Removing
+it would serve sign-in, reset and OIDC discovery under a tenant's marketing
+domain.
+
+### Production migrations — `apps/api/alembic/PROD_ALEMBIC_STATE.json`
+
+Deploys never migrate. Revisions are applied by hand (`docs/ops/sql/*.sql`)
+before promoting code that needs them, and the ledger records the revision a
+human last read out of production. `promote-to-prod.yml` refuses a promote
+whose alembic head is ahead of the ledger unless `migrations_acknowledged=true`.
+Update the ledger only after reading the database
+(`docs/runbooks/ALEMBIC_CONVERGENCE.md`).
 
 ## Repo entrypoints detected
 

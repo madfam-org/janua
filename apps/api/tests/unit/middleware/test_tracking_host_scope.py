@@ -111,3 +111,15 @@ def test_the_api_registers_it():
     from app.main import app
 
     assert any(m.cls is TrackingHostScopeMiddleware for m in app.user_middleware)
+
+
+def test_it_is_registered_after_trusted_host_so_it_runs_first():
+    """main.py adds it after TrustedHostMiddleware. Starlette's user_middleware is
+    outermost-first (add_middleware inserts at 0), so the scope check wraps the
+    host check and a tracking host's non-tracking request never gets further."""
+    from fastapi.middleware.trustedhost import TrustedHostMiddleware
+
+    from app.main import app
+
+    classes = [m.cls for m in app.user_middleware]
+    assert classes.index(TrackingHostScopeMiddleware) < classes.index(TrustedHostMiddleware)

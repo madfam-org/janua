@@ -13,7 +13,7 @@ Operator guides for production GitOps, secrets rotation, and incident records.
 ## Email
 
 - [Recoverable payment notices](payment-notice-recovery.md): scoped service tokens, bounded provider retries, and immutable acceptance receipts.
-- [Resend email events](resend-email-events.md): signed webhook receiver, per-app events feed, render-only preview, and the never-track-token-links rule.
+- [Resend email events](resend-email-events.md): signed webhook receiver, per-app events feed, render-only preview, the never-track-token-links rule, and first-party open/click measurement on per-tenant tracking hosts.
 
 | Document | When to use |
 |----------|-------------|
@@ -30,6 +30,7 @@ Operator guides for production GitOps, secrets rotation, and incident records.
 | Document | Scope |
 |----------|-------|
 | [secrets/ghcr-pat-rotation.md](./secrets/ghcr-pat-rotation.md) | `ghcr-credentials` pull secret |
+| [secrets/resend-webhook-secret-rotation.md](./secrets/resend-webhook-secret-rotation.md) | Resend webhook signing secret per account (`RESEND_WEBHOOK_SECRET_CTM`) |
 | [secrets/DEPLOYMENT_GUIDE.md](./secrets/DEPLOYMENT_GUIDE.md) | General secret deployment |
 | [secrets/EMERGENCY_ROTATION.md](./secrets/EMERGENCY_ROTATION.md) | Break-glass rotation |
 

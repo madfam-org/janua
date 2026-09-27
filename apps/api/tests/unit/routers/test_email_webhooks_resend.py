@@ -203,6 +203,51 @@ async def test_unknown_and_unconfigured_accounts_are_indistinguishable_404s(env)
     assert await _rows(factory) == []
 
 
+@pytest.mark.parametrize("unset", [None, "", "   \n"])
+async def test_ctm_without_its_secret_is_404_and_stores_nothing(env, monkeypatch, unset):
+    """The pod has no RESEND_WEBHOOK_SECRET_CTM (the optional secretKeyRef found
+    no key, or the value is blank): a correctly signed delivery is a 404, which
+    is what Resend's webhook page shows until the secret reaches the pod.
+    docs/runbooks/secrets/resend-webhook-secret-rotation.md reads 404 this way."""
+    client, factory = env
+    monkeypatch.setattr(settings, "RESEND_WEBHOOK_SECRET_CTM", unset)
+    raw, headers = _signed(_payload("email.delivered"))
+    response = await client.post(CTM_URL, content=raw, headers=headers)
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Not found"}
+    assert await _rows(factory) == []
+
+
+async def test_a_stored_value_that_is_not_a_signing_secret_is_401_not_500(env, monkeypatch):
+    """2026-09-26: the command text, not the whsec_ secret, was written to Vault.
+    Whatever lands in the env var, a value that is not a signing secret makes
+    every delivery an undifferentiated 401 (a secret IS present, so not 404),
+    never a 500, and nothing is stored."""
+    client, factory = env
+    monkeypatch.setattr(
+        settings,
+        "RESEND_WEBHOOK_SECRET_CTM",
+        "vault kv patch secret/janua resend_webhook_secret_ctm=-",
+    )
+    raw, headers = _signed(_payload("email.delivered"))  # signed with the real secret
+    response = await client.post(CTM_URL, content=raw, headers=headers)
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid webhook signature"}
+    assert await _rows(factory) == []
+
+
+async def test_surrounding_whitespace_in_the_stored_secret_is_ignored(env, monkeypatch):
+    """A trailing newline from how the value was written does not break
+    verification; the runbook's shape check relies on this."""
+    client, factory = env
+    monkeypatch.setattr(settings, "RESEND_WEBHOOK_SECRET_CTM", f"  {SECRET_CTM}\n")
+    raw, headers = _signed(_payload("email.delivered"))
+    response = await client.post(CTM_URL, content=raw, headers=headers)
+    assert response.status_code == 200
+    assert response.json() == {"status": "stored"}
+    assert len(await _rows(factory)) == 1
+
+
 async def test_each_account_verifies_with_its_own_secret(env, monkeypatch):
     client, factory = env
     monkeypatch.setattr(settings, "RESEND_WEBHOOK_SECRET_PLATFORM", SECRET_PLATFORM)
