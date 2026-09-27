@@ -112,12 +112,22 @@ jobs:
             fi
             # Walk git log; find first historical version where the digest
             # for this component differed from current.
+            #
+            # Each historical version goes through a temp FILE, not a pipe:
+            # `python3 -` already reads its program from the heredoc on stdin,
+            # so a piped `git show | python3 - <<'PY'` is silently dropped by
+            # bash -- sys.stdin.read() was always '' and git show then died of
+            # SIGPIPE under pipefail (exit 141, no message).
             TARGET=""
+            HIST_FILE="$(mktemp)"
+            trap 'rm -f "$HIST_FILE"' EXIT
             for sha in $(git log -n 40 --format=%H -- "$FILE"); do
-              HIST=$(git show "$sha:$FILE" 2>/dev/null | python3 - "$IMAGE" <<'PY'
-          import re, sys
+              # A commit that deleted the file has no version to read; skip it.
+              git show "$sha:$FILE" > "$HIST_FILE" 2>/dev/null || continue
+              HIST=$(python3 - "$IMAGE" "$HIST_FILE" <<'PY'
+          import re, sys, pathlib
           image = sys.argv[1]
-          t = sys.stdin.read()
+          t = pathlib.Path(sys.argv[2]).read_text()
           pat = r'name:\s+' + re.escape(image) + r'\s*\n(?:\s+newName:[^\n]+\n)?\s+digest:\s+(sha256:[a-f0-9]+)'
           m = re.search(pat, t)
           if not m:
@@ -185,5 +195,18 @@ jobs:
 
       - name: Notify
         if: always()
+        # always() so an operator mid-incident gets a verdict either way --
+        # but the verdict must match what happened. job.status is the status
+        # of the steps before this one. On failure the push (the write step's
+        # last command) never succeeded, so nothing reached main; a
+        # cancellation can interrupt at any point, so it claims neither.
         run: |
-          echo "::notice::Janua ${{ inputs.component }} rolled back to ${{ steps.target.outputs.target }}. Monitor ArgoCD (janua Application) for reconcile completion. RTO target <5min."
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "::notice::Janua ${{ inputs.component }} rolled back to ${{ steps.target.outputs.target }}. Monitor ArgoCD (janua Application) for reconcile completion. RTO target <5min."
+          elif [[ "${{ job.status }}" == "cancelled" ]]; then
+            echo "::notice::Janua ${{ inputs.component }} rollback was CANCELLED — whether it landed is unknown. Check main for a rollback(prod) commit before re-dispatching."
+          elif [[ -z "${{ steps.target.outputs.target }}" ]]; then
+            echo "::notice::Janua ${{ inputs.component }} rollback FAILED (${{ job.status }}) — it did NOT land: no target digest was resolved (acknowledgement, reason or target resolution failed; see the failed step above). Production is unchanged."
+          else
+            echo "::notice::Janua ${{ inputs.component }} rollback to ${{ steps.target.outputs.target }} FAILED (${{ job.status }}) — it did NOT land: writing or pushing the prod kustomization failed (see the failed step above). Production is unchanged."
+          fi
