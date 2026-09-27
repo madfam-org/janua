@@ -295,12 +295,22 @@ jobs:
         run: |
           set -euo pipefail
           FILE="k8s/overlays/production/kustomization.yaml"
-          if [[ ! -f "$FILE" ]]; then
-            echo "::error::$FILE does not exist. PP.3b must land first — it renames k8s/overlays/prod -> k8s/overlays/production and migrates digests out of k8s/base/deployments."
-            exit 1
-          fi
 
-          python3 <<'PY'
+          # Why this patches a FRESH origin/main instead of the checkout:
+          # actions/checkout pins this job to the dispatch-time github.sha.
+          # The prod-promote concurrency group serializes runs, so a promote
+          # dispatched seconds after another one starts only once the first
+          # has pushed its deploy(prod) commit -- and its stale checkout then
+          # gets "! [rejected] main -> main (fetch first)" (2026-09-27: run
+          # 36313882945 lost to 36313874928). `gh run rerun` reuses the same
+          # SHA and fails identically.
+          #
+          # So every attempt re-fetches main, re-applies the patch and pushes.
+          # The patch is idempotent (it SETS each chosen component's digest)
+          # and uses ONLY the digests the validate job resolved and soak-
+          # checked -- it never re-reads the staging overlay of the newer main.
+          patch_prod() {
+            python3 <<'PY'
           import os, re, pathlib
           path = pathlib.Path("k8s/overlays/production/kustomization.yaml")
           text = path.read_text()
@@ -332,15 +342,41 @@ jobs:
           text = patch(text, "ghcr.io/madfam-org/janua-website",   os.environ["WEBSITE_DIGEST"])
           path.write_text(text)
           PY
+          }
 
           git config user.name "madfam-deploy-bot"
           git config user.email "deploy-bot@madfam.io"
-          git add "$FILE"
-          git commit -m "deploy(prod): promote $SHORT
+
+          MAX_ATTEMPTS=5
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            # The checkout is shallow (depth 1); a depth-1 fetch of main is
+            # all we need to commit on top of its tip.
+            git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+            git reset --hard refs/remotes/origin/main
+
+            if [[ ! -f "$FILE" ]]; then
+              echo "::error::$FILE does not exist. PP.3b must land first — it renames k8s/overlays/prod -> k8s/overlays/production and migrates digests out of k8s/base/deployments."
+              exit 1
+            fi
+
+            patch_prod
+            git add "$FILE"
+            if git diff --cached --quiet; then
+              echo "No digest change — already at target"
+              exit 0
+            fi
+            git commit -m "deploy(prod): promote $SHORT
 
           Reason: $REASON
-          Promoted-by: $ACTOR" || {
-            echo "No digest change — already at target"
-            exit 0
-          }
-          git push
+          Promoted-by: $ACTOR"
+
+            if git push origin HEAD:refs/heads/main; then
+              exit 0
+            fi
+            if [[ "$attempt" -lt "$MAX_ATTEMPTS" ]]; then
+              echo "::warning::Push rejected (attempt $attempt/$MAX_ATTEMPTS) — main moved under us; re-fetching and re-applying the validated digests."
+              sleep $(( attempt * 3 ))
+            fi
+          done
+          echo "::error::Could not push the prod kustomization after $MAX_ATTEMPTS attempts — main kept moving. Nothing was promoted; re-dispatch once main is quiet."
+          exit 1
