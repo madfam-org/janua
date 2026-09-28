@@ -36,8 +36,6 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 
 import pytest
-
-from app.services import resend_transport
 from httpx import ASGITransport, AsyncClient
 
 import app.services.resend_email_service as resend_module
@@ -49,6 +47,7 @@ from app.routers.v1.email import (
     _get_safe_template_path,
     render_template,
 )
+from app.services import resend_transport
 from app.services.email_branding import CTM_BRANDING, CTM_ORG_ID
 
 SEND_TEMPLATE_URL = "/api/v1/internal/email/send-template"
