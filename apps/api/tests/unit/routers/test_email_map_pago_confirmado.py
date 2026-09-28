@@ -335,6 +335,7 @@ async def test_resolves_to_ctm_org_sender_via_org_id(capture_resend, client):
 
 _STYLE_TAG = re.compile(r"<style\b", re.IGNORECASE)
 _SLOT = re.compile(r"\{\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\}\}")
+_HREF = re.compile(r'href="([^"]*)"')
 
 
 async def _render_full(**extra: Any) -> str:
@@ -407,10 +408,15 @@ async def test_crea_frame_drops_the_old_generic_palette():
 
 @pytest.mark.asyncio
 async def test_crea_frame_links_go_to_the_www_site():
-    """The bare apex did not answer on 2026-09-28; the site is www."""
+    """The bare apex did not answer on 2026-09-28; the site is www. Compared
+    as whole href values, so the check is exact rather than a substring."""
     html = await _render_full()
-    assert "https://www.creatumundo.mx" in html
-    assert 'href="https://creatumundo.mx"' not in html
+    hrefs = _HREF.findall(html)
+    site = "https://www.creatumundo.mx"
+    # The header logo, the header name and the footer «Sitio web».
+    assert hrefs.count(site) == 3, hrefs
+    # Every other link is the platform credit; nothing else is linked.
+    assert set(hrefs) == {site, CTM_BRANDING["platform_url"]}, hrefs
 
 
 @pytest.mark.asyncio
