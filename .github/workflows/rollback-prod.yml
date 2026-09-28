@@ -151,8 +151,18 @@ jobs:
         run: |
           set -euo pipefail
           FILE="k8s/overlays/production/kustomization.yaml"
-          python3 <<'PY'
-          import os, re, pathlib
+
+          # Why this patches a FRESH origin/main instead of the checkout:
+          # actions/checkout pins this job to the dispatch-time github.sha, and
+          # the prod-promote concurrency group makes a rollback queue behind a
+          # promote that then pushes -- so a push from the stale checkout is
+          # rejected with "fetch first" (same race as promote-to-prod.yml,
+          # 2026-09-27 run 36313882945). Every attempt re-fetches main and
+          # re-applies ONLY the TARGET the step above already resolved; it
+          # never re-resolves the target from the newer main.
+          patch_prod() {
+            python3 <<'PY'
+          import os, re, pathlib, sys
           p = pathlib.Path("k8s/overlays/production/kustomization.yaml")
           t = p.read_text()
           target = os.environ["TARGET"]
@@ -165,23 +175,51 @@ jobs:
           alt = (
               r'(digest:\s+)sha256:[a-f0-9]+(\s*\n\s+name:\s+' + re.escape(image) + r')'
           )
-          if re.search(pat, t):
-              t = re.sub(pat, lambda m: m.group(1) + target, t)
-          elif re.search(alt, t):
-              t = re.sub(alt, lambda m: m.group(1) + target + m.group(2), t)
-          else:
-              raise SystemExit(f"Could not locate {image} digest entry")
+          # Presence is decided by the match count, never by comparing text:
+          # an entry already at TARGET still counts as found.
+          t, n = re.subn(pat, lambda m: m.group(1) + target, t)
+          if n == 0:
+              t, n = re.subn(alt, lambda m: m.group(1) + target + m.group(2), t)
+          if n == 0:
+              print(f"::error::Could not locate {comp} ({image}) digest entry in {p}")
+              sys.exit(1)
           p.write_text(t)
           PY
+          }
+
           SHORT="${TARGET:7:15}"
           git config user.name "madfam-deploy-bot"
           git config user.email "deploy-bot@madfam.io"
-          git add "$FILE"
-          git commit -m "rollback(prod): restore $COMPONENT $SHORT
+
+          MAX_ATTEMPTS=5
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+            git reset --hard refs/remotes/origin/main
+
+            if [[ ! -f "$FILE" ]]; then
+              echo "::error::$FILE does not exist. PP.3b must land first — rollback target path is the post-PP.3b canonical overlay."
+              exit 1
+            fi
+
+            patch_prod
+            git add "$FILE"
+            # Unchanged guard: rolling back to the digest main already runs
+            # is a mistake, and `git commit` fails the step as it always has.
+            git commit -m "rollback(prod): restore $COMPONENT $SHORT
 
           Reason: $REASON
           Rolled-back-by: $ACTOR"
-          git push
+
+            if git push origin HEAD:refs/heads/main; then
+              exit 0
+            fi
+            if [[ "$attempt" -lt "$MAX_ATTEMPTS" ]]; then
+              echo "::warning::Push rejected (attempt $attempt/$MAX_ATTEMPTS) — main moved under us; re-fetching and re-applying rollback target $TARGET."
+              sleep $(( attempt * 3 ))
+            fi
+          done
+          echo "::error::Could not push the rollback after $MAX_ATTEMPTS attempts — main kept moving. Nothing was rolled back; re-dispatch once main is quiet."
+          exit 1
 
       - name: Notify
         if: always()
