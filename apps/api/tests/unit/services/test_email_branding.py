@@ -88,10 +88,11 @@ class TestResolveBranding:
         assert b["header_name"] == "Crea Tu Mundo"
         # Footer credits MADFAM (the platform underneath a client tenant).
         assert b["platform_name"] == "MADFAM"
-        assert b["header_bg"] == "#1a2a8f"
+        # The brand manual's blue (#2d2f86), not the old #1a2a8f indigo.
+        assert b["header_bg"] == "#2d2f86"
         # CTM carries the client's header mark and MADFAM's footer mark (the
         # same public crea-map assets the kalya booking emails use).
-        assert b["header_logo_url"] == "https://map.creatumundo.mx/crea-logo-email.png"
+        assert b["header_logo_url"] == "https://map.creatumundo.mx/crea-tu-mundo-oro.png"
         assert b["footer_logo_url"] == "https://map.creatumundo.mx/madfam-logo.png"
 
     def test_madfam_default_has_no_hotlinked_logos(self):
@@ -391,7 +392,8 @@ class TestRenderedFrame:
     def test_ctm_header_reads_crea_tu_mundo(self):
         html = self._render(locale="es", branding_url=CTM_REDIRECT)
         assert "Crea Tu Mundo" in html
-        assert "#1a2a8f" in html
+        assert "#2d2f86" in html
+        assert "#1a2a8f" not in html
 
     def test_ctm_header_drops_madfam_logo(self):
         """CTM header carries the CREA mark, never the MADFAM one. The MADFAM
@@ -401,7 +403,7 @@ class TestRenderedFrame:
         header_seg = html.split('class="content"')[0]
         assert 'alt="MADFAM"' not in header_seg
         # The CTM header carries the Crea mark (hotlinked, alt = the brand name).
-        assert "crea-logo-email.png" in header_seg
+        assert "crea-tu-mundo-oro.png" in header_seg
         assert 'alt="Crea Tu Mundo"' in header_seg
 
     def test_ctm_footer_carries_madfam_mark(self):
@@ -416,7 +418,7 @@ class TestRenderedFrame:
         """No branding signal -> the inline MADFAM mark only; neither hotlinked
         CTM asset appears."""
         html = self._render(locale="en")
-        assert "crea-logo-email.png" not in html
+        assert "crea-tu-mundo-oro.png" not in html
         assert "madfam-logo.png" not in html
 
     def test_ctm_es_footer_credits_madfam_with_con_tecnologia_de(self):

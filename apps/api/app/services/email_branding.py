@@ -71,6 +71,12 @@ MADFAM_BRANDING: Dict[str, str] = {
     # missing key, so the template's `if` is a plain truthiness test.
     "header_logo_url": "",
     "footer_logo_url": "",
+    # Whose small print the frame carries. "madfam": base.html's tagline, ©
+    # Innovaciones MADFAM line, madfam.io legal links, hola@madfam.io and the
+    # "account with MADFAM" line — exactly as before. "tenant": none of that,
+    # only the "Con tecnología de MADFAM" credit. base.html defaults a missing
+    # key to "madfam", so a caller that passes no branding is unchanged too.
+    "frame_owner": "madfam",
 }
 
 # --------------------------------------------------------------------------
@@ -80,19 +86,24 @@ MADFAM_BRANDING: Dict[str, str] = {
 # platform underneath a client tenant IS MADFAM, so `platform_name` is MADFAM
 # here, not Janua).
 #
-# CTM palette: deep royal indigo on a warm cream ground. The header logo is
-# the gold Crea mark with the indigo header ground BAKED IN (flat RGB PNG, no
-# alpha), the same asset the kalya booking emails carry and which is verified
-# to render in real inboxes (Proton, 2026-08-29). The client's own name in
-# brand colors remains the `<img>` alt text, so with images OFF the header
-# still reads "Crea Tu Mundo" — the logo is an enhancement over the
-# typographic frame, not a replacement for it.
+# CTM palette: the Crea Tu Mundo brand manual's blue, #2d2f86 (the owner's
+# brand token; crea-map names it AZUL_MARCA), on a warm cream ground. Until
+# 2026-09-28 the header was #1a2a8f, an indigo that is not the manual's blue.
+#
+# The header logo is the gold Crea casita with a TRANSPARENT ground
+# (`crea-tu-mundo-oro.png`, RGBA, served by the MAP today), so it sits on
+# whatever blue the header is. The previous asset, `crea-logo-email.png`, is a
+# flat RGB PNG with the old #1a2a8f baked in, which shows as a visibly
+# different square on #2d2f86. The client's own name remains the `<img>` alt
+# text, so with images OFF the header still reads "Crea Tu Mundo" — the logo
+# is an enhancement over the typographic frame, not a replacement for it.
 #
 # WHY HOTLINKED, NOT INLINE. The MADFAM default header ships an inline base64
 # PNG (blocked-image-proof). CTM's marks are hotlinked from the MAP's canonical
-# host map.creatumundo.mx instead, deliberately: they are ALREADY LIVE and public there, they are the
-# byte-identical assets the kalya emails use (one source of truth for the CTM
-# brand across both mailers), and they proved to render in Proton. Keeping the
+# host map.creatumundo.mx instead, deliberately: they are ALREADY LIVE and
+# public there, the MAP owns the CTM brand assets (one source of truth for the
+# brand across its mailers), and a hotlinked mark can be swapped without a
+# janua release of the bytes. Keeping the
 # alt text as the brand name preserves the images-off case. The URLs name the
 # canonical host, never the crea-map.madfam.io alias: the alias answers 301,
 # and mail image proxies do not reliably follow redirects.
@@ -101,18 +112,23 @@ CTM_ORG_ID = "e6cbd51d-8329-4c4e-8c74-aba643ab4575"
 
 CTM_BRANDING: Dict[str, str] = {
     "header_name": "Crea Tu Mundo",
-    # Deep royal indigo, flat (no gradient) — reads as the brand, not as a
-    # second MADFAM. `header_fg` is the warm-cream text on that indigo ground.
-    "header_bg": "#1a2a8f",
+    # The brand blue, flat (no gradient) — reads as the brand, not as a
+    # second MADFAM. `header_fg` is the warm-cream text on that blue ground.
+    "header_bg": "#2d2f86",
     "header_fg": "#fdf6e3",
     # The footer credits the platform, which for a client tenant is MADFAM.
     "platform_name": "MADFAM",
     "platform_url": "https://madfam.io",
-    # The gold Crea mark on the indigo header ground (60px, flat RGB, ~10KB),
-    # and the MADFAM mark for the "Con tecnología de MADFAM" footer (28px).
-    # Same public assets as the kalya booking emails (crea-map origin).
-    "header_logo_url": "https://map.creatumundo.mx/crea-logo-email.png",
+    # The gold Crea casita on a transparent ground (shown at 60px; 300x297
+    # RGBA, ~24KB), and the MADFAM mark for the "Con tecnología de MADFAM"
+    # footer (28px, the same asset the kalya booking emails use). Both are
+    # public crea-map assets on the canonical host.
+    "header_logo_url": "https://map.creatumundo.mx/crea-tu-mundo-oro.png",
     "footer_logo_url": "https://map.creatumundo.mx/madfam-logo.png",
+    # The client's frame carries the client's small print, not MADFAM's: no
+    # MADFAM tagline, © line, madfam.io legal links or hola@madfam.io. The
+    # "Con tecnología de MADFAM" credit stays. See base.html.
+    "frame_owner": "tenant",
 }
 
 # Hosts whose sign-in redirect identifies a CTM user. Matched on exact host or
