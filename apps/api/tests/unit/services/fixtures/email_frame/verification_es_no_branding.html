@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="{{ lang() }}">
+<html lang="es-MX">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ subject }}</title>
+    <title>MADFAM</title>
     <style>
         body {
             margin: 0;
@@ -106,8 +106,8 @@
                  MADFAM values so every existing caller renders byte-identically;
                  a client tenant (CTM) passes its own name and colors, and the
                  footer below credits MADFAM via "Con tecnología de". -->
-            <div class="header" style="background: {{ header_bg | default('linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', true) }}; color: {{ header_fg | default('#ffffff', true) }};">
-                {% if (header_name | default('MADFAM', true)) == 'MADFAM' %}
+            <div class="header" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #ffffff;">
+                
                 <div class="logo">
                     <!-- INLINE PNG, not the SVG and not a remote URL.
                          Gmail strips <svg> entirely, and most clients block
@@ -121,22 +121,8 @@
                          width="60" height="60" alt="MADFAM"
                          style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;" />
                 </div>
-                {% endif %}
-                {% if header_logo_url | default('', true) %}
-                <!-- A client TENANT's own header mark (CTM's gold Crea logo on
-                     the indigo ground). HOTLINKED from map.creatumundo.mx — the
-                     same public asset the kalya booking emails carry, verified
-                     to render in real inboxes. The `alt` is the tenant name, so
-                     with images OFF this degrades to exactly the typographic
-                     wordmark below rather than to nothing. Only set for a
-                     client tenant (email_branding.py); the MADFAM default keeps
-                     its inline base64 mark above and leaves this empty. -->
-                <div class="logo">
-                    <img src="{{ header_logo_url }}"
-                         width="60" height="60" alt="{{ header_name | default('MADFAM', true) }}"
-                         style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;" />
-                </div>
-                {% endif %}
+                
+                
                 <!-- The wordmark. MADFAM by default, on every platform's own
                      message: bespoke clients meet several of our platforms over
                      an engagement, and a header that changes per PRODUCT reads
@@ -145,31 +131,15 @@
                      here, with MADFAM credited in the footer. `header_name`
                      defaults to MADFAM so nothing changes for existing callers;
                      the From line is MADFAM regardless. -->
-                <h1 style="margin: 0; font-size: 24px; font-weight: 600;">{{ header_name | default('MADFAM', true) }}</h1>{% if (frame_owner | default('madfam', true)) == 'madfam' %}
-                <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">{{ t('tagline') }}</p>{% endif %}
+                <h1 style="margin: 0; font-size: 24px; font-weight: 600;">MADFAM</h1>
+                <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Tecnología, diseñada para su operación</p>
             </div>
             
-            <div class="content">
-                {% block content %}
-                {% endblock %}
-            </div>
-            
-            <div class="footer">{#
-                The small print is MADFAM's: its tagline (header, above), the
-                © line, the madfam.io legal links, hola@madfam.io and the
-                "you have an account with MADFAM" line. A client tenant's frame
-                (`frame_owner` = "tenant", set in email_branding.py) carries
-                none of it and keeps only the "Con tecnología de MADFAM"
-                credit. Every other caller defaults to "madfam" and renders
-                byte-for-byte as before (tests/unit/services/
-                test_email_frame_tenant_footer.py pins that against golden
-                files). The tags sit at line ends on purpose: this environment
-                has no trim_blocks, so a tag on its own line would add a blank
-                line to every MADFAM email.
-            #}{% if (frame_owner | default('madfam', true)) == 'madfam' %}
+            <!-- body elided -->
+<div class="footer">
                 <p style="margin: 0 0 10px 0;">
-                    © {{ current_year }} Innovaciones MADFAM S.A.S. de C.V. {{ t('rights') }}
-                </p>{% endif %}
+                    © 2026 Innovaciones MADFAM S.A.S. de C.V. Todos los derechos reservados.
+                </p>
                 <!-- "Powered by" credits the platform without competing with the
                      MADFAM brand above. `platform_name`/`platform_url` default
                      to Janua so every existing caller renders correctly; a
@@ -180,13 +150,10 @@
                      MADFAM default leaves it empty (the header already carries
                      the MADFAM brand, so a footer mark would be redundant). -->
                 <p style="margin: 0 0 10px 0; font-size: 12px; opacity: 0.75;">
-                    {% if footer_logo_url | default('', true) %}
-                    <img src="{{ footer_logo_url }}" width="28" height="28" alt="{{ platform_name | default('Janua', true) }}"
-                         style="display:inline-block;border:0;vertical-align:middle;margin-right:6px;" />
-                    {% endif %}
-                    {{ t('powered_by') }}
-                    <a href="{{ platform_url | default('https://janua.dev', true) }}">{{ platform_name | default('Janua', true) }}</a>
-                </p>{% if (frame_owner | default('madfam', true)) == 'madfam' %}
+                    
+                    Con tecnología de
+                    <a href="https://janua.dev">Janua</a>
+                </p>
                 <p style="margin: 0 0 10px 0;">
                     <!-- These three 404'd on janua.dev. They are not decoration:
                          an "Aviso de privacidad" link that goes nowhere ASSERTS a
@@ -200,15 +167,15 @@
                          Support is dropped: janua.dev/support 404s and we have no
                          support site — hola@ is where a client should write, and it
                          is now the sender they can simply reply to. -->
-                    <a href="https://madfam.io/{{ legal_locale }}/privacy">{{ t('privacy') }}</a> •
-                    <a href="https://madfam.io/{{ legal_locale }}/terms">{{ t('terms') }}</a> •
-                    <a href="mailto:hola@madfam.io">{{ t('support') }}</a>
+                    <a href="https://madfam.io/es/privacy">Aviso de privacidad</a> •
+                    <a href="https://madfam.io/es/terms">Términos del servicio</a> •
+                    <a href="mailto:hola@madfam.io">Soporte</a>
                 </p>
                 <p style="margin: 0; color: #9ca3af; font-size: 11px;">
-                    {{ t('why_received') }}
+                    Recibió este correo electrónico porque tiene una cuenta con MADFAM.
                     <br>
-                    {{ t('location') }}
-                </p>{% endif %}
+                    Innovaciones MADFAM S.A.S. de C.V. • Cuernavaca, Morelos, México
+                </p>
             </div>
         </div>
     </div>

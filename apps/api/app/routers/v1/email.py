@@ -17,6 +17,7 @@ from pydantic import BaseModel, EmailStr, Field
 from app.config import settings
 from app.dependencies import verify_internal_api_key
 from app.routers.v1.email_cfdi import cfdi_portal_slots
+from app.services.email_branding import CTM_BRANDING
 from app.services.email_tags import build_tags
 from app.services.resend_email_service import ResendEmailService as ResendService
 
@@ -635,6 +636,24 @@ def _get_safe_template_path(template_id: str) -> str:
     return str(resolved_path)
 
 
+#: The Crea frame slots map/pago-confirmado fills from CTM_BRANDING: the same
+#: header ground/text, logos and platform credit base.html draws for the CTM
+#: tenant. `frame_owner` is a Jinja-frame switch with no slot here, so it is
+#: left out.
+_CTM_FRAME_SLOTS: Dict[str, str] = {
+    key: CTM_BRANDING[key]
+    for key in (
+        "header_name",
+        "header_bg",
+        "header_fg",
+        "header_logo_url",
+        "footer_logo_url",
+        "platform_name",
+        "platform_url",
+    )
+}
+
+
 def _sesiones_detalle(sesiones: Any) -> str:
     """The Spanish session-count parenthetical for map/pago-confirmado, or "".
 
@@ -678,6 +697,11 @@ def _derive_template_variables(template_id: str, variables: Dict[str, Any]) -> D
     if template_id == "map/pago-confirmado":
         derived = dict(variables)
         derived["sesiones_detalle"] = _sesiones_detalle(variables.get("sesiones"))
+        # The Crea frame's values (brand ground and text, both logos, the
+        # credited platform) come from the one CTM registry the sign-in mail's
+        # frame reads too, never from the caller: set last, so a caller's
+        # same-named variable cannot restyle or re-link the frame.
+        derived.update(_CTM_FRAME_SLOTS)
         return derived
     if template_id == "billing/cfdi":
         derived = dict(variables)

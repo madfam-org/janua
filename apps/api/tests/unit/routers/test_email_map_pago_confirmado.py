@@ -49,7 +49,7 @@ from app.routers.v1.email import (
     _get_safe_template_path,
     render_template,
 )
-from app.services.email_branding import CTM_ORG_ID
+from app.services.email_branding import CTM_BRANDING, CTM_ORG_ID
 
 SEND_TEMPLATE_URL = "/api/v1/internal/email/send-template"
 TEMPLATE_ID = "map/pago-confirmado"
@@ -328,3 +328,100 @@ async def test_resolves_to_ctm_org_sender_via_org_id(capture_resend, client):
     params = capture_resend[0]
     assert "hola@creatumundo.mx" in params["from"]
     assert "madfam.io" not in params["from"]
+
+
+# --------------------------------------------------------------------------
+# The Crea frame (2026-09-28): presentation only, values from CTM_BRANDING
+# --------------------------------------------------------------------------
+
+_STYLE_TAG = re.compile(r"<style\b", re.IGNORECASE)
+_SLOT = re.compile(r"\{\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\}\}")
+
+
+async def _render_full(**extra: Any) -> str:
+    return await render_template(
+        TEMPLATE_ID, {"periodo": "septiembre de 2026", "sesiones": 8, **extra}
+    )
+
+
+@pytest.mark.asyncio
+async def test_renders_in_the_crea_frame_from_ctm_branding():
+    """Header ground, header text, both logos and the platform credit are the
+    CTM registry's values: the same ones base.html's CTM frame draws."""
+    html = await _render_full()
+    header = html.split("Tu pago quedó confirmado</h1>")[0]
+    assert CTM_BRANDING["header_bg"] == "#2d2f86"
+    assert f'bgcolor="{CTM_BRANDING["header_bg"]}"' in header
+    assert f"background-color: {CTM_BRANDING['header_bg']}" in header
+    assert f"color: {CTM_BRANDING['header_fg']}" in header
+    assert CTM_BRANDING["header_fg"] == "#fdf6e3"
+    assert (
+        f'<img src="{CTM_BRANDING["header_logo_url"]}" width="60" height="60" '
+        f'alt="{CTM_BRANDING["header_name"]}"' in header
+    )
+    footer = html.split("con gusto te apoyamos.")[1]
+    assert CTM_BRANDING["footer_logo_url"] in footer
+    assert "Con tecnología de" in footer
+    assert f'<a href="{CTM_BRANDING["platform_url"]}"' in footer
+    assert f">{CTM_BRANDING['platform_name']}</a>" in footer
+    assert CTM_BRANDING["platform_name"] == "MADFAM"
+
+
+@pytest.mark.asyncio
+async def test_crea_frame_keeps_every_variable_and_all_copy():
+    """Presentation only: the period, the session parenthetical and every line
+    of the previous copy are still there, and no slot is left unfilled."""
+    html = await _render_full()
+    body = _visible_body(html)
+    for text in (
+        "Tu pago quedó confirmado",
+        "Hola,",
+        "Tu pago por el trabajo entregado de <strong>septiembre de 2026</strong> (8 sesiones)",
+        "quedó confirmado.",
+        "Gracias por tu labor. Tu trabajo hace posible lo que hacemos.",
+        "Si tienes alguna duda sobre tu pago, responde a este correo y",
+        "con gusto te apoyamos.",
+        "Este correo fue enviado por <strong>Crea Tu Mundo</strong>",
+        "Sitio web",
+        "© Crea Tu Mundo. Todos los derechos reservados.",
+        ">Crea Tu Mundo</a>",
+    ):
+        assert text in body, text
+    assert not _SLOT.search(html), _SLOT.findall(html)
+
+
+@pytest.mark.asyncio
+async def test_crea_frame_is_inline_styles_only():
+    """Mail clients strip <style>; every rule must sit on its element."""
+    html = await _render_full()
+    assert not _STYLE_TAG.search(html)
+    assert 'class="' not in html
+
+
+@pytest.mark.asyncio
+async def test_crea_frame_drops_the_old_generic_palette():
+    """No grey header, green box, generic link blue or old indigo."""
+    html = (await _render_full()).lower()
+    for old in ("#1f2937", "#ecfdf5", "#059669", "#065f46", "#2563eb", "#1a2a8f"):
+        assert old not in html, old
+
+
+@pytest.mark.asyncio
+async def test_crea_frame_links_go_to_the_www_site():
+    """The bare apex did not answer on 2026-09-28; the site is www."""
+    html = await _render_full()
+    assert "https://www.creatumundo.mx" in html
+    assert 'href="https://creatumundo.mx"' not in html
+
+
+@pytest.mark.asyncio
+async def test_caller_cannot_restyle_the_frame():
+    """The frame slots are set from the registry AFTER the caller's variables,
+    so a same-named caller value never reaches the body."""
+    html = await _render_full(
+        header_bg="red", header_logo_url="https://evil.test/x.png", platform_url="https://evil.test"
+    )
+    assert "evil.test" not in html
+    assert 'bgcolor="red"' not in html
+    assert "background-color: red" not in html
+    assert CTM_BRANDING["header_bg"] in html
