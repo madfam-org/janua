@@ -95,6 +95,17 @@ PILOT_SCOPE: tuple[Endpoint, ...] = (
             "cursor-paginated (no recipient data)."
         ),
     ),
+    # Read-only (2026-09-28): how much of a tenant's own Resend quota is used,
+    # counted from the stored `email.sent` events. Counts only.
+    Endpoint(
+        method="GET",
+        path=f"{INTERNAL_PREFIX}/email/usage",
+        tool_name="janua_email_usage",
+        summary=(
+            "Count messages accepted today, this month and per day on an organization's "
+            "own Resend account (counts only, no recipient data)."
+        ),
+    ),
     Endpoint(
         method="POST",
         path=f"{INTERNAL_PREFIX}/email/preview",

@@ -22,6 +22,7 @@ from app.services.email_i18n import build_email_environment
 from app.services.email_sender import binding_for, sender_for_address
 from app.services.email_tags import normalize_tags
 from app.services.email_tracking import untracked_bodies
+from app.services.email_usage import quota_error_code
 from app.services.resend_transport import send_on_account
 from app.services.sender_binding import PROVIDER_SMTP
 from app.services.sender_credentials import SenderCredentialError, resolve_credential
@@ -47,6 +48,9 @@ class EmailDeliveryStatus:
     timestamp: datetime
     error_message: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    #: The provider's quota refusal (`daily_quota_exceeded` /
+    #: `monthly_quota_exceeded`), so a caller can say WHY and when it clears.
+    error_code: Optional[str] = None
 
 
 @dataclass
@@ -408,13 +412,15 @@ class ResendEmailService:
             return delivery_status
 
         except Exception as e:
-            # Handle failure
+            # Handle failure. A quota refusal keeps its provider code: the
+            # caller can tell "come back after the reset" from "this failed".
             delivery_status = EmailDeliveryStatus(
                 message_id=message_id,
                 status="failed",
                 timestamp=datetime.utcnow(),
                 error_message="Email provider send failed",
                 metadata=metadata,
+                error_code=quota_error_code(e),
             )
 
             if track_delivery:

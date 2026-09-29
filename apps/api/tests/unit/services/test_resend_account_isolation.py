@@ -134,3 +134,54 @@ def test_deadline_is_checked_after_waiting_for_shared_account_lock(monkeypatch):
         )
     provider.assert_not_called()
     assert transport.resend.api_key == "ambient-fixture"
+
+
+class _QuotaRefusal(Exception):
+    """Shaped like resend's RateLimitError: the provider type on `error_type`."""
+
+    def __init__(self, error_type):
+        super().__init__("provider refused")
+        self.error_type = error_type
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error_type,expected",
+    [
+        ("daily_quota_exceeded", "daily_quota_exceeded"),
+        ("monthly_quota_exceeded", "monthly_quota_exceeded"),
+        ("rate_limit_exceeded", None),
+    ],
+)
+async def test_quota_refusal_keeps_its_provider_code(monkeypatch, error_type, expected):
+    """A 429 quota refusal is a failed send that says WHICH quota (crea-map queues it)."""
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(primary.settings, "EMAIL_ENABLED", True)
+    monkeypatch.setattr(primary.settings, "RESEND_API_KEY", "platform-fixture")
+    monkeypatch.setattr(primary.settings, "ENVIRONMENT", "test")
+
+    async def envelope(**_kwargs):
+        return SimpleNamespace(
+            unsupported_provider_tenant=None,
+            sender_name="Fixture",
+            sender_address="hola@ejemplo.test",
+            sender_reply_to=None,
+            html="<p>Fixture</p>",
+            text="Fixture",
+            api_key_override="tenant-fixture",
+        )
+
+    def refuse(_params, _key):
+        raise _QuotaRefusal(error_type)
+
+    monkeypatch.setattr(primary, "resolve_message_envelope", envelope)
+    monkeypatch.setattr(primary, "send_on_account", refuse)
+    status = await primary.ResendEmailService().send_email(
+        to_email="persona01@ejemplo.test",
+        subject="Fixture",
+        html_content="<p>Fixture</p>",
+        track_delivery=False,
+    )
+    assert status.status == "failed"
+    assert status.error_code == expected
