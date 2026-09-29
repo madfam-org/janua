@@ -179,14 +179,61 @@ async def test_service_token_manages_its_own_org(env, http, service_token):
     assert updated.status_code == 200
     read = await http.get(path, headers=headers)
     assert read.status_code == 200
-    assert read.json()["accent_color"] == "#f4a261"
-    assert read.json()["company_favicon_url"] == "https://example.com/icon.svg"
+    body = read.json()
+    assert body["accent_color"] == "#f4a261"
+    assert body["primary_color"] == "#2d2f86"
+    assert body["company_name"] == "Synthetic"
+    assert body["company_favicon_url"] == "https://example.com/icon.svg"
+    assert body["is_enabled"] is True
+
+    # Stored where the table can hold it: columns for the named fields, the
+    # rest under features["branding"].
+    async with env["factory"]() as db:
+        row = (await db.execute(select(BrandingConfiguration))).scalar_one()
+        assert row.brand_name == "Synthetic"
+        assert row.favicon_url == "https://example.com/icon.svg"
+        assert row.features["branding"]["accent_color"] == "#f4a261"
+
+
+async def test_public_stylesheet_renders_the_stored_tokens(env, http, service_token):
+    headers = bearer(service_token(env["org"]))
+    await http.post(
+        "/api/v1/white-label/branding",
+        params={"organization_id": str(env["org"])},
+        json={**BRAND, "accent_color": "#f2581e"},
+        headers=headers,
+    )
+    css = await http.get(f"/api/v1/white-label/css/{env['org']}")
+    assert css.status_code == 200
+    assert "--primary-color: #2d2f86" in css.text
+    assert "--accent-color: #f2581e" in css.text
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("primary_color", "rgb(0,0,0)"),
+        ("accent_color", "#12345678"),
+        ("font_family", "x;} body{display:none"),
+        ("border_radius", "8px;}"),
+    ],
+)
+async def test_style_tokens_are_validated(env, http, service_token, field, value):
+    result = await http.post(
+        "/api/v1/white-label/branding",
+        params={"organization_id": str(env["org"])},
+        json={**BRAND, field: value},
+        headers=bearer(service_token(env["org"])),
+    )
+    assert result.status_code == 422
 
 
 async def test_service_token_cannot_reach_another_org(env, http, service_token):
     headers = bearer(service_token(env["org"]))
     other = str(env["other_org"])
-    assert (await http.get(f"/api/v1/white-label/branding/{other}", headers=headers)).status_code == 403
+    assert (
+        await http.get(f"/api/v1/white-label/branding/{other}", headers=headers)
+    ).status_code == 403
     assert (
         await http.put(f"/api/v1/white-label/branding/{other}", json=BRAND, headers=headers)
     ).status_code == 403
@@ -282,7 +329,9 @@ async def test_person_path_is_unchanged(env, http, person_token, service_token):
     # Any signed-in person may read, whatever their organization.
     assert (await http.get(path, headers=bearer(person_token(env["person"])))).status_code == 200
     # Only a platform admin may write.
-    refused = await http.put(path, json={"accent_color": "#000000"}, headers=bearer(person_token(env["person"])))
+    refused = await http.put(
+        path, json={"accent_color": "#000000"}, headers=bearer(person_token(env["person"]))
+    )
     assert refused.status_code == 403
     assert refused.json()["detail"] == "Admin privileges required"
     allowed = await http.put(
@@ -301,7 +350,8 @@ async def test_symmetric_runtime_does_not_open_the_service_path(
 
 
 @pytest.mark.parametrize(
-    "headers", [{}, {"X-Internal-API-Key": "fixture-shared-key"}, {"Authorization": "Bearer invalid"}]
+    "headers",
+    [{}, {"X-Internal-API-Key": "fixture-shared-key"}, {"Authorization": "Bearer invalid"}],
 )
 async def test_no_token_or_shared_key_is_not_authority(env, http, headers):
     result = await http.get(f"/api/v1/white-label/branding/{env['org']}", headers=headers)

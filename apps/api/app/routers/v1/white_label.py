@@ -19,12 +19,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user, require_admin
-from app.services.branding_service_auth import (
-    BrandingActor,
-    branding_reader,
-    branding_writer,
-    refuse_service_custom_css,
-)
 from app.models.white_label import (
     BrandingConfiguration,
     BrandingLevel,
@@ -32,6 +26,12 @@ from app.models.white_label import (
     EmailTemplate,
     ThemeMode,
     ThemePreset,
+)
+from app.services.branding_service_auth import (
+    BrandingActor,
+    branding_reader,
+    branding_writer,
+    refuse_service_custom_css,
 )
 
 from ...models import Organization, User
@@ -45,25 +45,33 @@ router = APIRouter(
 )
 
 
+# Style tokens reach a public stylesheet (`/white-label/css/{org}`) verbatim,
+# and the color columns are VARCHAR(7): anything but a hex color would either
+# inject CSS or fail the write with a 500. So they are validated here.
+_HEX = r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+_FONT = r"^[A-Za-z0-9 ,'\"_-]{1,160}$"
+_RADIUS = r"^[0-9]{1,3}(?:\.[0-9]{1,2})?(?:px|rem|em|%)$"
+
+
 # Pydantic models
 class BrandingConfigurationCreate(BaseModel):
     """Create branding configuration request"""
 
     branding_level: BrandingLevel = BrandingLevel.BASIC
-    company_name: Optional[str] = None
-    company_logo_url: Optional[str] = None
-    company_logo_dark_url: Optional[str] = None
-    company_favicon_url: Optional[str] = None
-    company_website: Optional[str] = None
+    company_name: Optional[str] = Field(None, max_length=255)
+    company_logo_url: Optional[str] = Field(None, max_length=500)
+    company_logo_dark_url: Optional[str] = Field(None, max_length=500)
+    company_favicon_url: Optional[str] = Field(None, max_length=500)
+    company_website: Optional[str] = Field(None, max_length=500)
     theme_mode: ThemeMode = ThemeMode.LIGHT
-    primary_color: str = "#1a73e8"
-    secondary_color: str = "#ea4335"
-    accent_color: str = "#34a853"
-    background_color: str = "#ffffff"
-    surface_color: str = "#f8f9fa"
-    text_color: str = "#202124"
-    font_family: str = "Inter, system-ui, sans-serif"
-    border_radius: str = "8px"
+    primary_color: str = Field("#1a73e8", pattern=_HEX)
+    secondary_color: str = Field("#ea4335", pattern=_HEX)
+    accent_color: str = Field("#34a853", pattern=_HEX)
+    background_color: str = Field("#ffffff", pattern=_HEX)
+    surface_color: str = Field("#f8f9fa", pattern=_HEX)
+    text_color: str = Field("#202124", pattern=_HEX)
+    font_family: str = Field("Inter, system-ui, sans-serif", pattern=_FONT)
+    border_radius: str = Field("8px", pattern=_RADIUS)
     custom_css: Optional[str] = None
 
 
@@ -71,20 +79,20 @@ class BrandingConfigurationUpdate(BaseModel):
     """Update branding configuration request"""
 
     is_enabled: Optional[bool] = None
-    company_name: Optional[str] = None
-    company_logo_url: Optional[str] = None
-    company_logo_dark_url: Optional[str] = None
-    company_favicon_url: Optional[str] = None
-    company_website: Optional[str] = None
+    company_name: Optional[str] = Field(None, max_length=255)
+    company_logo_url: Optional[str] = Field(None, max_length=500)
+    company_logo_dark_url: Optional[str] = Field(None, max_length=500)
+    company_favicon_url: Optional[str] = Field(None, max_length=500)
+    company_website: Optional[str] = Field(None, max_length=500)
     theme_mode: Optional[ThemeMode] = None
-    primary_color: Optional[str] = None
-    secondary_color: Optional[str] = None
-    accent_color: Optional[str] = None
-    background_color: Optional[str] = None
-    surface_color: Optional[str] = None
-    text_color: Optional[str] = None
-    font_family: Optional[str] = None
-    border_radius: Optional[str] = None
+    primary_color: Optional[str] = Field(None, pattern=_HEX)
+    secondary_color: Optional[str] = Field(None, pattern=_HEX)
+    accent_color: Optional[str] = Field(None, pattern=_HEX)
+    background_color: Optional[str] = Field(None, pattern=_HEX)
+    surface_color: Optional[str] = Field(None, pattern=_HEX)
+    text_color: Optional[str] = Field(None, pattern=_HEX)
+    font_family: Optional[str] = Field(None, pattern=_FONT)
+    border_radius: Optional[str] = Field(None, pattern=_RADIUS)
     custom_css: Optional[str] = None
 
 
