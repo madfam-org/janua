@@ -116,6 +116,28 @@ Registration properties:
 }
 ```
 
+```jsonc
+// nauta-janua-branding — janua is BOTH the issuer and the API being called
+{
+  "name": "nauta-janua-branding",
+  "audience": "janua-white-label",
+  "allowed_scopes": ["white-label:branding"],
+  "grant_types": ["client_credentials"],
+  "redirect_uris": [],
+  "is_confidential": true,
+  "organization_id": "<the tenant's organization uuid>"
+}
+```
+
+`nauta-janua-branding` is ORG-BOUND on purpose. Its token may read and write
+the white-label branding (`GET`/`PUT /white-label/branding/{org}`,
+`POST /white-label/branding?organization_id=`) of exactly the organization in
+`organization_id`, and no other; the client row is re-read on every call
+(`apps/api/app/services/branding_service_auth.py`). It may not set
+`custom_css`, which the public `/white-label/css/{org}` endpoint appends
+verbatim. People keep the path they had: any signed-in user reads, a platform
+admin writes. A second tenant needs its own client.
+
 The `yantra4d:render` scope namespace is what makes Yantra4D emit a
 `yantra4d_tier` claim high enough to clear its `pro`-tier GLB export gate
 (`yantra4d/apps/api/middleware/auth.py`, `RENDER_SCOPE`). This is the same

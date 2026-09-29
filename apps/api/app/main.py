@@ -707,6 +707,7 @@ def openid_configuration():
             "legal:draft",
             "legal:client-profile",
             "connections:delegate",
+            "white-label:branding",
         ],
         "token_endpoint_auth_methods_supported": [
             "client_secret_basic",
