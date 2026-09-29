@@ -19,6 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user, require_admin
+from app.services.branding_service_auth import (
+    BrandingActor,
+    branding_reader,
+    branding_writer,
+    refuse_service_custom_css,
+)
 from app.models.white_label import (
     BrandingConfiguration,
     BrandingLevel,
@@ -184,14 +190,16 @@ class PageCustomizationCreate(BaseModel):
 async def create_branding_configuration(
     organization_id: str,
     config: BrandingConfigurationCreate,
-    current_user: User = Depends(require_admin),
+    actor: BrandingActor = Depends(branding_writer),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Create branding configuration for organization
 
-    Requires admin privileges.
+    Requires admin privileges, or the organization's own branding service
+    client (see app/services/branding_service_auth.py).
     """
+    refuse_service_custom_css(actor, config.custom_css)
     try:
         # Check if organization exists
         org = await db.get(Organization, organization_id)
@@ -257,6 +265,9 @@ async def create_branding_configuration(
             updated_at=branding_config.updated_at.isoformat(),
         )
 
+    except HTTPException:
+        # 404/400 are answers, not failures: without this they became 500s.
+        raise
     except Exception as e:
         logger.error(f"Failed to create branding configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -265,11 +276,13 @@ async def create_branding_configuration(
 @router.get("/branding/{organization_id}", response_model=BrandingConfigurationResponse)
 async def get_branding_configuration(
     organization_id: str,
-    current_user: User = Depends(get_current_user),
+    actor: BrandingActor = Depends(branding_reader),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Get branding configuration for organization
+
+    Any signed-in user, or the organization's own branding service client.
     """
     try:
         result = await db.execute(
@@ -305,6 +318,9 @@ async def get_branding_configuration(
             updated_at=config.updated_at.isoformat(),
         )
 
+    except HTTPException:
+        # 404/400 are answers, not failures: without this they became 500s.
+        raise
     except Exception as e:
         logger.error(f"Failed to get branding configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -314,14 +330,16 @@ async def get_branding_configuration(
 async def update_branding_configuration(
     organization_id: str,
     update: BrandingConfigurationUpdate,
-    current_user: User = Depends(require_admin),
+    actor: BrandingActor = Depends(branding_writer),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Update branding configuration
 
-    Requires admin privileges.
+    Requires admin privileges, or the organization's own branding service
+    client (see app/services/branding_service_auth.py).
     """
+    refuse_service_custom_css(actor, update.custom_css)
     try:
         result = await db.execute(
             select(BrandingConfiguration).where(
@@ -363,6 +381,9 @@ async def update_branding_configuration(
             updated_at=config.updated_at.isoformat(),
         )
 
+    except HTTPException:
+        # 404/400 are answers, not failures: without this they became 500s.
+        raise
     except Exception as e:
         logger.error(f"Failed to update branding configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
