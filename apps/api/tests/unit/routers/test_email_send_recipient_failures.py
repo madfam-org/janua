@@ -185,3 +185,34 @@ async def test_provider_exception_does_not_disclose_recipient_or_payload(
     assert response.json()["success"] is False
     assert "private-provider-payload-fixture" not in response.text
     assert "private-provider-payload-fixture" not in caplog.text
+
+
+@dataclass
+class _QuotaResult:
+    """A failed send that kept the provider's quota code."""
+
+    status: str
+    error_code: str | None
+    message_id: str = "janua-test-msgid"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", ["daily_quota_exceeded", "monthly_quota_exceeded"])
+async def test_quota_refusal_carries_its_code(monkeypatch, client, code):
+    """A quota refusal says so, so the caller can queue until the reset."""
+    instance = AsyncMock()
+    instance.send_email = AsyncMock(return_value=_QuotaResult(status="failed", error_code=code))
+    monkeypatch.setattr("app.routers.v1.email.ResendService", lambda *a, **k: instance)
+    async with client as c:
+        resp = await c.post(SEND_URL, json=_body())
+    data = resp.json()
+    assert data["success"] is False
+    assert data["error_code"] == code
+
+
+@pytest.mark.asyncio
+async def test_other_failures_carry_no_code(monkeypatch, client):
+    _mock_resend(monkeypatch, status="failed")
+    async with client as c:
+        resp = await c.post(SEND_URL, json=_body())
+    assert resp.json()["error_code"] is None

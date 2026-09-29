@@ -1047,9 +1047,12 @@ app.include_router(payment_notices_v1.router, prefix="/api/v1")
 # receiver makes Resend retry into a 404 until it disables the endpoint.
 from app.routers.v1 import email_webhooks as email_webhooks_v1
 from app.routers.v1 import internal_email_events as internal_email_events_v1
+from app.routers.v1 import internal_email_usage as internal_email_usage_v1
 
 app.include_router(email_webhooks_v1.router, prefix="/api/v1")
 app.include_router(internal_email_events_v1.router, prefix="/api/v1/internal")
+# Per-account quota usage, counted from the same stored `email.sent` events.
+app.include_router(internal_email_usage_v1.router, prefix="/api/v1/internal")
 
 # First-party open pixel / click redirect (public, no auth, not in the schema),
 # served on each binding's tracking host (CTM_TRACKING_HOST). Mounted at the

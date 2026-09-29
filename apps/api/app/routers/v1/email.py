@@ -19,6 +19,7 @@ from app.dependencies import verify_internal_api_key
 from app.routers.v1.email_cfdi import cfdi_portal_slots
 from app.services.email_branding import CTM_BRANDING
 from app.services.email_tags import build_tags
+from app.services.email_usage import QUOTA_ERROR_TYPES
 from app.services.resend_email_service import ResendEmailService as ResendService
 
 logger = structlog.get_logger()
@@ -120,6 +121,9 @@ class EmailResponse(BaseModel):
     delivery_status: Literal["accepted", "simulated", "failed"] = "failed"
     message_id: Optional[str] = None
     error: Optional[str] = None
+    #: Set only when the provider refused for quota: `daily_quota_exceeded`
+    #: (clears at 00:00 UTC) or `monthly_quota_exceeded`. Absent otherwise.
+    error_code: Optional[str] = None
 
 
 def _email_response(results: list[Any]) -> EmailResponse:
@@ -132,7 +136,15 @@ def _email_response(results: list[Any]) -> EmailResponse:
         )
     failed = [r for r in results if r.status not in {"sent", "delivered"} or not r.message_id]
     if failed:
-        return EmailResponse(success=False, error=f"{len(failed)} recipient(s) failed acceptance")
+        quota = next(
+            (c for c in (getattr(r, "error_code", None) for r in failed) if c in QUOTA_ERROR_TYPES),
+            None,
+        )
+        return EmailResponse(
+            success=False,
+            error=f"{len(failed)} recipient(s) failed acceptance",
+            error_code=quota,
+        )
     return EmailResponse(
         success=True, delivery_status="accepted", message_id=results[-1].message_id
     )

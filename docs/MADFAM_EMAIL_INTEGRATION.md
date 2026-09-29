@@ -33,6 +33,30 @@ Validation uses provider stubs and controlled concurrent threads; no real mail
 is sent. Promote through the normal isolated staging/soak workflow. Verify real
 provider acceptance only with an explicitly authorized test recipient.
 
+## Quota refusals and per-account usage (2026-09-28)
+
+A tenant on its own Resend account (today Crea Tu Mundo, `sender_binding.CTM_BINDING`)
+is bound by that account's plan: on the free plan, 100 messages per UTC calendar
+day (reset at 00:00 UTC, not a rolling window) and 3,000 per month. Every To, CC
+and BCC recipient counts, and inbound mail counts too
+([Resend: account quotas](https://resend.com/docs/knowledge-base/account-quotas-and-limits)).
+Over quota, Resend answers HTTP 429 `daily_quota_exceeded` or
+`monthly_quota_exceeded` ([Resend: errors](https://resend.com/docs/api-reference/errors)).
+
+- **Refusals keep their code.** `POST /send` and `POST /send-template` still
+  return `success: false`, and add `error_code: "daily_quota_exceeded"` or
+  `"monthly_quota_exceeded"` when that was the provider's reason (absent/null
+  otherwise; `rate_limit_exceeded` is a per-second limit, not a quota). A caller
+  can then queue the message for after the reset instead of reporting a bad
+  address.
+- **Usage per account.** `GET /api/v1/internal/email/usage?org_id=<uuid>&days=<1..31>`
+  (same `X-Internal-API-Key`) returns `{cuenta, window: "utc_day", as_of, today,
+  month, days: [{date, sent}]}` counted from the stored `email.sent` webhook events
+  of the org's OWN account, whichever app sent them. 404 when the org sends on the
+  shared platform account or its account's webhook is not configured. Counts only.
+  Contract and limits: `app/routers/v1/internal_email_usage.py`,
+  `app/services/email_usage.py`.
+
 ## Architecture Overview
 
 ```

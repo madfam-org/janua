@@ -157,6 +157,17 @@
             ],
             "title": "Error"
           },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
           "message_id": {
             "anyOf": [
               {
@@ -177,6 +188,66 @@
           "success"
         ],
         "title": "EmailResponse",
+        "type": "object"
+      },
+      "EmailUsage": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "cuenta": {
+            "title": "Cuenta",
+            "type": "string"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/EmailUsageDay"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "month": {
+            "title": "Month",
+            "type": "integer"
+          },
+          "today": {
+            "title": "Today",
+            "type": "integer"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cuenta",
+          "window",
+          "as_of",
+          "today",
+          "month",
+          "days"
+        ],
+        "title": "EmailUsage",
+        "type": "object"
+      },
+      "EmailUsageDay": {
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "sent": {
+            "title": "Sent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "sent"
+        ],
+        "title": "EmailUsageDay",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1256,6 +1327,71 @@
           }
         },
         "summary": "List Templates",
+        "tags": [
+          "email"
+        ]
+      }
+    },
+    "/api/v1/internal/email/usage": {
+      "get": {
+        "operationId": "email_usage_api_v1_internal_email_usage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Org Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 14,
+              "maximum": 31,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Internal-API-Key",
+            "required": true,
+            "schema": {
+              "title": "X-Internal-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailUsage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Email Usage",
         "tags": [
           "email"
         ]
