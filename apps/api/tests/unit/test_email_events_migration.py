@@ -11,7 +11,7 @@ current at 018, and that the revision downgrades and re-upgrades cleanly. (The
 receiver's PostgreSQL insert path is exercised at head by
 test_email_engagement_migration.py.)
 
-Cost-conscious on purpose (the api-tests job has a 25-minute budget): two
+Cost-conscious on purpose (CI jobs have a 25-minute budget): two
 scratch databases and two full-chain upgrades for the whole module.
 
 Same harness and the same skip/fail rule as test_migration_reentrancy.py:
@@ -33,6 +33,9 @@ from tests.unit.test_migration_reentrancy import (
     _psql,
     _with_database,
 )
+
+# Every test here uses the `databases` fixture: CI's PostgreSQL job runs them.
+pytestmark = pytest.mark.database
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SQL_FILE = REPO_ROOT / "docs" / "ops" / "sql" / "018_email_events.sql"

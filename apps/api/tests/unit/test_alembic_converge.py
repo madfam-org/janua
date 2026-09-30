@@ -420,7 +420,7 @@ def migrated_database():
     if base is None:
         if os.environ.get("CI"):
             pytest.fail(
-                f"{URL_ENV_VAR} is unset or unreachable in CI. The api-tests job runs a "
+                f"{URL_ENV_VAR} is unset or unreachable in CI. The api-postgres-tests job runs a "
                 "postgres service; point this variable at it, or this guard runs nowhere."
             )
         pytest.skip(f"{URL_ENV_VAR} not set to a reachable PostgreSQL")

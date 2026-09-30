@@ -23,7 +23,7 @@ replaces `psycopg2` with a `Mock` for the whole run -- an in-process
 
 This lives in tests/unit/ because CI passes `--ignore=tests/integration`, so a
 file there would never run. It skips when no PostgreSQL is reachable, which is
-the normal local case; CI's api-tests job provides one as a service.
+the normal local case; CI's api-postgres-tests job provides one as a service.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ API_ROOT = Path(__file__).resolve().parents[2]
 # Any revision would exercise re-entrancy; this one reproduces the real incident.
 STALE_REVISION = "002"
 
-# Set by CI's api-tests job to its `postgres` service. See _postgres_url().
+# Set by CI's api-postgres-tests job to its `postgres` service. See _postgres_url().
 URL_ENV_VAR = "MIGRATION_TEST_DATABASE_URL"
 
 
@@ -128,7 +128,7 @@ def scratch_database() -> str:
             # so a skip here means this guard silently stopped protecting
             # anything while the job still reported green.
             pytest.fail(
-                f"{URL_ENV_VAR} is unset or unreachable in CI. The api-tests job "
+                f"{URL_ENV_VAR} is unset or unreachable in CI. The api-postgres-tests job "
                 "runs a postgres service; point this variable at it, or this "
                 "migration guard runs nowhere."
             )
@@ -145,6 +145,7 @@ def scratch_database() -> str:
         _psql(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)', base, autocommit=True)
 
 
+@pytest.mark.database
 def test_upgrade_is_reentrant_over_an_already_populated_schema(scratch_database: str) -> None:
     first = _alembic(["upgrade", "head"], scratch_database)
     assert first.returncode == 0, f"fresh upgrade failed:\n{first.stdout}\n{first.stderr}"
