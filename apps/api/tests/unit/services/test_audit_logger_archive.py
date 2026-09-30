@@ -2,13 +2,18 @@
 Audit archives go only to the dedicated R2_AUDIT_BUCKET, and storing an entry in
 the database and archiving it to R2 are independent outcomes.
 
-- With no R2_AUDIT_BUCKET, nothing is archived and exports return an export id.
+- Every entry is stored when it is logged; a flush only archives.
+- With no R2_AUDIT_BUCKET, nothing is buffered or archived and exports return
+  an export id.
 - R2_AUDIT_BUCKET equal to CLOUDFLARE_R2_BUCKET (the general upload bucket) is
   refused: no R2 call at all, and one error with a stable code.
 - A failed archive leaves the database rows exactly as they were and puts
   nothing back in the buffer.
+- A failed store raises from ``log()`` with a stable code; the entry is neither
+  buffered nor archived.
 """
 
+import asyncio
 import re
 import uuid
 from types import SimpleNamespace
@@ -24,7 +29,7 @@ from app.services import audit_logger as audit_logger_module
 from app.services.audit_logger import (
     AUDIT_ARCHIVE_BUCKET_REFUSED,
     AUDIT_ARCHIVE_FAILED,
-    AUDIT_BUFFER_OVERFLOW,
+    AUDIT_STORE_FAILED,
     AuditEventType,
     AuditLogger,
     get_audit_archive_bucket,
@@ -41,9 +46,9 @@ ARCHIVE_KEY = re.compile(
 class _Row:
     """Stands in for the AuditLog ORM row.
 
-    The ORM ``AuditLog`` maps a different column set than ``_store_entry``
-    writes, so these tests model the table with a plain row object and keep
-    ``_store_entry`` itself unpatched.
+    These tests cover the archive path, so they model the table with a plain
+    row object and keep ``_store_entry`` itself unpatched. The real model and
+    database are covered by test_audit_logger_chain.py.
     """
 
     def __init__(self, **columns: Any):
@@ -52,6 +57,14 @@ class _Row:
 
 class _DuplicateKey(Exception):
     pass
+
+
+class _Savepoint:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
 
 
 class _Table:
@@ -70,20 +83,27 @@ class _Table:
     def add(self, row: _Row) -> None:
         self._pending.append(row)
 
+    def begin_nested(self) -> _Savepoint:
+        return _Savepoint()
+
+    async def rollback(self) -> None:
+        self._pending = []
+
     async def commit(self) -> None:
         pending, self._pending = self._pending, []
         if self.fail_commits:
             self.fail_commits -= 1
             raise RuntimeError("database unavailable")
         for row in pending:
-            if row.id in self.rows:
-                raise _DuplicateKey(row.id)
-            self.rows[row.id] = row
+            row_id = str(row.id)
+            if row_id in self.rows:
+                raise _DuplicateKey(row_id)
+            self.rows[row_id] = row
             self.inserts += 1
 
     async def execute(self, *args, **kwargs):
         result = MagicMock()
-        result.scalar_one_or_none.return_value = None
+        result.first.return_value = None
         result.scalars.return_value.all.return_value = []
         return result
 
@@ -138,9 +158,9 @@ def _codes(spy: MagicMock, level: str) -> List[str]:
 
 
 async def _log_entries(audit: AuditLogger, severities: List[str], tenant="tenant-a") -> List[str]:
-    """Log one entry per severity; critical/high ones are stored at log time."""
+    """Log one entry per severity; every entry is stored at log time."""
     ids = []
-    with patch.object(audit, "_get_previous_hash", AsyncMock(return_value=None)):
+    with patch.object(audit, "_chain_tail", AsyncMock(return_value=(None, None))):
         for severity in severities:
             ids.append(
                 await audit.log(
@@ -240,14 +260,48 @@ class TestDedicatedBucket:
         self, audit, table, r2, dedicated_bucket
     ):
         ids = await _log_entries(audit, ["critical", "info", "high"])
-        assert table.inserts == 2
+        assert table.inserts == 3
 
         await audit._flush_buffer()
 
         assert table.inserts == 3
         assert set(table.rows) == set(ids)
         assert r2.put_object.call_args.kwargs["Metadata"]["count"] == "3"
-        assert audit._stored_event_ids == set()
+        assert audit.buffer == []
+
+    async def test_buffer_flushes_at_its_size(self, audit, table, r2, dedicated_bucket):
+        audit.buffer_size = 3
+
+        ids = await _log_entries(audit, ["info"] * 7)
+
+        assert set(table.rows) == set(ids)
+        assert [c.kwargs["Metadata"]["count"] for c in r2.put_object.call_args_list] == [
+            "3",
+            "3",
+        ]
+        assert [e["event_id"] for e in audit.buffer] == ids[6:]
+
+
+class TestPeriodicFlush:
+    async def test_ends_once_the_buffer_is_empty(self, table, r2, dedicated_bucket):
+        audit = AuditLogger(table, r2_client=r2)
+        audit.flush_interval = 0
+
+        await _log_entries(audit, ["info"])
+        task = audit._flush_task
+        assert task is not None
+        await asyncio.wait_for(task, 5)
+
+        assert audit._flush_task is None
+        assert audit.buffer == []
+        r2.put_object.assert_called_once()
+
+    async def test_no_task_while_archiving_is_off(self, table, r2):
+        audit = AuditLogger(table, r2_client=r2)
+
+        await _log_entries(audit, ["info"])
+
+        assert audit._flush_task is None
 
 
 class TestUploadBucketRefused:
@@ -294,7 +348,6 @@ class TestArchiveFailure:
         assert set(after_flush) == set(ids)
         assert table.inserts == len(ids)
         assert audit.buffer == []
-        assert audit._stored_event_ids == set()
         assert _codes(log_spy, "warning") == [AUDIT_ARCHIVE_FAILED]
         assert log_spy.error.call_args_list == []
 
@@ -332,44 +385,42 @@ class TestArchiveFailure:
 
 
 class TestStoreFailure:
-    async def test_only_unstored_entries_are_kept_and_archived_later(
-        self, audit, table, r2, dedicated_bucket
+    async def test_failed_store_raises_and_is_neither_buffered_nor_archived(
+        self, audit, table, r2, dedicated_bucket, log_spy
     ):
-        ids = await _log_entries(audit, ["info", "high", "info", "info"])
-        assert table.inserts == 1
         table.fail_commits = 1
 
-        await audit._flush_buffer()
+        with pytest.raises(RuntimeError):
+            await _log_entries(audit, ["info"])
 
-        # The first buffered write failed; the entry stored at log time is not
-        # kept, the entries not yet written are.
-        assert [e["event_id"] for e in audit.buffer] == [ids[0], ids[2], ids[3]]
-        assert r2.put_object.call_args.kwargs["Metadata"]["count"] == "1"
+        assert table.rows == {}
+        assert audit.buffer == []
+        assert _codes(log_spy, "error") == [AUDIT_STORE_FAILED]
 
+        ids = await _log_entries(audit, ["info"])
         await audit._flush_buffer()
 
         assert set(table.rows) == set(ids)
-        assert table.inserts == 4
+        assert r2.put_object.call_count == 1
+        assert r2.put_object.call_args.kwargs["Metadata"]["count"] == "1"
+
+    async def test_nothing_is_buffered_while_archiving_is_off(self, audit, table, log_spy):
+        table.fail_commits = 3
+        for _ in range(3):
+            with pytest.raises(RuntimeError):
+                await _log_entries(audit, ["info"])
+        await _log_entries(audit, ["info", "info"])
+
         assert audit.buffer == []
-        assert r2.put_object.call_args.kwargs["Metadata"]["count"] == "3"
-
-    async def test_buffer_is_bounded_while_the_database_fails(self, audit, table, log_spy):
-        audit.max_buffer_size = 5
-        table.fail_commits = 10_000
-        for _ in range(4):
-            await _log_entries(audit, ["info", "info", "info"])
-            await audit._flush_buffer()
-            assert len(audit.buffer) <= 5
-
-        assert AUDIT_BUFFER_OVERFLOW in _codes(log_spy, "error")
-        assert table.rows == {}
+        assert table.inserts == 2
+        assert _codes(log_spy, "error") == [AUDIT_STORE_FAILED] * 3
 
 
 class TestExport:
     """The upload branch of ``export_logs``.
 
-    The query is stubbed: like ``_store_entry``, it names columns the ORM
-    ``AuditLog`` does not map, and these tests cover what happens after it.
+    The query is stubbed: these tests cover what happens after it. The query
+    itself runs against the real model in test_audit_logger_chain.py.
     """
 
     @pytest.fixture(autouse=True)
@@ -378,7 +429,11 @@ class TestExport:
             patch.object(
                 audit_logger_module,
                 "AuditLog",
-                SimpleNamespace(tenant_id=column("tenant_id"), timestamp=column("timestamp")),
+                SimpleNamespace(
+                    tenant_id=column("tenant_id"),
+                    created_at=column("created_at"),
+                    id=column("id"),
+                ),
             ),
             patch.object(audit_logger_module, "select", MagicMock()),
             patch.object(audit_logger_module, "and_", MagicMock()),

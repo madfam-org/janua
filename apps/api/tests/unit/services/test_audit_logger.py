@@ -10,10 +10,10 @@ from uuid import uuid4
 import pytest
 
 from app.services.audit_logger import (
-    AuditLogger,
-    AuditEventType,
-    AuditMiddleware,
     AuditAction,
+    AuditEventType,
+    AuditLogger,
+    AuditMiddleware,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -218,7 +218,7 @@ class TestHashCalculation:
 
 
 class TestLogMethod:
-    """Test the main log method."""
+    """Test the main log method (database calls stubbed; see test_audit_logger_chain.py)."""
 
     @pytest.fixture
     def mock_db(self):
@@ -226,83 +226,85 @@ class TestLogMethod:
         db = AsyncMock()
         db.add = MagicMock()
         db.commit = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        db.execute = AsyncMock(return_value=mock_result)
         return db
 
     @pytest.fixture
     def logger(self, mock_db):
-        """Create AuditLogger instance."""
+        """Create AuditLogger instance with the chain lookup and the insert stubbed."""
         with patch.object(AuditLogger, "_create_r2_client", return_value=MagicMock()):
-            return AuditLogger(mock_db)
+            logger = AuditLogger(mock_db)
+        logger._chain_tail = AsyncMock(return_value=(None, None))
+        logger._store_entry = AsyncMock()
+        return logger
+
+    def _stored(self, logger):
+        logger._store_entry.assert_awaited_once()
+        return logger._store_entry.await_args.args[0]
 
     async def test_log_returns_event_id(self, logger):
         """Test log returns event ID."""
-        # Patch _get_previous_hash to avoid AuditLog model access
-        with patch.object(logger, "_get_previous_hash", return_value=None):
-            result = await logger.log(
-                event_type=AuditEventType.AUTH_SIGNIN,
-                tenant_id="test-tenant",
-                identity_id="user-123",
-            )
+        result = await logger.log(
+            event_type=AuditEventType.AUTH_SIGNIN,
+            tenant_id="test-tenant",
+            identity_id="user-123",
+        )
 
         assert isinstance(result, str)
         assert len(result) == 36  # UUID format
+        assert self._stored(logger)["event_id"] == result
 
-    async def test_log_adds_to_buffer(self, logger):
-        """Test log adds entry to buffer."""
-        with patch.object(logger, "_get_previous_hash", return_value=None):
-            await logger.log(
-                event_type=AuditEventType.AUTH_SIGNIN,
-                tenant_id="test-tenant",
-            )
+    async def test_log_stores_without_buffering_when_archiving_is_off(self, logger):
+        """With no audit bucket, the entry is stored and nothing is buffered."""
+        await logger.log(
+            event_type=AuditEventType.AUTH_SIGNIN,
+            tenant_id="test-tenant",
+        )
 
-        assert len(logger.buffer) == 1
+        self._stored(logger)
+        assert logger.buffer == []
 
     async def test_log_entry_has_required_fields(self, logger):
         """Test logged entry has all required fields."""
-        with patch.object(logger, "_get_previous_hash", return_value=None):
-            await logger.log(
-                event_type=AuditEventType.AUTH_SIGNIN,
-                tenant_id="test-tenant",
-                identity_id="user-123",
-            )
+        await logger.log(
+            event_type=AuditEventType.AUTH_SIGNIN,
+            tenant_id="test-tenant",
+            identity_id="user-123",
+        )
 
-        entry = logger.buffer[0]
-        assert "event_id" in entry
-        assert "event_type" in entry
-        assert "tenant_id" in entry
-        assert "timestamp" in entry
-        assert "hash" in entry
+        entry = self._stored(logger)
+        assert entry["event_type"] == "auth.signin"
+        assert entry["tenant_id"] == "test-tenant"
+        assert entry["previous_hash"] is None
+        assert datetime.fromisoformat(entry["timestamp"])
+        assert entry["hash"] == logger._calculate_hash(entry)
 
     async def test_log_with_all_parameters(self, logger):
         """Test log with all optional parameters."""
-        with patch.object(logger, "_get_previous_hash", return_value=None):
-            with patch.object(logger, "_store_entry", new_callable=AsyncMock):  # Patch to avoid AuditLog creation
-                _ = await logger.log(
-                    event_type=AuditEventType.AUTH_SIGNIN,
-                    tenant_id="test-tenant",
-                    identity_id="user-123",
-                    organization_id="org-456",
-                    resource_type="user",
-                    resource_id="resource-789",
-                    details={"key": "value"},
-                    ip_address="192.168.1.1",
-                    user_agent="Mozilla/5.0",
-                    severity="high",
-                    compliance_context={"framework": "GDPR"},
-                    data_subject_id="subject-123",
-                    legal_basis="consent",
-                    retention_period=365,
-                )
+        identity = uuid4()
+        await logger.log(
+            event_type=AuditEventType.AUTH_SIGNIN,
+            tenant_id="test-tenant",
+            identity_id=str(identity).upper(),
+            organization_id="org-456",
+            resource_type="user",
+            resource_id="resource-789",
+            details={"key": "value"},
+            ip_address="192.168.1.1",
+            user_agent="Mozilla/5.0",
+            severity="high",
+            compliance_context={"framework": "GDPR"},
+            data_subject_id="subject-123",
+            legal_basis="consent",
+            retention_period=365,
+        )
 
-        entry = logger.buffer[-1]  # Get last entry (high severity may also be stored)
-        assert entry["identity_id"] == "user-123"
+        entry = self._stored(logger)
+        assert entry["identity_id"] == str(identity)
         assert entry["organization_id"] == "org-456"
         assert entry["resource_type"] == "user"
-        assert entry["resource_id"] == "resource-789"
-        assert entry["details"] == {"key": "value"}
+        # Not a UUID: kept in details, not in the resource_id column.
+        assert entry["resource_id"] is None
+        assert entry["details"] == {"key": "value", "resource_ref": "resource-789"}
         assert entry["ip_address"] == "192.168.1.1"
         assert entry["user_agent"] == "Mozilla/5.0"
         assert entry["severity"] == "high"
@@ -311,45 +313,39 @@ class TestLogMethod:
         assert entry["legal_basis"] == "consent"
         assert entry["retention_period"] == 365
 
-    async def test_log_critical_severity_stores_immediately(self, logger, mock_db):
-        """Test critical severity entries are stored immediately."""
-        with patch.object(logger, "_get_previous_hash", return_value=None):
-            with patch.object(logger, "_store_entry") as mock_store:
-                await logger.log(
-                    event_type=AuditEventType.SECURITY_THREAT_DETECTED,
-                    tenant_id="test-tenant",
-                    severity="critical",
-                )
+    async def test_log_links_to_the_chain_tail(self, logger):
+        tail = datetime(2026, 1, 1, 12, 0, 0)
+        logger._chain_tail = AsyncMock(return_value=("a" * 64, tail))
 
-                mock_store.assert_called_once()
+        await logger.log(event_type=AuditEventType.AUTH_SIGNIN, tenant_id="test-tenant")
 
-    async def test_log_high_severity_stores_immediately(self, logger, mock_db):
-        """Test high severity entries are stored immediately."""
-        with patch.object(logger, "_get_previous_hash", return_value=None):
-            with patch.object(logger, "_store_entry") as mock_store:
-                await logger.log(
-                    event_type=AuditEventType.SECURITY_BRUTE_FORCE,
-                    tenant_id="test-tenant",
-                    severity="high",
-                )
+        entry = self._stored(logger)
+        assert entry["previous_hash"] == "a" * 64
+        assert datetime.fromisoformat(entry["timestamp"]) > tail
+        logger._chain_tail.assert_awaited_once_with("test-tenant")
 
-                mock_store.assert_called_once()
+    @pytest.mark.parametrize("severity", ["info", "medium", "high", "critical"])
+    async def test_log_stores_every_severity_immediately(self, logger, severity):
+        """Every entry is stored when logged, so the next one can link to it."""
+        await logger.log(
+            event_type=AuditEventType.SECURITY_THREAT_DETECTED,
+            tenant_id="test-tenant",
+            severity=severity,
+        )
 
-    async def test_log_info_severity_buffered(self, logger, mock_db):
-        """Test info severity entries are only buffered."""
-        with patch.object(logger, "_get_previous_hash", return_value=None):
-            with patch.object(logger, "_store_entry") as mock_store:
-                await logger.log(
-                    event_type=AuditEventType.AUTH_SIGNIN,
-                    tenant_id="test-tenant",
-                    severity="info",
-                )
+        self._stored(logger)
 
-                mock_store.assert_not_called()
+    async def test_log_raises_when_the_store_fails(self, logger):
+        logger._store_entry = AsyncMock(side_effect=RuntimeError("database unavailable"))
+
+        with pytest.raises(RuntimeError):
+            await logger.log(event_type=AuditEventType.AUTH_SIGNIN, tenant_id="test-tenant")
+
+        assert logger.buffer == []
 
 
 class TestBufferManagement:
-    """Test buffer management and flushing."""
+    """Test buffer management and flushing (the buffer only feeds the R2 archive)."""
 
     @pytest.fixture
     def mock_db(self):
@@ -357,9 +353,6 @@ class TestBufferManagement:
         db = AsyncMock()
         db.add = MagicMock()
         db.commit = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        db.execute = AsyncMock(return_value=mock_result)
         return db
 
     @pytest.fixture
@@ -367,12 +360,15 @@ class TestBufferManagement:
         """Create AuditLogger instance with small buffer."""
         with patch.object(AuditLogger, "_create_r2_client", return_value=MagicMock()):
             logger = AuditLogger(mock_db)
-            logger.buffer_size = 3  # Small buffer for testing
-            return logger
+        logger.buffer_size = 3  # Small buffer for testing
+        logger._chain_tail = AsyncMock(return_value=(None, None))
+        logger._store_entry = AsyncMock()
+        logger._flush_task = object()  # no periodic flush task in unit tests
+        return logger
 
     async def test_buffer_flush_at_capacity(self, logger):
         """Test buffer flushes when capacity reached."""
-        with patch.object(logger, "_get_previous_hash", return_value=None):
+        with patch.object(logger, "_archiving_enabled", return_value=True):
             with patch.object(logger, "_flush_buffer") as mock_flush:
                 # Add entries up to buffer size
                 for i in range(3):
@@ -383,9 +379,8 @@ class TestBufferManagement:
 
                 mock_flush.assert_called_once()
 
-    async def test_flush_buffer_clears_buffer(self, logger, mock_db):
-        """Test flushing clears the buffer."""
-        # Add some entries with all required fields
+    async def test_flush_buffer_clears_buffer_and_stores_nothing(self, logger, mock_db):
+        """Flushing clears the buffer; the entries were stored when logged."""
         logger.buffer = [
             {
                 "event_id": "1",
@@ -403,23 +398,20 @@ class TestBufferManagement:
             },
         ]
 
-        # Patch _store_entry to prevent actual AuditLog creation
-        with patch.object(logger, "_store_entry", new_callable=AsyncMock) as mock_store:
-            # Mock R2 client and settings to prevent R2 archival
-            with patch.object(logger, "r2_client", None):
-                await logger._flush_buffer()
+        # Mock R2 client and settings to prevent R2 archival
+        with patch.object(logger, "r2_client", None):
+            await logger._flush_buffer()
 
         assert len(logger.buffer) == 0
-        assert mock_store.call_count == 2
+        logger._store_entry.assert_not_awaited()
 
     async def test_flush_empty_buffer(self, logger):
         """Test flushing empty buffer does nothing."""
         logger.buffer = []
 
-        with patch.object(logger, "_store_entry") as mock_store:
-            await logger._flush_buffer()
+        await logger._flush_buffer()
 
-            mock_store.assert_not_called()
+        logger._store_entry.assert_not_awaited()
 
 
 class TestConvenienceMethods:
@@ -513,17 +505,20 @@ class TestVerifyIntegrity:
         """Test verify_integrity method exists."""
         assert hasattr(logger, "verify_integrity")
         import asyncio
+
         assert asyncio.iscoroutinefunction(logger.verify_integrity)
 
     def test_verify_integrity_accepts_tenant_id(self, logger):
         """Test verify_integrity accepts tenant_id parameter."""
         import inspect
+
         sig = inspect.signature(logger.verify_integrity)
         assert "tenant_id" in sig.parameters
 
     def test_verify_integrity_accepts_date_range(self, logger):
         """Test verify_integrity accepts date range parameters."""
         import inspect
+
         sig = inspect.signature(logger.verify_integrity)
         assert "start_date" in sig.parameters
         assert "end_date" in sig.parameters
@@ -716,17 +711,20 @@ class TestExportLogs:
         """Test export_logs method exists."""
         assert hasattr(logger, "export_logs")
         import asyncio
+
         assert asyncio.iscoroutinefunction(logger.export_logs)
 
     def test_export_logs_accepts_tenant_id(self, logger):
         """Test export_logs accepts tenant_id parameter."""
         import inspect
+
         sig = inspect.signature(logger.export_logs)
         assert "tenant_id" in sig.parameters
 
     def test_export_logs_accepts_date_range(self, logger):
         """Test export_logs accepts date range parameters."""
         import inspect
+
         sig = inspect.signature(logger.export_logs)
         assert "start_date" in sig.parameters
         assert "end_date" in sig.parameters
@@ -734,6 +732,7 @@ class TestExportLogs:
     def test_export_logs_accepts_format(self, logger):
         """Test export_logs accepts format parameter."""
         import inspect
+
         sig = inspect.signature(logger.export_logs)
         assert "format" in sig.parameters
 
@@ -751,42 +750,49 @@ class TestServiceMethodExistence:
         """Test logger has log method."""
         assert hasattr(logger, "log")
         import asyncio
+
         assert asyncio.iscoroutinefunction(logger.log)
 
     def test_has_verify_integrity_method(self, logger):
         """Test logger has verify_integrity method."""
         assert hasattr(logger, "verify_integrity")
         import asyncio
+
         assert asyncio.iscoroutinefunction(logger.verify_integrity)
 
     def test_has_export_logs_method(self, logger):
         """Test logger has export_logs method."""
         assert hasattr(logger, "export_logs")
         import asyncio
+
         assert asyncio.iscoroutinefunction(logger.export_logs)
 
     def test_has_log_authentication_method(self, logger):
         """Test logger has log_authentication method."""
         assert hasattr(logger, "log_authentication")
         import asyncio
+
         assert asyncio.iscoroutinefunction(logger.log_authentication)
 
     def test_has_log_authorization_method(self, logger):
         """Test logger has log_authorization method."""
         assert hasattr(logger, "log_authorization")
         import asyncio
+
         assert asyncio.iscoroutinefunction(logger.log_authorization)
 
     def test_has_log_data_access_method(self, logger):
         """Test logger has log_data_access method."""
         assert hasattr(logger, "log_data_access")
         import asyncio
+
         assert asyncio.iscoroutinefunction(logger.log_data_access)
 
     def test_has_log_security_event_method(self, logger):
         """Test logger has log_security_event method."""
         assert hasattr(logger, "log_security_event")
         import asyncio
+
         assert asyncio.iscoroutinefunction(logger.log_security_event)
 
     def test_has_calculate_hash_method(self, logger):
@@ -797,6 +803,7 @@ class TestServiceMethodExistence:
         """Test logger has _flush_buffer method."""
         assert hasattr(logger, "_flush_buffer")
         import asyncio
+
         assert asyncio.iscoroutinefunction(logger._flush_buffer)
 
 

@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 import pytest
 from cryptography.fernet import Fernet
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -183,7 +184,7 @@ class TestLogStoresOneRow:
 
         # A second entry with the same id violates the primary key.
         monkeypatch.setattr(audit_logger_module.uuid, "uuid4", lambda: first.id)
-        with pytest.raises(Exception):
+        with pytest.raises(IntegrityError):
             await AuditLogger(session).log(
                 event_type=AuditEventType.AUTH_SIGNOUT, tenant_id=TENANT_A
             )
@@ -212,7 +213,9 @@ class TestChain:
     async def test_each_logger_continues_the_stored_chain(self, session):
         """Routers build one AuditLogger per request; the chain spans them."""
         for _ in range(3):
-            await AuditLogger(session).log(event_type=AuditEventType.AUTH_SIGNIN, tenant_id=TENANT_A)
+            await AuditLogger(session).log(
+                event_type=AuditEventType.AUTH_SIGNIN, tenant_id=TENANT_A
+            )
 
         rows = await _rows(session, TENANT_A)
         assert [r.previous_hash for r in rows[1:]] == [r.current_hash for r in rows[:-1]]
