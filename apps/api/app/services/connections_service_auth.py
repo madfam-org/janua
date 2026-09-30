@@ -8,7 +8,8 @@ Two kinds of credential meet here:
   exchange (`exchange_clients`) or user-absent offline delegation
   (`offline_clients`). After the signature
   checks, the client's *current* registration is re-read, so a client that was
-  deactivated or lost the scope is refused while its token is still unexpired;
+  deactivated or lost the scope is refused while its token is still unexpired,
+  and a client not registered by a platform admin is refused outright;
 - the **subject**: the user's OWN Janua RS256 access token, issued to the
   service's user-facing API (an audience the purpose registry allowlists). It
   binds a delegation to a request the user is actually making, so a service
@@ -38,6 +39,7 @@ from app.core.consent_purposes import (
 )
 from app.core.jwt_manager import jwt_manager
 from app.models import OAuthClient, User, UserStatus
+from app.services.oauth_client_authority import client_registered_by_platform_admin
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +133,13 @@ async def current_service_client(
     principal: DelegationServicePrincipal,
     required_scope: str = CONNECTIONS_DELEGATE_SCOPE,
 ) -> OAuthClient:
-    """Re-check the client's live grant; a revoked grant beats a live token."""
+    """Re-check the client's live grant; a revoked grant beats a live token.
+
+    The client must also have been registered by a platform admin: this
+    audience and scope are reserved (`core/reserved_oauth_boundaries.py`), and a
+    row that carries them without that provenance grants nothing. Same refusal
+    as a missing grant.
+    """
     result = await db.execute(
         select(OAuthClient)
         .where(OAuthClient.client_id == principal.client_id)
@@ -145,6 +153,7 @@ async def current_service_client(
         or client.audience != CONNECTIONS_AUDIENCE
         or required_scope not in (client.allowed_scopes or [])
         or "client_credentials" not in (client.grant_types or [])
+        or not await client_registered_by_platform_admin(db, client)
     ):
         raise _forbidden("service_client_grant_unavailable")
     return client

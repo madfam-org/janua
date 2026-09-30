@@ -133,7 +133,12 @@ def mint_user_token(
 
 
 async def add_user(
-    factory, email: str, *, status: UserStatus = UserStatus.ACTIVE, service_account: bool = False
+    factory,
+    email: str,
+    *,
+    status: UserStatus = UserStatus.ACTIVE,
+    service_account: bool = False,
+    is_admin: bool = False,
 ) -> User:
     async with factory() as db:
         user = User(
@@ -142,10 +147,16 @@ async def add_user(
             status=status,
             password_hash="not-a-real-hash",
             is_service_account=service_account,
+            is_admin=is_admin,
         )
         db.add(user)
         await db.commit()
         return user
+
+
+async def add_platform_admin(factory, email: str = "registrar@example.com") -> User:
+    """The platform admin who registers service clients, as in production."""
+    return await add_user(factory, email, is_admin=True)
 
 
 async def add_service_client(

@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.login_method import normalize_login_method
 from app.auth.sessions_cookie import (
     SESSIONS_COOKIE_NAME,
     TAB_SESSION_HEADER,
@@ -57,11 +58,11 @@ from app.models import OAuthClient, Organization, OrganizationMember, User
 from app.models import Session as UserSession
 from app.services.audit_logger import AuditEventType, AuditLogger
 from app.services.consent_service import ConsentService
-from app.auth.login_method import normalize_login_method
 from app.services.entitlements_service import (
     entitlements_to_claim,
     get_user_entitlements,
 )
+from app.services.oauth_client_authority import client_registered_by_platform_admin
 from app.services.org_claims_service import (
     ORG_ROLES_CLAIM,
     get_user_org_claims,
@@ -800,9 +801,30 @@ def _build_safe_callback_url(
     return f"{redirect_uri}?{urlencode(params)}"
 
 
+#: What a client with no stored ``grant_types`` / ``allowed_scopes`` may use.
+DEFAULT_CLIENT_GRANT_TYPES = ("authorization_code", "refresh_token")
+DEFAULT_CLIENT_SCOPES = ("openid", "profile", "email")
+
+
+def _client_grant_types(client: OAuthClient) -> set:
+    """The grant types the token endpoint honours for ``client``.
+
+    The stored value is taken as-is (``set(value)``), falling back to the
+    defaults when it is empty. Only a JSON array of names names a grant.
+    `scripts/audit_client_credentials_tier_claims.py` carries a copy; its
+    tests fail if the two drift.
+    """
+    return set(client.grant_types or DEFAULT_CLIENT_GRANT_TYPES)
+
+
+def _client_allowed_scopes(client: OAuthClient) -> set:
+    """The scopes a token grant may request for ``client`` (same rules as above)."""
+    return set(client.allowed_scopes or DEFAULT_CLIENT_SCOPES)
+
+
 def _parse_requested_scopes(scope: Optional[str], client: OAuthClient) -> str:
     """Return validated space-separated scopes for token grants."""
-    allowed = set(client.allowed_scopes or ["openid", "profile", "email"])
+    allowed = _client_allowed_scopes(client)
     requested = set((scope or "").split())
     if not requested:
         requested = set(allowed)
@@ -988,15 +1010,24 @@ async def _get_client_credentials_claims(
         ORG_ROLES_CLAIM: ["service_account"],
     }
 
-    # Machine clients are explicitly provisioned by Janua admins. When a client
-    # has product-scoped permissions, emit the corresponding product tier so
-    # downstream tier gates can authorize the service account without requiring
-    # a human browser session. Organization product_tiers, when available below,
-    # override these scope-derived defaults.
-    for product in scoped_products:
-        claim_key = re.sub(r"[^a-z0-9_]", "_", str(product).lower())
-        if claim_key:
-            claims[f"{claim_key}_tier"] = "madfam"
+    # Product tier claims (`<product>_tier`) state an entitlement, and
+    # downstream tier gates authorize on them. Two sources:
+    #
+    # - a client registered by a platform admin is MADFAM's own service
+    #   account: each product it holds a namespaced scope for gets the
+    #   `madfam` tier, so it can reach that product's gated operations
+    #   without a human session;
+    # - every client bound to an organization gets that organization's
+    #   `product_tiers` (applied below, and they win over the above).
+    #
+    # Any other client gets no tier claim for a product its organization is
+    # not entitled to. Consumers read an absent claim as their lowest
+    # authenticated tier.
+    if scoped_products and await client_registered_by_platform_admin(db, client):
+        for product in scoped_products:
+            claim_key = re.sub(r"[^a-z0-9_]", "_", str(product).lower())
+            if claim_key:
+                claims[f"{claim_key}_tier"] = "madfam"
 
     if client.organization_id:
         org_result = await db.execute(
@@ -2048,7 +2079,7 @@ async def token(
                 detail="invalid_client: Invalid client_secret",
             )
 
-    allowed_grants = set(client.grant_types or ["authorization_code", "refresh_token"])
+    allowed_grants = _client_grant_types(client)
     if grant_type not in allowed_grants:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
