@@ -27,6 +27,12 @@ from app.models.white_label import (
     ThemeMode,
     ThemePreset,
 )
+from app.services.branding_service_auth import (
+    BrandingActor,
+    branding_reader,
+    branding_writer,
+    refuse_service_custom_css,
+)
 
 from ...models import Organization, User
 
@@ -39,25 +45,33 @@ router = APIRouter(
 )
 
 
+# Style tokens reach a public stylesheet (`/white-label/css/{org}`) verbatim,
+# and the color columns are VARCHAR(7): anything but a hex color would either
+# inject CSS or fail the write with a 500. So they are validated here.
+_HEX = r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+_FONT = r"^[A-Za-z0-9 ,'\"_-]{1,160}$"
+_RADIUS = r"^[0-9]{1,3}(?:\.[0-9]{1,2})?(?:px|rem|em|%)$"
+
+
 # Pydantic models
 class BrandingConfigurationCreate(BaseModel):
     """Create branding configuration request"""
 
     branding_level: BrandingLevel = BrandingLevel.BASIC
-    company_name: Optional[str] = None
-    company_logo_url: Optional[str] = None
-    company_logo_dark_url: Optional[str] = None
-    company_favicon_url: Optional[str] = None
-    company_website: Optional[str] = None
+    company_name: Optional[str] = Field(None, max_length=255)
+    company_logo_url: Optional[str] = Field(None, max_length=500)
+    company_logo_dark_url: Optional[str] = Field(None, max_length=500)
+    company_favicon_url: Optional[str] = Field(None, max_length=500)
+    company_website: Optional[str] = Field(None, max_length=500)
     theme_mode: ThemeMode = ThemeMode.LIGHT
-    primary_color: str = "#1a73e8"
-    secondary_color: str = "#ea4335"
-    accent_color: str = "#34a853"
-    background_color: str = "#ffffff"
-    surface_color: str = "#f8f9fa"
-    text_color: str = "#202124"
-    font_family: str = "Inter, system-ui, sans-serif"
-    border_radius: str = "8px"
+    primary_color: str = Field("#1a73e8", pattern=_HEX)
+    secondary_color: str = Field("#ea4335", pattern=_HEX)
+    accent_color: str = Field("#34a853", pattern=_HEX)
+    background_color: str = Field("#ffffff", pattern=_HEX)
+    surface_color: str = Field("#f8f9fa", pattern=_HEX)
+    text_color: str = Field("#202124", pattern=_HEX)
+    font_family: str = Field("Inter, system-ui, sans-serif", pattern=_FONT)
+    border_radius: str = Field("8px", pattern=_RADIUS)
     custom_css: Optional[str] = None
 
 
@@ -65,20 +79,20 @@ class BrandingConfigurationUpdate(BaseModel):
     """Update branding configuration request"""
 
     is_enabled: Optional[bool] = None
-    company_name: Optional[str] = None
-    company_logo_url: Optional[str] = None
-    company_logo_dark_url: Optional[str] = None
-    company_favicon_url: Optional[str] = None
-    company_website: Optional[str] = None
+    company_name: Optional[str] = Field(None, max_length=255)
+    company_logo_url: Optional[str] = Field(None, max_length=500)
+    company_logo_dark_url: Optional[str] = Field(None, max_length=500)
+    company_favicon_url: Optional[str] = Field(None, max_length=500)
+    company_website: Optional[str] = Field(None, max_length=500)
     theme_mode: Optional[ThemeMode] = None
-    primary_color: Optional[str] = None
-    secondary_color: Optional[str] = None
-    accent_color: Optional[str] = None
-    background_color: Optional[str] = None
-    surface_color: Optional[str] = None
-    text_color: Optional[str] = None
-    font_family: Optional[str] = None
-    border_radius: Optional[str] = None
+    primary_color: Optional[str] = Field(None, pattern=_HEX)
+    secondary_color: Optional[str] = Field(None, pattern=_HEX)
+    accent_color: Optional[str] = Field(None, pattern=_HEX)
+    background_color: Optional[str] = Field(None, pattern=_HEX)
+    surface_color: Optional[str] = Field(None, pattern=_HEX)
+    text_color: Optional[str] = Field(None, pattern=_HEX)
+    font_family: Optional[str] = Field(None, pattern=_FONT)
+    border_radius: Optional[str] = Field(None, pattern=_RADIUS)
     custom_css: Optional[str] = None
 
 
@@ -88,7 +102,8 @@ class BrandingConfigurationResponse(BaseModel):
     id: str
     organization_id: str
     branding_level: BrandingLevel
-    is_enabled: bool
+    # NULL on rows written outside this API; reported as stored, not guessed.
+    is_enabled: Optional[bool]
     company_name: Optional[str]
     company_logo_url: Optional[str]
     company_logo_dark_url: Optional[str]
@@ -103,8 +118,42 @@ class BrandingConfigurationResponse(BaseModel):
     text_color: str
     font_family: str
     border_radius: str
-    created_at: str
-    updated_at: str
+    created_at: Optional[str]
+    updated_at: Optional[str]
+
+
+# Janua's defaults for the two colour COLUMNS. The style tokens under
+# `features["branding"]` fall back to the same values in the model; these two
+# are columns, nullable since 000_init (as are `is_active` and the timestamps),
+# so a row written outside this API may hold NULL. Reading such a row must
+# answer 200, not a validation 500.
+DEFAULT_PRIMARY_COLOR = "#1a73e8"
+DEFAULT_SECONDARY_COLOR = "#ea4335"
+
+
+def _branding_response(config: BrandingConfiguration) -> BrandingConfigurationResponse:
+    return BrandingConfigurationResponse(
+        id=str(config.id),
+        organization_id=str(config.organization_id),
+        branding_level=config.branding_level,
+        is_enabled=config.is_enabled,
+        company_name=config.company_name,
+        company_logo_url=config.company_logo_url,
+        company_logo_dark_url=config.company_logo_dark_url,
+        company_favicon_url=config.company_favicon_url,
+        company_website=config.company_website,
+        theme_mode=config.theme_mode,
+        primary_color=config.primary_color or DEFAULT_PRIMARY_COLOR,
+        secondary_color=config.secondary_color or DEFAULT_SECONDARY_COLOR,
+        accent_color=config.accent_color,
+        background_color=config.background_color,
+        surface_color=config.surface_color,
+        text_color=config.text_color,
+        font_family=config.font_family,
+        border_radius=config.border_radius,
+        created_at=config.created_at.isoformat() if config.created_at else None,
+        updated_at=config.updated_at.isoformat() if config.updated_at else None,
+    )
 
 
 class CustomDomainCreate(BaseModel):
@@ -184,14 +233,16 @@ class PageCustomizationCreate(BaseModel):
 async def create_branding_configuration(
     organization_id: str,
     config: BrandingConfigurationCreate,
-    current_user: User = Depends(require_admin),
+    actor: BrandingActor = Depends(branding_writer),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Create branding configuration for organization
 
-    Requires admin privileges.
+    Requires admin privileges, or the organization's own branding service
+    client (see app/services/branding_service_auth.py).
     """
+    refuse_service_custom_css(actor, config)
     try:
         # Check if organization exists
         org = await db.get(Organization, organization_id)
@@ -234,29 +285,11 @@ async def create_branding_configuration(
         db.add(branding_config)
         await db.commit()
 
-        return BrandingConfigurationResponse(
-            id=str(branding_config.id),
-            organization_id=str(branding_config.organization_id),
-            branding_level=branding_config.branding_level,
-            is_enabled=branding_config.is_enabled,
-            company_name=branding_config.company_name,
-            company_logo_url=branding_config.company_logo_url,
-            company_logo_dark_url=branding_config.company_logo_dark_url,
-            company_favicon_url=branding_config.company_favicon_url,
-            company_website=branding_config.company_website,
-            theme_mode=branding_config.theme_mode,
-            primary_color=branding_config.primary_color,
-            secondary_color=branding_config.secondary_color,
-            accent_color=branding_config.accent_color,
-            background_color=branding_config.background_color,
-            surface_color=branding_config.surface_color,
-            text_color=branding_config.text_color,
-            font_family=branding_config.font_family,
-            border_radius=branding_config.border_radius,
-            created_at=branding_config.created_at.isoformat(),
-            updated_at=branding_config.updated_at.isoformat(),
-        )
+        return _branding_response(branding_config)
 
+    except HTTPException:
+        # 404/400 are answers, not failures: without this they became 500s.
+        raise
     except Exception as e:
         logger.error(f"Failed to create branding configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -265,11 +298,13 @@ async def create_branding_configuration(
 @router.get("/branding/{organization_id}", response_model=BrandingConfigurationResponse)
 async def get_branding_configuration(
     organization_id: str,
-    current_user: User = Depends(get_current_user),
+    actor: BrandingActor = Depends(branding_reader),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Get branding configuration for organization
+
+    Any signed-in user, or the organization's own branding service client.
     """
     try:
         result = await db.execute(
@@ -282,29 +317,11 @@ async def get_branding_configuration(
         if not config:
             raise HTTPException(status_code=404, detail="Branding configuration not found")
 
-        return BrandingConfigurationResponse(
-            id=str(config.id),
-            organization_id=str(config.organization_id),
-            branding_level=config.branding_level,
-            is_enabled=config.is_enabled,
-            company_name=config.company_name,
-            company_logo_url=config.company_logo_url,
-            company_logo_dark_url=config.company_logo_dark_url,
-            company_favicon_url=config.company_favicon_url,
-            company_website=config.company_website,
-            theme_mode=config.theme_mode,
-            primary_color=config.primary_color,
-            secondary_color=config.secondary_color,
-            accent_color=config.accent_color,
-            background_color=config.background_color,
-            surface_color=config.surface_color,
-            text_color=config.text_color,
-            font_family=config.font_family,
-            border_radius=config.border_radius,
-            created_at=config.created_at.isoformat(),
-            updated_at=config.updated_at.isoformat(),
-        )
+        return _branding_response(config)
 
+    except HTTPException:
+        # 404/400 are answers, not failures: without this they became 500s.
+        raise
     except Exception as e:
         logger.error(f"Failed to get branding configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -314,14 +331,16 @@ async def get_branding_configuration(
 async def update_branding_configuration(
     organization_id: str,
     update: BrandingConfigurationUpdate,
-    current_user: User = Depends(require_admin),
+    actor: BrandingActor = Depends(branding_writer),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Update branding configuration
 
-    Requires admin privileges.
+    Requires admin privileges, or the organization's own branding service
+    client (see app/services/branding_service_auth.py).
     """
+    refuse_service_custom_css(actor, update)
     try:
         result = await db.execute(
             select(BrandingConfiguration).where(
@@ -340,29 +359,11 @@ async def update_branding_configuration(
 
         await db.commit()
 
-        return BrandingConfigurationResponse(
-            id=str(config.id),
-            organization_id=str(config.organization_id),
-            branding_level=config.branding_level,
-            is_enabled=config.is_enabled,
-            company_name=config.company_name,
-            company_logo_url=config.company_logo_url,
-            company_logo_dark_url=config.company_logo_dark_url,
-            company_favicon_url=config.company_favicon_url,
-            company_website=config.company_website,
-            theme_mode=config.theme_mode,
-            primary_color=config.primary_color,
-            secondary_color=config.secondary_color,
-            accent_color=config.accent_color,
-            background_color=config.background_color,
-            surface_color=config.surface_color,
-            text_color=config.text_color,
-            font_family=config.font_family,
-            border_radius=config.border_radius,
-            created_at=config.created_at.isoformat(),
-            updated_at=config.updated_at.isoformat(),
-        )
+        return _branding_response(config)
 
+    except HTTPException:
+        # 404/400 are answers, not failures: without this they became 500s.
+        raise
     except Exception as e:
         logger.error(f"Failed to update branding configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -372,7 +373,14 @@ async def update_branding_configuration(
 # Logo Upload Endpoints
 # =============================================================================
 
-ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
+ALLOWED_IMAGE_TYPES = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
+]
 MAX_LOGO_SIZE = 5 * 1024 * 1024  # 5MB
 MAX_FAVICON_SIZE = 1 * 1024 * 1024  # 1MB
 
@@ -439,7 +447,7 @@ def _sanitize_path_component(component: str) -> str:
     if not sanitized:
         raise HTTPException(
             status_code=400,
-            detail="Invalid path component: must contain at least one alphanumeric character"
+            detail="Invalid path component: must contain at least one alphanumeric character",
         )
 
     return sanitized
@@ -538,9 +546,7 @@ async def upload_logo(
         _safe_delete_uploaded_file(config.company_logo_url)
 
         # Upload new logo
-        logo_url = await _upload_branding_image(
-            file, organization_id, "logo", MAX_LOGO_SIZE
-        )
+        logo_url = await _upload_branding_image(file, organization_id, "logo", MAX_LOGO_SIZE)
 
         # Update branding configuration
         config.company_logo_url = logo_url
@@ -590,9 +596,7 @@ async def upload_logo_dark(
         _safe_delete_uploaded_file(config.company_logo_dark_url)
 
         # Upload new logo
-        logo_url = await _upload_branding_image(
-            file, organization_id, "logo-dark", MAX_LOGO_SIZE
-        )
+        logo_url = await _upload_branding_image(file, organization_id, "logo-dark", MAX_LOGO_SIZE)
 
         # Update branding configuration
         config.company_logo_dark_url = logo_url
@@ -870,6 +874,9 @@ async def create_custom_domain(
             updated_at=custom_domain.updated_at.isoformat(),
         )
 
+    except HTTPException:
+        # 404/400 are answers, not failures: without this they became 500s.
+        raise
     except Exception as e:
         logger.error(f"Failed to create custom domain: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -899,6 +906,9 @@ async def verify_custom_domain(
 
         return {"message": "Domain verified successfully"}
 
+    except HTTPException:
+        # 404/400 are answers, not failures: without this they became 500s.
+        raise
     except Exception as e:
         logger.error(f"Failed to verify custom domain: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -954,6 +964,9 @@ async def create_email_template(
             updated_at=email_template.updated_at.isoformat(),
         )
 
+    except HTTPException:
+        # 404/400 are answers, not failures: without this they became 500s.
+        raise
     except Exception as e:
         logger.error(f"Failed to create email template: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -997,6 +1010,9 @@ async def list_theme_presets(
             for preset in presets
         ]
 
+    except HTTPException:
+        # 404/400 are answers, not failures: without this they became 500s.
+        raise
     except Exception as e:
         logger.error(f"Failed to list theme presets: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1033,6 +1049,9 @@ async def get_organization_css(
             headers={"Cache-Control": "public, max-age=3600"},
         )
 
+    except HTTPException:
+        # 404/400 are answers, not failures: without this they became 500s.
+        raise
     except Exception as e:
         logger.error(f"Failed to get organization CSS: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1069,8 +1088,8 @@ def _generate_organization_css(config: BrandingConfiguration, theme_mode: ThemeM
     """Generate CSS from branding configuration"""
     css_vars = f"""
     :root {{
-        --primary-color: {config.primary_color};
-        --secondary-color: {config.secondary_color};
+        --primary-color: {config.primary_color or DEFAULT_PRIMARY_COLOR};
+        --secondary-color: {config.secondary_color or DEFAULT_SECONDARY_COLOR};
         --accent-color: {config.accent_color};
         --background-color: {config.background_color};
         --surface-color: {config.surface_color};

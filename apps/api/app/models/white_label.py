@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
+from sqlalchemy.orm import synonym
 
 from app.models.types import GUID as UUID
 from app.models.types import JSON as JSONB
@@ -100,6 +101,60 @@ class WhiteLabelConfiguration(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # ── The branding API's names (routers/v1/white_label.py) ────────────────
+    #
+    # The white-label router was written against attributes this table never
+    # had (`company_name`, `accent_color`, `is_enabled`, …), so every create
+    # answered 500 ("'branding_level' is an invalid keyword argument") and no
+    # organization's branding could be written or read through the API.
+    #
+    # Where a column already holds the value, the API name is a SYNONYM for it
+    # (usable in queries too: `BrandingConfiguration.is_enabled == True`).
+    # The style tokens with no column live under `features["branding"]`, one
+    # key per API name, so no DDL is needed and a later migration can move
+    # them into real columns one to one.
+    company_name = synonym("brand_name")
+    company_logo_url = synonym("logo_url")
+    company_favicon_url = synonym("favicon_url")
+    is_enabled = synonym("is_active")
+
+    def _branding_token(self, key, default=None):
+        return ((self.features or {}).get("branding") or {}).get(key, default)
+
+    def _set_branding_token(self, key, value) -> None:
+        # Reassign rather than mutate: a plain JSON column only notices a
+        # new object, and an in-place edit would be silently dropped.
+        features = dict(self.features or {})
+        branding = dict(features.get("branding") or {})
+        if value is None:
+            branding.pop(key, None)
+        else:
+            branding[key] = value.value if isinstance(value, enum.Enum) else value
+        features["branding"] = branding
+        self.features = features
+
+    def _token(key, default=None, kind=None):  # noqa: N805 — class-body helper
+        def getter(self):
+            value = self._branding_token(key, default)
+            return kind(value) if kind is not None and value is not None else value
+
+        def setter(self, value):
+            self._set_branding_token(key, value)
+
+        return property(getter, setter)
+
+    branding_level = _token("branding_level", BrandingLevel.BASIC.value, BrandingLevel)
+    theme_mode = _token("theme_mode", ThemeMode.LIGHT.value, ThemeMode)
+    company_logo_dark_url = _token("company_logo_dark_url")
+    company_website = _token("company_website")
+    accent_color = _token("accent_color", "#34a853")
+    background_color = _token("background_color", "#ffffff")
+    surface_color = _token("surface_color", "#f8f9fa")
+    text_color = _token("text_color", "#202124")
+    font_family = _token("font_family", "Inter, system-ui, sans-serif")
+    border_radius = _token("border_radius", "8px")
+    del _token
 
 
 class PageCustomization(Base):
