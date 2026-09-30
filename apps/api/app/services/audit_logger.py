@@ -5,10 +5,11 @@ Audit logging service with Cloudflare R2 integration
 import asyncio
 import hashlib
 import json
+import threading
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import boto3
 from botocore.exceptions import ClientError
@@ -175,13 +176,60 @@ class AuditEventType(str, Enum):
 AuditAction = AuditEventType
 
 
+# One R2 client per process, keyed by the settings it was built from.
+# boto3 clients are thread-safe (sessions are not), so every AuditLogger can
+# share one. Building a client is expensive: without explicit credentials
+# botocore walks the default credential chain, which probes the instance
+# metadata endpoint over the network, and routers build an AuditLogger per
+# request.
+_R2ClientConfig = Tuple[str, Optional[str], Optional[str]]
+_shared_r2_client: Optional[Tuple[_R2ClientConfig, Any]] = None
+_shared_r2_client_lock = threading.Lock()
+
+
+def get_shared_r2_client() -> Optional[Any]:
+    """Return the process-wide Cloudflare R2 client, building it on first use.
+
+    Returns None, and builds nothing, when ``R2_ENDPOINT`` is not configured.
+    The client is rebuilt only when the R2 settings change.
+    """
+    global _shared_r2_client
+
+    endpoint = settings.R2_ENDPOINT
+    if not endpoint:
+        return None
+    config: _R2ClientConfig = (
+        endpoint,
+        settings.R2_ACCESS_KEY_ID,
+        settings.R2_SECRET_ACCESS_KEY,
+    )
+
+    cached = _shared_r2_client
+    if cached is not None and cached[0] == config:
+        return cached[1]
+
+    with _shared_r2_client_lock:
+        cached = _shared_r2_client
+        if cached is None or cached[0] != config:
+            client = boto3.client(
+                "s3",
+                endpoint_url=config[0],
+                aws_access_key_id=config[1],
+                aws_secret_access_key=config[2],
+                region_name="auto",
+            )
+            cached = (config, client)
+            _shared_r2_client = cached
+        return cached[1]
+
+
 class AuditLogger:
     """
     Comprehensive audit logging with hash chain integrity
     and Cloudflare R2 archival
     """
 
-    def __init__(self, db: AsyncSession, r2_client: Optional[boto3.client] = None):
+    def __init__(self, db: AsyncSession, r2_client: Optional[Any] = None):
         self.db = db
         self.r2_client = r2_client or self._create_r2_client()
         self.buffer: List[Dict[str, Any]] = []
@@ -189,15 +237,9 @@ class AuditLogger:
         self.flush_interval = 60  # seconds
         self._flush_task = None
 
-    def _create_r2_client(self) -> boto3.client:
-        """Create Cloudflare R2 client"""
-        return boto3.client(
-            "s3",
-            endpoint_url=settings.R2_ENDPOINT,
-            aws_access_key_id=settings.R2_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
-            region_name="auto",
-        )
+    def _create_r2_client(self) -> Optional[Any]:
+        """Return the shared Cloudflare R2 client, or None when R2 is not configured."""
+        return get_shared_r2_client()
 
     async def log(
         self,
@@ -338,7 +380,7 @@ class AuditLogger:
     async def _archive_to_r2(self, entries: List[Dict[str, Any]]) -> None:
         """Archive audit logs to Cloudflare R2"""
 
-        if not entries:
+        if not entries or self.r2_client is None:
             return
 
         # Group by tenant and date
@@ -479,9 +521,9 @@ class AuditLogger:
 
         return {
             "valid": valid,
-            "message": "Hash chain is valid"
-            if valid
-            else f"Hash chain broken at index {broken_at}",
+            "message": (
+                "Hash chain is valid" if valid else f"Hash chain broken at index {broken_at}"
+            ),
             "count": len(logs),
             "broken_at": broken_at,
             "first_log": logs[0].timestamp.isoformat() if logs else None,
