@@ -9,6 +9,12 @@ const withMDX = require('@next/mdx')({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  // The production build type-checks app code only. Test files are excluded
+  // here (see tsconfig.build.json); tsconfig.json still includes them for the
+  // editor and for `pnpm typecheck`.
+  typescript: {
+    tsconfigPath: 'tsconfig.build.json',
+  },
   pageExtensions: ['ts', 'tsx', 'js', 'jsx', 'md', 'mdx'],
   reactStrictMode: true,
   transpilePackages: ['@janua/ui'],

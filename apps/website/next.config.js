@@ -1,6 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  // The production build type-checks app code only. Unit tests and
+  // Playwright specs are excluded here (see tsconfig.build.json) and are run
+  // by their own tooling; tsconfig.json still includes them for the editor
+  // and for `pnpm typecheck`.
+  typescript: {
+    tsconfigPath: 'tsconfig.build.json',
+  },
   transpilePackages: ['@janua/ui', '@janua/react-sdk', '@janua/typescript-sdk'],
   // Enable Turbopack with empty config (Next.js 16 default)
   turbopack: {},
