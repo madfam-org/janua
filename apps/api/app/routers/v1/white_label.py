@@ -87,6 +87,7 @@ BRANDING_FIELD_COLUMNS: Dict[str, str] = {
     "custom_css": "custom_css",
 }
 
+
 # Field limits mirror the column widths, so an over-long value is a 422 here
 # instead of a database error (a 500) at commit.
 def _name() -> Any:
@@ -420,7 +421,14 @@ async def update_branding_configuration(
 # Logo Upload Endpoints
 # =============================================================================
 
-ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml"]
+ALLOWED_IMAGE_TYPES = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
+]
 MAX_LOGO_SIZE = 5 * 1024 * 1024  # 5MB
 MAX_FAVICON_SIZE = 1 * 1024 * 1024  # 1MB
 
@@ -487,7 +495,7 @@ def _sanitize_path_component(component: str) -> str:
     if not sanitized:
         raise HTTPException(
             status_code=400,
-            detail="Invalid path component: must contain at least one alphanumeric character"
+            detail="Invalid path component: must contain at least one alphanumeric character",
         )
 
     return sanitized
@@ -577,9 +585,7 @@ async def upload_logo(
         _safe_delete_uploaded_file(config.logo_url)
 
         # Upload new logo
-        logo_url = await _upload_branding_image(
-            file, organization_id, "logo", MAX_LOGO_SIZE
-        )
+        logo_url = await _upload_branding_image(file, organization_id, "logo", MAX_LOGO_SIZE)
 
         # Update branding configuration
         config.logo_url = logo_url
@@ -620,9 +626,7 @@ async def upload_logo_dark(
         _safe_delete_uploaded_file(config.logo_dark_url)
 
         # Upload new logo
-        logo_url = await _upload_branding_image(
-            file, organization_id, "logo-dark", MAX_LOGO_SIZE
-        )
+        logo_url = await _upload_branding_image(file, organization_id, "logo-dark", MAX_LOGO_SIZE)
 
         # Update branding configuration
         config.logo_dark_url = logo_url
