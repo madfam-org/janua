@@ -228,10 +228,10 @@ def test_unloadable_redirect_uris_mean_no_token():
 @pytest.fixture
 def pg_url():
     """A fresh schema on a disposable loopback *_test database, dropped after."""
+    # Opt-in only: in the full suite `psycopg2` is replaced by a Mock for the
+    # whole process (see tests/unit/test_migration_reentrancy.py), so these
+    # tests run on their own against a disposable database.
     raw = os.getenv("AUDIT_TEST_DATABASE_URL")
-    if not raw and os.getenv("LOCAL_DB") == "yes":
-        # CI's guarded PostgreSQL service (see the payment-mail proof).
-        raw = os.getenv("JANUA_MAIL_TEST_DATABASE_URL")
     if not raw:
         pytest.skip("Set AUDIT_TEST_DATABASE_URL to a disposable loopback *_test database")
     from sqlalchemy import create_engine, text
