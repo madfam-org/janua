@@ -28,6 +28,9 @@ from tests.unit.test_migration_reentrancy import (
     _with_database,
 )
 
+# Every test here uses the `databases` fixture: CI's PostgreSQL job runs them.
+pytestmark = pytest.mark.database
+
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SQL_FILE = REPO_ROOT / "docs" / "ops" / "sql" / "019_email_first_party_engagement.sql"
 HEAD = "019_email_first_party_engagement"

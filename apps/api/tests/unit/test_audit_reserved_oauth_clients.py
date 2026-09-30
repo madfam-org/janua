@@ -146,6 +146,7 @@ def pg_url():
         admin.dispose()
 
 
+@pytest.mark.database
 def test_real_postgres_run_is_read_only_and_classifies(pg_url):
     from sqlalchemy import create_engine, text
 
