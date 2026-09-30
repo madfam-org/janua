@@ -29,13 +29,25 @@ token verifies against the branding audience. A person's access token carries
 the platform audience, so it never verifies here and falls through to the
 existing `get_current_user` / `require_admin` checks unchanged. Conversely a
 branding service token never verifies against the platform audience, so it can
-never be mistaken for a person. Once a token IS addressed to this audience,
-every failed check is a 403 — never a fallthrough to the user path.
+never be mistaken for a person. Once a token verifies against this audience,
+every failed check is a 403 — never a fallthrough to the user path. A token
+that does not verify at all (bad signature, wrong algorithm, expired, another
+audience) is not addressed here and gets the person path's 401.
+
+WHO MAY HOLD SUCH A CLIENT
+--------------------------
+The audience and scope are reserved (`core/reserved_oauth_boundaries.py`), so
+registering a client that carries them is a platform-admin action, and the
+client row must also have been registered by a platform admin
+(`oauth_client_authority.client_registered_by_platform_admin`), re-checked on
+every call. A row that carries the values without that provenance grants
+nothing.
 
 WHAT THE SERVICE MAY NOT DO
 ---------------------------
-It cannot set `custom_css`. The public `/white-label/css/{org}` endpoint appends
-that field verbatim into a stylesheet, so it stays an admin-only field.
+It cannot set, clear or otherwise send `custom_css`. The public
+`/white-label/css/{org}` endpoint appends that field verbatim into a
+stylesheet, so it stays an admin-only field.
 """
 
 from __future__ import annotations
@@ -47,17 +59,17 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.jwt_manager import jwt_manager
 from app.core.redis import ResilientRedisClient, get_redis
+from app.core.reserved_oauth_boundaries import BRANDING_AUDIENCE, BRANDING_SCOPE
 from app.database import get_db
 from app.dependencies import get_current_user, require_admin, security
 from app.models import OAuthClient, User
-
-BRANDING_AUDIENCE = "janua-white-label"
-BRANDING_SCOPE = "white-label:branding"
+from app.services.oauth_client_authority import client_registered_by_platform_admin
 
 
 @dataclass(frozen=True)
@@ -113,7 +125,11 @@ def _principal_from_payload(payload: dict) -> BrandingServicePrincipal:
 
 
 async def _current_grant(db: AsyncSession, principal: BrandingServicePrincipal) -> None:
-    """Re-read the client row: a token minted before revocation is not enough."""
+    """Re-read the client row: a token minted before revocation is not enough.
+
+    The row must also have been registered by a platform admin, the same rule
+    `payment_mail_auth.current_mail_client` applies to its reserved boundary.
+    """
     result = await db.execute(
         select(OAuthClient)
         .where(OAuthClient.client_id == principal.client_id)
@@ -128,6 +144,7 @@ async def _current_grant(db: AsyncSession, principal: BrandingServicePrincipal) 
         or client.audience != BRANDING_AUDIENCE
         or BRANDING_SCOPE not in (client.allowed_scopes or [])
         or "client_credentials" not in (client.grant_types or [])
+        or not await client_registered_by_platform_admin(db, client)
     ):
         raise _denied("branding_service_grant_unavailable")
 
@@ -183,9 +200,14 @@ async def branding_writer(
     return require_admin(await get_current_user(credentials, db, redis))
 
 
-def refuse_service_custom_css(actor: BrandingActor, custom_css: Optional[str]) -> None:
-    """`custom_css` is appended verbatim to a public stylesheet: admins only."""
-    if isinstance(actor, BrandingServicePrincipal) and custom_css is not None:
+def refuse_service_custom_css(actor: BrandingActor, request: BaseModel) -> None:
+    """`custom_css` is appended verbatim to a public stylesheet: admins only.
+
+    Presence, not value, decides: `{"custom_css": null}` on a partial update
+    would clear an admin's stylesheet, so a service may not send the field at
+    all.
+    """
+    if isinstance(actor, BrandingServicePrincipal) and "custom_css" in request.model_fields_set:
         raise _denied("branding_service_custom_css_forbidden")
 
 

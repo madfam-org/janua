@@ -75,7 +75,7 @@ else:
 - cannot edit or rotate a client that already holds a reserved value.
 
 `/register` converges only onto rows a platform admin registered (it answers
-409 otherwise). Janua's own service boundaries (payment notices today) also
+409 otherwise). Janua's own service boundaries (payment notices, white-label branding) also
 refuse a client whose `created_by` is not a platform admin; use
 `client_registered_by_platform_admin` from
 `app/services/oauth_client_authority.py` in any new one.
@@ -133,9 +133,10 @@ Registration properties:
 the white-label branding (`GET`/`PUT /white-label/branding/{org}`,
 `POST /white-label/branding?organization_id=`) of exactly the organization in
 `organization_id`, and no other; the client row is re-read on every call
-(`apps/api/app/services/branding_service_auth.py`). It may not set
-`custom_css`, which the public `/white-label/css/{org}` endpoint appends
-verbatim. People keep the path they had: any signed-in user reads, a platform
+(`apps/api/app/services/branding_service_auth.py`) and must have been
+registered by a platform admin, like the payment-notice client. It may not
+send `custom_css` at all (not even `null`), because the public
+`/white-label/css/{org}` endpoint appends that field verbatim. People keep the path they had: any signed-in user reads, a platform
 admin writes. A second tenant needs its own client.
 
 The `yantra4d:render` scope namespace is what makes Yantra4D emit a
