@@ -344,6 +344,48 @@ class TestLogMethod:
         assert logger.buffer == []
 
 
+class TestStoreEntryCommits:
+    """``_store_entry`` commits only a session the logger owns."""
+
+    @pytest.fixture
+    def mock_db(self):
+        db = AsyncMock()
+        db.add = MagicMock()
+        db.begin_nested = MagicMock()  # an async context manager (MagicMock supports it)
+        return db
+
+    def _entry(self):
+        return {
+            "event_id": str(uuid4()),
+            "event_type": "auth.signin",
+            "tenant_id": "test-tenant",
+            "identity_id": None,
+            "resource_type": None,
+            "resource_id": None,
+            "details": {},
+            "timestamp": datetime(2026, 1, 1).isoformat(),
+            "previous_hash": None,
+            "hash": "a" * 64,
+        }
+
+    async def test_a_caller_owned_session_is_flushed_in_a_savepoint_never_committed(self, mock_db):
+        logger = AuditLogger(mock_db, r2_client=MagicMock())
+
+        await logger._store_entry(self._entry())
+
+        mock_db.begin_nested.assert_called_once()
+        mock_db.add.assert_called_once()
+        mock_db.commit.assert_not_awaited()
+        mock_db.rollback.assert_not_awaited()
+
+    async def test_an_owned_session_is_committed(self, mock_db):
+        logger = AuditLogger(mock_db, r2_client=MagicMock(), owns_session=True)
+
+        await logger._store_entry(self._entry())
+
+        mock_db.commit.assert_awaited_once()
+
+
 class TestBufferManagement:
     """Test buffer management and flushing (the buffer only feeds the R2 archive)."""
 
@@ -359,7 +401,7 @@ class TestBufferManagement:
     def logger(self, mock_db):
         """Create AuditLogger instance with small buffer."""
         with patch.object(AuditLogger, "_create_r2_client", return_value=MagicMock()):
-            logger = AuditLogger(mock_db)
+            logger = AuditLogger(mock_db, owns_session=True)
         logger.buffer_size = 3  # Small buffer for testing
         logger._chain_tail = AsyncMock(return_value=(None, None))
         logger._store_entry = AsyncMock()

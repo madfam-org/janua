@@ -47,8 +47,11 @@ class _Row:
     """Stands in for the AuditLog ORM row.
 
     These tests cover the archive path, so they model the table with a plain
-    row object and keep ``_store_entry`` itself unpatched. The real model and
-    database are covered by test_audit_logger_chain.py.
+    row object and keep ``_store_entry`` itself unpatched. The fake session
+    stands for one the logger owns (``owns_session=True``), so ``log()``
+    commits each entry. The real model and database, and the caller-owned
+    mode (archive only after the caller's commit), are covered by
+    test_audit_logger_chain.py.
     """
 
     def __init__(self, **columns: Any):
@@ -174,7 +177,7 @@ async def _log_entries(audit: AuditLogger, severities: List[str], tenant="tenant
 
 @pytest.fixture
 def audit(table, r2):
-    logger = AuditLogger(table, r2_client=r2)
+    logger = AuditLogger(table, r2_client=r2, owns_session=True)
     logger._flush_task = object()  # no periodic flush task in unit tests
     return logger
 
@@ -284,7 +287,7 @@ class TestDedicatedBucket:
 
 class TestPeriodicFlush:
     async def test_ends_once_the_buffer_is_empty(self, table, r2, dedicated_bucket):
-        audit = AuditLogger(table, r2_client=r2)
+        audit = AuditLogger(table, r2_client=r2, owns_session=True)
         audit.flush_interval = 0
 
         await _log_entries(audit, ["info"])
@@ -297,7 +300,7 @@ class TestPeriodicFlush:
         r2.put_object.assert_called_once()
 
     async def test_no_task_while_archiving_is_off(self, table, r2):
-        audit = AuditLogger(table, r2_client=r2)
+        audit = AuditLogger(table, r2_client=r2, owns_session=True)
 
         await _log_entries(audit, ["info"])
 
@@ -456,7 +459,7 @@ class TestExport:
         assert r2.method_calls == []
 
     async def test_no_client_returns_the_export_id(self, table, dedicated_bucket):
-        audit = AuditLogger(table)
+        audit = AuditLogger(table, owns_session=True)
         assert audit.r2_client is None
 
         assert uuid.UUID(await self._export(audit))

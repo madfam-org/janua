@@ -237,66 +237,133 @@ def test_rows_with_action_only_still_insert(databases) -> None:
     assert row == "oauth_client.create\tTrue\tTrue\tTrue"
 
 
-@pytest.mark.database
-async def test_concurrent_loggers_of_one_tenant_build_one_chain(databases, monkeypatch) -> None:
-    """One AuditLogger and one session per request, as the routers do."""
-    from sqlalchemy import select
+@pytest.fixture
+def pg_factory(databases, monkeypatch):
+    """An asyncpg session factory on the `head` database, R2 and encryption off."""
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
     from app.config import settings
-    from app.models import AuditLog
     from app.services import audit_logger as audit_logger_module
-    from app.services.audit_logger import RESOURCE_REF_KEY, AuditEventType, AuditLogger
 
     monkeypatch.setattr(audit_logger_module, "_shared_r2_client", None)
     monkeypatch.setattr(settings, "R2_ENDPOINT", None)
     monkeypatch.setattr(settings, "AUDIT_LOG_ENCRYPTION", False)
-
-    url = databases["head"]
     engine = create_async_engine(
-        _sync_url(url).replace("postgresql://", "postgresql+asyncpg://"), pool_size=10
+        _sync_url(databases["head"]).replace("postgresql://", "postgresql+asyncpg://"),
+        pool_size=12,
     )
-    tenant = str(uuid.uuid4())
-    try:
-        factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    yield async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False), engine
 
-        async def one_request(i: int) -> None:
-            async with factory() as session:
-                await AuditLogger(session).log(
-                    event_type=AuditEventType.USER_UPDATE,
-                    tenant_id=tenant,
-                    resource_type="user",
-                    resource_id=str(uuid.uuid4()) if i % 2 else f"external-{i}",
-                    details={"i": i},
-                    ip_address="192.0.2.1",
+
+async def _chain(factory, tenant: str):
+    from sqlalchemy import select
+
+    from app.models import AuditLog
+    from app.services.audit_logger import AuditLogger
+
+    async with factory() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(AuditLog)
+                    .where(AuditLog.tenant_id == tenant)
+                    .order_by(AuditLog.created_at, AuditLog.id)
                 )
-
-        await asyncio.gather(*(one_request(i) for i in range(12)))
-
-        async with factory() as session:
-            rows = (
-                (
-                    await session.execute(
-                        select(AuditLog)
-                        .where(AuditLog.tenant_id == tenant)
-                        .order_by(AuditLog.created_at, AuditLog.id)
-                    )
-                )
-                .scalars()
-                .all()
             )
-            assert len(rows) == 12
-            assert rows[0].previous_hash is None
-            assert [r.previous_hash for r in rows[1:]] == [r.current_hash for r in rows[:-1]]
-            assert {r.action for r in rows} == {"user.update"}
-            external = [r for r in rows if r.resource_id is None]
-            assert len(external) == 6
-            assert all(r.details[RESOURCE_REF_KEY].startswith("external-") for r in external)
+            .scalars()
+            .all()
+        )
+        result = await AuditLogger(session).verify_integrity(tenant)
+    return rows, result
 
-            result = await AuditLogger(session).verify_integrity(tenant)
-            assert result["valid"] is True and result["count"] == 12
+
+@pytest.mark.database
+@pytest.mark.parametrize("mode", ["caller_commits", "logger_owns_session"])
+async def test_concurrent_loggers_of_one_tenant_build_one_chain(pg_factory, mode) -> None:
+    """One session per request, as the routers do; in both ownership modes."""
+    from app.services.audit_logger import RESOURCE_REF_KEY, AuditEventType, AuditLogger
+
+    factory, engine = pg_factory
+    tenant = str(uuid.uuid4())
+
+    def kwargs(i: int) -> dict:
+        return {
+            "event_type": AuditEventType.USER_UPDATE,
+            "tenant_id": tenant,
+            "resource_type": "user",
+            "resource_id": str(uuid.uuid4()) if i % 2 else f"external-{i}",
+            "details": {"i": i},
+            "ip_address": "192.0.2.1",
+        }
+
+    async def one_request(i: int) -> None:
+        if mode == "caller_commits":
+            async with factory() as session:
+                await AuditLogger(session).log(**kwargs(i))
+                await session.commit()
+        else:
+            async with AuditLogger.with_own_session(factory) as audit:
+                await audit.log(**kwargs(i))
+
+    try:
+        await asyncio.gather(*(one_request(i) for i in range(12)))
+        rows, result = await _chain(factory, tenant)
     finally:
         await engine.dispose()
+
+    assert len(rows) == 12
+    assert rows[0].previous_hash is None
+    assert [r.previous_hash for r in rows[1:]] == [r.current_hash for r in rows[:-1]]
+    assert {r.action for r in rows} == {"user.update"}
+    external = [r for r in rows if r.resource_id is None]
+    assert len(external) == 6
+    assert all(r.details[RESOURCE_REF_KEY].startswith("external-") for r in external)
+    assert result["valid"] is True and result["count"] == 12
+
+
+@pytest.mark.database
+async def test_a_caller_rollback_takes_the_audit_row_and_the_chain_stays_valid(
+    pg_factory,
+) -> None:
+    """The row flushed into a rolled-back transaction never joins the chain,
+    and a writer waiting on the tenant lock links to the committed tail."""
+    from sqlalchemy import text
+
+    from app.services.audit_logger import AuditEventType, AuditLogger
+
+    factory, engine = pg_factory
+    tenant = str(uuid.uuid4())
+    try:
+        async with factory() as session:
+            await AuditLogger(session).log(event_type=AuditEventType.AUTH_SIGNIN, tenant_id=tenant)
+            await session.commit()
+
+        rolled_back = factory()
+        await AuditLogger(rolled_back).log(event_type=AuditEventType.USER_UPDATE, tenant_id=tenant)
+        pending = await rolled_back.execute(text("SELECT count(*) FROM audit_logs"))
+        assert pending.scalar() >= 1
+
+        async def second_writer() -> None:
+            async with factory() as session:
+                await AuditLogger(session).log(
+                    event_type=AuditEventType.AUTH_SIGNOUT, tenant_id=tenant
+                )
+                await session.commit()
+
+        waiting = asyncio.create_task(second_writer())
+        await asyncio.sleep(0.3)
+        assert not waiting.done(), "the tenant lock should hold the second writer"
+        await rolled_back.rollback()
+        await rolled_back.close()
+        await asyncio.wait_for(waiting, 10)
+
+        rows, result = await _chain(factory, tenant)
+    finally:
+        await engine.dispose()
+
+    assert [r.action for r in rows] == ["auth.signin", "auth.signout"]
+    assert rows[1].previous_hash == rows[0].current_hash
+    assert result["valid"] is True
 
 
 @pytest.mark.database

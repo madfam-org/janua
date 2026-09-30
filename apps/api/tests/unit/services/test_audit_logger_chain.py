@@ -12,20 +12,25 @@ What these pin, with no mocks between the service and the table:
 - ``export_logs`` returns the stored rows, with encrypted details decrypted.
 - Rows written by other code (``action`` only) are untouched and never read as
   part of a chain.
+- Session ownership: over a caller's session ``log()`` never commits, so the
+  audit row commits or rolls back with the caller's work; a logger that owns
+  its session (``with_own_session``) commits each entry itself.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from datetime import datetime, timedelta
 
 import pytest
 from cryptography.fernet import Fernet
+from sqlalchemy import event as sa_event
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, StaticPool
 
 from app.config import settings
 from app.core.encryption import FieldEncryptor
@@ -52,12 +57,34 @@ def no_archive_no_encryption(monkeypatch):
     monkeypatch.setattr(settings, "AUDIT_LOG_ENCRYPTION", False)
 
 
+def sqlite_with_real_transactions(engine):
+    """Make SQLite transactions and SAVEPOINTs behave as on PostgreSQL.
+
+    The sqlite3 driver only opens a transaction before DML, so a SAVEPOINT
+    issued first becomes the outermost transaction and releasing it commits.
+    SQLAlchemy's documented fix: turn off the driver's own handling and emit
+    BEGIN when SQLAlchemy begins.
+    """
+
+    @sa_event.listens_for(engine.sync_engine, "connect")
+    def _no_driver_transactions(dbapi_connection, _record):
+        dbapi_connection.isolation_level = None
+
+    @sa_event.listens_for(engine.sync_engine, "begin")
+    def _begin(connection):
+        connection.exec_driver_sql("BEGIN")
+
+    return engine
+
+
 @pytest.fixture
 async def session():
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        poolclass=StaticPool,
-        connect_args={"check_same_thread": False},
+    engine = sqlite_with_real_transactions(
+        create_async_engine(
+            "sqlite+aiosqlite:///:memory:",
+            poolclass=StaticPool,
+            connect_args={"check_same_thread": False},
+        )
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -67,6 +94,28 @@ async def session():
             yield db
     finally:
         await engine.dispose()
+
+
+@pytest.fixture
+async def factory(tmp_path):
+    """Sessions over one file database, each with its own connection."""
+    engine = sqlite_with_real_transactions(
+        create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'audit.db'}", poolclass=NullPool)
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    try:
+        yield async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    finally:
+        await engine.dispose()
+
+
+async def _count(factory, model, *where) -> int:
+    async with factory() as fresh:
+        query = select(model)
+        for clause in where:
+            query = query.where(clause)
+        return len((await fresh.execute(query)).scalars().all())
 
 
 @pytest.fixture
@@ -181,6 +230,10 @@ class TestLogStoresOneRow:
         )
         await AuditLogger(session).log(event_type=AuditEventType.AUTH_SIGNIN, tenant_id=TENANT_A)
         (first,) = await _rows(session)
+        # The caller's own, not yet committed, work.
+        pending = User(id=uuid.uuid4(), email="pending@example.com")
+        session.add(pending)
+        await session.flush()
 
         # A second entry with the same id violates the primary key.
         monkeypatch.setattr(audit_logger_module.uuid, "uuid4", lambda: first.id)
@@ -191,9 +244,160 @@ class TestLogStoresOneRow:
         monkeypatch.undo()
 
         assert errors == [AUDIT_STORE_FAILED]
+        # Only the SAVEPOINT rolled back: the caller's work and the first entry
+        # are still in its transaction and commit with it.
         session.add(User(id=uuid.uuid4(), email="after@example.com"))
         await session.commit()
         assert len(await _rows(session)) == 1
+        assert (await session.get(User, pending.id)) is not None
+
+
+class TestSessionOwnership:
+    async def test_a_caller_rollback_discards_the_business_row_and_the_audit_row(self, factory):
+        async with factory() as db:
+            person = User(id=uuid.uuid4(), email="person@example.com")
+            db.add(person)
+            await db.flush()
+            await AuditLogger(db).log(
+                event_type=AuditEventType.USER_CREATE,
+                tenant_id=TENANT_A,
+                resource_type="user",
+                resource_id=str(person.id),
+            )
+            await db.rollback()
+
+        assert await _count(factory, User) == 0
+        assert await _count(factory, AuditLog) == 0
+
+    async def test_b_a_caller_commit_keeps_both_and_the_chain(self, factory):
+        people = []
+        for i in range(3):
+            async with factory() as db:
+                person = User(id=uuid.uuid4(), email=f"person{i}@example.com")
+                db.add(person)
+                await db.flush()
+                audit = AuditLogger(db)
+                assert audit.owns_session is False
+                await audit.log(
+                    event_type=AuditEventType.USER_CREATE,
+                    tenant_id=TENANT_A,
+                    resource_type="user",
+                    resource_id=str(person.id),
+                )
+                await db.commit()
+                people.append(person.id)
+
+        assert await _count(factory, User) == 3
+        async with factory() as fresh:
+            rows = await _rows(fresh, TENANT_A)
+            assert [r.resource_id for r in rows] == people
+            result = await AuditLogger(fresh).verify_integrity(TENANT_A)
+        assert result["valid"] is True and result["count"] == 3
+
+    async def test_nothing_is_committed_for_the_caller(self, factory):
+        """Without the caller's commit, closing its session drops the row."""
+        async with factory() as db:
+            await AuditLogger(db).log(event_type=AuditEventType.AUTH_SIGNIN, tenant_id=TENANT_A)
+
+        assert await _count(factory, AuditLog) == 0
+
+    async def test_c_a_logger_owned_session_commits_on_its_own(self, factory):
+        async with AuditLogger.with_own_session(factory) as audit:
+            assert audit.owns_session is True
+            await audit.log(event_type=AuditEventType.AUTH_SIGNIN, tenant_id=TENANT_A)
+            await audit.log(event_type=AuditEventType.AUTH_SIGNOUT, tenant_id=TENANT_A)
+
+        assert await _count(factory, AuditLog) == 2
+        async with factory() as fresh:
+            assert (await AuditLogger(fresh).verify_integrity(TENANT_A))["valid"] is True
+
+    async def test_a_logger_owned_failure_rolls_back_and_raises(self, factory, monkeypatch):
+        errors = []
+        monkeypatch.setattr(
+            audit_logger_module.logger,
+            "error",
+            lambda *args, **kwargs: errors.append(kwargs.get("code")),
+        )
+        async with AuditLogger.with_own_session(factory) as audit:
+            monkeypatch.setattr(audit.db, "commit", _raise(RuntimeError("database unavailable")))
+            with pytest.raises(RuntimeError):
+                await audit.log(event_type=AuditEventType.AUTH_SIGNIN, tenant_id=TENANT_A)
+
+        assert errors == [AUDIT_STORE_FAILED]
+        assert await _count(factory, AuditLog) == 0
+
+
+class TestArchiveWaitsForTheCallersCommit:
+    @pytest.fixture
+    def r2(self):
+        return _CapturingR2({})
+
+    async def test_archived_only_after_the_caller_commits(self, factory, r2):
+        with _audit_bucket("example-audit-archive"):
+            async with factory() as db:
+                audit = AuditLogger(db, r2_client=r2)
+                audit._flush_task = object()  # flush by hand below
+                await audit.log(event_type=AuditEventType.AUTH_SIGNIN, tenant_id=TENANT_A)
+                assert audit.buffer == []
+
+                await db.commit()
+                assert len(audit.buffer) == 1
+
+                await audit._flush_buffer()
+        assert json.loads(r2.captured["Body"])["count"] == 1
+
+    async def test_nothing_is_archived_after_a_rollback(self, factory, r2):
+        with _audit_bucket("example-audit-archive"):
+            async with factory() as db:
+                audit = AuditLogger(db, r2_client=r2)
+                audit._flush_task = object()
+                await audit.log(event_type=AuditEventType.AUTH_SIGNIN, tenant_id=TENANT_A)
+                await db.rollback()
+                await audit._flush_buffer()
+
+                # A later commit of other work does not bring it back.
+                db.add(User(id=uuid.uuid4(), email="later@example.com"))
+                await db.commit()
+                await audit._flush_buffer()
+
+        assert audit.buffer == [] and audit._awaiting_commit == []
+        assert r2.captured == {}
+
+    async def test_a_savepoint_inside_the_caller_does_not_release_entries(self, factory, r2):
+        with _audit_bucket("example-audit-archive"):
+            async with factory() as db:
+                audit = AuditLogger(db, r2_client=r2)
+                audit._flush_task = object()
+                await audit.log(event_type=AuditEventType.AUTH_SIGNIN, tenant_id=TENANT_A)
+                # The second log() opens and releases its own SAVEPOINT.
+                await audit.log(event_type=AuditEventType.AUTH_SIGNOUT, tenant_id=TENANT_A)
+                assert audit.buffer == []
+                await db.commit()
+                assert len(audit.buffer) == 2
+
+    async def test_the_periodic_flush_waits_for_the_commit(self, factory, r2):
+        with _audit_bucket("example-audit-archive"):
+            async with factory() as db:
+                audit = AuditLogger(db, r2_client=r2)
+                audit.flush_interval = 0
+                await audit.log(event_type=AuditEventType.AUTH_SIGNIN, tenant_id=TENANT_A)
+                task = audit._flush_task
+                assert task is not None
+                await asyncio.sleep(0.05)
+                assert r2.captured == {} and not task.done()
+
+                await db.commit()
+                await asyncio.wait_for(task, 5)
+
+        assert json.loads(r2.captured["Body"])["count"] == 1
+        assert audit._flush_task is None
+
+
+def _raise(error):
+    async def _fail(*args, **kwargs):
+        raise error
+
+    return _fail
 
 
 class TestChain:

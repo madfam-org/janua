@@ -7,13 +7,15 @@ import hashlib
 import json
 import threading
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Tuple
 
 import boto3
 from botocore.exceptions import ClientError
 from sqlalchemy import and_, select, text
+from sqlalchemy import event as sa_event
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -342,21 +344,64 @@ class AuditLogger:
     increases strictly along each tenant's chain, so ``(tenant_id, created_at,
     id)`` orders it.
 
-    When archiving is enabled (see ``get_audit_archive_bucket``), stored entries
-    are also buffered and archived to R2 in batches. Archiving never writes to
-    the database.
+    Session ownership is explicit:
+
+    - ``AuditLogger(db)``: the caller owns ``db``. ``log()`` inserts the row in
+      a SAVEPOINT and flushes it; it never commits. The row commits or rolls
+      back with the caller's transaction, so a caller that logs after its own
+      last commit must commit again.
+    - ``AuditLogger.with_own_session()``: the logger opens, owns and closes its
+      session, and ``log()`` commits each entry.
+
+    When archiving is enabled (see ``get_audit_archive_bucket``), committed
+    entries are also buffered and archived to R2 in batches. Archiving never
+    writes to the database.
     """
 
-    def __init__(self, db: AsyncSession, r2_client: Optional[Any] = None):
+    def __init__(
+        self,
+        db: AsyncSession,
+        r2_client: Optional[Any] = None,
+        *,
+        owns_session: bool = False,
+    ):
         self.db = db
+        # True only when this logger opened ``db`` itself (``with_own_session``).
+        # Then, and only then, ``log()`` commits.
+        self.owns_session = owns_session
         self.r2_client = r2_client or self._create_r2_client()
-        # Stored entries waiting to be archived. Only filled while archiving is
-        # enabled; flushed at ``buffer_size`` entries or every ``flush_interval``
-        # seconds.
+        # Committed entries waiting to be archived. Only filled while archiving
+        # is enabled; flushed at ``buffer_size`` entries or every
+        # ``flush_interval`` seconds.
         self.buffer: List[Dict[str, Any]] = []
+        # Entries flushed into the caller's transaction, archived only once
+        # that transaction commits and dropped if it rolls back.
+        self._awaiting_commit: List[Dict[str, Any]] = []
+        self._watching_caller_transaction = False
         self.buffer_size = 100
         self.flush_interval = 60  # seconds
-        self._flush_task: Optional["asyncio.Task[None]"] = None
+        self._flush_task: Optional[asyncio.Task[None]] = None
+
+    @classmethod
+    @asynccontextmanager
+    async def with_own_session(
+        cls,
+        session_factory: Optional[Callable[[], AsyncSession]] = None,
+        r2_client: Optional[Any] = None,
+    ) -> AsyncIterator["AuditLogger"]:
+        """Yield a logger over a session it opens, owns and closes.
+
+        Its ``log()`` commits each entry in its own transaction, independent of
+        any request session. For background work, or for code whose business
+        transaction has already committed and must not be reopened.
+        ``session_factory`` defaults to ``app.database.AsyncSessionLocal``.
+        """
+        if session_factory is None:
+            from app.database import AsyncSessionLocal
+
+            session_factory = AsyncSessionLocal
+        async with session_factory() as session:
+            yield cls(session, r2_client=r2_client, owns_session=True)
 
     def _create_r2_client(self) -> Optional[Any]:
         """Return the shared Cloudflare R2 client, or None when R2 is not configured."""
@@ -385,8 +430,10 @@ class AuditLogger:
         """
         Create an audit log entry with hash chain integrity
 
-        The entry is stored before this returns; a database failure is logged
-        with the stable code ``AUDIT_STORE_FAILED`` and raised.
+        The row is written before this returns: flushed into the caller's
+        transaction, or committed when the logger owns its session. A database
+        failure is logged with the stable code ``AUDIT_STORE_FAILED`` and raised;
+        in a caller's transaction only the SAVEPOINT is rolled back.
 
         ``identity_id`` and ``resource_id`` are stored in their UUID columns
         only when they are UUIDs. Any other value is kept in ``details`` under
@@ -443,10 +490,14 @@ class AuditLogger:
         await self._store_entry(audit_entry)
 
         if self._archiving_enabled():
-            self.buffer.append(audit_entry)
+            if self.owns_session:
+                self.buffer.append(audit_entry)
+            else:
+                self._awaiting_commit.append(audit_entry)
+                self._watch_caller_transaction()
             if len(self.buffer) >= self.buffer_size:
                 await self._flush_buffer()
-            if self.buffer and not self._flush_task:
+            if (self.buffer or self._awaiting_commit) and not self._flush_task:
                 self._flush_task = asyncio.create_task(self._periodic_flush())
 
         logger.info(f"Audit logged: {event_name} for tenant {tenant}", extra={"event_id": event_id})
@@ -456,8 +507,10 @@ class AuditLogger:
     async def _store_entry(self, entry: Dict[str, Any]) -> None:
         """Store audit entry in database, optionally encrypting details (CF-11).
 
-        The row is inserted inside a SAVEPOINT, so a failed insert leaves the
-        caller's transaction usable, and then committed. Encrypted details are
+        The row is inserted and flushed inside a SAVEPOINT, so a failed insert
+        rolls back only the SAVEPOINT and the caller's own work stays in its
+        transaction. The row is committed only when the logger owns its session
+        (``owns_session``); otherwise it commits with the caller. Encrypted details are
         stored as ``{"encrypted": true, "ciphertext": ...}`` so the column always
         holds a JSON object; ``decode_details`` reverses it.
         """
@@ -500,6 +553,9 @@ class AuditLogger:
             self._log_store_failure(entry, e)
             raise
 
+        if not self.owns_session:
+            return
+
         try:
             await self.db.commit()
         except Exception as e:
@@ -509,6 +565,32 @@ class AuditLogger:
             except Exception:  # pragma: no cover - the session is unusable either way
                 pass
             raise
+
+    def _watch_caller_transaction(self) -> None:
+        """Move entries to the archive buffer when the caller's transaction
+        commits, and drop them when it rolls back.
+
+        SQLAlchemy fires ``after_commit`` / ``after_rollback`` for SAVEPOINTs too;
+        only the outermost transaction (no nested transaction open while the
+        event fires) decides.
+        """
+        if self._watching_caller_transaction:
+            return
+        target = getattr(self.db, "sync_session", self.db)
+        sa_event.listen(target, "after_commit", self._on_caller_commit)
+        sa_event.listen(target, "after_rollback", self._on_caller_rollback)
+        self._watching_caller_transaction = True
+
+    def _on_caller_commit(self, session: Any) -> None:
+        if session.in_nested_transaction():
+            return
+        self.buffer.extend(self._awaiting_commit)
+        self._awaiting_commit.clear()
+
+    def _on_caller_rollback(self, session: Any) -> None:
+        if session.in_nested_transaction():
+            return
+        self._awaiting_commit.clear()
 
     def _log_store_failure(self, entry: Dict[str, Any], error: BaseException) -> None:
         logger.error(
@@ -550,17 +632,17 @@ class AuditLogger:
         )
 
     async def _periodic_flush(self) -> None:
-        """Flush the buffer every ``flush_interval`` seconds while it holds entries.
+        """Flush the buffer every ``flush_interval`` seconds while entries wait.
 
-        Ends once a flush leaves the buffer empty; the next buffered entry
-        starts it again.
+        Ends once nothing is buffered or waiting for the caller's commit; the
+        next logged entry starts it again.
         """
 
         try:
             while True:
                 await asyncio.sleep(self.flush_interval)
                 await self._flush_buffer()
-                if not self.buffer:
+                if not self.buffer and not self._awaiting_commit:
                     return
         finally:
             self._flush_task = None

@@ -130,6 +130,8 @@ class ConsentService:
             user_agent=user_agent,
             severity="info",
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await self.db.commit()
 
         return consent_record
 
@@ -188,6 +190,8 @@ class ConsentService:
             user_agent=user_agent,
             severity="info",
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await self.db.commit()
 
         return True
 
@@ -315,6 +319,8 @@ class DataSubjectRightsService:
             user_agent=user_agent,
             severity="info",
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await self.db.commit()
 
         return request
 
@@ -506,6 +512,8 @@ class DataSubjectRightsService:
             severity="info",
             retention_period=2555,  # Keep deletion logs for 7 years
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await self.db.commit()
 
         return True
 
@@ -571,6 +579,8 @@ class DataRetentionService:
             },
             severity="info",
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await self.db.commit()
 
         return policy
 

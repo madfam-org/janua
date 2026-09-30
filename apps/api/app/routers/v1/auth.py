@@ -296,9 +296,16 @@ async def log_audit_event(
             user_agent=request.headers.get("user-agent") if request else None,
             severity="info",
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await db.commit()
     except Exception:
-        # Audit logging failure should not break auth flow
-        pass
+        # Audit logging failure should not break auth flow. Every caller has
+        # committed its own work before this call, so rolling back discards only
+        # the audit row and keeps the session usable for the rest of the request.
+        try:
+            await db.rollback()
+        except Exception:
+            pass
 
 
 # Authentication endpoints
