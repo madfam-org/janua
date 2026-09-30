@@ -19,6 +19,7 @@ from consent_helpers import (
     GOOGLE_BASE_SCOPES,
     YT_PURPOSE,
     add_connection,
+    add_platform_admin,
     add_service_client,
     add_user,
     as_user,
@@ -59,12 +60,13 @@ async def env(monkeypatch):
     async with sqlite_app() as (client, factory):
         creator = await add_user(factory, "creator@example.com")
         other = await add_user(factory, "other@example.com")
+        registrar = await add_platform_admin(factory)
         for name, cid in (
             ("creator-census", EXCHANGE_ID),
             ("creator-census-reauth", OFFLINE_ID),
             ("unrelated-service", STRANGER_ID),
         ):
-            await add_service_client(factory, name=name, client_id=cid, created_by=creator.id)
+            await add_service_client(factory, name=name, client_id=cid, created_by=registrar.id)
         conn = await add_connection(factory, user_id=creator.id, purposes=granted())
         yield {
             "client": client,

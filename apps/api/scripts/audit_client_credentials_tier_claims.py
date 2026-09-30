@@ -110,9 +110,7 @@ def classify(row: dict) -> dict:
     return {
         "tier_claims_dropped": dropped,
         "connections": connections,
-        "refused_after_deploy": bool(
-            connections and active and row.get("is_confidential")
-        ),
+        "refused_after_deploy": bool(connections and active and row.get("is_confidential")),
         "changes_active_client": bool(active and (dropped or connections)),
     }
 

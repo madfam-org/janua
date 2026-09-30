@@ -632,7 +632,12 @@ class TestTokenEndpointValidation:
         assert "invalid_scope" in exc_info.value.detail
 
     async def test_client_credentials_product_scope_emits_tier_without_org(self):
-        """Product scopes should produce downstream tier claims for machine clients."""
+        """Product scopes of a client registered by a platform admin produce tier claims.
+
+        Clients registered by anyone else get tier claims only from their
+        organization's entitlements; see
+        `tests/unit/routers/test_client_credentials_tier_claims.py`.
+        """
         from app.routers.v1.oauth_provider import _handle_client_credentials_grant
 
         mock_client = MagicMock()
@@ -651,11 +656,16 @@ class TestTokenEndpointValidation:
             "create_access_token",
             return_value=("encoded_access_token", "jti", None),
         ) as mock_create:
-            await _handle_client_credentials_grant(
-                client=mock_client,
-                requested_scope="openid yantra4d:quote cotiza:quote",
-                db=mock_db,
-            )
+            with patch.object(
+                oauth_provider_module,
+                "client_registered_by_platform_admin",
+                AsyncMock(return_value=True),
+            ):
+                await _handle_client_credentials_grant(
+                    client=mock_client,
+                    requested_scope="openid yantra4d:quote cotiza:quote",
+                    db=mock_db,
+                )
 
         _, kwargs = mock_create.call_args
         claims = kwargs["additional_claims"]

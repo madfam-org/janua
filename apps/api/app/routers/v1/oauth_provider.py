@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.login_method import normalize_login_method
 from app.auth.sessions_cookie import (
     SESSIONS_COOKIE_NAME,
     TAB_SESSION_HEADER,
@@ -57,17 +58,16 @@ from app.models import OAuthClient, Organization, OrganizationMember, User
 from app.models import Session as UserSession
 from app.services.audit_logger import AuditEventType, AuditLogger
 from app.services.consent_service import ConsentService
-from app.auth.login_method import normalize_login_method
 from app.services.entitlements_service import (
     entitlements_to_claim,
     get_user_entitlements,
 )
+from app.services.oauth_client_authority import client_registered_by_platform_admin
 from app.services.org_claims_service import (
     ORG_ROLES_CLAIM,
     get_user_org_claims,
     merge_app_roles_into_claims,
 )
-from app.services.oauth_client_authority import client_registered_by_platform_admin
 from app.services.service_principal import service_principal_claims
 
 logger = structlog.get_logger()
