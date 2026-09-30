@@ -12,6 +12,7 @@ is stubbed. The rule under test (`oauth_provider._get_client_credentials_claims`
 
 from __future__ import annotations
 
+import json
 import uuid
 from unittest.mock import AsyncMock
 
@@ -19,6 +20,7 @@ import bcrypt
 import pytest
 import pytest_asyncio
 from cryptography.hazmat.primitives.asymmetric import rsa
+from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
@@ -300,3 +302,176 @@ async def test_audit_script_lists_exactly_the_claims_the_builder_drops(env, org_
     # And nothing the non-admin client keeps differs from the admin's value
     # for a product its organization is entitled to.
     assert all(kept[k] == v for k, v in now.items())
+
+
+# ---------------------------------------------------------------------------
+# Value shapes written through the ORM: the audit flags a client iff the app
+# would issue it a client_credentials token that changes under these rules.
+# (Shapes written by SQL, which the ORM cannot produce, are covered against
+# real PostgreSQL in tests/unit/test_audit_client_credentials_tier_claims.py.)
+# ---------------------------------------------------------------------------
+
+#: What each value round-trips to through the model's JSON column.
+SHAPES = {
+    "json_array": ["authorization_code", "client_credentials"],
+    "json_string_single": "client_credentials",
+    "double_encoded_array": '["authorization_code", "client_credentials"]',
+    "space_delimited": "authorization_code client_credentials",
+    "comma_delimited": "authorization_code,client_credentials",
+    "empty_string": "",
+    "empty_list": [],
+    "none": None,
+}
+
+
+def _scope_shape(shape: str, scope: str):
+    """The same shape with ``scope`` in place of the grant names."""
+    value = SHAPES[shape]
+    if isinstance(value, list):
+        return [scope] if value else []
+    if not value:
+        return value
+    if value.startswith("["):
+        return '["' + scope + '"]'
+    return value.replace("authorization_code", "openid").replace("client_credentials", scope)
+
+
+async def _add_raw(env, *, created_by, audience, grant_types, allowed_scopes) -> OAuthClient:
+    row = await env.add_client(created_by=created_by, organization=env.plain, scopes=[])
+    async with env.factory.begin() as db:
+        stored = await db.get(OAuthClient, row.id)
+        stored.audience = audience
+        stored.grant_types = grant_types
+        stored.allowed_scopes = allowed_scopes
+    async with env.factory() as db:
+        return await db.get(OAuthClient, row.id)
+
+
+async def _mint_raw(env, client: OAuthClient):
+    """Mint with no scope (every allowed scope); None when the app refuses."""
+    response = await env.http.post(
+        TOKEN_URL,
+        data={
+            "grant_type": "client_credentials",
+            "client_id": client.client_id,
+            "client_secret": SECRET,
+        },
+    )
+    if response.status_code != 200:
+        return None
+    return jwt_manager.verify_token(response.json()["access_token"], audience=client.audience)
+
+
+def _as_driver_value(loaded):
+    """What the PostgreSQL driver hands back for a value the ORM wrote.
+
+    The model type (`app/models/types.JSON`) stores JSON text, so the driver's
+    one decode yields that text and the model decodes it again on load. The
+    audit is given the driver value and must reach the same loaded value.
+    """
+    return None if loaded is None else json.dumps(loaded)
+
+
+def _audit_row(client: OAuthClient, *, admin: bool) -> dict:
+    return {
+        "allowed_scopes": _as_driver_value(client.allowed_scopes),
+        "grant_types": _as_driver_value(client.grant_types),
+        "audience": client.audience,
+        "creator_is_admin": admin,
+        "is_active": client.is_active,
+        "is_confidential": client.is_confidential,
+        "product_tiers": {},
+    }
+
+
+def _cases():
+    grants_vary = [(shape, "grants") for shape in SHAPES]
+    scopes_vary = [(shape, "scopes") for shape in SHAPES]
+    return grants_vary + scopes_vary
+
+
+@pytest.mark.parametrize("shape,varied", _cases())
+async def test_audit_flags_a_tier_change_iff_the_app_would_issue_one(env, shape, varied):
+    audit = _load_audit_script()
+    if varied == "grants":
+        grants, scopes = SHAPES[shape], ["yantra4d:render"]
+    else:
+        grants, scopes = ["client_credentials"], _scope_shape(shape, "yantra4d:render")
+
+    rows = {}
+    for who, registrar in (("admin", env.platform_admin), ("other", env.org_admin)):
+        rows[who] = await _add_raw(
+            env,
+            created_by=registrar,
+            audience=AUDIENCE,
+            grant_types=grants,
+            allowed_scopes=scopes,
+        )
+    # The driver hands back what was stored; the audit reads that same value.
+    assert rows["other"].grant_types == grants
+    assert rows["other"].allowed_scopes == scopes
+
+    before = await _mint_raw(env, rows["admin"])
+    after = await _mint_raw(env, rows["other"])
+    assert (before is None) == (after is None)
+    lost = sorted(set(_tier_claims(before or {})) - set(_tier_claims(after or {})))
+
+    # Not vacuous: the one issuable shape does lose the claim.
+    assert bool(lost) == (shape == "json_array")
+
+    verdict = audit.classify(_audit_row(rows["other"], admin=False))
+    assert verdict["tier_claims_dropped"] == lost
+    assert verdict["changes_active_client"] == bool(lost)
+    assert audit.classify(_audit_row(rows["admin"], admin=True))["tier_claims_dropped"] == []
+
+
+@pytest.mark.parametrize("shape,varied", _cases())
+async def test_audit_flags_a_connections_refusal_iff_the_app_would_refuse(env, shape, varied):
+    from app.core.consent_purposes import CONNECTIONS_AUDIENCE, CONNECTIONS_DELEGATE_SCOPE
+    from app.services.connections_service_auth import (
+        DelegationServicePrincipal,
+        current_service_client,
+    )
+
+    audit = _load_audit_script()
+    if varied == "grants":
+        grants, scopes = SHAPES[shape], [CONNECTIONS_DELEGATE_SCOPE]
+    else:
+        grants, scopes = ["client_credentials"], _scope_shape(shape, CONNECTIONS_DELEGATE_SCOPE)
+
+    async def works(registrar) -> bool:
+        """A delegate token is issued AND the boundary accepts its client."""
+        row = await _add_raw(
+            env,
+            created_by=registrar,
+            audience=CONNECTIONS_AUDIENCE,
+            grant_types=grants,
+            allowed_scopes=scopes,
+        )
+        claims = await _mint_raw(env, row)
+        if claims is None or CONNECTIONS_DELEGATE_SCOPE not in claims["scope"].split():
+            return False
+        async with env.factory() as db:
+            try:
+                await current_service_client(db, DelegationServicePrincipal(row.client_id))
+            except HTTPException:
+                return False
+        return True
+
+    works_for_admin = await works(env.platform_admin)
+    works_for_other = await works(env.org_admin)
+    assert not works_for_other  # the rule under test
+    assert works_for_admin == (shape == "json_array")
+
+    # Before this change the boundary did not look at provenance, so the
+    # non-admin row worked exactly when the admin row works now.
+    row = {
+        "allowed_scopes": _as_driver_value(scopes),
+        "grant_types": _as_driver_value(grants),
+        "audience": CONNECTIONS_AUDIENCE,
+        "creator_is_admin": False,
+        "is_active": True,
+        "is_confidential": True,
+        "product_tiers": {},
+    }
+    assert audit.classify(row)["refused_after_deploy"] == works_for_admin

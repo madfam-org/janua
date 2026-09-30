@@ -81,64 +81,143 @@ def test_admin_registered_client_changes_nothing():
 
 
 def test_unbound_or_missing_org_drops_every_scoped_product():
-    for product_tiers in (None, {}, "{}"):
+    for product_tiers in (None, {}):
         verdict = audit.classify(_row(organization_id=None, product_tiers=product_tiers))
         assert verdict["tier_claims_dropped"] == ["hcm_tier", "yantra4d_tier"]
 
 
+def test_unreadable_org_tiers_mean_no_token_so_nothing_changes():
+    # The claims builder cannot read these, so the app issues the
+    # organization's clients no token today either.
+    for product_tiers in ("not json", ["yantra4d"]):
+        verdict = audit.classify(_row(product_tiers=product_tiers))
+        assert verdict["tier_claims_dropped"] == [] and not verdict["changes_active_client"]
+
+
+def test_org_tiers_stored_as_object_text_are_read_like_the_app():
+    verdict = audit.classify(_row(product_tiers=json.dumps({"hcm": "pro"})))
+    assert verdict["tier_claims_dropped"] == ["yantra4d_tier"]
+
+
 def test_entitlement_keys_are_normalised_like_the_claim():
     verdict = audit.classify(
-        _row(allowed_scopes=json.dumps(["crea-map:read"]), product_tiers={"crea-map": "pro"})
+        _row(allowed_scopes=["crea-map:read"], product_tiers={"crea-map": "pro"})
     )
     assert verdict["tier_claims_dropped"] == []
 
 
-def test_interactive_client_is_never_listed():
-    verdict = audit.classify(_row(grant_types=["authorization_code"]))
-    assert verdict["tier_claims_dropped"] == [] and not verdict["connections"]
+def test_non_confidential_client_gets_no_token_so_nothing_changes():
+    verdict = audit.classify(_row(is_confidential=False))
+    assert verdict["tier_claims_dropped"] == [] and not verdict["changes_active_client"]
 
 
-def test_connections_client_from_a_non_admin_is_refused_after_deploy():
-    verdict = audit.classify(
-        _row(audience="janua-connections", allowed_scopes=["connections:delegate"])
-    )
-    assert verdict["connections"] and verdict["refused_after_deploy"]
-    assert verdict["tier_claims_dropped"] == ["connections_tier"]
+# ---------------------------------------------------------------------------
+# Stored-value shapes: the audit reads them exactly as the app does
+# ---------------------------------------------------------------------------
+
+#: Stored values of a JSON column, as the database driver decodes them (once).
+#: The ORM writes through `app/models/types.JSON`, which stores a Python list as
+#: a JSON string holding the array text ("array_text"); rows written by SQL
+#: hold a JSON array ("array").
+SHAPES = {
+    "array": ["authorization_code", "client_credentials"],
+    "array_text": json.dumps(["authorization_code", "client_credentials"]),
+    "single_bare": "client_credentials",
+    "single_text": json.dumps("client_credentials"),
+    "double_encoded_array": json.dumps(json.dumps(["authorization_code", "client_credentials"])),
+    "space_delimited": "authorization_code client_credentials",
+    "comma_delimited": "authorization_code,client_credentials",
+    "empty_string": "",
+    "empty_list": [],
+    "none": None,
+}
+MACHINE_SHAPES = {"array", "array_text"}
 
 
-def test_inactive_connections_client_is_listed_but_changes_nothing():
-    verdict = audit.classify(
-        _row(
-            audience="janua-connections",
-            allowed_scopes=["connections:delegate"],
-            is_active=False,
+def _app_load(value):
+    """The app's model-type step on a driver value; raises when it cannot load."""
+    from sqlalchemy.dialects import postgresql
+
+    from app.models.types import JSON
+
+    return JSON().process_result_value(value, postgresql.dialect())
+
+
+@pytest.mark.parametrize("shape", sorted(SHAPES))
+def test_loading_is_the_apps(shape):
+    value = SHAPES[shape]
+    try:
+        expected = _app_load(value)
+    except ValueError:
+        with pytest.raises(audit.Unloadable):
+            audit.app_loaded(value)
+        assert not audit.app_loads(value)
+    else:
+        assert audit.app_loaded(value) == expected
+        assert audit.app_loads(value)
+
+
+@pytest.mark.parametrize("shape", sorted(SHAPES))
+def test_grant_and_scope_parsing_is_the_apps(shape):
+    from types import SimpleNamespace
+
+    from app.routers.v1 import oauth_provider
+
+    value = SHAPES[shape]
+    try:
+        loaded = _app_load(value)
+    except ValueError:
+        # The app cannot load the row, so it serves no grant and no scope.
+        assert audit.app_grant_types(value) == set()
+        assert audit.app_allowed_scopes(value) == set()
+        return
+    client = SimpleNamespace(grant_types=loaded, allowed_scopes=loaded)
+    assert audit.app_grant_types(value) == oauth_provider._client_grant_types(client)
+    assert audit.app_allowed_scopes(value) == oauth_provider._client_allowed_scopes(client)
+
+
+def test_defaults_are_the_apps():
+    from app.routers.v1 import oauth_provider
+
+    assert audit.DEFAULT_CLIENT_GRANT_TYPES == oauth_provider.DEFAULT_CLIENT_GRANT_TYPES
+    assert audit.DEFAULT_CLIENT_SCOPES == oauth_provider.DEFAULT_CLIENT_SCOPES
+
+
+@pytest.mark.parametrize("value", [5, True, [{"grant": "client_credentials"}]])
+def test_a_value_the_app_cannot_turn_into_a_set_grants_nothing(value):
+    from types import SimpleNamespace
+
+    from app.routers.v1 import oauth_provider
+
+    with pytest.raises(TypeError):
+        oauth_provider._client_grant_types(SimpleNamespace(grant_types=_app_load(value)))
+    assert audit.app_grant_types(value) == set()
+    assert audit.classify(_row(grant_types=value))["tier_claims_dropped"] == []
+
+
+@pytest.mark.parametrize("shape", sorted(SHAPES))
+def test_only_a_loadable_array_of_names_makes_a_machine_client(shape):
+    verdict = audit.classify(_row(grant_types=SHAPES[shape]))
+    assert bool(verdict["tier_claims_dropped"]) == (shape in MACHINE_SHAPES)
+
+
+@pytest.mark.parametrize("shape", sorted(SHAPES))
+def test_scope_shapes_follow_the_same_reading(shape):
+    scopes = SHAPES[shape]
+    if isinstance(scopes, list) and scopes:
+        scopes = ["openid", "yantra4d:render"]
+    elif isinstance(scopes, str) and scopes:
+        scopes = scopes.replace("authorization_code", "openid").replace(
+            "client_credentials", "yantra4d:render"
         )
-    )
-    assert verdict["connections"] and not verdict["refused_after_deploy"]
-    assert not verdict["changes_active_client"]
+    verdict = audit.classify(_row(allowed_scopes=scopes, product_tiers={}))
+    expected = ["yantra4d_tier"] if shape in MACHINE_SHAPES else []
+    assert verdict["tier_claims_dropped"] == expected
 
 
-def test_report_and_exit_status():
-    rows = [
-        _row(id="a"),
-        _row(id="b", audience="janua-connections", allowed_scopes=["connections:delegate"]),
-        _row(id="c", creator_is_admin=True),
-        _row(id="d", is_active=False),
-    ]
-    report = audit.report_rows(rows)
-    assert [(r["kind"], r["id"]) for r in report] == [
-        ("tier_claims", "a"),
-        ("tier_claims", "b"),
-        ("connections", "b"),
-        ("tier_claims", "d"),
-    ]
-    totals = audit.summary(report)
-    assert totals["tier_claims_clients"] == 3
-    assert totals["tier_claims_clients_active"] == 2
-    assert totals["tier_claims_dropped_by_claim_active"] == {"connections_tier": 1, "hcm_tier": 1}
-    assert totals["connections_refused_after_deploy"] == 1
-    assert audit.exit_status(report) == 2
-    assert audit.exit_status(audit.report_rows([rows[2]])) == 0
+def test_unloadable_redirect_uris_mean_no_token():
+    assert audit.classify(_row(redirect_uris="not json"))["tier_claims_dropped"] == []
+    assert audit.classify(_row(redirect_uris=json.dumps([])))["tier_claims_dropped"]
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +229,9 @@ def test_report_and_exit_status():
 def pg_url():
     """A fresh schema on a disposable loopback *_test database, dropped after."""
     raw = os.getenv("AUDIT_TEST_DATABASE_URL")
+    if not raw and os.getenv("LOCAL_DB") == "yes":
+        # CI's guarded PostgreSQL service (see the payment-mail proof).
+        raw = os.getenv("JANUA_MAIL_TEST_DATABASE_URL")
     if not raw:
         pytest.skip("Set AUDIT_TEST_DATABASE_URL to a disposable loopback *_test database")
     from sqlalchemy import create_engine, text
@@ -271,4 +353,80 @@ def test_real_postgres_run_is_read_only_and_classifies(pg_url):
 
     with engine.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM oauth_clients")).scalar_one() == before
+    engine.dispose()
+
+
+def test_real_postgres_stored_shapes_match_what_the_app_loads(pg_url):
+    """Every stored shape, written by SQL: the audit flags a row iff the app,
+    loading it through its own model, would serve it a client_credentials
+    token carrying a namespaced scope (the claim a non-admin row loses)."""
+
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.orm import Session
+
+    from app.models import Base, OAuthClient, User
+    from app.routers.v1 import oauth_provider
+
+    engine = create_engine(pg_url)
+    Base.metadata.create_all(engine)
+    registrar = uuid.uuid4()
+    with Session(engine) as db:
+        db.add(User(id=registrar, email="m@example.test"))
+        db.commit()
+
+    array_scopes = ["yantra4d:render"]
+    cases = {}
+    with engine.begin() as conn:
+        for varied in ("grants", "scopes"):
+            for shape, value in SHAPES.items():
+                if varied == "grants":
+                    grants, scopes = value, array_scopes
+                elif isinstance(value, list):
+                    grants, scopes = ["client_credentials"], (array_scopes if value else [])
+                else:
+                    grants = ["client_credentials"]
+                    scopes = (
+                        value.replace("authorization_code", "openid").replace(
+                            "client_credentials", "yantra4d:render"
+                        )
+                        if value
+                        else value
+                    )
+                row_id = uuid.uuid4()
+                cases[str(row_id)] = (varied, shape)
+                conn.execute(
+                    text(
+                        "INSERT INTO oauth_clients (id, created_by, client_id,"
+                        " client_secret_hash, client_secret_prefix, name, redirect_uris,"
+                        " allowed_scopes, grant_types, is_active, is_confidential, created_at)"
+                        " VALUES (:id, :by, :cid, 'h', 'p', 'n', '[]'::jsonb,"
+                        " CAST(:scopes AS jsonb), CAST(:grants AS jsonb), true, true, now())"
+                    ),
+                    {
+                        "id": row_id,
+                        "by": registrar,
+                        "cid": f"jnc_shape_{row_id.hex[:12]}",
+                        "scopes": None if scopes is None else json.dumps(scopes),
+                        "grants": None if grants is None else json.dumps(grants),
+                    },
+                )
+
+    def app_would_serve_a_scoped_token(row_id) -> bool:
+        try:
+            with Session(engine) as db:
+                client = db.get(OAuthClient, uuid.UUID(row_id))
+                grants = oauth_provider._client_grant_types(client)
+                scopes = oauth_provider._client_allowed_scopes(client)
+        except (ValueError, TypeError):
+            return False  # the app cannot load or read the row: no token
+        return "client_credentials" in grants and any(
+            isinstance(s, str) and ":" in s and s.split(":", 1)[0] for s in scopes
+        )
+
+    flagged = {r["id"] for r in audit.collect(pg_url) if r["kind"] == "tier_claims"}
+    for row_id, (varied, shape) in cases.items():
+        expected = app_would_serve_a_scoped_token(row_id)
+        assert (row_id in flagged) == expected, (varied, shape)
+        # Written by SQL, both array forms load as arrays in the app.
+        assert expected == (shape in MACHINE_SHAPES), (varied, shape)
     engine.dispose()

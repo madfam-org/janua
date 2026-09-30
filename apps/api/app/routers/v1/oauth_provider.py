@@ -801,9 +801,30 @@ def _build_safe_callback_url(
     return f"{redirect_uri}?{urlencode(params)}"
 
 
+#: What a client with no stored ``grant_types`` / ``allowed_scopes`` may use.
+DEFAULT_CLIENT_GRANT_TYPES = ("authorization_code", "refresh_token")
+DEFAULT_CLIENT_SCOPES = ("openid", "profile", "email")
+
+
+def _client_grant_types(client: OAuthClient) -> set:
+    """The grant types the token endpoint honours for ``client``.
+
+    The stored value is taken as-is (``set(value)``), falling back to the
+    defaults when it is empty. Only a JSON array of names names a grant.
+    `scripts/audit_client_credentials_tier_claims.py` carries a copy; its
+    tests fail if the two drift.
+    """
+    return set(client.grant_types or DEFAULT_CLIENT_GRANT_TYPES)
+
+
+def _client_allowed_scopes(client: OAuthClient) -> set:
+    """The scopes a token grant may request for ``client`` (same rules as above)."""
+    return set(client.allowed_scopes or DEFAULT_CLIENT_SCOPES)
+
+
 def _parse_requested_scopes(scope: Optional[str], client: OAuthClient) -> str:
     """Return validated space-separated scopes for token grants."""
-    allowed = set(client.allowed_scopes or ["openid", "profile", "email"])
+    allowed = _client_allowed_scopes(client)
     requested = set((scope or "").split())
     if not requested:
         requested = set(allowed)
@@ -2058,7 +2079,7 @@ async def token(
                 detail="invalid_client: Invalid client_secret",
             )
 
-    allowed_grants = set(client.grant_types or ["authorization_code", "refresh_token"])
+    allowed_grants = _client_grant_types(client)
     if grant_type not in allowed_grants:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -21,6 +21,10 @@ Two rules key on whether a client was registered by a platform admin
    true when every other check of the boundary passes today (active and
    confidential), i.e. the client works before the deploy and not after.
 
+Both lists count only clients the token endpoint would issue a
+``client_credentials`` token to, reading ``grant_types`` and
+``allowed_scopes`` exactly as the app does (see ``app_grant_types``).
+
 Ids, flags, dates, claim keys and counts only: no names, emails, secrets or
 hashes are printed (secrets and hashes are never selected).
 
@@ -62,43 +66,111 @@ def claim_key(product) -> str:
     return re.sub(r"[^a-z0-9_]", "_", str(product).lower())
 
 
-def _as_list(value) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, str):
-        try:
-            value = json.loads(value)
-        except ValueError:
-            return [value]
-    return [str(v) for v in value] if isinstance(value, (list, tuple)) else []
+# How the app reads a client row, as a COPY so this runs against an image that
+# predates it; unit tests fail if any of it drifts from the app.
+#
+# A JSON column goes through two steps in the app: the database driver decodes
+# the stored JSON once, then the model type (`app/models/types.JSON.
+# process_result_value`) decodes a resulting string once more. So a stored
+# JSON array and a stored JSON string holding array text both load as a list,
+# while a string that is not JSON text cannot be loaded at all (the request
+# fails). The token endpoint then takes the loaded value as-is
+# (`oauth_provider._client_grant_types` / `_client_allowed_scopes`:
+# ``set(value or default)``).
+#
+# Row values handed to ``classify`` are the DRIVER-decoded values (one decode),
+# which ``collect`` produces deterministically from ``::text``.
+DEFAULT_CLIENT_GRANT_TYPES = ("authorization_code", "refresh_token")
+DEFAULT_CLIENT_SCOPES = ("openid", "profile", "email")
 
 
-def _as_dict(value) -> dict:
-    if isinstance(value, str):
-        try:
-            value = json.loads(value)
-        except ValueError:
-            return {}
-    return value if isinstance(value, dict) else {}
+class Unloadable(Exception):
+    """The app cannot load this value, so it serves no token for the row."""
+
+
+def app_loaded(value):
+    """COPY of `app/models/types.JSON.process_result_value`."""
+    if value is not None:
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except ValueError as error:
+                raise Unloadable from error
+    return value
+
+
+def _as_app_set(value, default) -> set:
+    """``set(loaded or default)`` as the app computes it; empty when it cannot.
+
+    A value the app cannot load, or cannot turn into a set (a number, a
+    boolean, a list holding an object), makes it fail the token request, so
+    it grants nothing.
+    """
+    try:
+        return set(app_loaded(value) or default)
+    except (Unloadable, TypeError):
+        return set()
+
+
+def app_grant_types(value) -> set:
+    return _as_app_set(value, DEFAULT_CLIENT_GRANT_TYPES)
+
+
+def app_allowed_scopes(value) -> set:
+    return _as_app_set(value, DEFAULT_CLIENT_SCOPES)
+
+
+def app_loads(value) -> bool:
+    try:
+        app_loaded(value)
+    except Unloadable:
+        return False
+    return True
+
+
+def app_product_tiers(value) -> Optional[dict]:
+    """The organization's tiers as the claims builder reads them (``loaded or {}``).
+
+    None when the builder cannot read them (unloadable, or a non-empty value
+    that is not an object): the app then fails every token request for the
+    organization's clients, so nothing about those tokens changes.
+    """
+    try:
+        loaded = app_loaded(value) or {}
+    except Unloadable:
+        return None
+    return loaded if isinstance(loaded, dict) else None
 
 
 def classify(row: dict) -> dict:
     """Pure: what the provenance rules change for one client row.
 
-    ``row`` needs ``allowed_scopes``, ``grant_types``, ``audience``,
-    ``creator_is_admin``, ``is_active``, ``is_confidential`` and
-    ``product_tiers`` (the organization's, or None when unbound or missing).
+    ``row`` needs ``allowed_scopes``, ``grant_types``, ``redirect_uris``,
+    ``audience``, ``creator_is_admin``, ``is_active``, ``is_confidential`` and
+    ``product_tiers`` (the organization's, or None when unbound or missing),
+    the JSON ones as the driver decodes them. A client is considered only when
+    the app would issue it a ``client_credentials`` token: the grant is in its
+    grant types, it is confidential, its row loads, and its organization's
+    tiers are readable. (Other organization columns are not examined; one the
+    app could not load would only make this audit list more, never less.)
     """
-    scopes = _as_list(row.get("allowed_scopes"))
-    grants = _as_list(row.get("grant_types"))
-    machine = "client_credentials" in grants
+    grants = app_grant_types(row.get("grant_types"))
+    scopes = app_allowed_scopes(row.get("allowed_scopes"))
+    tiers = app_product_tiers(row.get("product_tiers"))
+    machine = (
+        "client_credentials" in grants
+        and bool(row.get("is_confidential"))
+        and app_loads(row.get("redirect_uris"))
+        and tiers is not None
+    )
     admin = bool(row.get("creator_is_admin"))
     active = bool(row.get("is_active"))
 
     dropped: list[str] = []
     if machine and not admin:
-        scoped = {claim_key(s.split(":", 1)[0]) for s in scopes if ":" in s}
-        entitled = {claim_key(p) for p in _as_dict(row.get("product_tiers"))}
+        # Only string scopes can be requested, so only they reach a token.
+        scoped = {claim_key(s.split(":", 1)[0]) for s in scopes if isinstance(s, str) and ":" in s}
+        entitled = {claim_key(p) for p in tiers or {}}
         dropped = sorted(f"{key}_tier" for key in scoped - entitled if key)
 
     connections_grant = (
@@ -110,7 +182,7 @@ def classify(row: dict) -> dict:
     return {
         "tier_claims_dropped": dropped,
         "connections": connections,
-        "refused_after_deploy": bool(connections and active and row.get("is_confidential")),
+        "refused_after_deploy": bool(connections and active),
         "changes_active_client": bool(active and (dropped or connections)),
     }
 
@@ -123,8 +195,9 @@ CLIENTS_SQL = """
 SELECT c.id::text              AS id,
        c.client_id             AS client_id,
        c.audience              AS audience,
-       c.allowed_scopes        AS allowed_scopes,
-       c.grant_types           AS grant_types,
+       c.allowed_scopes::text  AS allowed_scopes,
+       c.grant_types::text     AS grant_types,
+       c.redirect_uris::text   AS redirect_uris,
        c.organization_id::text AS organization_id,
        c.created_by::text      AS created_by,
        c.is_active             AS is_active,
@@ -133,7 +206,7 @@ SELECT c.id::text              AS id,
        c.last_used_at          AS last_used_at,
        COALESCE(u.is_admin, false) AS creator_is_admin,
        (u.id IS NULL)          AS creator_missing,
-       o.product_tiers         AS product_tiers
+       o.product_tiers::text   AS product_tiers
   FROM oauth_clients c
   LEFT JOIN users u ON u.id = c.created_by
   LEFT JOIN organizations o ON o.id = c.organization_id
@@ -201,7 +274,16 @@ def collect(url: str) -> list[dict]:
             conn.rollback()
     finally:
         engine.dispose()
+    for row in rows:
+        # The driver's one decode, done here so it does not depend on how the
+        # driver happens to be configured in this process.
+        for column in JSON_COLUMNS:
+            if row[column] is not None:
+                row[column] = json.loads(row[column])
     return report_rows(rows)
+
+
+JSON_COLUMNS = ("allowed_scopes", "grant_types", "redirect_uris", "product_tiers")
 
 
 def summary(report: list[dict]) -> dict:
