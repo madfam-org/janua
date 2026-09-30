@@ -10,10 +10,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.jwt_manager import jwt_manager
+from app.core.reserved_oauth_boundaries import MAIL_AUDIENCE, PAYMENT_MAIL_SCOPE
 from app.models import OAuthClient
+from app.services.oauth_client_authority import client_registered_by_platform_admin
 
-MAIL_AUDIENCE = "janua-email"
-PAYMENT_MAIL_SCOPE = "crea-map:payment-mail"
 _security = HTTPBearer(auto_error=False)
 
 
@@ -70,6 +70,10 @@ async def current_mail_client(db: AsyncSession, principal: PaymentMailPrincipal)
     A token minted before scope revocation is not enough. The shared row lock
     orders a claim against client deactivation, rebinding and scope changes.
     Revocation cannot recall an already authorized in-flight provider operation.
+
+    The client must also have been registered by a platform admin: this
+    audience and scope are reserved (`core/reserved_oauth_boundaries.py`), and a
+    row that carries them without that provenance grants nothing.
     """
     result = await db.execute(
         select(OAuthClient)
@@ -86,6 +90,7 @@ async def current_mail_client(db: AsyncSession, principal: PaymentMailPrincipal)
         or client.audience != MAIL_AUDIENCE
         or PAYMENT_MAIL_SCOPE not in (client.allowed_scopes or [])
         or "client_credentials" not in (client.grant_types or [])
+        or not await client_registered_by_platform_admin(db, client)
     ):
         raise _denied("mail_service_grant_unavailable")
     return client

@@ -16,6 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AuditLog, OAuthClient, OrganizationMember, User
 from app.schemas.oauth_client import OAuthClientCreate, OAuthClientUpdate
+from app.services.oauth_client_authority import (
+    authorize_client_registration,
+    authorize_client_update,
+    authorize_reserved_client_management,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +71,24 @@ class OAuthClientService:
             logger.error(f"Error verifying client secret: {e}")
             return False
 
+    async def authorize_create(
+        self,
+        data: OAuthClientCreate,
+        created_by: User,
+        organization_id: Optional[uuid.UUID] = None,
+    ) -> None:
+        """Raise 403 unless ``created_by`` may register a client with ``data``."""
+        await authorize_client_registration(
+            self.db,
+            created_by,
+            organization_id=organization_id,
+            name=data.name,
+            audience=data.audience or data.client_key,
+            scopes=data.allowed_scopes,
+            grant_types=data.grant_types,
+            pinned_client_id=data.client_id,
+        )
+
     async def create_client(
         self,
         data: OAuthClientCreate,
@@ -82,7 +105,13 @@ class OAuthClientService:
 
         Returns:
             Tuple of (created client, plain text secret)
+
+        Raises:
+            HTTPException(403): ``created_by`` may not register these values
+                (see ``services/oauth_client_authority.py``). Nothing is written.
         """
+        await self.authorize_create(data, created_by, organization_id)
+
         # Generate credentials — honor pinned client_id when provided
         if data.client_id:
             client_id = data.client_id
@@ -287,6 +316,7 @@ class OAuthClientService:
 
         # Update fields
         update_data = data.model_dump(exclude_unset=True)
+        await authorize_client_update(self.db, user, client, update_data)
         for field, value in update_data.items():
             if hasattr(client, field):
                 setattr(client, field, value)
@@ -366,6 +396,7 @@ class OAuthClientService:
         client = await self.get_client(client_db_id, user, require_ownership=True)
         if not client:
             return None
+        authorize_reserved_client_management(user, client)
 
         # Generate new secret
         plain_secret, hashed_secret, secret_prefix = self.generate_client_secret()

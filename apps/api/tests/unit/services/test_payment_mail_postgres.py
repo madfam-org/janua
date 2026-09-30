@@ -76,7 +76,8 @@ async def pg(monkeypatch):
         org_id, owner_id, client_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
         async with factory.begin() as db:
             db.add(Organization(id=org_id, name="Synthetic Org", slug="fixture-mail"))
-            db.add(User(id=owner_id, email="persona01@example.com"))
+            # The mail boundary trusts only clients a platform admin registered.
+            db.add(User(id=owner_id, email="persona01@example.com", is_admin=True))
             await db.flush()
             db.add(
                 OAuthClient(

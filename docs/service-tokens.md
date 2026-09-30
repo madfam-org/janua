@@ -58,6 +58,30 @@ exactly what it calls. Internal-key registrations are recorded in `audit_logs`
 (`oauth_client_registered_internal_created` / `..._updated`), attributed to the
 `internal-api-key` principal and carrying no secret material.
 
+**Who may register or change a client** (`POST`/`PATCH /api/v1/oauth/clients`,
+`POST /{id}/rotate`). A platform admin (`is_admin`) may do anything. Anyone
+else:
+
+- binds a client to an organization only as its owner or an active
+  `admin`/`owner` member; changing `audience`, `allowed_scopes` or
+  `grant_types` of an organization-bound client needs the same;
+- cannot use a reserved name, audience or scope. The registry is
+  `apps/api/app/core/reserved_oauth_boundaries.py`: every `janua-*` audience,
+  the sibling-service audiences and scopes in the table above, consent-purpose
+  client names and subject audiences, `admin` and `<product>:admin`,
+  `madfam:silent_auth`, and the `madfam-*` / `selva-office*` first-party names;
+- cannot create a `client_credentials` client without an organization, or pin
+  a `client_id`;
+- cannot edit or rotate a client that already holds a reserved value.
+
+`/register` converges only onto rows a platform admin registered (it answers
+409 otherwise). Janua's own service boundaries (payment notices today) also
+refuse a client whose `created_by` is not a platform admin; use
+`client_registered_by_platform_admin` from
+`app/services/oauth_client_authority.py` in any new one.
+`apps/api/scripts/audit_reserved_oauth_clients.py` lists existing clients
+against these rules, read-only.
+
 Registration properties:
 
 ```jsonc

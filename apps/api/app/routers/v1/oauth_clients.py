@@ -32,6 +32,10 @@ from app.schemas.oauth_client import (
     OAuthClientUpdate,
 )
 from app.services.credential_rotation_service import CredentialRotationService
+from app.services.oauth_client_authority import (
+    authorize_reserved_client_management,
+    client_registered_by_platform_admin,
+)
 from app.services.oauth_client_service import OAuthClientService
 
 logger = logging.getLogger(__name__)
@@ -163,6 +167,17 @@ async def register_oauth_client(
         existing_client = await service.get_client_by_name(data.name)
 
     if existing_client:
+        # Converge only onto rows this path (or a platform admin) provisioned.
+        # A row registered by anyone else keeps its secret with that person, so
+        # reconfiguring it here would hand them the consumer's grant.
+        if not await client_registered_by_platform_admin(db, existing_client):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Client name is held by a client not registered by a platform "
+                    "admin; choose another name or have an admin resolve it"
+                ),
+            )
         if data.client_id and existing_client.client_id != data.client_id:
             raise HTTPException(
                 status_code=409,
@@ -327,13 +342,21 @@ async def create_oauth_client(
     client is rejected with 409 and the existing ``client_id``. Pass
     ``allow_duplicate: true`` to override deliberately.
 
-    **Required permissions**: Authenticated user (org admin for org-scoped clients)
+    **Required permissions**: Authenticated user. Binding the client to an
+    organization requires owning it or an active ``admin``/``owner`` membership
+    in it. Platform admin is required for reserved names, audiences and scopes
+    (``core/reserved_oauth_boundaries.py``), for a pinned ``client_id``, and for
+    a ``client_credentials`` client with no organization.
     """
     effective_organization_id = organization_id or data.organization_id
     try:
         org_uuid = uuid.UUID(effective_organization_id) if effective_organization_id else None
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid organization_id format")
+
+    # Authorize before anything else, including the duplicate lookup below, so
+    # an unauthorized request learns nothing and writes nothing.
+    await service.authorize_create(data, current_user, org_uuid)
 
     # Unlike /register, this path had no duplicate check at all, and it is the
     # one the dashboard uses. On 2026-06-07/08 it produced 13 clients named
@@ -503,7 +526,10 @@ async def update_oauth_client(
     """
     Update an OAuth2 client.
 
-    **Required permissions**: Client owner, org admin, or system admin
+    **Required permissions**: Client owner, org admin, or system admin. Changing
+    ``audience``, ``allowed_scopes`` or ``grant_types`` of an organization-bound
+    client requires admin of that organization; reserved values, and any edit of
+    a client that already holds one, require platform admin.
     """
     try:
         client_uuid = uuid.UUID(client_id)
@@ -605,6 +631,7 @@ async def rotate_oauth_client_secret(
 
     if not client:
         raise HTTPException(status_code=404, detail="OAuth client not found")
+    authorize_reserved_client_management(current_user, client)
 
     # Perform rotation with credential rotation service
     rotation_service = CredentialRotationService(db)
