@@ -10,7 +10,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Tuple
+from typing import Any, AsyncContextManager, AsyncIterator, Callable, Dict, List, Optional, Tuple
 
 import boto3
 from botocore.exceptions import ClientError
@@ -332,6 +332,21 @@ def get_audit_archive_bucket() -> Optional[str]:
     return bucket
 
 
+@asynccontextmanager
+async def _logger_with_own_session(
+    logger_class: Any,
+    session_factory: Optional[Callable[[], AsyncSession]],
+    r2_client: Optional[Any],
+) -> AsyncIterator[Any]:
+    """The context manager behind ``AuditLogger.with_own_session``."""
+    if session_factory is None:
+        from app.database import AsyncSessionLocal
+
+        session_factory = AsyncSessionLocal
+    async with session_factory() as session:
+        yield logger_class(session, r2_client=r2_client, owns_session=True)
+
+
 class AuditLogger:
     """
     Comprehensive audit logging with hash chain integrity
@@ -383,12 +398,11 @@ class AuditLogger:
         self._flush_task: Optional[asyncio.Task[None]] = None
 
     @classmethod
-    @asynccontextmanager
-    async def with_own_session(
+    def with_own_session(
         cls,
         session_factory: Optional[Callable[[], AsyncSession]] = None,
         r2_client: Optional[Any] = None,
-    ) -> AsyncIterator["AuditLogger"]:
+    ) -> AsyncContextManager["AuditLogger"]:
         """Yield a logger over a session it opens, owns and closes.
 
         Its ``log()`` commits each entry in its own transaction, independent of
@@ -396,12 +410,7 @@ class AuditLogger:
         transaction has already committed and must not be reopened.
         ``session_factory`` defaults to ``app.database.AsyncSessionLocal``.
         """
-        if session_factory is None:
-            from app.database import AsyncSessionLocal
-
-            session_factory = AsyncSessionLocal
-        async with session_factory() as session:
-            yield cls(session, r2_client=r2_client, owns_session=True)
+        return _logger_with_own_session(cls, session_factory, r2_client)
 
     def _create_r2_client(self) -> Optional[Any]:
         """Return the shared Cloudflare R2 client, or None when R2 is not configured."""

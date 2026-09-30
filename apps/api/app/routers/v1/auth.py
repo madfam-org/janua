@@ -305,6 +305,7 @@ async def log_audit_event(
         try:
             await db.rollback()
         except Exception:
+            # The request's session is closed at the end of the request either way.
             pass
 
 
