@@ -39,11 +39,13 @@ The issued access token is short-lived and has no refresh token.
 - `tier`: organization subscription tier
 - `<product>_tier`: product-specific org tiers such as `yantra4d_tier`
 
-If Janua cannot resolve the client organization, explicitly granted product
-scopes such as `yantra4d:quote` still emit `<product>_tier: "madfam"` for that
-product. This keeps platform-owned machine probes usable during organization
-directory degradation while preserving least privilege through the client scope
-allowlist.
+A client registered by a platform admin also receives `<product>_tier:
+"madfam"` for each product it holds a namespaced scope for (for example
+`yantra4d:quote`), so platform-owned machine probes keep working even when the
+organization directory cannot be read. The organization's own `product_tiers`
+win over these. Any other client receives a product tier claim only when its
+organization is entitled to that product; with no entitlement the claim is
+absent, which consumers read as their lowest authenticated tier.
 
 This lets Yantra4D, Cotiza, ForgeSight, Enclii, and Selva validate one Janua
 token shape without custom per-service credentials.

@@ -67,6 +67,7 @@ from app.services.org_claims_service import (
     get_user_org_claims,
     merge_app_roles_into_claims,
 )
+from app.services.oauth_client_authority import client_registered_by_platform_admin
 from app.services.service_principal import service_principal_claims
 
 logger = structlog.get_logger()
@@ -988,15 +989,24 @@ async def _get_client_credentials_claims(
         ORG_ROLES_CLAIM: ["service_account"],
     }
 
-    # Machine clients are explicitly provisioned by Janua admins. When a client
-    # has product-scoped permissions, emit the corresponding product tier so
-    # downstream tier gates can authorize the service account without requiring
-    # a human browser session. Organization product_tiers, when available below,
-    # override these scope-derived defaults.
-    for product in scoped_products:
-        claim_key = re.sub(r"[^a-z0-9_]", "_", str(product).lower())
-        if claim_key:
-            claims[f"{claim_key}_tier"] = "madfam"
+    # Product tier claims (`<product>_tier`) state an entitlement, and
+    # downstream tier gates authorize on them. Two sources:
+    #
+    # - a client registered by a platform admin is MADFAM's own service
+    #   account: each product it holds a namespaced scope for gets the
+    #   `madfam` tier, so it can reach that product's gated operations
+    #   without a human session;
+    # - every client bound to an organization gets that organization's
+    #   `product_tiers` (applied below, and they win over the above).
+    #
+    # Any other client gets no tier claim for a product its organization is
+    # not entitled to. Consumers read an absent claim as their lowest
+    # authenticated tier.
+    if scoped_products and await client_registered_by_platform_admin(db, client):
+        for product in scoped_products:
+            claim_key = re.sub(r"[^a-z0-9_]", "_", str(product).lower())
+            if claim_key:
+                claims[f"{claim_key}_tier"] = "madfam"
 
     if client.organization_id:
         org_result = await db.execute(

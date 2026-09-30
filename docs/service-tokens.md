@@ -75,12 +75,23 @@ else:
 - cannot edit or rotate a client that already holds a reserved value.
 
 `/register` converges only onto rows a platform admin registered (it answers
-409 otherwise). Janua's own service boundaries (payment notices, white-label branding) also
-refuse a client whose `created_by` is not a platform admin; use
+409 otherwise). Janua's own service boundaries (payment notices, white-label
+branding, provider-token delegation under `janua-connections`) also refuse a
+client whose `created_by` is not a platform admin; use
 `client_registered_by_platform_admin` from
 `app/services/oauth_client_authority.py` in any new one.
 `apps/api/scripts/audit_reserved_oauth_clients.py` lists existing clients
 against these rules, read-only.
+
+Product tier claims on a `client_credentials` token (`<product>_tier`) come
+from two sources only: a client registered by a platform admin gets
+`madfam` for each product it holds a namespaced scope for (for example
+`yantra4d:render` gives `yantra4d_tier: "madfam"`), and an organization-bound
+client gets its organization's `product_tiers`, which win. Any other client
+carries no tier claim for a product its organization is not entitled to, and
+consumers read an absent claim as their lowest authenticated tier.
+`apps/api/scripts/audit_client_credentials_tier_claims.py` lists, read-only,
+the clients these rules change.
 
 Registration properties:
 
