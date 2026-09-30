@@ -228,9 +228,8 @@ def test_unloadable_redirect_uris_mean_no_token():
 @pytest.fixture
 def pg_url():
     """A fresh schema on a disposable loopback *_test database, dropped after."""
-    # Opt-in only: in the full suite `psycopg2` is replaced by a Mock for the
-    # whole process (see tests/unit/test_migration_reentrancy.py), so these
-    # tests run on their own against a disposable database.
+    # Set by CI's "API Tests (PostgreSQL)" job, which runs the tests marked
+    # `database` (tests/postgres_service.py); skipped elsewhere.
     raw = os.getenv("AUDIT_TEST_DATABASE_URL")
     if not raw:
         pytest.skip("Set AUDIT_TEST_DATABASE_URL to a disposable loopback *_test database")
@@ -253,6 +252,7 @@ def pg_url():
         admin.dispose()
 
 
+@pytest.mark.database
 def test_real_postgres_run_is_read_only_and_classifies(pg_url):
     from sqlalchemy import create_engine, text
     from sqlalchemy.orm import Session
@@ -356,6 +356,7 @@ def test_real_postgres_run_is_read_only_and_classifies(pg_url):
     engine.dispose()
 
 
+@pytest.mark.database
 def test_real_postgres_stored_shapes_match_what_the_app_loads(pg_url):
     """Every stored shape, written by SQL: the audit flags a row iff the app,
     loading it through its own model, would serve it a client_credentials
