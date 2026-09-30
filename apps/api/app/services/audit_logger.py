@@ -356,7 +356,7 @@ class AuditLogger:
         self.buffer: List[Dict[str, Any]] = []
         self.buffer_size = 100
         self.flush_interval = 60  # seconds
-        self._flush_task = None
+        self._flush_task: Optional["asyncio.Task[None]"] = None
 
     def _create_r2_client(self) -> Optional[Any]:
         """Return the shared Cloudflare R2 client, or None when R2 is not configured."""
