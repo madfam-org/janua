@@ -35,6 +35,7 @@ when DRIFT-TOTAL is 0, 2 when it is not, 1 on error.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -89,7 +90,9 @@ def model_columns(tables: Optional[List[str]]) -> Dict[str, List[str]]:
     if here.endswith(".py"):
         # Run as a file from apps/api/scripts: make `app` importable.
         sys.path.insert(0, str(Path(here).resolve().parents[1]))
-    from app.models import Base
+    # Importing the app package logs its startup lines; keep stdout for the report.
+    with contextlib.redirect_stdout(sys.stderr):
+        from app.models import Base
 
     selected = sorted(Base.metadata.tables) if tables is None else tables
     return {
