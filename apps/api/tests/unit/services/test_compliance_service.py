@@ -90,7 +90,8 @@ class TestConsentManagement:
         assert result.consent_type == ConsentType.MARKETING
         assert result.purpose == "Email marketing campaigns"
         mock_db.add.assert_called_once()
-        mock_db.commit.assert_called_once()
+        # The service's own commit, then the commit of its audit row.
+        assert mock_db.commit.call_count == 2
         mock_audit_logger.log.assert_called_once()
 
     async def test_record_consent_update_existing(self, consent_service):
@@ -117,7 +118,8 @@ class TestConsentManagement:
         assert result == existing_consent
         assert existing_consent.status == ConsentStatus.GIVEN
         assert existing_consent.ip_address == "192.168.1.1"
-        mock_db.commit.assert_called_once()
+        # The service's own commit, then the commit of its audit row.
+        assert mock_db.commit.call_count == 2
         mock_audit_logger.log.assert_called_once()
 
     async def test_withdraw_consent_success(self, consent_service):
@@ -144,7 +146,8 @@ class TestConsentManagement:
         assert result is True
         assert consent_record.status == ConsentStatus.WITHDRAWN
         assert consent_record.withdrawal_reason == "No longer interested"
-        mock_db.commit.assert_called_once()
+        # The service's own commit, then the commit of its audit row.
+        assert mock_db.commit.call_count == 2
         mock_audit_logger.log.assert_called_once()
 
     async def test_withdraw_consent_not_found(self, consent_service):
@@ -253,7 +256,8 @@ class TestDataSubjectRightsService:
         assert result.request_type == DataSubjectRequestType.ACCESS
         assert result.description == "Need access to my personal data"
         mock_db.add.assert_called_once()
-        mock_db.commit.assert_called_once()
+        # The service's own commit, then the commit of its audit row.
+        assert mock_db.commit.call_count == 2
 
     async def test_create_request_generates_unique_id(self, dsr_service):
         """Test that create_request generates unique request IDs."""
@@ -443,7 +447,8 @@ class TestDataRetentionService:
         assert result.retention_period_days == 365
         assert result.compliance_framework == ComplianceFramework.GDPR
         mock_db.add.assert_called_once()
-        mock_db.commit.assert_called_once()
+        # The service's own commit, then the commit of its audit row.
+        assert mock_db.commit.call_count == 2
         mock_audit_logger.log.assert_called_once()
 
     async def test_check_expired_data(self, retention_service):

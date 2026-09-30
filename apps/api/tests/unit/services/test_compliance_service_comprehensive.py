@@ -99,7 +99,8 @@ class TestConsentManagement:
         assert result.consent_type == ConsentType.MARKETING
         assert result.purpose == "Email marketing campaigns"
         mock_db.add.assert_called_once()
-        mock_db.commit.assert_called_once()
+        # The service's own commit, then the commit of its audit row.
+        assert mock_db.commit.call_count == 2
         mock_audit_logger.log.assert_called_once()
 
     @pytest.mark.asyncio
@@ -127,7 +128,8 @@ class TestConsentManagement:
         assert result == existing_consent
         assert existing_consent.status == ConsentStatus.GIVEN
         assert existing_consent.ip_address == "192.168.1.1"
-        mock_db.commit.assert_called_once()
+        # The service's own commit, then the commit of its audit row.
+        assert mock_db.commit.call_count == 2
         mock_audit_logger.log.assert_called_once()
 
     @pytest.mark.asyncio
@@ -155,7 +157,8 @@ class TestConsentManagement:
         assert result is True
         assert consent_record.status == ConsentStatus.WITHDRAWN
         assert consent_record.withdrawal_reason == "No longer interested"
-        mock_db.commit.assert_called_once()
+        # The service's own commit, then the commit of its audit row.
+        assert mock_db.commit.call_count == 2
         mock_audit_logger.log.assert_called_once()
 
     @pytest.mark.asyncio
@@ -484,7 +487,8 @@ class TestDataRetentionService:
         assert result.retention_period_days == 365
         assert result.compliance_framework == ComplianceFramework.GDPR
         mock_db.add.assert_called_once()
-        mock_db.commit.assert_called_once()
+        # The service's own commit, then the commit of its audit row.
+        assert mock_db.commit.call_count == 2
         mock_audit_logger.log.assert_called_once()
 
     @pytest.mark.asyncio
