@@ -46,6 +46,7 @@ from app.config import settings
 from app.core.database import get_db
 from app.core.jwt_manager import jwt_manager
 from app.core.redis import ResilientRedisClient, get_redis
+from app.core.reserved_oauth_boundaries import SILENT_AUTH_SCOPE, is_first_party_name
 from app.core.url_security import (
     is_safe_redirect_url,
     validate_oauth_redirect_uri,
@@ -1045,14 +1046,11 @@ def _is_silent_auth_allowed(client: OAuthClient) -> bool:
     if not getattr(client, "is_confidential", False):
         return False
     allowed_scopes = list(client.allowed_scopes or [])
-    if "madfam:silent_auth" in allowed_scopes:
+    if SILENT_AUTH_SCOPE in allowed_scopes:
         return True
     # Default-allow for known first-party MADFAM client_ids. The Selva office
     # client is the primary consumer of silent-auth in Phase 1.
-    name = (client.name or "").lower()
-    if name.startswith("selva-office") or name.startswith("madfam-"):
-        return True
-    return False
+    return is_first_party_name(client.name)
 
 
 def _is_first_party_preconsented(client: OAuthClient) -> bool:
