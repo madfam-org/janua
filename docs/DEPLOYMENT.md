@@ -861,6 +861,31 @@ nano .env.production
 
 See [`.env.production.example`](../.env.production.example) for complete configuration reference.
 
+### Audit Log Archive (optional)
+
+The API can copy audit log entries, and audit exports, to a Cloudflare R2
+bucket. Archiving is off unless all of these are set:
+
+| Variable | Purpose |
+|---|---|
+| `R2_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Credentials for the audit bucket |
+| `R2_AUDIT_BUCKET` | The dedicated audit bucket |
+
+- **Use a dedicated private bucket.** `R2_AUDIT_BUCKET` holds audit archives
+  and exports only. Do not enable public `r2.dev` access or a custom public
+  domain on it.
+- **Never the upload bucket.** `CLOUDFLARE_R2_BUCKET` is the general upload
+  bucket (avatars and other files served at public URLs). If `R2_AUDIT_BUCKET`
+  names the same bucket, the API does not archive at all and logs
+  `AUDIT_ARCHIVE_BUCKET_REFUSED` once; it still starts normally.
+- **Scope the credentials.** Create an R2 API token with object read and write
+  on the audit bucket only.
+- **Failures.** Entries are archived after they are stored in the database. A
+  failed upload logs `AUDIT_ARCHIVE_FAILED` and is not retried; the database
+  rows are unaffected. Exports fall back to returning an export id when
+  archiving is off.
+
 ---
 
 ## Database Setup

@@ -397,6 +397,14 @@ class Settings(BaseSettings):
     R2_SECRET_ACCESS_KEY: Optional[str] = Field(
         default=None, description="Cloudflare R2 secret access key"
     )
+    R2_AUDIT_BUCKET: Optional[str] = Field(
+        default=None,
+        description=(
+            "Private R2 bucket used only for audit log archives and exports. "
+            "Unset disables archiving. Must not be CLOUDFLARE_R2_BUCKET, the "
+            "public upload bucket; if it is, archiving stays off."
+        ),
+    )
 
     # Monitoring
     SENTRY_DSN: Optional[str] = Field(default=None)

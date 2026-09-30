@@ -9,7 +9,7 @@ import threading
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import boto3
 from botocore.exceptions import ClientError
@@ -223,6 +223,45 @@ def get_shared_r2_client() -> Optional[Any]:
         return cached[1]
 
 
+# Stable codes for the archive's log lines, so operators can alert on them.
+AUDIT_ARCHIVE_BUCKET_REFUSED = "AUDIT_ARCHIVE_BUCKET_REFUSED"
+AUDIT_ARCHIVE_FAILED = "AUDIT_ARCHIVE_FAILED"
+AUDIT_BUFFER_OVERFLOW = "AUDIT_BUFFER_OVERFLOW"
+
+# The refused bucket name already reported, so the error is logged once per
+# process rather than on every flush.
+_refused_audit_bucket_reported: Optional[str] = None
+
+
+def get_audit_archive_bucket() -> Optional[str]:
+    """Return the bucket audit archives and exports are written to, or None.
+
+    Archiving is off (None) when ``R2_AUDIT_BUCKET`` is unset or blank, and when
+    it names ``CLOUDFLARE_R2_BUCKET``: that is the general upload bucket, whose
+    objects are served at public URLs, so audit data is never written there.
+    The refusal is logged once per process with a stable code and never raises.
+    """
+    global _refused_audit_bucket_reported
+
+    bucket = (settings.R2_AUDIT_BUCKET or "").strip()
+    if not bucket:
+        return None
+
+    upload_bucket = (settings.CLOUDFLARE_R2_BUCKET or "").strip()
+    if upload_bucket and bucket.lower() == upload_bucket.lower():
+        if _refused_audit_bucket_reported != bucket:
+            _refused_audit_bucket_reported = bucket
+            logger.error(
+                f"[{AUDIT_ARCHIVE_BUCKET_REFUSED}] R2_AUDIT_BUCKET is the same bucket as "
+                "CLOUDFLARE_R2_BUCKET, the general upload bucket. Audit archiving is off "
+                "until R2_AUDIT_BUCKET names a dedicated private bucket.",
+                code=AUDIT_ARCHIVE_BUCKET_REFUSED,
+            )
+        return None
+
+    return bucket
+
+
 class AuditLogger:
     """
     Comprehensive audit logging with hash chain integrity
@@ -234,8 +273,16 @@ class AuditLogger:
         self.r2_client = r2_client or self._create_r2_client()
         self.buffer: List[Dict[str, Any]] = []
         self.buffer_size = 100
+        # Upper bound on entries kept while the database is failing. Beyond it
+        # the oldest entries are dropped, with an error, rather than growing
+        # memory without bound.
+        self.max_buffer_size = 1000
         self.flush_interval = 60  # seconds
         self._flush_task = None
+        # Ids of buffered entries already written to the database at log time
+        # (critical and high severity). A flush archives them but never writes
+        # them again.
+        self._stored_event_ids: Set[str] = set()
 
     def _create_r2_client(self) -> Optional[Any]:
         """Return the shared Cloudflare R2 client, or None when R2 is not configured."""
@@ -299,6 +346,7 @@ class AuditLogger:
         # Store in database immediately for critical events
         if severity in ["critical", "high"]:
             await self._store_entry(audit_entry)
+            self._stored_event_ids.add(event_id)
 
         # Check if buffer needs flushing
         if len(self.buffer) >= self.buffer_size:
@@ -348,7 +396,18 @@ class AuditLogger:
         await self.db.commit()
 
     async def _flush_buffer(self) -> None:
-        """Flush buffer to database and R2"""
+        """Store buffered entries in the database, then archive the stored ones to R2.
+
+        Storing and archiving are independent outcomes:
+
+        - Each entry is written to the database at most once. Entries already
+          stored at log time are not written again.
+        - An archive failure is logged once, with a stable code, and changes
+          nothing else: stored entries are never put back in the buffer.
+        - If a database write fails, that entry and the ones after it that were
+          not yet stored stay buffered for the next flush, up to
+          ``max_buffer_size``. They are archived once they are stored.
+        """
 
         if not self.buffer:
             return
@@ -356,19 +415,74 @@ class AuditLogger:
         entries_to_flush = self.buffer.copy()
         self.buffer.clear()
 
-        try:
-            # Batch insert to database
-            for entry in entries_to_flush:
+        stored: List[Dict[str, Any]] = []
+        unstored: List[Dict[str, Any]] = []
+        store_error: Optional[Exception] = None
+
+        for entry in entries_to_flush:
+            event_id = entry.get("event_id")
+            if event_id in self._stored_event_ids:
+                self._stored_event_ids.discard(event_id)
+                stored.append(entry)
+                continue
+            if store_error is not None:
+                # After a failed write the session must be rolled back before
+                # it can write again, so the rest wait for the next flush.
+                unstored.append(entry)
+                continue
+            try:
                 await self._store_entry(entry)
+            except Exception as e:
+                store_error = e
+                unstored.append(entry)
+            else:
+                stored.append(entry)
 
-            # Archive to R2 if configured
-            if self.r2_client and settings.R2_AUDIT_BUCKET:
-                await self._archive_to_r2(entries_to_flush)
+        if store_error is not None:
+            logger.error(
+                f"Failed to store {len(unstored)} audit entries; "
+                f"kept for the next flush: {store_error}"
+            )
+            self._requeue_unstored(unstored)
 
-        except Exception as e:
-            logger.error(f"Failed to flush audit buffer: {e}")
-            # Re-add to buffer for retry
-            self.buffer.extend(entries_to_flush)
+        if stored and self.r2_client is not None and get_audit_archive_bucket():
+            try:
+                await self._archive_to_r2(stored)
+            except Exception as e:
+                self._log_archive_failure(len(stored), e)
+
+    def _requeue_unstored(self, entries: List[Dict[str, Any]]) -> None:
+        """Put entries whose database write failed back at the head of the buffer.
+
+        The buffer is capped at ``max_buffer_size``; beyond it the oldest entries
+        are dropped with one error carrying a stable code.
+        """
+
+        self.buffer[:0] = entries
+        overflow = len(self.buffer) - self.max_buffer_size
+        if overflow <= 0:
+            return
+
+        dropped = self.buffer[:overflow]
+        del self.buffer[:overflow]
+        for entry in dropped:
+            self._stored_event_ids.discard(entry.get("event_id"))
+        logger.error(
+            f"[{AUDIT_BUFFER_OVERFLOW}] Dropped the {overflow} oldest unstored audit "
+            f"entries: the buffer is capped at {self.max_buffer_size}.",
+            code=AUDIT_BUFFER_OVERFLOW,
+            dropped=overflow,
+        )
+
+    def _log_archive_failure(self, entry_count: int, error: BaseException) -> None:
+        logger.warning(
+            f"[{AUDIT_ARCHIVE_FAILED}] {entry_count} audit entries were stored in the "
+            f"database but not archived to R2 ({type(error).__name__}). They are not "
+            "retried.",
+            code=AUDIT_ARCHIVE_FAILED,
+            entries=entry_count,
+            error_type=type(error).__name__,
+        )
 
     async def _periodic_flush(self) -> None:
         """Periodically flush buffer"""
@@ -378,30 +492,32 @@ class AuditLogger:
             await self._flush_buffer()
 
     async def _archive_to_r2(self, entries: List[Dict[str, Any]]) -> None:
-        """Archive audit logs to Cloudflare R2"""
+        """Archive stored audit entries to the dedicated R2 audit bucket.
+
+        Writes one object per tenant and day. Does nothing when there is no
+        client or archiving is off (see ``get_audit_archive_bucket``). A failed
+        upload does not stop the other groups; failures are logged once, with a
+        stable code, and are not retried.
+        """
 
         if not entries or self.r2_client is None:
             return
+        bucket = get_audit_archive_bucket()
+        if not bucket:
+            return
 
         # Group by tenant and date
-        grouped = {}
+        grouped: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
         for entry in entries:
-            tenant_id = entry["tenant_id"]
             date = entry["timestamp"][:10]  # YYYY-MM-DD
-            key = f"{tenant_id}/{date}"
+            grouped.setdefault((entry["tenant_id"], date), []).append(entry)
 
-            if key not in grouped:
-                grouped[key] = []
-            grouped[key].append(entry)
+        unarchived = 0
+        last_error: Optional[BaseException] = None
 
         # Upload each group
-        for key, group_entries in grouped.items():
-            tenant_id, date = key.split("/")
-
-            # Create filename
+        for (tenant_id, date), group_entries in grouped.items():
             filename = f"audit/{tenant_id}/{date}/{uuid.uuid4()}.json"
-
-            # Prepare data
             data = {
                 "tenant_id": tenant_id,
                 "date": date,
@@ -411,9 +527,8 @@ class AuditLogger:
             }
 
             try:
-                # Upload to R2
                 self.r2_client.put_object(
-                    Bucket=settings.R2_AUDIT_BUCKET,
+                    Bucket=bucket,
                     Key=filename,
                     Body=json.dumps(data, indent=2),
                     ContentType="application/json",
@@ -423,11 +538,15 @@ class AuditLogger:
                         "count": str(len(group_entries)),
                     },
                 )
+            except Exception as e:
+                unarchived += len(group_entries)
+                last_error = e
+                continue
 
-                logger.info(f"Archived {len(group_entries)} audit logs to R2: {filename}")
+            logger.info(f"Archived {len(group_entries)} audit logs to R2: {filename}")
 
-            except ClientError as e:
-                logger.error(f"Failed to archive to R2: {e}")
+        if last_error is not None:
+            self._log_archive_failure(unarchived, last_error)
 
     async def _get_previous_hash(self, tenant_id: str) -> Optional[str]:
         """Get the hash of the previous audit entry for this tenant"""
@@ -586,11 +705,13 @@ class AuditLogger:
             # Add CSV support if needed
             content = json.dumps(export_data, indent=2)
 
-        # Upload to R2
-        if self.r2_client and settings.R2_AUDIT_BUCKET:
+        # Upload to the dedicated audit bucket. With no client, or with
+        # archiving off, the export id is returned instead of a download URL.
+        bucket = get_audit_archive_bucket() if self.r2_client is not None else None
+        if bucket:
             try:
                 self.r2_client.put_object(
-                    Bucket=settings.R2_AUDIT_BUCKET,
+                    Bucket=bucket,
                     Key=filename,
                     Body=content,
                     ContentType="application/json" if format == "json" else "text/csv",
@@ -604,7 +725,7 @@ class AuditLogger:
                 # Generate presigned URL for download
                 url = self.r2_client.generate_presigned_url(
                     "get_object",
-                    Params={"Bucket": settings.R2_AUDIT_BUCKET, "Key": filename},
+                    Params={"Bucket": bucket, "Key": filename},
                     ExpiresIn=3600,  # 1 hour
                 )
 
