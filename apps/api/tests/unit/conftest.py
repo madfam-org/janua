@@ -91,3 +91,13 @@ async def db_session():
 def anyio_backend():
     """Specify the async backend for pytest-asyncio"""
     return "asyncio"
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config, items):
+    """Keep the PostgreSQL job split exact: marker 'database' <=> the test
+    reads a PostgreSQL service URL. Runs before '-m' deselects anything, so it
+    sees every collected test in both CI jobs."""
+    from tests.postgres_service import check_marker_matches_requirement
+
+    check_marker_matches_requirement(items)
