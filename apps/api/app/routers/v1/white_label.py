@@ -2,6 +2,7 @@
 White-label and branding API endpoints
 """
 
+import enum
 import hashlib
 import logging
 import re
@@ -12,8 +13,9 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -39,74 +41,152 @@ router = APIRouter(
 )
 
 
-# Pydantic models
+# Branding contract.
+#
+# The request and response field names below are the wire contract nauta reads
+# and writes (nauta#331, packages/integrations/src/janua-branding.ts). They are
+# NOT the column names of white_label_configurations: BRANDING_FIELD_COLUMNS is
+# the one mapping between the two, and every branding handler goes through it.
+# Before it existed the handlers used the API names as ORM attributes, so GET,
+# PUT and POST /branding raised on every call and answered 500.
+
+HEX_COLOR_PATTERN = r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+
+# What POST fills in for a field the caller leaves out, and what the compiled
+# CSS falls back to for a column that is NULL. nauta reads a value equal to one
+# of these as "not chosen" (JANUA_BRANDING_DEFAULTS), so change them together.
+DEFAULT_THEME: Dict[str, str] = {
+    "primary_color": "#1a73e8",
+    "secondary_color": "#ea4335",
+    "accent_color": "#34a853",
+    "background_color": "#ffffff",
+    "surface_color": "#f8f9fa",
+    "text_color": "#202124",
+    "font_family": "Inter, system-ui, sans-serif",
+    "border_radius": "8px",
+}
+
+# API field -> white_label_configurations column.
+BRANDING_FIELD_COLUMNS: Dict[str, str] = {
+    "is_enabled": "is_active",
+    "branding_level": "branding_level",
+    "company_name": "brand_name",
+    "company_logo_url": "logo_url",
+    "company_logo_dark_url": "logo_dark_url",
+    "company_favicon_url": "favicon_url",
+    "company_website": "website_url",
+    "theme_mode": "theme_mode",
+    "primary_color": "primary_color",
+    "secondary_color": "secondary_color",
+    "accent_color": "accent_color",
+    "background_color": "background_color",
+    "surface_color": "surface_color",
+    "text_color": "text_color",
+    "font_family": "font_family",
+    "border_radius": "border_radius",
+    "custom_css": "custom_css",
+}
+
+# Field limits mirror the column widths, so an over-long value is a 422 here
+# instead of a database error (a 500) at commit.
+def _name() -> Any:
+    return Field(None, max_length=255)
+
+
+def _url() -> Any:
+    return Field(None, max_length=500)
+
+
+def _font(default: Optional[str]) -> Any:
+    return Field(default, min_length=1, max_length=255)
+
+
+def _radius(default: Optional[str]) -> Any:
+    return Field(default, min_length=1, max_length=20)
+
+
+def _color(default: Optional[str]) -> Any:
+    return Field(default, pattern=HEX_COLOR_PATTERN)
+
+
 class BrandingConfigurationCreate(BaseModel):
     """Create branding configuration request"""
 
     branding_level: BrandingLevel = BrandingLevel.BASIC
-    company_name: Optional[str] = None
-    company_logo_url: Optional[str] = None
-    company_logo_dark_url: Optional[str] = None
-    company_favicon_url: Optional[str] = None
-    company_website: Optional[str] = None
+    company_name: Optional[str] = _name()
+    company_logo_url: Optional[str] = _url()
+    company_logo_dark_url: Optional[str] = _url()
+    company_favicon_url: Optional[str] = _url()
+    company_website: Optional[str] = _url()
     theme_mode: ThemeMode = ThemeMode.LIGHT
-    primary_color: str = "#1a73e8"
-    secondary_color: str = "#ea4335"
-    accent_color: str = "#34a853"
-    background_color: str = "#ffffff"
-    surface_color: str = "#f8f9fa"
-    text_color: str = "#202124"
-    font_family: str = "Inter, system-ui, sans-serif"
-    border_radius: str = "8px"
+    primary_color: str = _color(DEFAULT_THEME["primary_color"])
+    secondary_color: str = _color(DEFAULT_THEME["secondary_color"])
+    accent_color: str = _color(DEFAULT_THEME["accent_color"])
+    background_color: str = _color(DEFAULT_THEME["background_color"])
+    surface_color: str = _color(DEFAULT_THEME["surface_color"])
+    text_color: str = _color(DEFAULT_THEME["text_color"])
+    font_family: str = _font(DEFAULT_THEME["font_family"])
+    border_radius: str = _radius(DEFAULT_THEME["border_radius"])
     custom_css: Optional[str] = None
 
 
 class BrandingConfigurationUpdate(BaseModel):
-    """Update branding configuration request"""
+    """Update branding configuration request (partial: only the fields sent change).
+
+    An explicit null clears a field; `is_enabled` cannot be null.
+    """
 
     is_enabled: Optional[bool] = None
-    company_name: Optional[str] = None
-    company_logo_url: Optional[str] = None
-    company_logo_dark_url: Optional[str] = None
-    company_favicon_url: Optional[str] = None
-    company_website: Optional[str] = None
+    company_name: Optional[str] = _name()
+    company_logo_url: Optional[str] = _url()
+    company_logo_dark_url: Optional[str] = _url()
+    company_favicon_url: Optional[str] = _url()
+    company_website: Optional[str] = _url()
     theme_mode: Optional[ThemeMode] = None
-    primary_color: Optional[str] = None
-    secondary_color: Optional[str] = None
-    accent_color: Optional[str] = None
-    background_color: Optional[str] = None
-    surface_color: Optional[str] = None
-    text_color: Optional[str] = None
-    font_family: Optional[str] = None
-    border_radius: Optional[str] = None
+    primary_color: Optional[str] = _color(None)
+    secondary_color: Optional[str] = _color(None)
+    accent_color: Optional[str] = _color(None)
+    background_color: Optional[str] = _color(None)
+    surface_color: Optional[str] = _color(None)
+    text_color: Optional[str] = _color(None)
+    font_family: Optional[str] = _font(None)
+    border_radius: Optional[str] = _radius(None)
     custom_css: Optional[str] = None
+
+    @field_validator("is_enabled")
+    @classmethod
+    def _is_enabled_not_null(cls, value: Optional[bool]) -> bool:
+        if value is None:
+            raise ValueError("is_enabled must be true or false")
+        return value
 
 
 class BrandingConfigurationResponse(BaseModel):
-    """Branding configuration response"""
+    """Branding configuration response. A field with no stored value is null."""
 
     id: str
     organization_id: str
-    branding_level: BrandingLevel
+    branding_level: Optional[BrandingLevel]
     is_enabled: bool
     company_name: Optional[str]
     company_logo_url: Optional[str]
     company_logo_dark_url: Optional[str]
     company_favicon_url: Optional[str]
     company_website: Optional[str]
-    theme_mode: ThemeMode
-    primary_color: str
-    secondary_color: str
-    accent_color: str
-    background_color: str
-    surface_color: str
-    text_color: str
-    font_family: str
-    border_radius: str
-    created_at: str
-    updated_at: str
+    theme_mode: Optional[ThemeMode]
+    primary_color: Optional[str]
+    secondary_color: Optional[str]
+    accent_color: Optional[str]
+    background_color: Optional[str]
+    surface_color: Optional[str]
+    text_color: Optional[str]
+    font_family: Optional[str]
+    border_radius: Optional[str]
+    created_at: Optional[str]
+    updated_at: Optional[str]
 
 
+# Pydantic models (domains, email templates, pages)
 class CustomDomainCreate(BaseModel):
     """Create custom domain request"""
 
@@ -180,6 +260,60 @@ class PageCustomizationCreate(BaseModel):
     custom_js: Optional[str] = None
 
 
+BRANDING_NOT_FOUND = "Branding configuration not found"
+
+
+def _org_uuid(organization_id: str, not_found: str) -> uuid.UUID:
+    """The organization id as a UUID. A malformed id matches nothing: 404."""
+    try:
+        return uuid.UUID(str(organization_id))
+    except ValueError:
+        raise HTTPException(status_code=404, detail=not_found)
+
+
+def _column_value(value: Any) -> Any:
+    """Enums are stored as their string value."""
+    return value.value if isinstance(value, enum.Enum) else value
+
+
+def _isoformat(value: Optional[datetime]) -> Optional[str]:
+    return value.isoformat() if value is not None else None
+
+
+def _branding_response(config: BrandingConfiguration) -> BrandingConfigurationResponse:
+    """The API view of a white_label_configurations row, via BRANDING_FIELD_COLUMNS."""
+    values = {
+        field: getattr(config, column)
+        for field, column in BRANDING_FIELD_COLUMNS.items()
+        if field in BrandingConfigurationResponse.model_fields
+    }
+    # A row inserted outside this API may hold NULL; the CSS endpoint treats
+    # that as disabled, and so does the answer here.
+    values["is_enabled"] = bool(values["is_enabled"])
+    return BrandingConfigurationResponse(
+        id=str(config.id),
+        organization_id=str(config.organization_id),
+        created_at=_isoformat(config.created_at),
+        updated_at=_isoformat(config.updated_at),
+        **values,
+    )
+
+
+async def _get_branding(db: AsyncSession, organization_id: str) -> BrandingConfiguration:
+    """The organization's branding row, or 404."""
+    org_id = _org_uuid(organization_id, BRANDING_NOT_FOUND)
+    result = await db.execute(
+        select(BrandingConfiguration).where(BrandingConfiguration.organization_id == org_id)
+    )
+    config = result.scalar_one_or_none()
+    if not config:
+        raise HTTPException(status_code=404, detail=BRANDING_NOT_FOUND)
+    return config
+
+
+BRANDING_EXISTS = "Branding configuration already exists for this organization"
+
+
 @router.post("/branding", response_model=BrandingConfigurationResponse)
 async def create_branding_configuration(
     organization_id: str,
@@ -190,73 +324,42 @@ async def create_branding_configuration(
     """
     Create branding configuration for organization
 
-    Requires admin privileges.
+    Requires admin privileges. 404 when the organization does not exist, 400
+    when it already has a branding configuration (use PUT to change it).
     """
     try:
-        # Check if organization exists
-        org = await db.get(Organization, organization_id)
+        org_id = _org_uuid(organization_id, "Organization not found")
+        org = await db.get(Organization, org_id)
         if not org:
             raise HTTPException(status_code=404, detail="Organization not found")
 
-        # Check if branding config already exists
         existing = await db.execute(
-            select(BrandingConfiguration).where(
-                BrandingConfiguration.organization_id == organization_id
-            )
+            select(BrandingConfiguration).where(BrandingConfiguration.organization_id == org_id)
         )
         if existing.scalar_one_or_none():
-            raise HTTPException(
-                status_code=400,
-                detail="Branding configuration already exists for this organization",
-            )
+            raise HTTPException(status_code=400, detail=BRANDING_EXISTS)
 
-        # Create branding configuration
         branding_config = BrandingConfiguration(
-            organization_id=organization_id,
-            branding_level=config.branding_level,
-            company_name=config.company_name,
-            company_logo_url=config.company_logo_url,
-            company_logo_dark_url=config.company_logo_dark_url,
-            company_favicon_url=config.company_favicon_url,
-            company_website=config.company_website,
-            theme_mode=config.theme_mode,
-            primary_color=config.primary_color,
-            secondary_color=config.secondary_color,
-            accent_color=config.accent_color,
-            background_color=config.background_color,
-            surface_color=config.surface_color,
-            text_color=config.text_color,
-            font_family=config.font_family,
-            border_radius=config.border_radius,
-            custom_css=config.custom_css,
+            organization_id=org_id,
+            is_active=True,
+            **{
+                BRANDING_FIELD_COLUMNS[field]: _column_value(value)
+                for field, value in config.model_dump().items()
+            },
         )
-
         db.add(branding_config)
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            # A concurrent create won the unique(organization_id) race.
+            await db.rollback()
+            raise HTTPException(status_code=400, detail=BRANDING_EXISTS)
+        await db.refresh(branding_config)
 
-        return BrandingConfigurationResponse(
-            id=str(branding_config.id),
-            organization_id=str(branding_config.organization_id),
-            branding_level=branding_config.branding_level,
-            is_enabled=branding_config.is_enabled,
-            company_name=branding_config.company_name,
-            company_logo_url=branding_config.company_logo_url,
-            company_logo_dark_url=branding_config.company_logo_dark_url,
-            company_favicon_url=branding_config.company_favicon_url,
-            company_website=branding_config.company_website,
-            theme_mode=branding_config.theme_mode,
-            primary_color=branding_config.primary_color,
-            secondary_color=branding_config.secondary_color,
-            accent_color=branding_config.accent_color,
-            background_color=branding_config.background_color,
-            surface_color=branding_config.surface_color,
-            text_color=branding_config.text_color,
-            font_family=branding_config.font_family,
-            border_radius=branding_config.border_radius,
-            created_at=branding_config.created_at.isoformat(),
-            updated_at=branding_config.updated_at.isoformat(),
-        )
+        return _branding_response(branding_config)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create branding configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -269,42 +372,13 @@ async def get_branding_configuration(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Get branding configuration for organization
+    Get branding configuration for organization. 404 when it has none.
     """
     try:
-        result = await db.execute(
-            select(BrandingConfiguration).where(
-                BrandingConfiguration.organization_id == organization_id
-            )
-        )
-        config = result.scalar_one_or_none()
+        return _branding_response(await _get_branding(db, organization_id))
 
-        if not config:
-            raise HTTPException(status_code=404, detail="Branding configuration not found")
-
-        return BrandingConfigurationResponse(
-            id=str(config.id),
-            organization_id=str(config.organization_id),
-            branding_level=config.branding_level,
-            is_enabled=config.is_enabled,
-            company_name=config.company_name,
-            company_logo_url=config.company_logo_url,
-            company_logo_dark_url=config.company_logo_dark_url,
-            company_favicon_url=config.company_favicon_url,
-            company_website=config.company_website,
-            theme_mode=config.theme_mode,
-            primary_color=config.primary_color,
-            secondary_color=config.secondary_color,
-            accent_color=config.accent_color,
-            background_color=config.background_color,
-            surface_color=config.surface_color,
-            text_color=config.text_color,
-            font_family=config.font_family,
-            border_radius=config.border_radius,
-            created_at=config.created_at.isoformat(),
-            updated_at=config.updated_at.isoformat(),
-        )
-
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get branding configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -318,51 +392,25 @@ async def update_branding_configuration(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Update branding configuration
+    Update branding configuration. Partial: only the fields sent change.
 
-    Requires admin privileges.
+    Requires admin privileges. 404 when the organization has no branding
+    configuration (create it with POST first).
     """
     try:
-        result = await db.execute(
-            select(BrandingConfiguration).where(
-                BrandingConfiguration.organization_id == organization_id
-            )
-        )
-        config = result.scalar_one_or_none()
+        config = await _get_branding(db, organization_id)
 
-        if not config:
-            raise HTTPException(status_code=404, detail="Branding configuration not found")
-
-        # Update fields
-        update_data = update.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(config, field, value)
+        for field, value in update.model_dump(exclude_unset=True).items():
+            setattr(config, BRANDING_FIELD_COLUMNS[field], _column_value(value))
+        config.updated_at = datetime.utcnow()
 
         await db.commit()
+        await db.refresh(config)
 
-        return BrandingConfigurationResponse(
-            id=str(config.id),
-            organization_id=str(config.organization_id),
-            branding_level=config.branding_level,
-            is_enabled=config.is_enabled,
-            company_name=config.company_name,
-            company_logo_url=config.company_logo_url,
-            company_logo_dark_url=config.company_logo_dark_url,
-            company_favicon_url=config.company_favicon_url,
-            company_website=config.company_website,
-            theme_mode=config.theme_mode,
-            primary_color=config.primary_color,
-            secondary_color=config.secondary_color,
-            accent_color=config.accent_color,
-            background_color=config.background_color,
-            surface_color=config.surface_color,
-            text_color=config.text_color,
-            font_family=config.font_family,
-            border_radius=config.border_radius,
-            created_at=config.created_at.isoformat(),
-            updated_at=config.updated_at.isoformat(),
-        )
+        return _branding_response(config)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to update branding configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -523,19 +571,10 @@ async def upload_logo(
     Recommended dimensions: 200x50px or similar aspect ratio
     """
     try:
-        # Get branding configuration
-        result = await db.execute(
-            select(BrandingConfiguration).where(
-                BrandingConfiguration.organization_id == organization_id
-            )
-        )
-        config = result.scalar_one_or_none()
-
-        if not config:
-            raise HTTPException(status_code=404, detail="Branding configuration not found")
+        config = await _get_branding(db, organization_id)
 
         # Delete old logo if exists (using safe deletion to prevent path traversal)
-        _safe_delete_uploaded_file(config.company_logo_url)
+        _safe_delete_uploaded_file(config.logo_url)
 
         # Upload new logo
         logo_url = await _upload_branding_image(
@@ -543,7 +582,7 @@ async def upload_logo(
         )
 
         # Update branding configuration
-        config.company_logo_url = logo_url
+        config.logo_url = logo_url
         config.updated_at = datetime.utcnow()
         await db.commit()
 
@@ -575,19 +614,10 @@ async def upload_logo_dark(
     Use this for logos that display well on dark backgrounds.
     """
     try:
-        # Get branding configuration
-        result = await db.execute(
-            select(BrandingConfiguration).where(
-                BrandingConfiguration.organization_id == organization_id
-            )
-        )
-        config = result.scalar_one_or_none()
-
-        if not config:
-            raise HTTPException(status_code=404, detail="Branding configuration not found")
+        config = await _get_branding(db, organization_id)
 
         # Delete old logo if exists (using safe deletion to prevent path traversal)
-        _safe_delete_uploaded_file(config.company_logo_dark_url)
+        _safe_delete_uploaded_file(config.logo_dark_url)
 
         # Upload new logo
         logo_url = await _upload_branding_image(
@@ -595,7 +625,7 @@ async def upload_logo_dark(
         )
 
         # Update branding configuration
-        config.company_logo_dark_url = logo_url
+        config.logo_dark_url = logo_url
         config.updated_at = datetime.utcnow()
         await db.commit()
 
@@ -627,19 +657,10 @@ async def upload_favicon(
     Recommended: 32x32px or 16x16px PNG/ICO
     """
     try:
-        # Get branding configuration
-        result = await db.execute(
-            select(BrandingConfiguration).where(
-                BrandingConfiguration.organization_id == organization_id
-            )
-        )
-        config = result.scalar_one_or_none()
-
-        if not config:
-            raise HTTPException(status_code=404, detail="Branding configuration not found")
+        config = await _get_branding(db, organization_id)
 
         # Delete old favicon if exists (using safe deletion to prevent path traversal)
-        _safe_delete_uploaded_file(config.company_favicon_url)
+        _safe_delete_uploaded_file(config.favicon_url)
 
         # Upload new favicon (allow ICO files too)
         allowed_types = ALLOWED_IMAGE_TYPES + ["image/x-icon", "image/vnd.microsoft.icon"]
@@ -685,7 +706,7 @@ async def upload_favicon(
         favicon_url = f"/uploads/branding/{safe_org_id}/{unique_filename}"
 
         # Update branding configuration
-        config.company_favicon_url = favicon_url
+        config.favicon_url = favicon_url
         config.updated_at = datetime.utcnow()
         await db.commit()
 
@@ -711,21 +732,12 @@ async def delete_logo(
     Delete the primary logo for organization branding.
     """
     try:
-        # Get branding configuration
-        result = await db.execute(
-            select(BrandingConfiguration).where(
-                BrandingConfiguration.organization_id == organization_id
-            )
-        )
-        config = result.scalar_one_or_none()
-
-        if not config:
-            raise HTTPException(status_code=404, detail="Branding configuration not found")
+        config = await _get_branding(db, organization_id)
 
         # Delete logo file if exists (using safe deletion to prevent path traversal)
-        if config.company_logo_url:
-            _safe_delete_uploaded_file(config.company_logo_url)
-            config.company_logo_url = None
+        if config.logo_url:
+            _safe_delete_uploaded_file(config.logo_url)
+            config.logo_url = None
             config.updated_at = datetime.utcnow()
             await db.commit()
 
@@ -748,21 +760,12 @@ async def delete_logo_dark(
     Delete the dark mode logo for organization branding.
     """
     try:
-        # Get branding configuration
-        result = await db.execute(
-            select(BrandingConfiguration).where(
-                BrandingConfiguration.organization_id == organization_id
-            )
-        )
-        config = result.scalar_one_or_none()
-
-        if not config:
-            raise HTTPException(status_code=404, detail="Branding configuration not found")
+        config = await _get_branding(db, organization_id)
 
         # Delete logo file if exists (using safe deletion to prevent path traversal)
-        if config.company_logo_dark_url:
-            _safe_delete_uploaded_file(config.company_logo_dark_url)
-            config.company_logo_dark_url = None
+        if config.logo_dark_url:
+            _safe_delete_uploaded_file(config.logo_dark_url)
+            config.logo_dark_url = None
             config.updated_at = datetime.utcnow()
             await db.commit()
 
@@ -785,21 +788,12 @@ async def delete_favicon(
     Delete the favicon for organization branding.
     """
     try:
-        # Get branding configuration
-        result = await db.execute(
-            select(BrandingConfiguration).where(
-                BrandingConfiguration.organization_id == organization_id
-            )
-        )
-        config = result.scalar_one_or_none()
-
-        if not config:
-            raise HTTPException(status_code=404, detail="Branding configuration not found")
+        config = await _get_branding(db, organization_id)
 
         # Delete favicon file if exists (using safe deletion to prevent path traversal)
-        if config.company_favicon_url:
-            _safe_delete_uploaded_file(config.company_favicon_url)
-            config.company_favicon_url = None
+        if config.favicon_url:
+            _safe_delete_uploaded_file(config.favicon_url)
+            config.favicon_url = None
             config.updated_at = datetime.utcnow()
             await db.commit()
 
@@ -870,6 +864,8 @@ async def create_custom_domain(
             updated_at=custom_domain.updated_at.isoformat(),
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create custom domain: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -899,6 +895,8 @@ async def verify_custom_domain(
 
         return {"message": "Domain verified successfully"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to verify custom domain: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -954,6 +952,8 @@ async def create_email_template(
             updated_at=email_template.updated_at.isoformat(),
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create email template: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -997,6 +997,8 @@ async def list_theme_presets(
             for preset in presets
         ]
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to list theme presets: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1015,7 +1017,7 @@ async def get_organization_css(
         result = await db.execute(
             select(BrandingConfiguration).where(
                 BrandingConfiguration.organization_id == organization_id,
-                BrandingConfiguration.is_enabled == True,
+                BrandingConfiguration.is_active.is_(True),
             )
         )
         config = result.scalar_one_or_none()
@@ -1033,6 +1035,8 @@ async def get_organization_css(
             headers={"Cache-Control": "public, max-age=3600"},
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get organization CSS: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1067,16 +1071,18 @@ def _generate_default_css() -> str:
 
 def _generate_organization_css(config: BrandingConfiguration, theme_mode: ThemeMode) -> str:
     """Generate CSS from branding configuration"""
+    # A column never set (NULL) falls back to the default theme value.
+    theme = {key: getattr(config, key) or default for key, default in DEFAULT_THEME.items()}
     css_vars = f"""
     :root {{
-        --primary-color: {config.primary_color};
-        --secondary-color: {config.secondary_color};
-        --accent-color: {config.accent_color};
-        --background-color: {config.background_color};
-        --surface-color: {config.surface_color};
-        --text-color: {config.text_color};
-        --border-radius: {config.border_radius};
-        --font-family: {config.font_family};
+        --primary-color: {theme["primary_color"]};
+        --secondary-color: {theme["secondary_color"]};
+        --accent-color: {theme["accent_color"]};
+        --background-color: {theme["background_color"]};
+        --surface-color: {theme["surface_color"]};
+        --text-color: {theme["text_color"]};
+        --border-radius: {theme["border_radius"]};
+        --font-family: {theme["font_family"]};
     }}
     
     body {{

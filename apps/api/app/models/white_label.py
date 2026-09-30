@@ -72,12 +72,26 @@ class WhiteLabelConfiguration(Base):
         UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, unique=True
     )
 
-    # Branding
+    # Branding. The white-label API names these differently (company_name,
+    # company_logo_url, ...); routers/v1/white_label.py holds the one mapping.
     brand_name = Column(String(255))
     logo_url = Column(String(500))
     favicon_url = Column(String(500))
     primary_color = Column(String(7))  # Hex color
     secondary_color = Column(String(7))
+
+    # Theme (alembic 020_white_label_branding_columns). Nullable with no
+    # default: NULL means "not chosen", and the API answers it as null.
+    branding_level = Column(String(20))  # BrandingLevel value
+    theme_mode = Column(String(10))  # ThemeMode value
+    logo_dark_url = Column(String(500))
+    website_url = Column(String(500))
+    accent_color = Column(String(7))  # Hex color
+    background_color = Column(String(7))
+    surface_color = Column(String(7))
+    text_color = Column(String(7))
+    font_family = Column(String(255))
+    border_radius = Column(String(20))
 
     # Custom domains
     custom_domain = Column(String(255), unique=True)
