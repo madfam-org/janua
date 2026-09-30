@@ -83,9 +83,16 @@ async def env():
     await engine.dispose()
 
 
+@pytest.fixture(scope="module")
+def module_key():
+    # One key per module: generating a 2048-bit key per test is most of the
+    # setup time, and no test depends on the key being fresh.
+    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
 @pytest.fixture
-def key(monkeypatch):
-    private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+def key(monkeypatch, module_key):
+    private = module_key
     monkeypatch.setattr(auth.jwt_manager, "algorithm", "RS256")
     monkeypatch.setattr(auth.jwt_manager, "public_key", private.public_key())
     return private
