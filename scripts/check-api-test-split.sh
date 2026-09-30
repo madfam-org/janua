@@ -22,7 +22,11 @@ collect() {
     echo "::error::test collection failed for -m \"$1\""
     exit 1
   fi
-  grep -E '^tests/[^ ]+::' "$dir/$2.log" | LC_ALL=C sort >"$dir/$2" || true
+  # Some parametrize ids embed a fresh uuid4 per collection; normalise them so
+  # the three collections compare. Duplicates after that are kept and counted.
+  grep -E '^tests/[^ ]+::' "$dir/$2.log" |
+    sed -E 's/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/<uuid>/g' |
+    LC_ALL=C sort >"$dir/$2" || true
 }
 
 collect "$API_ALL_TESTS_MARKERS" all
