@@ -159,7 +159,8 @@ jobs:
   api-postgres-tests:
     name: API Tests (PostgreSQL)
     runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
-    timeout-minutes: 20
+    # Same cap as api-tests, where these tests ran before.
+    timeout-minutes: 25
 
     services:
       postgres:
