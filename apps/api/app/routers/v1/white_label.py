@@ -8,12 +8,13 @@ import re
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
-from sqlalchemy import select
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -156,62 +157,63 @@ def _branding_response(config: BrandingConfiguration) -> BrandingConfigurationRe
     )
 
 
-class CustomDomainCreate(BaseModel):
-    """Create custom domain request"""
+# A DNS host name: dot-separated labels of letters, digits and inner hyphens,
+# ending in an alphabetic top-level label. 253 is the DNS limit.
+_HOSTNAME = r"^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$"
 
-    domain: str = Field(
-        ..., pattern=r"^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+$"
-    )
-    subdomain: Optional[str] = None
+
+class CustomDomainCreate(BaseModel):
+    """Create custom domain request.
+
+    Only what `custom_domains` stores is accepted; any other field is a 422
+    naming it, never silently dropped.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    domain: str = Field(..., max_length=253, pattern=_HOSTNAME)
 
 
 class CustomDomainResponse(BaseModel):
-    """Custom domain response"""
+    """Custom domain response, as stored."""
 
     id: str
+    organization_id: str
     domain: str
-    subdomain: Optional[str]
     is_verified: bool
-    is_active: bool
-    dns_configured: bool
+    status: Literal["pending", "verified"]
     ssl_configured: bool
-    verification_token: Optional[str]
-    cname_target: Optional[str]
-    a_record_ips: List[str]
-    txt_records: List[str]
-    created_at: str
-    updated_at: str
+    created_at: Optional[str]
+    updated_at: Optional[str]
 
 
 class EmailTemplateCreate(BaseModel):
-    """Create email template request"""
+    """Create email template request.
 
-    template_type: str = Field(..., max_length=50)
-    locale: str = "en"
-    subject: str = Field(..., max_length=500)
-    html_body: str
+    Only what `email_templates` stores is accepted; any other field is a 422
+    naming it, never silently dropped.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    template_type: str = Field(..., min_length=1, max_length=50)
+    subject: str = Field(..., min_length=1, max_length=255)
+    html_body: str = Field(..., min_length=1)
     text_body: Optional[str] = None
-    from_name: Optional[str] = None
-    from_email: Optional[str] = None
-    header_image_url: Optional[str] = None
-    footer_text: Optional[str] = None
-    button_color: Optional[str] = None
 
 
 class EmailTemplateResponse(BaseModel):
-    """Email template response"""
+    """Email template response, as stored."""
 
     id: str
+    organization_id: str
     template_type: str
-    locale: str
     subject: str
-    html_body: str
+    html_body: Optional[str]
     text_body: Optional[str]
     is_active: bool
-    from_name: Optional[str]
-    from_email: Optional[str]
-    created_at: str
-    updated_at: str
+    created_at: Optional[str]
+    updated_at: Optional[str]
 
 
 class PageCustomizationCreate(BaseModel):
@@ -816,102 +818,155 @@ async def delete_favicon(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# =============================================================================
+# Custom domains and email templates
+#
+# Both tables belong to an organization (`organization_id`); the routes are
+# addressed by the organization's branding configuration and store its
+# organization. Platform admins only, as before.
+# =============================================================================
+
+
+def _refusal(status_code: int, code: str, message: str) -> HTTPException:
+    return HTTPException(status_code=status_code, detail={"code": code, "message": message})
+
+
+def _parse_id(value: str, code: str, message: str) -> uuid.UUID:
+    # A malformed id cannot name a row: it is the same answer as a missing one,
+    # not a database error.
+    try:
+        return uuid.UUID(str(value))
+    except ValueError:
+        raise _refusal(404, code, message) from None
+
+
+async def _branding_config_or_404(
+    db: AsyncSession, branding_config_id: str
+) -> BrandingConfiguration:
+    code, message = "branding_configuration_not_found", "Branding configuration not found"
+    config = await db.get(BrandingConfiguration, _parse_id(branding_config_id, code, message))
+    if not config:
+        raise _refusal(404, code, message)
+    return config
+
+
+def _iso(value: Optional[datetime]) -> Optional[str]:
+    return value.isoformat() if value else None
+
+
+def _domain_response(domain: CustomDomain) -> CustomDomainResponse:
+    verified = bool(domain.verified)
+    return CustomDomainResponse(
+        id=str(domain.id),
+        organization_id=str(domain.organization_id),
+        domain=domain.domain,
+        is_verified=verified,
+        status="verified" if verified else "pending",
+        ssl_configured=bool(domain.ssl_enabled),
+        created_at=_iso(domain.created_at),
+        updated_at=_iso(domain.updated_at),
+    )
+
+
+def _template_response(template: EmailTemplate) -> EmailTemplateResponse:
+    return EmailTemplateResponse(
+        id=str(template.id),
+        organization_id=str(template.organization_id),
+        template_type=template.template_type,
+        subject=template.subject,
+        html_body=template.html_content,
+        text_body=template.text_content,
+        is_active=template.is_active is not False,
+        created_at=_iso(template.created_at),
+        updated_at=_iso(template.updated_at),
+    )
+
+
+_DOMAIN_EXISTS = ("custom_domain_exists", "This domain is already registered")
+
+
 @router.post("/domains", response_model=CustomDomainResponse)
 async def create_custom_domain(
     branding_config_id: str,
     domain_request: CustomDomainCreate,
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
-):
+) -> CustomDomainResponse:
     """
-    Create custom domain configuration
+    Register a custom domain for the branding configuration's organization.
+
+    The domain starts unverified. Host names are stored lower-case, and each
+    one is registered once across all organizations.
 
     Requires admin privileges.
     """
     try:
-        # Check if branding config exists
-        branding_config = await db.get(BrandingConfiguration, branding_config_id)
-        if not branding_config:
-            raise HTTPException(status_code=404, detail="Branding configuration not found")
+        branding_config = await _branding_config_or_404(db, branding_config_id)
+        hostname = domain_request.domain.lower()
 
-        # Check if domain already exists
         existing = await db.execute(
-            select(CustomDomain).where(CustomDomain.domain == domain_request.domain)
+            select(CustomDomain.id).where(func.lower(CustomDomain.domain) == hostname)
         )
-        if existing.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Domain already exists")
+        if existing.first() is not None:
+            raise _refusal(409, *_DOMAIN_EXISTS)
 
-        # Generate verification token
-        verification_token = str(uuid.uuid4())
-
-        # Create custom domain
         custom_domain = CustomDomain(
-            branding_configuration_id=branding_config_id,
-            domain=domain_request.domain,
-            subdomain=domain_request.subdomain,
-            verification_token=verification_token,
-            cname_target=f"custom-{branding_config_id}.janua.dev",  # Example CNAME target
-            a_record_ips=["203.0.113.1", "203.0.113.2"],  # Example IPs
-            txt_records=[f"janua-verification={verification_token}"],
+            organization_id=branding_config.organization_id,
+            domain=hostname,
+            verified=False,
+            ssl_enabled=False,
         )
-
         db.add(custom_domain)
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Registered concurrently: the unique column decided it.
+            await db.rollback()
+            raise _refusal(409, *_DOMAIN_EXISTS) from None
 
-        return CustomDomainResponse(
-            id=str(custom_domain.id),
-            domain=custom_domain.domain,
-            subdomain=custom_domain.subdomain,
-            is_verified=custom_domain.is_verified,
-            is_active=custom_domain.is_active,
-            dns_configured=custom_domain.dns_configured,
-            ssl_configured=custom_domain.ssl_configured,
-            verification_token=custom_domain.verification_token,
-            cname_target=custom_domain.cname_target,
-            a_record_ips=custom_domain.a_record_ips,
-            txt_records=custom_domain.txt_records,
-            created_at=custom_domain.created_at.isoformat(),
-            updated_at=custom_domain.updated_at.isoformat(),
-        )
+        return _domain_response(custom_domain)
 
     except HTTPException:
-        # 404/400 are answers, not failures: without this they became 500s.
+        # 404/409 are answers, not failures.
         raise
-    except Exception as e:
-        logger.error(f"Failed to create custom domain: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Failed to create custom domain")
+        await db.rollback()
+        raise _refusal(500, "custom_domain_create_failed", "The domain could not be stored")
 
 
-@router.post("/domains/{domain_id}/verify")
+@router.post("/domains/{domain_id}/verify", response_model=CustomDomainResponse)
 async def verify_custom_domain(
     domain_id: str, current_user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
-):
+) -> CustomDomainResponse:
     """
-    Verify custom domain DNS configuration
+    Mark a custom domain as verified, and return it as stored.
+
+    This records a platform admin's confirmation that the domain's DNS points
+    at Janua; Janua does not look the records up itself. Verifying a verified
+    domain returns it unchanged.
 
     Requires admin privileges.
     """
     try:
-        custom_domain = await db.get(CustomDomain, domain_id)
+        code, message = "custom_domain_not_found", "Custom domain not found"
+        custom_domain = await db.get(CustomDomain, _parse_id(domain_id, code, message))
         if not custom_domain:
-            raise HTTPException(status_code=404, detail="Custom domain not found")
+            raise _refusal(404, code, message)
 
-        # In production, implement actual DNS verification
-        # For now, simulate verification
-        custom_domain.is_verified = True
-        custom_domain.dns_configured = True
-        custom_domain.verified_at = datetime.utcnow()
+        if not custom_domain.verified:
+            custom_domain.verified = True
+            await db.commit()
 
-        await db.commit()
-
-        return {"message": "Domain verified successfully"}
+        return _domain_response(custom_domain)
 
     except HTTPException:
-        # 404/400 are answers, not failures: without this they became 500s.
+        # 404 is an answer, not a failure.
         raise
-    except Exception as e:
-        logger.error(f"Failed to verify custom domain: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Failed to verify custom domain")
+        await db.rollback()
+        raise _refusal(500, "custom_domain_verify_failed", "The domain could not be updated")
 
 
 @router.post("/email-templates", response_model=EmailTemplateResponse)
@@ -920,56 +975,50 @@ async def create_email_template(
     template: EmailTemplateCreate,
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
-):
+) -> EmailTemplateResponse:
     """
-    Create custom email template
+    Create an email template for the branding configuration's organization.
+
+    One template per type and organization.
 
     Requires admin privileges.
     """
     try:
-        # Check if branding config exists
-        branding_config = await db.get(BrandingConfiguration, branding_config_id)
-        if not branding_config:
-            raise HTTPException(status_code=404, detail="Branding configuration not found")
+        branding_config = await _branding_config_or_404(db, branding_config_id)
 
-        # Create email template
-        email_template = EmailTemplate(
-            branding_configuration_id=branding_config_id,
-            template_type=template.template_type,
-            locale=template.locale,
-            subject=template.subject,
-            html_body=template.html_body,
-            text_body=template.text_body,
-            from_name=template.from_name,
-            from_email=template.from_email,
-            header_image_url=template.header_image_url,
-            footer_text=template.footer_text,
-            button_color=template.button_color,
+        existing = await db.execute(
+            select(EmailTemplate.id).where(
+                EmailTemplate.organization_id == branding_config.organization_id,
+                EmailTemplate.template_type == template.template_type,
+            )
         )
+        if existing.first() is not None:
+            raise _refusal(
+                409,
+                "email_template_exists",
+                "An email template of this type already exists for this organization",
+            )
 
+        email_template = EmailTemplate(
+            organization_id=branding_config.organization_id,
+            template_type=template.template_type,
+            subject=template.subject,
+            html_content=template.html_body,
+            text_content=template.text_body,
+            is_active=True,
+        )
         db.add(email_template)
         await db.commit()
 
-        return EmailTemplateResponse(
-            id=str(email_template.id),
-            template_type=email_template.template_type,
-            locale=email_template.locale,
-            subject=email_template.subject,
-            html_body=email_template.html_body,
-            text_body=email_template.text_body,
-            is_active=email_template.is_active,
-            from_name=email_template.from_name,
-            from_email=email_template.from_email,
-            created_at=email_template.created_at.isoformat(),
-            updated_at=email_template.updated_at.isoformat(),
-        )
+        return _template_response(email_template)
 
     except HTTPException:
-        # 404/400 are answers, not failures: without this they became 500s.
+        # 404/409 are answers, not failures.
         raise
-    except Exception as e:
-        logger.error(f"Failed to create email template: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Failed to create email template")
+        await db.rollback()
+        raise _refusal(500, "email_template_create_failed", "The template could not be stored")
 
 
 @router.get("/theme-presets", response_model=List[Dict[str, Any]])
