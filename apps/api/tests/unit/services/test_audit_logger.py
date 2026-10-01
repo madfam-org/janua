@@ -304,7 +304,19 @@ class TestLogMethod:
         assert entry["resource_type"] == "user"
         # Not a UUID: kept in details, not in the resource_id column.
         assert entry["resource_id"] is None
-        assert entry["details"] == {"key": "value", "resource_ref": "resource-789"}
+        assert entry["details"] == {
+            "key": "value",
+            "resource_ref": "resource-789",
+            # No column holds these; they are stored in details.
+            "audit_context": {
+                "severity": "high",
+                "organization_id": "org-456",
+                "compliance_context": {"framework": "GDPR"},
+                "data_subject_id": "subject-123",
+                "legal_basis": "consent",
+                "retention_period": 365,
+            },
+        }
         assert entry["ip_address"] == "192.168.1.1"
         assert entry["user_agent"] == "Mozilla/5.0"
         assert entry["severity"] == "high"

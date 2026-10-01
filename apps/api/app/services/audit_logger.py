@@ -132,6 +132,17 @@ class AuditEventType(str, Enum):
     GDPR_PROCESSING_RESTRICTION = "gdpr.processing_restriction"
     GDPR_OBJECTION_PROCESSING = "gdpr.objection_processing"
     GDPR_BREACH_NOTIFICATION = "gdpr.breach_notification"
+    # A data subject request was completed (any request type).
+    DATA_REQUEST_PROCESSED = "gdpr.data_request_processed"
+
+    # Audit trail events: the audit log itself was exported or pruned.
+    AUDIT_EXPORT = "audit.export"
+    AUDIT_CLEANUP = "audit.cleanup"
+
+    # SSO events (app/sso/application/services/sso_orchestrator.py)
+    SSO_AUTH_INITIATE = "sso.authentication_initiated"
+    SSO_AUTH_SUCCESS = "sso.authentication_success"
+    SSO_LOGOUT_INITIATE = "sso.logout_initiated"
 
     # Compliance events - SOC 2
     SOC2_ACCESS_GRANTED = "soc2.access_granted"
@@ -235,6 +246,12 @@ AUDIT_STORE_FAILED = "AUDIT_STORE_FAILED"
 IDENTITY_REF_KEY = "identity_ref"
 RESOURCE_REF_KEY = "resource_ref"
 
+# Key in `details` holding the entry's context that has no column of its own:
+# always `severity`, and `organization_id`, `compliance_context`,
+# `data_subject_id`, `legal_basis` and `retention_period` when given. It is
+# written by the logger and replaces any value a caller put under this key.
+AUDIT_CONTEXT_KEY = "audit_context"
+
 # Shape of encrypted details: {"encrypted": true, "ciphertext": "<Fernet token>"}.
 ENCRYPTED_DETAILS_FLAG = "encrypted"
 ENCRYPTED_DETAILS_CIPHERTEXT = "ciphertext"
@@ -264,6 +281,30 @@ def _split_reference(value: Any) -> Tuple[Optional[str], Optional[str]]:
         return str(uuid.UUID(str(value))), None
     except (ValueError, TypeError, AttributeError):
         return None, str(value)
+
+
+def _audit_context(
+    *,
+    severity: str,
+    organization_id: Optional[str],
+    compliance_context: Optional[Dict[str, Any]],
+    data_subject_id: Optional[str],
+    legal_basis: Optional[str],
+    retention_period: Optional[int],
+) -> Dict[str, Any]:
+    """The ``AUDIT_CONTEXT_KEY`` value: severity, plus each other field that is set."""
+    context: Dict[str, Any] = {"severity": str(severity)}
+    if organization_id not in (None, ""):
+        context["organization_id"] = str(organization_id)
+    if compliance_context:
+        context["compliance_context"] = _json_safe(compliance_context)
+    if data_subject_id not in (None, ""):
+        context["data_subject_id"] = str(data_subject_id)
+    if legal_basis not in (None, ""):
+        context["legal_basis"] = str(legal_basis)
+    if retention_period is not None:
+        context["retention_period"] = int(retention_period)
+    return context
 
 
 def _as_uuid(value: Optional[str]) -> Optional[uuid.UUID]:
@@ -446,7 +487,9 @@ class AuditLogger:
 
         ``identity_id`` and ``resource_id`` are stored in their UUID columns
         only when they are UUIDs. Any other value is kept in ``details`` under
-        ``IDENTITY_REF_KEY`` / ``RESOURCE_REF_KEY``.
+        ``IDENTITY_REF_KEY`` / ``RESOURCE_REF_KEY``. ``severity``,
+        ``organization_id`` and the compliance fields have no column; they are
+        kept in ``details`` under ``AUDIT_CONTEXT_KEY``.
         """
 
         # Generate unique event ID
@@ -463,6 +506,14 @@ class AuditLogger:
             stored_details[IDENTITY_REF_KEY] = identity_ref
         if resource_ref is not None:
             stored_details[RESOURCE_REF_KEY] = resource_ref
+        stored_details[AUDIT_CONTEXT_KEY] = _audit_context(
+            severity=severity,
+            organization_id=organization_id,
+            compliance_context=compliance_context,
+            data_subject_id=data_subject_id,
+            legal_basis=legal_basis,
+            retention_period=retention_period,
+        )
 
         # Serialize writers of this tenant's chain until the entry is committed.
         await self._lock_chain(tenant)

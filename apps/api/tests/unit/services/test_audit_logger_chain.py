@@ -37,6 +37,7 @@ from app.core.encryption import FieldEncryptor
 from app.models import AuditLog, Base, User
 from app.services import audit_logger as audit_logger_module
 from app.services.audit_logger import (
+    AUDIT_CONTEXT_KEY,
     AUDIT_STORE_FAILED,
     IDENTITY_REF_KEY,
     RESOURCE_REF_KEY,
@@ -46,6 +47,8 @@ from app.services.audit_logger import (
 )
 
 TENANT_A = "tenant-a"
+# What ``log()`` adds to ``details`` for an entry with default severity.
+INFO = {AUDIT_CONTEXT_KEY: {"severity": "info"}}
 TENANT_B = str(uuid.uuid4())
 
 
@@ -159,7 +162,7 @@ class TestLogStoresOneRow:
         assert row.user_id == user.id
         assert row.resource_type == "user"
         assert row.resource_id == resource
-        assert row.details == {"field": "name", "at": str(before)}
+        assert row.details == {"field": "name", "at": str(before), **INFO}
         assert row.ip_address == "192.0.2.10"
         assert row.user_agent == "pytest"
         assert row.previous_hash is None
@@ -183,7 +186,7 @@ class TestLogStoresOneRow:
 
         (row,) = await _rows(session)
         assert row.resource_id is None
-        assert row.details == {"action": "granted", RESOURCE_REF_KEY: "/api/v1/admin"}
+        assert row.details == {"action": "granted", RESOURCE_REF_KEY: "/api/v1/admin", **INFO}
 
     async def test_non_uuid_identity_goes_to_details(self, session):
         await AuditLogger(session).log(
@@ -194,7 +197,7 @@ class TestLogStoresOneRow:
 
         (row,) = await _rows(session)
         assert row.user_id is None
-        assert row.details == {IDENTITY_REF_KEY: "service:hcm"}
+        assert row.details == {IDENTITY_REF_KEY: "service:hcm", **INFO}
 
     @pytest.mark.parametrize("severity", ["info", "low", "medium", "high", "critical"])
     async def test_every_severity_is_stored_when_logged(self, session, severity):
@@ -580,14 +583,14 @@ class TestExport:
             "identity_id": str(user.id),
             "resource_type": "user",
             "resource_id": str(resource),
-            "details": {"field": "name"},
+            "details": {"field": "name", **INFO},
             "ip_address": "192.0.2.10",
             "user_agent": None,
             "timestamp": rows[0].created_at.isoformat(),
             "hash": rows[0].current_hash,
             "previous_hash": None,
         }
-        assert second["details"] == {RESOURCE_REF_KEY: "/api/v1/admin"}
+        assert second["details"] == {RESOURCE_REF_KEY: "/api/v1/admin", **INFO}
         assert second["previous_hash"] == first["hash"]
 
 
@@ -617,6 +620,7 @@ class TestEncryptedDetails:
             "field": "email",
             "n": 1,
             RESOURCE_REF_KEY: "external-42",
+            **INFO,
         }
         assert (await audit.verify_integrity(TENANT_A))["valid"] is True
 
@@ -639,7 +643,7 @@ class TestEncryptedDetails:
                 TENANT_A, datetime.utcnow() - timedelta(hours=1), datetime.utcnow()
             )
 
-        assert json.loads(captured["Body"])["logs"][0]["details"] == {"k": "v"}
+        assert json.loads(captured["Body"])["logs"][0]["details"] == {"k": "v", **INFO}
 
     def test_other_values_are_returned_unchanged(self):
         for value in (None, {}, {"encrypted": False, "ciphertext": "x"}, {"a": 1}, "text"):
