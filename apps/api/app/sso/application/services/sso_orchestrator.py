@@ -5,7 +5,10 @@ Main SSO orchestration service
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
+import structlog
 from sqlalchemy import select
+
+from app.services.audit_logger import AuditEventType
 
 from ...domain.protocols.base import SSOConfiguration, SSOProtocol, SSOSession
 from ...domain.protocols.oidc import OIDCProtocol
@@ -16,6 +19,9 @@ from ...exceptions import AuthenticationError, ValidationError
 from ...infrastructure.configuration.config_repository import SSOConfigurationRepository
 from ...infrastructure.session.session_repository import SSOSessionRepository
 from .product_tiers import resolve_product_tiers
+
+
+logger = structlog.get_logger()
 
 
 class SSOOrchestrator:
@@ -101,16 +107,15 @@ class SSOOrchestrator:
         )
 
         # Log initiation
-        if self.audit_logger:
-            await self.audit_logger.log_event(
-                event_type="sso_authentication_initiated",
-                organization_id=organization_id,
-                details={
-                    "protocol": protocol,
-                    "provider": sso_config.provider_name,
-                    "return_url": return_url,
-                },
-            )
+        await self._audit(
+            AuditEventType.SSO_AUTH_INITIATE,
+            organization_id=organization_id,
+            details={
+                "protocol": protocol,
+                "provider": sso_config.provider_name,
+                "return_url": return_url,
+            },
+        )
 
         return auth_data
 
@@ -202,18 +207,17 @@ class SSOOrchestrator:
         tokens = self.jwt_service.create_token_pair(jwt_payload)
 
         # Log successful authentication
-        if self.audit_logger:
-            await self.audit_logger.log_event(
-                event_type="sso_authentication_success",
-                user_id=user.id,
-                organization_id=organization_id,
-                details={
-                    "protocol": protocol,
-                    "provider": sso_config.provider_name,
-                    "user_email": user.email,
-                    "session_id": sso_session.session_id,
-                },
-            )
+        await self._audit(
+            AuditEventType.SSO_AUTH_SUCCESS,
+            organization_id=organization_id,
+            user_id=user.id,
+            details={
+                "protocol": protocol,
+                "provider": sso_config.provider_name,
+                "user_email": user.email,
+                "session_id": sso_session.session_id,
+            },
+        )
 
         return {
             "user": user,
@@ -269,18 +273,62 @@ class SSOOrchestrator:
         await self.session_repository.invalidate(session_id)
 
         # Log logout
-        if self.audit_logger:
-            await self.audit_logger.log_event(
-                event_type="sso_logout_initiated",
-                user_id=user_id,
-                details={
-                    "protocol": sso_session.protocol,
-                    "provider": sso_config.provider_name,
-                    "session_id": session_id,
-                },
-            )
+        await self._audit(
+            AuditEventType.SSO_LOGOUT_INITIATE,
+            organization_id=sso_config.organization_id,
+            user_id=user_id,
+            details={
+                "protocol": sso_session.protocol,
+                "provider": sso_config.provider_name,
+                "session_id": session_id,
+            },
+        )
 
         return logout_data
+
+    async def _audit(
+        self,
+        event_type: AuditEventType,
+        *,
+        details: Dict[str, Any],
+        organization_id: Optional[str] = None,
+        user_id: Optional[Any] = None,
+    ) -> None:
+        """Write an audit row through ``self.audit_logger`` and commit it.
+
+        The logger (``app.services.audit_logger.AuditLogger``) flushes into the
+        request's session and never commits it; every write before this call
+        has been committed by its repository, so the commit here persists only
+        the audit row. An audit failure must not fail SSO: it is rolled back,
+        which discards only the audit row, and logged (the logger also logs
+        ``AUDIT_STORE_FAILED``).
+        """
+        if not self.audit_logger:
+            return
+        owns_session = getattr(self.audit_logger, "owns_session", False)
+        db = getattr(self.audit_logger, "db", None)
+        try:
+            await self.audit_logger.log(
+                event_type=event_type,
+                tenant_id=str(organization_id) if organization_id else "default",
+                organization_id=str(organization_id) if organization_id else None,
+                identity_id=str(user_id) if user_id else None,
+                details=details,
+            )
+            if db is not None and not owns_session:
+                await db.commit()
+        except Exception as e:
+            logger.warning(
+                "SSO audit event not stored",
+                event_type=event_type.value,
+                error_type=type(e).__name__,
+            )
+            if db is not None and not owns_session:
+                try:
+                    await db.rollback()
+                except Exception:
+                    # The request's session is closed at the end of the request either way.
+                    pass
 
     async def get_supported_protocols(self) -> list[str]:
         """Get list of supported SSO protocols"""
