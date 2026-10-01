@@ -344,7 +344,9 @@ class TestDataSubjectRightsService:
 
         mock_db.commit = AsyncMock()
 
-        result = await service.process_access_request(request_id, processor_id)
+        result = await service.process_access_request(
+            request_id, processor_id, processor_is_admin=True
+        )
 
         assert "personal_information" in result
         assert result["personal_information"]["email"] == "test@example.com"
@@ -401,7 +403,7 @@ class TestDataSubjectRightsService:
         mock_db.commit = AsyncMock()
 
         result = await service.process_erasure_request(
-            request_id, processor_id, deletion_method="anonymize"
+            request_id, processor_id, deletion_method="anonymize", processor_is_admin=True
         )
 
         assert result is True
@@ -442,7 +444,7 @@ class TestDataSubjectRightsService:
         mock_db.commit = AsyncMock()
 
         result = await service.process_erasure_request(
-            request_id, processor_id, deletion_method="hard_delete"
+            request_id, processor_id, deletion_method="hard_delete", processor_is_admin=True
         )
 
         assert result is True

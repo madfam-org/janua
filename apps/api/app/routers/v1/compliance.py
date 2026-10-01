@@ -244,11 +244,17 @@ async def get_personal_data_export(
     user: User = Depends(get_current_user),
     compliance_service: ComplianceService = Depends(get_compliance_service),
 ):
-    """Get personal data export (GDPR Article 15)"""
+    """Get personal data export (GDPR Article 15).
+
+    Available only to the request's data subject and to platform
+    administrators. Any other caller gets the same 404 as an unknown request.
+    """
 
     try:
         user_data = await compliance_service.data_subject_rights_service.process_access_request(
-            request_id=request_id, processor_id=user.id  # Self-service for now
+            request_id=request_id,
+            processor_id=user.id,
+            processor_is_admin=bool(getattr(user, "is_admin", False)),
         )
 
         return ComplianceResponse(

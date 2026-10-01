@@ -318,14 +318,44 @@ class DataSubjectRightsService:
 
         return request
 
-    async def process_access_request(self, request_id: str, processor_id: UUID) -> Dict[str, Any]:
-        """Process a data access request (Article 15)"""
+    async def get_request_for_processor(
+        self,
+        request_id: str,
+        processor_id: UUID,
+        processor_is_admin: bool = False,
+    ) -> Optional[DataSubjectRequest]:
+        """Load a data subject request the processor may act on.
 
-        # Get request
+        A request is available only to its data subject and to platform
+        administrators. For anyone else this returns ``None``, exactly as for
+        an unknown ``request_id``, so callers answer both cases identically.
+        """
         result = await self.db.execute(
             select(DataSubjectRequest).where(DataSubjectRequest.request_id == request_id)
         )
         request = result.scalar_one_or_none()
+        if request is None:
+            return None
+        if processor_is_admin or request.user_id == processor_id:
+            return request
+        return None
+
+    async def process_access_request(
+        self,
+        request_id: str,
+        processor_id: UUID,
+        processor_is_admin: bool = False,
+    ) -> Dict[str, Any]:
+        """Process a data access request (Article 15).
+
+        Only the request's data subject, or a platform administrator
+        (``processor_is_admin``), may process it; any other processor gets the
+        same error as for an unknown request.
+        """
+
+        request = await self.get_request_for_processor(
+            request_id, processor_id, processor_is_admin=processor_is_admin
+        )
 
         if not request or request.request_type != DataSubjectRequestType.ACCESS:
             raise ValueError("Invalid access request")
@@ -429,15 +459,22 @@ class DataSubjectRightsService:
         return user_data
 
     async def process_erasure_request(
-        self, request_id: str, processor_id: UUID, deletion_method: str = "anonymize"
+        self,
+        request_id: str,
+        processor_id: UUID,
+        deletion_method: str = "anonymize",
+        processor_is_admin: bool = False,
     ) -> bool:
-        """Process a data erasure request (Article 17 - Right to be forgotten)"""
+        """Process a data erasure request (Article 17 - Right to be forgotten).
 
-        # Get request
-        result = await self.db.execute(
-            select(DataSubjectRequest).where(DataSubjectRequest.request_id == request_id)
+        Only the request's data subject, or a platform administrator
+        (``processor_is_admin``), may process it; any other processor gets the
+        same error as for an unknown request.
+        """
+
+        request = await self.get_request_for_processor(
+            request_id, processor_id, processor_is_admin=processor_is_admin
         )
-        request = result.scalar_one_or_none()
 
         if not request or request.request_type != DataSubjectRequestType.ERASURE:
             raise ValueError("Invalid erasure request")
