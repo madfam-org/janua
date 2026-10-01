@@ -23,7 +23,7 @@ permissions:
 jobs:
   diagnose:
     name: Cluster Diagnostics
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v5

@@ -35,7 +35,7 @@ env:
 jobs:
   detect-changes:
     name: Detect Changes
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
     outputs:
       api: ${{ steps.filter.outputs.api }}
       admin: ${{ steps.filter.outputs.admin }}
@@ -90,7 +90,7 @@ jobs:
 
   build-api:
     name: Build API
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.api == 'true' || github.event_name == 'workflow_dispatch'
     outputs:
@@ -159,7 +159,7 @@ jobs:
 
   build-admin:
     name: Build Admin
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.admin == 'true' || github.event_name == 'workflow_dispatch'
     outputs:
@@ -231,7 +231,7 @@ jobs:
 
   build-dashboard:
     name: Build Dashboard
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.dashboard == 'true' || github.event_name == 'workflow_dispatch'
     outputs:
@@ -304,7 +304,7 @@ jobs:
 
   build-docs:
     name: Build Docs
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch'
     outputs:
@@ -375,7 +375,7 @@ jobs:
 
   build-website:
     name: Build Website
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.website == 'true' || github.event_name == 'workflow_dispatch'
     outputs:
@@ -448,7 +448,7 @@ jobs:
 
   commit-digests:
     name: Commit Digests to Staging Kustomization
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
     needs: [build-api, build-admin, build-dashboard, build-docs, build-website]
     if: always() && github.ref == 'refs/heads/main'
     steps:
@@ -560,7 +560,7 @@ jobs:
 
   report-lifecycle:
     name: Report Lifecycle Events
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
     needs: [build-api, build-admin, build-dashboard, build-docs, build-website]
     if: always()
     steps:

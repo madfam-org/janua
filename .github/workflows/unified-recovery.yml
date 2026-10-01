@@ -29,7 +29,7 @@ permissions:
 jobs:
   unified-recovery:
     name: Unified Recovery
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: github.event.inputs.confirm == 'recover-all'
 
     steps:

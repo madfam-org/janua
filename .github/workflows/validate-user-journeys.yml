@@ -32,7 +32,7 @@ env:
 jobs:
   validate-journeys:
     name: Validate User Journeys
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
@@ -216,7 +216,7 @@ jobs:
 
   validate-content-alignment:
     name: Validate Content-Functionality Alignment
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -286,7 +286,7 @@ jobs:
 
   performance-validation:
     name: Validate Performance Claims
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -441,7 +441,7 @@ jobs:
 
   notify-on-failure:
     name: Notify on Journey Validation Failure
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [validate-journeys, validate-content-alignment, performance-validation]
     if: failure()
     permissions:

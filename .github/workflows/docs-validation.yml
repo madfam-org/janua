@@ -33,7 +33,7 @@ env:
 jobs:
   validate-structure:
     name: Validate Documentation Structure
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -74,7 +74,7 @@ jobs:
 
   doc-guard:
     name: DocGuard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -88,7 +88,7 @@ jobs:
 
   check-duplicates:
     name: Check for Duplicate Content
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -123,7 +123,7 @@ jobs:
 
   check-sensitive-info:
     name: Check for Sensitive Information
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -152,7 +152,7 @@ jobs:
 
   check-broken-links:
     name: Check for Broken Links
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -206,7 +206,7 @@ jobs:
 
   validate-drafts:
     name: Validate Draft Age
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -227,7 +227,7 @@ jobs:
 
   quality-metrics:
     name: Documentation Quality Metrics
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository

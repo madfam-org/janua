@@ -17,7 +17,7 @@ env:
 jobs:
   npm-sdks:
     name: Test NPM SDKs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -81,7 +81,7 @@ jobs:
 
   python-sdk:
     name: Test Python SDK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         # 3.8 was dropped when the cryptography floor moved to >=50.0.0 for
@@ -169,7 +169,7 @@ jobs:
 
   go-sdk:
     name: Test Go SDK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -218,7 +218,7 @@ jobs:
 
   flutter-sdk:
     name: Test Flutter SDK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         flutter-version: ['3.24.0']
@@ -263,7 +263,7 @@ jobs:
 
   react-native-sdk:
     name: Test React Native SDK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
