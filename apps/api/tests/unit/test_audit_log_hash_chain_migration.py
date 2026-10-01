@@ -46,6 +46,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 SQL_FILE = REPO_ROOT / "docs" / "ops" / "sql" / "020_audit_log_hash_chain.sql"
 MIGRATION_FILE = API_ROOT / "alembic" / "versions" / "020_audit_log_hash_chain.py"
 DRIFT_SCRIPT = API_ROOT / "scripts" / "audit_logs_drift_check.py"
+CANARY_SCRIPT = API_ROOT / "scripts" / "audit_chain_canary.py"
 HEAD = "020_audit_log_hash_chain"
 PARENT = "019_email_first_party_engagement"
 GRANDPARENT = "018_email_events"
@@ -364,6 +365,73 @@ async def test_a_caller_rollback_takes_the_audit_row_and_the_chain_stays_valid(
     assert [r.action for r in rows] == ["auth.signin", "auth.signout"]
     assert rows[1].previous_hash == rows[0].current_hash
     assert result["valid"] is True
+
+
+@pytest.mark.database
+async def test_canary_counts_new_chained_rows_and_verifies_their_chains(pg_factory) -> None:
+    """scripts/audit_chain_canary.py: counts only, read-only, exit status as documented."""
+    import json
+    from datetime import datetime, timedelta
+
+    from sqlalchemy import text
+
+    from app.services.audit_logger import AuditEventType, AuditLogger
+
+    factory, engine = pg_factory
+    tenant = f"canary-{uuid.uuid4().hex[:8]}"
+    before = datetime.utcnow() - timedelta(seconds=5)
+    try:
+        for _ in range(3):
+            async with factory() as session:
+                await AuditLogger(session).log(
+                    event_type=AuditEventType.AUTH_SIGNIN, tenant_id=tenant
+                )
+                await session.commit()
+
+        url = _sync_url(str(engine.url.render_as_string(hide_password=False)))
+        ok = _canary(url, "--json", "--since", before.isoformat(timespec="seconds"))
+        assert ok.returncode == 0, f"{ok.stdout}\n{ok.stderr}"
+        report = json.loads(ok.stdout)
+        assert report["ok"] is True
+        assert report["chained_rows_since"] >= 3
+        assert report["tenants_checked"] >= 1 and report["tenants_broken"] == 0
+        assert report["database"] == urlsplit(url).path.lstrip("/")
+        assert tenant not in ok.stdout + ok.stderr
+
+        later = _canary(
+            url, "--json", "--since", (datetime.utcnow() + timedelta(hours=1)).isoformat()
+        )
+        assert later.returncode == 2
+        assert json.loads(later.stdout)["chained_rows_since"] == 0
+
+        async with factory() as session:
+            await session.execute(
+                text(
+                    "UPDATE audit_logs SET event_type = 'auth.signout' WHERE id = ("
+                    "SELECT id FROM audit_logs WHERE tenant_id = :t "
+                    "ORDER BY created_at, id OFFSET 1 LIMIT 1)"
+                ),
+                {"t": tenant},
+            )
+            await session.commit()
+        tampered = _canary(url, "--since", before.isoformat(timespec="seconds"))
+        assert tampered.returncode == 2
+        assert "BROKEN chain of 3 entries at index 1" in tampered.stdout
+        assert "CANARY: ATTENTION" in tampered.stdout
+        assert tenant not in tampered.stdout + tampered.stderr
+    finally:
+        await engine.dispose()
+
+
+def _canary(url: str, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(CANARY_SCRIPT), *args],
+        cwd=API_ROOT,
+        env={**os.environ, "DATABASE_URL": url, "DIRECT_DATABASE_URL": url},
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
 
 
 @pytest.mark.database

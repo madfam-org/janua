@@ -28,6 +28,7 @@ it also runs in a pod whose image predates it):
 
     ssh ssh.madfam.io "sudo kubectl -n janua exec -i deploy/janua-api -- python - --json" \\
         < apps/api/scripts/audit_logs_drift_check.py
+    # Staging, only once janua staging is bootstrapped (not deployed as of 2026-09-30):
     ssh ssh.madfam.io "sudo kubectl -n janua-staging exec -i deploy/janua-api -- python - --json" \\
         < apps/api/scripts/audit_logs_drift_check.py
 

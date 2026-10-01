@@ -1,23 +1,29 @@
 -- 020_audit_log_hash_chain — owner-applied DDL for Janua (PostgreSQL), for the
--- staging database (janua_staging) and the production database (janua).
+-- production database (janua), and for the staging database (janua_staging)
+-- once staging exists.
 --
--- WHY THIS FILE EXISTS. Neither staging nor production runs migrations:
--- promote-to-prod only moves image digests (RFC 0001, pattern B,
+-- STAGING IS NOT DEPLOYED (as of 2026-09-30): there is no janua-staging
+-- namespace, no Argo CD application for k8s/overlays/staging, and no
+-- janua_staging database on the shared data/postgres server. Only production
+-- runs this image. Apply this file to janua_staging only once janua staging is
+-- bootstrapped (docs/PP_3_STAGING_AUDIT.md).
+--
+-- WHY THIS FILE EXISTS. Janua runs no migrations on deploy: promote-to-prod
+-- only moves image digests (RFC 0001, pattern B,
 -- docs/runbooks/ALEMBIC_CONVERGENCE.md), and apps/api/docker-entrypoint.sh
 -- applies alembic only when JANUA_APPLY_MIGRATIONS=true, which no overlay sets.
 -- DDL is applied BY HAND in each database, BEFORE any image that maps these
 -- columns runs there. The production ledger
 -- apps/api/alembic/PROD_ALEMBIC_STATE.json is then refreshed in a separate,
--- reviewed PR (staging has no ledger). The five DDL statements below are,
--- character for character, UPGRADE_STATEMENTS in
--- apps/api/alembic/versions/020_audit_log_hash_chain.py (enforced by
--- apps/api/tests/unit/test_audit_log_hash_chain_migration.py, which also applies
--- BOTH to scratch databases and compares the catalogs).
+-- reviewed PR. The five DDL statements below are, character for character,
+-- UPGRADE_STATEMENTS in apps/api/alembic/versions/020_audit_log_hash_chain.py
+-- (enforced by apps/api/tests/unit/test_audit_log_hash_chain_migration.py,
+-- which also applies BOTH to scratch databases and compares the catalogs).
 --
--- HOW TO RUN, as the postgres superuser, in the pod that hosts each database
--- (production: the data/postgres pod), staging first:
---   psql -U postgres -d janua_staging -v ON_ERROR_STOP=1 -f 020_audit_log_hash_chain.sql
+-- HOW TO RUN, as the postgres superuser, in the data/postgres pod:
 --   psql -U postgres -d janua -v ON_ERROR_STOP=1 -f 020_audit_log_hash_chain.sql
+-- and, only once staging is bootstrapped, in the pod that hosts janua_staging:
+--   psql -U postgres -d janua_staging -v ON_ERROR_STOP=1 -f 020_audit_log_hash_chain.sql
 -- (or piped on stdin). One transaction per database. Idempotent: re-running it
 -- after success changes nothing and still exits 0.
 --
