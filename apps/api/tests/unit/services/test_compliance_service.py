@@ -325,6 +325,8 @@ class TestDataSubjectRightsService:
         mock_request.status = RequestStatus.RECEIVED
         mock_request.date_range_start = None
         mock_request.date_range_end = None
+        mock_request.received_at = datetime.utcnow() - timedelta(days=2)
+        mock_request.tenant_id = None
 
         # Mock user data (secret fields are set but must never be exported)
         mock_user = Mock()
@@ -382,6 +384,12 @@ class TestDataSubjectRightsService:
         assert mock_request.status == RequestStatus.COMPLETED
         assert mock_request.assigned_to == processor_id
         mock_db.commit.assert_called_once()
+        # The completion is audited before that one commit.
+        mock_audit_logger.log.assert_awaited_once()
+        assert (
+            mock_audit_logger.log.await_args.kwargs["event_type"]
+            == AuditEventType.DATA_REQUEST_PROCESSED
+        )
 
     async def test_process_access_request_invalid(self, dsr_service):
         """Test processing access request with invalid request."""
