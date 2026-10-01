@@ -203,9 +203,12 @@ class TestCleanupIsAudited:
             logged = []
             original_log = AuditLogger.log
 
+            real_commit = db.commit
+
             async def failing_commit():
                 if logged:
                     raise CommitFailed("forced failure after the audit call")
+                await real_commit()
 
             async def log_and_record(self, *args, **kwargs):
                 result = await original_log(self, *args, **kwargs)
