@@ -23,7 +23,7 @@ jobs:
   # Static Application Security Testing (SAST)
   sast-codeql:
     name: CodeQL Analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: read
@@ -52,7 +52,7 @@ jobs:
   # Python Security Scanning
   python-security:
     name: Python Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
@@ -104,7 +104,7 @@ jobs:
   # JavaScript/TypeScript Security Scanning
   javascript-security:
     name: JavaScript Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
@@ -147,7 +147,7 @@ jobs:
   # Secrets Detection
   secrets-scan:
     name: Secrets Detection
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
@@ -163,7 +163,7 @@ jobs:
   # Container Security Scanning
   container-scan:
     name: Container Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       actions: read
       contents: read
@@ -190,7 +190,7 @@ jobs:
   # Dynamic Application Security Testing (DAST)
   dast-zap:
     name: OWASP ZAP Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
 
     # Service images come from mirror.gcr.io (Google's pull-through mirror of the Docker Hub official images, same
@@ -266,7 +266,7 @@ jobs:
   # Security Dashboard
   security-summary:
     name: Security Summary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       issues: write

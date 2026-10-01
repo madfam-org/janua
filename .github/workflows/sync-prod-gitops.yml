@@ -29,7 +29,7 @@ env:
 jobs:
   sync:
     name: Apply production overlay
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-latest' }}
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
     if: github.event.inputs.confirm == 'sync-now'
     steps:
       - uses: actions/checkout@v7

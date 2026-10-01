@@ -95,7 +95,7 @@ jobs:
   # See docs/runbooks/ALEMBIC_CONVERGENCE.md.
   migrations-guard:
     name: Migration drift guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -125,7 +125,7 @@ jobs:
   validate:
     name: Validate promotion candidate(s)
     needs: migrations-guard
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       should_promote: ${{ steps.resolve.outputs.should_promote }}
       api_digest: ${{ steps.resolve.outputs.api_digest }}
@@ -274,7 +274,7 @@ jobs:
     name: Write prod kustomization
     needs: validate
     if: needs.validate.outputs.should_promote == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:

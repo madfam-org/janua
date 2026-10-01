@@ -21,7 +21,7 @@ env:
 jobs:
   check-drift:
     name: Check Configuration Drift
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       issues: write
@@ -223,7 +223,7 @@ jobs:
 
   connectivity-failed:
     name: Report Connectivity Failure
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: check-drift
     if: failure()
 

@@ -29,7 +29,7 @@ env:
 jobs:
   readiness-check:
     name: Production Readiness Assessment
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7
@@ -254,7 +254,7 @@ jobs:
 
   readiness-trends:
     name: Track Readiness Trends
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: readiness-check
     if: github.ref == 'refs/heads/main'
 
