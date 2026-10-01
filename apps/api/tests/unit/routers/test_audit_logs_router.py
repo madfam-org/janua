@@ -119,17 +119,17 @@ async def _rows(factory, event_type=None):
 
 
 def _list_kwargs(**overrides):
-    kwargs = dict(
-        actor=None,
-        action=None,
-        resource=None,
-        resource_type=None,
-        start_date=None,
-        end_date=None,
-        ip_address=None,
-        limit=100,
-        cursor=None,
-    )
+    kwargs = {
+        "actor": None,
+        "action": None,
+        "resource": None,
+        "resource_type": None,
+        "start_date": None,
+        "end_date": None,
+        "ip_address": None,
+        "limit": 100,
+        "cursor": None,
+    }
     kwargs.update(overrides)
     return kwargs
 

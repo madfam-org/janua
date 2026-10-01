@@ -65,7 +65,9 @@ class InvitationService:
         # could invite members into an organization they have nothing to do
         # with.
         organization_id = _as_uuid(invitation_data.organization_id, "Organization not found")
-        organization = await self._first(select(Organization).where(Organization.id == organization_id))
+        organization = await self._first(
+            select(Organization).where(Organization.id == organization_id)
+        )
 
         if not organization:
             raise ValueError("Organization not found")

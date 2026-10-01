@@ -20,7 +20,6 @@ from ...infrastructure.configuration.config_repository import SSOConfigurationRe
 from ...infrastructure.session.session_repository import SSOSessionRepository
 from .product_tiers import resolve_product_tiers
 
-
 logger = structlog.get_logger()
 
 

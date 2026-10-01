@@ -69,7 +69,13 @@ KNOWN_UNMAPPED = {
     ),
     *(
         f"app/services/audit_service.py AuditLog.{name}"
-        for name in ("occurred_at", "organization_id", "actor_id", "risk_level", "compliance_relevant")
+        for name in (
+            "occurred_at",
+            "organization_id",
+            "actor_id",
+            "risk_level",
+            "compliance_relevant",
+        )
     ),
     # GraphQL audit log query
     "app/graphql/schema.py AuditLog.timestamp",
@@ -97,9 +103,7 @@ def _imported_names(tree: ast.Module, path: Path) -> Dict[Tuple[str, str], Set[s
         if isinstance(node, ast.ImportFrom):
             source = _resolve(node, module, path.name == "__init__.py")
             for alias in node.names:
-                names.setdefault((source or "", alias.name), set()).add(
-                    alias.asname or alias.name
-                )
+                names.setdefault((source or "", alias.name), set()).add(alias.asname or alias.name)
     return names
 
 

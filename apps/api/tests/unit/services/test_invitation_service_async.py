@@ -321,4 +321,3 @@ def test_service_uses_no_sync_session_api():
     from app.services import invitation_service
 
     assert ".query(" not in inspect.getsource(invitation_service)
-
