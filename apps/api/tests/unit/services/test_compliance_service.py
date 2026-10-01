@@ -358,7 +358,9 @@ class TestDataSubjectRightsService:
         mock_db.execute.side_effect = execute_side_effect
         mock_db.commit = AsyncMock()
 
-        result = await service.process_access_request(request_id, processor_id)
+        result = await service.process_access_request(
+            request_id, processor_id, processor_is_admin=True
+        )
 
         # Historical response shape preserved.
         assert "personal_information" in result
