@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, delete, desc, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_admin
@@ -59,7 +59,7 @@ class AuditLogStatsResponse(BaseModel):
     time_range: Dict[str, datetime]
 
 
-def _audit_tenant(user) -> str:
+def _audit_tenant(user: Any) -> str:
     """The audit chain an admin's own action on the audit log is written to."""
     tenant_id = getattr(user, "tenant_id", None)
     return str(tenant_id) if tenant_id else "default"
@@ -88,7 +88,7 @@ async def list_audit_logs(
     limit: int = Query(100, ge=1, le=1000),
     cursor: Optional[str] = Query(None, description="Pagination cursor"),
     current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Query audit logs with filtering and pagination.
@@ -192,7 +192,7 @@ async def get_audit_stats(
     start_date: Optional[datetime] = Query(None, description="Start of time range"),
     end_date: Optional[datetime] = Query(None, description="End of time range"),
     current_user=Depends(require_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get audit log statistics (admin only).
@@ -281,7 +281,7 @@ async def get_audit_stats(
 
 @router.get("/{log_id}", response_model=AuditLogResponse)
 async def get_audit_log(
-    log_id: str, current_user=Depends(get_current_user), db: Session = Depends(get_db)
+    log_id: str, current_user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
     """
     Get a specific audit log entry by ID.
@@ -328,7 +328,7 @@ async def export_audit_logs(
     export_request: AuditLogExportRequest,
     background_tasks: BackgroundTasks,
     current_user=Depends(require_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Export audit logs in JSON or CSV format (admin only).
@@ -468,7 +468,7 @@ async def export_audit_logs(
 async def cleanup_old_audit_logs(
     days: int = Query(90, ge=30, le=365, description="Delete logs older than this many days"),
     current_user=Depends(require_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Delete old audit logs for compliance (admin only).
@@ -508,7 +508,7 @@ async def cleanup_old_audit_logs(
 
 @router.get("/actions/list")
 async def list_available_actions(
-    current_user=Depends(get_current_user), db: Session = Depends(get_db)
+    current_user=Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
     """
     Get list of all available audit actions.
