@@ -374,6 +374,8 @@ def test_drift_check_reports_020_at_019_and_nothing_at_head(databases) -> None:
     clean = _drift_check(head)
     assert clean.returncode == 0, f"{clean.stdout}\n{clean.stderr}"
     assert "DRIFT-TOTAL: 0" in clean.stdout
+    # Names the database it read, so a staging check can be told from production.
+    assert f"database: {urlsplit(head).path.lstrip('/')}" in clean.stdout
     assert f"alembic_version: {HEAD}" in clean.stdout
 
     # Read-only: the database is the same afterwards.

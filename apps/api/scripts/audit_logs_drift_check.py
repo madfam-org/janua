@@ -14,7 +14,12 @@ Compares, inside one READ ONLY transaction:
    (tenant_id, created_at, id); and INSERT and SELECT on the new columns for
    the role the api connects as.
 
-It also prints context, counts only: ``alembic_version``, the number of
+Part 2 does not depend on the model, so the check also reads 0 in a pod whose
+image predates migration 020, once the DDL is applied: run it there before the
+image that maps the columns is deployed, and again after.
+
+It also prints context: the name of the database it read (so a staging check
+can be told from a production one), ``alembic_version``, the number of
 ``audit_logs`` rows, and how many carry a hash chain. It never prints row
 contents or the database URL, and it writes nothing.
 
@@ -22,6 +27,8 @@ USAGE, from the repository root (the owner runs this; it is piped on stdin, so
 it also runs in a pod whose image predates it):
 
     ssh ssh.madfam.io "sudo kubectl -n janua exec -i deploy/janua-api -- python - --json" \\
+        < apps/api/scripts/audit_logs_drift_check.py
+    ssh ssh.madfam.io "sudo kubectl -n janua-staging exec -i deploy/janua-api -- python - --json" \\
         < apps/api/scripts/audit_logs_drift_check.py
 
     python scripts/audit_logs_drift_check.py            # from apps/api: text
@@ -153,6 +160,7 @@ def collect(url: str, tables: Optional[List[str]]) -> Dict[str, Any]:
                 }
                 for column in present_new
             }
+            database = conn.execute(text("SELECT current_database()")).scalar()
             version = None
             if "alembic_version" in db_columns:
                 version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
@@ -203,6 +211,7 @@ def collect(url: str, tables: Optional[List[str]]) -> Dict[str, Any]:
                 problems.append(f"{REVISION}: current_user lacks {privilege} on {TABLE}.{column}")
 
     return {
+        "database": database,
         "alembic_version": version,
         "tables_checked": sorted(mapped),
         "audit_logs": counts,
@@ -228,6 +237,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.json:
         print(json.dumps(report, sort_keys=True))
     else:
+        print(f"database: {report['database']}")
         print(f"alembic_version: {report['alembic_version']}")
         print(f"tables checked: {', '.join(report['tables_checked'])}")
         print(
