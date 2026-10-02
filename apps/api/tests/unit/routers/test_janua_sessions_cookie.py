@@ -371,6 +371,9 @@ class TestSelectAccountChooser:
             is_confidential=True,
             name="MADFAM ERP",
             redirect_uris=["https://erp.example.test/auth/callback"],
+            # Mirrors the OAuthClient column default; /authorize narrows the
+            # requested scope to it.
+            allowed_scopes=["openid", "profile", "email"],
         )
 
     async def test_renders_a_chooser_over_held_sessions(self):
