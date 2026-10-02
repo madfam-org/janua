@@ -354,7 +354,7 @@ def _token_patches(user, *, verify_payload=None):
     return db, patches
 
 
-async def _exchange(client, code_scope):
+async def _exchange(client, code_scope, *, with_refresh=False):
     user = _user()
     code_data = {
         "client_id": client.client_id,
@@ -381,9 +381,12 @@ async def _exchange(client, code_scope):
                 redis=AsyncMock(),
             )
             claims = op.jwt_manager.create_access_token.call_args.kwargs["additional_claims"]
+            refresh = op.jwt_manager.create_refresh_token.call_args.kwargs["additional_claims"]
         finally:
             for p in reversed(patches):
                 p.stop()
+    if with_refresh:
+        return resp, claims, refresh
     return resp, claims
 
 
@@ -472,3 +475,66 @@ class TestRefreshGrant:
             await _token_refresh(client, {"scope": "fh:write"})
         assert exc.value.status_code == 400
         assert exc.value.detail == "invalid_scope: fh:write"
+
+
+class TestRefreshTokensCarryTheGrantedScope:
+    """The refresh token minted at code exchange carries the granted scope, so
+    refreshes re-issue what was approved instead of falling back to `openid`."""
+
+    FH = ["openid", "profile", "email", "fh:read", "fh:write"]
+
+    async def test_exchange_refresh_token_carries_the_narrowed_scope(self):
+        client = _client(allowed_scopes=self.FH)
+        resp, _, refresh = await _exchange(
+            client, "openid fh:read fh:write admin", with_refresh=True
+        )
+        assert resp.scope == refresh["scope"] == "openid fh:read fh:write"
+        assert refresh["client_id"] == client.client_id
+
+    async def test_first_and_second_refresh_keep_the_granted_scope(self):
+        client = _client(allowed_scopes=self.FH)
+        _, _, refresh = await _exchange(client, "openid fh:read fh:write", with_refresh=True)
+
+        resp1, claims1, rotated1 = await _token_refresh(client, refresh)
+        assert resp1.scope == claims1["scope"] == rotated1["scope"] == "openid fh:read fh:write"
+
+        resp2, claims2, rotated2 = await _token_refresh(client, rotated1)
+        assert resp2.scope == claims2["scope"] == rotated2["scope"] == "openid fh:read fh:write"
+
+    async def test_scope_removed_after_the_grant_is_dropped_at_refresh(self):
+        granted_with = _client(allowed_scopes=self.FH)
+        _, _, refresh = await _exchange(granted_with, "openid fh:read fh:write", with_refresh=True)
+
+        shrunk = _client(allowed_scopes=["openid", "profile", "email", "fh:read"])
+        resp, claims, rotated = await _token_refresh(shrunk, refresh)
+        assert resp.scope == claims["scope"] == rotated["scope"] == "openid fh:read"
+
+    async def test_refresh_never_widens_beyond_the_granted_scope(self):
+        client = _client(allowed_scopes=self.FH)
+        _, _, refresh = await _exchange(client, "openid fh:read", with_refresh=True)
+        resp, claims, rotated = await _token_refresh(
+            client, refresh, requested_scope="openid fh:read fh:write"
+        )
+        assert resp.scope == claims["scope"] == rotated["scope"] == "openid fh:read"
+
+    async def test_legacy_refresh_token_without_scope_falls_back_to_openid(self):
+        """Minted before refresh tokens carried a scope: today's behaviour is
+        kept — `openid`, carried forward by rotation — until the next sign-in."""
+        client = _client(allowed_scopes=self.FH)
+        resp, claims, rotated = await _token_refresh(
+            client, {"client_id": client.client_id, "aud": "x"}
+        )
+        assert resp.scope == claims["scope"] == rotated["scope"] == "openid"
+
+    async def test_data_api_claims_survive_refresh_only_for_opted_in_clients(self):
+        opted_in = _client(allowed_scopes=["openid", DATA_API_SCOPE])
+        _, _, refresh = await _exchange(opted_in, f"openid {DATA_API_SCOPE}", with_refresh=True)
+        _, claims, rotated = await _token_refresh(opted_in, refresh)
+        assert claims["scope"] == rotated["scope"] == f"openid {DATA_API_SCOPE}"
+        assert claims["role"] == DATA_API_ROLE
+
+        # The same refresh token presented after the client lost the scope.
+        opted_out = _client(allowed_scopes=["openid"])
+        _, claims, rotated = await _token_refresh(opted_out, refresh)
+        assert claims["scope"] == rotated["scope"] == "openid"
+        assert "role" not in claims
