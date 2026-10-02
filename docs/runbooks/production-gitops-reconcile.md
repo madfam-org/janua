@@ -142,7 +142,7 @@ Workflow: `enclii/.github/workflows/rotate-ghcr-namespace.yml` (uses
 
 ### 4. GitHub Actions cannot reach cluster API
 
-**Symptoms:** `drift-check.yml`, `sync-prod-gitops.yml` on `ubuntu-latest` log
+**Symptoms:** `drift-check.yml`, `sync-prod-gitops.yml` on a GitHub-hosted runner (`ubuntu-24.04`) log
 `Cluster API unreachable`; `KUBECONFIG_PRODUCTION` points at dead external IP.
 
 **Rule:** Production reconcile from CI must use **ARC runners** with in-cluster

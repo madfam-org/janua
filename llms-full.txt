@@ -164,6 +164,25 @@ whose alembic head is ahead of the ledger unless `migrations_acknowledged=true`.
 Update the ledger only after reading the database
 (`docs/runbooks/ALEMBIC_CONVERGENCE.md`).
 
+### Token verification — `app/core/jwt_manager.py`, `routers/v1/oauth_provider.py`
+
+Issuer = `https://<JANUA_CUSTOM_DOMAIN>` when set, else `API_BASE_URL`; read it
+from `/.well-known/openid-configuration`. JWKS (`/.well-known/jwks.json`)
+publishes exactly one RS256 key whose `kid` is `JWT_KID`; rotating the key or
+the `kid` is a hard cut (no overlap). `aud`: ID token = `client_id`; access
+and service tokens = the OAuth client's registered `audience`, else
+`JWT_AUDIENCE`. Reference: `docs/reference/ISSUER_AND_JWKS.md`.
+
+### Data-subject request exports — `services/compliance_service.py`
+
+`DataSubjectRightsService.get_request_for_processor` lets only the request's
+subject or a platform admin (`users.is_admin`) process a request; the export
+route returns the unknown-id 404 to anyone else and leaves the request
+unchanged. Organization admins get no extra access. Read-only counts:
+`apps/api/scripts/audit_data_subject_request_access.py` (exit 2 = a request was
+last processed by someone else). Runbook:
+`docs/runbooks/data-subject-request-access-audit.md`.
+
 ## Repo entrypoints detected
 
 - `README.md`

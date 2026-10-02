@@ -55,6 +55,16 @@ flowchart LR
 | `docker-publish.yml` | Builds changed services, signs images, commits digests to **`k8s/overlays/staging/kustomization.yaml` only** |
 | ArgoCD `janua-staging` (after ops bootstrap) | Reconciles staging namespace |
 
+**Path-filter trap (docs image).** `docker-publish.yml` decides per service with
+`dorny/paths-filter`. The `docs` filter is only `apps/docs/**` and
+`Dockerfile.docs`: it does **not** include `pnpm-lock.yaml` or `packages/**`. A
+lockfile-only change (a dependency or advisory bump) rebuilds admin, dashboard
+and website, but **not** the docs image, so the docs service keeps the old
+dependencies. Ship it with a dispatch: `gh workflow run docker-publish.yml`.
+A `workflow_dispatch` run rebuilds **all five** services (the `force_all`
+input is informational; every build job runs on dispatch) and commits all five
+staging digests, so promote only what you mean to.
+
 ### What promotes to production
 
 | Workflow | Trigger | Effect |

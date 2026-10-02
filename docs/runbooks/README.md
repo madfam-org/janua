@@ -10,6 +10,12 @@ Operator guides for production GitOps, secrets rotation, and incident records.
 | [ALEMBIC_CONVERGENCE.md](./ALEMBIC_CONVERGENCE.md) (ES) | Before promoting with unapplied migrations; after applying a migration by hand |
 | [../PP_3B_STAGING_PIPELINE.md](../PP_3B_STAGING_PIPELINE.md) | Full staging → prod pipeline (Pattern B) |
 
+## Compliance
+
+| Document | When to use |
+|----------|-------------|
+| [data-subject-request-access-audit.md](./data-subject-request-access-audit.md) | Who may read a data-subject request export; read-only audit of who processed existing requests |
+
 ## Email
 
 - [Recoverable payment notices](payment-notice-recovery.md): scoped service tokens, bounded provider retries, and immutable acceptance receipts.
