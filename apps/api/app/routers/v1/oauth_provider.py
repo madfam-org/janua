@@ -2474,11 +2474,15 @@ async def _handle_authorization_code_grant(
         },
     )
 
+    # The refresh token carries the GRANTED (already narrowed) scope, so a
+    # refresh re-issues what the person approved instead of falling back to
+    # `openid`. The refresh grant re-narrows it to the client's allowed_scopes.
     refresh_token, _, _, _ = jwt_manager.create_refresh_token(
         user_id=str(user.id),
         additional_claims={
             "client_id": client.client_id,
             "aud": client_audience,
+            "scope": scope,
         },
     )
 
@@ -2586,6 +2590,9 @@ async def _handle_refresh_token_grant(
     # refresh token (the `scope` form parameter is not read for this grant), and
     # it is re-narrowed to the client's CURRENT `allowed_scopes`, so a scope
     # removed from the client stops being re-issued at the next refresh.
+    # Refresh tokens minted at code exchange carry the granted scope. One that
+    # carries none was minted before that existed: it falls back to `openid`,
+    # which the rotated token then carries, until the person signs in again.
     try:
         scope = _require_grantable_scope(
             payload.get("scope", "openid"), client, grant="refresh_token"
@@ -2619,7 +2626,9 @@ async def _handle_refresh_token_grant(
             **service_principal_claims(user),
             # PostgREST/data-API shaping — ONLY when the client opted into the
             # `data-api` scope; a no-op otherwise (see _data_api_claims). Carried
-            # across refresh because the original scope rides the refresh token.
+            # across refresh because the granted scope rides the refresh token
+            # (set at code exchange, carried forward by rotation below) and is
+            # re-narrowed above, so it survives only for an opted-in client.
             **_data_api_claims(scope, client, org_claims),
         },
     )
