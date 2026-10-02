@@ -738,7 +738,8 @@ informational). Details: `docs/PP_3B_STAGING_PIPELINE.md`.
 not pin, including after an advisory bump. Moving them to pnpm 10 with
 `--frozen-lockfile` is not a one-line change: pnpm 10 skips dependency build
 scripts unless `pnpm.onlyBuiltDependencies` lists them, and the four images
-must be rebuilt and checked. Track it as its own change.
+must be rebuilt and checked. Track it as its own change (listed in
+«Known gaps / Backlog» at the end of this file).
 
 Post-promote reconcile and common blockers (Kyverno, GHCR pull, Argo app name):
 [docs/runbooks/production-gitops-reconcile.md](docs/runbooks/production-gitops-reconcile.md).
@@ -1216,15 +1217,24 @@ This section defines the operating protocol for AI agents (Claude Code, GitHub C
 
 *Janua - The Gatekeeper | One key for the whole city*
 
-## Known Issues — Audit 2026-04-23
+## Known gaps / Backlog
 
-Source: the org-internal ecosystem audit of 2026-04-23.
+The one pending-work list for this repo (reviewed 2026-10-02 against `main`
+after #681). Remove an item in the PR that finishes it. **Kind** is
+*engineering* or *owner decision*. Security hardening that is not yet shipped
+is tracked privately and appears here only by name.
 
-- ~~**🟠 H5: Wildcard CORS on edge-verify**~~ — Fixed 2026-04-23: `resolveCors` now reflects Origin only when it matches an allowlist (configurable via `CORS_ALLOWED_ORIGINS` env; defaults to `https://*.madfam.io` + known MADFAM product domains). Never emits `*`.
-- **🟠 H9: `ENABLE_DOCS=true` in base K8s deployment** — `k8s/base/deployments/janua-api.yaml:128`. Verify overlay overrides in prod with `enclii service describe janua-api`; otherwise `/docs` + `/openapi.json` enumerate all auth endpoints on auth.madfam.io.
-- **🟠 M2: `ast.literal_eval` on Redis-stored email token** — `apps/api/app/services/email_service.py:106`. Swap for `json.loads` + schema validation.
-- **🔴 T2: 10 core auth e2e tests skipped** (recounted 2026-10-01) — every `test.skip` in `tests/e2e/auth-flows.spec.ts` (lines 94–212: invalid credentials, password reset, MFA enrollment, session persistence, logout, protected-route redirect, Google OAuth, lockout, email verification, concurrent sessions). Un-skip and wire to CI.
-- **🟠 T3: skip inventory (2026-10-01)** — about 274 `pytest.skip` / `skip` / `xfail` markers under `apps/api/tests` (CI's full API selection reports 99 skipped) and 43 `.skip` calls in JS/TS tests. The largest groups are import-guarded skips (`Model/Config imports failed`), «httpx async await issue in billing service» (16), PostgreSQL-only tests that skip without a reachable database (they run in the PostgreSQL CI job), and rate-limit tests that are mocked in the test environment. Needs a dedicated sweep; none are new in the 2026-09-30 wave.
-- **🟢 positive**: Correct RS256 usage, good webhook signature verification pattern.
+| Item | Why it matters | Priority | Kind | Link |
+|---|---|---|---|---|
+| Merge and deploy window for the audit-log fixes | Both PRs change the audit logger and add migration `020`; they need a scheduled window and a migration run | P1 | owner decision | #673, #676 |
+| Next.js hardening checklist for `apps/admin`, `apps/dashboard`, `apps/docs` and `apps/website` (tracked privately) | Brings the four Next apps to the posture the rest of the estate already ships | P1 | engineering | — |
+| Un-skip the 11 core auth e2e tests in `tests/e2e/auth-flows.spec.ts` and run them in CI | Every `test.skip` there (invalid credentials, password reset, MFA enrollment, session persistence, logout, protected-route redirect, Google OAuth, lockout, email verification, concurrent sessions, inactivity timeout) leaves a core auth journey without an E2E proof | P1 | engineering | — |
+| Skip-inventory sweep | About 274 `pytest.skip` / `skip` / `xfail` markers under `apps/api/tests` (CI's full API selection reports 99 skipped) and 43 `.skip` calls in JS/TS tests. Largest groups: import-guarded skips (`Model/Config imports failed`), «httpx async await issue in billing service» (16), PostgreSQL-only tests that skip without a database (they run in the PostgreSQL CI job), and rate-limit tests mocked in the test environment. Fix or justify each | P2 | engineering | — |
+| Move the four app Dockerfiles to pnpm 10 with `--frozen-lockfile` | Images install with pnpm 9.15 and `--no-frozen-lockfile`, so they can resolve versions the lockfile does not pin. See «Image installs use pnpm 9» under Deployment Pipeline | P2 | engineering | — |
+| Remove the legacy email-verification token fallback in `apps/api/app/services/email_service.py` | The JSON format shipped in April 2026; the fallback for the older format was meant to last one 24 h token TTL | P3 | engineering | — |
+
+Done and removed from this list: the edge-verify CORS allowlist (2026-04-23),
+`ENABLE_DOCS=false` in the base API deployment (dev and staging overlays turn
+it on), JSON parsing for email-verification tokens.
 
 <!-- END LEGACY_CLAUDE_IMPORT -->

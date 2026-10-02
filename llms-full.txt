@@ -183,6 +183,11 @@ unchanged. Organization admins get no extra access. Read-only counts:
 last processed by someone else). Runbook:
 `docs/runbooks/data-subject-request-access-audit.md`.
 
+## Pending work
+
+One list, with priorities and owner-decision vs engineering: AGENTS.md →
+«Known gaps / Backlog». Don't copy it here.
+
 ## Repo entrypoints detected
 
 - `README.md`

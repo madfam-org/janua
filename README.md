@@ -540,6 +540,8 @@ We need help. This is a big project and we're a small team.
 
 We'll build what the community needs. Tell us what you need.
 
+Engineering backlog (tests, build hygiene, pending merges): [AGENTS.md → Known gaps / Backlog](AGENTS.md#known-gaps--backlog).
+
 ---
 
 ## Comparison to alternatives
