@@ -70,14 +70,29 @@ curl -X POST https://api.janua.dev/api/v1/oauth/clients \
 > client; a surface with an interactive login must register a **separate**
 > authorization-code client (with its callback URIs) for its browser sessions.
 >
-> **`allowed_scopes` is a whitelist, not a filter.** Janua validates a request's
-> scopes with `requested.issubset(allowed_scopes)` (`_parse_requested_scopes`) and
-> rejects anything outside the set with `400 invalid_scope: <scope>` — it does not
-> silently drop the extra scope. So a client's `allowed_scopes` must be a **superset**
-> of every scope the app asks for at `/oauth/authorize`. If the app requests
-> `openid profile email roles`, register `roles` too; add a later scope with an admin
-> `PATCH /api/v1/oauth/clients/{id}`. A missing scope aborts the login at the tail of
-> an already-completed flow, which reads as an application bug and is not.
+> **`allowed_scopes` bounds every token the client can obtain.** How a scope
+> outside the set is handled depends on the grant:
+>
+> - **`client_credentials`** rejects the request with `400 invalid_scope: <scope>`
+>   (`_parse_requested_scopes`). A service client's `allowed_scopes` must be a
+>   superset of what it requests.
+> - **`authorization_code`** (both `/oauth/authorize` endpoints) **narrows** the
+>   request to the allowed set (RFC 6749 §3.3) before anything is stored, and the
+>   token response's `scope` field reports what was granted. The standard OIDC
+>   scopes `openid profile email offline_access` are always grantable on this
+>   flow. Only a request of which nothing is allowed is refused, with a redirect
+>   carrying `error=invalid_scope`. The code exchange narrows again to the
+>   client's *current* `allowed_scopes`.
+> - **`refresh_token`** re-narrows the scope carried by the refresh token to the
+>   current `allowed_scopes`. It never widens: the request's `scope` parameter is
+>   not read for this grant.
+>
+> So a custom scope (`ns:action`) an app needs in a user's access token must be
+> in the client's `allowed_scopes`; add it with an admin
+> `PATCH /api/v1/oauth/clients/{id}`. Otherwise it is dropped from the token, and
+> Janua logs `oauth.scope_not_allowed_for_client` with the dropped scope names.
+> Scopes that cannot be registered at all (for example `roles`) are always
+> dropped; the `roles` *claim* does not depend on the scope.
 
 ### Add Environment Variables
 
