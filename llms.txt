@@ -85,9 +85,9 @@ Compact LLM context index for this repository.
 - `docker-publish.yml` does not rebuild the **docs** image on `pnpm-lock.yaml`
   or `packages/**` changes. Ship docs with `gh workflow run docker-publish.yml`
   (a dispatch rebuilds all five services).
-- Known gap: the app Dockerfiles install with pnpm 9.15 and
-  `--no-frozen-lockfile`; the repo pins pnpm 10.25 and CI uses
-  `--frozen-lockfile`. See AGENTS.md.
+- Pending work (pnpm 10 in the app images, the skip sweep, the skipped auth
+  e2e tests, the audit-log merge window and more) lives in one list:
+  AGENTS.md → «Known gaps / Backlog».
 
 ## Production operations
 
