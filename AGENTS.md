@@ -722,6 +722,24 @@ variable `AUTO_PROMOTE_ENABLED=true`.
 | `sync-prod-gitops.yml` | workflow_dispatch (break-glass) | ARC apply + GHCR refresh when cluster lags git |
 | `rollback-prod.yml` | workflow_dispatch (incident) | Rolls back prod digest from git history or explicit input |
 
+**Docs image path-filter trap.** `docker-publish.yml` rebuilds a service only
+when its `dorny/paths-filter` entry matches. The `docs` entry is `apps/docs/**`
+and `Dockerfile.docs` only, without `pnpm-lock.yaml` or `packages/**`, so a
+lockfile-only dependency bump rebuilds admin, dashboard and website but **not**
+docs. Ship docs with `gh workflow run docker-publish.yml`; a dispatch rebuilds
+all five services and commits all five staging digests (`force_all` is
+informational). Details: `docs/PP_3B_STAGING_PIPELINE.md`.
+
+**Image installs use pnpm 9, the repo pins pnpm 10 (known gap).** The root
+`packageManager` is `pnpm@10.25.0` and CI installs with `--frozen-lockfile`, but
+`Dockerfile.admin`, `.dashboard`, `.docs` and `.website` run
+`corepack prepare pnpm@9.15.0` and `pnpm install --no-frozen-lockfile
+--shamefully-hoist`. Images can therefore resolve versions the lockfile does
+not pin, including after an advisory bump. Moving them to pnpm 10 with
+`--frozen-lockfile` is not a one-line change: pnpm 10 skips dependency build
+scripts unless `pnpm.onlyBuiltDependencies` lists them, and the four images
+must be rebuilt and checked. Track it as its own change.
+
 Post-promote reconcile and common blockers (Kyverno, GHCR pull, Argo app name):
 [docs/runbooks/production-gitops-reconcile.md](docs/runbooks/production-gitops-reconcile.md).
 Incident record (2026-06-15 website): [docs/runbooks/incidents/2026-06-15-janua-website-prod-rollout.md](docs/runbooks/incidents/2026-06-15-janua-website-prod-rollout.md).
@@ -1111,6 +1129,18 @@ pg_restore --list janua_backup_*.sql | head
 
 ## Related Resources
 
+- **Token verification contract** (for every service that verifies a Janua
+  token): [`docs/reference/ISSUER_AND_JWKS.md`](docs/reference/ISSUER_AND_JWKS.md):
+  issuer selection, JWKS URL, `kid` rotation (hard cut, one key published),
+  `aud` per token type. Service clients: [`docs/service-tokens.md`](docs/service-tokens.md).
+- **Data-subject request exports**: only the subject or a platform admin
+  (`users.is_admin`) can read `GET /api/v1/compliance/data-subject-request/{id}/data`;
+  everyone else gets the unknown-id 404. Read-only audit:
+  `apps/api/scripts/audit_data_subject_request_access.py`. Runbook:
+  [`docs/runbooks/data-subject-request-access-audit.md`](docs/runbooks/data-subject-request-access-audit.md).
+- **Dependency pins**: `sqlalchemy>=2.0.36,<2.1` in `apps/api/requirements.txt`
+  (2.1 makes psycopg v3 the default driver; janua ships psycopg2). GitHub-hosted
+  jobs run on `ubuntu-24.04` (#675), not `ubuntu-latest`.
 - **Website**: [janua.dev](https://janua.dev)
 - **GitHub**: [madfam-org/janua](https://github.com/madfam-org/janua)
 - **Documentation**: `docs/` (204 markdown files)
@@ -1188,12 +1218,13 @@ This section defines the operating protocol for AI agents (Claude Code, GitHub C
 
 ## Known Issues — Audit 2026-04-23
 
-See `/Users/aldoruizluna/labspace/claudedocs/ECOSYSTEM_AUDIT_2026-04-23.md` for the full ecosystem audit.
+Source: the org-internal ecosystem audit of 2026-04-23.
 
 - ~~**🟠 H5: Wildcard CORS on edge-verify**~~ — Fixed 2026-04-23: `resolveCors` now reflects Origin only when it matches an allowlist (configurable via `CORS_ALLOWED_ORIGINS` env; defaults to `https://*.madfam.io` + known MADFAM product domains). Never emits `*`.
 - **🟠 H9: `ENABLE_DOCS=true` in base K8s deployment** — `k8s/base/deployments/janua-api.yaml:128`. Verify overlay overrides in prod with `enclii service describe janua-api`; otherwise `/docs` + `/openapi.json` enumerate all auth endpoints on auth.madfam.io.
 - **🟠 M2: `ast.literal_eval` on Redis-stored email token** — `apps/api/app/services/email_service.py:106`. Swap for `json.loads` + schema validation.
-- **🔴 T2: 5 core auth e2e tests skipped** — `tests/e2e/auth-flows.spec.ts:94, 106, 122, 139, 150` (login invalid creds, password reset, MFA enrollment, session persistence, logout/redirect). Un-skip and wire to CI.
+- **🔴 T2: 10 core auth e2e tests skipped** (recounted 2026-10-01) — every `test.skip` in `tests/e2e/auth-flows.spec.ts` (lines 94–212: invalid credentials, password reset, MFA enrollment, session persistence, logout, protected-route redirect, Google OAuth, lockout, email verification, concurrent sessions). Un-skip and wire to CI.
+- **🟠 T3: skip inventory (2026-10-01)** — about 274 `pytest.skip` / `skip` / `xfail` markers under `apps/api/tests` (CI's full API selection reports 99 skipped) and 43 `.skip` calls in JS/TS tests. The largest groups are import-guarded skips (`Model/Config imports failed`), «httpx async await issue in billing service» (16), PostgreSQL-only tests that skip without a reachable database (they run in the PostgreSQL CI job), and rate-limit tests that are mocked in the test environment. Needs a dedicated sweep; none are new in the 2026-09-30 wave.
 - **🟢 positive**: Correct RS256 usage, good webhook signature verification pattern.
 
 <!-- END LEGACY_CLAUDE_IMPORT -->

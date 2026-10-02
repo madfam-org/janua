@@ -21,6 +21,7 @@ Complete documentation for the Janua self-hosted authentication platform.
 - **[Flutter SDK](guides/flutter-sdk-complete-guide.md)** - Flutter mobile integration
 - **[SSO Integration](guides/SSO_INTEGRATION_GUIDE.md)** - Single Sign-On setup
 - **[Machine-to-Machine Auth](guides/machine-to-machine-authentication-guide.md)** - Service-account OAuth clients for automated ecosystem runs
+- **[Issuer, JWKS and audience](reference/ISSUER_AND_JWKS.md)** - How to verify any Janua token: issuer selection, JWKS URL, `kid` rotation, `aud` per token type
 - **[Service Tokens](service-tokens.md)** - Decision record and integration contract for `client_credentials` service clients (token issuance, JWKS/introspection verification)
 - **[MFA Guide](guides/mfa-2fa-implementation-guide.md)** - Multi-factor authentication
 - **[Compliance Features](guides/COMPLIANCE_FEATURES_GUIDE.md)** - GDPR, SOC2, compliance
@@ -71,6 +72,7 @@ the source of truth for what may be sold as available.
 - [Deployment Guide](deployment/DEPLOYMENT.md)
 - [Production GitOps reconcile](runbooks/production-gitops-reconcile.md) — promote, Argo sync, Kyverno, GHCR
 - [Runbooks index](runbooks/README.md)
+- [Data-subject request access and audit](runbooks/data-subject-request-access-audit.md)
 - [Incident: 2026-06-15 website rollout](runbooks/incidents/2026-06-15-janua-website-prod-rollout.md)
 - [PP.3b staging → prod pipeline](PP_3B_STAGING_PIPELINE.md)
 - [Monitoring Setup](deployment/MONITORING_SETUP.md)

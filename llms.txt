@@ -35,6 +35,15 @@ Compact LLM context index for this repository.
 - `docs/runbooks/secrets/resend-webhook-secret-rotation.md` — the per-account
   webhook signing secret: Vault → ExternalSecret → env, rotating it without
   exposing it, and reading 404 vs 401.
+- `docs/reference/ISSUER_AND_JWKS.md` — the token verification contract other
+  services link to: issuer selection (`JANUA_CUSTOM_DOMAIN` else `API_BASE_URL`),
+  JWKS at `<issuer>/.well-known/jwks.json` with one RS256 key, `kid` rotation as
+  a hard cut, and `aud` per token type (ID token = `client_id`; access/service
+  token = the client's registered audience).
+- `docs/runbooks/data-subject-request-access-audit.md` — data-subject request
+  exports are readable only by the subject or a platform admin (others get the
+  unknown-id 404), and the read-only audit
+  `apps/api/scripts/audit_data_subject_request_access.py`.
 - `docs/runbooks/ALEMBIC_CONVERGENCE.md` — production migrations are applied
   by hand and recorded in `apps/api/alembic/PROD_ALEMBIC_STATE.json`, which the
   promote guard reads.
@@ -69,6 +78,16 @@ Compact LLM context index for this repository.
   and websockets are closed (1008) by `TrackingHostScopeMiddleware`.
 - Production migrations are applied by hand; `PROD_ALEMBIC_STATE.json` records
   them (at `019_email_first_party_engagement` since 2026-09-25).
+
+## Build and CI facts (2026-10-01)
+
+- GitHub-hosted jobs run on `ubuntu-24.04` (#675); ARC jobs fall back to it.
+- `docker-publish.yml` does not rebuild the **docs** image on `pnpm-lock.yaml`
+  or `packages/**` changes. Ship docs with `gh workflow run docker-publish.yml`
+  (a dispatch rebuilds all five services).
+- Known gap: the app Dockerfiles install with pnpm 9.15 and
+  `--no-frozen-lockfile`; the repo pins pnpm 10.25 and CI uses
+  `--frozen-lockfile`. See AGENTS.md.
 
 ## Production operations
 

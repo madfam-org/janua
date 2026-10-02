@@ -141,12 +141,14 @@ All clients should use the Authorization Code flow with Proof Key for Code Excha
 
 Every consumer application must validate JWTs issued by Janua before trusting their claims.
 
+The full contract (issuer selection, JWKS, `kid` rotation, audience per token type) is in [`docs/reference/ISSUER_AND_JWKS.md`](../reference/ISSUER_AND_JWKS.md).
+
 ### Required Checks
 
 | Check | Expected Value |
 |-------|----------------|
 | Algorithm | `RS256` |
-| `iss` (issuer) | `https://api.janua.dev` |
+| `iss` (issuer) | The `issuer` from your deployment's `/.well-known/openid-configuration` (`https://<JANUA_CUSTOM_DOMAIN>` on a white-label deployment, else `https://api.janua.dev`) |
 | `aud` (audience) | Your registered audience string (e.g., `dhanam-api`) |
 | `exp` (expiry) | Must be in the future |
 | Signature | Valid against the JWKS public key matching the token's `kid` |
@@ -433,7 +435,7 @@ The Janua SDKs handle this automatically when configured.
 
 **Symptom**: Token validation throws "invalid signature" errors.
 
-**Fix**: Ensure you are fetching keys from the correct JWKS endpoint (`https://api.janua.dev/.well-known/jwks.json`). If Janua recently rotated its signing keys, clear your JWKS cache and re-fetch. See [JWKS Caching Best Practices](#5-jwks-caching-best-practices) for cache invalidation strategies.
+**Fix**: Ensure you are fetching keys from the correct JWKS endpoint (`<issuer>/.well-known/jwks.json`, the `jwks_uri` from discovery). If Janua recently rotated its signing keys, clear your JWKS cache and re-fetch. See [JWKS Caching Best Practices](#5-jwks-caching-best-practices) for cache invalidation strategies.
 
 ---
 

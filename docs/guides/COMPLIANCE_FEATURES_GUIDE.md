@@ -273,6 +273,13 @@ POST /api/compliance/data-subject-request
 }
 ```
 
+**Who can read the export:** `GET /api/v1/compliance/data-subject-request/{request_id}/data`
+serves the export only to the request's data subject and to platform
+administrators. Any other caller, including an organization administrator
+who is not a platform administrator, gets the same 404 as an unknown request
+id. The rule, its tests and the read-only audit script are in
+[runbooks/data-subject-request-access-audit.md](../runbooks/data-subject-request-access-audit.md).
+
 **UI Component:**
 ```tsx
 import { DataRightsRequest } from '@janua/ui/compliance';

@@ -265,7 +265,7 @@ on: [push, pull_request]
 
 jobs:
   test-api:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -277,7 +277,7 @@ jobs:
           pytest --cov=app --cov-fail-under=90
 
   test-frontend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3

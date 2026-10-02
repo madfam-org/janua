@@ -174,14 +174,14 @@ on:
 
 jobs:
   code-quality:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
       - name: Run code quality checks
         run: ./scripts/maintenance/check-code-quality.sh
       
   documentation:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v3
       - name: Run documentation checks

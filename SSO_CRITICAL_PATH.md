@@ -235,8 +235,9 @@ kubectl set env deployment/dhanam-api -n dhanam \
 
 ```bash
 # Trigger a new build + deploy for janua-dashboard
-# Either push a tag, or manually trigger the docker-publish workflow:
-gh workflow run docker-publish.yml -f service=janua-dashboard
+# Push a change under apps/dashboard/**, or dispatch the workflow.
+# docker-publish.yml has no `service` input: a dispatch rebuilds all five services.
+gh workflow run docker-publish.yml
 ```
 
 **Verify**: Visit `https://app.janua.dev/login` — Google/GitHub/Microsoft buttons should appear below the email/password form.
