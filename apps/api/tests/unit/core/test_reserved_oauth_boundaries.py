@@ -26,6 +26,8 @@ def test_service_auth_modules_read_the_registry_constants():
         "karafiel-api",
         "dhanam-api",
         "yantra4d-api",
+        "pravara-api",
+        "asset-shells-api",
         " janua-email ",
     ],
 )
@@ -60,6 +62,14 @@ def test_consent_purpose_audiences_and_names_are_reserved_by_construction():
         "legal:draft",
         "legal:client-profile",
         "yantra4d:render",
+        "pravara-mes:jobs",
+        "pravara-mes:nodes",
+        "pravara-mes:passports",
+        "pravara-mes:read",
+        "pravara-mes:admin",
+        "asset-shells:read",
+        "asset-shells:publish-types",
+        "asset-shells:publish-instances",
     ],
 )
 def test_reserved_scopes(scope):
@@ -67,7 +77,18 @@ def test_reserved_scopes(scope):
 
 
 @pytest.mark.parametrize(
-    "scope", ["openid", "profile", "email", "offline_access", "hcm:hr", "data-api", "billing:read"]
+    "scope",
+    [
+        "openid",
+        "profile",
+        "email",
+        "offline_access",
+        "hcm:hr",
+        "data-api",
+        "billing:read",
+        "pravara-mes:other",
+        "asset-shells:write",
+    ],
 )
 def test_ordinary_scopes(scope):
     assert not reserved.is_reserved_scope(scope)

@@ -63,7 +63,29 @@ RESERVED_AUDIENCE_PREFIXES: tuple[str, ...] = ("janua-",)
 #: (docs/service-tokens.md), plus the audiences a consent purpose accepts on a
 #: user's subject token.
 ECOSYSTEM_SERVICE_AUDIENCES: frozenset[str] = frozenset(
-    {"karafiel-api", "dhanam-api", "yantra4d-api"}
+    {"karafiel-api", "dhanam-api", "yantra4d-api", "pravara-api", "asset-shells-api"}
+)
+
+#: Pravara MES machine scopes (audience ``pravara-api``). Pravara reads
+#: ``tenant_id`` from the token, so clients holding these are org-bound.
+PRAVARA_SCOPES: frozenset[str] = frozenset(
+    {
+        "pravara-mes:jobs",
+        "pravara-mes:nodes",
+        "pravara-mes:passports",
+        "pravara-mes:read",
+    }
+)
+
+#: asset-shells (AAS store) scopes (audience ``asset-shells-api``).
+#: ``publish-types`` writes tenant-less type shells (platform-admin clients);
+#: ``publish-instances`` and ``read`` act on one tenant's instances (org-bound).
+ASSET_SHELLS_SCOPES: frozenset[str] = frozenset(
+    {
+        "asset-shells:read",
+        "asset-shells:publish-types",
+        "asset-shells:publish-instances",
+    }
 )
 
 RESERVED_AUDIENCES: frozenset[str] = frozenset(
@@ -86,6 +108,8 @@ RESERVED_SCOPES: frozenset[str] = frozenset(
         "legal:client-profile",
         "yantra4d:render",
     }
+    | PRAVARA_SCOPES
+    | ASSET_SHELLS_SCOPES
 )
 
 #: ``<product>:admin`` becomes a ``<product>_admin`` role on a machine token
@@ -164,6 +188,7 @@ def client_is_reserved(client) -> bool:
 
 
 __all__ = [
+    "ASSET_SHELLS_SCOPES",
     "BRANDING_AUDIENCE",
     "BRANDING_SCOPE",
     "ECOSYSTEM_SERVICE_AUDIENCES",
@@ -171,6 +196,7 @@ __all__ = [
     "MAIL_AUDIENCE",
     "PAYMENT_MAIL_SCOPE",
     "PLATFORM_ADMIN_SCOPE",
+    "PRAVARA_SCOPES",
     "RESERVED_AUDIENCES",
     "RESERVED_AUDIENCE_PREFIXES",
     "RESERVED_CLIENT_NAMES",
