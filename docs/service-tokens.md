@@ -182,6 +182,7 @@ admin can register a client that carries them:
 | `asset-shells-api` | `asset-shells:publish-types` | Publish tenant-less type shells. |
 | `asset-shells-api` | `asset-shells:publish-instances` | Publish one tenant's instance shells and passport events. |
 | `asset-shells-api` | `asset-shells:read` | Read one tenant's instance shells and passport events. |
+| `fabrication-prep-api` | `fabrication-prep:slice` | Submit slice jobs and download their signed artifacts. |
 
 Scopes are independent: none implies another. Pravara MES lets a write scope
 read back its own resource family; that is its rule, not Janua's.
@@ -197,13 +198,26 @@ organization**, named `<template>.<organization slug>`:
 | `pravara-yantra4d-step-reader` | platform-admin | Yantra4D renders carry no tenant. Gets `yantra4d_tier: "madfam"` from its `yantra4d:` scope. |
 | `yantra4d-asset-shells-publisher` | platform-admin | Type shells are tenant-less. |
 | `fashion-cabinet-asset-shells-publisher` | platform-admin | Type shells are tenant-less. |
+| `pravara-fabrication-prep` | platform-admin | Slice jobs belong to the calling client and carry no tenant data. |
 | `pravara-asset-shells-publisher.<org-slug>` | organization-bound | Instance shells and passports belong to one tenant. |
 | `forj-pravara-intake.<org-slug>` | organization-bound | Pravara needs `tenant_id` to file the order. |
 | `cotiza-pravara-intake.<org-slug>` | organization-bound | Pravara needs `tenant_id` to file the job. |
 
 Organization-bound clients also receive the organization's `product_tiers`.
 
-Provisioning (operator, platform admin):
+Provisioning in production goes through Enclii, as a platform admin, with no
+person holding a secret:
+
+```bash
+enclii secrets provision oidc --platform <edge> --reason "<why>"
+```
+
+It creates the client (or rotates an existing client's secret) and files the
+pair into the consumer's Vault path through Switchyard secret intake. Values
+are never printed; the consumer reads them through its ExternalSecret. The
+edge registry is enclii's `config/ecosystem-oidc-provision.yaml`.
+
+On a local or test database the seed script does the same without Vault:
 
 ```bash
 cd apps/api

@@ -63,7 +63,14 @@ RESERVED_AUDIENCE_PREFIXES: tuple[str, ...] = ("janua-",)
 #: (docs/service-tokens.md), plus the audiences a consent purpose accepts on a
 #: user's subject token.
 ECOSYSTEM_SERVICE_AUDIENCES: frozenset[str] = frozenset(
-    {"karafiel-api", "dhanam-api", "yantra4d-api", "pravara-api", "asset-shells-api"}
+    {
+        "karafiel-api",
+        "dhanam-api",
+        "yantra4d-api",
+        "pravara-api",
+        "asset-shells-api",
+        "fabrication-prep-api",
+    }
 )
 
 #: Pravara MES machine scopes (audience ``pravara-api``). Pravara reads
@@ -88,6 +95,11 @@ ASSET_SHELLS_SCOPES: frozenset[str] = frozenset(
     }
 )
 
+#: fabrication-prep (slicing service) scope (audience ``fabrication-prep-api``).
+#: Slice jobs belong to the calling client (``sub``) and carry no tenant data,
+#: so the client that holds it is platform-admin.
+FABRICATION_PREP_SCOPES: frozenset[str] = frozenset({"fabrication-prep:slice"})
+
 RESERVED_AUDIENCES: frozenset[str] = frozenset(
     {MAIL_AUDIENCE, BRANDING_AUDIENCE, CONNECTIONS_AUDIENCE}
     | ECOSYSTEM_SERVICE_AUDIENCES
@@ -110,6 +122,7 @@ RESERVED_SCOPES: frozenset[str] = frozenset(
     }
     | PRAVARA_SCOPES
     | ASSET_SHELLS_SCOPES
+    | FABRICATION_PREP_SCOPES
 )
 
 #: ``<product>:admin`` becomes a ``<product>_admin`` role on a machine token
@@ -192,6 +205,7 @@ __all__ = [
     "BRANDING_AUDIENCE",
     "BRANDING_SCOPE",
     "ECOSYSTEM_SERVICE_AUDIENCES",
+    "FABRICATION_PREP_SCOPES",
     "FIRST_PARTY_NAME_PREFIXES",
     "MAIL_AUDIENCE",
     "PAYMENT_MAIL_SCOPE",

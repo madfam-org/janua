@@ -20,6 +20,11 @@ Unlike the interactive clients in ``seed_core_clients.py``, these clients:
 The client_secret is printed exactly once on creation — store it in the
 approved secret store (Enclii/Vault) for the calling service. Never commit it.
 
+Production: use ``enclii secrets provision oidc --platform <edge>`` instead. It
+creates or rotates the same client as a platform admin and files the pair
+straight into the consumer's Vault path without printing the secret, so no
+person ever holds it. This script is for local and test databases.
+
 Alternative (zero-touch) provisioning: each consumer service's bootstrap can
 instead call ``POST /api/v1/oauth/clients/register`` with ``X-Internal-API-Key``
 and the same payload shape. This script exists for operator-driven seeding.
@@ -158,6 +163,22 @@ SERVICE_CLIENTS: list[dict[str, Any]] = [
         "audience": "asset-shells-api",
         "redirect_uris": [],
         "allowed_scopes": ["asset-shells:publish-types"],
+        "grant_types": ["client_credentials"],
+        "is_confidential": True,
+        "organization_id": None,
+    },
+    {
+        "name": "pravara-fabrication-prep",
+        "description": (
+            "Pravara MES → fabrication-prep slicing service client. The "
+            "dispatcher submits slice jobs (a render bundle plus a printer, "
+            "material and process profile) and downloads the signed G-code. "
+            "fabrication-prep:slice only. Platform-admin: slice jobs carry no "
+            "tenant data."
+        ),
+        "audience": "fabrication-prep-api",
+        "redirect_uris": [],
+        "allowed_scopes": ["fabrication-prep:slice"],
         "grant_types": ["client_credentials"],
         "is_confidential": True,
         "organization_id": None,
