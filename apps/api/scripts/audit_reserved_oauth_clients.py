@@ -69,6 +69,8 @@ RESERVED_AUDIENCES = frozenset(
         "karafiel-api",
         "dhanam-api",
         "yantra4d-api",
+        "pravara-api",
+        "asset-shells-api",
         "creator-census-api",
     }
 )
@@ -84,6 +86,13 @@ RESERVED_SCOPES = frozenset(
         "legal:draft",
         "legal:client-profile",
         "yantra4d:render",
+        "pravara-mes:jobs",
+        "pravara-mes:nodes",
+        "pravara-mes:passports",
+        "pravara-mes:read",
+        "asset-shells:read",
+        "asset-shells:publish-types",
+        "asset-shells:publish-instances",
     }
 )
 RESERVED_SCOPE_SUFFIXES = (":admin",)

@@ -8,6 +8,12 @@ Cross-service identity for the RFC 0024 §P4 consolidations:
 | RouteCraft → Dhanam billing (§P4.3) | `routecraft-billing-relay` | `billing:events` | `dhanam-api` | Dhanam API |
 | Nauta → Karafiel legal drafts (D3.5) | `nauta-legal-drafts` | `legal:draft`, `legal:client-profile` | `karafiel-api` | Karafiel API |
 | Forj → Yantra4D catalog render | `forj-catalog-materializer` | `yantra4d:render` | `yantra4d-api` | Yantra4D render API |
+| Pravara MES → Yantra4D STEP export | `pravara-yantra4d-step-reader` | `yantra4d:render` | `yantra4d-api` | Yantra4D render API |
+| Yantra4D → asset-shells type shells | `yantra4d-asset-shells-publisher` | `asset-shells:publish-types` | `asset-shells-api` | asset-shells publish API |
+| Fashion Cabinet → asset-shells type shells | `fashion-cabinet-asset-shells-publisher` | `asset-shells:publish-types` | `asset-shells-api` | asset-shells publish API |
+| Pravara MES → asset-shells instances and passports (per organization) | `pravara-asset-shells-publisher.<org-slug>` | `asset-shells:publish-instances`, `asset-shells:read` | `asset-shells-api` | asset-shells publish and read APIs |
+| Forj → Pravara MES order intake (per organization) | `forj-pravara-intake.<org-slug>` | `pravara-mes:jobs` | `pravara-api` | Pravara MES API |
+| Cotiza → Pravara MES job intake (per organization) | `cotiza-pravara-intake.<org-slug>` | `pravara-mes:jobs` | `pravara-api` | Pravara MES API |
 | creator-census API → Janua token exchange (user present) | `creator-census` | `connections:delegate` | `janua-connections` | Janua connections API (see [Purpose-scoped provider consent](#purpose-scoped-provider-consent)) |
 | creator-census re-verification job → Janua offline delegation (user absent) | `creator-census-reauth` | `connections:delegate` | `janua-connections` | Janua connections API |
 
@@ -161,6 +167,55 @@ The `client_secret` is shown **once** at provisioning. Store it in the
 approved secret store (Enclii/Vault) and mount it into the calling
 service's runtime environment. Placeholders only in code and docs —
 never commit real `jnc_`/`jns_` values.
+
+## Fabrication edges (Pravara MES, asset-shells)
+
+Reserved in `apps/api/app/core/reserved_oauth_boundaries.py`, so only a platform
+admin can register a client that carries them:
+
+| Audience | Scope | Capability |
+|---|---|---|
+| `pravara-api` | `pravara-mes:jobs` | Order and job intake. |
+| `pravara-api` | `pravara-mes:nodes` | Producer-node registry, heartbeats and telemetry. |
+| `pravara-api` | `pravara-mes:passports` | Passport and genealogy writes. |
+| `pravara-api` | `pravara-mes:read` | Read-only access to Pravara's machine-facing resources. |
+| `asset-shells-api` | `asset-shells:publish-types` | Publish tenant-less type shells. |
+| `asset-shells-api` | `asset-shells:publish-instances` | Publish one tenant's instance shells and passport events. |
+| `asset-shells-api` | `asset-shells:read` | Read one tenant's instance shells and passport events. |
+
+Scopes are independent: none implies another. Pravara MES lets a write scope
+read back its own resource family; that is its rule, not Janua's.
+
+**Organization-bound or platform-admin.** Pravara MES and the instance side of
+asset-shells take the tenant from the token's `tenant_id`, which Janua sets only
+on a client bound to an organization (`tenant_id` = the organization id). A
+client carries one organization, so these edges get **one client per
+organization**, named `<template>.<organization slug>`:
+
+| Edge | Binding | Why |
+|---|---|---|
+| `pravara-yantra4d-step-reader` | platform-admin | Yantra4D renders carry no tenant. Gets `yantra4d_tier: "madfam"` from its `yantra4d:` scope. |
+| `yantra4d-asset-shells-publisher` | platform-admin | Type shells are tenant-less. |
+| `fashion-cabinet-asset-shells-publisher` | platform-admin | Type shells are tenant-less. |
+| `pravara-asset-shells-publisher.<org-slug>` | organization-bound | Instance shells and passports belong to one tenant. |
+| `forj-pravara-intake.<org-slug>` | organization-bound | Pravara needs `tenant_id` to file the order. |
+| `cotiza-pravara-intake.<org-slug>` | organization-bound | Pravara needs `tenant_id` to file the job. |
+
+Organization-bound clients also receive the organization's `product_tiers`.
+
+Provisioning (operator, platform admin):
+
+```bash
+cd apps/api
+# platform-admin clients (idempotent; a secret prints once per NEW client)
+python scripts/seed_service_clients.py
+# one organization-bound client per (edge, organization)
+python scripts/seed_service_clients.py --org-bound forj-pravara-intake --organization <org-slug>
+```
+
+The organization is looked up by slug and must exist. Re-running converges
+non-secret fields; a client whose stored organization differs from the
+requested one is never re-bound (the run stops instead).
 
 ## How Zavlo / RouteCraft obtain tokens
 

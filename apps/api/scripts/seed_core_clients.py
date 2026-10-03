@@ -325,10 +325,27 @@ async def _seed_clients(
             # Idempotency check — match by name or pre-assigned client_id
             pre_assigned_id = client_def.get("client_id")
             existing = await conn.execute(
-                text("SELECT id FROM oauth_clients " "WHERE name = :name OR client_id = :cid"),
+                text(
+                    "SELECT id, organization_id FROM oauth_clients "
+                    "WHERE name = :name OR client_id = :cid"
+                ),
                 {"name": name, "cid": pre_assigned_id or ""},
             )
             existing_row = existing.fetchone()
+            # A definition that states ``organization_id`` (a UUID, or None for
+            # a platform-admin client) pins the binding: an existing row bound
+            # differently is never re-bound, the run stops instead.
+            binds_organization = "organization_id" in client_def
+            organization_id = client_def.get("organization_id")
+            if (
+                existing_row is not None
+                and binds_organization
+                and str(existing_row[1] or "") != str(organization_id or "")
+            ):
+                raise SystemExit(
+                    f"Client {name!r} exists with a different organization binding; "
+                    "refusing to re-bind it. Register a new client name instead."
+                )
             if existing_row is not None:
                 await conn.execute(
                     text(
@@ -381,6 +398,7 @@ async def _seed_clients(
                         allowed_scopes,
                         grant_types,
                         audience,
+                        organization_id,
                         is_active,
                         is_confidential,
                         created_at,
@@ -397,6 +415,7 @@ async def _seed_clients(
                         CAST(:allowed_scopes AS jsonb),
                         CAST(:grant_types AS jsonb),
                         :audience,
+                        :organization_id,
                         true,
                         :is_confidential,
                         :now,
@@ -416,6 +435,7 @@ async def _seed_clients(
                     "allowed_scopes": _json_dumps(client_def["allowed_scopes"]),
                     "grant_types": _json_dumps(client_def.get("grant_types", DEFAULT_GRANT_TYPES)),
                     "audience": client_def.get("audience"),
+                    "organization_id": str(organization_id) if organization_id else None,
                     "is_confidential": client_def.get("is_confidential", True),
                     "now": now,
                 },
