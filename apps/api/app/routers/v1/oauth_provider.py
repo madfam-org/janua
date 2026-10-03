@@ -839,6 +839,73 @@ def _parse_requested_scopes(scope: Optional[str], client: OAuthClient) -> str:
     return " ".join(sorted(requested))
 
 
+#: Standard OIDC identity scopes an END-USER grant may always carry, whatever
+#: the client's stored ``allowed_scopes``. They confer nothing beyond the
+#: person's own identity — the ID token already carries ``email``/``name`` and a
+#: refresh token is issued without ``offline_access`` — so honouring them keeps
+#: every existing sign-in working even for a client whose stored list omits
+#: one (``offline_access`` is not in ``DEFAULT_CLIENT_SCOPES``). Not used by the
+#: client_credentials grant.
+USER_GRANT_IDENTITY_SCOPES = frozenset({"openid", "profile", "email", "offline_access"})
+
+
+def _narrow_to_allowed_scopes(scope: Optional[str], client: OAuthClient) -> tuple[str, list[str]]:
+    """Narrow an END-USER grant's scope to what ``client`` may hold.
+
+    The authorization-code and refresh grants carry a scope a person approved
+    for a client. That scope may never contain anything outside the client's
+    ``allowed_scopes`` (``_client_allowed_scopes``, the client_credentials
+    allowlist) plus ``USER_GRANT_IDENTITY_SCOPES``. RFC 6749 §3.3 lets the authorization server
+    "fully or partially ignore the scope requested"; the token response's
+    ``scope`` field then tells the client what was actually granted.
+
+    Returns ``(granted, dropped)``:
+
+    * ``granted`` is the input UNCHANGED (byte for byte) when every requested
+      scope is allowed — so a client that only asks for what it is registered
+      for sees exactly the token it saw before. Otherwise it is the allowed
+      subset, space-joined in request order with duplicates removed. An empty
+      request stays empty (nothing to narrow, nothing to widen).
+    * ``dropped`` lists the refused scopes (sorted, de-duplicated) for logging.
+
+    Callers decide what an empty result means for their grant (see
+    ``_require_grantable_scope``). The client_credentials grant keeps using
+    ``_parse_requested_scopes``, which rejects instead of narrowing.
+    """
+    requested = (scope or "").split()
+    allowed = _client_allowed_scopes(client) | USER_GRANT_IDENTITY_SCOPES
+    dropped = sorted({s for s in requested if s not in allowed})
+    if not dropped:
+        return scope or "", []
+    kept: list[str] = []
+    for s in requested:
+        if s in allowed and s not in kept:
+            kept.append(s)
+    return " ".join(kept), dropped
+
+
+def _require_grantable_scope(scope: Optional[str], client: OAuthClient, *, grant: str) -> str:
+    """``_narrow_to_allowed_scopes`` plus the one case narrowing cannot answer.
+
+    A NON-EMPTY request of which nothing is allowed has no partial grant to
+    fall back to, so it is refused with ``invalid_scope`` (``ValueError``; the
+    caller maps it to a redirect or a 400 as its endpoint requires). Dropped
+    scopes are logged, never silently discarded.
+    """
+    granted, dropped = _narrow_to_allowed_scopes(scope, client)
+    if dropped:
+        logger.warning(
+            "oauth.scope_not_allowed_for_client",
+            grant=grant,
+            client_id=client.client_id,
+            dropped_scopes=dropped,
+            granted_scope=granted,
+        )
+    if (scope or "").split() and not granted:
+        raise ValueError(f"invalid_scope: {', '.join(dropped)}")
+    return granted
+
+
 # The scope a relying party requests to receive a PostgREST-shaped token — the
 # BaaS/data-API seam (enclii managed-Postgres addons). Opt-in per client: it only
 # takes effect when the client has it in `allowed_scopes` AND requests it, so
@@ -1358,6 +1425,23 @@ async def authorize_get(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="invalid_request: PKCE (code_challenge) is required for public clients",
+        )
+
+    # SECURITY: the requested scope is narrowed to the client's `allowed_scopes`
+    # BEFORE it is stored anywhere (pre-login request, consent request, code),
+    # matching the client_credentials grant's allowlist. Unlisted scopes are
+    # dropped (RFC 6749 §3.3); a request of which nothing is allowed is refused
+    # with `invalid_scope`. redirect_uri is validated above, so redirecting the
+    # error is safe.
+    try:
+        scope = _require_grantable_scope(scope, client, grant="authorization_code")
+    except ValueError as exc:
+        return _redirect_with_oauth_error(
+            redirect_uri,
+            error="invalid_scope",
+            error_description=str(exc),
+            state=state,
+            client_validated=True,
         )
 
     # SECURITY: silent-auth (prompt=none) is restricted to pre-registered
@@ -1962,6 +2046,18 @@ async def authorize_post(
             detail="invalid_request: PKCE (code_challenge) is required for public clients",
         )
 
+    # SECURITY: same scope narrowing as GET /authorize — see there.
+    try:
+        scope = _require_grantable_scope(scope, client, grant="authorization_code")
+    except ValueError as exc:
+        return _redirect_with_oauth_error(
+            redirect_uri,
+            error="invalid_scope",
+            error_description=str(exc),
+            state=state,
+            client_validated=True,
+        )
+
     # SECURITY: Require email verification for OAuth authorization
     if settings.REQUIRE_EMAIL_VERIFICATION and not getattr(current_user, "email_verified", False):
         # Check grace period for new accounts
@@ -2338,8 +2434,15 @@ async def _handle_authorization_code_grant(
     # Resolve per-client audience (falls back to global JWT_AUDIENCE)
     client_audience = client.audience or settings.JWT_AUDIENCE
 
-    # Generate tokens with enriched claims
-    scope = code_data["scope"]
+    # Generate tokens with enriched claims.
+    # SECURITY (defence in depth): re-narrow the code's scope to the client's
+    # CURRENT `allowed_scopes`. /authorize already narrowed it, but the grant may
+    # have shrunk in the (up to AUTH_CODE_TTL) window since, and a code minted
+    # before this check existed carries whatever was requested.
+    try:
+        scope = _require_grantable_scope(code_data.get("scope"), client, grant="authorization_code")
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     access_token, _, _ = jwt_manager.create_access_token(
         user_id=str(user.id),
         email=user.email,
@@ -2371,11 +2474,15 @@ async def _handle_authorization_code_grant(
         },
     )
 
+    # The refresh token carries the GRANTED (already narrowed) scope, so a
+    # refresh re-issues what the person approved instead of falling back to
+    # `openid`. The refresh grant re-narrows it to the client's allowed_scopes.
     refresh_token, _, _, _ = jwt_manager.create_refresh_token(
         user_id=str(user.id),
         additional_claims={
             "client_id": client.client_id,
             "aud": client_audience,
+            "scope": scope,
         },
     )
 
@@ -2478,8 +2585,20 @@ async def _handle_refresh_token_grant(
     # Resolve per-client audience (falls back to global JWT_AUDIENCE)
     client_audience = client.audience or settings.JWT_AUDIENCE
 
-    # Generate new access token with enriched claims
-    scope = payload.get("scope", "openid")
+    # Generate new access token with enriched claims.
+    # A refresh can never WIDEN the grant: the scope comes only from the signed
+    # refresh token (the `scope` form parameter is not read for this grant), and
+    # it is re-narrowed to the client's CURRENT `allowed_scopes`, so a scope
+    # removed from the client stops being re-issued at the next refresh.
+    # Refresh tokens minted at code exchange carry the granted scope. One that
+    # carries none was minted before that existed: it falls back to `openid`,
+    # which the rotated token then carries, until the person signs in again.
+    try:
+        scope = _require_grantable_scope(
+            payload.get("scope", "openid"), client, grant="refresh_token"
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     access_token, _, _ = jwt_manager.create_access_token(
         user_id=str(user.id),
         email=user.email,
@@ -2507,7 +2626,9 @@ async def _handle_refresh_token_grant(
             **service_principal_claims(user),
             # PostgREST/data-API shaping — ONLY when the client opted into the
             # `data-api` scope; a no-op otherwise (see _data_api_claims). Carried
-            # across refresh because the original scope rides the refresh token.
+            # across refresh because the granted scope rides the refresh token
+            # (set at code exchange, carried forward by rotation below) and is
+            # re-narrowed above, so it survives only for an opted-in client.
             **_data_api_claims(scope, client, org_claims),
         },
     )
