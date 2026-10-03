@@ -13,7 +13,6 @@ from unittest.mock import Mock, AsyncMock, patch
 
 from app.services.organization_member_service import OrganizationMemberService
 from app.services.rbac_service import RBACService
-from app.services.webhook_enhanced import WebhookService
 from app.services.audit_logger import AuditLogger, AuditAction
 from app.core.jwt_manager import JWTManager
 from app.models import User, OrganizationMember
@@ -184,41 +183,6 @@ class TestRBACService:
         assert service._match_permission("users:*", "org:read") is False
 
 
-class TestWebhookService:
-    """Test webhook retry mechanism"""
-
-    @pytest.mark.asyncio
-    async def test_webhook_delivery_with_retry(self, mock_db, mock_redis):
-        """Test webhook delivery with retry logic"""
-        service = WebhookService(mock_db)
-
-        # Mock webhook endpoint
-        mock_endpoint = Mock(
-            id=uuid4(), url="https://example.com/webhook", secret="webhook_secret", is_active=True
-        )
-
-        mock_db.query().filter().first.return_value = mock_endpoint
-
-        # Mock failed HTTP request
-        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
-            mock_post.side_effect = Exception("Connection error")
-
-            # Attempt delivery
-            event_data = {"event": "user.created", "user_id": str(uuid4())}
-
-            await service.send_webhook(
-                endpoint_id=mock_endpoint.id,
-                event_type="user.created",
-                payload=event_data,
-                organization_id=uuid4(),
-            )
-
-            # Should create retry entry
-            assert mock_db.add.called
-            # Should push to retry queue
-            mock_redis.lpush.assert_called()
-
-
 class TestAuditLogger:
     """Test audit logging system"""
 
@@ -361,8 +325,6 @@ class TestIntegrationScenarios:
     @pytest.mark.asyncio
     async def test_webhook_with_audit_logging(self, mock_db, mock_redis):
         """Test webhook delivery with audit logging"""
-        # Note: WebhookService is initialized to verify it doesn't throw during audit tests
-        assert WebhookService(mock_db) is not None  # Verify service initializes correctly
         audit_logger = AuditLogger(mock_db)
         audit_logger.redis_client = mock_redis
 

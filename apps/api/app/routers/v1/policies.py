@@ -127,6 +127,8 @@ async def create_policy(
         resource_id=str(policy.id),
         details={"policy_name": policy.name},
     )
+    # The logger flushes into this session; commit so the audit row persists.
+    await db.commit()
 
     return PolicyResponse.from_orm(policy)
 
@@ -262,6 +264,8 @@ async def create_role(
         resource_id=str(role.id),
         details={"role_name": role.name},
     )
+    # The logger flushes into this session; commit so the audit row persists.
+    await db.commit()
 
     return RoleResponse.from_orm(role)
 
@@ -367,6 +371,8 @@ async def assign_role_to_user(
         resource_id=str(user_role.id),
         details={"role_name": role.name, "assigned_to": user_id},
     )
+    # The logger flushes into this session; commit so the audit row persists.
+    await db.commit()
 
     return {"message": "Role assigned successfully"}
 
@@ -412,6 +418,8 @@ async def unassign_role_from_user(
         resource_id=user_role_id,
         details={"role_id": role_id, "unassigned_from": user_id},
     )
+    # The logger flushes into this session; commit so the audit row persists.
+    await db.commit()
 
     return {"message": "Role unassigned successfully"}
 
@@ -501,6 +509,8 @@ async def update_policy(
         resource_id=str(policy.id),
         details={"updated_fields": list(update_data.keys())},
     )
+    # The logger flushes into this session; commit so the audit row persists.
+    await db.commit()
 
     return PolicyResponse.from_orm(policy)
 
@@ -544,5 +554,7 @@ async def delete_policy(
         resource_id=str(policy_id),
         details={"policy_name": policy_name},
     )
+    # The logger flushes into this session; commit so the audit row persists.
+    await db.commit()
 
     return None
