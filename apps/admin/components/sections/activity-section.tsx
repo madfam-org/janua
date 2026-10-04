@@ -42,7 +42,7 @@ const TIME_RANGES = [
   { label: 'Last 6 hours', value: 360 },
   { label: 'Last 24 hours', value: 1440 },
   { label: 'Last 7 days', value: 10080 },
-  { label: 'All time', value: 0 },
+  { label: 'Any time in sample', value: 0 },
 ] as const
 
 const ACTION_ICON_MAP: Record<string, React.ElementType> = {
@@ -106,7 +106,7 @@ interface ActivityStats {
   total: number
   successCount: number
   failureCount: number
-  successRate: number
+  successRate: number | null
   byType: Record<string, number>
 }
 
@@ -128,7 +128,7 @@ function computeStats(logs: ActivityLog[]): ActivityStats {
   }
 
   const authTotal = successCount + failureCount
-  const successRate = authTotal > 0 ? (successCount / authTotal) * 100 : 100
+  const successRate = authTotal > 0 ? (successCount / authTotal) * 100 : null
 
   return { total, successCount, failureCount, successRate, byType }
 }
@@ -149,8 +149,8 @@ export function ActivitySection() {
       setLogs(data)
       setError(null)
       setLastRefresh(new Date())
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch activity logs')
+    } catch {
+      setError('Activity logs could not be refreshed.')
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -197,7 +197,7 @@ export function ActivitySection() {
     return (
       <div className="space-y-6">
         <h2 className="text-foreground text-2xl font-bold">Activity Logs</h2>
-        <div className="bg-destructive/10 border-destructive/20 rounded-lg border p-6 text-center">
+        <div role="alert" className="bg-destructive/10 border-destructive/20 rounded-lg border p-6 text-center">
           <p className="text-destructive">{error}</p>
           <button
             onClick={() => fetchLogs(true)}
@@ -223,7 +223,7 @@ export function ActivitySection() {
           {lastRefresh && (
             <span className="text-muted-foreground flex items-center gap-1 text-xs">
               <Clock className="size-3" />
-              {lastRefresh.toLocaleTimeString()}
+              Last successful refresh: {lastRefresh.toLocaleTimeString()}
             </span>
           )}
           <button
@@ -237,12 +237,22 @@ export function ActivitySection() {
         </div>
       </div>
 
+      {error && (
+        <p role="alert" className="text-destructive">
+          {error} Showing the previously loaded sample; it may be outdated. Use Refresh activity logs to retry.
+        </p>
+      )}
+      <p className="text-muted-foreground text-sm">
+        Counts and rates describe the filtered latest 50-event sample, not complete period totals.
+        Time filters apply only to this sample.
+      </p>
+
       {/* Stats cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="bg-card border-border rounded-lg border p-4">
           <div className="flex items-center gap-2">
             <Activity className="text-muted-foreground size-4" />
-            <span className="text-muted-foreground text-xs">Total Events</span>
+            <span className="text-muted-foreground text-xs">Events in Sample</span>
           </div>
           <p className="text-foreground mt-1 text-2xl font-semibold">{stats.total}</p>
         </div>
@@ -263,13 +273,17 @@ export function ActivitySection() {
         <div className="bg-card border-border rounded-lg border p-4">
           <div className="flex items-center gap-2">
             <ShieldCheck className="size-4 text-blue-500" />
-            <span className="text-muted-foreground text-xs">Success Rate</span>
+            <span className="text-muted-foreground text-xs">Auth Success Rate (sample)</span>
           </div>
           <p className="text-foreground mt-1 text-2xl font-semibold">
-            {stats.successRate.toFixed(1)}%
+            {stats.successRate === null ? 'Unavailable' : `${stats.successRate.toFixed(1)}%`}
           </p>
         </div>
       </div>
+
+      {stats.successRate === null && (
+        <p className="text-muted-foreground text-xs">No authentication events in the filtered sample.</p>
+      )}
 
       {/* Activity by Type breakdown */}
       {topActionTypes.length > 0 && (
@@ -345,7 +359,7 @@ export function ActivitySection() {
           </select>
         </div>
         <span className="text-muted-foreground text-xs">
-          Showing {filteredLogs.length} of {logs.length} events
+          Showing {filteredLogs.length} of {logs.length} sampled events
         </span>
       </div>
 
