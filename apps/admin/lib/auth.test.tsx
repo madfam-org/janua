@@ -9,6 +9,7 @@ jest.mock('./janua-client', () => {
     off: jest.fn((event: string, cb: () => void) => { listeners[event] = (listeners[event] || []).filter(fn => fn !== cb) }),
     getAccessToken: jest.fn(),
     getRefreshToken: jest.fn(),
+    adoptAccessToken: jest.fn(),
     auth: { signIn: jest.fn(), signOut: jest.fn(), refreshToken: jest.fn() },
     __listeners: listeners,
     __emit: (event: string) => { (listeners[event] || []).forEach(fn => fn()) },
@@ -45,6 +46,7 @@ beforeEach(() => {
   for (const key of Object.keys(client.__listeners)) delete client.__listeners[key]
   client.getAccessToken.mockResolvedValue(null)
   client.getRefreshToken.mockResolvedValue(null)
+  client.adoptAccessToken.mockImplementation(async (token: string) => { localStorage.setItem('janua_access_token', token) })
   localStorage.clear()
   document.cookie = 'janua_access_token=; path=/; max-age=0'
   global.fetch = mockFetch
@@ -200,4 +202,25 @@ it('allows a normal login action to reuse its successful event bridge', async ()
   await act(async () => { await authActions.login('operator@example.test', 'fixture-password') })
   expect(screen.getByTestId('authenticated')).toHaveTextContent('true')
   expect(mockFetch.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1)
+})
+
+
+it('adopts verified SSO through the SDK after a previous SDK logout', async () => {
+  const { JanuaClient } = jest.requireActual('@janua/typescript-sdk')
+  const { LocalTokenStorage, TokenManager } = jest.requireActual('../../../packages/typescript-sdk/src/utils/token-utils')
+  const manager = new TokenManager(new LocalTokenStorage())
+  await manager.clearTokens()
+  expect(localStorage.getItem('janua_session_state')).toBe('blocked')
+  const sdk = new JanuaClient({ baseURL: 'https://api.example.test', tokenStorage: 'localStorage', autoRefreshTokens: false })
+  const payload = Buffer.from(JSON.stringify({ sub: 'fixture-subject', exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')
+  const token = `e30.${payload}.fixture`
+  document.cookie = `janua_access_token=${token}; path=/`
+  client.getAccessToken.mockImplementation(() => sdk.getAccessToken())
+  client.adoptAccessToken.mockImplementation((value: string) => sdk.adoptAccessToken(value))
+  await renderProvider()
+  expect(screen.getByTestId('authenticated')).toHaveTextContent('true')
+  expect(client.adoptAccessToken).toHaveBeenCalledWith(token)
+  expect(await sdk.getAccessToken()).toBe(token)
+  expect(await sdk.getRefreshToken()).toBeNull()
+  expect(localStorage.getItem('janua_session_state')).toBe('valid')
 })
