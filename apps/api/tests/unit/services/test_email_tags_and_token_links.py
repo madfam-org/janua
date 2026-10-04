@@ -398,7 +398,9 @@ async def test_platform_token_mail_on_tracked_madfam_is_text_only(http_sends, tr
     tracked("madfam.io")
     await send(EmailService())
     payload = http_sends[0]
-    assert "hola@madfam.io" in payload["from"]
+    # Token mail is a system event: since R101 (2026-10-04) the platform
+    # sends it from noreply@madfam.io, still on the tracked madfam.io domain.
+    assert "noreply@madfam.io" in payload["from"]
     assert "html" not in payload
     assert payload["text"]
 

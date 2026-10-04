@@ -229,9 +229,11 @@ class TestSenderUnderTheVerifiedDomainGate:
         # degrades the From line, it never blocks a sign-in link.
         assert sent is True
         # Neither the name nor the address is CTM's: the credential gate
-        # returns the platform binding whole.
-        assert captured["from"] == formataddr(("MADFAM", "hola@madfam.io"))
+        # returns the platform sender whole. A magic link is a system event,
+        # so since R101 (2026-10-04) that is the no-reply platform sender.
+        assert captured["from"] == formataddr(("MADFAM", "noreply@madfam.io"))
         assert captured["from"] != formataddr(("Crea Tu Mundo", "hola@madfam.io"))
+        assert captured["from"] != formataddr(("Crea Tu Mundo", "noreply@madfam.io"))
         # ...and it leaves on MADFAM's account, which is the account that
         # verified `madfam.io`. Envelope and account agree.
         assert captured["auth"] == "Bearer re_test_key"
@@ -312,7 +314,10 @@ class TestSenderUnderTheVerifiedDomainGate:
             await service.send_magic_link_email(
                 "ana@creatumundo.mx", "tok123", redirect_url=CTM_REDIRECT, locale="es"
             )
-        assert captured["from"] == formataddr(("MADFAM", "hola@madfam.io"))
+        # The platform sender whole; since R101 a sign-in link's is the
+        # no-reply address, with a Reply-To that reaches a person.
+        assert captured["from"] == formataddr(("MADFAM", "noreply@madfam.io"))
+        assert captured["reply_to"] == "support@madfam.io"
         # The brand is in the BODY, which is what was never gated.
         assert "Crea Tu Mundo" in captured["html"]
         assert "Con tecnología de" in captured["html"]

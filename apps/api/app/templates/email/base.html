@@ -166,7 +166,14 @@
                 files). The tags sit at line ends on purpose: this environment
                 has no trim_blocks, so a tag on its own line would add a blank
                 line to every MADFAM email.
-            #}{% if (frame_owner | default('madfam', true)) == 'madfam' %}
+
+                Automated mail (ruling R101, 2026-10-04: sign-in links, codes,
+                resets, alerts) opens the small print with one line saying a
+                reply still reaches a person; `automated_notice` is set by the
+                mailers from the message class. Conversation mail (welcome)
+                never sets it and keeps its frame byte-for-byte.
+            #}{% if (frame_owner | default('madfam', true)) == 'madfam' %}{% if automated_notice | default(false, true) %}
+                <p style="margin: 0 0 10px 0;">{{ t('automated_notice') }}</p>{% endif %}
                 <p style="margin: 0 0 10px 0;">
                     © {{ current_year }} Innovaciones MADFAM S.A.S. de C.V. {{ t('rights') }}
                 </p>{% endif %}

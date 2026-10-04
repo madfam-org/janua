@@ -29,6 +29,7 @@ from app.services.email_i18n import (
     FALLBACK_LOCALE,
     FORMALITY_TU,
     FORMALITY_USTED,
+    append_automated_notice,
     build_email_environment,
     now_for_timezone,
     resolve_formality,
@@ -38,7 +39,14 @@ from app.services.email_i18n import (
     subject_for,
     template_candidates,
 )
-from app.services.email_sender import binding_for, sender_for
+from app.services.email_sender import (
+    binding_for,
+    is_automated,
+    is_platform_address,
+    message_class_for_template,
+    sender_for,
+    stream_for,
+)
 from app.services.email_tags import build_tags
 from app.services.email_tracking import untracked_bodies
 from app.services.sender_credentials import SenderCredentialError, resolve_credential
@@ -435,9 +443,23 @@ class EmailService:
                 # `t()` reads this off the context, which is why base.html and
                 # every es/ template pick up the register without naming it.
                 "formality": resolved_formality,
+                # R101 (2026-10-04): automated mail says a reply still reaches
+                # a person. Decided by the template's message class; a caller's
+                # own `automated_notice` in `data` wins.
+                "automated_notice": is_automated(message_class_for_template(template_name)),
                 **data,
             }
-            return template.render(**context)
+            rendered = template.render(**context)
+            # The HTML frame carries the line in base.html's footer; the
+            # plain-text bodies have no shared frame, so it is appended here.
+            # MADFAM's frame only: a tenant's frame keeps its small print as is.
+            if (
+                template_name.endswith(".txt")
+                and context.get("automated_notice")
+                and (context.get("frame_owner") or "madfam") == "madfam"
+            ):
+                rendered = append_automated_notice(rendered, body_locale, resolved_formality)
+            return rendered
         except Exception as e:
             logger.error(
                 "Template rendering failed",
@@ -712,6 +734,7 @@ class EmailService:
         redirect_url: str | None = None,
         template: str | None = None,
         token_link: bool = False,
+        message_class: str | None = None,
     ) -> bool:
         """Send through Resend's HTTPS API.
 
@@ -721,8 +744,12 @@ class EmailService:
         from the pod, 2026-08-13). EMAIL_PROVIDER has said "resend" and
         RESEND_API_KEY has been present the whole time — only the transport
         disagreed. Nothing this service ever sent left the cluster.
+
+        `message_class` (R101) picks the platform sender: a sign-in link that
+        is not a tenant's branded mail leaves as `MADFAM <noreply@madfam.io>`
+        with `Reply-To: support@madfam.io`; welcome mail keeps `hola@`.
         """
-        name, address, reply_to = sender_for(redirect_url=redirect_url)
+        name, address, reply_to = sender_for(redirect_url=redirect_url, message_class=message_class)
 
         # WHICH ACCOUNT CARRIES IT. `sender_for` has already decided the From
         # line, and since 2026-09-07 that decision includes whether the
@@ -757,22 +784,30 @@ class EmailService:
                 # MADFAM's address (#607). Resolved with NO tenant signal,
                 # which is the module's own definition of "the platform
                 # sender", rather than reaching for a private helper.
-                name, address, reply_to = sender_for()
+                name, address, reply_to = sender_for(message_class=message_class)
 
+        stream = stream_for(message_class)
         payload: Dict[str, Any] = {
             "from": formataddr((name, address)),
             "to": [to_email],
             "subject": subject,
             # Janua's own auth mail: source_app "janua", plus the tenant's
             # org_id when the destination names one, so webhook events for it
-            # are attributable (app/services/email_tags.py).
+            # are attributable (app/services/email_tags.py). `stream` (R101)
+            # keeps transactional and conversational reputation separable.
             "tags": build_tags(
                 source_app="janua",
                 source_type="auth",
                 org_id=binding.org_id,
                 template=template,
+                extra={"stream": stream} if stream else None,
             ),
         }
+        # RFC 3834: automated mail from MADFAM's own sender says so, which
+        # keeps out-of-office robots from answering a sign-in link. A tenant's
+        # branded mail is left exactly as it was (R101 leaves tier 1 alone).
+        if is_automated(message_class) and is_platform_address(address):
+            payload["headers"] = {"Auto-Submitted": "auto-generated"}
         # A sign-in/reset/verify/invite link must never be rewritten by
         # Resend's click tracking: on a tracked From domain the message goes
         # out text-only (app/services/email_tracking.py).
@@ -820,6 +855,7 @@ class EmailService:
         redirect_url: str | None = None,
         template: str | None = None,
         token_link: bool = False,
+        message_class: str | None = None,
     ) -> bool:
         """Send an email via the configured provider.
 
@@ -828,7 +864,11 @@ class EmailService:
         tenant they are addressing — the magic link knows, because it already
         carries where it is sending the person back TO — pass it and get the
         client's own name on the From line.
+
+        `message_class` (R101) defaults to the class of `template`, so every
+        mailer here is classified by the template it already names.
         """
+        message_class = message_class or message_class_for_template(template)
 
         try:
             if settings.EMAIL_PROVIDER == "resend" and settings.RESEND_API_KEY:
@@ -840,6 +880,7 @@ class EmailService:
                     redirect_url,
                     template=template,
                     token_link=token_link,
+                    message_class=message_class,
                 )
 
             # Check if email configuration is available
@@ -857,11 +898,15 @@ class EmailService:
             # Create message
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
-            smtp_name, smtp_address, smtp_reply_to = sender_for(redirect_url=redirect_url)
+            smtp_name, smtp_address, smtp_reply_to = sender_for(
+                redirect_url=redirect_url, message_class=message_class
+            )
             msg["From"] = formataddr((smtp_name, smtp_address))
             msg["To"] = to_email
             if smtp_reply_to and smtp_reply_to != smtp_address:
                 msg["Reply-To"] = smtp_reply_to
+            if is_automated(message_class) and is_platform_address(smtp_address):
+                msg["Auto-Submitted"] = "auto-generated"
             # smtp.resend.com applies the same per-domain tracking as the API.
             smtp_html, smtp_text, _ = untracked_bodies(
                 smtp_address, html_content, text_content, token_link=token_link

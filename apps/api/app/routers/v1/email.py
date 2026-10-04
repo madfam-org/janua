@@ -18,6 +18,7 @@ from app.config import settings
 from app.dependencies import verify_internal_api_key
 from app.routers.v1.email_cfdi import cfdi_portal_slots
 from app.services.email_branding import CTM_BRANDING
+from app.services.email_sender import message_class_for_internal_send
 from app.services.email_tags import build_tags
 from app.services.email_usage import QUOTA_ERROR_TYPES
 from app.services.resend_email_service import ResendEmailService as ResendService
@@ -465,6 +466,9 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
                 attachments=resend_attachments,
                 token_link=request.contains_token_link,
                 track_engagement=request.track_engagement,
+                # R101: token mail leaves from the system sender with a
+                # Reply-To when no tenant's branded sender applies.
+                message_class=message_class_for_internal_send(request.contains_token_link),
             )
             results.append(result)
 
@@ -551,6 +555,7 @@ async def send_template_email(
                 org_id=request.org_id,
                 attachments=resend_attachments,
                 token_link=rendered.token_link,
+                message_class=message_class_for_internal_send(rendered.token_link),
             )
             results.append(result)
 

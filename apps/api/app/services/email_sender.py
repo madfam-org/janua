@@ -87,6 +87,28 @@ registry: they were public names with tests pinning them, and deriving rather
 than deleting means the registry stays the single source while nothing that
 imported them breaks. Resolution order and the verified-domain downgrade are
 unchanged; a tenant that passes the gate resolves exactly as it did before.
+
+2026-10-04 — THE PLATFORM SENDER SPLITS BY MESSAGE CLASS (ruling R101). One
+question decides it: should a person be able to reply?
+
+    system / security  From: MADFAM <noreply@madfam.io>
+                       Reply-To: support@madfam.io  (security@madfam.io for
+                                 security mail)
+    conversation       From: MADFAM <hola@madfam.io>  (as before)
+
+A system event is a code, a link, an alert or a receipt: nobody should be
+invited to answer it, but a reader who does must still reach a person, so the
+Reply-To names the human inbox that owns the topic and `noreply@madfam.io` is
+itself a real mailbox. Welcome and other conversation mail stays on `hola@`.
+
+Only the PLATFORM sender moves. A tenant whose branded sender passes every gate
+keeps its own From and Reply-To for every class (R101 leaves tier 1 alone), and
+every downgrade returns the platform sender FOR THE MESSAGE'S CLASS — whole, as
+THE RULE above requires; `MADFAM <noreply@madfam.io>` is still MADFAM's own
+address. A caller that names no class gets the conversation sender, which is
+exactly what every caller got before R101. Janua's own templates are classified
+in `TEMPLATE_MESSAGE_CLASS`; blank `EMAIL_SYSTEM_FROM_ADDRESS` turns the split
+off with one env edit.
 """
 
 from typing import Dict, Optional, Tuple
@@ -122,6 +144,81 @@ Sender = Tuple[str, str, str]
 DEFAULT_SENDER_NAME = PLATFORM_BINDING.display_name
 DEFAULT_SENDER_ADDRESS = PLATFORM_BINDING.from_address
 
+# --------------------------------------------------------------------------
+# Message classes (ruling R101, 2026-10-04). See the module docstring.
+# --------------------------------------------------------------------------
+MESSAGE_CLASS_SYSTEM = "system"
+MESSAGE_CLASS_SECURITY = "security"
+MESSAGE_CLASS_CONVERSATION = "conversation"
+
+#: The classes whose platform sender is the no-reply address with a Reply-To.
+AUTOMATED_MESSAGE_CLASSES = frozenset({MESSAGE_CLASS_SYSTEM, MESSAGE_CLASS_SECURITY})
+
+#: Janua's own messages, keyed by template stem, classified per R101. A
+#: template missing from here resolves to no class, i.e. the conversation
+#: sender every message had before R101 — so an unclassified template degrades
+#: to the old behaviour rather than to a guess.
+TEMPLATE_MESSAGE_CLASS: Dict[str, str] = {
+    "magic_link": MESSAGE_CLASS_SYSTEM,
+    "verification": MESSAGE_CLASS_SYSTEM,
+    "password_reset": MESSAGE_CLASS_SYSTEM,
+    "invitation": MESSAGE_CLASS_SYSTEM,
+    "data_export_ready": MESSAGE_CLASS_SYSTEM,
+    "sso_configuration": MESSAGE_CLASS_SYSTEM,
+    "sso_enabled": MESSAGE_CLASS_SYSTEM,
+    "compliance_alert": MESSAGE_CLASS_SYSTEM,
+    "mfa_recovery": MESSAGE_CLASS_SECURITY,
+    "security_alert": MESSAGE_CLASS_SECURITY,
+    "welcome": MESSAGE_CLASS_CONVERSATION,
+}
+
+
+def message_class_for_template(template: Optional[str]) -> Optional[str]:
+    """The R101 class of one of Janua's own templates, or None.
+
+    Accepts the forms the send paths carry: a bare name (`magic_link`), a file
+    name (`magic_link.html`) or a localized path (`es/magic_link.txt`).
+    """
+    if not template:
+        return None
+    stem = template.rsplit("/", 1)[-1].split(".", 1)[0]
+    return TEMPLATE_MESSAGE_CLASS.get(stem)
+
+
+def message_class_for_internal_send(token_link: bool) -> Optional[str]:
+    """The R101 class of a message other MADFAM services send through Janua.
+
+    A message carrying a sign-in, reset, verification or invitation link is a
+    system event by definition, so it gets the system sender when no tenant's
+    branded sender applies. Everything else on the internal door keeps the
+    sender it had before R101 until its product classifies it.
+    """
+    return MESSAGE_CLASS_SYSTEM if token_link else None
+
+
+def is_automated(message_class: Optional[str]) -> bool:
+    """True for system and security mail: no-reply From, Reply-To to a person."""
+    return message_class in AUTOMATED_MESSAGE_CLASSES
+
+
+def stream_for(message_class: Optional[str]) -> Optional[str]:
+    """The Resend `stream` tag value for a class, or None when unclassified.
+
+    Tagging every send by stream keeps the two reputations separable while
+    both senders share madfam.io (R101 supporting rule 3).
+    """
+    if is_automated(message_class):
+        return "transactional"
+    if message_class == MESSAGE_CLASS_CONVERSATION:
+        return "conversational"
+    return None
+
+
+def _setting_address(name: str) -> str:
+    """A sender setting as a clean string ("" when unset or not a string)."""
+    value = getattr(settings, name, "")
+    return value.strip() if isinstance(value, str) else ""
+
 
 def _as_triple(binding: SenderBinding) -> Sender:
     """The (name, address, reply-to) view of a binding."""
@@ -152,18 +249,57 @@ SENDER_HOSTS: Dict[str, Tuple[str, ...]] = {
 }
 
 
-def _default_sender() -> Sender:
-    """The PLATFORM binding: `MADFAM <hola@madfam.io>`, or whatever env says.
+def _default_sender(message_class: Optional[str] = None) -> Sender:
+    """The PLATFORM sender for one message class, or whatever env says.
 
     Since 2026-09-07 this is also what every downgrade returns — see
     `_fallback_for`. The two were separate functions producing different
     answers (this one whole, that one name-swapped), which is how
     `Crea Tu Mundo <hola@madfam.io>` reached a production inbox. They now
     return the same triple and `_fallback_for` delegates here.
+
+    R101 (2026-10-04): system and security mail comes from
+    `EMAIL_SYSTEM_FROM_ADDRESS` (`noreply@madfam.io`) with a Reply-To on
+    `EMAIL_SUPPORT_REPLY_TO` or `EMAIL_SECURITY_REPLY_TO`; conversation and
+    unclassified mail keeps `MADFAM <hola@madfam.io>`. The display name is the
+    same MADFAM name for both, because both addresses are MADFAM's own. A
+    blank system address turns the split off; a blank Reply-To falls back to
+    the conversation address, so a reply always reaches a person.
     """
     name = settings.FROM_NAME or settings.EMAIL_FROM_NAME or DEFAULT_SENDER_NAME
     address = settings.FROM_EMAIL or settings.EMAIL_FROM_ADDRESS or DEFAULT_SENDER_ADDRESS
+    if is_automated(message_class):
+        system_address = _setting_address("EMAIL_SYSTEM_FROM_ADDRESS")
+        if system_address:
+            reply_setting = (
+                "EMAIL_SECURITY_REPLY_TO"
+                if message_class == MESSAGE_CLASS_SECURITY
+                else "EMAIL_SUPPORT_REPLY_TO"
+            )
+            return name, system_address, _setting_address(reply_setting) or address
     return name, address, address
+
+
+def _platform_addresses() -> frozenset:
+    """Every address the platform sender can put on a From line, lowercased.
+
+    Used where a decision must recognise "this is MADFAM's own address" for
+    any class — `hola@` and, since R101, `noreply@` too.
+    """
+    return frozenset(
+        _default_sender(message_class)[1].strip().lower()
+        for message_class in (None, MESSAGE_CLASS_SYSTEM, MESSAGE_CLASS_SECURITY)
+    )
+
+
+def is_platform_address(address: Optional[str]) -> bool:
+    """True when `address` is one of the platform sender's own From addresses.
+
+    The R101 extras — the `Auto-Submitted` header and the automated-mail line —
+    belong to MADFAM's sender only. A tenant's branded sender keeps its mail
+    exactly as it was (R101 leaves tier 1 alone).
+    """
+    return bool(address) and address.strip().lower() in _platform_addresses()
 
 
 def domain_of(address: Optional[str]) -> str:
@@ -214,7 +350,7 @@ def _tenant_for_org_id(org_id: Optional[object]) -> Optional[str]:
     return _binding_tenant_for_org_id(org_id)
 
 
-def _fallback_for(_sender: Optional[Sender] = None) -> Sender:
+def _fallback_for(_sender: Optional[Sender] = None, message_class: Optional[str] = None) -> Sender:
     """The PLATFORM sender, verbatim — name and address together.
 
     THIS IS THE 2026-09-07 REVERSAL. Until this commit the downgrade was
@@ -251,13 +387,17 @@ def _fallback_for(_sender: Optional[Sender] = None) -> Sender:
     BODY BRANDING IS UNAFFECTED. `email_branding.py` still renders the tenant's
     header, palette, voice and clock. What is being withheld is the ENVELOPE
     claim, not the tenant's presence in the message.
+
+    R101: the platform sender returned is the one for `message_class`, so a
+    downgraded sign-in link leaves as `MADFAM <noreply@madfam.io>` with its
+    Reply-To — still MADFAM's own name over MADFAM's own address.
     """
     # No verified-domain check on the platform address itself: if MADFAM's own
     # domain is missing from RESEND_VERIFIED_DOMAINS that is an operator
     # misconfiguration, and returning it anyway means the operator sees the
     # real rejection from Resend rather than mail silently coming from a third
     # address this function invented.
-    return _default_sender()
+    return _default_sender(message_class)
 
 
 def tenant_for(
@@ -303,6 +443,7 @@ def sender_for(
     redirect_url: Optional[str] = None,
     org_id: Optional[object] = None,
     vcto_entitled: Optional[bool] = None,
+    message_class: Optional[str] = None,
 ) -> Sender:
     """The (display name, from address, reply-to) for one message.
 
@@ -344,11 +485,15 @@ def sender_for(
     No gate is bypassable from a caller: passing `vcto_entitled=True` for a
     tenant whose domain is unverified still downgrades, because the later gates
     are about whether Resend will accept the send at all.
+
+    `message_class` (R101) chooses WHICH platform sender the default and every
+    downgrade return; a tenant that passes all three gates keeps its own
+    sender whatever the class.
     """
     tenant = tenant_for(host=host, redirect_url=redirect_url, org_id=org_id)
 
     if tenant is None:
-        return _default_sender()
+        return _default_sender(message_class)
 
     binding = resolve_binding(tenant)
     sender = _as_triple(binding)
@@ -357,10 +502,10 @@ def sender_for(
         # Not a vCTO client: neither the name nor the domain ships. A branded
         # display name on the platform address is the header this whole module
         # was reversed on 2026-09-07 to stop producing.
-        return _fallback_for(sender)
+        return _fallback_for(sender, message_class)
 
     if not is_verified_domain(sender[1], binding=binding):
-        return _fallback_for(sender)
+        return _fallback_for(sender, message_class)
 
     if not tenant_credential_available(binding):
         # The binding says "send on the tenant's own account" and that
@@ -369,7 +514,7 @@ def sender_for(
         # out on MADFAM's account — where `creatumundo.mx` is NOT verified and
         # Resend rejects the call outright. Falling back here keeps the From
         # line and the account that carries it as ONE decision.
-        return _fallback_for(sender)
+        return _fallback_for(sender, message_class)
 
     return sender
 
@@ -381,6 +526,7 @@ def sender_for_address(
     redirect_url: Optional[str] = None,
     org_id: Optional[object] = None,
     vcto_entitled: Optional[bool] = None,
+    message_class: Optional[str] = None,
 ) -> Sender:
     """Honour a caller's explicit From, but only from a verified domain.
 
@@ -412,6 +558,10 @@ def sender_for_address(
     on a TENANT's domain is honoured only when that tenant passes the gate; an
     address on MADFAM's own verified domain is unaffected, because sending as
     MADFAM was never the branded privilege.
+
+    An explicit address keeps its own Reply-To whatever `message_class` says:
+    the class (R101) only chooses the platform sender the host rule falls
+    back to.
     """
     if from_email and is_verified_domain(from_email):
         claimed = _tenant_for_verified_address(from_email)
@@ -424,14 +574,16 @@ def sender_for_address(
         redirect_url=redirect_url,
         org_id=org_id,
         vcto_entitled=vcto_entitled,
+        message_class=message_class,
     )
     # `from_name` is applied only when the resolved address is one the caller
     # would have been entitled to claim outright — i.e. the tenant's own
-    # branded address survived both gates. On the platform address it is
+    # branded address survived both gates. On a platform address it is
     # dropped: see the 2026-09-07 note above. Without this check a caller could
     # pass `from_name="Crea Tu Mundo"` with no address at all and reassemble
-    # the exact header the reversal forbids.
-    if from_name and address != _default_sender()[1]:
+    # the exact header the reversal forbids. Since R101 the platform has two
+    # addresses, and the name is dropped on either.
+    if from_name and not is_platform_address(address):
         name = from_name
     return name, address, reply_to
 
