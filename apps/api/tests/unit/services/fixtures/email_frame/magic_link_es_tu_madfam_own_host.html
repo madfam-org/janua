@@ -99,38 +99,15 @@
 <body>
     <div class="container">
         <div class="email-wrapper">
-            <!-- The header wordmark and palette are the ONE part of the frame
-                 that varies per tenant (BODY branding, Phase-1 refinement — the
-                 From line stays MADFAM; see docs/EMAIL_SENDER_POLICY.md and
-                 app/services/email_branding.py). `header_*` default to the
-                 MADFAM values so every existing caller renders byte-identically;
-                 a client tenant (CTM) passes its own name and colors, and the
-                 footer below credits MADFAM via "Con tecnología de". -->
             <div class="header" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #ffffff;">
                 
                 <div class="logo">
-                    <!-- INLINE PNG, not the SVG and not a remote URL.
-                         Gmail strips <svg> entirely, and most clients block
-                         remote images by default — either way the brand mark
-                         is simply absent for a large share of readers, which
-                         is the opposite of the point. base64 renders without a
-                         fetch and without permission. 3.8 KB -> ~5 KB encoded,
-                         far under the 102 KB at which Gmail clips a message.
-                         The alt text carries the brand for the blocked case. -->
                     <img src="data:image/png;base64,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"
                          width="60" height="60" alt="MADFAM"
                          style="display:block;margin:0 auto;border:0;outline:none;text-decoration:none;" />
                 </div>
                 
                 
-                <!-- The wordmark. MADFAM by default, on every platform's own
-                     message: bespoke clients meet several of our platforms over
-                     an engagement, and a header that changes per PRODUCT reads
-                     as several vendors. A client TENANT is different — a person
-                     signing into their own workspace should see their own name
-                     here, with MADFAM credited in the footer. `header_name`
-                     defaults to MADFAM so nothing changes for existing callers;
-                     the From line is MADFAM regardless. -->
                 <h1 style="margin: 0; font-size: 24px; font-weight: 600;">MADFAM</h1>
                 <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Tecnología, diseñada para tu operación</p>
             </div>
@@ -141,33 +118,12 @@
                 <p style="margin: 0 0 10px 0;">
                     © 2026 Innovaciones MADFAM S.A.S. de C.V. Todos los derechos reservados.
                 </p>
-                <!-- "Powered by" credits the platform without competing with the
-                     MADFAM brand above. `platform_name`/`platform_url` default
-                     to Janua so every existing caller renders correctly; a
-                     platform that passes its own gets its own. For a client
-                     tenant, `footer_logo_url` sets the MADFAM mark that sits
-                     beside the credit — the same 28px mark the kalya booking
-                     emails use; its `alt` carries the name for images-off. The
-                     MADFAM default leaves it empty (the header already carries
-                     the MADFAM brand, so a footer mark would be redundant). -->
                 <p style="margin: 0 0 10px 0; font-size: 12px; opacity: 0.75;">
                     
                     Con tecnología de
                     <a href="https://janua.dev">Janua</a>
                 </p>
                 <p style="margin: 0 0 10px 0;">
-                    <!-- These three 404'd on janua.dev. They are not decoration:
-                         an "Aviso de privacidad" link that goes nowhere ASSERTS a
-                         notice exists, which under LFPDPPP is worse than omitting
-                         it — especially where the processing involves sensitive
-                         health data. The real pages live on madfam.io and are
-                         LOCALE-PREFIXED, so the path is built from the recipient's
-                         language rather than hardcoded. `/es/privacidad` does NOT
-                         exist; the Spanish route is /es/privacy. Verified 2026-08-14:
-                         /en/privacy /en/terms /en/cookies /es/privacy /es/terms all 200.
-                         Support is dropped: janua.dev/support 404s and we have no
-                         support site — hola@ is where a client should write, and it
-                         is now the sender they can simply reply to. -->
                     <a href="https://madfam.io/es/privacy">Aviso de privacidad</a> •
                     <a href="https://madfam.io/es/terms">Términos del servicio</a> •
                     <a href="mailto:hola@madfam.io">Soporte</a>
