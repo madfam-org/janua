@@ -1,76 +1,59 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { adminAPI } from '@/lib/admin-api'
+import { z } from 'zod'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 
-// Types
-interface Alert {
-  alert_id: string
-  rule_id: string
-  severity: 'critical' | 'high' | 'medium' | 'low'
-  status: string
-  title: string
-  description: string
-  metric_value: number
-  threshold_value: number
-  triggered_at: string
-  acknowledged_at: string | null
-  acknowledged_by: string | null
-  context: Record<string, unknown>
-  notifications_sent: number
+// Validate displayed fields before accepting an API response as current state.
+const dateString = z.string().refine((value) => Number.isFinite(Date.parse(value)))
+const severity = z.enum(['critical', 'high', 'medium', 'low'])
+const alertSchema = z.object({
+  alert_id: z.string().min(1), title: z.string(), description: z.string(), severity,
+  triggered_at: dateString, acknowledged_at: dateString.nullable(),
+})
+const ruleSchema = z.object({
+  rule_id: z.string().min(1), name: z.string(), description: z.string(), severity,
+  metric_name: z.string(), comparison_operator: z.string(), threshold_value: z.number().finite(),
+  enabled: z.boolean(),
+})
+const channelSchema = z.object({
+  channel_id: z.string().min(1), channel_type: z.string().min(1), name: z.string(), enabled: z.boolean(),
+})
+const apiKeySchema = z.object({
+  id: z.string().min(1), name: z.string(), key_prefix: z.string(), scopes: z.array(z.string()),
+  created_at: dateString, last_used: dateString.nullable(), is_active: z.boolean(),
+})
+const apiKeyPageSchema = z.object({
+  items: z.array(apiKeySchema), total: z.number().int().nonnegative(),
+  page: z.number().int().positive(), per_page: z.number().int().positive(),
+}).refine((data) => data.total >= data.items.length)
+const brandingSchema = z.object({
+  id: z.string().min(1), company_name: z.string().nullable(), branding_level: z.string(),
+  is_enabled: z.boolean(), primary_color: z.string(), secondary_color: z.string(),
+  accent_color: z.string(), updated_at: dateString,
+})
+type Alert = z.infer<typeof alertSchema>
+type AlertRule = z.infer<typeof ruleSchema>
+type NotificationChannel = z.infer<typeof channelSchema>
+type ApiKey = z.infer<typeof apiKeySchema>
+type BrandingConfig = z.infer<typeof brandingSchema>
+
+async function fetchSettings<T>(path: string, schema: z.ZodType<T>, label: string): Promise<T> {
+  const response = await fetch(`${API_URL}/api/v1/${path}`, { headers: getAuthHeaders() })
+  if (!response.ok) throw new Error(`${label} unavailable (HTTP ${response.status}).`)
+  const result = schema.safeParse(await response.json())
+  if (!result.success) throw new Error(`${label} unavailable: invalid response.`)
+  return result.data
 }
 
-interface AlertRule {
-  rule_id: string
-  name: string
-  description: string
-  severity: 'critical' | 'high' | 'medium' | 'low'
-  metric_name: string
-  threshold_value: number
-  comparison_operator: string
-  evaluation_window: number
-  trigger_count: number
-  cooldown_period: number
-  enabled: boolean
-  channels: string[]
-  conditions: Record<string, unknown>
-  metadata: Record<string, unknown>
-}
-
-interface NotificationChannel {
-  channel_id: string
-  channel_type: 'email' | 'webhook' | 'slack' | 'pagerduty'
-  name: string
-  config: Record<string, string>
-  enabled: boolean
-  rate_limit: number | null
-}
-
-interface ApiKey {
-  id: string
-  name: string
-  key_prefix: string
-  scopes: string[]
-  created_at: string
-  last_used_at: string | null
-  expires_at: string | null
-  is_active: boolean
-}
-
-interface BrandingConfig {
-  id: string
-  organization_id: string
-  branding_level: string
-  is_enabled: boolean
-  company_name: string | null
-  company_logo_url: string | null
-  primary_color: string
-  secondary_color: string
-  accent_color: string
-  created_at: string
-  updated_at: string
+function Unavailable({ message, retry }: { message: string; retry: () => void }) {
+  return (
+    <div role="alert" className="bg-destructive/10 text-destructive rounded-lg p-4">
+      <p>{message}</p>
+      <button onClick={retry} className="bg-muted mt-3 rounded px-3 py-1 text-sm">Retry</button>
+    </div>
+  )
 }
 
 // Sub-tab type
@@ -94,21 +77,6 @@ const severityColors = {
 
 // General Settings Sub-section
 function GeneralSettings() {
-  const [maintenanceMode, setMaintenanceMode] = useState(false)
-  const [saving, setSaving] = useState(false)
-
-  const handleMaintenanceToggle = async () => {
-    setSaving(true)
-    try {
-      await adminAPI.setMaintenanceMode(!maintenanceMode)
-      setMaintenanceMode(!maintenanceMode)
-    } catch {
-      alert('Failed to update maintenance mode')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div className="bg-card border-border rounded-lg border p-6">
@@ -116,18 +84,13 @@ function GeneralSettings() {
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-foreground font-medium">Maintenance Mode</h4>
-              <p className="text-muted-foreground text-sm">Temporarily disable access to the platform</p>
+              <p className="text-muted-foreground text-sm">Unavailable: maintenance status and enforcement cannot currently be verified.</p>
             </div>
             <button
-              onClick={handleMaintenanceToggle}
-              disabled={saving}
-              className={`rounded-lg px-4 py-2 ${
-                maintenanceMode
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              } disabled:opacity-50`}
+              disabled
+              className="bg-muted text-muted-foreground rounded-lg px-4 py-2 opacity-50"
             >
-              {saving ? 'Saving...' : maintenanceMode ? 'Disable' : 'Enable'}
+              Unavailable
             </button>
           </div>
         </div>
@@ -153,34 +116,17 @@ function AlertsSettings() {
       setLoading(true)
       setError(null)
 
-      // Fetch active alerts
-      const alertsRes = await fetch(`${API_URL}/api/v1/alerts/active`, {
-        headers: getAuthHeaders(),
-      })
-      if (alertsRes.ok) {
-        const data = await alertsRes.json()
-        setActiveAlerts(Array.isArray(data) ? data : [])
-      }
-
-      // Fetch alert rules
-      const rulesRes = await fetch(`${API_URL}/api/v1/alerts/rules`, {
-        headers: getAuthHeaders(),
-      })
-      if (rulesRes.ok) {
-        const data = await rulesRes.json()
-        setAlertRules(Array.isArray(data) ? data : [])
-      }
-
-      // Fetch notification channels
-      const channelsRes = await fetch(`${API_URL}/api/v1/alerts/channels`, {
-        headers: getAuthHeaders(),
-      })
-      if (channelsRes.ok) {
-        const data = await channelsRes.json()
-        setChannels(Array.isArray(data) ? data : [])
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load alert data')
+      const [alerts, rules, notificationChannels] = await Promise.all([
+        fetchSettings('alerts/active', z.array(alertSchema), 'Alerts'),
+        fetchSettings('alerts/rules', z.array(ruleSchema), 'Alert rules'),
+        fetchSettings('alerts/channels', z.array(channelSchema), 'Notification channels'),
+      ])
+      // Never present a partially failed aggregate as an empty/healthy system.
+      setActiveAlerts(alerts)
+      setAlertRules(rules)
+      setChannels(notificationChannels)
+    } catch {
+      setError('Alert settings unavailable. All alert sources must return valid data. Retry to check again.')
     } finally {
       setLoading(false)
     }
@@ -235,11 +181,7 @@ function AlertsSettings() {
   }
 
   if (error) {
-    return (
-      <div className="bg-destructive/10 text-destructive rounded-lg p-4">
-        {error}
-      </div>
-    )
+    return <Unavailable message={error} retry={fetchAlertData} />
   }
 
   return (
@@ -353,6 +295,7 @@ function AlertsSettings() {
 // API Keys Settings Sub-section
 function ApiKeysSettings() {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  const [keyTotal, setKeyTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -365,20 +308,11 @@ function ApiKeysSettings() {
       setLoading(true)
       setError(null)
 
-      const res = await fetch(`${API_URL}/api/v1/api-keys`, {
-        headers: getAuthHeaders(),
-      })
-
-      if (res.status === 404) {
-        setApiKeys([])
-      } else if (!res.ok) {
-        throw new Error('Failed to fetch API keys')
-      } else {
-        const data = await res.json()
-        setApiKeys(Array.isArray(data) ? data : data.items || [])
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load API keys')
+      const data = await fetchSettings('api-keys', apiKeyPageSchema, 'API keys')
+      setApiKeys(data.items)
+      setKeyTotal(data.total)
+    } catch {
+      setError('API keys unavailable. The service did not return a valid key list. Retry to check again.')
     } finally {
       setLoading(false)
     }
@@ -408,19 +342,15 @@ function ApiKeysSettings() {
   }
 
   if (error) {
-    return (
-      <div className="bg-destructive/10 text-destructive rounded-lg p-4">
-        {error}
-      </div>
-    )
+    return <Unavailable message={error} retry={fetchApiKeys} />
   }
 
   return (
     <div className="space-y-6">
       <div className="bg-card border-border rounded-lg border p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h4 className="text-foreground font-medium">Platform API Keys</h4>
-          <span className="text-muted-foreground text-sm">{apiKeys.length} keys</span>
+          <h4 className="text-foreground font-medium">Your API Keys</h4>
+          <span className="text-muted-foreground text-sm">{apiKeys.length} shown of {keyTotal} keys</span>
         </div>
         {apiKeys.length === 0 ? (
           <p className="text-muted-foreground text-sm">No API keys found</p>
@@ -438,7 +368,7 @@ function ApiKeysSettings() {
                   <p className="text-muted-foreground mt-1 font-mono text-sm">{key.key_prefix}...</p>
                   <p className="text-muted-foreground mt-1 text-xs">
                     Created: {new Date(key.created_at).toLocaleDateString()}
-                    {key.last_used_at && ` | Last used: ${new Date(key.last_used_at).toLocaleDateString()}`}
+                    {key.last_used && ` | Last used: ${new Date(key.last_used).toLocaleDateString()}`}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {key.scopes.map((scope) => (
@@ -489,21 +419,11 @@ function BrandingSettings() {
       setLoading(true)
       setError(null)
 
-      // Fetch all white-label configurations (admin view)
-      const res = await fetch(`${API_URL}/api/v1/white-label/configurations`, {
-        headers: getAuthHeaders(),
-      })
-
-      if (res.status === 404) {
-        setConfigs([])
-      } else if (!res.ok) {
-        throw new Error('Failed to fetch branding configurations')
-      } else {
-        const data = await res.json()
-        setConfigs(Array.isArray(data) ? data : data.items || [])
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load branding configurations')
+      const data = await fetchSettings('white-label/configurations',
+        z.union([z.array(brandingSchema), z.object({ items: z.array(brandingSchema) })]), 'Branding')
+      setConfigs(Array.isArray(data) ? data : data.items)
+    } catch {
+      setError('Branding settings unavailable. The service did not return a valid configuration list. Retry to check again.')
     } finally {
       setLoading(false)
     }
@@ -532,11 +452,7 @@ function BrandingSettings() {
   }
 
   if (error) {
-    return (
-      <div className="bg-destructive/10 text-destructive rounded-lg p-4">
-        {error}
-      </div>
-    )
+    return <Unavailable message={error} retry={fetchBrandingConfigs} />
   }
 
   return (

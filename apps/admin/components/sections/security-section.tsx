@@ -12,17 +12,13 @@ import {
   Lock,
   Fingerprint,
   Ban,
-  TrendingUp,
-  TrendingDown,
   XCircle,
   Activity,
 } from 'lucide-react'
 import { adminAPI, type AdminStats, type ActivityLog } from '@/lib/admin-api'
 
 interface SecurityMetrics {
-  failedLogins24h: number
   failedLoginsTotal: number
-  failedLoginTrend: 'up' | 'down' | 'stable'
   accountLockouts: number
   suspiciousIps: { ip: string; count: number; lastSeen: string }[]
   mfaAdoptionRate: number
@@ -59,32 +55,11 @@ function deriveSecurityMetrics(
   stats: AdminStats | null,
   logs: ActivityLog[]
 ): SecurityMetrics {
-  const now = Date.now()
-  const h24 = 24 * 60 * 60 * 1000
-  const h12 = 12 * 60 * 60 * 1000
-
   // Filter failed logins
   const failedLogins = logs.filter((log) => {
     const action = log.action.toLowerCase().replace(/[\s-]/g, '_')
     return action === 'login_failed'
   })
-
-  const failedLogins24h = failedLogins.filter(
-    (log) => now - new Date(log.created_at).getTime() < h24
-  ).length
-
-  // Trend: compare first 12h vs last 12h
-  const recentFailed = failedLogins.filter(
-    (log) => now - new Date(log.created_at).getTime() < h12
-  ).length
-  const olderFailed = failedLogins.filter((log) => {
-    const age = now - new Date(log.created_at).getTime()
-    return age >= h12 && age < h24
-  }).length
-
-  let failedLoginTrend: 'up' | 'down' | 'stable' = 'stable'
-  if (recentFailed > olderFailed * 1.2) failedLoginTrend = 'up'
-  else if (recentFailed < olderFailed * 0.8) failedLoginTrend = 'down'
 
   // Account lockouts
   const accountLockouts = logs.filter((log) => {
@@ -154,9 +129,7 @@ function deriveSecurityMetrics(
     })
 
   return {
-    failedLogins24h,
     failedLoginsTotal: failedLogins.length,
-    failedLoginTrend,
     accountLockouts,
     suspiciousIps,
     mfaAdoptionRate,
@@ -195,8 +168,8 @@ export function SecuritySection() {
       setStats(statsData)
       setLogs(logsData)
       setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch security data')
+    } catch {
+      setError('Security data could not be refreshed.')
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -212,7 +185,7 @@ export function SecuritySection() {
   const handleRevokeAllSessions = async () => {
     if (
       !confirm(
-        'Are you sure you want to revoke ALL user sessions? This will log out every user immediately.'
+        'Revoke tracked sessions for other users? Your administrator sessions are preserved. Services validating tokens locally may continue accepting them until expiry.'
       )
     ) {
       return
@@ -220,7 +193,7 @@ export function SecuritySection() {
     setRevoking(true)
     try {
       await adminAPI.revokeAllSessions()
-      alert('All sessions revoked successfully')
+      alert('Session revocation request completed')
       fetchData(true)
     } catch {
       alert('Failed to revoke sessions')
@@ -241,7 +214,7 @@ export function SecuritySection() {
     return (
       <div className="space-y-6">
         <h2 className="text-foreground text-2xl font-bold">Security and Compliance</h2>
-        <div className="bg-destructive/10 border-destructive/20 rounded-lg border p-6 text-center">
+        <div role="alert" className="bg-destructive/10 border-destructive/20 rounded-lg border p-6 text-center">
           <p className="text-destructive">{error}</p>
           <button
             onClick={() => fetchData(true)}
@@ -276,6 +249,16 @@ export function SecuritySection() {
         </button>
       </div>
 
+      {error && (
+        <p role="alert" className="text-destructive">
+          {error} Showing previously loaded data; it may be outdated. Use Refresh security data to retry.
+        </p>
+      )}
+      <p className="text-muted-foreground text-sm">
+        Security events and counts use the latest 50-event sample, not complete period totals.
+        MFA adoption uses platform user statistics.
+      </p>
+
       {/* Overview Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {/* Failed Logins */}
@@ -283,20 +266,14 @@ export function SecuritySection() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <XCircle className="size-4 text-red-500" />
-              <span className="text-muted-foreground text-xs">Failed Logins (24h)</span>
+              <span className="text-muted-foreground text-xs">Failed Logins in Sample</span>
             </div>
-            {metrics.failedLoginTrend === 'up' && (
-              <TrendingUp className="size-4 text-red-500" />
-            )}
-            {metrics.failedLoginTrend === 'down' && (
-              <TrendingDown className="size-4 text-green-500" />
-            )}
           </div>
           <p className="text-foreground mt-1 text-2xl font-semibold">
-            {metrics.failedLogins24h}
+            {metrics.failedLoginsTotal}
           </p>
           <p className="text-muted-foreground text-xs">
-            {metrics.failedLoginsTotal} total in logs
+            {logs.length} events in this sample
           </p>
         </div>
 
@@ -304,7 +281,7 @@ export function SecuritySection() {
         <div className="bg-card border-border rounded-lg border p-4">
           <div className="flex items-center gap-2">
             <Lock className="size-4 text-orange-500" />
-            <span className="text-muted-foreground text-xs">Account Lockouts</span>
+            <span className="text-muted-foreground text-xs">Account Lockouts in Sample</span>
           </div>
           <p className="text-foreground mt-1 text-2xl font-semibold">
             {metrics.accountLockouts}
@@ -315,12 +292,12 @@ export function SecuritySection() {
         <div className="bg-card border-border rounded-lg border p-4">
           <div className="flex items-center gap-2">
             <Ban className="size-4 text-yellow-500" />
-            <span className="text-muted-foreground text-xs">Suspicious IPs</span>
+            <span className="text-muted-foreground text-xs">Flagged IPs in Sample</span>
           </div>
           <p className="text-foreground mt-1 text-2xl font-semibold">
             {metrics.suspiciousIps.length}
           </p>
-          <p className="text-muted-foreground text-xs">3+ failed attempts</p>
+          <p className="text-muted-foreground text-xs">3+ failed attempts in this sample; up to 10 IPs</p>
         </div>
 
         {/* MFA Adoption */}
@@ -374,13 +351,13 @@ export function SecuritySection() {
         <div className="bg-card border-border rounded-lg border p-6">
           <h3 className="text-foreground mb-4 flex items-center gap-2 text-lg font-semibold">
             <Ban className="size-5" />
-            Suspicious IPs
+            Flagged IPs in Sample
           </h3>
           {metrics.suspiciousIps.length === 0 ? (
             <div className="py-6 text-center">
               <ShieldCheck className="mx-auto mb-2 size-8 text-green-500" />
               <p className="text-muted-foreground text-sm">
-                No suspicious IP addresses detected.
+                No IPs meet the repeated-failure threshold in this sample.
               </p>
             </div>
           ) : (
@@ -412,49 +389,17 @@ export function SecuritySection() {
             Attack Protection
           </h3>
           <div className="space-y-3">
-            {[
-              {
-                name: 'Rate Limiting',
-                enabled: true,
-                description: 'API rate limiting active on all endpoints',
-              },
-              {
-                name: 'Brute Force Protection',
-                enabled: true,
-                description: 'Account lockout after repeated failed attempts',
-              },
-              {
-                name: 'CSRF Protection',
-                enabled: true,
-                description: 'Cross-site request forgery tokens validated',
-              },
-              {
-                name: 'Bot Detection',
-                enabled: false,
-                description: 'Automated bot detection and challenge',
-              },
-              {
-                name: 'IP Blocklist',
-                enabled: metrics.suspiciousIps.length > 0,
-                description: `${metrics.suspiciousIps.length} IP(s) flagged for review`,
-              },
-            ].map((feature) => (
+            {['Rate Limiting', 'Brute Force Protection', 'CSRF Protection', 'Bot Detection', 'IP Blocklist'].map((name) => (
               <div
-                key={feature.name}
+                key={name}
                 className="bg-muted/50 flex items-center justify-between rounded-lg p-3"
               >
                 <div>
-                  <span className="text-foreground text-sm font-medium">{feature.name}</span>
-                  <p className="text-muted-foreground text-xs">{feature.description}</p>
+                  <span className="text-foreground text-sm font-medium">{name}</span>
+                  <p className="text-muted-foreground text-xs">No authoritative control status is available.</p>
                 </div>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                    feature.enabled
-                      ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-                      : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {feature.enabled ? 'Active' : 'Inactive'}
+                <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs font-medium">
+                  Unavailable
                 </span>
               </div>
             ))}
@@ -466,12 +411,12 @@ export function SecuritySection() {
       <div className="bg-card border-border rounded-lg border p-6">
         <h3 className="text-foreground mb-4 flex items-center gap-2 text-lg font-semibold">
           <Activity className="size-5" />
-          Recent Security Events
+          Security Events in Sample
         </h3>
         {metrics.recentSecurityEvents.length === 0 ? (
           <div className="py-6 text-center">
             <ShieldCheck className="mx-auto mb-2 size-8 text-green-500" />
-            <p className="text-muted-foreground text-sm">No recent security events.</p>
+            <p className="text-muted-foreground text-sm">No matching security events in this sample.</p>
           </div>
         ) : (
           <div className="divide-border divide-y">
@@ -523,17 +468,18 @@ export function SecuritySection() {
       <div className="bg-card border-border rounded-lg border p-6">
         <h3 className="text-foreground mb-4 text-lg font-semibold">Emergency Actions</h3>
         <div className="bg-destructive/10 border-destructive/20 rounded-lg border p-4">
-          <h4 className="text-destructive font-medium">Revoke All Sessions</h4>
+          <h4 className="text-destructive font-medium">Revoke Tracked Sessions for Other Users</h4>
           <p className="text-destructive/80 mt-1 text-sm">
-            This will immediately log out all users from the platform. Use only in case of a
-            confirmed security breach.
+            Revoke tracked sessions for other users. Your administrator sessions are preserved.
+            Services validating tokens locally may continue accepting them until expiry.
+            Sessionless tokens may not be covered by this action.
           </p>
           <button
             onClick={handleRevokeAllSessions}
             disabled={revoking}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90 mt-3 rounded-lg px-4 py-2 text-sm disabled:opacity-50"
           >
-            {revoking ? 'Revoking...' : 'Revoke All Sessions'}
+            {revoking ? 'Revoking...' : 'Revoke tracked sessions for other users'}
           </button>
         </div>
       </div>
