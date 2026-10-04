@@ -535,7 +535,7 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
         )
 
     # Check user status after lockout check
-    if user.status != UserStatus.ACTIVE:
+    if user.status != UserStatus.ACTIVE or not user.is_active:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     # Verify password
@@ -666,9 +666,13 @@ async def check_session(
         raise HTTPException(status_code=401, detail="No session cookie or bearer token found")
 
     # Validate access token
-    payload = AuthService.verify_token(access_token, token_type="access")
+    payload = await AuthService.verify_token(access_token, token_type="access")
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+    from app.services.token_state import token_session_is_live
+    if not await token_session_is_live(payload, db):
+        raise HTTPException(status_code=401, detail="Invalid or revoked session")
 
     # Fetch user from database
     from uuid import UUID as PyUUID
@@ -678,7 +682,7 @@ async def check_session(
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
     result = await db.execute(
-        select(User).where(User.id == PyUUID(user_id), User.status == UserStatus.ACTIVE)
+        select(User).where(User.id == PyUUID(user_id), User.status == UserStatus.ACTIVE, User.is_active == True)
     )
     user = result.scalar_one_or_none()
 
@@ -1589,7 +1593,7 @@ async def login_form(
         )
 
     # Check user status after lockout check
-    if user.status != UserStatus.ACTIVE:
+    if user.status != UserStatus.ACTIVE or not user.is_active:
         return make_error_page("Invalid email or password. Please try again.")
 
     # Verify password
@@ -1905,7 +1909,7 @@ async def sign_out(
 ):
     """Sign out current session.
 
-    SSO (J5/R1): besides the existing blacklist + session revocation, this
+    Besides access-token denylisting and durable session revocation, this
     revokes whatever `janua_sso` references and deletes the cookie with the same
     Domain and Path it was set with. Both halves are needed: deleting the cookie
     only clears this browser, while revoking the `sessions` row is what stops a
@@ -1919,42 +1923,23 @@ async def sign_out(
     payload = await AuthService.verify_token(token, token_type="access")
 
     if payload:
-        # Blacklist the access token JTI
-        try:
-            from app.core.jwt_manager import jwt_manager
-            await jwt_manager.blacklist_token(payload["jti"], "access")
-        except Exception:
-            pass  # Best-effort blacklisting
+        from app.services.token_state import blacklist_jti, revoke_session_row, token_ttl
 
-        # Find and revoke session in DB
-        try:
-            result = await db.execute(
-                select(UserSession).where(UserSession.access_token_jti == payload["jti"])
+        await blacklist_jti(payload["jti"], "access", token_ttl(payload))
+        result = await db.execute(
+            select(UserSession).where(
+                UserSession.access_token_jti == payload["jti"],
+                UserSession.user_id == current_user.id,
             )
-            session = result.scalar_one_or_none()
+        )
+        session = result.scalar_one_or_none()
+        if session:
+            await revoke_session_row(session, "user_logout")
+        await db.commit()
 
-            if session:
-                session.revoked = True
-                # Also blacklist the refresh token
-                if session.refresh_token_jti:
-                    try:
-                        from app.core.jwt_manager import jwt_manager
-                        await jwt_manager.blacklist_token(session.refresh_token_jti, "refresh")
-                    except Exception:
-                        pass
-                await db.commit()
-        except Exception:
-            pass  # Best-effort session revocation
-
-    # SSO (J5/R1): revoke the estate session and clear its cookie. Best-effort,
-    # exactly like the blacklisting above — logout must never fail on this.
-    try:
-        if req is not None and await revoke_sso_cookie_session(
-            req.cookies.get("janua_sso"), db
-        ):
-            await db.commit()
-    except Exception:
-        pass
+    # Do not acknowledge successful logout if durable revocation failed.
+    if req is not None and await revoke_sso_cookie_session(req.cookies.get("janua_sso"), db):
+        await db.commit()
     if response is not None:
         clear_sso_cookie(response)
 
@@ -2118,7 +2103,7 @@ async def sign_out_one_account(
         if await revoke_sso_session(body.sid, db):
             await db.commit()
     except Exception:
-        logger.warning("Failed to revoke session on per-account sign-out", exc_info=True)
+        raise HTTPException(status_code=503, detail="Session revocation unavailable") from None
 
     remaining = remove_sid(held, body.sid)
     set_sessions_cookie(response, remaining)
@@ -2154,30 +2139,23 @@ async def sign_out_all_accounts(
 
     Revokes every `sessions` row named in `janua_sessions` (plus whatever
     `janua_sso` points at, in case it drifted from the list), then deletes both
-    cookies with the exact Domain/Path they were set with. Best-effort revocation
-    per row, exactly like `sign_out` — clearing the browser must never fail
-    because one revocation could not complete.
+    cookies with the exact Domain/Path they were set with. A storage failure
+    must not be reported as successful session revocation.
     """
     held = _held_sids(req)
     fronted = _fronted_sid(req)
     to_revoke = list(dict.fromkeys([*held, *([fronted] if fronted else [])]))
 
-    revoked_any = False
+    revoked_count = 0
     for sid in to_revoke:
-        try:
-            if await revoke_sso_session(sid, db):
-                revoked_any = True
-        except Exception:
-            logger.warning("Failed to revoke a session on sign-out-all", exc_info=True)
-    if revoked_any:
-        try:
-            await db.commit()
-        except Exception:
-            logger.warning("Failed to commit revocations on sign-out-all", exc_info=True)
+        if await revoke_sso_session(sid, db):
+            revoked_count += 1
+    if revoked_count:
+        await db.commit()
 
     clear_sso_cookie(response)
     clear_sessions_cookie(response)
-    return {"message": "Signed out of all accounts", "revoked": len(to_revoke)}
+    return {"message": "Signed out of all accounts", "revoked": revoked_count}
 
 
 @router.get("/me", response_model=UserResponse)

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.redis import SessionStore, get_redis
-from app.models import AuditLog, Session, User
+from app.models import AuditLog, Session, User, UserStatus
 from app.services.user_lookup import get_user_by_email
 
 logger = structlog.get_logger()
@@ -550,7 +550,9 @@ class AuthService:
         return access_token, refresh_token, session
 
     @staticmethod
-    async def verify_token(token: str, token_type: str = "access") -> Optional[dict]:
+    async def verify_token(
+        token: str, token_type: str = "access", check_revocation: bool = True
+    ) -> Optional[dict]:
         """Verify and decode JWT token"""
         try:
             # Determine verification key based on algorithm
@@ -595,11 +597,9 @@ class AuthService:
                 logger.warning("Token type mismatch", expected=token_type, got=payload.get("type"))
                 return None
 
-            # Check if token is blacklisted (for logout)
-            redis = await get_redis()
-            is_blacklisted = await redis.get(f"blacklist:{payload.get('jti')}")
-            if is_blacklisted:
-                logger.warning("Token is blacklisted", jti=payload.get("jti"))
+            from app.services.token_state import token_is_revoked
+
+            if check_revocation and await token_is_revoked(payload, await get_redis()):
                 return None
 
             return payload
@@ -616,8 +616,17 @@ class AuthService:
     async def refresh_tokens(db: AsyncSession, refresh_token: str) -> Optional[Tuple[str, str]]:
         """Refresh access and refresh tokens with rotation"""
         # Verify refresh token
-        payload = await AuthService.verify_token(refresh_token, token_type="refresh")
+        payload = await AuthService.verify_token(
+            refresh_token, token_type="refresh", check_revocation=False
+        )
         if not payload:
+            return None
+
+        from app.services.token_state import consume_refresh, session_is_live
+
+        if not await consume_refresh(payload, await get_redis()):
+            if payload.get("family"):
+                await AuthService.revoke_token_family(db, payload["family"])
             return None
 
         # Check if refresh token is still valid in database
@@ -628,7 +637,7 @@ class AuthService:
         )
         session = result.scalar_one_or_none()
 
-        if not session:
+        if not session or str(session.user_id) != payload.get("sub") or not session_is_live(session):
             logger.warning("Refresh token not found or inactive", jti=payload.get("jti"))
 
             # Possible token reuse - revoke entire family
@@ -637,7 +646,7 @@ class AuthService:
 
         # Get user
         user = await db.get(User, UUID(payload.get("sub")))
-        if not user or not user.is_active:
+        if not user or not user.is_active or user.status != UserStatus.ACTIVE:
             return None
 
         # Re-resolve the MADFAM ecosystem entitlement claim on refresh so a
@@ -693,19 +702,14 @@ class AuthService:
             family=payload.get("family"),  # Keep same family for rotation tracking
         )
 
-        # Update session
+        # Invalidate the outgoing access token before its JTI leaves the row.
+        from app.core.jwt_manager import jwt_manager
+
+        await jwt_manager.blacklist_token(session.access_token_jti, "access")
         session.access_token_jti = access_jti
         session.refresh_token_jti = refresh_jti
-        session.last_activity_at = datetime.utcnow()
+        session.last_activity = datetime.utcnow()
         session.expires_at = refresh_expires
-
-        # Blacklist old refresh token
-        redis = await get_redis()
-        await redis.set(
-            f"blacklist:{payload.get('jti')}",
-            "1",
-            ex=int((refresh_expires - datetime.utcnow()).total_seconds()),
-        )
 
         await db.commit()
 
@@ -718,15 +722,10 @@ class AuthService:
         result = await db.execute(select(Session).where(Session.refresh_token_family == family))
         sessions = result.scalars().all()
 
-        redis = await get_redis()
-        for session in sessions:
-            session.is_active = False
-            session.revoked_at = datetime.utcnow()
-            session.revoked_reason = "family_revoked_security"
+        from app.services.token_state import revoke_session_row
 
-            # Blacklist tokens
-            await redis.set(f"blacklist:{session.access_token_jti}", "1", ex=86400)
-            await redis.set(f"blacklist:{session.refresh_token_jti}", "1", ex=86400)
+        for session in sessions:
+            await revoke_session_row(session, "family_revoked_security")
 
         await db.commit()
         logger.warning("Token family revoked", family=family, count=len(sessions))
@@ -830,9 +829,15 @@ class AuthService:
         ]
 
     @staticmethod
-    def revoke_session(db, session_id: str) -> dict:
-        """Revoke a specific user session"""
-        # Placeholder implementation for testing
+    async def revoke_session(db: AsyncSession, session_id: str) -> dict:
+        """Persist session revocation and denylist its current token pair."""
+        from app.services.token_state import revoke_session_row
+
+        session = await db.get(Session, UUID(session_id))
+        if session is None:
+            return {"revoked": False}
+        await revoke_session_row(session)
+        await db.commit()
         return {"revoked": True}
 
     @staticmethod

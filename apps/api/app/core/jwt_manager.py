@@ -421,20 +421,15 @@ class JWTManager:
             token_type: Type of token (access or refresh)
             ttl: Time to live in seconds (defaults to token expiry)
         """
-        from app.core.redis import get_redis
+        from app.services.token_state import blacklist_jti
 
-        redis_client = await get_redis()
-
-        # Default TTL to remaining token lifetime
         if ttl is None:
-            if token_type == "refresh":
-                ttl = settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400
-            else:
-                ttl = settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
-
-        await redis_client.setex(f"blacklist:{token_type}:{jti}", ttl, "revoked")
-
-        logger.info("Token blacklisted", jti=jti, token_type=token_type)
+            ttl = (
+                settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400
+                if token_type == "refresh"
+                else settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            )
+        await blacklist_jti(jti, token_type, ttl)
 
     async def revoke_token_family(
         self, family: str, reason: str = "security_revocation", db: Optional[AsyncSession] = None

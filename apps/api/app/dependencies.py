@@ -187,6 +187,11 @@ async def get_current_user(
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+    from app.services.token_state import token_is_revoked, token_session_is_live
+
+    if await token_is_revoked(payload, redis) or not await token_session_is_live(payload, db):
+        raise HTTPException(status_code=401, detail="Invalid or revoked token")
+
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
@@ -206,7 +211,9 @@ async def get_current_user(
 
     # Get user using async session
     result = await db.execute(
-        select(User).where(User.id == user_id, User.status == UserStatus.ACTIVE)
+        select(User).where(
+            User.id == user_id, User.status == UserStatus.ACTIVE, User.is_active == True
+        )
     )
     user = result.scalar_one_or_none()
 

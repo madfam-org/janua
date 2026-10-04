@@ -88,11 +88,11 @@ class TestVerifyOwnAccessToken:
 
 class TestGetUserFromCookieOrHeader:
     def _db_returning(self, user):
-        return SimpleNamespace(
-            execute=AsyncMock(
-                return_value=SimpleNamespace(scalar_one_or_none=lambda: user)
-            )
-        )
+        async def execute(statement):
+            entity = statement.column_descriptions[0]["entity"]
+            result = None if entity.__name__ == "Session" else user
+            return SimpleNamespace(scalar_one_or_none=lambda: result)
+        return SimpleNamespace(execute=AsyncMock(side_effect=execute))
 
     def _request(self, *, cookie=None, header=None):
         req = MagicMock()
@@ -180,3 +180,11 @@ class TestJwtManagerVerifyAudienceFlag:
             )
             is None
         )
+
+
+@pytest.fixture(autouse=True)
+def available_revocation_store(monkeypatch):
+    """These precedence/audience tests use an available, empty security store."""
+    redis = AsyncMock()
+    redis.get.return_value = None
+    monkeypatch.setattr("app.routers.v1.oauth_provider.get_redis", AsyncMock(return_value=redis))

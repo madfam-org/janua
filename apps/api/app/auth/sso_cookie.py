@@ -270,7 +270,7 @@ async def resolve_sso_cookie_session(
         return None, None
 
     status = getattr(user, "status", None)
-    if status is not None and status != UserStatus.ACTIVE:
+    if (status is not None and status != UserStatus.ACTIVE) or getattr(user, "is_active", True) is not True:
         logger.info("janua_sso cookie references a non-active user")
         return None, None
 
@@ -307,7 +307,7 @@ async def resolve_session_by_id(
     if user is None:
         return None, None
     status = getattr(user, "status", None)
-    if status is not None and status != UserStatus.ACTIVE:
+    if (status is not None and status != UserStatus.ACTIVE) or getattr(user, "is_active", True) is not True:
         return None, None
     return user, session
 

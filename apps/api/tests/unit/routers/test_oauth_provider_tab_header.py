@@ -325,3 +325,11 @@ class TestHeaderAboveCookies:
             ),
         )
         assert resolved is admin
+
+
+@pytest.fixture(autouse=True)
+def available_revocation_store(monkeypatch):
+    """These precedence/audience tests use an available, empty security store."""
+    redis = AsyncMock()
+    redis.get.return_value = None
+    monkeypatch.setattr("app.routers.v1.oauth_provider.get_redis", AsyncMock(return_value=redis))

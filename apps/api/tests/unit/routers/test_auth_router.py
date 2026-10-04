@@ -902,12 +902,12 @@ class TestSignOutResilience:
         assert "log_audit_event" in source
 
     def test_sign_out_blacklists_token(self):
-        """sign_out must blacklist the access token JTI via jwt_manager."""
+        """sign_out must blacklist the access token JTI through the shared state helper."""
         import inspect
         from app.routers.v1.auth import sign_out
 
         source = inspect.getsource(sign_out)
-        assert "blacklist_token" in source, "sign_out should blacklist token JTI in Redis"
+        assert "blacklist_jti" in source, "sign_out should blacklist token JTI in Redis"
 
     def test_sign_out_revokes_session(self):
         """sign_out must set session.revoked = True in the database."""

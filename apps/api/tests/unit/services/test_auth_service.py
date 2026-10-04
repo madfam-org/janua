@@ -335,6 +335,8 @@ class TestSessionManagement:
         # Create mock objects
         mock_db = AsyncMock()
         mock_redis = AsyncMock()
+        mock_redis.get.return_value = None
+        mock_redis.set.return_value = True
 
         # Create test data
         user_id = uuid4()
@@ -350,6 +352,7 @@ class TestSessionManagement:
             "jti": refresh_jti,
             "family": family,
             "type": "refresh",
+            "exp": (datetime.utcnow() + timedelta(days=7)).timestamp(),
         }
 
         # Mock session from database
@@ -358,12 +361,18 @@ class TestSessionManagement:
         mock_session.refresh_token_jti = refresh_jti
         mock_session.is_active = True
         mock_session.user_id = user_id
+        mock_session.access_token_jti = "outgoing_access_jti"
+        mock_session.revoked = False
+        mock_session.revoked_at = None
+        mock_session.expires_at = datetime.utcnow() + timedelta(days=7)
 
         # Mock user from database
         mock_user = MagicMock()
         mock_user.id = user_id
         mock_user.tenant_id = tenant_id
         mock_user.is_active = True
+        from app.models import UserStatus
+        mock_user.status = UserStatus.ACTIVE
 
         # Mock db.execute() for session lookup
         # db.execute() returns an awaitable that has .scalar_one_or_none() method
@@ -391,6 +400,7 @@ class TestSessionManagement:
                 return_value=("new_refresh_token", "new_refresh_jti", family, new_refresh_expires),
             ),
             patch("app.services.auth_service.get_redis", return_value=mock_redis),
+            patch("app.services.token_state.get_redis", return_value=mock_redis),
         ):
             # Execute refresh
             result = await AuthService.refresh_tokens(mock_db, refresh_token)
@@ -405,7 +415,9 @@ class TestSessionManagement:
             assert mock_session.refresh_token_jti == "new_refresh_jti"
 
             # Verify old token was blacklisted
-            mock_redis.set.assert_called_once()
+            written_keys = [call.args[0] for call in mock_redis.set.await_args_list]
+            assert "blacklist:refresh:refresh_jti_123" in written_keys
+            assert "blacklist:access:outgoing_access_jti" in written_keys
 
             # Verify database commit
             mock_db.commit.assert_called_once()

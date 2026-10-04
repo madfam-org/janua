@@ -30,6 +30,7 @@ and resolution failure never blocks a login.
 from __future__ import annotations
 
 import inspect
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -37,6 +38,7 @@ from uuid import uuid4
 import jwt as pyjwt
 import pytest
 
+from app.models import UserStatus
 from app.services.auth_service import AuthService
 from app.services.org_claims_service import (
     ORG_ROLES_CLAIM,
@@ -56,6 +58,7 @@ def _user(tenant_id=None):
         tenant_id=tenant_id,
         is_admin=False,
         is_active=True,
+        status=UserStatus.ACTIVE,
         is_service_account=False,
     )
 
@@ -328,8 +331,12 @@ async def test_refresh_restamps_org_claims_from_current_membership():
         id=uuid4(),
         access_token_jti=None,
         refresh_token_jti="old-refresh-jti",
+        user_id=user.id,
+        revoked=False,
+        revoked_at=None,
+        is_active=True,
         last_activity_at=None,
-        expires_at=None,
+        expires_at=datetime.utcnow() + timedelta(days=7),
     )
 
     db = AsyncMock()
@@ -343,7 +350,7 @@ async def test_refresh_restamps_org_claims_from_current_membership():
         patch.object(
             AuthService,
             "verify_token",
-            AsyncMock(return_value={"jti": "old-refresh-jti", "sub": str(user.id), "family": "f1"}),
+            AsyncMock(return_value={"jti": "old-refresh-jti", "sub": str(user.id), "family": "f1", "type": "refresh", "exp": (datetime.utcnow() + timedelta(days=7)).timestamp()}),
         ),
         patch(
             "app.services.entitlements_service.get_user_entitlements",
@@ -353,7 +360,7 @@ async def test_refresh_restamps_org_claims_from_current_membership():
             "app.services.org_claims_service.get_user_org_claims_safe",
             AsyncMock(return_value={"org_id": str(org.id), ORG_ROLES_CLAIM: ["member"]}),
         ),
-        patch("app.services.auth_service.get_redis", AsyncMock(return_value=AsyncMock())),
+        patch("app.services.auth_service.get_redis", AsyncMock(return_value=AsyncMock(get=AsyncMock(return_value=None), set=AsyncMock(return_value=True)))),
     ):
         result = await AuthService.refresh_tokens(db, "old-refresh-token")
 
@@ -372,8 +379,12 @@ async def test_revoked_membership_drops_off_the_refreshed_token():
         id=uuid4(),
         access_token_jti=None,
         refresh_token_jti="old-refresh-jti",
+        user_id=user.id,
+        revoked=False,
+        revoked_at=None,
+        is_active=True,
         last_activity_at=None,
-        expires_at=None,
+        expires_at=datetime.utcnow() + timedelta(days=7),
     )
 
     db = AsyncMock()
@@ -387,7 +398,7 @@ async def test_revoked_membership_drops_off_the_refreshed_token():
         patch.object(
             AuthService,
             "verify_token",
-            AsyncMock(return_value={"jti": "old-refresh-jti", "sub": str(user.id), "family": "f1"}),
+            AsyncMock(return_value={"jti": "old-refresh-jti", "sub": str(user.id), "family": "f1", "type": "refresh", "exp": (datetime.utcnow() + timedelta(days=7)).timestamp()}),
         ),
         patch(
             "app.services.entitlements_service.get_user_entitlements",
@@ -398,7 +409,7 @@ async def test_revoked_membership_drops_off_the_refreshed_token():
             "app.services.org_claims_service.get_user_org_claims_safe",
             AsyncMock(return_value={}),
         ),
-        patch("app.services.auth_service.get_redis", AsyncMock(return_value=AsyncMock())),
+        patch("app.services.auth_service.get_redis", AsyncMock(return_value=AsyncMock(get=AsyncMock(return_value=None), set=AsyncMock(return_value=True)))),
     ):
         result = await AuthService.refresh_tokens(db, "old-refresh-token")
 

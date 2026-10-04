@@ -1527,33 +1527,23 @@ async def revoke_all_sessions_admin(
     """Revoke all sessions (optionally for specific user)"""
     check_admin_permission(current_user)
 
+    from app.services.token_state import revoke_session_row
+
+    statement = select(UserSession).where(UserSession.revoked == False)
     if user_id:
         try:
-            user_uuid = uuid.UUID(user_id)
-            result = await db.execute(
-                update(UserSession)
-                .where(UserSession.user_id == user_uuid, UserSession.revoked == False)
-                .values(revoked=True)
-            )
-            count = result.rowcount
+            statement = statement.where(UserSession.user_id == uuid.UUID(user_id))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid user ID")
     else:
-        # Revoke all sessions except admin's current session
-        # Get current session JTI from the access token
-        # Note: We need the request object to extract the token
-        # For now, revoke all non-admin sessions to be safe
-        result = await db.execute(
-            update(UserSession)
-            .where(
-                UserSession.revoked == False,
-                UserSession.user_id != current_user.id,  # Preserve admin's sessions
-            )
-            .values(revoked=True)
-        )
-        count = result.rowcount
-
+        # Preserve the caller's sessions, matching the existing API contract.
+        statement = statement.where(UserSession.user_id != current_user.id)
+    result = await db.execute(statement)
+    sessions = result.scalars().all()
+    for session in sessions:
+        await revoke_session_row(session, "admin_revocation")
     await db.commit()
+    count = len(sessions)
 
     return {"message": f"Revoked {count} sessions"}
 

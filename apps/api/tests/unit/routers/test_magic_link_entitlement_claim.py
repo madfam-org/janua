@@ -22,6 +22,7 @@ These tests pin that:
 from __future__ import annotations
 
 import inspect
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
@@ -29,7 +30,7 @@ from uuid import uuid4
 import jwt as pyjwt
 import pytest
 
-from app.models import EntitlementSource
+from app.models import EntitlementSource, UserStatus
 from app.services.auth_service import AuthService
 from app.services.entitlements_service import Entitlement, entitlements_to_claim
 
@@ -105,6 +106,7 @@ def _user():
         tenant_id=uuid4(),
         is_admin=False,
         is_active=True,
+        status=UserStatus.ACTIVE,
     )
 
 
@@ -259,8 +261,12 @@ async def test_refresh_tokens_restamps_entitlement_claim():
         id=uuid4(),
         access_token_jti=None,
         refresh_token_jti="old-refresh-jti",
+        user_id=user.id,
+        revoked=False,
+        revoked_at=None,
+        is_active=True,
         last_activity_at=None,
-        expires_at=None,
+        expires_at=datetime.utcnow() + timedelta(days=7),
     )
 
     db = AsyncMock()
@@ -271,12 +277,14 @@ async def test_refresh_tokens_restamps_entitlement_claim():
     db.commit = AsyncMock()
 
     redis = AsyncMock()
+    redis.get.return_value = None
+    redis.set.return_value = True
 
     with (
         patch.object(
             AuthService,
             "verify_token",
-            AsyncMock(return_value={"jti": "old-refresh-jti", "sub": str(user.id), "family": "f1"}),
+            AsyncMock(return_value={"jti": "old-refresh-jti", "sub": str(user.id), "family": "f1", "type": "refresh", "exp": (datetime.utcnow() + timedelta(days=7)).timestamp()}),
         ),
         patch(
             "app.services.entitlements_service.get_user_entitlements",

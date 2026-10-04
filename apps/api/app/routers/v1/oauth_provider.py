@@ -54,7 +54,7 @@ from app.core.url_security import (
     validate_post_logout_redirect_uri,
 )
 from app.dependencies import get_current_user
-from app.models import OAuthClient, Organization, OrganizationMember, User
+from app.models import OAuthClient, Organization, OrganizationMember, User, UserStatus
 from app.models import Session as UserSession
 from app.services.audit_logger import AuditEventType, AuditLogger
 from app.services.consent_service import ConsentService
@@ -146,6 +146,7 @@ async def _verify_oauth_token(
     token_type: str,
     db: AsyncSession,
     expected_client: Optional[OAuthClient] = None,
+    check_revocation: bool = True,
 ) -> Optional[dict]:
     """Verify OAuth tokens against client + token audiences (e.g. karafiel-api)."""
     try:
@@ -181,6 +182,21 @@ async def _verify_oauth_token(
                 got=token_client_id,
                 token_type=token_type,
             )
+            return None
+
+    from app.services.token_state import token_is_revoked, token_session_is_live
+
+    if check_revocation and await token_is_revoked(payload, await get_redis()):
+        return None
+    if not str(payload.get("sub", "")).startswith("service-account:"):
+        user_result = await db.execute(
+            select(User).where(
+                User.id == payload.get("sub"),
+                User.status == UserStatus.ACTIVE,
+                User.is_active == True,
+            )
+        )
+        if user_result.scalar_one_or_none() is None or not await token_session_is_live(payload, db):
             return None
 
     return payload
@@ -391,6 +407,21 @@ async def _hosted_cookie_session(payload: dict[str, Any], db: AsyncSession) -> O
     return result.scalar_one_or_none()
 
 
+async def _online_access_user(payload: dict, db: AsyncSession) -> Optional[User]:
+    from app.services.token_state import token_is_revoked, token_session_is_live
+
+    if await token_is_revoked(payload, await get_redis()) or not await token_session_is_live(payload, db):
+        return None
+    result = await db.execute(
+        select(User).where(
+            User.id == payload.get("sub"),
+            User.status == UserStatus.ACTIVE,
+            User.is_active == True,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_user_from_cookie_or_header(
     request: Request,
     db: AsyncSession,
@@ -467,8 +498,7 @@ async def get_user_from_cookie_or_header(
         try:
             payload = _verify_own_access_token(token)
             if payload and payload.get("sub"):
-                result = await db.execute(select(User).where(User.id == payload.get("sub")))
-                user = result.scalar_one_or_none()
+                user = await _online_access_user(payload, db)
                 if user:
                     return user
         except Exception:
@@ -537,8 +567,7 @@ async def get_user_from_cookie_or_header(
         try:
             payload = _verify_own_access_token(access_token)
             if payload and payload.get("sub"):
-                result = await db.execute(select(User).where(User.id == payload.get("sub")))
-                hosted_user = result.scalar_one_or_none()
+                hosted_user = await _online_access_user(payload, db)
                 if hosted_user is not None:
                     hosted_payload = payload
         except Exception:
@@ -2301,7 +2330,11 @@ async def _handle_authorization_code_grant(
 
     # Get user
     user_id = code_data["user_id"]
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(
+        select(User).where(
+            User.id == user_id, User.status == UserStatus.ACTIVE, User.is_active == True
+        )
+    )
     user = result.scalar_one_or_none()
 
     if not user:
@@ -2331,16 +2364,14 @@ async def _handle_authorization_code_grant(
     # unmerged `roles` key would silently clobber the legacy claim by ordering
     # alone. The shared helper also pops the resolver's private transport key,
     # so it can never reach a token.
-    org_claims = merge_app_roles_into_claims(
-        org_claims, existing_roles=entitlements["roles"]
-    )
+    org_claims = merge_app_roles_into_claims(org_claims, existing_roles=entitlements["roles"])
 
     # Resolve per-client audience (falls back to global JWT_AUDIENCE)
     client_audience = client.audience or settings.JWT_AUDIENCE
 
     # Generate tokens with enriched claims
     scope = code_data["scope"]
-    access_token, _, _ = jwt_manager.create_access_token(
+    access_token, _, access_expires = jwt_manager.create_access_token(
         user_id=str(user.id),
         email=user.email,
         additional_claims={
@@ -2396,7 +2427,7 @@ async def _handle_authorization_code_grant(
     return TokenResponse(
         access_token=access_token,
         token_type="Bearer",
-        expires_in=3600,  # 1 hour
+        expires_in=max(1, int((access_expires - datetime.utcnow()).total_seconds())),
         refresh_token=refresh_token,
         id_token=id_token,
         scope=scope,
@@ -2422,6 +2453,7 @@ async def _handle_refresh_token_grant(
             token_type="refresh",
             db=db,
             expected_client=client,
+            check_revocation=False,
         )
     except Exception:
         raise HTTPException(
@@ -2441,9 +2473,20 @@ async def _handle_refresh_token_grant(
             detail="invalid_grant: Token was not issued to this client",
         )
 
+    from app.services.token_state import consume_refresh
+
+    if not await consume_refresh(payload, await get_redis()):
+        raise HTTPException(
+            status_code=400, detail="invalid_grant: Refresh token already used or revoked"
+        )
+
     # Get user
     user_id = payload.get("sub")
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(
+        select(User).where(
+            User.id == user_id, User.status == UserStatus.ACTIVE, User.is_active == True
+        )
+    )
     user = result.scalar_one_or_none()
 
     if not user:
@@ -2471,16 +2514,14 @@ async def _handle_refresh_token_grant(
     # unmerged `roles` key would silently clobber the legacy claim by ordering
     # alone. The shared helper also pops the resolver's private transport key,
     # so it can never reach a token.
-    org_claims = merge_app_roles_into_claims(
-        org_claims, existing_roles=entitlements["roles"]
-    )
+    org_claims = merge_app_roles_into_claims(org_claims, existing_roles=entitlements["roles"])
 
     # Resolve per-client audience (falls back to global JWT_AUDIENCE)
     client_audience = client.audience or settings.JWT_AUDIENCE
 
     # Generate new access token with enriched claims
     scope = payload.get("scope", "openid")
-    access_token, _, _ = jwt_manager.create_access_token(
+    access_token, _, access_expires = jwt_manager.create_access_token(
         user_id=str(user.id),
         email=user.email,
         additional_claims={
@@ -2530,7 +2571,7 @@ async def _handle_refresh_token_grant(
     return TokenResponse(
         access_token=access_token,
         token_type="Bearer",
-        expires_in=3600,
+        expires_in=max(1, int((access_expires - datetime.utcnow()).total_seconds())),
         refresh_token=new_refresh_token,
         scope=scope,
     )
@@ -2668,7 +2709,7 @@ async def introspect(
     # Try to verify the token
     try:
         # Try as access token first
-        token_type = token_type_hint or "access"
+        token_type = "refresh" if token_type_hint in {"refresh", "refresh_token"} else "access"
         payload = await _verify_oauth_token(
             token,
             token_type=token_type,
@@ -2723,21 +2764,48 @@ async def revoke(
             except Exception:
                 pass  # Intentionally ignoring - Basic auth decode failure handled by checking client_id below
 
-    if client_id:
-        client = await _get_oauth_client(client_id, db)
-        if client and client.is_confidential:
-            if not client.verify_secret(client_secret or ""):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="invalid_client",
-                )
+    if not client_id:
+        raise HTTPException(status_code=401, detail="invalid_client")
+    client = await _get_oauth_client(client_id, db)
+    if not client or not client.is_active:
+        raise HTTPException(status_code=401, detail="invalid_client")
+    if client.is_confidential and not client.verify_secret(client_secret or ""):
+        raise HTTPException(status_code=401, detail="invalid_client")
 
-    # In production, add token to blacklist in Redis
-    # For now, we just acknowledge the revocation
-    # The token will expire naturally based on its exp claim
+    # A valid hint is only an optimization: try both token types, as RFC7009
+    # clients may omit it. Invalid/unowned tokens still receive the same answer.
+    kinds = (
+        ["refresh", "access"]
+        if token_type_hint in {"refresh", "refresh_token"}
+        else ["access", "refresh"]
+    )
+    payload = None
+    for kind in kinds:
+        candidate = jwt_manager.verify_token(
+            token, token_type=kind, audience=_accepted_audiences_for_client(client)
+        )
+        if candidate and candidate.get("client_id") == client.client_id:
+            payload = candidate
+            break
+    if payload:
+        from app.services.token_state import blacklist_jti, revoke_session_row, token_ttl
 
-    # Return 200 OK regardless of whether token was valid
-    # This is per RFC 7009 - don't leak token validity information
+        await blacklist_jti(payload["jti"], payload["type"], token_ttl(payload))
+        if payload["type"] == "refresh" and payload.get("family"):
+            await blacklist_jti(
+                payload["family"], "family", settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400
+            )
+        column = (
+            UserSession.access_token_jti
+            if payload["type"] == "access"
+            else UserSession.refresh_token_jti
+        )
+        result = await db.execute(select(UserSession).where(column == payload["jti"]))
+        session = result.scalar_one_or_none()
+        if session and str(session.user_id) == payload.get("sub"):
+            await revoke_session_row(session, "oauth_revocation")
+            await db.commit()
+
     return {"message": "Token revoked"}
 
 
@@ -2817,7 +2885,7 @@ async def _perform_oidc_end_session(
         ):
             await db.commit()
     except Exception:
-        logger.warning("Failed to revoke janua_sso session on end_session", exc_info=True)
+        raise HTTPException(status_code=503, detail="Session revocation unavailable") from None
 
     response = RedirectResponse(url=redirect_url, status_code=302)
     _clear_janua_session_cookies(response)

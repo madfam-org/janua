@@ -225,7 +225,7 @@ async def revoke_session(
         raise HTTPException(status_code=400, detail="Session already revoked")
 
     # Revoke session
-    AuthService.revoke_session(db, str(session.id))
+    await AuthService.revoke_session(db, str(session.id))
 
     return {"message": "Session revoked successfully"}
 
@@ -256,7 +256,7 @@ async def revoke_all_sessions(
 
     revoked_count = 0
     for session in sessions:
-        AuthService.revoke_session(db, str(session.id))
+        await AuthService.revoke_session(db, str(session.id))
         revoked_count += 1
 
     return {"message": f"Revoked {revoked_count} sessions", "revoked_count": revoked_count}
