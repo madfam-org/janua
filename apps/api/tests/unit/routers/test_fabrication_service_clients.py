@@ -45,6 +45,7 @@ PLATFORM_EDGES = {
         "asset-shells-api",
         ["asset-shells:publish-types"],
     ),
+    "pravara-fabrication-prep": ("fabrication-prep-api", ["fabrication-prep:slice"]),
 }
 ORG_BOUND_EDGES = {
     "pravara-asset-shells-publisher": (

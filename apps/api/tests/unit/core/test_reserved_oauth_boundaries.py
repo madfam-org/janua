@@ -28,6 +28,7 @@ def test_service_auth_modules_read_the_registry_constants():
         "yantra4d-api",
         "pravara-api",
         "asset-shells-api",
+        "fabrication-prep-api",
         " janua-email ",
     ],
 )
@@ -70,6 +71,8 @@ def test_consent_purpose_audiences_and_names_are_reserved_by_construction():
         "asset-shells:read",
         "asset-shells:publish-types",
         "asset-shells:publish-instances",
+        "fabrication-prep:slice",
+        "fabrication-prep:admin",
     ],
 )
 def test_reserved_scopes(scope):
@@ -88,6 +91,7 @@ def test_reserved_scopes(scope):
         "billing:read",
         "pravara-mes:other",
         "asset-shells:write",
+        "fabrication-prep:read",
     ],
 )
 def test_ordinary_scopes(scope):

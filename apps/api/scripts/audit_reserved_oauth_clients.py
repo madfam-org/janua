@@ -71,6 +71,7 @@ RESERVED_AUDIENCES = frozenset(
         "yantra4d-api",
         "pravara-api",
         "asset-shells-api",
+        "fabrication-prep-api",
         "creator-census-api",
     }
 )
@@ -93,6 +94,7 @@ RESERVED_SCOPES = frozenset(
         "asset-shells:read",
         "asset-shells:publish-types",
         "asset-shells:publish-instances",
+        "fabrication-prep:slice",
     }
 )
 RESERVED_SCOPE_SUFFIXES = (":admin",)
