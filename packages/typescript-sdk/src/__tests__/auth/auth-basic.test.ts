@@ -63,6 +63,7 @@ describe('Auth - Basic Operations', () => {
     jest.clearAllMocks();
 
     mockHttpClient = {
+      emit: jest.fn(),
       get: jest.fn(),
       post: jest.fn(),
       put: jest.fn(),
