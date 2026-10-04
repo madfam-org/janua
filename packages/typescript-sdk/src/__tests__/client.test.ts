@@ -300,28 +300,19 @@ describe('JanuaClient', () => {
     });
 
     describe('signOut', () => {
-      it('should sign out from server and clear local tokens', async () => {
+      it('delegates to Auth without a second late clear or duplicate event', async () => {
         mockAuth.signOut.mockResolvedValue({});
-
         const emitSpy = jest.spyOn(client, 'emit');
-
         await client.signOut();
-
         expect(mockAuth.signOut).toHaveBeenCalled();
-        expect(mockTokenManager.clearTokens).toHaveBeenCalled();
-        expect(emitSpy).toHaveBeenCalledWith('auth:signedOut', {});
+        expect(mockTokenManager.clearTokens).not.toHaveBeenCalled();
+        expect(emitSpy).not.toHaveBeenCalledWith('auth:signedOut', {});
       });
 
-      it('should clear local tokens even if server sign out fails', async () => {
-        mockAuth.signOut.mockRejectedValue(new Error('Server error'));
-
-        const emitSpy = jest.spyOn(client, 'emit');
-
-        await client.signOut();
-
-        expect(mockAuth.signOut).toHaveBeenCalled();
-        expect(mockTokenManager.clearTokens).toHaveBeenCalled();
-        expect(emitSpy).toHaveBeenCalledWith('auth:signedOut', {});
+      it('does not erase a newer session if the Auth operation rejects', async () => {
+        mockAuth.signOut.mockRejectedValue(new Error('Storage unavailable'));
+        await expect(client.signOut()).rejects.toThrow('Storage unavailable');
+        expect(mockTokenManager.clearTokens).not.toHaveBeenCalled();
       });
     });
 

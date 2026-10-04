@@ -12,9 +12,9 @@ import type {
   Environment
 } from './types';
 import { HttpClient, createHttpClient } from './http-client';
-import { TokenManager, EnvUtils, EventEmitter, LocalTokenStorage, SessionTokenStorage, MemoryTokenStorage, type TokenStorage } from './utils';
+import { TokenManager, JwtUtils, EnvUtils, EventEmitter, LocalTokenStorage, SessionTokenStorage, MemoryTokenStorage, type TokenStorage } from './utils';
 import { logger } from './utils/logger';
-import { ConfigurationError } from './errors';
+import { ConfigurationError, TokenError } from './errors';
 import { Auth } from './auth';
 import { Users } from './users';
 import { Sessions } from './sessions';
@@ -290,7 +290,7 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
         const fiveMinutes = 5 * 60 * 1000;
 
         if (expiresIn <= fiveMinutes && expiresIn > 0) {
-          await this.auth.refreshToken({ refresh_token: tokenData.refresh_token });
+          await this.auth.refreshToken();
         }
       } catch (error) {
         this.emit('error', { error });
@@ -344,20 +344,25 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
     });
   }
 
+  /** Adopt a JWT only after the caller has verified it with its trusted server.
+   * Parsing here supplies expiry metadata; it does not verify authorization.
+   * An access-only import removes any previous account's refresh credential.
+   */
+  async adoptAccessToken(accessToken: string): Promise<void> {
+    const { payload } = JwtUtils.parseToken(accessToken);
+    if (!Number.isFinite(payload.exp) || (payload.exp ?? 0) * 1000 <= Date.now()) {
+      throw new TokenError('Imported access token must have a future expiry');
+    }
+    await this.tokenManager.setTokens({ access_token: accessToken, expires_at: payload.exp! * 1000 });
+  }
+
   /**
    * Clear all tokens and sign out
    */
   async signOut(): Promise<void> {
-    try {
-      // Try to sign out from server
-      await this.auth.signOut();
-    } catch {
-      // Ignore server errors during sign out
-    } finally {
-      // Always clear local tokens
-      await this.tokenManager.clearTokens();
-      this.emit('auth:signedOut', {});
-    }
+    // Auth owns the fenced clear and signed-out event. A second clear after
+    // awaiting logout could erase a newer account established in the meantime.
+    await this.auth.signOut();
   }
 
   /**

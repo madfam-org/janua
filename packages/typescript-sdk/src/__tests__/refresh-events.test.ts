@@ -61,8 +61,23 @@ it('keeps HTTP 401 recovery at exactly one refresh event', async () => {
 
 it('emits no success event for an incomplete token response', async () => {
   jest.mocked(fetch).mockResolvedValue(response({ access_token: 'incomplete' }));
-  await client.auth.refreshToken();
+  await expect(client.auth.refreshToken()).rejects.toThrow('Invalid refresh response');
   expect(canonical).not.toHaveBeenCalled();
   expect(alias).not.toHaveBeenCalled();
-  expect(localStorage.getItem('janua_access_token')).toBe('old-access');
+  expect(localStorage.getItem('janua_access_token')).toBeNull();
+});
+
+
+it('coordinates the JanuaClient timer with the HTTP proactive timer', async () => {
+  localStorage.setItem('janua_token_expires_at', String(Date.now() + 120_000));
+  let release!: (value: Response) => void;
+  jest.mocked(fetch).mockReturnValue(new Promise<Response>(resolve => { release = resolve; }));
+  (client as any)._httpClient.startProactiveRefresh();
+  await jest.advanceTimersByTimeAsync(60_000);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  release(response(rotated));
+  for (let i = 0; i < 50; i++) await Promise.resolve();
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(canonical).toHaveBeenCalledTimes(1);
+  expect(alias).toHaveBeenCalledTimes(1);
 });

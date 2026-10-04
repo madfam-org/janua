@@ -105,6 +105,8 @@ describe('AxiosHttpClient', () => {
 
     mockTokenManager = {
       getAccessToken: jest.fn().mockResolvedValue('test-token'),
+      captureSession: jest.fn(async () => ({ generation: 0, sessionId: null, tokens: { access_token: await mockTokenManager.getAccessToken() } })),
+      sameSession: jest.fn().mockReturnValue(true),
       getRefreshToken: jest.fn(),
       setTokens: jest.fn(),
       clearTokens: jest.fn(),

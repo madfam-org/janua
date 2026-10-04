@@ -290,55 +290,25 @@ export class Auth {
    * Sign out current user
    */
   async signOut(): Promise<void> {
+    const session = await this.tokenManager.prepareSignOut();
+    if (!session) return;
+    const { refreshToken, accessToken, generation: logoutGeneration, clearError } = session;
     try {
-      const refreshToken = await this.tokenManager.getRefreshToken();
-      await this.http.post('/api/v1/auth/logout', { refresh_token: refreshToken });
+      await this.http.post('/api/v1/auth/logout', { refresh_token: refreshToken }, {
+        skipAuth: true, headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
     } catch {
-      // Continue with sign out even if API call fails
-    } finally {
-      await this.tokenManager.clearTokens();
-      // Call onSignOut callback if it exists
-      if (this.onSignOut) {
-        this.onSignOut();
-      }
+      // Continue with local sign out even if the server is unavailable.
     }
+    if (clearError) throw clearError;
+    if (this.onSignOut && this.tokenManager.sessionGeneration === logoutGeneration && !await this.tokenManager.getAccessToken()) this.onSignOut();
   }
 
   /**
    * Refresh access token
    */
   async refreshToken(request?: RefreshTokenRequest): Promise<TokenResponse> {
-    // If no request provided, get refresh token from tokenManager
-    if (!request) {
-      const refreshToken = await this.tokenManager.getRefreshToken();
-      if (!refreshToken) {
-        throw new AuthenticationError('No refresh token available');
-      }
-      request = { refresh_token: refreshToken };
-    }
-
-    const response = await this.http.post<TokenResponse>('/api/v1/auth/refresh', request, {
-      skipAuth: true
-    });
-
-    // Store new tokens
-    if (response.data.access_token && response.data.refresh_token) {
-      await this.tokenManager.setTokens({
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_at: Date.now() + ((response.data as any).expires_in * 1000)
-      });
-      // Direct and scheduled refreshes bypass the HTTP client's 401 recovery.
-      // Publish through its existing forwarding path only after persistence.
-      this.http.emit('token:refreshed', { tokens: response.data });
-    }
-
-    return {
-      access_token: response.data.access_token,
-      refresh_token: response.data.refresh_token,
-      expires_in: response.data.expires_in,
-      token_type: response.data.token_type
-    };
+    return this.http.refreshTokens(request?.refresh_token);
   }
 
   /**
