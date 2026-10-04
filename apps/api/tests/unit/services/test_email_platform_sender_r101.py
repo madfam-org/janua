@@ -26,11 +26,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-import app.services.resend_email_service as resend_module
 from app.config import settings
 from app.dependencies import verify_internal_api_key
 from app.main import app
-from app.services import email_sender, email_service, resend_transport
+from app.services import email_service, resend_transport
 from app.services.email_sender import (
     MESSAGE_CLASS_CONVERSATION,
     MESSAGE_CLASS_SECURITY,
@@ -93,9 +92,9 @@ def tenant_key(monkeypatch):
 def sdk_sends(monkeypatch) -> List[Dict[str, Any]]:
     """Real ResendEmailService send path; the SDK call records its params."""
     captured: List[Dict[str, Any]] = []
-    monkeypatch.setattr(resend_module.settings, "EMAIL_ENABLED", True, raising=False)
-    monkeypatch.setattr(resend_module.settings, "RESEND_API_KEY", "re_test_fake", raising=False)
-    monkeypatch.setattr(resend_module.settings, "ENVIRONMENT", "test", raising=False)
+    monkeypatch.setattr(settings, "EMAIL_ENABLED", True, raising=False)
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test_fake", raising=False)
+    monkeypatch.setattr(settings, "ENVIRONMENT", "test", raising=False)
 
     def _fake_send(params: Dict[str, Any]) -> Dict[str, str]:
         captured.append(params)
