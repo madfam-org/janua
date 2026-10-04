@@ -35,6 +35,9 @@ on:
 jobs:
   publish-npm:
     name: Publish NPM SDK
+    concurrency:
+      group: sdk-publish-npm
+      cancel-in-progress: false
     runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
     permissions:
       contents: write
@@ -49,17 +52,15 @@ jobs:
       startsWith(github.ref, 'refs/tags/vue-sdk-v') ||
       startsWith(github.ref, 'refs/tags/react-native-sdk-v') ||
       startsWith(github.ref, 'refs/tags/core-v') ||
+      startsWith(github.ref, 'refs/tags/ui-v') ||
       startsWith(github.ref, 'refs/tags/jwt-utils-v') ||
       startsWith(github.ref, 'refs/tags/edge-v') ||
       startsWith(github.ref, 'refs/tags/cli-v') ||
       startsWith(github.ref, 'refs/tags/feature-flags-v')
 
     steps:
-      - name: Checkout code
+      - name: Checkout selected commit
         uses: actions/checkout@v7
-        with:
-          # workflow_dispatch uses main (has workflow + local actions). Tag pushes use the tag ref.
-          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -70,88 +71,72 @@ jobs:
           node-version: "20"
           registry-url: "https://npm.madfam.io"
 
-      - name: Extract SDK name and version
+      - name: Validate package and requested version
         id: extract
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            SDK_NAME="${{ inputs.sdk_name }}"
-            VERSION="${{ inputs.version }}"
-          else
-            TAG=${GITHUB_REF#refs/tags/}
-            SDK_NAME=${TAG%-v*}
-            VERSION=${TAG#*-v}
-          fi
-          echo "sdk_name=$SDK_NAME" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "release_tag=${SDK_NAME}-v${VERSION}" >> $GITHUB_OUTPUT
+        env:
+          SDK_NAME: ${{ inputs.sdk_name }}
+          SDK_VERSION: ${{ inputs.version }}
+        run: node scripts/sdk-release.mjs validate
+
+      - name: Verify release contract regressions
+        run: node --test scripts/sdk-release.test.mjs
 
       - name: Authenticate to npm.madfam.io
         uses: madfam-org/solarpunk-foundry/.github/actions/npm-madfam-auth@2ab1074779f04e6bd474bc3a41eece197b1d9a2e # main (2026-09-23)
         with:
           token: ${{ secrets.NPM_MADFAM_TOKEN }}
 
+      - name: Require unpublished version
+        env:
+          SDK_NAME: ${{ steps.extract.outputs.sdk_name }}
+          SDK_VERSION: ${{ steps.extract.outputs.version }}
+        run: node scripts/sdk-release.mjs registry
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build SDK
-        run: |
-          cd packages/${{ steps.extract.outputs.sdk_name }}
-          if jq -e '.scripts.build' package.json > /dev/null 2>&1; then
-            pnpm run build
-          else
-            echo "No build script found, skipping build"
-          fi
+      - name: Build package and workspace dependencies
+        env:
+          PACKAGE_NAME: ${{ steps.extract.outputs.package_name }}
+        run: pnpm --filter "$PACKAGE_NAME..." --fail-if-no-match --workspace-concurrency=1 -r --if-present run build
 
-      - name: Run tests
-        run: |
-          cd packages/${{ steps.extract.outputs.sdk_name }}
-          if jq -e '.scripts.test' package.json > /dev/null 2>&1; then
-            pnpm test
-          else
-            echo "No test script found, skipping tests"
-          fi
+      - name: Run package tests
+        env:
+          CI: "true"
+          PACKAGE_NAME: ${{ steps.extract.outputs.package_name }}
+        run: pnpm --filter "$PACKAGE_NAME" --fail-if-no-match test
 
-      - name: Resolve publish state
-        id: publish_state
-        run: |
-          cd packages/${{ steps.extract.outputs.sdk_name }}
-          PKG_NAME=$(jq -r '.name' package.json)
-          VERSION=$(jq -r '.version' package.json)
-          echo "package_name=${PKG_NAME}" >> $GITHUB_OUTPUT
-          if npm view "${PKG_NAME}@${VERSION}" version --registry https://npm.madfam.io 2>/dev/null; then
-            echo "already_published=true" >> $GITHUB_OUTPUT
-            echo "${PKG_NAME}@${VERSION} is already on npm.madfam.io — publish will be skipped"
-          else
-            echo "already_published=false" >> $GITHUB_OUTPUT
-            echo "OK: ${PKG_NAME}@${VERSION} not yet published"
-          fi
+      - name: Pack and inspect publishable manifest
+        id: pack
+        env:
+          SDK_NAME: ${{ steps.extract.outputs.sdk_name }}
+          SDK_VERSION: ${{ steps.extract.outputs.version }}
+        run: node scripts/sdk-release.mjs pack
 
-      - name: Publish to npm.madfam.io
-        if: steps.publish_state.outputs.already_published != 'true'
-        run: |
-          cd packages/${{ steps.extract.outputs.sdk_name }}
-          npm publish --access restricted
+      - name: Publish exact inspected tarball
+        env:
+          SDK_NAME: ${{ steps.extract.outputs.sdk_name }}
+          SDK_VERSION: ${{ steps.extract.outputs.version }}
+          RELEASE_MANIFEST: ${{ steps.pack.outputs.release_manifest }}
+        run: node scripts/sdk-release.mjs publish
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        continue-on-error: true
         with:
           tag_name: ${{ steps.extract.outputs.release_tag }}
-          name: ${{ steps.extract.outputs.sdk_name }} v${{ steps.extract.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.extract.outputs.package_name }} v${{ steps.extract.outputs.version }}
           body: |
-            Release ${{ steps.extract.outputs.version }} of ${{ steps.extract.outputs.sdk_name }}
+            Release `${{ steps.extract.outputs.package_name }}@${{ steps.extract.outputs.version }}`.
 
-            ## Installation
+            Install from the MADFAM registry:
             ```bash
-            npm config set @janua:registry https://npm.madfam.io
-            npm install @janua/${{ steps.extract.outputs.sdk_name }}@${{ steps.extract.outputs.version }}
+            npm install ${{ steps.extract.outputs.package_name }}@${{ steps.extract.outputs.version }} --registry https://npm.madfam.io
             ```
 
-            Registry package: `${{ steps.publish_state.outputs.package_name }}@${{ steps.extract.outputs.version }}` on npm.madfam.io
-
-            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/packages/${{ steps.extract.outputs.sdk_name }}/CHANGELOG.md) for details.
+            Built and tested with its workspace dependencies. Published from the inspected pnpm tarball at this commit.
           draft: false
-          prerelease: ${{ contains(steps.extract.outputs.version, 'alpha') || contains(steps.extract.outputs.version, 'beta') || contains(steps.extract.outputs.version, 'rc') }}
+          prerelease: ${{ steps.extract.outputs.prerelease == 'true' }}
 
   publish-python:
     name: Publish Python SDK

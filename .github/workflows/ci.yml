@@ -54,6 +54,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify SDK release contract
+        run: node --test scripts/sdk-release.test.mjs
+
       - name: Lint
         run: pnpm lint
 

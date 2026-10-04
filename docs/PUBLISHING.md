@@ -1,5 +1,19 @@
 # SDK Publishing Guide
 
+> **NPM release instructions superseded.** Use the canonical
+> [Publish SDKs workflow](../.github/workflows/publish-sdks.yml) with an
+> allowlisted package directory and the exact version already committed in its
+> manifest (or its matching `<directory>-v<version>` tag). It builds workspace
+> dependencies, tests the package, packs with pnpm, inspects the rewritten
+> manifest, and publishes that exact tarball to `https://npm.madfam.io` with
+> restricted access. Already-published versions and registry lookup errors stop
+> the run. Existing release tags must resolve to the selected commit. Internal
+> runtime dependencies must already have published versions satisfying the
+> packed exact, caret, or tilde range; publish dependencies before consumers.
+> The former `publish.yml` bulk publisher is retired. The legacy manual
+> npm/public-registry commands below are historical, not an approved release path.
+> Package publication and release tags require explicit operator authorization.
+
 Complete guide for publishing all Janua SDKs to their respective package registries.
 
 ## Prerequisites
