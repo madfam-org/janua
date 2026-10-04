@@ -14,6 +14,7 @@ jest.mock('@janua/typescript-sdk', () => ({
   JanuaClient: jest.fn().mockImplementation(() => ({
     updateUser: mockUpdateUser,
     getCurrentUser: mockGetCurrentUser,
+    getAccessToken: jest.fn().mockResolvedValue(null),
     signOut: mockSignOut,
     signIn: _mockSignIn,
   })),
@@ -60,6 +61,7 @@ const buildUseJanuaMock = (overrides: any = {}) => ({
   client: {
     updateUser: mockUpdateUser,
     getCurrentUser: mockGetCurrentUser,
+    getAccessToken: jest.fn().mockResolvedValue(null),
     signOut: mockSignOut,
     signIn: _mockSignIn,
   },

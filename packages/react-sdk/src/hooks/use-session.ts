@@ -7,25 +7,16 @@ export function useSession() {
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const refreshTokens = async (): Promise<TokenResponse | null> => {
-    const refreshToken = localStorage.getItem('janua_refresh_token')
+    const refreshToken = await client.getRefreshToken()
     if (!refreshToken) {
       return null
     }
 
     setIsRefreshing(true)
     try {
-      const tokens = await client.auth.refreshToken({ refresh_token: refreshToken })
-
-      localStorage.setItem('janua_access_token', tokens.access_token)
-      if (tokens.refresh_token) {
-        localStorage.setItem('janua_refresh_token', tokens.refresh_token)
-      }
-
-      return tokens
-    } catch (error) {
-      // Token refresh failed, removing invalid tokens
-      localStorage.removeItem('janua_access_token')
-      localStorage.removeItem('janua_refresh_token')
+      return await client.auth.refreshToken()
+    } catch {
+      // The SDK owns fenced persistence and invalidation of the failed session.
       return null
     } finally {
       setIsRefreshing(false)
