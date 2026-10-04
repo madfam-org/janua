@@ -63,6 +63,7 @@ describe('Auth', () => {
     jest.clearAllMocks();
 
     mockHttpClient = {
+      emit: jest.fn(),
       get: jest.fn(),
       post: jest.fn(),
       put: jest.fn(),

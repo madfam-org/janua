@@ -106,7 +106,10 @@ async def list_organizations(
     stmt = (
         select(Organization, organization_members.c.role)
         .join(organization_members, Organization.id == organization_members.c.organization_id)
-        .where(organization_members.c.user_id == current_user.id)
+        .where(
+            organization_members.c.user_id == current_user.id,
+            organization_members.c.status == "active",
+        )
     )
 
     # Get total count

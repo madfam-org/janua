@@ -20,8 +20,11 @@ const { januaClient: client } = jest.requireMock('./janua-client')
 const operator = { id: 'operator-id', email: 'operator@janua.dev', is_admin: true }
 const mockFetch = jest.fn()
 const originalFetch = global.fetch
+const originalConsoleError = console.error
+let authActions: ReturnType<typeof useAuth>
 function Probe() {
-  const { user, isAuthenticated, isAuthorized, isLoading } = useAuth()
+  authActions = useAuth()
+  const { user, isAuthenticated, isAuthorized, isLoading } = authActions
   return <div>
     <span data-testid="loading">{String(isLoading)}</span>
     <span data-testid="authenticated">{String(isAuthenticated)}</span>
@@ -34,6 +37,10 @@ async function renderProvider() {
   await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'))
 }
 beforeEach(() => {
+  jest.spyOn(console, 'error').mockImplementation((...args) => {
+    // jsdom does not perform full document navigation after logout.
+    if (!String(args[0]).includes('Not implemented: navigation')) originalConsoleError(...args)
+  })
   jest.clearAllMocks()
   for (const key of Object.keys(client.__listeners)) delete client.__listeners[key]
   client.getAccessToken.mockResolvedValue(null)
@@ -43,6 +50,7 @@ beforeEach(() => {
   global.fetch = mockFetch
   mockFetch.mockReset().mockResolvedValue({ ok: true, json: async () => ({ ok: true, user: operator }) })
 })
+afterEach(() => { jest.restoreAllMocks() })
 afterAll(() => { global.fetch = originalFetch })
 
 it('subscribes to canonical SDK events', async () => {
@@ -123,4 +131,73 @@ it('does not resurrect auth state when an in-flight bridge finishes after sign-o
   await act(async () => { client.__emit('auth:signedOut') })
   await act(async () => { complete({ ok: true, json: async () => ({ user: operator }) }) })
   expect(screen.getByTestId('authenticated')).toHaveTextContent('false')
+})
+
+it('cancels a queued refresh hydration when sign-out wins, even with a shared SSO cookie', async () => {
+  await renderProvider()
+  client.getAccessToken.mockResolvedValue('old-token')
+  document.cookie = 'janua_access_token=shared-token; path=/'
+  let complete!: (value: unknown) => void
+  mockFetch.mockReturnValueOnce(new Promise(resolve => { complete = resolve }))
+  await act(async () => { client.__emit('auth:signedIn') })
+  await act(async () => { client.__emit('token:refreshed') })
+  client.getAccessToken.mockResolvedValue(null)
+  await act(async () => { client.__emit('auth:signedOut') })
+  await act(async () => { complete({ ok: true, json: async () => ({ user: operator }) }) })
+  expect(mockFetch.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1)
+  expect(mockFetch).toHaveBeenLastCalledWith('/api/auth/session', { method: 'DELETE' })
+  expect(screen.getByTestId('authenticated')).toHaveTextContent('false')
+  expect(localStorage.getItem('janua_access_token')).toBeNull()
+})
+
+it('ignores a sign-in response/event that arrives after sign-out', async () => {
+  await renderProvider()
+  await act(async () => { client.__emit('auth:signedOut') })
+  client.getAccessToken.mockResolvedValue('late-signin-token')
+  localStorage.setItem('janua_access_token', 'late-signin-token')
+  localStorage.setItem('janua_refresh_token', 'late-signin-refresh')
+  await act(async () => { client.__emit('auth:signedIn') })
+  expect(mockFetch.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(0)
+  expect(screen.getByTestId('authenticated')).toHaveTextContent('false')
+  expect(localStorage.getItem('janua_access_token')).toBeNull()
+  expect(localStorage.getItem('janua_refresh_token')).toBeNull()
+})
+
+it('does not start a bridge when sign-out happens during an async token read', async () => {
+  await renderProvider()
+  let readToken!: (token: string) => void
+  client.getAccessToken.mockReturnValueOnce(new Promise(resolve => { readToken = resolve }))
+  await act(async () => { client.__emit('auth:signedIn') })
+  await act(async () => { client.__emit('auth:signedOut') })
+  await act(async () => { readToken('late-token') })
+  expect(mockFetch.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(0)
+  expect(screen.getByTestId('authenticated')).toHaveTextContent('false')
+})
+
+
+it('rejects a pending login action when sign-out happens before the SDK response', async () => {
+  await renderProvider()
+  let finishSignIn!: () => void
+  client.auth.signIn.mockImplementationOnce(() => new Promise<void>(resolve => {
+    finishSignIn = () => { client.__emit('auth:signedIn'); resolve() }
+  }))
+  let loginResult!: Promise<unknown>
+  await act(async () => { loginResult = authActions.login('operator@example.test', 'fixture-password').catch(error => error) })
+  await act(async () => { client.__emit('auth:signedOut') })
+  client.getAccessToken.mockResolvedValue('late-token')
+  await act(async () => { finishSignIn(); await loginResult })
+  expect(await loginResult).toBeInstanceOf(Error)
+  expect(mockFetch.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(0)
+  expect(screen.getByTestId('authenticated')).toHaveTextContent('false')
+})
+
+it('allows a normal login action to reuse its successful event bridge', async () => {
+  await renderProvider()
+  client.auth.signIn.mockImplementationOnce(async () => {
+    client.getAccessToken.mockResolvedValue('new-login-token')
+    client.__emit('auth:signedIn')
+  })
+  await act(async () => { await authActions.login('operator@example.test', 'fixture-password') })
+  expect(screen.getByTestId('authenticated')).toHaveTextContent('true')
+  expect(mockFetch.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1)
 })
