@@ -139,7 +139,7 @@ schema so drift fails CI":
    so a change to the email models forces a snapshot update.
 
 The coverage contract lives in `coverage.py` (scope + reasoned exemptions). This mirrors
-the estate's coverage-guard style (crea-map's sweeps, tlacuilo's `check-schema`).
+the estate's coverage-guard style (e.g. tlacuilo's `check-schema`).
 
 ## How to extend
 

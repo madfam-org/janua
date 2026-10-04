@@ -366,9 +366,10 @@ Operator detail and owner steps: [`docs/runbooks/resend-email-events.md`](docs/r
 Webhook secret rotation: [`docs/runbooks/secrets/resend-webhook-secret-rotation.md`](docs/runbooks/secrets/resend-webhook-secret-rotation.md).
 
 - **Resend webhook receiver** `POST /api/v1/email/webhooks/resend/{cuenta}`
-  (`cuenta` = `ctm` | `platform`, one per Resend ACCOUNT). Public; the
-  Svix-style signature is the authentication, verified with
-  `RESEND_WEBHOOK_SECRET_<CUENTA>` (`RESEND_WEBHOOK_SECRET_CTM`,
+  (`cuenta` = `platform` or a tenant account's slug, one per Resend ACCOUNT;
+  the map is `WEBHOOK_SECRET_SETTINGS` in `app/services/email_events.py`).
+  Public; the Svix-style signature is the authentication, verified with
+  `RESEND_WEBHOOK_SECRET_<CUENTA>` (e.g.
   `RESEND_WEBHOOK_SECRET_PLATFORM`). Secret unset or blank: **404**, same body
   as an unknown account. Bad or missing signature: **401**
   `{"detail":"Invalid webhook signature"}`. Verified and stored: **200**
@@ -384,16 +385,17 @@ Webhook secret rotation: [`docs/runbooks/secrets/resend-webhook-secret-rotation.
   instrumented. Links become `{host}/e/c/{token}/{i}` and a pixel
   `{host}/e/o/{token}.gif` is added; only the token's SHA-256 is stored.
   Resend's own tracking stays OFF and `EMAIL_TRACKED_SENDER_DOMAINS` stays empty.
-- **Per-tenant tracking host**: `CTM_TRACKING_HOST` (https origin only, no path
-  or port) is the on-switch for CTM; unset or invalid means CTM mail is never
-  instrumented. Production sets `https://enlaces.creatumundo.mx` in
+- **Per-tenant tracking host**: the setting a binding names in
+  `tracking_host_setting` (https origin only, no path or port) is that tenant's
+  on-switch; unset or invalid means the tenant's mail is never instrumented.
+  Production sets it to a host on the tenant's own domain in
   `k8s/base/deployments/janua-api.yaml` (#652). The platform binding has none.
 - **Tracking host scope** (#655): tracking hosts are added to
   `TrustedHostMiddleware`'s list at startup, and `TrackingHostScopeMiddleware`
   (registered after it, so it runs first) answers 404 to every path on a
   tracking host except `/e/o/*` and `/e/c/*`, and closes websockets with 1008.
   Sign-in, reset and OIDC discovery are never served under a tenant's domain.
-  Hosts are fixed at startup: changing `CTM_TRACKING_HOST` needs a restart.
+  Hosts are fixed at startup: changing a tenant's tracking host needs a restart.
 
 | Purpose | Location |
 |---------|----------|
@@ -449,15 +451,17 @@ EMAIL_FROM_NAME=MADFAM            # platform default, NOT "one sender for every
                                   # From line from sender_binding.py
 RESEND_API_KEY=re_XXXXX           # MADFAM's Resend account (platform sending)
 RESEND_VERIFIED_DOMAINS=madfam.io # domains verified on MADFAM's account
-CTM_RESEND_API_KEY=re_XXXXX       # CTM's OWN Resend account (tenant binding).
-                                  # Optional: absent => CTM degrades to the
-                                  # platform sender, the link still sends.
-RESEND_WEBHOOK_SECRET_CTM=        # whsec_... of CTM's Resend webhook; unset =>
-                                  # /email/webhooks/resend/ctm answers 404
-RESEND_WEBHOOK_SECRET_PLATFORM=   # same, MADFAM's Resend account
-CTM_TRACKING_HOST=                # https origin for CTM first-party open/click
-                                  # links; unset => CTM mail never measured
+RESEND_WEBHOOK_SECRET_PLATFORM=   # whsec_... of MADFAM's Resend webhook; unset =>
+                                  # /email/webhooks/resend/platform answers 404
 EMAIL_TRACKED_SENDER_DOMAINS=     # domains with RESEND tracking on; keep empty
+# Per-tenant (vCTO) variables are NAMED by the tenant's binding in
+# app/services/sender_binding.py and are all optional:
+#   - its own Resend key (credential_ref); absent => the tenant degrades to the
+#     platform sender, the link still sends
+#   - its first-party tracking origin (tracking_host_setting); unset => the
+#     tenant's mail is never measured
+#   - its webhook secret RESEND_WEBHOOK_SECRET_<CUENTA> (WEBHOOK_SECRET_SETTINGS
+#     in app/services/email_events.py); unset => its receiver answers 404
 ```
 
 ### Admin Bootstrap

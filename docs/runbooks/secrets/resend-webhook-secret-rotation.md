@@ -16,30 +16,30 @@ the account named in the URL:
 
 | Account | Receiver | Env var in janua-api | Vault key (`secret/janua`) | Secret key (`janua-secrets`) |
 |---|---|---|---|---|
-| CTM (tenant's own Resend account) | `POST /api/v1/email/webhooks/resend/ctm` | `RESEND_WEBHOOK_SECRET_CTM` | `resend_webhook_secret_ctm` | `resend-webhook-secret-ctm` |
+| A tenant's own Resend account | `POST /api/v1/email/webhooks/resend/<account>` | `RESEND_WEBHOOK_SECRET_<ACCOUNT>` | `resend_webhook_secret_<account>` | `resend-webhook-secret-<account>` |
 | MADFAM platform account | `POST /api/v1/email/webhooks/resend/platform` | `RESEND_WEBHOOK_SECRET_PLATFORM` | `resend_webhook_secret_platform` | `resend-webhook-secret-platform` |
 
-A new tenant account follows the same naming: `RESEND_WEBHOOK_SECRET_<ACCOUNT>`
+Every tenant account follows the same naming: `RESEND_WEBHOOK_SECRET_<ACCOUNT>`
 (an entry in `WEBHOOK_SECRET_SETTINGS`, `apps/api/app/services/email_events.py`),
 Vault key `resend_webhook_secret_<account>`, Secret key
-`resend-webhook-secret-<account>`.
+`resend-webhook-secret-<account>`, where `<account>` is the slug in the receiver URL.
 
-The steps below are written for CTM. For another account substitute the names
-from the table. What the receiver stores and the rest of the setup live in
+The steps below are written for a tenant account. For the platform account
+substitute the names from the table. What the receiver stores and the rest of the setup live in
 [`../resend-email-events.md`](../resend-email-events.md).
 
 **Location:** Vault `secret/janua` → enclii-managed ExternalSecret `janua-secrets` → env var in `janua-api`
 **Policy:** on demand (a new or recreated Resend webhook endpoint issues a new secret)
-**Registry id:** `janua-resend-webhook-secret-ctm` in `infra/secrets/SECRETS_REGISTRY.yaml`
+**Registry id:** `janua-resend-webhook-secret-<account>` in `infra/secrets/SECRETS_REGISTRY.yaml`
 
 ## How the value reaches the pod
 
 ```
 Resend webhook page (signing secret, whsec_...)
-  → Vault KV  secret/janua  key resend_webhook_secret_ctm
-  → ExternalSecret janua-secrets (managed in the enclii repo)  key resend-webhook-secret-ctm
+  → Vault KV  secret/janua  key resend_webhook_secret_<account>
+  → ExternalSecret janua-secrets (managed in the enclii repo)  key resend-webhook-secret-<account>
   → Secret janua-secrets
-  → env RESEND_WEBHOOK_SECRET_CTM in janua-api (optional secretKeyRef, read at process start)
+  → env RESEND_WEBHOOK_SECRET_<ACCOUNT> in janua-api (optional secretKeyRef, read at process start)
 ```
 
 - The Deployment (`k8s/base/deployments/janua-api.yaml`) reads the key with
@@ -93,7 +93,7 @@ From a shell that has the `vault` CLI and a token allowed to patch
 read -rs 'WHSEC?Resend signing secret (hidden): '; echo
 # bash:  read -rsp 'Resend signing secret (hidden): ' WHSEC; echo
 
-printf '%s' "$WHSEC" | vault kv patch secret/janua resend_webhook_secret_ctm=-
+printf '%s' "$WHSEC" | vault kv patch secret/janua resend_webhook_secret_<account>=-
 unset WHSEC
 ```
 
@@ -105,7 +105,7 @@ remote command string.
 ### Step 2: Check the stored value's shape (without printing it)
 
 ```bash
-vault kv get -field=resend_webhook_secret_ctm secret/janua \
+vault kv get -field=resend_webhook_secret_<account> secret/janua \
   | awk 'NR==1 { p = (substr($0, 1, 6) == "whsec_") ? "yes" : "NO"; l = length($0) }
          END   { printf "whsec_prefix=%s length=%d lines=%d\n", p, l, NR }'
 ```
@@ -119,9 +119,9 @@ line means something other than the secret was pasted: repeat step 1.
 Enclii (preferred; mutating verbs are a dry-run plan until `--apply --reason`):
 
 ```bash
-enclii ops secrets sync janua-secrets -n janua --apply --reason "Resend webhook secret (ctm) rotated"
-enclii ops secrets external janua-secrets -n janua   # Ready, and resend-webhook-secret-ctm among the keys
-enclii ops pods restart janua-api -n janua --apply --reason "Pick up RESEND_WEBHOOK_SECRET_CTM"
+enclii ops secrets sync janua-secrets -n janua --apply --reason "Resend webhook secret (<account>) rotated"
+enclii ops secrets external janua-secrets -n janua   # Ready, and resend-webhook-secret-<account> among the keys
+enclii ops pods restart janua-api -n janua --apply --reason "Pick up RESEND_WEBHOOK_SECRET_<ACCOUNT>"
 ```
 
 Break-glass equivalent:
@@ -138,7 +138,7 @@ the command's own success message. The same shape check can be run on the
 Secret the pod reads, again without printing the value:
 
 ```bash
-kubectl get secret janua-secrets -n janua -o jsonpath='{.data.resend-webhook-secret-ctm}' | base64 -d \
+kubectl get secret janua-secrets -n janua -o jsonpath='{.data.resend-webhook-secret-<account>}' | base64 -d \
   | awk 'NR==1 { p = (substr($0, 1, 6) == "whsec_") ? "yes" : "NO"; l = length($0) }
          END   { printf "whsec_prefix=%s length=%d lines=%d\n", p, l, NR }'
 ```
@@ -160,7 +160,7 @@ connection can keep reaching a draining old pod for a short while.
 
 ## Pitfall: the clipboard held the command (2026-09-26)
 
-The first CTM install stored the wrong value: the operator copied the secret
+The first tenant-account install stored the wrong value: the operator copied the secret
 from Resend, then copied the command to run, and the command read the value from
 the clipboard. The clipboard now held the command text, and that is what went
 into Vault. The pod had a value, so the receiver answered 401 (not 404) to every

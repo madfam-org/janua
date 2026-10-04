@@ -17,13 +17,13 @@ A recurring shape has appeared independently across the MADFAM ecosystem:
 > **a named set of powers** over **one specific thing**, for **a bounded time**,
 > and let an operator **take it back**.
 
-A family completing a clinical intake. A guest subscribing to a calendar. A
+A client's customer completing an intake form. A guest subscribing to a calendar. A
 counterparty opening a data room. Each app built its own table, its own token
 generator, its own expiry check, and its own revocation semantics. A survey of
 the four existing implementations (2026-08-31) found that **they do not agree on
 the security properties**, and the disagreements are not deliberate:
 
-| | crea-map «liga de familia» | kalya `FeedToken` | kalya `Booking.manageToken` | janua `guest_invites` |
+| | client portal intake link | kalya `FeedToken` | kalya `Booking.manageToken` | janua `guest_invites` |
 |---|---|---|---|---|
 | Hashed at rest | SHA-256 | SHA-256 | **No — plaintext** | **No — plaintext** |
 | Entropy | 256 bit | 256 bit | 192 bit | 256 bit |
@@ -40,31 +40,31 @@ is that the decisions come out differently each time.
 
 ### What is genuinely good in the prior art, and stays
 
-This ADR is **not** a criticism of crea-map. Its liga de familia gets the
+This ADR is **not** a criticism of the client portal. Its intake link gets the
 security core right — hash at rest, shown once, mandatory TTL, soft revocation,
 and a genuinely generic refusal chosen precisely because distinguishing
-"expired" from "never existed" is an enumeration oracle over a minor's clinical
-record. kalya's `FeedToken` independently reached the same conclusions and adds
+"expired" from "never existed" is an enumeration oracle over sensitive personal
+records. kalya's `FeedToken` independently reached the same conclusions and adds
 a tenant column and a label. **Those two implementations are the design input
 for this ADR, not the thing it replaces.**
 
 ### Prior art, honestly assessed
 
-**1. crea-map — `usuarios_enlace_familia`** (`src/server/enlace-familia.ts`,
-`prisma/schema.prisma:749`). SHA-256 at rest, 256-bit token, 30-day TTL,
-multi-use *by design* (~40 fields across 3 family members and 5 scanned
-documents — single-use would force manual re-issuance on every attempt), soft
+**1. A vCTO client portal — its app-local intake-link table** (in the client's
+own repo). SHA-256 at rest, 256-bit token, 30-day TTL,
+multi-use *by design* (a long multi-part form with document uploads —
+single-use would force manual re-issuance on every attempt), soft
 revoke, uniformly generic public refusal.
 
 *Tradeoffs, stated plainly:* `usuario_id` is the **primary key**, so exactly one
 live link can exist per subject, ever — no separate revocable links for two
-parents. Re-minting is an upsert that **clears `revocada_en`**, so re-issuing a
+recipients. Re-minting is an upsert that **clears `revocada_en`**, so re-issuing a
 link erases the record that a previous one was revoked; there is no history of
 prior links at all. No use counter, no `last_used_at`.
 
-*Verdict:* **crea-map's app-local table is fine and stays.** It is in production,
+*Verdict:* **the client portal's app-local table is fine and stays.** It is in production,
 it is correct on the properties that matter most, and its 30-day multi-use
-policy is a clinical-workflow decision janua has no business overriding. This
+policy is a domain-workflow decision janua has no business overriding. This
 ADR does not migrate it.
 
 **2. kalya — two primitives that disagree with each other.** `FeedToken`
@@ -154,14 +154,14 @@ scope string are free strings that janua stores, indexes, and hands back
 verbatim. Janua **never parses them**, never joins on them, and holds no table
 describing them. `"usuario"` / `"booking"` / `"engagement"` are meaningless to
 janua and must stay that way — that opacity is the only reason one primitive can
-serve a clinical roster, a booking, and a data room without janua learning three
+serve a client portal's roster, a booking, and a data room without janua learning three
 domain models.
 
 **3. Rows are never deleted.** Revoke and rotate set `revoked_at`; the row
 survives. There is no delete endpoint and must not be one — the same reasoning
 that keeps a purge out of `internal_users.py`. Destroying the row destroys the
 evidence that access was granted, to whom, and over what. This is where the
-design **departs from crea-map**, whose re-mint clears the revocation record.
+design **departs from the client portal**, whose re-mint clears the revocation record.
 
 ### Why a bare SHA-256 and not bcrypt/argon2
 
@@ -169,7 +169,7 @@ The token is 256 bits of `secrets.token_urlsafe(32)`, not a human-chosen
 password. There is no dictionary to attack, so a slow KDF's work factor buys
 nothing against this input while taxing every resolve. An unsalted hash is also
 **deterministic**, which is what lets resolve find the row with one indexed
-lookup instead of scanning every row. This matches what crea-map and kalya's
+lookup instead of scanning every row. This matches what the client portal and kalya's
 `FeedToken` independently concluded, and is standard practice for API keys.
 
 ---
@@ -263,7 +263,7 @@ token in a URL *fragment*.)
 
 Unknown token, expired, revoked, single-use already spent, and tenant mismatch
 all return the same status, code, and message. The server log distinguishes them;
-the client cannot. This is crea-map's discipline, generalized — and it is the
+the client cannot. This is the client portal's discipline, generalized — and it is the
 direct opposite of `guest_invites`' granular public messages.
 
 **Use counting burns only on success.** A refused resolve never advances
@@ -360,7 +360,7 @@ response bodies and **nowhere else**: not in a log line (structured logs carry
 `link_id`), not in an audit `details` blob (a token written to the audit trail
 would outlive the link and defeat hash-at-rest entirely), not in an error
 message, and never in a URL. Links travel in email and chat; treat every issued
-link as potentially forwarded — crea-map documents families forwarding theirs
+link as potentially forwarded — the client portal documents recipients forwarding theirs
 over WhatsApp.
 
 **Rotation guidance.** Rotate on any suspicion of forwarding or leak, on
@@ -387,8 +387,8 @@ invitation model is strictly stronger and should be preferred.
 
 **No app is required to migrate. Ever.** This is groundwork, not a mandate.
 
-- **crea-map keeps its liga de familia.** It is in production, correct on the
-  properties that matter, and its 30-day multi-use policy is a clinical decision.
+- **The client portal keeps its intake link.** It is in production, correct on the
+  properties that matter, and its 30-day multi-use policy is a domain decision.
   Nothing in this ADR asks it to change. If it *ever* adopts the primitive, the
   motivation would be gaining multiple concurrent links per subject and a
   revocation history its current PK-per-subject upsert cannot express — not
@@ -485,7 +485,7 @@ was rejected because staff legitimately belong to no tenant.
 lookup must declare its pool, and there is deliberately no "search every pool"
 helper.
 
-**So the schema-level blocker is gone.** The same parent email *can* already
+**So the schema-level blocker is gone.** The same person's email *can* already
 exist once in each of two tenant orgs. What remains is narrower and entirely in
 the auth flows.
 
@@ -498,7 +498,7 @@ user = await get_user_by_email(db, magic_link_data.email, tenant_id=None, active
 ```
 
 `POST /auth/magic-link` takes a bare email with no tenant context, resolves it in
-the `tenant_id IS NULL` pool, and **creates a user there if absent**. So a parent
+the `tenant_id IS NULL` pool, and **creates a user there if absent**. So a person
 who exists in two tenant orgs cannot sign in as either — a bare-email magic link
 resolves to (or creates) a *third*, untenanted identity. `MagicLink` itself has
 no tenant column; it carries `user_id` and `email`, so the tenant is only ever

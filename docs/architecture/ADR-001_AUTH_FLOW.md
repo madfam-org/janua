@@ -263,8 +263,8 @@ row in the platform pool and a row in each of N tenant pools.
 ### What that drift cost (2026-09-03)
 
 `POST /api/v1/auth/magic-link` looked users up in the untenanted pool only. The
-internal provisioning API writes users **with** a `tenant_id` (CTM staff,
-provisioned by crea-map, which sends `tenant_id` in its provision body), so the
+internal provisioning API writes users **with** a `tenant_id` (a vCTO client's staff,
+provisioned by the client's portal, which sends `tenant_id` in its provision body), so the
 lookup missed them; the handler's "not found → create" branch then ran and its
 INSERT collided with the still-global `ix_users_email`:
 
