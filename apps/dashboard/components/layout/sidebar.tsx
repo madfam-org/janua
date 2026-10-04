@@ -51,8 +51,8 @@ const navSections: NavSection[] = [
     title: 'Dashboard',
     items: [
       { title: 'Overview', href: '/', icon: <BarChart3 className="size-4" /> },
-      { title: 'Users', href: '/users', icon: <Users className="size-4" /> },
-      { title: 'Sessions', href: '/?tab=sessions', icon: <Monitor className="size-4" /> },
+      { title: 'Members', href: '/users', icon: <Users className="size-4" /> },
+      { title: 'Your sessions', href: '/?tab=sessions', icon: <Monitor className="size-4" /> },
       { title: 'Organizations', href: '/organizations', icon: <Building2 className="size-4" /> },
     ],
   },
@@ -90,7 +90,7 @@ const navSections: NavSection[] = [
       { title: 'Branding', href: '/settings/branding', icon: <Palette className="size-4" />, badge: 'Enterprise', badgeVariant: 'secondary' },
       { title: 'Billing', href: '/settings/billing', icon: <CreditCard className="size-4" /> },
       { title: 'Email Templates', href: '/settings/email-templates', icon: <Mail className="size-4" /> },
-      { title: 'System', href: '/settings/system', icon: <Server className="size-4" />, badge: 'Admin', badgeVariant: 'outline' },
+      { title: 'Platform admin', href: '/settings/system', icon: <Server className="size-4" />, badge: 'Admin', badgeVariant: 'outline' },
     ],
   },
 ]

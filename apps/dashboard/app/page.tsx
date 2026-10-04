@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@janua/ui'
@@ -132,10 +134,10 @@ function DashboardContent() {
             </div>
             <div className="flex items-center space-x-4">
               <Button variant="outline" size="sm" asChild>
-                <a href="/settings">
+                <Link href="/settings">
                   <Settings className="mr-2 size-4" />
                   Settings
-                </a>
+                </Link>
               </Button>
               <Button variant="outline" size="sm" onClick={handleLogout}>
                 Sign out
@@ -180,9 +182,9 @@ function DashboardContent() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
+                <CardTitle>Your recent session activity</CardTitle>
                 <CardDescription>
-                  Latest authentication and user events
+                  Recent session activity for your signed-in account
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -198,11 +200,11 @@ function DashboardContent() {
                   <div>
                     <CardTitle>Users</CardTitle>
                     <CardDescription>
-                      Manage user accounts, authentication status, and permissions.
+                      Choose an organization to view its members and organization roles.
                     </CardDescription>
                   </div>
                   <Button variant="outline" size="sm" asChild>
-                    <a href="/users">Open full view</a>
+                    <Link href="/users">Open full view</Link>
                   </Button>
                 </div>
               </CardHeader>
@@ -217,7 +219,7 @@ function DashboardContent() {
               <CardHeader>
                 <CardTitle>Active Sessions</CardTitle>
                 <CardDescription>
-                  Monitor and manage active user sessions
+                  Monitor and manage your own active sessions
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -259,7 +261,7 @@ function DashboardContent() {
               <CardHeader>
                 <CardTitle>Audit Log</CardTitle>
                 <CardDescription>
-                  View system audit trail and security events
+                  Organization audit history is not available yet
                 </CardDescription>
               </CardHeader>
               <CardContent>

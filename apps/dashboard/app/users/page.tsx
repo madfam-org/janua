@@ -11,15 +11,15 @@ export default function UsersPage() {
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Users</h2>
         <p className="text-muted-foreground">
-          Manage user accounts, authentication status, and permissions.
+          View members and roles within an organization.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>All Users</CardTitle>
+          <CardTitle>Organization members</CardTitle>
           <CardDescription>
-            Search, filter, and manage all registered users across your platform.
+            Choose an organization to view its membership directory.
           </CardDescription>
         </CardHeader>
         <CardContent>

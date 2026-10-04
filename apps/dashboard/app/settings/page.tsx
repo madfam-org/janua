@@ -112,8 +112,8 @@ const settingsSections: SettingsSection[] = [
     icon: <Mail className="size-5" />,
   },
   {
-    title: 'System Settings',
-    description: 'Configure CORS, sessions, password policies, and rate limiting',
+    title: 'Platform administration',
+    description: 'Open the platform administrator console for system-wide controls',
     href: '/settings/system',
     icon: <Server className="size-5" />,
     badge: 'Admin',
@@ -130,7 +130,7 @@ const complianceSections: SettingsSection[] = [
   },
   {
     title: 'Audit Logs',
-    description: 'View security events and user activity logs',
+    description: 'Organization audit history is not available yet',
     href: '/audit-logs',
     icon: <Lock className="size-5" />,
     badge: 'Admin',

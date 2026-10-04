@@ -17,9 +17,9 @@ export default function OrganizationsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Organizations</CardTitle>
+          <CardTitle>Your organizations</CardTitle>
           <CardDescription>
-            View and manage all organizations on your platform.
+            View organizations associated with your account.
           </CardDescription>
         </CardHeader>
         <CardContent>

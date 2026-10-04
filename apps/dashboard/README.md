@@ -53,11 +53,11 @@ apps/dashboard/
 │   ├── profile/                  # Profile with MFA, passkeys, devices, sessions
 │   ├── users/
 │   │   ├── page.tsx              # User list (search, filter, pagination)
-│   │   └── [id]/page.tsx         # User detail (profile, sessions, orgs, security, audit)
+│   │   └── [id]/page.tsx         # Organization selection for member details
 │   ├── organizations/
 │   │   ├── page.tsx              # Organization list
 │   │   └── [id]/page.tsx         # Org detail (members, roles, settings, danger zone)
-│   ├── audit-logs/               # Audit log viewer
+│   ├── audit-logs/               # Organization audit availability
 │   ├── compliance/               # Privacy & compliance tools
 │   ├── settings/
 │   │   ├── page.tsx              # Settings hub (card navigation)
@@ -104,19 +104,20 @@ apps/dashboard/
 
 ## Features
 
-### User Management
-- Full user list with search, status filter, and server-side pagination
-- User detail page with profile, sessions, organizations, security, and audit tabs
-- Suspend, reactivate, unlock, delete actions
-- Bulk operations support
+### Account overview and organization members
+- Overview uses your organizations and personal active sessions; unavailable data is explicit
+- Member directory requires an organization selection and uses its membership endpoint
+- Membership roles are organization roles, not platform administrator privileges
+- Account-wide user/security actions and system settings belong in Janua Admin
+- Organization audit history, exports, and live updates are unavailable until the API provides organization-scoped contracts
 
 ### Session Management
-- Active session list with device/browser/location info
+- Your active session list with device/browser/location info
 - Individual session revocation
 - Bulk revoke all sessions
 
 ### Organization Management
-- Organization list and detail pages
+- Current-account organization list and organization detail pages
 - Member management (invite, role change, remove)
 - Custom role creation
 - Transfer ownership, delete org
