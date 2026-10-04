@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   type ReactNode,
 } from 'react';
 import { JanuaClient, type JanuaConfig, type User, type Session } from '@janua/typescript-sdk';
@@ -191,6 +192,7 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<JanuaErrorState | null>(null);
+  const authGeneration = useRef(0);
 
   // Get client ID and redirect URI from config for OAuth
   const clientId = useMemo(() => {
@@ -210,26 +212,8 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
     setError(null);
   }, []);
 
-  /**
-   * Store tokens in localStorage
-   */
-  const storeTokens = useCallback((accessToken: string, refreshToken?: string, idToken?: string) => {
-    localStorage.setItem(STORAGE_KEYS.accessToken, accessToken);
-    if (refreshToken) {
-      localStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
-    }
-    if (idToken) {
-      localStorage.setItem(STORAGE_KEYS.idToken, idToken);
-    }
-  }, []);
-
-  /**
-   * Clear tokens from localStorage
-   * Note: User data is not stored in localStorage (CWE-312 security fix)
-   */
-  const clearTokens = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEYS.accessToken);
-    localStorage.removeItem(STORAGE_KEYS.refreshToken);
+  // Access/refresh credentials are exclusively persisted by the SDK manager.
+  const clearIdToken = useCallback(() => {
     localStorage.removeItem(STORAGE_KEYS.idToken);
   }, []);
 
@@ -237,50 +221,52 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
    * Refresh the current session
    */
   const refreshSession = useCallback(async (): Promise<void> => {
-    const refreshToken = localStorage.getItem(STORAGE_KEYS.refreshToken);
+    const generation = authGeneration.current;
+    const refreshToken = await client.getRefreshToken();
     if (!refreshToken) {
       throw new ReactJanuaError('REFRESH_FAILED', 'No refresh token available');
     }
 
     try {
-      const tokens = await client.auth.refreshToken({ refresh_token: refreshToken });
-      storeTokens(tokens.access_token, tokens.refresh_token);
+      await client.auth.refreshToken();
+      if (generation !== authGeneration.current) return;
 
       // Fetch updated user
       // Security: User data stored in React state only, not localStorage (CWE-312)
       const currentUser = await client.getCurrentUser();
-      if (currentUser) {
+      if (currentUser && generation === authGeneration.current) {
         const mappedUser = mapApiUserToJanuaUser(currentUser);
         setUser(mappedUser);
       }
     } catch (err) {
+      if (generation !== authGeneration.current) throw err;
       const errorState = mapErrorToState(err);
       errorState.code = 'REFRESH_FAILED';
       setError(errorState);
-      clearTokens();
+      clearIdToken();
       setUser(null);
       throw ReactJanuaError.fromState(errorState);
     }
-  }, [client, storeTokens, clearTokens]);
+  }, [client, clearIdToken]);
 
   /**
    * Get access token, refreshing if needed
    */
   const getAccessToken = useCallback(async (): Promise<string | null> => {
-    const token = localStorage.getItem(STORAGE_KEYS.accessToken);
+    const token = await client.getAccessToken();
     if (!token) return null;
 
     if (isTokenExpired(token)) {
       try {
         await refreshSession();
-        return localStorage.getItem(STORAGE_KEYS.accessToken);
+        return await client.getAccessToken();
       } catch {
         return null;
       }
     }
 
     return token;
-  }, [refreshSession]);
+  }, [client, refreshSession]);
 
   /**
    * Get ID token
@@ -295,7 +281,7 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        const token = localStorage.getItem(STORAGE_KEYS.accessToken);
+        const token = await client.getAccessToken();
         if (!token) {
           setIsLoading(false);
           return;
@@ -330,7 +316,7 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
         }
       } catch (err) {
         // Authentication initialization failed
-        clearTokens();
+        clearIdToken();
         const errorState = mapErrorToState(err);
         setError(errorState);
       } finally {
@@ -339,7 +325,7 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
     };
 
     initializeAuth();
-  }, [client, refreshSession, clearTokens]);
+  }, [client, refreshSession, clearIdToken]);
 
   /**
    * Sign in with email and password
@@ -373,8 +359,6 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
           throw new ReactJanuaError('UNKNOWN_ERROR', 'Sign-in did not return session tokens.');
         }
 
-        storeTokens(response.tokens.access_token, response.tokens.refresh_token);
-
         // Set user from token immediately so isAuthenticated becomes true
         const tokenUser = parseUserFromToken(response.tokens.access_token);
         if (tokenUser) {
@@ -399,7 +383,7 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
         setIsLoading(false);
       }
     },
-    [client, storeTokens]
+    [client]
   );
 
   /**
@@ -422,7 +406,6 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
         if (!response.tokens) {
           throw new ReactJanuaError('UNKNOWN_ERROR', 'Sign-up did not return session tokens.');
         }
-        storeTokens(response.tokens.access_token, response.tokens.refresh_token);
 
         // Security: User data stored in React state only, not localStorage (CWE-312)
         const mappedUser = mapApiUserToJanuaUser(response.user);
@@ -435,24 +418,25 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
         setIsLoading(false);
       }
     },
-    [client, storeTokens]
+    [client]
   );
 
   /**
    * Sign out the current user
    */
   const signOut = useCallback(async (): Promise<void> => {
+    authGeneration.current += 1;
     try {
       await client.signOut();
     } catch {
       // Ignore errors during sign out
     } finally {
-      clearTokens();
+      clearIdToken();
       setUser(null);
       setSession(null);
       setError(null);
     }
-  }, [client, clearTokens]);
+  }, [client, clearIdToken]);
 
   /**
    * Initiate OAuth sign in flow with PKCE
@@ -500,6 +484,7 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
       setError(null);
       setIsLoading(true);
 
+      const generation = authGeneration.current;
       try {
         // Validate state
         if (!validateState(state)) {
@@ -541,12 +526,10 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
 
         const tokenData = await response.json();
 
-        // Store tokens
-        storeTokens(
-          tokenData.access_token,
-          tokenData.refresh_token,
-          tokenData.id_token
-        );
+        if (generation !== authGeneration.current) return;
+        await client.setTokens(tokenData);
+        if (generation !== authGeneration.current) return;
+        if (tokenData.id_token) localStorage.setItem(STORAGE_KEYS.idToken, tokenData.id_token);
 
         // Clear PKCE params
         clearPKCEParams();
@@ -554,7 +537,7 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
         // Fetch current user
         // Security: User data stored in React state only, not localStorage (CWE-312)
         const currentUser = await client.getCurrentUser();
-        if (currentUser) {
+        if (currentUser && generation === authGeneration.current) {
           const mappedUser = mapApiUserToJanuaUser(currentUser);
           setUser(mappedUser);
         }
@@ -572,7 +555,7 @@ export function JanuaProvider({ children, config, appearance }: JanuaProviderPro
         setIsLoading(false);
       }
     },
-    [config.baseURL, client, clientId, redirectUri, storeTokens]
+    [config.baseURL, client, clientId, redirectUri]
   );
 
   // Build context value

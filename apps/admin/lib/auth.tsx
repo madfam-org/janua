@@ -91,9 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // A shared dashboard cookie is only copied after the server has checked
         // its signature AND the current platform operator record.
         if (token === ssoToken && token !== storedToken) {
-          localStorage.removeItem('janua_refresh_token')
-          localStorage.removeItem('janua_token_expires_at')
-          localStorage.setItem('janua_access_token', token)
+          await januaClient.adoptAccessToken(token)
+          if (signingOut.current || currentGeneration !== generation.current) return false
         }
         setUser(session.user as User)
         return true

@@ -229,13 +229,12 @@ describe('Token Storage Classes', () => {
       expect(mockLocalStorage.removeItem).toHaveBeenCalledWith(key);
     });
 
-    it('should handle localStorage errors gracefully', async () => {
+    it('should report localStorage mutation failures without raw details', async () => {
       mockLocalStorage.setItem.mockImplementation(() => {
         throw new Error('Storage quota exceeded');
       });
 
-      // Should not throw
-      await expect(storage.setItem('key', 'value')).resolves.toBeUndefined();
+      await expect(storage.setItem('key', 'value')).rejects.toThrow('Token storage mutation failed');
     });
   });
 

@@ -64,6 +64,7 @@ describe('Auth - Basic Operations', () => {
 
     mockHttpClient = {
       emit: jest.fn(),
+      refreshTokens: jest.fn(),
       get: jest.fn(),
       post: jest.fn(),
       put: jest.fn(),
@@ -73,7 +74,10 @@ describe('Auth - Basic Operations', () => {
 
     mockTokenManager = {
       setTokens: jest.fn(),
-      clearTokens: jest.fn(),
+      clearTokens: jest.fn().mockResolvedValue(undefined),
+      prepareSignOut: jest.fn().mockResolvedValue({ refreshToken: tokenFixtures.validRefreshToken, accessToken: null, generation: 0 }),
+      invalidateSession: jest.fn(),
+      sessionGeneration: 0,
       getAccessToken: jest.fn(),
       getRefreshToken: jest.fn(),
       hasValidTokens: jest.fn()
@@ -205,8 +209,8 @@ describe('Auth - Basic Operations', () => {
 
       expect(mockHttpClient.post).toHaveBeenCalledWith('/api/v1/auth/logout', {
         refresh_token: tokenFixtures.validRefreshToken
-      });
-      expect(mockTokenManager.clearTokens).toHaveBeenCalled();
+      }, { skipAuth: true, headers: {} });
+      expect(mockTokenManager.prepareSignOut).toHaveBeenCalled();
       expect(mockOnSignOut).toHaveBeenCalled();
     });
 
@@ -216,49 +220,24 @@ describe('Auth - Basic Operations', () => {
 
       await auth.signOut();
 
-      expect(mockTokenManager.clearTokens).toHaveBeenCalled();
+      expect(mockTokenManager.prepareSignOut).toHaveBeenCalled();
       expect(mockOnSignOut).toHaveBeenCalled();
     });
   });
 
   describe('refreshToken', () => {
-    it('should refresh tokens successfully', async () => {
-      mockTokenManager.getRefreshToken.mockResolvedValue(tokenFixtures.validRefreshToken);
-
-      const mockResponse = {
-        access_token: 'new-access-token',
-        refresh_token: 'new-refresh-token',
-        expires_in: 3600,
-        token_type: 'bearer' as const
-      };
-
-      mockHttpClient.post.mockResolvedValue({ data: mockResponse });
-
-      const result = await auth.refreshToken();
-
-      expect(mockHttpClient.post).toHaveBeenCalledWith('/api/v1/auth/refresh', {
-        refresh_token: tokenFixtures.validRefreshToken
-      }, {
-        skipAuth: true
-      });
-      expect(mockTokenManager.setTokens).toHaveBeenCalledWith({
-        access_token: mockResponse.access_token,
-        refresh_token: mockResponse.refresh_token,
-        expires_at: expect.any(Number)
-      });
-      expect(result).toEqual({
-        access_token: mockResponse.access_token,
-        refresh_token: mockResponse.refresh_token,
-        expires_in: mockResponse.expires_in,
-        token_type: mockResponse.token_type
-      });
+    it('delegates every direct refresh to the shared HTTP coordinator', async () => {
+      mockHttpClient.refreshTokens.mockResolvedValue(tokenFixtures.validTokens);
+      expect(await auth.refreshToken()).toEqual(tokenFixtures.validTokens);
+      expect(mockHttpClient.refreshTokens).toHaveBeenCalledWith(undefined);
+      await auth.refreshToken({ refresh_token: 'explicit-fixture' });
+      expect(mockHttpClient.refreshTokens).toHaveBeenLastCalledWith('explicit-fixture');
+      expect(mockTokenManager.setTokens).not.toHaveBeenCalled();
     });
 
-    it('should throw error if no refresh token available', async () => {
-      mockTokenManager.getRefreshToken.mockResolvedValue(null);
-
+    it('propagates coordinator authentication failures', async () => {
+      mockHttpClient.refreshTokens.mockRejectedValue(new AuthenticationError('No refresh token available'));
       await expect(auth.refreshToken()).rejects.toThrow(AuthenticationError);
-      expect(mockHttpClient.post).not.toHaveBeenCalled();
     });
   });
 

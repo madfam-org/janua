@@ -12,11 +12,17 @@ import {
   JanuaError,
   NetworkError,
   RateLimitError,
-  ConfigurationError
+  ConfigurationError,
+  AuthenticationError
 } from './errors';
 import { TokenManager, RetryUtils, EventEmitter } from './utils';
 import type { SdkEventMap } from './types';
 import { SDK_NAME, SDK_VERSION } from './version';
+import { refreshSession } from './refresh-coordinator';
+import type { SessionSnapshot } from './utils/token-utils';
+import type { TokenResponse } from './types';
+
+type SessionRequest = RequestConfig & { _authRetry?: boolean; _sessionSnapshot?: SessionSnapshot };
 
 /**
  * HTTP client with automatic token refresh and retry logic
@@ -24,7 +30,6 @@ import { SDK_NAME, SDK_VERSION } from './version';
 export class HttpClient extends EventEmitter<SdkEventMap> {
   private config: Required<Pick<JanuaConfig, 'baseURL' | 'timeout' | 'retryAttempts' | 'retryDelay'>>;
   private tokenManager: TokenManager;
-  private refreshPromise: Promise<void> | null = null;
   private proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(config: JanuaConfig, tokenManager: TokenManager) {
@@ -85,17 +90,18 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
   /**
    * Make HTTP request with automatic token handling
    */
-  async request<T = unknown>(config: RequestConfig): Promise<HttpResponse<T>> {
+  async request<T = unknown>(input: RequestConfig): Promise<HttpResponse<T>> {
+    const config: SessionRequest = { ...input, headers: { ...input.headers } };
     return this.executeWithRetry(async () => {
       // Add authorization header if not skipped and token exists
       if (!config.skipAuth) {
-        const accessToken = await this.tokenManager.getAccessToken();
-        if (accessToken) {
-          config.headers = {
-            ...config.headers,
-            Authorization: `Bearer ${accessToken}`
-          };
+        const current = await this.tokenManager.captureSession();
+        if (config._sessionSnapshot && !this.tokenManager.sameSession(config._sessionSnapshot, current)) {
+          throw new AuthenticationError('Session changed during request');
         }
+        config._sessionSnapshot = current;
+        const accessToken = current.tokens?.access_token;
+        if (accessToken) config.headers = { ...config.headers, Authorization: `Bearer ${accessToken}` };
       }
 
       // Build full URL
@@ -115,9 +121,9 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
 
       // Handle authentication errors
       if (status === 401 && !config.skipAuth) {
-        await this.handleAuthError(config);
-        // Retry the request with refreshed token
-        return this.request(config);
+        if (config._authRetry) throw new AuthenticationError('Request rejected after refresh');
+        await this.refreshTokens(undefined, config._sessionSnapshot);
+        return this.request({ ...config, _authRetry: true } as SessionRequest);
       }
 
       // Handle API errors
@@ -139,7 +145,8 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
       maxAttempts: this.config.retryAttempts,
       initialDelay: this.config.retryDelay,
       backoffMultiplier: 2,
-      maxDelay: 30000
+      maxDelay: 30000,
+      shouldRetry: error => !(error instanceof AuthenticationError)
     });
   }
 
@@ -213,64 +220,21 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
   /**
    * Handle authentication errors
    */
-  private async handleAuthError(_originalConfig: RequestConfig): Promise<void> {
-    // Prevent multiple simultaneous refresh attempts
-    if (this.refreshPromise) {
-      await this.refreshPromise;
-      return;
-    }
-
-    try {
-      this.refreshPromise = this.refreshTokens();
-      await this.refreshPromise;
-    } finally {
-      this.refreshPromise = null;
-    }
-  }
-
-  /**
-   * Refresh access tokens
-   */
-  private async refreshTokens(): Promise<void> {
-    const refreshToken = await this.tokenManager.getRefreshToken();
-
-    if (!refreshToken) {
-      this.emit('auth:signedOut', {});
-      throw new JanuaError('No refresh token available', 'AUTHENTICATION_ERROR');
-    }
-
-    try {
-      const response = await this.request<{
-        access_token: string;
-        refresh_token: string;
-        expires_in: number;
-      }>({
-        method: 'POST',
-        url: '/api/v1/auth/refresh',
-        data: { refresh_token: refreshToken },
-        skipAuth: true
+  async refreshTokens(explicitRefreshToken?: string, expected?: SessionSnapshot): Promise<TokenResponse> {
+    return refreshSession(this.tokenManager, async refreshToken => {
+      const response = await this.makeRequest(this.buildUrl('/api/v1/auth/refresh'), {
+        method: 'POST', url: '/api/v1/auth/refresh', data: { refresh_token: refreshToken }, skipAuth: true,
       });
-
-      // Store new tokens
-      const expiresAt = Date.now() + (response.data.expires_in * 1000);
-      await this.tokenManager.setTokens({
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_at: expiresAt
-      });
-
-      this.emit('token:refreshed', { tokens: { ...response.data, token_type: 'bearer' as const } });
-
-      // Schedule the next proactive refresh cycle
+      if ((response.status ?? 200) >= 400) await this.handleApiError(response);
+      return { ...(response.data as TokenResponse), token_type: 'bearer' as const };
+    }, tokens => {
+      this.emit('token:refreshed', { tokens });
       this.startProactiveRefresh();
-    } catch (error) {
-      // Clear tokens on refresh failure
-      await this.tokenManager.clearTokens();
+    }, () => {
       this.emit('token:expired', {});
       this.emit('auth:signedOut', {});
       this.stopProactiveRefresh();
-      throw error;
-    }
+    }, expected, explicitRefreshToken);
   }
 
   /**
@@ -413,6 +377,7 @@ interface AxiosRequestConfig {
   timeout?: number;
   skipAuth?: boolean;
   _retry?: boolean;
+  _sessionSnapshot?: SessionSnapshot;
 }
 
 interface AxiosResponse<T = unknown> {
@@ -441,7 +406,6 @@ export class AxiosHttpClient extends EventEmitter<SdkEventMap> {
   private axiosLib: AxiosStatic;
   private axios!: AxiosInstance;
   private tokenManager: TokenManager;
-  private refreshPromise: Promise<void> | null = null;
 
   constructor(config: JanuaConfig, tokenManager: TokenManager) {
     super();
@@ -452,7 +416,7 @@ export class AxiosHttpClient extends EventEmitter<SdkEventMap> {
       // Try to import axios
       this.axiosLib = require('axios');
       this.setupAxiosInstance(config);
-    } catch (error) {
+    } catch {
       throw new ConfigurationError('Axios is not available. Please install axios or use the default fetch client.');
     }
   }
@@ -469,7 +433,12 @@ export class AxiosHttpClient extends EventEmitter<SdkEventMap> {
     // Request interceptor for auth
     this.axios.interceptors.request.use(async (axiosConfig: AxiosRequestConfig) => {
       if (!axiosConfig.skipAuth) {
-        const accessToken = await this.tokenManager.getAccessToken();
+        const current = await this.tokenManager.captureSession();
+        if (axiosConfig._sessionSnapshot && !this.tokenManager.sameSession(axiosConfig._sessionSnapshot, current)) {
+          throw new AuthenticationError('Session changed during request');
+        }
+        axiosConfig._sessionSnapshot = current;
+        const accessToken = current.tokens?.access_token;
         if (accessToken) {
           axiosConfig.headers = axiosConfig.headers || {};
           axiosConfig.headers.Authorization = `Bearer ${accessToken}`;
@@ -488,7 +457,7 @@ export class AxiosHttpClient extends EventEmitter<SdkEventMap> {
           originalRequest._retry = true;
 
           try {
-            await this.handleAuthError();
+            await this.refreshTokens(undefined, originalRequest._sessionSnapshot);
             return this.axios(originalRequest) as never;
           } catch (refreshError) {
             return Promise.reject(refreshError);
@@ -513,70 +482,35 @@ export class AxiosHttpClient extends EventEmitter<SdkEventMap> {
     );
   }
 
-  private async handleAuthError(): Promise<void> {
-    if (this.refreshPromise) {
-      await this.refreshPromise;
-      return;
-    }
-
-    try {
-      this.refreshPromise = this.refreshTokens();
-      await this.refreshPromise;
-    } finally {
-      this.refreshPromise = null;
-    }
-  }
-
-  private async refreshTokens(): Promise<void> {
-    const refreshToken = await this.tokenManager.getRefreshToken();
-
-    if (!refreshToken) {
-      this.emit('auth:signedOut', {});
-      throw new JanuaError('No refresh token available', 'AUTHENTICATION_ERROR');
-    }
-
-    try {
-      const response = await this.axios.post<{ access_token: string; refresh_token: string; expires_in: number }>('/api/v1/auth/refresh', {
-        refresh_token: refreshToken
+  async refreshTokens(explicitRefreshToken?: string, expected?: SessionSnapshot): Promise<TokenResponse> {
+    return refreshSession(this.tokenManager, async refreshToken => {
+      const response = await this.axios.post<TokenResponse>('/api/v1/auth/refresh', {
+        refresh_token: refreshToken,
       }, { skipAuth: true });
-
-      const expiresAt = Date.now() + (response.data.expires_in * 1000);
-      await this.tokenManager.setTokens({
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token,
-        expires_at: expiresAt
-      });
-
-      this.emit('token:refreshed', { tokens: { ...response.data, token_type: 'bearer' as const } });
-    } catch (error) {
-      await this.tokenManager.clearTokens();
+      return { ...response.data, token_type: 'bearer' as const };
+    }, tokens => this.emit('token:refreshed', { tokens }), () => {
       this.emit('token:expired', {});
       this.emit('auth:signedOut', {});
-      throw error;
-    }
+    }, expected, explicitRefreshToken);
   }
 
   async request<T = unknown>(config: RequestConfig): Promise<HttpResponse<T>> {
-    try {
-      const response = await this.axios({
-        method: config.method,
-        url: config.url,
-        data: config.data,
-        params: config.params as Record<string, unknown>,
-        headers: config.headers,
-        timeout: config.timeout,
-        skipAuth: config.skipAuth
-      });
+    const response = await this.axios({
+      method: config.method,
+      url: config.url,
+      data: config.data,
+      params: config.params as Record<string, unknown>,
+      headers: config.headers,
+      timeout: config.timeout,
+      skipAuth: config.skipAuth
+    });
 
-      return {
-        data: response.data as T,
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers
-      };
-    } catch (error) {
-      throw error; // Already converted by interceptor
-    }
+    return {
+      data: response.data as T,
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers
+    };
   }
 
   // Convenience methods
