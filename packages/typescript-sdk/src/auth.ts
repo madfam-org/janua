@@ -328,6 +328,9 @@ export class Auth {
         refresh_token: response.data.refresh_token,
         expires_at: Date.now() + ((response.data as any).expires_in * 1000)
       });
+      // Direct and scheduled refreshes bypass the HTTP client's 401 recovery.
+      // Publish through its existing forwarding path only after persistence.
+      this.http.emit('token:refreshed', { tokens: response.data });
     }
 
     return {
@@ -481,30 +484,25 @@ export class Auth {
    * Verify magic link token and sign in
    */
   async verifyMagicLink(token: string): Promise<AuthResponse> {
-    try {
-      const response = await this.http.post<AuthResponse>('/api/v1/auth/magic-link/verify', {
-        token
-      }, { skipAuth: true });
+    const response = await this.http.post<AuthResponse>('/api/v1/auth/magic-link/verify', {
+      token
+    }, { skipAuth: true });
 
-      // Store tokens
-      if (response.data.tokens && response.data.tokens.access_token && response.data.tokens.refresh_token) {
-        await this.tokenManager.setTokens({
-          access_token: response.data.tokens.access_token,
-          refresh_token: response.data.tokens.refresh_token,
-          expires_at: Date.now() + (response.data.tokens.expires_in * 1000)
-        });
-      }
-
-      // Call onSignIn callback if it exists
-      if (this.onSignIn) {
-        this.onSignIn({ user: response.data.user });
-      }
-
-      return response.data;
-    } catch (error) {
-      // Re-throw the error to let tests catch it
-      throw error;
+    // Store tokens
+    if (response.data.tokens && response.data.tokens.access_token && response.data.tokens.refresh_token) {
+      await this.tokenManager.setTokens({
+        access_token: response.data.tokens.access_token,
+        refresh_token: response.data.tokens.refresh_token,
+        expires_at: Date.now() + (response.data.tokens.expires_in * 1000)
+      });
     }
+
+    // Call onSignIn callback if it exists
+    if (this.onSignIn) {
+      this.onSignIn({ user: response.data.user });
+    }
+
+    return response.data;
   }
 
   // MFA Operations

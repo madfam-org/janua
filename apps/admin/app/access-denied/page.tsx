@@ -43,7 +43,7 @@ export default function AccessDeniedPage() {
           </p>
           <ul className="text-muted-foreground mt-2 list-inside list-disc space-y-1 text-sm">
             <li>Email from an authorized domain (e.g., <span className="text-primary font-mono">@janua.dev</span>, <span className="text-primary font-mono">@madfam.io</span>)</li>
-            <li>Admin role (<span className="text-primary font-mono">superadmin</span> or <span className="text-primary font-mono">admin</span>)</li>
+            <li>Platform administrator access granted by the platform team</li>
           </ul>
         </div>
 

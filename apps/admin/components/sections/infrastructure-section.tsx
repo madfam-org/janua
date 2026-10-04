@@ -31,18 +31,10 @@ interface HealthMetrics {
   api_requests_per_minute: number
 }
 
-const DEFAULT_METRICS: HealthMetrics = {
-  db_pool_size: 20,
-  db_pool_used: 0,
-  db_pool_available: 20,
-  redis_memory_used_mb: 0,
-  redis_memory_max_mb: 256,
-  redis_hit_rate: 0,
-  redis_connected_clients: 0,
-  api_avg_response_ms: 0,
-  api_p95_response_ms: 0,
-  api_p99_response_ms: 0,
-  api_requests_per_minute: 0,
+type ReportedMetrics = { [Key in keyof HealthMetrics]: number | null }
+
+function reportedMetric(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
 }
 
 const AUTO_REFRESH_INTERVAL = 30_000
@@ -56,19 +48,19 @@ function MetricBar({
   criticalThreshold = 0.9,
 }: {
   label: string
-  value: number
-  max: number
+  value: number | null
+  max: number | null
   unit?: string
   warningThreshold?: number
   criticalThreshold?: number
 }) {
-  const ratio = max > 0 ? value / max : 0
-  const percentage = Math.min(ratio * 100, 100)
+  const ratio = value !== null && max !== null && max > 0 ? value / max : null
+  const percentage = ratio !== null ? Math.min(ratio * 100, 100) : null
 
   const barColor =
-    ratio >= criticalThreshold
+    ratio !== null && ratio >= criticalThreshold
       ? 'bg-red-500 dark:bg-red-400'
-      : ratio >= warningThreshold
+      : ratio !== null && ratio >= warningThreshold
         ? 'bg-yellow-500 dark:bg-yellow-400'
         : 'bg-green-500 dark:bg-green-400'
 
@@ -77,17 +69,31 @@ function MetricBar({
       <div className="flex items-center justify-between text-sm">
         <span className="text-muted-foreground">{label}</span>
         <span className="text-foreground font-mono text-xs">
-          {value}
-          {unit ? ` ${unit}` : ''} / {max}
-          {unit ? ` ${unit}` : ''}
+          {value ?? 'Unavailable'}
+          {value !== null && unit ? ` ${unit}` : ''}
+          {ratio !== null && ` / ${max}${unit ? ` ${unit}` : ''}`}
         </span>
       </div>
-      <div className="bg-muted h-2 overflow-hidden rounded-full">
+      {percentage !== null ? (
         <div
-          className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
+          className="bg-muted h-2 overflow-hidden rounded-full"
+          role="progressbar"
+          aria-label={label}
+          aria-valuenow={percentage}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-xs">
+          Utilization unavailable · Capacity: {max ?? 'Unavailable'}
+          {max !== null && unit ? ` ${unit}` : ''}
+        </p>
+      )}
     </div>
   )
 }
@@ -100,7 +106,7 @@ function MetricCard({
   description,
 }: {
   label: string
-  value: string | number
+  value: string | number | null
   unit?: string
   icon: React.ElementType
   description?: string
@@ -112,8 +118,8 @@ function MetricCard({
         <span className="text-muted-foreground text-xs">{label}</span>
       </div>
       <div className="mt-1 flex items-baseline gap-1">
-        <span className="text-foreground text-xl font-semibold">{value}</span>
-        {unit && <span className="text-muted-foreground text-xs">{unit}</span>}
+        <span className="text-foreground text-xl font-semibold">{value ?? 'Unavailable'}</span>
+        {value !== null && unit && <span className="text-muted-foreground text-xs">{unit}</span>}
       </div>
       {description && (
         <p className="text-muted-foreground mt-0.5 text-xs">{description}</p>
@@ -124,7 +130,7 @@ function MetricCard({
 
 export function InfrastructureSection() {
   const [health, setHealth] = useState<SystemHealth | null>(null)
-  const [metrics, setMetrics] = useState<HealthMetrics>(DEFAULT_METRICS)
+  const [metrics, setMetrics] = useState<ReportedMetrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
@@ -137,21 +143,21 @@ export function InfrastructureSection() {
       setHealth(data)
       setError(null)
 
-      // Extract extended metrics if available from the health response,
-      // otherwise derive reasonable defaults from health status
+      // Dependency health does not measure utilization or traffic. Only show
+      // telemetry actually reported by the backend, preserving measured zeroes.
       const extended = data as SystemHealth & Partial<HealthMetrics>
       setMetrics({
-        db_pool_size: extended.db_pool_size ?? 20,
-        db_pool_used: extended.db_pool_used ?? (data.database === 'healthy' ? 4 : 0),
-        db_pool_available: extended.db_pool_available ?? (data.database === 'healthy' ? 16 : 0),
-        redis_memory_used_mb: extended.redis_memory_used_mb ?? (data.cache === 'healthy' ? 42 : 0),
-        redis_memory_max_mb: extended.redis_memory_max_mb ?? 256,
-        redis_hit_rate: extended.redis_hit_rate ?? (data.cache === 'healthy' ? 94.2 : 0),
-        redis_connected_clients: extended.redis_connected_clients ?? (data.cache === 'healthy' ? 8 : 0),
-        api_avg_response_ms: extended.api_avg_response_ms ?? (data.status === 'healthy' ? 45 : 0),
-        api_p95_response_ms: extended.api_p95_response_ms ?? (data.status === 'healthy' ? 120 : 0),
-        api_p99_response_ms: extended.api_p99_response_ms ?? (data.status === 'healthy' ? 250 : 0),
-        api_requests_per_minute: extended.api_requests_per_minute ?? (data.status === 'healthy' ? 340 : 0),
+        db_pool_size: reportedMetric(extended.db_pool_size),
+        db_pool_used: reportedMetric(extended.db_pool_used),
+        db_pool_available: reportedMetric(extended.db_pool_available),
+        redis_memory_used_mb: reportedMetric(extended.redis_memory_used_mb),
+        redis_memory_max_mb: reportedMetric(extended.redis_memory_max_mb),
+        redis_hit_rate: reportedMetric(extended.redis_hit_rate),
+        redis_connected_clients: reportedMetric(extended.redis_connected_clients),
+        api_avg_response_ms: reportedMetric(extended.api_avg_response_ms),
+        api_p95_response_ms: reportedMetric(extended.api_p95_response_ms),
+        api_p99_response_ms: reportedMetric(extended.api_p99_response_ms),
+        api_requests_per_minute: reportedMetric(extended.api_requests_per_minute),
       })
 
       setLastRefresh(new Date())
@@ -195,6 +201,8 @@ export function InfrastructureSection() {
       </div>
     )
   }
+
+  if (!health || !metrics) return null
 
   const overallHealthy =
     health?.status === 'healthy' &&
@@ -283,19 +291,19 @@ export function InfrastructureSection() {
               <div className="bg-muted/50 rounded-lg p-2.5 text-center">
                 <p className="text-muted-foreground text-xs">Pool Size</p>
                 <p className="text-foreground mt-0.5 font-mono text-lg font-semibold">
-                  {metrics.db_pool_size}
+                  {metrics.db_pool_size ?? 'Unavailable'}
                 </p>
               </div>
               <div className="bg-muted/50 rounded-lg p-2.5 text-center">
                 <p className="text-muted-foreground text-xs">In Use</p>
                 <p className="text-foreground mt-0.5 font-mono text-lg font-semibold">
-                  {metrics.db_pool_used}
+                  {metrics.db_pool_used ?? 'Unavailable'}
                 </p>
               </div>
               <div className="bg-muted/50 rounded-lg p-2.5 text-center">
                 <p className="text-muted-foreground text-xs">Available</p>
                 <p className="text-foreground mt-0.5 font-mono text-lg font-semibold">
-                  {metrics.db_pool_available}
+                  {metrics.db_pool_available ?? 'Unavailable'}
                 </p>
               </div>
             </div>
@@ -318,7 +326,7 @@ export function InfrastructureSection() {
             <div className="grid grid-cols-2 gap-3">
               <MetricCard
                 label="Hit Rate"
-                value={metrics.redis_hit_rate.toFixed(1)}
+                value={metrics.redis_hit_rate?.toFixed(1) ?? null}
                 unit="%"
                 icon={Activity}
               />
