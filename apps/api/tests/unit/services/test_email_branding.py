@@ -233,7 +233,6 @@ class TestSenderUnderTheVerifiedDomainGate:
         # so since R101 (2026-10-04) that is the no-reply platform sender.
         assert captured["from"] == formataddr(("MADFAM", "noreply@madfam.io"))
         assert captured["from"] != formataddr(("Crea Tu Mundo", "hola@madfam.io"))
-        assert captured["from"] != formataddr(("Crea Tu Mundo", "noreply@madfam.io"))
         # ...and it leaves on MADFAM's account, which is the account that
         # verified `madfam.io`. Envelope and account agree.
         assert captured["auth"] == "Bearer re_test_key"

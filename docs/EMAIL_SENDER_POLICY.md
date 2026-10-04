@@ -54,8 +54,8 @@ two reputations stay separable while both senders share madfam.io.
   keeps its own From and Reply-To for every class, with no new header and no
   new line in its frame. R101 amends only the platform tier.
 - **THE RULE** below: every downgrade still returns the platform sender whole —
-  now the one for the message's class. `Crea Tu Mundo <noreply@madfam.io>` is
-  as forbidden as `Crea Tu Mundo <hola@madfam.io>`, and the property sweep in
+  now the one for the message's class. A tenant's display name on
+  `noreply@madfam.io` is as forbidden as on `hola@madfam.io`, and the property sweep in
   `tests/unit/services/test_email_platform_sender_r101.py` checks both.
 - **The internal door's explicit From**: a caller's verified `from_email` keeps
   its own Reply-To. Only token mail (`contains_token_link`, or a template with

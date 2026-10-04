@@ -45,10 +45,15 @@ from app.services.email_sender import (
 )
 from app.services.email_service import EmailService
 from app.services.resend_email_service import ResendEmailService
+from app.services.sender_binding import all_bindings
 
-CTM_CREDENTIAL_ENV = "CTM_RESEND_API_KEY"
-FAKE_CTM_KEY = "re_test_ctm_key_not_real"
-CTM_REDIRECT = "https://map.creatumundo.mx/auth/callback"
+#: The vCTO tenant binding, read from the registry rather than named here: this
+#: repository is public, and client names stay out of new content (R85).
+TENANT_BINDING = next(iter(all_bindings().values()))
+TENANT_SENDER = (TENANT_BINDING.display_name, TENANT_BINDING.from_address, TENANT_BINDING.reply_to)
+TENANT_REDIRECT = f"https://{TENANT_BINDING.hosts[-1]}/auth/callback"
+TENANT_CREDENTIAL_ENV = TENANT_BINDING.credential_ref
+FAKE_TENANT_KEY = "re_test_tenant_key_not_real"
 
 MADFAM_HOLA = ("MADFAM", "hola@madfam.io", "hola@madfam.io")
 MADFAM_SYSTEM = ("MADFAM", "noreply@madfam.io", "support@madfam.io")
@@ -71,7 +76,7 @@ def _tags(params: Dict[str, Any]) -> Dict[str, str]:
 @pytest.fixture(autouse=True)
 def _r101_defaults(monkeypatch):
     """The shipped defaults, whatever the ambient environment says."""
-    monkeypatch.delenv(CTM_CREDENTIAL_ENV, raising=False)
+    monkeypatch.delenv(TENANT_CREDENTIAL_ENV, raising=False)
     monkeypatch.setattr(settings, "EMAIL_TRACKED_SENDER_DOMAINS", "", raising=False)
     monkeypatch.setattr(settings, "EMAIL_SYSTEM_FROM_ADDRESS", "noreply@madfam.io", raising=False)
     monkeypatch.setattr(settings, "EMAIL_SUPPORT_REPLY_TO", "support@madfam.io", raising=False)
@@ -80,8 +85,8 @@ def _r101_defaults(monkeypatch):
 
 
 @pytest.fixture()
-def ctm_key(monkeypatch):
-    monkeypatch.setenv(CTM_CREDENTIAL_ENV, FAKE_CTM_KEY)
+def tenant_key(monkeypatch):
+    monkeypatch.setenv(TENANT_CREDENTIAL_ENV, FAKE_TENANT_KEY)
 
 
 @pytest.fixture()
@@ -162,27 +167,27 @@ class TestPlatformSenderByClass:
     def test_both_platform_addresses_are_recognised(self):
         assert is_platform_address("hola@madfam.io")
         assert is_platform_address("NoReply@MADFAM.io")
-        assert not is_platform_address("hola@creatumundo.mx")
+        assert not is_platform_address(TENANT_SENDER[1])
         assert not is_platform_address(None)
 
 
 class TestTenantSenderIsUntouched:
-    def test_ctms_branded_sender_is_the_same_for_every_class(self, ctm_key):
+    def test_the_tenants_branded_sender_is_the_same_for_every_class(self, tenant_key):
         for message_class in ALL_CLASSES:
             assert (
-                sender_for(redirect_url=CTM_REDIRECT, message_class=message_class)
-                == email_sender.CTM_SENDER
+                sender_for(redirect_url=TENANT_REDIRECT, message_class=message_class)
+                == TENANT_SENDER
             )
 
     def test_a_downgrade_returns_the_platform_sender_for_the_class(self):
-        # No CTM key: the credential gate downgrades, whole.
-        assert sender_for(redirect_url=CTM_REDIRECT, message_class=MESSAGE_CLASS_SYSTEM) == (
+        # No tenant key: the credential gate downgrades, whole.
+        assert sender_for(redirect_url=TENANT_REDIRECT, message_class=MESSAGE_CLASS_SYSTEM) == (
             MADFAM_SYSTEM
         )
-        assert sender_for(redirect_url=CTM_REDIRECT, message_class=MESSAGE_CLASS_SECURITY) == (
+        assert sender_for(redirect_url=TENANT_REDIRECT, message_class=MESSAGE_CLASS_SECURITY) == (
             MADFAM_SECURITY
         )
-        assert sender_for(redirect_url=CTM_REDIRECT) == MADFAM_HOLA
+        assert sender_for(redirect_url=TENANT_REDIRECT) == MADFAM_HOLA
 
     @pytest.mark.parametrize("key_present", [False, True])
     @pytest.mark.parametrize("message_class", ALL_CLASSES)
@@ -191,17 +196,17 @@ class TestTenantSenderIsUntouched:
     ):
         """THE RULE (2026-09-07) holds for the new address too."""
         if key_present:
-            monkeypatch.setenv(CTM_CREDENTIAL_ENV, FAKE_CTM_KEY)
+            monkeypatch.setenv(TENANT_CREDENTIAL_ENV, FAKE_TENANT_KEY)
         for entitled in (None, True, False):
             name, address, _ = sender_for(
-                redirect_url=CTM_REDIRECT, vcto_entitled=entitled, message_class=message_class
+                redirect_url=TENANT_REDIRECT, vcto_entitled=entitled, message_class=message_class
             )
             if is_platform_address(address):
                 assert name == "MADFAM"
             name, address, _ = sender_for_address(
                 from_email=None,
-                from_name="Crea Tu Mundo",
-                redirect_url=CTM_REDIRECT,
+                from_name=TENANT_SENDER[0],
+                redirect_url=TENANT_REDIRECT,
                 vcto_entitled=entitled,
                 message_class=message_class,
             )
@@ -282,12 +287,16 @@ class TestEmailServicePayload:
         assert R101_TU not in payload["html"]
         assert R101_TU not in payload["text"]
 
-    async def test_ctms_branded_magic_link_is_untouched(self, http_sends, ctm_key):
+    async def test_the_tenants_branded_magic_link_is_untouched(self, http_sends, tenant_key):
         await EmailService().send_magic_link_email(
-            "persona@example.com", "T0KEN", redirect_url=CTM_REDIRECT, locale="es", hosted_hop=False
+            "persona@example.com",
+            "T0KEN",
+            redirect_url=TENANT_REDIRECT,
+            locale="es",
+            hosted_hop=False,
         )
         payload = http_sends[0]
-        assert "hola@creatumundo.mx" in payload["from"]
+        assert TENANT_SENDER[1] in payload["from"]
         assert "headers" not in payload
         assert "automático" not in payload["html"]
         assert "automático" not in payload["text"]
