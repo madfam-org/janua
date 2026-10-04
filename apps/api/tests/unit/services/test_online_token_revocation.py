@@ -255,13 +255,49 @@ async def test_resilient_redis_missing_raw_client_never_falls_back_to_jwt_only(f
     from app.core.redis_circuit_breaker import ResilientRedisClient
 
     db, user, token, jti, session, redis = fixture
-    with pytest.raises(HTTPException) as unavailable:
-        await get_current_user(
-            HTTPAuthorizationCredentials(scheme="Bearer", credentials=token),
-            db,
-            ResilientRedisClient(None),
-        )
+    with patch("app.services.token_state.recover_security_redis", AsyncMock(return_value=None)):
+        with pytest.raises(HTTPException) as unavailable:
+            await get_current_user(
+                HTTPAuthorizationCredentials(scheme="Bearer", credentials=token),
+                db,
+                ResilientRedisClient(None),
+            )
     assert unavailable.value.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_bearer_recovers_after_initial_redis_outage_without_restart(fixture, monkeypatch):
+    import asyncio
+    from unittest.mock import Mock
+
+    from app.core import redis as redis_module
+    from app.core.redis_circuit_breaker import ResilientRedisClient
+
+    db, user, token, jti, session, redis = fixture
+    raw = AsyncMock()
+    raw.ping.side_effect = [ConnectionError("synthetic startup outage"), True]
+    raw.get.return_value = None
+    clock = Mock()
+    clock.monotonic.return_value = 100.0
+    monkeypatch.setattr(redis_module, "time", clock)
+    monkeypatch.setattr(redis_module, "_security_redis_client", None)
+    monkeypatch.setattr(redis_module, "_security_recovery_lock", asyncio.Lock())
+    monkeypatch.setattr(redis_module, "_security_retry_at", 0.0)
+    monkeypatch.setattr(redis_module.redis, "from_url", Mock(return_value=raw))
+    cache = ResilientRedisClient(None)
+    credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+    with pytest.raises(HTTPException) as unavailable:
+        await get_current_user(credentials, db, cache)
+    assert unavailable.value.status_code == 503
+    clock.monotonic.return_value = 105.0
+    assert await get_current_user(credentials, db, cache) is user
+    assert raw.ping.await_count == 2
+    assert cache.redis is None
+    # A recovered pool must still enforce the revoked-token predicate.
+    raw.get.return_value = "revoked"
+    with pytest.raises(HTTPException) as revoked:
+        await get_current_user(credentials, db, cache)
+    assert revoked.value.status_code == 401
 
 
 @pytest.mark.asyncio

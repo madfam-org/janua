@@ -14,7 +14,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.config import settings
-from app.core.redis import get_redis
+from app.core.redis import get_redis, recover_security_redis
 from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import Session
 
@@ -41,7 +41,10 @@ def security_redis(client):
 
 
 async def _client(client=None):
-    return security_redis(client if client is not None else await get_redis())
+    client = client if client is not None else await get_redis()
+    if isinstance(client, ResilientRedisClient) and client.redis is None:
+        client = await recover_security_redis()
+    return security_redis(client)
 
 
 def token_ttl(payload):

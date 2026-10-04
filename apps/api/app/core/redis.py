@@ -1,3 +1,5 @@
+import asyncio
+import time
 from typing import Optional
 
 import redis.asyncio as redis
@@ -11,6 +13,68 @@ logger = structlog.get_logger()
 # Global Redis clients
 _raw_redis_client: Optional[redis.Redis] = None
 _resilient_redis_client: Optional[ResilientRedisClient] = None
+
+# Authentication cannot use the cache's permissive fallback. If its initial
+# connection failed, recover a separate pool without changing cache policy.
+_security_redis_client: Optional[redis.Redis] = None
+_security_recovery_lock = asyncio.Lock()
+_security_retry_at = 0.0
+_SECURITY_CONNECT_TIMEOUT = 5.0
+_SECURITY_CLEANUP_TIMEOUT = 1.0
+_SECURITY_RETRY_DELAY = 5.0
+
+
+async def recover_security_redis() -> Optional[redis.Redis]:
+    """Recover an initially unavailable security client, without cache fallback.
+
+    Only a successfully connected pool is published. Concurrent requests share
+    one probe; a failed probe imposes a per-worker cooldown. Once connected,
+    redis-py handles reconnects and callers continue checking operation errors.
+    """
+    global _security_redis_client, _security_retry_at
+
+    if _security_redis_client is not None:
+        return _security_redis_client
+    if time.monotonic() < _security_retry_at:
+        return None
+
+    async with _security_recovery_lock:
+        if _security_redis_client is not None:
+            return _security_redis_client
+        if time.monotonic() < _security_retry_at:
+            return None
+
+        candidate = None
+        connected = False
+        try:
+            candidate = redis.from_url(
+                settings.REDIS_URL,
+                encoding="utf-8",
+                decode_responses=settings.REDIS_DECODE_RESPONSES,
+                max_connections=settings.REDIS_POOL_SIZE,
+                socket_connect_timeout=_SECURITY_CONNECT_TIMEOUT,
+                socket_timeout=_SECURITY_CONNECT_TIMEOUT,
+            )
+            connected = bool(
+                await asyncio.wait_for(candidate.ping(), timeout=_SECURITY_CONNECT_TIMEOUT)
+            )
+            if connected:
+                _security_redis_client = candidate
+                return candidate
+        except Exception:
+            # No connection details or credentials belong in authentication logs.
+            pass
+        finally:
+            if not connected:
+                _security_retry_at = time.monotonic() + _SECURITY_RETRY_DELAY
+                if candidate is not None:
+                    try:
+                        await asyncio.wait_for(
+                            candidate.aclose(), timeout=_SECURITY_CLEANUP_TIMEOUT
+                        )
+                    except Exception:
+                        pass
+        return None
 
 
 async def init_redis():
