@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import redis.asyncio as redis
 import structlog
@@ -14,25 +14,46 @@ _resilient_redis_client: Optional[ResilientRedisClient] = None
 
 
 async def init_redis():
-    """Initialize Redis connection with circuit breaker protection"""
+    """Initialize Redis connection with circuit breaker protection.
+
+    The client is kept even when the first PING fails. `redis.from_url` builds a
+    lazy connection pool that reconnects on the next command, so a Redis blip at
+    pod start must not leave this process without a client for its whole life.
+    (Until 2026-10 the client was dropped here and never rebuilt: a replica that
+    booted during a blip ran every Redis call on the breaker's fallback forever,
+    while its probes — which open their own connection — kept reporting Redis
+    healthy.) Only a client that cannot be constructed at all (an invalid URL)
+    leaves `_raw_redis_client` unset.
+    """
     global _raw_redis_client, _resilient_redis_client
 
     try:
-        # Create raw Redis client
         _raw_redis_client = redis.from_url(
             settings.REDIS_URL,
             encoding="utf-8",
             decode_responses=settings.REDIS_DECODE_RESPONSES,
             max_connections=settings.REDIS_POOL_SIZE,
+            # Bound connection attempts so an unreachable Redis fails a call in
+            # seconds (a retryable 503 for strict callers) instead of hanging it
+            # for the OS TCP timeout.
+            socket_connect_timeout=max(settings.REDIS_CONNECTION_TIMEOUT, 1) / 1000,
         )
-
-        # Test connection
-        await _raw_redis_client.ping()
-        logger.info("Redis initialized successfully")
-
     except Exception as e:
-        logger.warning("Failed to initialize Redis - running in degraded mode", error=str(e))
+        logger.error(
+            "Failed to construct Redis client - running in degraded mode",
+            error_type=type(e).__name__,
+        )
         _raw_redis_client = None
+
+    if _raw_redis_client is not None:
+        try:
+            await _raw_redis_client.ping()
+            logger.info("Redis initialized successfully")
+        except Exception as e:
+            logger.warning(
+                "Redis not reachable at init; keeping the client so it reconnects",
+                error_type=type(e).__name__,
+            )
 
     # Create resilient client (works with or without raw client)
     _resilient_redis_client = ResilientRedisClient(_raw_redis_client)
@@ -43,6 +64,13 @@ async def get_redis() -> ResilientRedisClient:
     if _resilient_redis_client is None:
         await init_redis()
     return _resilient_redis_client
+
+
+def get_redis_public_status() -> Dict[str, Any]:
+    """This process's breaker summary for health endpoints (no hosts, no keys)."""
+    if _resilient_redis_client is None:
+        return {"state": "uninitialized", "client_initialized": False}
+    return _resilient_redis_client.get_public_status()
 
 
 async def get_raw_redis() -> Optional[redis.Redis]:

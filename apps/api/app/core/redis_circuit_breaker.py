@@ -5,14 +5,28 @@ Implements circuit breaker pattern for Redis to prevent cascading failures
 and provide graceful degradation when Redis is unavailable.
 """
 
+import asyncio
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional
 
 import redis.asyncio as redis
 import structlog
 
 logger = structlog.get_logger()
+
+
+class RedisUnavailableError(Exception):
+    """Raised by the strict operations when Redis cannot serve the call.
+
+    Strict operations exist for security state that must be shared by every API
+    replica: OAuth consent CSRF tokens, stored authorization requests and
+    authorization codes. For that state the breaker's fallback is wrong twice
+    over: a fallback "write" is stored nowhere (or only in one pod's memory),
+    and a fallback "read" can serve a value another pod already consumed. The
+    caller must answer a retryable error instead (see
+    `app.core.error_handling.redis_unavailable_handler`).
+    """
 
 
 class CircuitState(Enum):
@@ -58,6 +72,12 @@ class RedisCircuitBreaker:
         self.successful_calls = 0
         self.failed_calls = 0
         self.fallback_calls = 0
+
+        # Strict (no-fallback) operations, counted separately so an operator can
+        # tell "callers degraded silently" (fallback_calls) from "callers were
+        # refused with a retryable error" (strict_failures).
+        self.strict_calls = 0
+        self.strict_failures = 0
 
     def _should_attempt_reset(self) -> bool:
         """Check if enough time has passed to attempt recovery"""
@@ -110,10 +130,71 @@ class RedisCircuitBreaker:
             "cache_hits": self._cache_hits,
             "cache_misses": self._cache_misses,
             "cache_size": len(self._fallback_cache),
-            "last_failure_time": self.last_failure_time.isoformat()
-            if self.last_failure_time
-            else None,
+            "strict_calls": self.strict_calls,
+            "strict_failures": self.strict_failures,
+            "last_failure_time": (
+                self.last_failure_time.isoformat() if self.last_failure_time else None
+            ),
         }
+
+    def get_public_state(self) -> Dict[str, Any]:
+        """Breaker summary that is safe to publish on unauthenticated probes.
+
+        State, timing and counters only: never keys, values, hostnames or error
+        text (the full `get_state` carries cache sizes and is also free of
+        those, but this is the stable, minimal contract for `/ready`).
+        """
+        return {
+            "state": self.state.value,
+            "last_failure_time": (
+                self.last_failure_time.isoformat() if self.last_failure_time else None
+            ),
+            "fallback_calls": self.fallback_calls,
+            "strict_failures": self.strict_failures,
+        }
+
+    def record_strict_result(self, ok: bool) -> None:
+        """Feed a strict operation's outcome into the breaker.
+
+        A strict call is real evidence about Redis, so it moves the breaker the
+        same way a protected call does. One addition: a strict SUCCESS while the
+        circuit is OPEN moves it to HALF_OPEN at once, so the next protected
+        call probes Redis instead of serving fallbacks for the rest of
+        `recovery_timeout`. The readiness probe makes a strict ping every probe
+        period, which bounds how long a pod keeps degrading silently after
+        Redis is back.
+        """
+        self.strict_calls += 1
+        if ok:
+            self._record_success()
+            if self.state == CircuitState.OPEN:
+                logger.info("Redis answered a strict call; moving circuit to half-open")
+                self.state = CircuitState.HALF_OPEN
+                self.half_open_calls = 0
+        else:
+            self.strict_failures += 1
+            self._record_failure()
+
+    def invalidate_fallback(self, *redis_keys: str) -> None:
+        """Drop every fallback-cache entry derived from these Redis keys.
+
+        Called on delete: a value Redis no longer holds must never come back
+        from this pod's memory when the circuit opens later (replay of a
+        consumed single-use value).
+        """
+        if not redis_keys or not self._fallback_cache:
+            return
+        targets = set(redis_keys)
+        for cache_key in list(self._fallback_cache):
+            kind, _, rest = cache_key.partition(":")
+            if kind == "get" or kind == "hgetall":
+                name = rest
+            elif kind == "hget":
+                name = rest.rsplit(":", 1)[0]
+            else:
+                continue
+            if name in targets:
+                self._fallback_cache.pop(cache_key, None)
 
     async def execute(
         self, redis_operation: Callable, fallback_value: Any = None, cache_key: Optional[str] = None
@@ -245,7 +326,12 @@ class ResilientRedisClient:
         return await self.set(key, value, ex=time)
 
     async def delete(self, *keys: str) -> int:
-        """Delete keys with fallback"""
+        """Delete keys with fallback.
+
+        The pod-local fallback copies of these keys are dropped first, whether or
+        not Redis answers, so a deleted value cannot be served from memory later.
+        """
+        self.circuit_breaker.invalidate_fallback(*keys)
 
         async def operation():
             if self.redis is None:
@@ -331,9 +417,69 @@ class ResilientRedisClient:
         result = await self.circuit_breaker.execute(operation, fallback_value=False)
         return bool(result)
 
+    # ------------------------------------------------------------------
+    # Strict operations: no fallback value, no pod-local cache.
+    #
+    # Use these for state that must be identical on every replica and whose
+    # loss must be visible: OAuth consent CSRF tokens, stored authorization
+    # requests, authorization codes. They try Redis whatever the circuit state
+    # (the circuit protects fallback-able callers; a strict caller has no
+    # fallback to protect) and raise RedisUnavailableError on any failure.
+    # ------------------------------------------------------------------
+
+    async def _strict(self, operation: Callable[[Any], Awaitable[Any]]) -> Any:
+        client = self.redis
+        if client is None:
+            self.circuit_breaker.record_strict_result(False)
+            raise RedisUnavailableError("Redis client not initialized")
+        try:
+            result = await operation(client)
+        except (redis.RedisError, OSError, asyncio.TimeoutError) as e:
+            logger.warning("Strict Redis operation failed", error_type=type(e).__name__)
+            self.circuit_breaker.record_strict_result(False)
+            raise RedisUnavailableError(type(e).__name__) from e
+        self.circuit_breaker.record_strict_result(True)
+        return result
+
+    async def strict_set(self, key: str, value: Any, ex: int) -> None:
+        """SET key value EX ex, or raise RedisUnavailableError. Never cached locally."""
+
+        async def operation(client: redis.Redis) -> Any:
+            ok = await client.set(key, value, ex=ex)
+            if not ok:
+                raise redis.RedisError("SET was not acknowledged")
+            return ok
+
+        await self._strict(operation)
+
+    async def strict_get(self, key: str) -> Optional[Any]:
+        """GET key from Redis itself (None = absent), or raise RedisUnavailableError."""
+        return await self._strict(lambda client: client.get(key))
+
+    async def strict_delete(self, *keys: str) -> int:
+        """DEL keys; returns how many Redis actually removed, or raises.
+
+        The count is what makes single-use values single-use across replicas:
+        of two concurrent consumers, exactly one sees 1.
+        """
+        self.circuit_breaker.invalidate_fallback(*keys)
+        return int(await self._strict(lambda client: client.delete(*keys)))
+
+    async def strict_ping(self) -> None:
+        """PING through this process's own client, or raise RedisUnavailableError."""
+        await self._strict(lambda client: client.ping())
+
     def get_circuit_status(self) -> Dict[str, Any]:
         """Get circuit breaker status and metrics"""
-        return self.circuit_breaker.get_state()
+        status = self.circuit_breaker.get_state()
+        status["client_initialized"] = self.redis is not None
+        return status
+
+    def get_public_status(self) -> Dict[str, Any]:
+        """Per-pod breaker summary safe for unauthenticated health endpoints."""
+        status = self.circuit_breaker.get_public_state()
+        status["client_initialized"] = self.redis is not None
+        return status
 
     async def health_check(self) -> Dict[str, Any]:
         """Comprehensive health check"""

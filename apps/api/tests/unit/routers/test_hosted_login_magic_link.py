@@ -220,8 +220,10 @@ async def test_authorize_stores_and_forwards_login_method():
     query = parse_qs(urlparse(location).query)
     assert query["login_method"] == ["magic_link"]
     assert query["client_name"] == ["yantra4d-studio"]
-    redis.setex.assert_awaited_once()
-    key, _ttl, payload = redis.setex.await_args.args
+    # Stored with the strict (no-fallback) write: SET key value EX ttl.
+    redis.strict_set.assert_awaited_once()
+    key, payload = redis.strict_set.await_args.args
+    assert redis.strict_set.await_args.kwargs["ex"] == 600
     assert key.startswith("oauth:pre_login:")
     stored = json.loads(payload)
     assert stored["login_method"] == "magic_link"
@@ -243,7 +245,7 @@ async def test_authorize_without_hint_leaves_login_url_unchanged():
             db=AsyncMock(), redis=redis,
         )
     assert "login_method" not in resp.headers["location"]
-    assert json.loads(redis.setex.await_args.args[2])["login_method"] is None
+    assert json.loads(redis.strict_set.await_args.args[1])["login_method"] is None
 
 
 # ── the hosted form issues a link that resumes the authorize request ──────
