@@ -184,8 +184,8 @@ Authorization: Bearer {access_token}
 
 ### Internal Users Router (`/api/v1/internal/users`)
 
-Called by sibling MADFAM apps that own a roster but not identity (crea-map's
-«Alta de integrante»). Auth is `X-Internal-API-Key`, not a user token.
+Called by sibling MADFAM apps that own a roster but not identity (e.g. a vCTO
+client portal's member registration). Auth is `X-Internal-API-Key`, not a user token.
 
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|

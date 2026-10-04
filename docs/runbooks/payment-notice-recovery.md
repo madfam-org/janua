@@ -1,8 +1,9 @@
 # Recoverable payment notices
 
 `POST /api/v1/email/payment-notices` is an opt-in service boundary for the
-single-recipient `map/pago-confirmado` template. It records provider acceptance,
-not inbox delivery, a bank transfer, fiscal issuance, or family billing. Existing
+single-recipient tenant payment-confirmation template (`TEMPLATE` in
+`app/services/payment_mail_dispatch.py`). It records provider acceptance,
+not inbox delivery, a bank transfer, fiscal issuance, or customer billing. Existing
 internal-key mail routes retain their current behavior. This endpoint sends real
 mail when enabled; local tests replace the provider and use synthetic data.
 
@@ -10,7 +11,8 @@ mail when enabled; local tests replace the provider and use synthetic data.
 
 Use a dedicated confidential, active Janua OAuth client bound to the native
 organization, with audience `janua-email`, grant type `client_credentials`, and
-native `allowed_scopes` grant `crea-map:payment-mail`. Provision through the
+native `allowed_scopes` grant of the payment-mail scope (`PAYMENT_MAIL_SCOPE` in
+`app/core/reserved_oauth_boundaries.py`). Provision through the
 approved Enclii/operator custody path. Reuse the native OAuth scope grant/revoke
 surface; do not add a parallel grant registry or share the platform internal key
 with this caller. The body cannot select an organization, sender, template,

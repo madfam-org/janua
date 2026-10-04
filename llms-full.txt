@@ -41,7 +41,7 @@ one is a decision, not a refactor. Each names the file that owns it.
 ### Sending identity — `app/services/sender_binding.py`, `email_sender.py`
 
 A From header pairing a client's display NAME with an address on MADFAM's domain
-(`Crea Tu Mundo <hola@madfam.io>`) must never be produced. Display name and
+(`Client <hola@madfam.io>`) must never be produced. Display name and
 address move together on one fact: is the binding's address domain verified for
 the ACCOUNT that will send it. There is no intermediate state. This reversed an
 earlier rule after the forbidden header reached a real client inbox on
@@ -65,7 +65,7 @@ logs `sender_credentials.tenant_credential_missing`. It never blocks the send: a
 degraded From is a degraded outcome, a magic link that never arrives is an
 outage.
 
-`credential_ref` names an ENV VAR for CTM, not a Vault path, because janua-api
+`credential_ref` names an ENV VAR for a tenant-account binding, not a Vault path, because janua-api
 runs with no `VAULT_ADDR`/`VAULT_TOKEN` — a `path#field` reference cannot
 resolve at runtime in production. Vault reaches the pod through an
 enclii-managed ExternalSecret instead.
@@ -108,8 +108,9 @@ falls back to `generate_fallback_html()` rather than erroring.
 **Two render paths — do not conflate them.** The `send-template` route renders
 with **naive `{{key}}` string substitution** (`render_template()`): no Jinja
 conditionals, loops, or auto-escaping. Anything conditional is composed in
-Python first (e.g. `map/pago-confirmado` derives `{{sesiones_detalle}}` from an
-optional count in `_derive_template_variables()`). The **Jinja2** path
+Python first (e.g. the tenant payment-confirmation template derives
+`{{sesiones_detalle}}` from an optional count in `_derive_template_variables()`).
+The **Jinja2** path
 (`FileSystemLoader`, autoescape) lives in `services/email_i18n.py` and
 `services/email/resend_service.py` and renders the localized auth/magic-link
 mail via `email_service.py` — a different template set, not this route.
@@ -119,7 +120,7 @@ mail via `email_service.py` — a different template set, not this route.
 caller's explicit `from_email` is honoured only from a verified domain; a
 template may declare a `default_from_email` (e.g. `billing/cfdi` →
 `facturacion@madfam.io`); otherwise the sender resolves from `org_id` or the
-`redirect_url` host (e.g. `map/pago-confirmado` → Crea Tu Mundo). `attachments`
+`redirect_url` host (e.g. a tenant's template → that tenant's own sender). `attachments`
 on either endpoint are forwarded to Resend (used for CFDI XML+PDF delivery).
 
 Full walkthrough and the template table: `docs/MADFAM_EMAIL_INTEGRATION.md`.
@@ -132,7 +133,8 @@ Operator guide: `docs/runbooks/resend-email-events.md`. Secret handling:
 ### Webhook receiver — `routers/v1/email_webhooks.py`, `services/email_events.py`
 
 `POST /api/v1/email/webhooks/resend/{cuenta}`, one `cuenta` per Resend ACCOUNT
-(`ctm`, `platform`), because each account's endpoint has its own signing
+(`platform`, plus one slug per tenant account in `WEBHOOK_SECRET_SETTINGS`),
+because each account's endpoint has its own signing
 secret. The Svix-style signature is the only authentication, checked against
 `RESEND_WEBHOOK_SECRET_<CUENTA>` before anything is written. Unset or blank
 secret: 404, indistinguishable from an unknown account. Bad, stale or missing
@@ -140,8 +142,8 @@ signature headers: 401 `{"detail":"Invalid webhook signature"}`. Stored: 200
 `{"status":"stored"}`. Rows are minimized: no recipient, sender, subject, body,
 IP, user agent, or link query string. The secret reaches the pod from Vault
 `secret/janua` through the enclii-managed `janua-secrets` ExternalSecret
-(`resend_webhook_secret_ctm` → `resend-webhook-secret-ctm` →
-`RESEND_WEBHOOK_SECRET_CTM`), read at process start.
+(`resend_webhook_secret_<cuenta>` → `resend-webhook-secret-<cuenta>` →
+`RESEND_WEBHOOK_SECRET_<CUENTA>`), read at process start.
 
 ### First-party measurement — `services/email_engagement.py`, `routers/v1/email_engagement.py`
 
@@ -150,8 +152,9 @@ Token-bearing mail is never measured. Only `POST /internal/email/send` with
 credential-parameter detector), an HTML part, and a sender binding with a
 tracking host on the From domain actually used. Otherwise the message goes out
 unmodified. Resend's own tracking stays OFF and `EMAIL_TRACKED_SENDER_DOMAINS`
-stays empty, so branded sign-in mail keeps its HTML. `CTM_TRACKING_HOST` (https
-origin) is the per-tenant on-switch. Pixel `/e/o/{token}.gif` is constant; click
+stays empty, so branded sign-in mail keeps its HTML. The setting a binding names
+in `tracking_host_setting` (an https origin) is the per-tenant on-switch. Pixel
+`/e/o/{token}.gif` is constant; click
 `/e/c/{token}/{i}` redirects only to the target stored for that token and
 index, else to the tenant's site. Only the token's SHA-256 is stored.
 

@@ -21,7 +21,7 @@ camino OIDC**. El camino de enlace mágico —`AuthService.create_session`— no
 sellaba nunca, porque el resolvedor de claims vivía dentro del router de OIDC y
 era estructuralmente inalcanzable desde el servicio de sesiones.
 
-Consecuencia concreta: el equipo de CTM entra al MAP clínico por enlace mágico.
+Consecuencia concreta: el equipo de un cliente vCTO entra a su portal por enlace mágico.
 Al pulsar «Mi espacio (RH)» llegaban a una app que **carga y los rechaza**.
 Peor que un 404, porque parece un problema suyo.
 
@@ -64,16 +64,16 @@ emite `orgs` **y nada más** — ningún consumidor debe adivinar un tenant.
 Adivinar el tenant primario de un usuario multi-org es exactamente cómo el
 operador de un tenant termina leyendo la nómina de otro.
 
-Ejemplo (token de sesión de un integrante de CTM):
+Ejemplo (token de sesión de un integrante de una organización cliente):
 
 ```jsonc
 {
   "sub": "…", "tid": "…", "type": "access", "email": "…",
-  "madfam_entitled_products": ["crea-map:pro", "kalya:team"],
-  "orgs": [{ "id": "<uuid>", "slug": "crea", "role": "member" }],
+  "madfam_entitled_products": ["<producto>:pro", "kalya:team"],
+  "orgs": [{ "id": "<uuid>", "slug": "<slug>", "role": "member" }],
   "org_id": "<uuid>",
   "tenant_id": "<uuid>",
-  "org_slug": "crea",
+  "org_slug": "<slug>",
   "madfam_org_roles": ["member"]
 }
 ```
@@ -183,7 +183,7 @@ confusión que el espacio de nombres existe para evitar (ver §5, «La trampa de
 `roles` heredado»).
 
 **Ejemplo — `nauta` pidiendo `hcm:hr`** (cliente con `organization_id` = la org
-de Crea, `allowed_scopes` con `hcm:hr`):
+de un cliente vCTO, `allowed_scopes` con `hcm:hr`):
 
 ```jsonc
 {
@@ -194,9 +194,9 @@ de Crea, `allowed_scopes` con `hcm:hr`):
   "scope": "hcm:hr openid",
   "roles": ["hcm:hr", "service_account"],   // ← lo que HCM lee
   "madfam_org_roles": ["service_account"],  // ← NUNCA un rol de aplicación
-  "org_id": "<uuid de la org de Crea>",
-  "tenant_id": "<uuid de la org de Crea>",
-  "org_slug": "crea",
+  "org_id": "<uuid de la org cliente>",
+  "tenant_id": "<uuid de la org cliente>",
+  "org_slug": "<slug>",
   "is_admin": false
 }
 ```
@@ -253,7 +253,7 @@ UPDATE oauth_clients
 ```
 
 > **Alcance:** igual que en §5, estos roles **no** gobiernan la puerta del ERP
-> de Crea (eso vive en el `WorkspaceMember` de nauta). `hcm:*` autoriza dentro
+> del cliente (eso vive en el `WorkspaceMember` de nauta). `hcm:*` autoriza dentro
 > de symbiosis-hcm y nada más. **No se requiere migración**: se reutiliza
 > `oauth_clients.allowed_scopes`, que ya existe.
 
@@ -295,13 +295,13 @@ detecte el caso sin una segunda lectura.
 - **Personal (STAFF) ⇒ `"platform"` + membresía.** `users.tenant_id` queda
   **NULL**. La liga con la organización es la fila de `organization_members`,
   no una columna en `users`. Es la forma correcta para todo el que llama hoy,
-  incluida el «Alta de integrante» de crea-map.
+  incluida el alta de integrantes del portal de un cliente vCTO.
 - **Usuarios finales (BaaS Fase 1) ⇒ `"tenant"`.** `users.tenant_id` sí se
   escribe: son los usuarios de un cliente, aislados en el pool de ese cliente,
   y no se espera que resuelvan por las entradas por correo de la plataforma.
 
 **Por qué.** Hasta el 2026-09-03 `tenant_id` hacía **los dos trabajos a la vez**,
-así que cada integrante del CTM que crea-map aprovisionaba caía en un pool de
+así que cada integrante que el portal de un cliente aprovisionaba caía en un pool de
 tenant. Ahí las entradas por correo desnudo —magic link, recuperación de
 contraseña— **no podían verlo**: `send_magic_link` busca en el pool sin tenant,
 no lo encontraba, tomaba su rama de creación y el INSERT chocaba con
@@ -318,7 +318,7 @@ daba `users.tenant_id`— ahora lo impone la **membresía**: sólo se puede actu
 sobre alguien que tenga membresía en la organización indicada.
 
 **Compatibilidad.** `tenant_id` se sigue aceptando con el mismo significado, de
-modo que el llamador actual (crea-map, que sólo envía `tenant_id`) no requiere
+modo que el llamador actual (el portal de un cliente, que sólo envía `tenant_id`) no requiere
 cambio alguno en este despliegue; migrará a `organization_id` en un seguimiento.
 
 ### La membresía es la excepción a esa regla
@@ -369,7 +369,7 @@ Poner espacio de nombres a `madfam_org_roles` (§2) era lo correcto y **dejó la
 otra mitad sin construir**. symbiosis-hcm autoriza con roles de **aplicación**
 que lee del claim `roles` —`hcm:hr`, `hcm:admin`, `employee`
 (`apps/api/core/permissions.py`)— y **janua no emitía ni una sola cadena
-`hcm:*`**. Es decir: la Dirección de CTM podía tener una membresía válida,
+`hcm:*`**. Es decir: la dirección de una organización cliente podía tener una membresía válida,
 recibir un token con `org_id` correcto (§4 y janua#591)… y aun así ser rechazada
 en todas las funciones de RH. La membresía respondía *cuál inquilino*; nada
 respondía *cuál autoridad dentro del producto*.
@@ -459,7 +459,7 @@ Misma autenticación que el resto de los endpoints internos
   que el servidor de recursos sí reconoce.
 - **No hay endpoint de borrado**, y no debe haberlo.
 
-> **Alcance:** estos roles **no** gobiernan la puerta del ERP de Crea. Una
+> **Alcance:** estos roles **no** gobiernan la puerta del ERP del cliente. Una
 > auditoría de SSO resolvió que ese control vive en el `WorkspaceMember` de
 > nauta. `hcm:*` autoriza dentro de symbiosis-hcm y nada más.
 
@@ -550,7 +550,7 @@ para **una org nombrada**, no para la org primaria del portador.
 este endpoint con el id de la org janua del **espacio que se está viendo** cuando
 el viewer es un asesor (miembro `ADVISOR` o «ver como»), en lugar del
 `/me/entitlements` del propio asesor. Esa es la contraparte de la nota de alcance
-de la §5: la **puerta** del ERP de Crea vive en el `WorkspaceMember` de nauta, y
+de la §5: la **puerta** del ERP del cliente vive en el `WorkspaceMember` de nauta, y
 las **fichas** que el ERP pinta se resuelven contra el `product_tiers` de la org
 del cliente — leído por aquí. janua sigue siendo la única autoridad de
 entitlements; nauta sólo pregunta.
@@ -573,7 +573,7 @@ entitlements; nauta sólo pregunta.
 4. **Verificar** con un token de sesión real que `org_id`, `org_slug` y
    `madfam_org_roles` están presentes, y que `roles` **no** lleva roles de
    organización.
-5. **Marcar el login técnico** de crea-map como service principal, cuando ese
+5. **Marcar el login técnico** del portal del cliente como service principal, cuando ese
    camino se ejecute (ver el handoff del PR).
 6. **Aplicar la migración `016_org_member_app_roles` A MANO** antes de promover
    el cambio de roles de aplicación (§5). `promote` **no corre migraciones**: el
@@ -583,7 +583,7 @@ entitlements; nauta sólo pregunta.
    comportamiento de hoy— y los endpoints de concesión fallan ruidosamente
    contra la relación ausente.
 7. **Conceder los roles de aplicación** que hagan falta, ya con la tabla puesta:
-   para la Dirección de CTM, `hcm:hr` en la organización de Crea. Sin este paso
+   para la dirección de la organización cliente, `hcm:hr` en su organización. Sin este paso
    la tabla está vacía y **nada cambia para nadie** — que es justamente lo que
    hace seguro promover el código antes de decidir las concesiones.
 8. **Verificar** en un token real que `roles` trae `hcm:hr` y que

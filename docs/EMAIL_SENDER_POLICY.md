@@ -4,15 +4,15 @@
 engagement by default; Phases 2-4 begin per-client, as MADFAM takes over that
 client's web presence and, eventually, hands the sending account back to them.
 
-> **Where this stands today (2026-09-07).** All four phases are live, and CTM is
-> the worked example of the end state: a magic link requested at
-> `map.creatumundo.mx` arrived at 12:07:06 CDMX from
-> **`Crea Tu Mundo <hola@creatumundo.mx>`**, sent on **CTM's own Resend
+> **Where this stands today (2026-09-07).** All four phases are live, and the
+> first vCTO client tenant is the worked example of the end state: a magic link
+> requested from its portal arrived at 12:07:06 CDMX from
+> **`Client <hola@<client-domain>>`**, sent on **the client's own Resend
 > account**. Reading order for the current contract: [THE RULE](#the-rule-2026-09-07--the-display-name-follows-the-address)
 > (what a From header may never be), then
 > [Phase 3](#phase-3--a-branded-sender-is-a-vcto-privilege-and-it-is-portable)
 > (who is entitled to one), then
-> [Phase 4](#phase-4--ctm-is-live-on-its-own-resend-account-2026-09-07)
+> [Phase 4](#phase-4--the-first-tenant-is-live-on-its-own-resend-account-2026-09-07)
 > (the account, the credential path, and the rollback). Phases 1-2 remain the
 > description of every tenant that has not reached Phase 3.
 >
@@ -75,14 +75,18 @@ every platform message goes back to `EMAIL_FROM_ADDRESS` with no Reply-To. A
 blank Reply-To setting falls back to `EMAIL_FROM_ADDRESS`, so a reply never
 lands in a dead address.
 
+Examples use `Client` for a tenant's display name, `<client-domain>` for its
+sending domain and `<tenant>` for its binding key in
+`app/services/sender_binding.py`.
+
 ## THE RULE (2026-09-07) — the display name follows the address
 
 > A From header pairing a client's display name with an address on MADFAM's
-> domain — `Crea Tu Mundo <hola@madfam.io>` — must **never** be produced.
+> domain — `Client <hola@madfam.io>` — must **never** be produced.
 
 Only MADFAM sends from `hola@madfam.io`. A brand display name may appear only
-beside **that brand's own address** (`hola@creatumundo.mx`), which is allowed
-only once `creatumundo.mx` is in `RESEND_VERIFIED_DOMAINS`. Until then every
+beside **that brand's own address** (`hola@<client-domain>`), which is allowed
+only once `<client-domain>` is in `RESEND_VERIFIED_DOMAINS`. Until then every
 message for that tenant is sent as the platform sender, whole:
 `MADFAM <hola@madfam.io>`.
 
@@ -99,8 +103,8 @@ brand" — it delivers a false statement.
 **This reverses the earlier rule, and the reversal is evidence-driven.** #603
 deliberately shipped the opposite ("the display name moves as soon as the code
 ships; only the address waits"). That behaviour was **observed in production on
-2026-09-07**: the first magic link requested from `map.creatumundo.mx` arrived
-in the CTM inbox at 02:32:21 CDMX as `Crea Tu Mundo <hola@madfam.io>`, subject
+2026-09-07**: the first magic link requested from the tenant's portal arrived
+in the client's inbox at 02:32:21 CDMX as `Client <hola@madfam.io>`, subject
 `Tu enlace de acceso | 2026-09-07 02:32:21`. Owner directive the same night
 rejected it. Everything below that describes a partial downgrade is superseded
 by this section.
@@ -165,18 +169,18 @@ wrong brand, because it does not arrive at all.
 ## Phase 2 — the client's domain, the client's branding
 
 **IN CODE as of 2026-09-06, gated on verification.** Begins per-client when
-MADFAM manages that client's web presence (e.g. `creatumundo.mx`).
+MADFAM manages that client's web presence.
 
 ```
-From:    Crea Tu Mundo <hola@creatumundo.mx>
-Reply-To: hola@creatumundo.mx
+From:    Client <hola@<client-domain>>
+Reply-To: hola@<client-domain>
 Header:  client logo and palette
 Footer:  Con tecnología de MADFAM
 ```
 
 Owner directive, 2026-09-06: "so far we've been sending the emails from
-madfam.io, which should change now that we have @creatumundo.mx accessible via
-email. Sender should be hola@creatumundo.mx." `hola@`, matching MADFAM's own
+madfam.io, which should change now that we have [the client's domain] accessible
+via email. Sender should be hola@[the client's domain]." `hola@`, matching MADFAM's own
 `hola@madfam.io` — a repliable human address, not `noreply@` as this document
 originally sketched.
 
@@ -194,13 +198,13 @@ address against that list. An address on an unverified domain is **downgraded,
 not sent** — and since 2026-09-07 the downgrade is **total**: the display name
 goes back with the address.
 
-| `RESEND_VERIFIED_DOMAINS` | A CTM message comes from |
+| `RESEND_VERIFIED_DOMAINS` | A tenant's message comes from |
 |---|---|
 | `madfam.io` | `MADFAM <hola@madfam.io>` |
-| `madfam.io,creatumundo.mx` | `Crea Tu Mundo <hola@creatumundo.mx>` |
+| `madfam.io,<client-domain>` | `Client <hola@<client-domain>>` |
 
 The tenant's **display name waits with the address** — see [THE RULE](#the-rule-2026-09-07--the-display-name-follows-the-address).
-This table previously showed `Crea Tu Mundo <hola@madfam.io>` in the first row;
+This table previously showed `Client <hola@madfam.io>` in the first row;
 that state was observed in production on 2026-09-07 and rejected. Merging still
 moves no mail, and the production cutover is still one env edit with a
 one-env-edit rollback — over the same code path that was already running, which
@@ -235,7 +239,7 @@ name at the top of the sign-in mail; the envelope is still MADFAM's.
 
 ```
 From:    MADFAM <hola@madfam.io>            (UNCHANGED — Phase 1)
-Header:  the tenant's name and palette      (e.g. "Crea Tu Mundo", indigo)
+Header:  the tenant's name and palette      (e.g. the client's name and colour)
 Footer:  Con tecnología de MADFAM           ("Powered by MADFAM" in en)
 ```
 
@@ -245,8 +249,8 @@ in Resend, exactly as below. Only the parts of the message that do not affect
 deliverability were made per-tenant.
 
 The resolver is `app/services/email_branding.py::resolve_branding()`. It keys on
-the magic-link `redirect_url` host (crea-map / kalya → CTM) or an explicit
-`org_id`, and returns the header name, header palette, and footer credit;
+the magic-link `redirect_url` host (a tenant's registered hosts → that tenant)
+or an explicit `org_id`, and returns the header name, header palette, and footer credit;
 everything else defaults to the MADFAM frame, so an unknown or absent signal
 renders exactly what it rendered before. It is deliberately kept separate from
 `resolve_sender`, and nothing it returns is ever used to build the From line.
@@ -275,9 +279,8 @@ landed (both copies, both subjects, both templates), but nothing on the live
 path ever selected between them: the magic-link router passed `locale` and not
 `formality`, so everything resolved through `DEFAULT_FORMALITY` to `usted`.
 
-The result, found live: crea-map's own login page says «Escribe el correo con
-el que la dirección te dio de alta — te llega un enlace y con un clic estás
-dentro» (`tú`), and the mail janua sent for that page opened «Inicie sesión en
+The result, found live: a client portal's own login page addressed its reader
+as `tú`, and the mail janua sent for that page opened «Inicie sesión en
 su portal · Use el siguiente botón» (`usted`). Two screens, seen back to back,
 addressing the same person two different ways.
 
@@ -298,7 +301,7 @@ almost every row, because NULL means "has not chosen" rather than "usted". It
 is keyed on the SAME redirect host as the branding above, so a message's
 header, its voice, and its From line all resolve from one signal:
 
-- CTM products (`crea-map`, `ensayo-map`, `kalya.app`, `*.creatumundo.mx`) → `tú`
+- hosts registered to a tenant whose products speak in `tú` → `tú`
 - everything else, including the nauta client portal and every unlisted host → `usted`
 
 Tier 2 sitting ABOVE tier 3 is deliberate: a product may state its own voice,
@@ -311,9 +314,9 @@ becomes None and falls to the next tier. A sign-in request must not 422 over a
 cosmetic field.
 
 **Consumers:** a product only needs to send `formality` when its voice differs
-from its host's registered default. crea-map should send `"tu"` explicitly so
-its mail does not depend on a host table entry; nauta needs no change — its
-portal hosts already resolve to `usted`, and its request route deliberately
+from its host's registered default. A `tú` tenant portal should send `"tu"`
+explicitly so its mail does not depend on a host table entry; nauta needs no
+change — its portal hosts already resolve to `usted`, and its request route deliberately
 cannot vary its behavior per recipient (that would leak workspace membership).
 
 ## The timestamp on every re-sendable subject
@@ -387,8 +390,8 @@ Owner directive, 2026-09-06, two sentences that shaped this phase:
 
 > «this type of treatment should be left exclusively for our vCTO clients,
 > where we have full operational control. And we should allow mechanisms so
-> that CTM and any other vCTO client can easily move to their own Resend (or
-> preferred provider) account.»
+> that [the first client] and any other vCTO client can easily move to their own
+> Resend (or preferred provider) account.»
 
 Phase 2 answered *which address goes on the envelope*. Neither of those
 sentences is answerable in those terms, because both are properties of the
@@ -425,8 +428,8 @@ start rather than discovering it on a sign-in link.
 
 ### Verification is per ACCOUNT, not per domain
 
-Resend verifies a domain **for an account**. `creatumundo.mx` verified on
-MADFAM's account says nothing about CTM's own account. So `is_verified_domain`
+Resend verifies a domain **for an account**. `<client-domain>` verified on
+MADFAM's account says nothing about the client's own account. So `is_verified_domain`
 now takes the binding: a binding on MADFAM's account reads the global
 `RESEND_VERIFIED_DOMAINS` exactly as before, and a binding on the tenant's own
 account reads its own `verified_domains`, because the global list describes the
@@ -473,7 +476,8 @@ the platform sender whole (2026-09-07: it used to keep the tenant's display
 name; see THE RULE). It never means a sign-in link fails to arrive. That
 ordering is the same one the verified-domain gate was built on.
 
-CTM is **seeded** entitled in code, because a cold process has an empty cache
+Signed vCTO clients are **seeded** entitled in code (`sender_policy.py`),
+because a cold process has an empty cache
 and the auth mailer never touches the DB, so a strict gate would silently
 regress everything Phase 2 shipped. The seed is a statement of a signed
 commercial fact, versioned in git and revocable by deleting one line — not a
@@ -503,33 +507,33 @@ Resend, which would be a lie about how the mail left. Implementing SMTP is the
 work the first client who asks for it will trigger — the interface is already
 the binding, so it stays a config change.
 
-## Phase 4 — CTM is live on its own Resend account (2026-09-07)
+## Phase 4 — the first tenant is live on its own Resend account (2026-09-07)
 
-Phase 3 built the portability. This is CTM using it: the first tenant-account
-binding in production.
+Phase 3 built the portability. This is the first vCTO client tenant using it:
+the first tenant-account binding in production.
 
 ```
-tenant           ctm
+tenant           <tenant>
 account          tenant                    (was: madfam)
-credential_ref   CTM_RESEND_API_KEY        (a NAME — an env var)
-verified_domains ("creatumundo.mx",)       (was: () — deferring to the global list)
+credential_ref   <ENV_VAR>                 (a NAME — an env var)
+verified_domains ("<client-domain>",)      (was: () — deferring to the global list)
 ```
 
-CTM created its own Resend account and `creatumundo.mx` is **Verified** there
+The client created its own Resend account and its domain is **Verified** there
 (DKIM `resend._domainkey`, send MX/TXT published through Enclii and the
 Cloudflare dashboard). From that moment the global `RESEND_VERIFIED_DOMAINS` —
-which describes **MADFAM's** account — is the wrong authority for CTM, which is
-why `verified_domains` becomes non-empty at exactly the same commit as
+which describes **MADFAM's** account — is the wrong authority for that tenant,
+which is why `verified_domains` becomes non-empty at exactly the same commit as
 `account`.
 
 ### The credential path, end to end
 
 ```
-Vault  secret/janua#ctm_resend_api_key
+Vault  secret/janua#<tenant>_resend_api_key
   ↓  (enclii-managed ExternalSecret)
-K8s Secret  janua-secrets, key `ctm-resend-api-key`
+K8s Secret  janua-secrets, key `<tenant>-resend-api-key`
   ↓  (env, marked optional in k8s/base/deployments/janua-api.yaml)
-Pod env  CTM_RESEND_API_KEY
+Pod env  <ENV_VAR>  (the name the binding's `credential_ref` holds)
   ↓
 app/services/sender_credentials.py
 ```
@@ -538,7 +542,7 @@ app/services/sender_credentials.py
 `sender_credentials` supports both shapes, but janua-api runs **without**
 `VAULT_ADDR` / `VAULT_TOKEN` (verified on the live pod, 2026-09-07), so a
 `path#field` reference can never resolve in production — it would fail every
-time, silently, and degrade CTM to the platform sender forever. The
+time, silently, and degrade the tenant to the platform sender forever. The
 ExternalSecret is what bridges Vault to the pod; the env var is what the process
 can actually read. A Vault-path `credential_ref` remains valid for any future
 deployment that *does* carry a Vault token.
@@ -548,24 +552,24 @@ the sender (below) instead of blocking the pod from starting.
 
 ### A missing tenant credential degrades the sender — it never blocks a sign-in link
 
-This is the owner's rule from #607 applied one layer down. With CTM's binding on
+This is the owner's rule from #607 applied one layer down. With a tenant's binding on
 its own account, the key may legitimately be absent for a window — an operator
 flips the binding before writing the secret, or the ExternalSecret has not synced
 yet. In that window:
 
 - **The magic link still goes out.** From the PLATFORM sender,
-  `MADFAM <hola@madfam.io>`, whole. Never `Crea Tu Mundo <hola@madfam.io>` — a
+  `MADFAM <hola@madfam.io>`, whole. Never `Client <hola@madfam.io>` — a
   degraded send is still subject to THE RULE.
 - **A warning is logged**, `sender_credentials.tenant_credential_missing`,
   carrying the tenant and the credential **reference**. Never the value.
-- **The body is unaffected.** The message still reads as Crea Tu Mundo
+- **The body is unaffected.** The message still reads as the client
   throughout; what is withheld is the envelope claim.
 
 Why this is not merely nice-to-have: a tenant-account binding carries its own
 `verified_domains`, describing an account the process can only reach with that
 tenant's key. Without the key, the first two gates still *pass* — the domain IS
 verified, on an account we cannot authenticate to — and the branded address
-would leave on MADFAM's account, where `creatumundo.mx` is **not** verified.
+would leave on MADFAM's account, where `<client-domain>` is **not** verified.
 Resend rejects that outright. The failure mode is not a wrong-looking From; it
 is a client who cannot sign in.
 
@@ -589,7 +593,7 @@ Both Resend send paths now read the tenant's key when the binding calls for it:
   takes** — sends the tenant key in its own `Authorization` header. This one
   previously resolved the From through `sender_for` but sent with
   `settings.RESEND_API_KEY` unconditionally, which for a tenant-account binding
-  means presenting `Crea Tu Mundo <hola@creatumundo.mx>` to an account that has
+  means presenting `Client <hola@<client-domain>>` to an account that has
   never verified that domain.
 
 Both paths fall back to the platform sender, whole, on the platform account if
@@ -597,11 +601,11 @@ the credential does not resolve.
 
 ### Rollback
 
-One field. Set CTM's `account` back to `madfam`, `credential_ref` to
+One field. Set the tenant binding's `account` back to `madfam`, `credential_ref` to
 `RESEND_API_KEY`, `verified_domains` to `()` — or run
-`scripts/sender_binding_switch.py ctm --rollback` — and CTM sends on MADFAM's
+`scripts/sender_binding_switch.py <tenant> --rollback` — and the tenant sends on MADFAM's
 account again, gated by the global `RESEND_VERIFIED_DOMAINS` as in Phase 2.
-Deleting the secret alone is *not* a rollback: it degrades CTM to the platform
+Deleting the secret alone is *not* a rollback: it degrades the tenant to the platform
 sender rather than restoring the branded MADFAM-account send.
 
 ### Provider account isolation (2026-09-22)

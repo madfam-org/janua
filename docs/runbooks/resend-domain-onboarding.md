@@ -1,8 +1,10 @@
 # Onboarding a client sending domain in Resend
 
 **Scope:** adding a second sending domain so janua can send transactional mail
-*from the client's own address* rather than `hola@madfam.io`. Written for
-`creatumundo.mx` (Crea Tu Mundo), which is the first one; the steps generalise.
+*from the client's own address* rather than `hola@madfam.io`. Written while
+onboarding the first client tenant; the steps generalise. Below, `Client` is the
+tenant's display name, `<client-domain>` its sending domain and `<tenant>` its
+binding key in `apps/api/app/services/sender_binding.py`.
 
 **Read first:** [`../EMAIL_SENDER_POLICY.md`](../EMAIL_SENDER_POLICY.md). This
 runbook executes Phase 2 of that policy. The single precondition the policy
@@ -16,29 +18,29 @@ Resend does not degrade when you send from a domain it has not verified — it
 folder, it is *no message at all*, and the message in question is a sign-in
 link. So the code and the cutover are deliberately separated:
 
-| State | `RESEND_VERIFIED_DOMAINS` | A CTM magic link comes from |
+| State | `RESEND_VERIFIED_DOMAINS` | A tenant's magic link comes from |
 |---|---|---|
 | Today (code merged, domain not verified) | `madfam.io` | `MADFAM <hola@madfam.io>` |
-| After verification + manifest edit | `madfam.io,creatumundo.mx` | `Crea Tu Mundo <hola@creatumundo.mx>` |
+| After verification + manifest edit | `madfam.io,<client-domain>` | `Client <hola@<client-domain>>` |
 
 **The display name waits with the address.** They are one decision, keyed on
 whether the binding's own address domain is verified. There is no intermediate
 state.
 
 > **Corrected 2026-09-07.** This table previously read
-> `Crea Tu Mundo <hola@madfam.io>` in the first row, under the rule "the display
+> `Client <hola@madfam.io>` in the first row, under the rule "the display
 > name moves as soon as the code ships; only the address waits". That behaviour
 > shipped in #603 and was **observed in production on 2026-09-07 at 02:32:21
-> CDMX** — the first magic link requested from `map.creatumundo.mx` arrived in
-> the CTM inbox with exactly that From — and was **rejected the same night**.
+> CDMX** — the first magic link requested from the tenant's portal arrived in
+> the client's inbox with exactly that From — and was **rejected the same night**.
 > Only MADFAM sends from `hola@madfam.io`; a client's display name in front of
 > MADFAM's address is a claim the recipient cannot verify and is the shape of a
 > display-name spoof. See `docs/EMAIL_SENDER_POLICY.md`.
 
 Both states run the same code path, so the cutover is not also a first
 execution — `tests/unit/services/test_email_branding.py::
-TestSenderUnderTheVerifiedDomainGate::test_ctm_from_is_creatumundo_once_verified`
-exercises the post-verification state in CI, and
+TestSenderUnderTheVerifiedDomainGate` exercises the post-verification state in
+CI, and
 `tests/unit/services/test_email_sender.py::TestDisplayNameFollowsAddress` is the
 regression fence for the header above.
 
@@ -48,10 +50,10 @@ voice (tú/usted) and CDMX clock render on both sides of the verification line �
 
 ## Precondition: DNS must be ours
 
-`creatumundo.mx` is CTM's domain at Porkbun, and as of 2026-09-06 its
-nameservers still point at **Wix**. Records cannot be applied through Enclii
-until Switch 1 of the domain plan (nameservers → Cloudflare) is done. Do not
-start step 2 before then — the DKIM record simply cannot be published.
+`<client-domain>` must be delegated to Cloudflare first. If its nameservers
+still point at a previous web host, records cannot be applied through Enclii
+until the domain plan's nameserver switch (nameservers → Cloudflare) is done. Do
+not start step 2 before then — the DKIM record simply cannot be published.
 
 ## Order of operations
 
@@ -62,7 +64,7 @@ into this runbook ahead of time; they must be read from the API at creation.
 
 ```bash
 export RESEND_API_KEY=...            # operator env only — never commit, never echo
-python3 scripts/resend_domain_onboard.py creatumundo.mx
+python3 scripts/resend_domain_onboard.py <client-domain>
 ```
 
 Idempotent: a re-run finds the existing domain instead of creating a duplicate.
@@ -88,17 +90,17 @@ script's output, not these):
 enclii providers cloudflare dns-apply resend._domainkey \
   --type TXT --content '<the DKIM value from step 1>' \
   --proxied false --apply \
-  --reason 'Resend sending-domain verification for creatumundo.mx'
+  --reason 'Resend sending-domain verification for <client-domain>'
 
 enclii providers cloudflare dns-apply send \
   --type MX --content '10 feedback-smtp.us-east-1.amazonses.com' \
   --proxied false --apply \
-  --reason 'Resend sending-domain verification for creatumundo.mx'
+  --reason 'Resend sending-domain verification for <client-domain>'
 
 enclii providers cloudflare dns-apply send \
   --type TXT --content 'v=spf1 include:amazonses.com ~all' \
   --proxied false --apply \
-  --reason 'Resend sending-domain verification for creatumundo.mx'
+  --reason 'Resend sending-domain verification for <client-domain>'
 ```
 
 Three records, in Resend's own vocabulary:
@@ -106,14 +108,14 @@ Three records, in Resend's own vocabulary:
 - **DKIM** — `resend._domainkey` TXT, the per-domain public key. This is the one
   that breaks if a character is lost in transcription, which is why step 1
   generates the command rather than asking you to retype it.
-- **SPF (return path)** — `send.creatumundo.mx` gets **both** an `MX` and a
+- **SPF (return path)** — `send.<client-domain>` gets **both** an `MX` and a
   `TXT`. The `send` subdomain is Resend's default custom return path; it is
   what makes SPF align with the envelope sender.
 - Note `--proxied false` on every record — these are mail records, and there is
   no TTL flag on `dns-apply`.
 
 **DMARC is optional** for verification and recommended after it: a
-`_dmarc.creatumundo.mx` TXT of `v=DMARC1; p=none; rua=mailto:...` starts in
+`_dmarc.<client-domain>` TXT of `v=DMARC1; p=none; rua=mailto:...` starts in
 report-only so nothing is rejected while alignment is observed.
 
 ### 3. Ask Resend to verify
@@ -121,22 +123,21 @@ report-only so nothing is rejected while alignment is observed.
 Propagation is not instant; give the records a few minutes first.
 
 ```bash
-python3 scripts/resend_domain_onboard.py creatumundo.mx --verify
+python3 scripts/resend_domain_onboard.py <client-domain> --verify
 ```
 
 Repeat until it reports `Status : verified` (exit code `0`). `--status` polls
 without attempting a re-check. **Do not proceed while this says anything else.**
 
-### 4. Create the `hola@creatumundo.mx` mailbox (Proton)
+### 4. Create the `hola@<client-domain>` mailbox (Proton)
 
-Resend *sends* as `hola@creatumundo.mx`; nothing *receives* there until the
-mailbox exists, and janua sets `Reply-To: hola@creatumundo.mx` on CTM mail. A
-family replying to a sign-in mail must land somewhere real.
+Resend *sends* as `hola@<client-domain>`; nothing *receives* there until the
+mailbox exists, and janua sets `Reply-To: hola@<client-domain>` on the tenant's
+mail. A person replying to a sign-in mail must land somewhere real.
 
-This is a **manual operator step in the Proton admin console** (stage 4 of the
-`creatumundo.mx` domain plan, alongside `admin@creatumundo.mx`) — it is not
-automated here and this repo has no Proton credentials. Add `hola@` as an
-address/alias on the Proton-hosted domain.
+This is a **manual operator step in the Proton admin console** (part of the
+client's domain plan) — it is not automated here and this repo has no Proton
+credentials. Add `hola@` as an address/alias on the Proton-hosted domain.
 
 Proton's own MX records are separate from Resend's `send.` return-path MX and
 do not conflict — they sit at different names.
@@ -146,12 +147,12 @@ do not conflict — they sit at different names.
 Only now. In the production janua manifest (the API deployment's env):
 
 ```
-RESEND_VERIFIED_DOMAINS=madfam.io,creatumundo.mx
+RESEND_VERIFIED_DOMAINS=madfam.io,<client-domain>
 ```
 
-Keep `madfam.io` in the list — dropping it would downgrade every non-CTM
+Keep `madfam.io` in the list — dropping it would downgrade every other
 sender. The value is comma-separated and matched on the **exact** domain, so
-`creatumundo.mx` does not authorise `sub.creatumundo.mx`.
+`<client-domain>` does not authorise `sub.<client-domain>`.
 
 This is a plain env change; **no Alembic migration is involved.**
 
@@ -160,17 +161,16 @@ This is a plain env change; **no Alembic migration is involved.**
 The API's 200 says nothing about SPF/DKIM alignment or spam placement. Read a
 real message.
 
-1. Request a magic link for a CTM user at `https://map.creatumundo.mx` — the
-   canonical CTM host since 2026-09-07. (`crea-map.madfam.io` now answers 301
-   to it; it still resolves to the CTM tenant for sender purposes, so it is a
-   valid tenant signal, just no longer the address to hand a person.)
+1. Request a magic link for a tenant user from the tenant's canonical host.
+   (Every host in the binding's `hosts` is a valid tenant signal for sender
+   purposes; use the one people are actually given.)
 2. In the received mail, confirm:
-   - `From: Crea Tu Mundo <hola@creatumundo.mx>`
-   - `Reply-To: hola@creatumundo.mx`
+   - `From: Client <hola@<client-domain>>`
+   - `Reply-To: hola@<client-domain>`
    - `Authentication-Results:` shows `dkim=pass` and `spf=pass`
    - it landed in the **inbox**, not spam
 3. Confirm a reply to that address arrives in the Proton mailbox.
-4. Confirm a **non-CTM** sign-in (e.g. `janua.dev`) still comes from
+4. Confirm a sign-in with **no tenant** (e.g. `janua.dev`) still comes from
    `MADFAM <hola@madfam.io>`.
 
 Step 4 is not optional: the gate is shared, and a mistake in step 5 is most
@@ -184,7 +184,7 @@ Remove the domain from the verified set and redeploy:
 RESEND_VERIFIED_DOMAINS=madfam.io
 ```
 
-CTM mail immediately reverts to `MADFAM <hola@madfam.io>` — the platform sender
+The tenant's mail immediately reverts to `MADFAM <hola@madfam.io>` — the platform sender
 whole, name and address together (2026-09-07 rule) — and delivery resumes on a
 domain with four-plus months of reputation. No code change, no migration, no
 Resend change. The domain can stay registered in Resend while rolled back. The
@@ -211,7 +211,7 @@ de trato debe reservarse exclusivamente para nuestros clientes vCTO, donde
 tenemos control operativo completo.»
 
 La razón no es comercial, es operativa. Cuando un correo sale como
-`Crea Tu Mundo <hola@creatumundo.mx>`, MADFAM se ha hecho cargo del DNS de ese
+`Cliente <hola@<dominio-del-cliente>>`, MADFAM se ha hecho cargo del DNS de ese
 dominio, de la rotación de su DKIM, de su reputación de envío y de sus rebotes.
 Eso se puede prometer para un cliente retenido cuya infraestructura operamos.
 No se puede prometer para un alta self-serve — y prometerlo ahí significa que
@@ -258,22 +258,22 @@ falla que un correo desde la dirección de la plataforma.
 
 | vCTO | Dominio verificado en la cuenta que envía | Sale como |
 |---|---|---|
-| sí | sí | `Crea Tu Mundo <hola@creatumundo.mx>` |
+| sí | sí | `Cliente <hola@<dominio-del-cliente>>` |
 | sí | no | `MADFAM <hola@madfam.io>` |
 | no | sí | `MADFAM <hola@madfam.io>` |
 | no | no | `MADFAM <hola@madfam.io>` |
 | sin señal de inquilino | — | `MADFAM <hola@madfam.io>` |
 
 El degradado es **total**, no parcial: el nombre visible acompaña siempre a la
-dirección. `Crea Tu Mundo <hola@madfam.io>` **nunca** debe producirse — sólo
+dirección. `Cliente <hola@madfam.io>` **nunca** debe producirse — sólo
 MADFAM envía desde `hola@madfam.io`, y poner el nombre de un cliente delante de
 esa dirección es una afirmación que quien recibe no puede verificar.
 
-> **Corregido el 2026-09-07.** Esta matriz decía `Crea Tu Mundo <hola@madfam.io>`
+> **Corregido el 2026-09-07.** Esta matriz decía `Cliente <hola@madfam.io>`
 > en las tres filas de respaldo, bajo la regla «el degradado siempre es parcial:
 > la marca es cosmética, la dirección es operativa». Ese comportamiento se
 > observó en producción el 2026-09-07 a las 02:32:21 CDMX (primer enlace mágico
-> pedido desde `map.creatumundo.mx`) y fue rechazado esa misma noche. El nombre
+> pedido desde el portal del inquilino) y fue rechazado esa misma noche. El nombre
 > visible es tan operativo como la dirección.
 
 La marca del cliente **sí** aparece en el **cuerpo** del mensaje en todos los
@@ -285,8 +285,8 @@ compuerta.
 # Migrar a tu propia cuenta de Resend (u otro proveedor)
 
 Directiva del propietario, 2026-09-06: «debemos permitir mecanismos para que
-CTM y cualquier otro cliente vCTO pueda moverse fácilmente a su propia cuenta
-de Resend (o su proveedor preferido).»
+[el primer cliente] y cualquier otro cliente vCTO pueda moverse fácilmente a su
+propia cuenta de Resend (o su proveedor preferido).»
 
 Un `SenderBinding` (`apps/api/app/services/sender_binding.py`) separa **quién
 firma el correo** de **qué cuenta lo envía**. Mudarse de cuenta cambia tres
@@ -294,7 +294,7 @@ campos del binding — `account`, `credential_ref`, `verified_domains` — y
 **ningún camino de código**. Es reversible en un comando.
 
 > La verificación de dominio en Resend es **por cuenta**. Que
-> `creatumundo.mx` esté verificado en la cuenta de MADFAM no dice nada sobre la
+> `<dominio-del-cliente>` esté verificado en la cuenta de MADFAM no dice nada sobre la
 > cuenta del cliente. Por eso un binding en cuenta propia lleva su propia lista
 > `verified_domains` y deja de consultar `RESEND_VERIFIED_DOMAINS`.
 
@@ -307,13 +307,13 @@ script ni el binding ven nunca el valor: el binding guarda una **referencia**.
 
 ```bash
 read -rs TENANT_RESEND_API_KEY && export TENANT_RESEND_API_KEY
-vault kv put secret/janua/senders/ctm resend_api_key="$TENANT_RESEND_API_KEY"
+vault kv put secret/janua/senders/<inquilino> resend_api_key="$TENANT_RESEND_API_KEY"
 ```
 
 ### 1. ¿La cuenta del cliente ya tiene el dominio, verificado?
 
 ```bash
-python3 scripts/sender_binding_switch.py ctm --verify
+python3 scripts/sender_binding_switch.py <inquilino> --verify
 ```
 
 Código de salida `2` = existe pero no verificado. `0` = listo para el paso 3.
@@ -327,7 +327,7 @@ Código de salida `2` = existe pero no verificado. `0` = listo para el paso 3.
 ### 2. Si no: crearlo ahí e imprimir el DNS que falta
 
 ```bash
-python3 scripts/sender_binding_switch.py ctm --onboard
+python3 scripts/sender_binding_switch.py <inquilino> --onboard
 ```
 
 La clave DKIM es **por cuenta además de por dominio**, así que son registros
@@ -338,8 +338,8 @@ Publicarlas por Enclii, esperar propagación, y repetir el paso 1.
 ### 3. Voltear el binding
 
 ```bash
-python3 scripts/sender_binding_switch.py ctm --switch \
-    --credential-ref 'secret/data/janua/senders/ctm#resend_api_key'
+python3 scripts/sender_binding_switch.py <inquilino> --switch \
+    --credential-ref 'secret/data/janua/senders/<inquilino>#resend_api_key'
 ```
 
 Se **rehúsa** a correr si el paso 1 no reporta `verified` (usar `--force` sólo
@@ -355,13 +355,13 @@ Antes de desplegar, confirmar que la credencial sí está en Vault (responde
 sí/no, nunca imprime el valor):
 
 ```bash
-python3 scripts/sender_binding_switch.py ctm --check-credential
+python3 scripts/sender_binding_switch.py <inquilino> --check-credential
 ```
 
 ### 4. Reversa
 
 ```bash
-python3 scripts/sender_binding_switch.py ctm --rollback
+python3 scripts/sender_binding_switch.py <inquilino> --rollback
 ```
 
 Vuelve a la cuenta de MADFAM. La línea `From` no cambia; sólo cambia la cuenta
@@ -387,17 +387,18 @@ SMTP es el trabajo pendiente para el primer cliente que lo pida.
 
 ---
 
-# Estado real: CTM en su propia cuenta (desde 2026-09-07)
+# Estado real: el primer inquilino en su propia cuenta (desde 2026-09-07)
 
-CTM es el primer inquilino que completó la mudanza. `creatumundo.mx` está
-**Verificado** en la cuenta de Resend de CTM (DKIM `resend._domainkey`, MX/TXT
-de envío publicados por Enclii y por el panel de Cloudflare).
+El primer inquilino vCTO completó la mudanza. Su dominio está **Verificado** en
+la cuenta de Resend del propio cliente (DKIM `resend._domainkey`, MX/TXT de
+envío publicados por Enclii y por el panel de Cloudflare). Su binding en
+`sender_binding.py`:
 
 ```
-tenant           ctm
+tenant           <inquilino>
 account          tenant                    (antes: madfam)
-credential_ref   CTM_RESEND_API_KEY        (un NOMBRE — una variable de entorno)
-verified_domains ("creatumundo.mx",)       (antes: () — delegaba en la lista global)
+credential_ref   <VARIABLE>                (un NOMBRE — una variable de entorno)
+verified_domains ("<dominio-del-cliente>",) (antes: () — delegaba en la lista global)
 ```
 
 ## La credencial es una VARIABLE DE ENTORNO, no una ruta de Vault
@@ -406,11 +407,11 @@ Esta es la corrección importante al paso 3 de arriba, y hay que leerla antes de
 mudar al segundo inquilino.
 
 ```
-Vault  secret/janua#ctm_resend_api_key
+Vault  secret/janua#<inquilino>_resend_api_key
   ↓  (ExternalSecret administrado por enclii)
-Secret de K8s  janua-secrets, llave `ctm-resend-api-key`
+Secret de K8s  janua-secrets, llave `<inquilino>-resend-api-key`
   ↓  (env, marcada optional en k8s/base/deployments/janua-api.yaml)
-Env del pod  CTM_RESEND_API_KEY
+Env del pod  <VARIABLE>  (el nombre que guarda `credential_ref`)
   ↓
 apps/api/app/services/sender_credentials.py
 ```
@@ -418,16 +419,16 @@ apps/api/app/services/sender_credentials.py
 `sender_credentials` acepta las dos formas de referencia, pero **janua-api corre
 sin `VAULT_ADDR` / `VAULT_TOKEN`** (verificado en el pod en vivo, 2026-09-07).
 Una referencia `ruta#campo` por lo tanto **nunca puede resolverse en
-producción**: fallaría cada vez, en silencio, y dejaría a CTM en el remitente de
-plataforma para siempre. El ExternalSecret es lo que tiende el puente entre
+producción**: fallaría cada vez, en silencio, y dejaría al inquilino en el
+remitente de plataforma para siempre. El ExternalSecret es lo que tiende el puente entre
 Vault y el pod; la variable de entorno es lo que el proceso sí puede leer.
 
 Por eso el `--credential-ref` del paso 3 para un despliegue como el actual es el
 **nombre de la variable**, y hay que declararla en el deployment:
 
 ```bash
-python3 scripts/sender_binding_switch.py ctm --switch \
-    --credential-ref 'CTM_RESEND_API_KEY'
+python3 scripts/sender_binding_switch.py <inquilino> --switch \
+    --credential-ref '<VARIABLE>'
 ```
 
 La entrada de env está marcada **optional** en el deployment a propósito: si la
@@ -443,10 +444,10 @@ escribir el secreto, o el ExternalSecret aún no sincroniza. En esa ventana:
 
 - **El enlace mágico sale igual**, desde el remitente de plataforma,
   `MADFAM <hola@madfam.io>`, **entero**. Nunca
-  `Crea Tu Mundo <hola@madfam.io>` — una degradación sigue sujeta a LA REGLA.
+  `Cliente <hola@madfam.io>` — una degradación sigue sujeta a LA REGLA.
 - **Se registra una advertencia**, `sender_credentials.tenant_credential_missing`,
   con el inquilino y la **referencia** de la credencial. Nunca el valor.
-- **El cuerpo no se toca**: el mensaje sigue leyéndose como Crea Tu Mundo. Lo
+- **El cuerpo no se toca**: el mensaje sigue leyéndose como el cliente. Lo
   que se retiene es la afirmación del sobre, no la presencia del inquilino.
 
 Por qué esto no es un lujo: un binding en cuenta propia lleva su propia
@@ -454,7 +455,7 @@ Por qué esto no es un lujo: un binding en cuenta propia lleva su propia
 la llave de ese inquilino. Sin la llave, las dos compuertas anteriores **pasan**
 — el dominio SÍ está verificado, en una cuenta a la que no nos podemos
 autenticar — y la dirección de marca saldría por la cuenta de MADFAM, donde
-`creatumundo.mx` **no** está verificado. Resend rechaza eso de tajo. La falla no
+`<dominio-del-cliente>` **no** está verificado. Resend rechaza eso de tajo. La falla no
 es un `From` feo: es un cliente que no puede entrar.
 
 `email_sender.sender_for` aplica entonces una **tercera compuerta**,
@@ -470,10 +471,10 @@ dominio verificado.
 
 ```bash
 # 1. ¿La llave llegó al pod? (responde sí/no, nunca imprime el valor)
-python3 scripts/sender_binding_switch.py ctm --check-credential
+python3 scripts/sender_binding_switch.py <inquilino> --check-credential
 
-# 2. Pedir un enlace mágico desde un host de CTM y leer el encabezado real.
-#    Esperado: From: Crea Tu Mundo <hola@creatumundo.mx>
+# 2. Pedir un enlace mágico desde un host del inquilino y leer el encabezado real.
+#    Esperado: From: Cliente <hola@<dominio-del-cliente>>
 #    Si se lee «MADFAM <hola@madfam.io>», buscar en los logs
 #    `sender_credentials.tenant_credential_missing` antes de tocar el binding:
 #    casi siempre es el ExternalSecret, no el código.
@@ -481,13 +482,13 @@ python3 scripts/sender_binding_switch.py ctm --check-credential
 
 ## Reversa desde este estado
 
-Borrar el secreto **no** es una reversa: degrada a CTM al remitente de
+Borrar el secreto **no** es una reversa: degrada al inquilino al remitente de
 plataforma, no restaura el envío de marca por la cuenta de MADFAM. La reversa
 real vuelve a poner los tres campos:
 
 ```bash
-python3 scripts/sender_binding_switch.py ctm --rollback
+python3 scripts/sender_binding_switch.py <inquilino> --rollback
 ```
 
-y exige que `creatumundo.mx` siga en `RESEND_VERIFIED_DOMAINS` de la cuenta de
+y exige que `<dominio-del-cliente>` siga en `RESEND_VERIFIED_DOMAINS` de la cuenta de
 MADFAM, o la dirección degradará a `hola@madfam.io` de todos modos.

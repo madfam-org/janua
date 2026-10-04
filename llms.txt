@@ -57,23 +57,24 @@ Compact LLM context index for this repository.
 - The magic-link callback `GET` renders and **spends nothing**; only `POST`
   exchanges. Mail scanners no longer burn links.
 - Sending identity is **per tenant** (`app/services/sender_binding.py`), not one
-  global From line. Crea Tu Mundo sends from `hola@creatumundo.mx` on **its own
-  Resend account**, keyed by the `CTM_RESEND_API_KEY` env var. A missing tenant
-  credential degrades the sender to the platform From line; it never blocks a
-  sign-in link.
+  global From line. A vCTO client tenant can send from its own domain on **its own
+  Resend account**, keyed by the env var its binding names in `credential_ref`.
+  A missing tenant credential degrades the sender to the platform From line; it
+  never blocks a sign-in link.
 - A tenant display name is never paired with an address on MADFAM's domain.
 
 ## Email events and measurement (2026-09-26)
 
-- Resend webhooks land on `POST /api/v1/email/webhooks/resend/{ctm|platform}`,
-  verified Svix-style with `RESEND_WEBHOOK_SECRET_CTM` /
-  `RESEND_WEBHOOK_SECRET_PLATFORM`. Secret unset: 404. Bad signature: 401
-  «Invalid webhook signature». Stored: 200 `{"status":"stored"}`.
+- Resend webhooks land on `POST /api/v1/email/webhooks/resend/{cuenta}` (one
+  slug per Resend account: `platform` plus one per tenant account, mapped in
+  `WEBHOOK_SECRET_SETTINGS`, `app/services/email_events.py`), verified
+  Svix-style with `RESEND_WEBHOOK_SECRET_<CUENTA>`. Secret unset: 404. Bad
+  signature: 401 «Invalid webhook signature». Stored: 200 `{"status":"stored"}`.
 - Janua measures opens/clicks itself (Resend tracking stays OFF) only for mail
   sent with `track_engagement: true` that carries no token link. Pixel
   `/e/o/{token}.gif`, click `/e/c/{token}/{i}`, on the tenant's tracking host.
-  `CTM_TRACKING_HOST` is CTM's on-switch (production:
-  `https://enlaces.creatumundo.mx`).
+  The setting a binding names in `tracking_host_setting` is that tenant's
+  on-switch (production sets a host on the tenant's own domain).
 - A tracking host serves only `/e/o/*` and `/e/c/*`; everything else is 404
   and websockets are closed (1008) by `TrackingHostScopeMiddleware`.
 - Production migrations are applied by hand; `PROD_ALEMBIC_STATE.json` records

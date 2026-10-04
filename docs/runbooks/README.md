@@ -36,7 +36,7 @@ Operator guides for production GitOps, secrets rotation, and incident records.
 | Document | Scope |
 |----------|-------|
 | [secrets/ghcr-pat-rotation.md](./secrets/ghcr-pat-rotation.md) | `ghcr-credentials` pull secret |
-| [secrets/resend-webhook-secret-rotation.md](./secrets/resend-webhook-secret-rotation.md) | Resend webhook signing secret per account (`RESEND_WEBHOOK_SECRET_CTM`) |
+| [secrets/resend-webhook-secret-rotation.md](./secrets/resend-webhook-secret-rotation.md) | Resend webhook signing secret per account (`RESEND_WEBHOOK_SECRET_<ACCOUNT>`) |
 | [secrets/DEPLOYMENT_GUIDE.md](./secrets/DEPLOYMENT_GUIDE.md) | General secret deployment |
 | [secrets/EMERGENCY_ROTATION.md](./secrets/EMERGENCY_ROTATION.md) | Break-glass rotation |
 

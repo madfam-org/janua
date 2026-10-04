@@ -35,7 +35,7 @@ provider acceptance only with an explicitly authorized test recipient.
 
 ## Quota refusals and per-account usage (2026-09-28)
 
-A tenant on its own Resend account (today Crea Tu Mundo, `sender_binding.CTM_BINDING`)
+A tenant on its own Resend account (today one vCTO client; see the bindings in `sender_binding.py`)
 is bound by that account's plan: on the free plan, 100 messages per UTC calendar
 day (reset at 00:00 UTC, not a rolling window) and 3,000 per month. Every To, CC
 and BCC recipient counts, and inbound mail counts too
@@ -347,23 +347,24 @@ how the From line is chosen — see [Sender resolution](#sender-resolution).
 | `transactional/agreement-accepted`   | Service agreement accepted — operator notification (Nauta)                      | `workspace_name`, `accepted_by`, `accepted_at`, `checksum`, `cockpit_url`                                   | dedicated | per org_id                      |
 | `transactional/request-filed`        | Client priority filed — operator notification (Nauta)                          | `workspace_name`, `submitted_by`, `title`, `kind`, `severity`, `sla_line`, `filed_at`, `body_excerpt`, `cockpit_url` | dedicated | per org_id                      |
 | `transactional/workspace-activated`  | Workspace activated — client notification (Nauta, register-composed)           | `heading`, `greeting`, `line_deposit`, `line_next`, `workspace_url`, `cta_label`, `line_support`, `workspace_host` | dedicated | per org_id                      |
-| `map/pago-confirmado`                | MAP — payment-confirmation notice to a Crea Tu Mundo integrante (money-light)   | `periodo`                                                                                                   | dedicated | per org_id (CTM)                |
+| *(tenant payment notice, see below)* | Payment-confirmation notice to a member of a vCTO client's team (money-light)   | `periodo`                                                                                                   | dedicated | per org_id (tenant)             |
 
 Some templates declare **optional** variables in addition to the required ones
 above; consult `EMAIL_TEMPLATES` for the full contract of any id.
 
-### `map/pago-confirmado` (MAP integrante payment confirmation)
+### Tenant payment-confirmation notice
 
-Added in #630. It tells a Crea Tu Mundo colaboradora that the period's work was
-paid and thanks her. It is **deliberately money-light**: the contract is
+Added in #630; its id is in `EMAIL_TEMPLATES` (and `GET /templates`). It tells
+a member of a vCTO client's team that the period's work was
+paid and thanks them. It is **deliberately money-light**: the contract is
 `required: ["periodo"]`, `optional: ["sesiones"]` (a non-fiscal session *count*
 only), and it carries **no** amount, currency, rate, bank/CLABE,
-beca/percentage, or clinical field — those live in HCM and the CFDI cockpit,
-never in this notice. A guard test
-(`apps/api/tests/unit/routers/test_email_map_pago_confirmado.py`) renders the
+percentage, or other sensitive domain field — those live in HCM and the CFDI cockpit,
+never in this notice. A guard test (the payment-confirmation test under
+`apps/api/tests/unit/routers/`) renders the
 template with an over-supplied variables dict and asserts none of those values
 reach the body. The template declares **no** `default_from_email`, so its From
-line resolves to CTM via `org_id` (see [Sender resolution](#sender-resolution)).
+line resolves to the tenant via `org_id` (see [Sender resolution](#sender-resolution)).
 
 ### `billing/cfdi` (CFDI delivery)
 
@@ -384,7 +385,7 @@ Two independent render paths exist in this repo — do not conflate them:
    `str(value)` for every supplied variable. There are **no** Jinja
    conditionals, loops, filters, or auto-escaping on this path. A slot the
    caller does not supply is left as a literal `{{key}}` unless the template
-   composes it another way — e.g. `map/pago-confirmado` derives an
+   composes it another way — e.g. the tenant payment-confirmation notice derives an
    always-present `{{sesiones_detalle}}` slot from the optional `sesiones` count
    in `_derive_template_variables()`, precisely because the naive renderer
    cannot do singular/plural or hide an absent optional. If the HTML file is
@@ -405,7 +406,7 @@ The From line is not taken at face value from the caller. It is chosen by
 `app/services/email_sender.py` from tenant/host signals, and every send is
 subject to a rule that a client display name never pairs with an address on
 MADFAM's domain. The full policy — verified-domain gate, the per-tenant
-`SenderBinding`, the vCTO gate, and the CTM live-on-its-own-account state — is
+`SenderBinding`, the vCTO gate, and the first tenant's live-on-its-own-account state — is
 documented in [`EMAIL_SENDER_POLICY.md`](./EMAIL_SENDER_POLICY.md). In brief:
 
 - A caller's explicit `from_email` / `from_name` is honoured **only** from a
@@ -414,8 +415,8 @@ documented in [`EMAIL_SENDER_POLICY.md`](./EMAIL_SENDER_POLICY.md). In brief:
 - A template may declare a `default_from_email` (e.g. `billing/cfdi` →
   `facturacion@madfam.io`); it applies only when the caller omits `from_email`.
 - With neither an explicit sender nor a template default, the sender resolves
-  from `org_id` (or the `redirect_url` host). `map/pago-confirmado` relies on
-  this: `org_id` resolves to Crea Tu Mundo `<hola@creatumundo.mx>`.
+  from `org_id` (or the `redirect_url` host). The tenant payment-confirmation
+  notice relies on this: `org_id` resolves to the tenant's own sender.
 
 ## Troubleshooting
 
