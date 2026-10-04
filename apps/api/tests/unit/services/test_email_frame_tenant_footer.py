@@ -73,6 +73,11 @@ NON_CTM_CASES = {
         resolve_branding(redirect_url="https://app.madfam.io/x"),
     ),
     "verification_es_no_branding": ("verification.html", "es", None, None),
+    # Conversation mail (R101, 2026-10-04): welcome keeps the frame it had
+    # before the automated-mail notice existed. Rendered BEFORE that notice was
+    # added to base.html, so it pins "conversation mail is unchanged".
+    "welcome_es_usted_no_branding": ("welcome.html", "es", "usted", None),
+    "welcome_en_no_branding": ("welcome.html", "en", None, None),
 }
 
 

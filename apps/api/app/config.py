@@ -235,6 +235,17 @@ class Settings(BaseSettings):
     # it is indistinguishable from phishing. madfam.io is Resend-verified.
     EMAIL_FROM_ADDRESS: str = Field(default="hola@madfam.io")
     EMAIL_FROM_NAME: str = Field(default="MADFAM")
+    # Ruling R101 (2026-10-04): the PLATFORM sender splits by message class.
+    # System events (sign-in links, codes, verification, resets, invitations,
+    # notifications) and security alerts come FROM a no-reply address with a
+    # Reply-To on the human inbox that owns the topic; conversation (welcome)
+    # stays on EMAIL_FROM_ADDRESS. A tenant's own branded sender is unaffected.
+    # Blank EMAIL_SYSTEM_FROM_ADDRESS turns the split off: every platform
+    # message goes back to EMAIL_FROM_ADDRESS with no Reply-To, as before R101.
+    # See docs/EMAIL_SENDER_POLICY.md and app/services/email_sender.py.
+    EMAIL_SYSTEM_FROM_ADDRESS: str = Field(default="noreply@madfam.io")
+    EMAIL_SUPPORT_REPLY_TO: str = Field(default="support@madfam.io")
+    EMAIL_SECURITY_REPLY_TO: str = Field(default="security@madfam.io")
     RESEND_API_KEY: Optional[str] = Field(default=None)
     # Sending domains that are VERIFIED in Resend. The per-host sender resolver
     # (`app/services/email_sender.py`) will only put an address on the From line

@@ -385,6 +385,10 @@ CHROME: Dict[str, Dict[str, str]] = {
         # confusion the sender work existed to remove, surviving in the part of
         # the email people actually read last.
         "signoff": "The MADFAM Team",
+        # Ruling R101 (2026-10-04): system and security mail comes from
+        # noreply@madfam.io with a Reply-To on a human inbox, and says so in
+        # one line. The Reply-To is what makes the sentence true.
+        "automated_notice": "This message is automated; if you reply, a person will answer.",
     },
     "es": {
         "tagline": "Tecnología, diseñada para su operación",
@@ -398,6 +402,9 @@ CHROME: Dict[str, Dict[str, str]] = {
         "support": "Soporte",
         "why_received": "Recibió este correo electrónico porque tiene una cuenta con MADFAM.",
         "location": "Innovaciones MADFAM S.A.S. de C.V. • Cuernavaca, Morelos, México",
+        # R101 (2026-10-04). The `tú` copy is the ruling's own sentence; this
+        # is its usted register.
+        "automated_notice": "Este mensaje es automático; si responde, le atiende una persona.",
     },
 }
 
@@ -583,6 +590,8 @@ ES_TU: Dict[str, str] = {
     # ES_REGISTER_NEUTRAL.
     "tagline": "Tecnología, diseñada para tu operación",
     "why_received": "Recibiste este correo electrónico porque tienes una cuenta con MADFAM.",
+    # Ruling R101 (2026-10-04), verbatim.
+    "automated_notice": "Este mensaje es automático; si respondes, te atiende una persona.",
     # -- shared -----------------------------------------------------------
     "common.need_help": "¿Necesitas ayuda? Escríbenos a",
     # -- magic_link -------------------------------------------------------
@@ -758,6 +767,21 @@ def chrome_string(key: str, locale: Optional[str] = None, formality: Optional[st
     return CHROME.get(resolved, CHROME[FALLBACK_LOCALE]).get(
         key, CHROME[FALLBACK_LOCALE].get(key, "")
     )
+
+
+def append_automated_notice(
+    text: str, locale: Optional[str] = None, formality: Optional[str] = None
+) -> str:
+    """A plain-text body with the R101 automated-mail line after its sign-off.
+
+    The HTML frame renders the same line in base.html's footer. The plain-text
+    templates have no shared frame, so the line is appended here, once, for
+    every automated message rather than copied into each `.txt` file.
+    """
+    notice = chrome_string("automated_notice", locale, formality)
+    if not text or not notice:
+        return text
+    return f"{text.rstrip()}\n\n{notice}"
 
 
 def html_lang(locale: Optional[str] = None) -> str:

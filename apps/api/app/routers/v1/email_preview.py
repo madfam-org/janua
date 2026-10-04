@@ -52,6 +52,7 @@ from app.routers.v1.email import (
     UnresolvedTemplateVariablesError,
     render_registered_template,
 )
+from app.services.email_sender import message_class_for_internal_send
 from app.services.resend_email_service import resolve_message_envelope
 
 router = APIRouter(prefix="/email", tags=["email"])
@@ -167,6 +168,9 @@ async def preview_email(
         org_id=request.org_id,
         token_link=token_link,
         observe=False,
+        # Same class rule as /send and /send-template, so the preview's From
+        # line is the one the send would use.
+        message_class=message_class_for_internal_send(token_link),
     )
     if envelope.unsupported_provider_tenant is not None:
         return JSONResponse(status_code=503, content={"detail": "Sender binding has no transport"})

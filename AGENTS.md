@@ -447,6 +447,11 @@ EMAIL_FROM_ADDRESS=hola@madfam.io  # PLATFORM sender; see docs/EMAIL_SENDER_POLI
 EMAIL_FROM_NAME=MADFAM            # platform default, NOT "one sender for every
                                   # platform": vCTO tenants resolve their own
                                   # From line from sender_binding.py
+EMAIL_SYSTEM_FROM_ADDRESS=noreply@madfam.io  # R101: platform sender for system
+                                  # and security mail; empty => everything back
+                                  # on EMAIL_FROM_ADDRESS (the rollback)
+EMAIL_SUPPORT_REPLY_TO=support@madfam.io    # Reply-To on system mail
+EMAIL_SECURITY_REPLY_TO=security@madfam.io  # Reply-To on security mail
 RESEND_API_KEY=re_XXXXX           # MADFAM's Resend account (platform sending)
 RESEND_VERIFIED_DOMAINS=madfam.io # domains verified on MADFAM's account
 CTM_RESEND_API_KEY=re_XXXXX       # CTM's OWN Resend account (tenant binding).

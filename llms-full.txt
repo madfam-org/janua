@@ -52,6 +52,14 @@ Verification is per ACCOUNT, not per domain. A tenant on its own provider
 account reads its own `verified_domains`; the global `RESEND_VERIFIED_DOMAINS`
 describes MADFAM's account only.
 
+The PLATFORM sender depends on the message class (ruling R101, 2026-10-04):
+system and security mail (sign-in links, codes, resets, invitations, alerts)
+comes from `MADFAM <noreply@madfam.io>` with a Reply-To on `support@madfam.io`
+(`security@madfam.io` for security mail); welcome and every unclassified
+message keep `MADFAM <hola@madfam.io>`. A tenant's branded sender is unchanged
+for every class. Classes live in `email_sender.TEMPLATE_MESSAGE_CLASS`; an
+empty `EMAIL_SYSTEM_FROM_ADDRESS` is the rollback.
+
 A missing tenant credential degrades the sender to the platform From line and
 logs `sender_credentials.tenant_credential_missing`. It never blocks the send: a
 degraded From is a degraded outcome, a magic link that never arrives is an

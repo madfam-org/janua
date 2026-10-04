@@ -15,6 +15,65 @@ client's web presence and, eventually, hands the sending account back to them.
 > [Phase 4](#phase-4--ctm-is-live-on-its-own-resend-account-2026-09-07)
 > (the account, the credential path, and the rollback). Phases 1-2 remain the
 > description of every tenant that has not reached Phase 3.
+>
+> **2026-10-04 — ruling R101.** The platform sender now depends on the message
+> class: sign-in links, codes, resets and alerts come from
+> `MADFAM <noreply@madfam.io>` with a Reply-To on a human inbox; welcome mail
+> stays on `MADFAM <hola@madfam.io>`. See [the R101 section](#r101-2026-10-04--system-mail-from-noreply-conversation-from-hola).
+> Wherever a section below says a platform message comes from `hola@madfam.io`,
+> read "the platform sender for that message's class".
+
+## R101 (2026-10-04) — system mail from noreply@, conversation from hola@
+
+Owner direction, 2026-10-04: «Let's leverage both noreply@madfam.io and
+hola@madfam.io on an expert strategy for a balance hybrid solution», then
+"confirm R101". The ruling lives in internal-devops
+(`decisions/2026-10-04-platform-sender-hybrid.md`).
+
+One question decides the PLATFORM sender: should a person be able to reply?
+
+| Class | Janua's messages | From | Reply-To |
+|---|---|---|---|
+| `system` | magic link, verification, password reset, invitation, data export, SSO notices, compliance alerts; any internal-door message carrying a token link | `MADFAM <noreply@madfam.io>` | `support@madfam.io` |
+| `security` | MFA recovery, security alerts | `MADFAM <noreply@madfam.io>` | `security@madfam.io` |
+| `conversation` | welcome | `MADFAM <hola@madfam.io>` | (none: same address) |
+| none | every message a caller does not classify | `MADFAM <hola@madfam.io>` | (none), exactly as before R101 |
+
+`noreply@madfam.io` is a real Proton mailbox, so even a reply that ignores the
+Reply-To reaches a person. System and security mail from the platform sender
+also carries `Auto-Submitted: auto-generated` (RFC 3834) and, in MADFAM's
+frame, one closing line: «Este mensaje es automático; si respondes, te atiende
+una persona.» (`usted`: «…si responde, le atiende una persona.»; en: "This
+message is automated; if you reply, a person will answer."). Every Janua send
+is tagged `stream=transactional` or `stream=conversational` in Resend, so the
+two reputations stay separable while both senders share madfam.io.
+
+**What does not change.**
+
+- **A tenant's branded sender** (Phases 2-4): a binding that passes every gate
+  keeps its own From and Reply-To for every class, with no new header and no
+  new line in its frame. R101 amends only the platform tier.
+- **THE RULE** below: every downgrade still returns the platform sender whole —
+  now the one for the message's class. A tenant's display name on
+  `noreply@madfam.io` is as forbidden as on `hola@madfam.io`, and the property sweep in
+  `tests/unit/services/test_email_platform_sender_r101.py` checks both.
+- **The internal door's explicit From**: a caller's verified `from_email` keeps
+  its own Reply-To. Only token mail (`contains_token_link`, or a template with
+  `token_link`) is classified as `system`; billing, transactional and tenant
+  templates keep the sender they had until their product classifies them.
+
+**Where it is enforced.** `app/services/email_sender.py`
+(`TEMPLATE_MESSAGE_CLASS`, `_default_sender`, `sender_for(message_class=...)`),
+both transports (`email_service.py::_send_via_resend` and the SMTP path;
+`resend_email_service.py::send_email`), the internal door and the preview.
+
+**Settings and rollback.** `EMAIL_SYSTEM_FROM_ADDRESS` (default
+`noreply@madfam.io`), `EMAIL_SUPPORT_REPLY_TO` (`support@madfam.io`),
+`EMAIL_SECURITY_REPLY_TO` (`security@madfam.io`). Setting
+`EMAIL_SYSTEM_FROM_ADDRESS` to an empty string is the one-env-edit rollback:
+every platform message goes back to `EMAIL_FROM_ADDRESS` with no Reply-To. A
+blank Reply-To setting falls back to `EMAIL_FROM_ADDRESS`, so a reply never
+lands in a dead address.
 
 ## THE RULE (2026-09-07) — the display name follows the address
 

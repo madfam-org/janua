@@ -18,8 +18,18 @@ import structlog
 
 from app.config import settings
 from app.services.email_engagement import bind_email_id, prepare_engagement
-from app.services.email_i18n import build_email_environment
-from app.services.email_sender import binding_for, sender_for_address
+from app.services.email_i18n import append_automated_notice, build_email_environment
+from app.services.email_sender import (
+    MESSAGE_CLASS_CONVERSATION,
+    MESSAGE_CLASS_SECURITY,
+    MESSAGE_CLASS_SYSTEM,
+    binding_for,
+    is_automated,
+    is_platform_address,
+    message_class_for_template,
+    sender_for_address,
+    stream_for,
+)
 from app.services.email_tags import normalize_tags
 from app.services.email_tracking import untracked_bodies
 from app.services.email_usage import quota_error_code
@@ -94,12 +104,15 @@ async def resolve_message_envelope(
     token_link: bool = False,
     message_id: Optional[str] = None,
     observe: bool = True,
+    message_class: Optional[str] = None,
 ) -> MessageEnvelope:
     """Resolve sender, provider account and wire bodies WITHOUT sending.
 
     Shared by `ResendEmailService.send_email` and the preview endpoint
     (app/routers/v1/email_preview.py). `observe=False` silences the operational
     log lines, so a preview never raises a "credential missing" alert.
+
+    `message_class` (R101) chooses the platform sender every fallback returns.
     """
     # Phase 2: the From line follows the tenant when that tenant's domain is
     # Resend-verified, and falls back to the PLATFORM sender WHOLE — `MADFAM
@@ -111,6 +124,7 @@ async def resolve_message_envelope(
         from_name=from_name,
         redirect_url=redirect_url,
         org_id=org_id,
+        message_class=message_class,
     )
 
     # WHICH ACCOUNT SENDS THIS. The From line above says who the mail is from;
@@ -161,6 +175,7 @@ async def resolve_message_envelope(
                 from_name=None,
                 redirect_url=None,
                 org_id=None,
+                message_class=message_class,
             )
             api_key_override = None
 
@@ -226,6 +241,7 @@ class ResendEmailService:
         attachments: Optional[List[Dict[str, Any]]] = None,
         token_link: bool = False,
         track_engagement: bool = False,
+        message_class: Optional[str] = None,
     ) -> EmailDeliveryStatus:
         """
         Send email via Resend API
@@ -268,6 +284,12 @@ class ResendEmailService:
                 only for non-token mail whose resolved binding has a tracking host
                 on the From domain; otherwise the message goes out unmodified and
                 the reason is logged. See app/services/email_engagement.py.
+            message_class: Ruling R101 class (`system`, `security`,
+                `conversation`). Chooses the platform sender when no tenant's
+                branded sender applies: system and security mail leave from
+                EMAIL_SYSTEM_FROM_ADDRESS with a Reply-To on a human inbox and
+                an `Auto-Submitted` header; None keeps the sender every caller
+                had before R101. See app/services/email_sender.py.
 
         Returns:
             EmailDeliveryStatus object with delivery information
@@ -305,6 +327,7 @@ class ResendEmailService:
                 org_id=org_id,
                 token_link=token_link,
                 message_id=message_id,
+                message_class=message_class,
             )
             if envelope.unsupported_provider_tenant is not None:
                 return EmailDeliveryStatus(
@@ -349,8 +372,12 @@ class ResendEmailService:
             # Every send is tagged with its source_app (default "janua") and,
             # when known, org_id: Resend echoes tags on every webhook event,
             # which is how events are scoped per app. Sanitized to Resend's
-            # tag charset, since one illegal tag fails the whole send.
-            params["tags"] = normalize_tags(tags, org_id=org_id)
+            # tag charset, since one illegal tag fails the whole send. A
+            # classified send also carries its R101 `stream`, appended after
+            # the caller's tags so a caller's own `stream` tag wins.
+            stream = stream_for(message_class)
+            stream_tags = [{"name": "stream", "value": stream}] if stream else []
+            params["tags"] = normalize_tags(list(tags or []) + stream_tags, org_id=org_id)
 
             # Attachments. The entries arrive already mapped to Resend's
             # `Attachment` shape by the router (filename / base64 content /
@@ -382,6 +409,10 @@ class ResendEmailService:
 
             # Add custom headers for tracking
             params["headers"] = {"X-Message-ID": message_id, "X-Priority": priority.value}
+            # RFC 3834 (R101): automated mail from MADFAM's own sender says so.
+            # A tenant's branded mail is left exactly as it was.
+            if is_automated(message_class) and is_platform_address(sender_address):
+                params["headers"]["Auto-Submitted"] = "auto-generated"
 
             if metadata:
                 params["headers"]["X-Metadata"] = str(metadata)
@@ -522,10 +553,29 @@ class ResendEmailService:
             return {}
 
     def _render_template(self, template_name: str, context: Dict[str, Any]) -> str:
-        """Render email template with context"""
+        """Render email template with context.
+
+        R101 (2026-10-04): an automated template (see
+        `email_sender.TEMPLATE_MESSAGE_CLASS`) carries the line saying a reply
+        still reaches a person — in base.html's footer for HTML, appended after
+        the sign-off for plain text. A caller's own `automated_notice` wins.
+        """
         try:
             template = self.jinja_env.get_template(template_name)
-            return template.render(**context)
+            context = {
+                "automated_notice": is_automated(message_class_for_template(template_name)),
+                **context,
+            }
+            rendered = template.render(**context)
+            if (
+                template_name.endswith(".txt")
+                and context.get("automated_notice")
+                and (context.get("frame_owner") or "madfam") == "madfam"
+            ):
+                rendered = append_automated_notice(
+                    rendered, context.get("locale"), context.get("formality")
+                )
+            return rendered
         except Exception as e:
             logger.error(f"Template rendering failed for {template_name}: {e}")
             raise
@@ -549,6 +599,7 @@ class ResendEmailService:
         text_content = self._render_template("verification.txt", context)
 
         return await self.send_email(
+            message_class=MESSAGE_CLASS_SYSTEM,
             to_email=to_email,
             subject="Verify your Janua account",
             token_link=True,
@@ -576,6 +627,7 @@ class ResendEmailService:
         text_content = self._render_template("password_reset.txt", context)
 
         return await self.send_email(
+            message_class=MESSAGE_CLASS_SYSTEM,
             to_email=to_email,
             subject="Reset your Janua password",
             token_link=True,
@@ -603,6 +655,7 @@ class ResendEmailService:
         text_content = self._render_template("welcome.txt", context)
 
         return await self.send_email(
+            message_class=MESSAGE_CLASS_CONVERSATION,
             to_email=to_email,
             subject="Welcome to Janua!",
             html_content=html_content,
@@ -642,6 +695,7 @@ class ResendEmailService:
         text_content = self._render_template("invitation.txt", context)
 
         return await self.send_email(
+            message_class=MESSAGE_CLASS_SYSTEM,
             to_email=to_email,
             subject=f"{inviter_name} invited you to join {organization_name} on Janua",
             token_link=True,
@@ -686,6 +740,7 @@ class ResendEmailService:
         text_content = self._render_template("sso_configuration.txt", context)
 
         return await self.send_email(
+            message_class=MESSAGE_CLASS_SYSTEM,
             to_email=to_email,
             subject=f"SSO Configuration Completed for {organization_name}",
             html_content=html_content,
@@ -727,6 +782,7 @@ class ResendEmailService:
         text_content = self._render_template("sso_enabled.txt", context)
 
         return await self.send_email(
+            message_class=MESSAGE_CLASS_SYSTEM,
             to_email=to_email,
             subject=f"Single Sign-On Enabled for {organization_name}",
             html_content=html_content,
@@ -776,6 +832,7 @@ class ResendEmailService:
         priority = EmailPriority.CRITICAL if action_required else EmailPriority.HIGH
 
         return await self.send_email(
+            message_class=MESSAGE_CLASS_SYSTEM,
             to_email=to_email,
             subject=f"Compliance Alert: {alert_type} - {organization_name}",
             html_content=html_content,
@@ -819,6 +876,7 @@ class ResendEmailService:
         text_content = self._render_template("data_export_ready.txt", context)
 
         return await self.send_email(
+            message_class=MESSAGE_CLASS_SYSTEM,
             to_email=to_email,
             subject="Your Data Export is Ready",
             token_link=True,
@@ -856,6 +914,7 @@ class ResendEmailService:
         text_content = self._render_template("mfa_recovery.txt", context)
 
         return await self.send_email(
+            message_class=MESSAGE_CLASS_SECURITY,
             to_email=to_email,
             subject="MFA Recovery Codes - Janua",
             token_link=True,
