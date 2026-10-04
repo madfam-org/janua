@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Organization, User, organization_members
-from app.services.user_lookup import get_user_by_email
 from app.routers.v1.auth import get_current_user
+from app.services.user_lookup import get_user_by_email
 
 
 async def get_user_organization_role(
@@ -24,6 +24,7 @@ async def get_user_organization_role(
             and_(
                 organization_members.c.user_id == user_id,
                 organization_members.c.organization_id == org_id,
+                organization_members.c.status == "active",
             )
         )
     )

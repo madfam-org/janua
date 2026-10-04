@@ -3,16 +3,18 @@ Organization Members API Routes
 Complete member lifecycle management endpoints
 """
 
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from ...dependencies import get_current_user, get_db, get_redis
-from ...models import User
+from ...models import OrganizationMember, User
 from ...services.organization_member_service import OrganizationMemberService
 from ...services.rbac_service import RBACService
 from ...services.service_principal import is_service_principal
@@ -45,7 +47,7 @@ class MemberResponse(BaseModel):
     organization_id: UUID
     role: str
     status: str
-    joined_at: str
+    joined_at: datetime
     metadata: Optional[dict] = None
     # Is the member's identity a technical/service account rather than a
     # person? Sourced from `User.is_service_account`, not from the membership
@@ -82,34 +84,54 @@ router = APIRouter(prefix="/organizations/{organization_id}/members", tags=["Org
 async def get_members(
     organization_id: UUID,
     include_removed: bool = Query(False, description="Include removed members"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     redis=Depends(get_redis),
     current_user: User = Depends(get_current_user),
 ):
     """Get all organization members"""
-    # Check permissions
-    rbac = RBACService(db, redis)
-    await rbac.enforce_permission(current_user.id, organization_id, "org:read")
+    # Tenant reads require a current active membership, including for platform
+    # operators. Cached RBAC grants cannot outlive removal from the organization.
+    membership_result = await db.execute(
+        select(OrganizationMember).where(
+            OrganizationMember.user_id == current_user.id,
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.status == "active",
+        )
+    )
+    membership = membership_result.scalar_one_or_none()
+    if membership is None or membership.role not in {"owner", "admin", "member", "viewer"}:
+        raise HTTPException(status_code=403, detail="Active organization membership required")
 
     service = OrganizationMemberService(db, redis)
     members = await service.get_members(organization_id, include_removed)
 
     # Enrich each membership with its identity's service-principal flag.
-    # Resolved HERE rather than inside the service because the service caches
-    # its rows in Redis; deriving the flag after the cache read keeps a stale
-    # cache from ever asserting that a technical login is a person (or the
-    # reverse) after an operator flips it. One query for the whole page.
+    # Read identity flags with one fresh query for the entire roster, so an
+    # operator's identity classification change is visible on the next read.
     return await _with_service_principal_flags(members, db)
 
 
 async def _with_service_principal_flags(members, db) -> List[MemberResponse]:
     """Attach `is_service_account` to each membership from its `User` row.
 
-    Tolerant by design: identities that cannot be resolved (a cached row whose
-    user is gone) fall back to False — "person" — which is the pre-existing
+    Tolerant by design: identities that cannot be resolved fall back to
+    False — "person" — which is the pre-existing
     rendering, never a surprise disappearance from a roster.
     """
-    responses = [MemberResponse.model_validate(m, from_attributes=True) for m in members]
+    # Project persisted membership fields explicitly. ``metadata`` on a mapped
+    # model is SQLAlchemy's schema registry, not a member profile dictionary.
+    responses = [
+        MemberResponse(
+            id=member.id,
+            user_id=member.user_id,
+            organization_id=member.organization_id,
+            role=member.role,
+            status=member.status,
+            joined_at=member.joined_at,
+            metadata=None,
+        )
+        for member in members
+    ]
     user_ids = {r.user_id for r in responses}
     if not user_ids:
         return responses
