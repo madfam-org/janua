@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 
 import jwt
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.redis import SessionStore, get_redis
+from app.core.redis_circuit_breaker import RedisUnavailableError, ResilientRedisClient
 from app.models import AuditLog, Session, User
 from app.services.user_lookup import get_user_by_email
 
@@ -25,6 +26,26 @@ pwd_context = CryptContext(
     bcrypt__ident="2b",
     bcrypt__rounds=settings.BCRYPT_ROUNDS,
 )
+
+
+async def _blacklist_jti(redis: ResilientRedisClient, jti: Any, ttl: int, *, reason: str) -> None:
+    """Add a JTI to the revocation list that `AuthService.verify_token` reads.
+
+    The write stays on the breaker's fallback path on purpose: these writes sit
+    inside logout, refresh rotation and family revocation, and the database
+    row (`sessions.is_active`, the rotated `refresh_token_jti`) is the durable
+    record those flows also update. But a write Redis did not take is no
+    longer silent: it is logged as an error, because the token it was meant to
+    revoke stays usable on the routes that only consult this list.
+    """
+    if not jti:
+        return
+    if not await redis.set(f"blacklist:{jti}", "1", ex=ttl):
+        logger.error(
+            "Revocation-list write not acknowledged by Redis; token not blacklisted",
+            jti=jti,
+            reason=reason,
+        )
 
 
 class AuthService:
@@ -550,8 +571,12 @@ class AuthService:
         return access_token, refresh_token, session
 
     @staticmethod
-    async def verify_token(token: str, token_type: str = "access") -> Optional[dict]:
-        """Verify and decode JWT token"""
+    def _decode_token(token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
+        """Signature, issuer, expiry, audience and type checks only. No Redis.
+
+        Answers whether Janua minted this token and it has not expired. It does
+        NOT answer whether the token was revoked; `verify_token` does that.
+        """
         try:
             # Determine verification key based on algorithm
             algorithm = settings.JWT_ALGORITHM
@@ -595,13 +620,6 @@ class AuthService:
                 logger.warning("Token type mismatch", expected=token_type, got=payload.get("type"))
                 return None
 
-            # Check if token is blacklisted (for logout)
-            redis = await get_redis()
-            is_blacklisted = await redis.get(f"blacklist:{payload.get('jti')}")
-            if is_blacklisted:
-                logger.warning("Token is blacklisted", jti=payload.get("jti"))
-                return None
-
             return payload
 
         except (
@@ -611,6 +629,54 @@ class AuthService:
         ) as e:
             logger.warning("Token verification failed", error=str(e))
             return None
+
+    @staticmethod
+    async def verify_token(token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
+        """Verify and decode a JWT token, including the revocation list.
+
+        Returns None for a token that is invalid, expired or revoked.
+
+        Fails closed: the revocation list (`blacklist:<jti>`) is read with a
+        strict Redis operation. When Redis cannot answer, this raises
+        `RedisUnavailableError` (answered as 503 + Retry-After by
+        `redis_unavailable_handler`) instead of treating the token as not
+        revoked. Until 2026-10 the read went through the circuit breaker's
+        fallback, whose answer while Redis was unreachable was "not revoked",
+        so a logged-out or rotated-away token was accepted during an outage.
+        """
+        payload = AuthService._decode_token(token, token_type)
+        if payload is None:
+            return None
+
+        # Check if token is blacklisted (logout, refresh rotation, family revocation)
+        redis = await get_redis()
+        if await redis.strict_exists(f"blacklist:{payload.get('jti')}"):
+            logger.warning("Token is blacklisted", jti=payload.get("jti"))
+            return None
+
+        return payload
+
+    @staticmethod
+    async def identify_token(token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
+        """Claims of a token the request has ALREADY been authenticated with.
+
+        For bookkeeping only (which session is "this" one: sign-out, password
+        change, the sessions list), never to decide whether to accept a
+        request. With a healthy Redis it is exactly `verify_token`. When Redis
+        cannot answer it falls back to the signature-checked claims, because
+        failing these callers would not protect anything: sign-out must still
+        revoke the session row and clear cookies, and the sessions list must
+        still render. Revoking an already-revoked session again is harmless.
+        """
+        try:
+            return await AuthService.verify_token(token, token_type)
+        except RedisUnavailableError:
+            logger.warning(
+                "Revocation list unavailable; identifying the current session "
+                "from signature-checked claims",
+                token_type=token_type,
+            )
+            return AuthService._decode_token(token, token_type)
 
     @staticmethod
     async def refresh_tokens(db: AsyncSession, refresh_token: str) -> Optional[Tuple[str, str]]:
@@ -701,10 +767,11 @@ class AuthService:
 
         # Blacklist old refresh token
         redis = await get_redis()
-        await redis.set(
-            f"blacklist:{payload.get('jti')}",
-            "1",
-            ex=int((refresh_expires - datetime.utcnow()).total_seconds()),
+        await _blacklist_jti(
+            redis,
+            payload.get("jti"),
+            int((refresh_expires - datetime.utcnow()).total_seconds()),
+            reason="refresh_rotation",
         )
 
         await db.commit()
@@ -725,8 +792,8 @@ class AuthService:
             session.revoked_reason = "family_revoked_security"
 
             # Blacklist tokens
-            await redis.set(f"blacklist:{session.access_token_jti}", "1", ex=86400)
-            await redis.set(f"blacklist:{session.refresh_token_jti}", "1", ex=86400)
+            await _blacklist_jti(redis, session.access_token_jti, 86400, reason="family_revoked")
+            await _blacklist_jti(redis, session.refresh_token_jti, 86400, reason="family_revoked")
 
         await db.commit()
         logger.warning("Token family revoked", family=family, count=len(sessions))
@@ -746,8 +813,8 @@ class AuthService:
 
         # Blacklist tokens
         redis = await get_redis()
-        await redis.set(f"blacklist:{session.access_token_jti}", "1", ex=86400)
-        await redis.set(f"blacklist:{session.refresh_token_jti}", "1", ex=86400)
+        await _blacklist_jti(redis, session.access_token_jti, 86400, reason="user_logout")
+        await _blacklist_jti(redis, session.refresh_token_jti, 86400, reason="user_logout")
 
         # Remove from Redis session store
         session_store = SessionStore(redis)

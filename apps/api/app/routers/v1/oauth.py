@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.core.consent_purposes import get_purpose
 from app.core.locale import locale_from_request
+from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.services.connected_account_service import ConnectedAccountService, ProviderTokenRef
@@ -153,19 +154,15 @@ async def oauth_authorize(
         from app.core.redis import get_redis
 
         redis_client = await get_redis()
-        state_stored = await redis_client.set(
+        # Strict write: the callback may land on another replica, so the state
+        # must be in Redis itself. If Redis cannot take it this raises
+        # RedisUnavailableError (503 + Retry-After) before the user is sent to
+        # the provider, instead of failing later as "invalid or expired state".
+        await redis_client.strict_set(
             f"oauth_state:{state}",
             provider,  # Store provider for additional validation
             ex=600,  # 10 minutes
         )
-
-        # Validate Redis state storage succeeded (critical for OAuth security)
-        if not state_stored:
-            logger.error("Failed to store OAuth state in Redis - service unavailable")
-            raise HTTPException(
-                status_code=503,
-                detail="Authentication service temporarily unavailable. Please try again.",
-            )
 
         # Build redirect URI if not provided
         if not redirect_uri:
@@ -186,7 +183,7 @@ async def oauth_authorize(
 
         return {"authorization_url": auth_url, "state": state, "provider": provider}
 
-    except HTTPException:
+    except (HTTPException, RedisUnavailableError):
         raise
     except (ValueError, KeyError, TypeError, RuntimeError) as e:
         logger.warning(
@@ -224,7 +221,10 @@ async def oauth_callback(
         from app.core.redis import get_redis
 
         redis_client = await get_redis()
-        stored_provider = await redis_client.get(f"oauth_state:{state}")
+        # Strict read: a value only one replica's memory holds is not proof the
+        # flow started here, and "Redis unreachable" must answer 503, not
+        # "invalid state".
+        stored_provider = await redis_client.strict_get(f"oauth_state:{state}")
 
         if not stored_provider:
             raise HTTPException(
@@ -236,8 +236,12 @@ async def oauth_callback(
         if stored_provider != provider.lower():
             raise HTTPException(status_code=400, detail="State token provider mismatch")
 
-        # Delete state token to prevent reuse
-        await redis_client.delete(f"oauth_state:{state}")
+        # Consume the state exactly once across replicas: of two concurrent
+        # callbacks with the same state, only the one whose DEL removed it wins.
+        if await redis_client.strict_delete(f"oauth_state:{state}") != 1:
+            raise HTTPException(
+                status_code=400, detail="Invalid or expired state token. Please try again."
+            )
 
         # Build redirect URI (must match the one used in authorize)
         base_url = settings.API_BASE_URL.rstrip("/")
@@ -328,7 +332,7 @@ async def oauth_callback(
                 "is_new_user": auth_data.get("is_new_user", False),
             }
 
-    except HTTPException:
+    except (HTTPException, RedisUnavailableError):
         raise
     except (ValueError, KeyError, TypeError) as e:
         logger.warning(
@@ -423,7 +427,9 @@ async def link_oauth_account(
         if consent_purpose is not None:
             state_data["purpose"] = consent_purpose.id
             state_data["upgrade"] = existing is not None
-        await redis_client.set(
+        # Strict write (see oauth_authorize): 503 now rather than an "invalid
+        # or expired state" after the user has been to the provider.
+        await redis_client.strict_set(
             f"oauth_state:{link_state}",
             json.dumps(state_data),
             ex=600,  # 10 minutes
@@ -458,7 +464,7 @@ async def link_oauth_account(
             response_body["scope_upgrade"] = existing is not None
         return response_body
 
-    except HTTPException:
+    except (HTTPException, RedisUnavailableError):
         raise
     except (ValueError, KeyError, TypeError) as e:
         logger.warning(
@@ -507,7 +513,7 @@ async def link_oauth_callback(
         from app.core.redis import get_redis
 
         redis_client = await get_redis()
-        stored_state_data = await redis_client.get(f"oauth_state:{state}")
+        stored_state_data = await redis_client.strict_get(f"oauth_state:{state}")
 
         if not stored_state_data:
             raise HTTPException(
@@ -530,8 +536,11 @@ async def link_oauth_callback(
         user_id = state_data.get("user_id")
         final_redirect = state_data.get("final_redirect")
 
-        # Delete state token to prevent reuse
-        await redis_client.delete(f"oauth_state:{state}")
+        # Consume the state exactly once across replicas (DEL count).
+        if await redis_client.strict_delete(f"oauth_state:{state}") != 1:
+            raise HTTPException(
+                status_code=400, detail="Invalid or expired state token. Please try again."
+            )
 
         # Build the callback URI that was used (must match for token exchange)
         base_url = settings.API_BASE_URL.rstrip("/")
@@ -725,7 +734,7 @@ async def link_oauth_callback(
             "provider_email": user_info.get("email"),
         }
 
-    except HTTPException:
+    except (HTTPException, RedisUnavailableError):
         raise
     except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
         logger.warning(

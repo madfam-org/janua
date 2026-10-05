@@ -104,7 +104,7 @@ async def list_sessions(
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
-        payload = await AuthService.verify_token(token, token_type="access")
+        payload = await AuthService.identify_token(token, token_type="access")
         if payload:
             current_jti = payload.get("jti")
 
@@ -176,7 +176,7 @@ async def get_session(
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
-        payload = await AuthService.verify_token(token, token_type="access")
+        payload = await AuthService.identify_token(token, token_type="access")
         if payload:
             current_jti = payload.get("jti")
 
@@ -240,7 +240,7 @@ async def revoke_all_sessions(
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
-        payload = await AuthService.verify_token(token, token_type="access")
+        payload = await AuthService.identify_token(token, token_type="access")
         if payload:
             current_jti = payload.get("jti")
 

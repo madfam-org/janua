@@ -544,9 +544,9 @@ class TestTokenGeneration:
         # Create a real token
         token, jti, expires_at = AuthService.create_access_token(user_id, tenant_id)
 
-        # Mock Redis (needed for blacklist check)
+        # Mock Redis (needed for the strict blacklist check)
         mock_redis = AsyncMock()
-        mock_redis.get.return_value = None  # Not blacklisted
+        mock_redis.strict_exists.return_value = 0  # Not blacklisted
 
         with patch("app.services.auth_service.get_redis", return_value=mock_redis):
             # Verify the token we just created

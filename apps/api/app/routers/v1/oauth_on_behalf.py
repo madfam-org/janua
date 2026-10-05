@@ -32,6 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.database import get_db
 from app.services.oauth import OAuthService
 
@@ -133,11 +134,17 @@ async def start_github_link_on_behalf(
             "final_redirect": body.redirect_uri,
             "source": "on-behalf",
         }
-        await redis_client.set(
+        # Strict write: the link callback may land on another replica, and a
+        # write that did not reach Redis must fail here (503 + Retry-After via
+        # RedisUnavailableError), not as "invalid or expired state" after the
+        # user has been to the provider.
+        await redis_client.strict_set(
             f"oauth_state:{link_state}",
             json.dumps(state_data),
             ex=600,
         )
+    except RedisUnavailableError:
+        raise
     except Exception as e:
         logger.exception("failed to persist on-behalf oauth state")
         raise HTTPException(status_code=500, detail="state persistence failed") from e

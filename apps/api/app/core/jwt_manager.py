@@ -325,8 +325,12 @@ class JWTManager:
 
         redis_client = await get_redis()
 
-        # Check blacklist - if token is already blacklisted, this indicates token reuse (theft)
-        is_blacklisted = await redis_client.exists(f"blacklist:refresh:{refresh_jti}")
+        # Check blacklist - if token is already blacklisted, this indicates token reuse (theft).
+        # Strict read: when Redis cannot answer this raises RedisUnavailableError
+        # (503 + Retry-After) rather than treating the token as unused. The
+        # breaker's `exists` answered 0 while Redis was unreachable, so reuse
+        # detection failed open during an outage.
+        is_blacklisted = await redis_client.strict_exists(f"blacklist:refresh:{refresh_jti}")
         if is_blacklisted:
             logger.warning(
                 "Token reuse detected - potential token theft",
@@ -432,7 +436,16 @@ class JWTManager:
             else:
                 ttl = settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
 
-        await redis_client.setex(f"blacklist:{token_type}:{jti}", ttl, "revoked")
+        if not await redis_client.setex(f"blacklist:{token_type}:{jti}", ttl, "revoked"):
+            # Fallback write (breaker open or Redis unreachable): nothing was
+            # stored. Callers keep their best-effort contract, but the lost
+            # revocation is visible instead of silent.
+            logger.error(
+                "Revocation-list write not acknowledged by Redis; token not blacklisted",
+                jti=jti,
+                token_type=token_type,
+            )
+            return
 
         logger.info("Token blacklisted", jti=jti, token_type=token_type)
 
