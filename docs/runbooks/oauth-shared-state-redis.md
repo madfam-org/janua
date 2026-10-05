@@ -127,11 +127,20 @@ Logs: `State store unavailable; answering 503` (with `path`) and
 counter in `redis_circuit` on `/ready` goes up.
 
 Relying parties verify Janua access tokens locally against the JWKS. A Redis
-outage does not change that path. Remember that the readiness probe fails when a
-pod cannot PING Redis (see below). In a Redis outage that affects every replica,
-the Service therefore has no ready endpoints after about three probe periods,
-and every route answers from the ingress, not from Janua. That was already true
-before this change, and this change does not alter it.
+outage does not change that path. Since 2026-10 the readiness probe no longer
+fails because of Redis (see "Health and readiness" below), so both replicas stay
+in the Service during a Redis outage: JWKS, discovery and every route in the
+table above answer from Janua.
+
+| Probe or health route | During a Redis outage |
+|-----------------------|-----------------------|
+| `GET /api/v1/health/ready` (the k8s `readinessProbe`) | `200`, `"status": "degraded"`, `"redis": "unhealthy"`, `"degraded": ["redis"]`, `redis_circuit` with `strict_failures` rising |
+| `GET /health` (the k8s `livenessProbe`), `GET /api/v1/health/live` | `200`, unchanged |
+| `GET /api/v1/health/detailed` | `200`, overall `"status": "unhealthy"` and `checks.redis.status: "unhealthy"` (Redis stays a critical check there) |
+| `GET /ready` (not probed) | `200`, `"status": "degraded"`, `"redis": false`, unchanged |
+
+**Readiness going red no longer means "Redis is down".** Alert on the readiness
+body instead (follow-up below).
 
 ### Recovery
 
@@ -143,6 +152,27 @@ breaker to half-open. Clients retry after `Retry-After`. Check
 
 ## Health and readiness
 
+Owner decision, 2026-10-04: "yes, make readiness independent of Redis".
+
+- **Readiness reports Redis but does not gate on it.** Before, a pod that could
+  not PING Redis answered 503 on `/api/v1/health/ready`. Both replicas share one
+  Redis, so a Redis-wide outage took every pod out of the Service after about
+  30 s (period 10 s, failure threshold 3). JWKS and OIDC discovery, which never
+  touch Redis, went down with them, and so did sign-in for every relying party.
+  Now the probe answers 200 and reports the outage in its body: `redis`
+  (`healthy` / `unhealthy` / `error`), `degraded` (the reported-only checks that
+  are failing), `status` (`ready` or `degraded`) and `redis_circuit`. The list
+  of reported-only checks is `READINESS_REPORTED_ONLY` in
+  `app/routers/v1/health.py`; today it holds only `redis`.
+- **Every other dependency gates exactly as before.** The registered checks are
+  `database` (critical, gates), `redis` (critical, reported only) and
+  `encryption_key` (non-critical, never gated). The probe also answers 503 when
+  the health checker never initialised. Liveness (`/health`) is unchanged.
+- **Caveat, unchanged by this PR:** `get_database_health()` returns a dict, and
+  `HealthChecker` counts any non-empty result as healthy. So the `database`
+  check reports `healthy` even when the database is down, and readiness has never
+  failed on a database outage. Fixing that is its own decision: a database
+  outage would then empty the Service the way a Redis outage used to.
 - The readiness probe (`/api/v1/health/ready`) and `/ready` check Redis with a
   strict PING through **this process's own client**, the one requests use. They
   no longer open a fresh connection.
@@ -151,12 +181,13 @@ breaker to half-open. Clients retry after `Retry-After`. Check
   `strict_failures` and `client_initialized`. Hostnames, keys and error text are
   never included. `/api/v1/health/detailed` carries the same block under
   `checks.redis_circuit`. The full counters stay at `/api/v1/health/circuit-breaker`.
-- **Readiness does not fail just because the breaker is open.** The replicas
-  share one Redis, so a short blip opens every breaker at the same moment.
-  Gating readiness on the breaker would remove every pod from the Service for
-  the whole recovery window, which turns a blip into a sign-in outage. Readiness
-  fails when this pod's own client cannot PING Redis. That covers a broken pod
-  while Redis is fine, and it is what the probe already did for a Redis outage.
+- **Readiness does not fail because of the breaker or a failed PING.** The
+  replicas share one Redis, so a short blip opens every breaker at the same
+  moment, and a real outage fails every PING at the same moment. Gating on
+  either removed every pod from the Service. A pod whose own client is broken
+  while Redis is fine is no longer taken out either: it answers 503 on its
+  Redis-backed routes and reports `redis: unhealthy`. Restart it if it does not
+  recover.
 - A strict call that succeeds while the circuit is open moves the circuit to
   half-open. The readiness probe runs every 10 s, so a pod stops serving
   fallbacks within about one probe period after Redis answers again.
@@ -172,6 +203,21 @@ breaker to half-open. Clients retry after `Retry-After`. Check
    logs `CSRF token user mismatch`.
 3. Search for `State store unavailable; answering 503` and
    `Strict Redis operation failed`.
+
+## Follow-up: alerting on the readiness body
+
+Not done in this change, and no monitoring configuration was touched. Because
+readiness stays green during a Redis outage, the platform's alerting has to
+look at the body:
+
+- alert when `GET /api/v1/health/ready` returns `"redis"` other than `"healthy"`
+  (equivalently, a non-empty `"degraded"`) on any replica for more than one or
+  two probe periods;
+- alert when `redis_circuit.strict_failures` keeps rising, or `redis_circuit.state`
+  stays `open`;
+- keep alerting on a 503 from readiness: it now means a gating check failed
+  (today, only a health checker that never initialised; see the database
+  caveat above).
 
 ## Still on the fallback path (follow-ups)
 
