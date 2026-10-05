@@ -1095,7 +1095,15 @@ const message = ErrorHandler.getUserMessage(error);
 import { Base64Url } from '@janua/typescript-sdk';
 ```
 
-Utilities for encoding and decoding Base64URL strings (RFC 4648 Section 5), used internally for WebAuthn and PKCE.
+Utilities for encoding and decoding Base64URL strings (RFC 4648 Section 5), used internally for PKCE and JWT parsing.
+
+### base64UrlToArrayBuffer / arrayBufferToBase64Url
+
+```typescript
+import { base64UrlToArrayBuffer, arrayBufferToBase64Url } from '@janua/typescript-sdk';
+```
+
+Browser-safe conversion between base64url strings and binary WebAuthn values. The API sends challenges, user ids and credential ids as base64url (`-`, `_`, no padding), which `atob` rejects; decode them with `base64UrlToArrayBuffer` before calling `navigator.credentials.create()` or `.get()`, and encode the browser's `ArrayBuffer`s with `arrayBufferToBase64Url` before sending them back. `WebAuthnHelper` (and `registerPasskey` / `signInWithPasskey` on the client) already do this.
 
 ### JwtUtils
 

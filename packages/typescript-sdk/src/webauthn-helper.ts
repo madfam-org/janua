@@ -6,6 +6,7 @@
 import type { Auth } from './auth';
 import type { AuthResponse } from './types';
 import { PasskeyError, ConfigurationError } from './errors';
+import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from './utils/webauthn-encoding';
 
 export interface WebAuthnSupport {
   available: boolean;
@@ -77,19 +78,19 @@ export class WebAuthnHelper {
     // Get registration options from server (returns flat structure, not wrapped in publicKey)
     const options = await this.auth.getPasskeyRegistrationOptions({ name });
 
-    // Convert base64 strings to ArrayBuffers
+    // The server sends binary values as base64url (not standard base64)
     const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
-      challenge: this.base64ToArrayBuffer(options.challenge),
+      challenge: base64UrlToArrayBuffer(options.challenge),
       rp: options.rp,
       user: {
         ...options.user,
-        id: this.base64ToArrayBuffer(options.user.id)
+        id: base64UrlToArrayBuffer(options.user.id)
       },
       pubKeyCredParams: options.pubKeyCredParams as PublicKeyCredentialParameters[],
       timeout: options.timeout,
       excludeCredentials: options.excludeCredentials?.map(cred => ({
         type: cred.type as PublicKeyCredentialType,
-        id: this.base64ToArrayBuffer(cred.id)
+        id: base64UrlToArrayBuffer(cred.id)
       })),
       authenticatorSelection: options.authenticatorSelection,
       attestation: options.attestation as AttestationConveyancePreference
@@ -107,15 +108,15 @@ export class WebAuthnHelper {
     // Get the response
     const response = credential.response as AuthenticatorAttestationResponse;
 
-    // Convert ArrayBuffers back to base64 for transmission
+    // Send binary values back as base64url, as the server expects
     // Build PublicKeyCredentialJSON structure expected by verifyPasskeyRegistration
     const verificationData = {
       id: credential.id,
-      rawId: this.arrayBufferToBase64(credential.rawId),
+      rawId: arrayBufferToBase64Url(credential.rawId),
       type: 'public-key' as const,
       response: {
-        clientDataJSON: this.arrayBufferToBase64(response.clientDataJSON),
-        attestationObject: this.arrayBufferToBase64(response.attestationObject)
+        clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+        attestationObject: arrayBufferToBase64Url(response.attestationObject)
       }
     };
 
@@ -135,15 +136,15 @@ export class WebAuthnHelper {
     // Get authentication options from server (returns flat structure, not wrapped in publicKey)
     const options = await this.auth.getPasskeyAuthenticationOptions(email);
 
-    // Convert base64 strings to ArrayBuffers
+    // The server sends binary values as base64url (not standard base64)
     const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
-      challenge: this.base64ToArrayBuffer(options.challenge),
+      challenge: base64UrlToArrayBuffer(options.challenge),
       rpId: options.rpId,
       timeout: options.timeout,
       userVerification: options.userVerification as UserVerificationRequirement,
       allowCredentials: options.allowCredentials?.map(cred => ({
         type: cred.type as PublicKeyCredentialType,
-        id: this.base64ToArrayBuffer(cred.id)
+        id: base64UrlToArrayBuffer(cred.id)
       }))
     };
 
@@ -159,16 +160,16 @@ export class WebAuthnHelper {
     // Get the response
     const response = credential.response as AuthenticatorAssertionResponse;
 
-    // Convert ArrayBuffers back to base64 for transmission
+    // Send binary values back as base64url, as the server expects
     const verificationData = {
       id: credential.id,
-      rawId: this.arrayBufferToBase64(credential.rawId),
+      rawId: arrayBufferToBase64Url(credential.rawId),
       type: 'public-key' as const,
       response: {
-        clientDataJSON: this.arrayBufferToBase64(response.clientDataJSON),
-        authenticatorData: this.arrayBufferToBase64(response.authenticatorData),
-        signature: this.arrayBufferToBase64(response.signature),
-        userHandle: response.userHandle ? this.arrayBufferToBase64(response.userHandle) : undefined
+        clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+        authenticatorData: arrayBufferToBase64Url(response.authenticatorData),
+        signature: arrayBufferToBase64Url(response.signature),
+        userHandle: response.userHandle ? arrayBufferToBase64Url(response.userHandle) : undefined
       }
     };
 
@@ -195,32 +196,5 @@ export class WebAuthnHelper {
         expires_in: result.expires_in
       }
     };
-  }
-
-  /**
-   * Convert base64 string to ArrayBuffer
-   */
-  private base64ToArrayBuffer(base64: string): ArrayBuffer {
-    const binaryString = window.atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes.buffer;
-  }
-
-  /**
-   * Convert ArrayBuffer to base64 string
-   */
-  private arrayBufferToBase64(buffer: ArrayBuffer): string {
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      const byte = bytes[i];
-      if (byte !== undefined) {
-        binary += String.fromCharCode(byte);
-      }
-    }
-    return window.btoa(binary);
   }
 }
