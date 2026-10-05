@@ -9,12 +9,12 @@ export const privacyPolicy = {
   subtitle: 'How Janua handles identity and account data',
   lastUpdated: 'October 5, 2026',
   intro:
-    'Innovaciones MADFAM, S.A. de C.V. ("MADFAM", "we", "us") operates Janua, an identity and authentication platform. This policy describes how we process personal data when you visit janua.dev, use app.janua.dev, or interact with Janua-managed services.',
+    'Innovaciones MADFAM S.A.S. de C.V. ("MADFAM", "we", "us") operates Janua, an identity and authentication platform. This policy describes how we process personal data when you visit janua.dev, use app.janua.dev, or interact with Janua-managed services.',
   sections: [
     {
       title: 'Data controller',
       content:
-        'Innovaciones MADFAM, S.A. de C.V. is the data controller for Janua marketing and managed-cloud services. Contact: privacy@madfam.io. For self-hosted deployments, your organization is the controller of end-user identity data stored in your instance.',
+        'Innovaciones MADFAM S.A.S. de C.V. is the data controller for Janua marketing and managed-cloud services. Contact: privacy@madfam.io. For self-hosted deployments, your organization is the controller of end-user identity data stored in your instance.',
     },
     {
       title: 'Information we collect',
@@ -81,7 +81,7 @@ export const termsOfService = {
   subtitle: 'Terms governing use of Janua managed services',
   lastUpdated: 'October 5, 2026',
   intro:
-    'These Terms of Service ("Terms") govern access to Janua cloud and managed services operated by Innovaciones MADFAM, S.A. de C.V. Self-hosted deployments under AGPL-3.0 are governed by that license in addition to these Terms where applicable.',
+    'These Terms of Service ("Terms") govern access to Janua cloud and managed services operated by Innovaciones MADFAM S.A.S. de C.V. Self-hosted deployments under AGPL-3.0 are governed by that license in addition to these Terms where applicable.',
   sections: [
     {
       title: 'Acceptance',
