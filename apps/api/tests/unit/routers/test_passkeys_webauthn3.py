@@ -215,8 +215,9 @@ class TestRegistrationOptions:
         assert body["rp"] == {"id": RP_ID, "name": settings.WEBAUTHN_RP_NAME}
         assert base64url_to_bytes(body["user"]["id"]) == str(env.user.id).encode()
         assert body["user"]["name"] == env.user.email
+        # No attachment preference (J3-006): built-in and roaming
+        # authenticators can both register.
         assert body["authenticatorSelection"] == {
-            "authenticatorAttachment": "cross-platform",
             "residentKey": "discouraged",
             "requireResidentKey": False,
             "userVerification": "preferred",
@@ -227,6 +228,26 @@ class TestRegistrationOptions:
         # The challenge is stored server-side, strictly, keyed by the user.
         stored = await env.redis.strict_get(f"passkey_challenge:{env.user.id}")
         assert stored == body["challenge"]
+
+    async def test_no_attachment_constraint_by_default(self, env):
+        # Owner decision 2026-10-04 (J3-006): the options must not force
+        # `cross-platform` (that excluded Touch ID / Windows Hello). With no
+        # preference in the request, no attachment key is sent at all.
+        for payload in ({}, {"authenticator_attachment": None}):
+            resp = await env.http.post("/api/v1/passkeys/register/options", json=payload)
+            assert resp.status_code == 200, resp.text
+            selection = resp.json()["authenticatorSelection"]
+            assert "authenticatorAttachment" not in selection
+            assert "cross-platform" not in resp.text
+            assert '"platform"' not in resp.text
+
+    async def test_cross_platform_is_honoured_when_asked(self, env):
+        resp = await env.http.post(
+            "/api/v1/passkeys/register/options",
+            json={"authenticator_attachment": "cross-platform"},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["authenticatorSelection"]["authenticatorAttachment"] == "cross-platform"
 
     async def test_platform_attachment_is_honoured(self, env):
         resp = await env.http.post(

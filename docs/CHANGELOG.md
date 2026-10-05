@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Runtime auth config type system (`JanuaAuthConfig`) covering branding, auth methods, social providers, SSO, MFA, flow settings, and locale strings
 
 ### Changed
+- **Passkey registration accepts built-in authenticators** (owner decision 2026-10-04). `POST /api/v1/passkeys/register/options` defaulted `authenticatorSelection.authenticatorAttachment` to `cross-platform`, which excluded platform authenticators (Touch ID, Windows Hello, Android) whenever the client sent no preference, as the dashboard does. With no preference in the request the option is now omitted, so platform and roaming authenticators both work. A requested `platform` or `cross-platform` is still honoured; `residentKey: discouraged` and `userVerification: preferred` are unchanged.
 - **Readiness is independent of Redis** (owner decision 2026-10-04). `GET /api/v1/health/ready`, the k8s readiness probe, no longer answers 503 when the pod cannot PING Redis. A Redis-wide outage used to take every replica out of the Service within about 30 s, and JWKS and OIDC discovery went down with them. It now answers 200 and reports `"redis"`, `"degraded"`, `"status": "degraded"` and `redis_circuit`. Redis-backed routes still answer 503 + Retry-After on their own. Other checks gate as before, and liveness is unchanged. Alerting must now watch the readiness body; see [runbooks/oauth-shared-state-redis.md](runbooks/oauth-shared-state-redis.md).
 
 ### Fixed
