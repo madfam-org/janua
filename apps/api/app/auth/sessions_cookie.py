@@ -180,6 +180,12 @@ def append_sid(existing: list[str], sid: str) -> list[str]:
     If the sid is already present it is moved to the end (it is the freshest login
     for that account) rather than duplicated. When the list would exceed
     `MAX_HELD_SESSIONS`, the oldest entries are dropped from the front.
+
+    An older sid of the SAME user is deliberately kept. The held set is also the
+    list `sign-out-all` revokes; dropping a still-live sid here would leave that
+    session row alive and unreachable from this browser's sign-out. The account
+    chooser shows one entry per person instead (`_resolve_held_accounts`). Known
+    cost: repeated sign-ins by one person can push another account past the cap.
     """
     sid = str(sid)
     kept = [s for s in existing if s != sid]

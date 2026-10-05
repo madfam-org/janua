@@ -1147,18 +1147,36 @@ def _is_first_party_preconsented(client: OAuthClient) -> bool:
 async def _resolve_held_accounts(
     held_sids: list[str], db: AsyncSession
 ) -> list[tuple[str, Any]]:
-    """Resolve each held `sid` to `(sid, user)`, dropping any that no longer live.
+    """Resolve each held `sid` to `(sid, user)`: live sessions only, one per person.
 
-    Order is preserved (most-recent-last, as `janua_sessions` stores it). A `sid`
-    whose row is revoked, expired, or whose user is not active is silently
-    omitted — the chooser only ever offers accounts a switch could actually front.
+    A `sid` whose row is revoked, expired, or whose user is not active is
+    silently omitted — the chooser only ever offers accounts a switch could
+    actually front.
+
+    One entry per USER: every sign-in appends a new `sid`, so a person who signed
+    in five times holds five live sessions and was listed five times. The entry
+    kept is that user's newest live session (by `created_at`; on a tie or an
+    undatable row, the later position in `janua_sessions`, which is
+    most-recent-last). The list keeps the held order of the sessions kept.
+    The held set itself is not pruned here; see `append_sid` for why.
     """
-    resolved: list[tuple[str, Any]] = []
-    for sid in held_sids:
+    best: dict[str, tuple[int, str, Any, Any]] = {}
+    for position, sid in enumerate(held_sids):
         user, session = await resolve_session_by_id(sid, db)
-        if user is not None and session is not None:
-            resolved.append((sid, user))
-    return resolved
+        if user is None or session is None:
+            continue
+        key = str(getattr(user, "id", sid))
+        current = best.get(key)
+        if current is None:
+            best[key] = (position, sid, user, session)
+            continue
+        new_started = _session_started_at(session)
+        old_started = _session_started_at(current[3])
+        if new_started is not None and old_started is not None and new_started < old_started:
+            continue  # the one already kept is newer
+        best[key] = (position, sid, user, session)
+    kept = sorted(best.values(), key=lambda entry: entry[0])
+    return [(sid, user) for _, sid, user, _ in kept]
 
 
 def _account_chooser_html(

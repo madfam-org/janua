@@ -319,3 +319,76 @@ class TestChooserSwitchesByForm:
             assert _sso_sid(resp) == str(s_alice.id)
 
         await _http(estate, {SESSIONS_COOKIE_NAME: held}, run)
+
+
+class TestChooserListsEachPersonOnce:
+    async def test_dedup_through_the_rendered_chooser(self):
+        alice, bob = _user("alice@example.test"), _user("bob@example.test")
+        alice_sessions = [_session(alice, minutes_ago=m) for m in (50, 40, 5, 30, 20)]
+        s_bob = _session(bob, minutes_ago=10)
+        estate = _Estate([(alice, s) for s in alice_sessions] + [(bob, s_bob)])
+        held = mint_sessions_cookie_value([str(s.id) for s in alice_sessions] + [str(s_bob.id)])
+
+        async def run(http):
+            with patch(
+                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                AsyncMock(return_value=None),
+            ):
+                page = await http.get(
+                    "/api/v1/oauth/authorize", params=_authorize_query("select_account")
+                )
+            forms = _forms(page.text)
+            assert page.text.count("alice@example.test") == 1
+            assert page.text.count("bob@example.test") == 1
+            sids = [sid for _, sid, _ in forms]
+            # Alice's newest live session (5 minutes old) is the one offered.
+            assert str(alice_sessions[2].id) in sids
+            assert len(sids) == 2
+
+        await _http(estate, {SESSIONS_COOKIE_NAME: held}, run)
+
+    async def test_a_dead_newest_session_falls_back_to_the_newest_live_one(self):
+        alice = _user("alice@example.test")
+        old, newer = _session(alice, minutes_ago=60), _session(alice, minutes_ago=30)
+        newest_dead = str(uuid4())  # not resolvable: revoked or expired
+        estate = _Estate([(alice, old), (alice, newer)])
+        with patch(
+            "app.routers.v1.oauth_provider.resolve_session_by_id",
+            AsyncMock(side_effect=estate.resolve),
+        ):
+            accounts = await oauth_provider._resolve_held_accounts(
+                [str(old.id), str(newer.id), newest_dead], AsyncMock()
+            )
+        assert [sid for sid, _ in accounts] == [str(newer.id)]
+
+    async def test_undatable_rows_keep_the_later_held_position(self):
+        alice = _user("alice@example.test")
+        first, second = _session(alice, minutes_ago=1), _session(alice, minutes_ago=1)
+        first.created_at = None
+        second.created_at = None
+        estate = _Estate([(alice, first), (alice, second)])
+        with patch(
+            "app.routers.v1.oauth_provider.resolve_session_by_id",
+            AsyncMock(side_effect=estate.resolve),
+        ):
+            accounts = await oauth_provider._resolve_held_accounts(
+                [str(first.id), str(second.id)], AsyncMock()
+            )
+        assert [sid for sid, _ in accounts] == [str(second.id)]
+
+    async def test_order_follows_the_kept_sessions(self):
+        alice, bob = _user("alice@example.test"), _user("bob@example.test")
+        a_old, b, a_new = (
+            _session(alice, minutes_ago=50),
+            _session(bob, minutes_ago=40),
+            _session(alice, minutes_ago=1),
+        )
+        estate = _Estate([(alice, a_old), (bob, b), (alice, a_new)])
+        with patch(
+            "app.routers.v1.oauth_provider.resolve_session_by_id",
+            AsyncMock(side_effect=estate.resolve),
+        ):
+            accounts = await oauth_provider._resolve_held_accounts(
+                [str(a_old.id), str(b.id), str(a_new.id)], AsyncMock()
+            )
+        assert [sid for sid, _ in accounts] == [str(b.id), str(a_new.id)]

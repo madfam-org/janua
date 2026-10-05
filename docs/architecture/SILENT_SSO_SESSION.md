@@ -414,6 +414,17 @@ second sign-in adds an account rather than evicting the first.
   another `sid` the held-set already vouches for **and** whose row is live — no
   re-authentication, because that session is already proven. An unheld or dead
   `sid` is rejected.
+- **Switch from the chooser** (`POST /api/v1/auth/switch-session/form`): the
+  form-encoded twin that the `prompt=select_account` chooser posts to. The JSON
+  route answers a plain HTML form with 422. It applies the same two guards and
+  also requires `Origin` (or `Referer`) to name Janua itself, because it is a
+  cookie-authenticated form post and same-site is wider than same-origin. On
+  success it 302s back into the original `/authorize` request without `prompt`,
+  so the flow resumes for the chosen account. Refusals answer a short HTML page.
+- **Chooser lists each person once.** Every login appends a `sid`, so one person
+  can hold several live sessions. The chooser shows that person's newest live
+  session only. The held set keeps the older `sid`s, because `sign-out-all`
+  revokes every row named there.
 - **Sign out one** (`sign-out-one`): remove that `sid` from the held-set and
   re-front another held account; an unheld `sid` is rejected.
 - **Sign out all** (`sign-out-all`): clear both `janua_sso` and `janua_sessions`.
