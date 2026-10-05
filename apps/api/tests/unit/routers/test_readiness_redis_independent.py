@@ -147,9 +147,16 @@ class TestRedisHealthy:
 
 
 class TestOtherDependenciesStillGate:
-    async def test_a_failing_critical_check_other_than_redis_is_still_503(self, call):
+    async def test_a_failing_critical_check_not_reported_only_is_still_503(self, call):
+        # The database is reported-only too since J3-001 (see
+        # test_readiness_database_reported.py); any other critical check gates.
+        async def failing():
+            return False
+
         for redis in (_redis(), _redis(connected=False)):
-            resp = await call("GET", READY, redis=redis, checker=_checker(database_ok=False))
+            checker = _checker()
+            checker.register_check("some_critical_dependency", failing, critical=True)
+            resp = await call("GET", READY, redis=redis, checker=checker)
             assert resp.status_code == 503
 
     async def test_a_non_critical_check_does_not_gate(self, call):

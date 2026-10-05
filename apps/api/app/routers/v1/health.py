@@ -81,7 +81,15 @@ async def detailed_health_check(checker=Depends(get_health_checker)) -> Dict[str
 # their own while Redis is unreachable, so keeping the pods in the Service
 # costs nothing there. The outage is still visible: it is reported in the body
 # (`redis`, `redis_circuit`, `degraded`) and must be alerted on from there.
-READINESS_REPORTED_ONLY = frozenset({"redis"})
+#
+# Database (owner decision 2026-10-04, J3-001: "yes, go with all three
+# recommendations"). The database check had never failed (its dict result was
+# always truthy), so readiness never gated on the database in practice. It now
+# reports the real state (`database`, `degraded`) and still does not gate: the
+# replicas share one database, so gating would empty the Service during a
+# database outage and take JWKS, discovery and health down with it, while the
+# database-backed routes fail on their own anyway.
+READINESS_REPORTED_ONLY = frozenset({"redis", "database"})
 
 
 @router.get("/ready")
@@ -89,12 +97,15 @@ async def readiness_check(checker=Depends(get_health_checker)) -> Dict[str, Any]
     """Kubernetes readiness probe endpoint.
 
     Gates on every registered critical check EXCEPT those in
-    `READINESS_REPORTED_ONLY` (Redis). Redis is still checked, by a strict
-    PING through this replica's own client (see `_check_redis_health` in
-    main.py), and reported:
+    `READINESS_REPORTED_ONLY` (Redis and the database). Both are still
+    checked, each bounded so the probe answers within its timeout (see
+    `_check_redis_health` and `_check_database_health` in main.py), and
+    reported:
 
     - `redis`: "healthy" / "unhealthy" / "error";
     - `redis_circuit`: this replica's breaker state (from #694);
+    - `database`: `{"healthy": bool, "status": "healthy" / "unhealthy" /
+      "error"}` (no error text, no hostnames);
     - `degraded`: the reported-only checks that are not healthy;
     - `status`: "ready", or "degraded" when `degraded` is non-empty.
 
@@ -119,9 +130,11 @@ async def readiness_check(checker=Depends(get_health_checker)) -> Dict[str, Any]
         if name in checks and checks[name].get("status") != "healthy"
     )
 
+    database_status = checks.get("database", {}).get("status", "not_registered")
     return {
         "status": "degraded" if degraded else "ready",
         "timestamp": result["timestamp"],
+        "database": {"healthy": database_status == "healthy", "status": database_status},
         "redis": checks.get("redis", {}).get("status", "not_registered"),
         "redis_circuit": get_redis_public_status(),
         "degraded": degraded,

@@ -83,6 +83,12 @@ class DatabaseManager:
                     engine_kwargs["pool_reset_on_return"] = "rollback"
                     engine_kwargs["isolation_level"] = "READ_COMMITTED"
 
+        if self._engine is not None:
+            # An earlier attempt built an engine it never verified (it failed or
+            # was cancelled); release its pool before building another.
+            stale, self._engine = self._engine, None
+            await stale.dispose()
+
         try:
             self._engine = create_async_engine(database_url, **engine_kwargs)
             self._async_session_local = async_sessionmaker(
@@ -145,7 +151,13 @@ class DatabaseManager:
     async def health_check(self) -> dict:
         """Comprehensive database health check with metrics"""
         if not self._initialized:
-            return {"healthy": False, "error": "Database manager not initialized"}
+            # The database was unreachable at startup. Try again, so the check
+            # follows the database back up instead of reporting "unhealthy"
+            # until the pod restarts.
+            try:
+                await self.initialize()
+            except Exception:
+                return {"healthy": False, "error": "Database manager not initialized"}
 
         start_time = time.time()
         health_info = {
