@@ -92,8 +92,8 @@ export function LegalPageLayout({
       <hr className="my-12 border-slate-200 dark:border-slate-800" />
       <p className="text-sm text-slate-500 dark:text-slate-400">
         Questions? Contact{' '}
-        <a href="mailto:legal@janua.dev" className="text-brand hover:text-brand-deep">
-          legal@janua.dev
+        <a href="mailto:legal@madfam.io" className="text-brand hover:text-brand-deep">
+          legal@madfam.io
         </a>
         . Parent entity policies may also apply at{' '}
         <a

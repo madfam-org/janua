@@ -531,4 +531,4 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ## Security
 
-For security issues, please email security@janua.dev instead of using the issue tracker.
+For security issues, please email security@madfam.io instead of using the issue tracker.

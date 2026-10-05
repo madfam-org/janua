@@ -359,7 +359,7 @@ async def reset_password(email: str, new_password: str):
 
 ### Q: How do I report security issues?
 **A:** For security issues:
-- **Email**: [security@janua.dev](mailto:security@janua.dev)
+- **Email**: [security@madfam.io](mailto:security@madfam.io)
 - **PGP**: Use our [public key](https://janua.dev/.well-known/security.txt)
 - **Responsible disclosure**: Allow time for fixes before public disclosure
 - **Bug bounty**: We offer rewards for valid security reports

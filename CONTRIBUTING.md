@@ -379,7 +379,7 @@ chore: update dependencies
 
 **For security issues:**
 - **DO NOT** open a public issue
-- Email: security@janua.dev
+- Email: security@madfam.io
 - We'll respond within 24 hours
 
 ---

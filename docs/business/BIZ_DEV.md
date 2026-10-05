@@ -1,6 +1,6 @@
 # Janua — BIZ\_DEV.md
 
-**Company:** Janua (janua.dev) by **Innovaciones MADFAM** (innovacionesmadfam.dev), a **MADFAM** company (madfam.io)
+**Company:** Janua (janua.dev) by **Innovaciones MADFAM**, a **MADFAM** company (madfam.io)
 **Doc status:** Draft v1.0 (Monetization & Internal Adoption)
 **Owners:** BizOps, Product, Finance, Legal, Platform Eng
 **Scope:** Pricing & packaging, payments architecture (Conekta MX + Fungies.io MoR INTL), GTM, revenue ops, and internal rollout across MADFAM products.

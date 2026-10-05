@@ -7,14 +7,14 @@ export type LegalSection = {
 export const privacyPolicy = {
   title: 'Privacy Policy',
   subtitle: 'How Janua handles identity and account data',
-  lastUpdated: 'June 15, 2026',
+  lastUpdated: 'October 5, 2026',
   intro:
-    'Innovaciones MADFAM, S.A. de C.V. ("MADFAM", "we", "us") operates Janua, an identity and authentication platform. This policy describes how we process personal data when you visit janua.dev, use app.janua.dev, or interact with Janua-managed services.',
+    'Innovaciones MADFAM S.A.S. de C.V. ("MADFAM", "we", "us") operates Janua, an identity and authentication platform. This policy describes how we process personal data when you visit janua.dev, use app.janua.dev, or interact with Janua-managed services.',
   sections: [
     {
       title: 'Data controller',
       content:
-        'Innovaciones MADFAM, S.A. de C.V. is the data controller for Janua marketing and managed-cloud services. Contact: privacy@janua.dev. For self-hosted deployments, your organization is the controller of end-user identity data stored in your instance.',
+        'Innovaciones MADFAM S.A.S. de C.V. is the data controller for Janua marketing and managed-cloud services. Contact: privacy@madfam.io. For self-hosted deployments, your organization is the controller of end-user identity data stored in your instance.',
     },
     {
       title: 'Information we collect',
@@ -51,7 +51,7 @@ export const privacyPolicy = {
     {
       title: 'Sharing and subprocessors',
       content:
-        'We share data with infrastructure providers (hosting, email delivery, payment processors) under data processing agreements. A current subprocessor list is available on request at privacy@janua.dev. We do not sell personal data.',
+        'We share data with infrastructure providers (hosting, email delivery, payment processors) under data processing agreements. A current subprocessor list is available on request at privacy@madfam.io. We do not sell personal data.',
     },
     {
       title: 'International transfers',
@@ -61,12 +61,12 @@ export const privacyPolicy = {
     {
       title: 'Your rights',
       content:
-        'Depending on your location, you may have rights to access, correct, delete, restrict, or port your data, and to object to certain processing. Mexican residents may exercise ARCO rights under LFPDPPP. Submit requests to privacy@janua.dev; we respond within applicable statutory timelines.',
+        'Depending on your location, you may have rights to access, correct, delete, restrict, or port your data, and to object to certain processing. Mexican residents may exercise ARCO rights under LFPDPPP. Submit requests to privacy@madfam.io; we respond within applicable statutory timelines.',
     },
     {
       title: 'Security',
       content:
-        'We implement encryption in transit, access controls, audit logging, and regular security review. No system is perfectly secure; report vulnerabilities to security@janua.dev.',
+        'We implement encryption in transit, access controls, audit logging, and regular security review. No system is perfectly secure; report vulnerabilities to security@madfam.io.',
     },
     {
       title: 'Changes',
@@ -79,9 +79,9 @@ export const privacyPolicy = {
 export const termsOfService = {
   title: 'Terms of Service',
   subtitle: 'Terms governing use of Janua managed services',
-  lastUpdated: 'June 15, 2026',
+  lastUpdated: 'October 5, 2026',
   intro:
-    'These Terms of Service ("Terms") govern access to Janua cloud and managed services operated by Innovaciones MADFAM, S.A. de C.V. Self-hosted deployments under AGPL-3.0 are governed by that license in addition to these Terms where applicable.',
+    'These Terms of Service ("Terms") govern access to Janua cloud and managed services operated by Innovaciones MADFAM S.A.S. de C.V. Self-hosted deployments under AGPL-3.0 are governed by that license in addition to these Terms where applicable.',
   sections: [
     {
       title: 'Acceptance',
@@ -140,7 +140,7 @@ export const termsOfService = {
     },
     {
       title: 'Contact',
-      content: 'Questions about these Terms: legal@janua.dev.',
+      content: 'Questions about these Terms: legal@madfam.io.',
     },
   ] satisfies LegalSection[],
 }
@@ -148,7 +148,7 @@ export const termsOfService = {
 export const cookiePolicy = {
   title: 'Cookie Policy',
   subtitle: 'How janua.dev uses cookies and similar technologies',
-  lastUpdated: 'June 15, 2026',
+  lastUpdated: 'October 5, 2026',
   intro:
     'This policy explains how Janua uses cookies and local storage on janua.dev and related marketing properties. Authentication cookies on app.janua.dev are covered separately in product documentation.',
   sections: [
@@ -180,7 +180,7 @@ export const cookiePolicy = {
     {
       title: 'Updates',
       content:
-        'We may update this policy as our tooling changes. Check the last updated date above. Contact privacy@janua.dev with questions.',
+        'We may update this policy as our tooling changes. Check the last updated date above. Contact privacy@madfam.io with questions.',
     },
   ] satisfies LegalSection[],
 }

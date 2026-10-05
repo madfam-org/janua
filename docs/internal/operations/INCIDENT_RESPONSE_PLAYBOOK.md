@@ -20,7 +20,7 @@
 ```yaml
 on_call_primary: "+1-XXX-XXX-XXXX"
 on_call_secondary: "+1-XXX-XXX-XXXX"
-security_team: "security@janua.dev"
+security_team: "security@madfam.io"
 cto_emergency: "+1-XXX-XXX-XXXX"
 status_page: "https://status.janua.dev"
 war_room_link: "https://meet.google.com/janua-incident"
@@ -654,7 +654,7 @@ enclii ops apps sync janua-services -n argocd --apply --reason "incident <id>"
 - **War Room:** https://meet.google.com/janua-incident
 - **Status Updates:** https://status.janua.dev
 - **Customer Support:** support@janua.dev
-- **Security Issues:** security@janua.dev
+- **Security Issues:** security@madfam.io
 
 ## Training & Drills
 

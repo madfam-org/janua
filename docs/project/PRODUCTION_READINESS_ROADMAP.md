@@ -887,7 +887,7 @@ twine upload dist/*
 - [ ] No credentials in code
 - [ ] Vulnerability scanning passed
 - [ ] Security disclosure policy published
-- [ ] Security contact established (security@janua.dev)
+- [ ] Security contact established (security@madfam.io)
 
 **Quality Gates**:
 - [ ] All tests passing

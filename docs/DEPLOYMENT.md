@@ -1288,7 +1288,7 @@ appendfsync everysec
 - **GitHub Issues**: https://github.com/madfam-org/janua/issues
 - **Discord Community**: https://discord.gg/janua
 - **Email Support**: support@janua.dev
-- **Security Issues**: security@janua.dev
+- **Security Issues**: security@madfam.io
 
 ---
 
