@@ -1251,6 +1251,9 @@ async def startup_event():
 
         # Register health checks
         health_checker.register_check("database", get_database_health, critical=True)
+        # critical=True keeps /health/detailed honest ("unhealthy" while Redis
+        # is down). The readiness probe reports this check but does not gate on
+        # it: see READINESS_REPORTED_ONLY in routers/v1/health.py.
         health_checker.register_check("redis", _check_redis_health, critical=True)
         logger.info("Health checks registered")
 
@@ -1275,16 +1278,17 @@ async def startup_event():
 
 
 async def _check_redis_health():
-    """Readiness: can THIS replica's own Redis client reach Redis right now?
+    """Can THIS replica's own Redis client reach Redis right now?
 
-    Deliberately not "is the breaker closed". The two API replicas share one
-    Redis, so a short blip opens both breakers together; gating readiness on the
-    breaker would then hold both replicas out of the Service for the whole
-    recovery window — a full sign-in outage caused by a blip. A strict PING
-    through the pod's own client catches what matters (a replica whose client
-    is broken while Redis is fine) and recovers on the next probe. The strict
-    ping also moves an OPEN breaker to half-open, so a replica stops serving
-    fallbacks within one probe period of Redis answering again.
+    Reported by the readiness probe, not gated on (owner decision 2026-10-04;
+    see READINESS_REPORTED_ONLY in routers/v1/health.py).
+
+    Deliberately not "is the breaker closed": a strict PING through the pod's
+    own client reports what matters (this replica cannot reach Redis, whether
+    Redis is down or only this replica's client is broken) and recovers on the
+    next probe. The strict ping also moves an OPEN breaker to half-open, so a
+    replica stops serving fallbacks within one probe period of Redis answering
+    again; the readiness probe keeps running it every period for that reason.
     """
     try:
         await (await get_redis()).strict_ping()

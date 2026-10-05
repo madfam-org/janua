@@ -71,24 +71,60 @@ async def detailed_health_check(checker=Depends(get_health_checker)) -> Dict[str
     return result
 
 
+# Checks the readiness probe REPORTS but does not gate on.
+#
+# Redis (owner decision 2026-10-04: "make readiness independent of Redis"). Both
+# API replicas share one Redis, so a Redis-wide outage used to fail readiness on
+# every replica at once and empty the Service, taking JWKS and OIDC discovery
+# (which never touch Redis) down with it, and with them sign-in for every
+# relying party. The Redis-backed routes already answer 503 + Retry-After on
+# their own while Redis is unreachable, so keeping the pods in the Service
+# costs nothing there. The outage is still visible: it is reported in the body
+# (`redis`, `redis_circuit`, `degraded`) and must be alerted on from there.
+READINESS_REPORTED_ONLY = frozenset({"redis"})
+
+
 @router.get("/ready")
 async def readiness_check(checker=Depends(get_health_checker)) -> Dict[str, Any]:
     """Kubernetes readiness probe endpoint.
 
-    The `redis` check is a strict PING through this replica's own client (see
-    `_check_redis_health` in main.py). The breaker state is reported, not gated
-    on: both replicas share one Redis, so gating on an open breaker would take
-    both out of the Service together after a shared blip.
+    Gates on every registered critical check EXCEPT those in
+    `READINESS_REPORTED_ONLY` (Redis). Redis is still checked, by a strict
+    PING through this replica's own client (see `_check_redis_health` in
+    main.py), and reported:
+
+    - `redis`: "healthy" / "unhealthy" / "error";
+    - `redis_circuit`: this replica's breaker state (from #694);
+    - `degraded`: the reported-only checks that are not healthy;
+    - `status`: "ready", or "degraded" when `degraded` is non-empty.
+
+    The HTTP status stays 200 while only reported-only checks fail.
     """
     result = await checker.check_health()
+    checks: Dict[str, Any] = result.get("checks", {})
 
-    if result["status"] != "healthy":
+    gating_failures = [
+        name
+        for name, check in checks.items()
+        if check.get("critical")
+        and name not in READINESS_REPORTED_ONLY
+        and check.get("status") != "healthy"
+    ]
+    if gating_failures:
         raise HTTPException(status_code=503, detail="Service not ready")
 
+    degraded = sorted(
+        name
+        for name in READINESS_REPORTED_ONLY
+        if name in checks and checks[name].get("status") != "healthy"
+    )
+
     return {
-        "status": "ready",
+        "status": "degraded" if degraded else "ready",
         "timestamp": result["timestamp"],
+        "redis": checks.get("redis", {}).get("status", "not_registered"),
         "redis_circuit": get_redis_public_status(),
+        "degraded": degraded,
     }
 
 

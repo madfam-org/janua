@@ -266,10 +266,12 @@ class TestRefreshTokens:
 class TestRevocationWritesAreNotSilent:
     async def test_a_lost_blacklist_write_is_logged_as_an_error(self):
         from app.services import auth_service as module
+        from app.services import token_revocation
 
         _, client = _redis()
         _open(client)  # fallback write: stored nowhere
-        with patch.object(module, "logger") as log:
+        # The write (and its error log) lives in token_revocation since 2026-10.
+        with patch.object(token_revocation, "logger") as log:
             await module._blacklist_jti(client, "jti-1", 60, reason="user_logout")
         assert log.error.called
         assert await client.strict_get("blacklist:jti-1") is None

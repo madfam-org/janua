@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Iterable, Optional, Tuple
 from uuid import UUID
 
 import jwt
@@ -15,6 +15,7 @@ from app.config import settings
 from app.core.redis import SessionStore, get_redis
 from app.core.redis_circuit_breaker import RedisUnavailableError, ResilientRedisClient
 from app.models import AuditLog, Session, User
+from app.services import token_revocation
 from app.services.user_lookup import get_user_by_email
 
 logger = structlog.get_logger()
@@ -31,21 +32,11 @@ pwd_context = CryptContext(
 async def _blacklist_jti(redis: ResilientRedisClient, jti: Any, ttl: int, *, reason: str) -> None:
     """Add a JTI to the revocation list that `AuthService.verify_token` reads.
 
-    The write stays on the breaker's fallback path on purpose: these writes sit
-    inside logout, refresh rotation and family revocation, and the database
-    row (`sessions.is_active`, the rotated `refresh_token_jti`) is the durable
-    record those flows also update. But a write Redis did not take is no
-    longer silent: it is logged as an error, because the token it was meant to
-    revoke stays usable on the routes that only consult this list.
+    Best-effort (see `token_revocation`): the database row (`sessions`) is the
+    durable record these flows also update, and a write Redis did not take is
+    logged as an error instead of passing silently.
     """
-    if not jti:
-        return
-    if not await redis.set(f"blacklist:{jti}", "1", ex=ttl):
-        logger.error(
-            "Revocation-list write not acknowledged by Redis; token not blacklisted",
-            jti=jti,
-            reason=reason,
-        )
+    await token_revocation.revoke_jti(redis, jti, ttl, reason=reason)
 
 
 class AuthService:
@@ -315,31 +306,96 @@ class AuthService:
         return token, jti, family, expires_at
 
     @staticmethod
+    async def revoke_sessions(sessions: Iterable[Session], *, reason: str) -> int:
+        """Revoke `sessions` rows: the one implementation every revocation path uses.
+
+        For each row:
+
+        - the row is marked revoked with every flag Janua reads (`revoked`,
+          `is_active = False`, `revoked_at`, `revoked_reason`), so
+          `/auth/refresh`, the sessions list, `janua_sso` resolution, account
+          switching and the account chooser all stop accepting it;
+        - its refresh-token family is revoked (`revoked_family:<family>`) and
+          its current refresh JTI is blacklisted, until the row's own expiry;
+        - its current access-token JTI is blacklisted for the access-token
+          lifetime, so routes that read the revocation list refuse it;
+        - its fast-lookup entry in the Redis session store is dropped.
+
+        Redis writes are best-effort (logged on failure): the row is the
+        durable record and `/auth/refresh` checks it. The caller commits.
+        Returns the number of rows passed in.
+        """
+        redis = await get_redis()
+        session_store = SessionStore(redis)
+        now = datetime.utcnow()
+        count = 0
+        for session in sessions:
+            session.revoked = True
+            session.is_active = False
+            session.revoked_at = now
+            session.revoked_reason = reason
+
+            refresh_ttl = token_revocation.seconds_until(
+                getattr(session, "expires_at", None), token_revocation.refresh_token_ttl()
+            )
+            await token_revocation.revoke_family(
+                redis, getattr(session, "refresh_token_family", None), refresh_ttl, reason=reason
+            )
+            await token_revocation.revoke_jti(
+                redis, getattr(session, "refresh_token_jti", None), refresh_ttl, reason=reason
+            )
+            await token_revocation.revoke_jti(
+                redis,
+                getattr(session, "access_token_jti", None),
+                token_revocation.access_token_ttl(),
+                reason=reason,
+            )
+            if getattr(session, "id", None) is not None:
+                await session_store.delete(str(session.id))
+            count += 1
+        if count:
+            logger.info("Sessions revoked", count=count, reason=reason)
+        return count
+
+    @staticmethod
+    async def revoke_access_token(
+        payload: Dict[str, Any], *, reason: str, strict: bool = False
+    ) -> None:
+        """Blacklist one access token's JTI until the token's own expiry."""
+        await token_revocation.revoke_jti(
+            await get_redis(),
+            payload.get("jti"),
+            token_revocation.seconds_until(payload.get("exp"), token_revocation.access_token_ttl()),
+            reason=reason,
+            strict=strict,
+        )
+
+    @staticmethod
     async def invalidate_user_sessions(
         db: AsyncSession,
         user_id: UUID,
         exclude_session_id: Optional[UUID] = None,
+        reason: str = "sessions_invalidated",
     ) -> int:
-        """Invalidate all sessions for a user.
+        """Revoke every live session of a user, optionally keeping one.
 
-        SECURITY: Used to prevent session fixation and ensure clean session state
-        when a user authenticates.
+        Used by password change (keeping the session that changed it) and by
+        security events that sign a user out everywhere. Each revoked row's
+        refresh-token family stops refreshing (see `revoke_sessions`).
 
         Args:
             db: Database session
             user_id: User whose sessions to invalidate
             exclude_session_id: Optional session ID to keep valid (for current session)
+            reason: Recorded in `sessions.revoked_reason`
 
         Returns:
             Number of sessions revoked
         """
-        from app.core.jwt_manager import jwt_manager
-
-        # Find all active sessions for this user
         query = select(Session).where(
             and_(
                 Session.user_id == user_id,
-                Session.revoked == False,
+                Session.revoked == False,  # noqa: E712 - SQL expression
             )
         )
 
@@ -349,24 +405,7 @@ class AuthService:
         result = await db.execute(query)
         sessions = result.scalars().all()
 
-        revoked_count = 0
-        redis = await get_redis()
-
-        for session in sessions:
-            # Mark session as revoked
-            session.revoked = True
-
-            # Blacklist the tokens
-            if session.refresh_token_jti:
-                await jwt_manager.blacklist_token(session.refresh_token_jti, "refresh")
-            if session.access_token_jti:
-                await jwt_manager.blacklist_token(session.access_token_jti, "access")
-
-            # Remove from Redis
-            session_store = SessionStore(redis)
-            await session_store.delete(str(session.id))
-
-            revoked_count += 1
+        revoked_count = await AuthService.revoke_sessions(sessions, reason=reason)
 
         if revoked_count > 0:
             await db.commit()
@@ -374,7 +413,7 @@ class AuthService:
                 "Invalidated user sessions",
                 user_id=str(user_id),
                 sessions_revoked=revoked_count,
-                reason="session_fixation_prevention",
+                reason=reason,
             )
 
         return revoked_count
@@ -401,8 +440,6 @@ class AuthService:
             enforce_session_limit: If True (default), enforce MAX_SESSIONS_PER_IDENTITY
                                    by revoking oldest session when limit exceeded
         """
-        from app.core.jwt_manager import jwt_manager
-
         # SECURITY: Invalidate existing sessions if requested (e.g., password change)
         if invalidate_existing:
             await AuthService.invalidate_user_sessions(db, user.id)
@@ -426,23 +463,11 @@ class AuthService:
             # If at or over limit, revoke oldest sessions
             sessions_to_remove = len(existing_sessions) - max_sessions + 1  # +1 for new session
             if sessions_to_remove > 0:
-                redis = await get_redis()
-                for i, old_session in enumerate(existing_sessions):
-                    if i >= sessions_to_remove:
-                        break
-
-                    # Revoke old session
-                    old_session.revoked = True
-
-                    # Blacklist tokens
-                    if old_session.refresh_token_jti:
-                        await jwt_manager.blacklist_token(old_session.refresh_token_jti, "refresh")
-                    if old_session.access_token_jti:
-                        await jwt_manager.blacklist_token(old_session.access_token_jti, "access")
-
-                    # Remove from Redis
-                    session_store = SessionStore(redis)
-                    await session_store.delete(str(old_session.id))
+                # Evicted sessions are revoked like any other: their refresh
+                # families stop refreshing (the device signs in again).
+                await AuthService.revoke_sessions(
+                    existing_sessions[:sessions_to_remove], reason="session_limit"
+                )
 
                 logger.info(
                     "Revoked oldest sessions due to limit",
@@ -648,10 +673,12 @@ class AuthService:
         if payload is None:
             return None
 
-        # Check if token is blacklisted (logout, refresh rotation, family revocation)
+        # Revocation list: the JTI under both spellings Janua writes, and for a
+        # refresh token its rotation family (sign-out, password change, session
+        # deletion, family revocation, POST /oauth/revoke). See token_revocation.
         redis = await get_redis()
-        if await redis.strict_exists(f"blacklist:{payload.get('jti')}"):
-            logger.warning("Token is blacklisted", jti=payload.get("jti"))
+        if await token_revocation.is_revoked(redis, payload, token_type):
+            logger.warning("Token is revoked", jti=payload.get("jti"), token_type=token_type)
             return None
 
         return payload
@@ -680,25 +707,43 @@ class AuthService:
 
     @staticmethod
     async def refresh_tokens(db: AsyncSession, refresh_token: str) -> Optional[Tuple[str, str]]:
-        """Refresh access and refresh tokens with rotation"""
+        """Refresh access and refresh tokens with rotation.
+
+        Refused (None) when the token is invalid or expired, on the revocation
+        list (its JTI or its family; strict read, 503 when Redis is down), or
+        when its `sessions` row is not live: signed out, revoked by password
+        change, session-limit eviction, `DELETE /sessions/{id}` or an admin,
+        or deactivated by family revocation. The row check is what makes a
+        revocation stick even when the Redis write behind it was lost.
+        """
         # Verify refresh token
         payload = await AuthService.verify_token(refresh_token, token_type="refresh")
         if not payload:
             return None
 
-        # Check if refresh token is still valid in database
+        # The row this refresh token is the current token of. Looked up by JTI
+        # alone: a revoked row must be told apart from a JTI no row holds.
         result = await db.execute(
-            select(Session).where(
-                and_(Session.refresh_token_jti == payload.get("jti"), Session.is_active == True)
-            )
+            select(Session).where(Session.refresh_token_jti == payload.get("jti"))
         )
         session = result.scalar_one_or_none()
 
         if not session:
-            logger.warning("Refresh token not found or inactive", jti=payload.get("jti"))
+            logger.warning(
+                "Refresh token is not the current token of any session", jti=payload.get("jti")
+            )
 
-            # Possible token reuse - revoke entire family
+            # A rotated-away token presented again: possible theft. Revoke the
+            # entire family.
             await AuthService.revoke_token_family(db, payload.get("family"))
+            return None
+
+        if not token_revocation.session_is_live(session):
+            logger.warning(
+                "Refresh refused: session revoked or expired",
+                session_id=str(session.id),
+                reason=session.revoked_reason,
+            )
             return None
 
         # Get user
@@ -762,7 +807,7 @@ class AuthService:
         # Update session
         session.access_token_jti = access_jti
         session.refresh_token_jti = refresh_jti
-        session.last_activity_at = datetime.utcnow()
+        session.last_activity = datetime.utcnow()
         session.expires_at = refresh_expires
 
         # Blacklist old refresh token
@@ -782,21 +827,38 @@ class AuthService:
     @staticmethod
     async def revoke_token_family(db: AsyncSession, family: str):
         """Revoke all tokens in a family (for security)"""
-        result = await db.execute(select(Session).where(Session.refresh_token_family == family))
-        sessions = result.scalars().all()
+        sessions: list[Session] = []
+        if family:
+            result = await db.execute(select(Session).where(Session.refresh_token_family == family))
+            sessions = list(result.scalars().all())
 
-        redis = await get_redis()
-        for session in sessions:
-            session.is_active = False
-            session.revoked_at = datetime.utcnow()
-            session.revoked_reason = "family_revoked_security"
-
-            # Blacklist tokens
-            await _blacklist_jti(redis, session.access_token_jti, 86400, reason="family_revoked")
-            await _blacklist_jti(redis, session.refresh_token_jti, 86400, reason="family_revoked")
+        await AuthService.revoke_sessions(sessions, reason="family_revoked_security")
+        # The family key also covers a family whose row is already gone.
+        await token_revocation.revoke_family(
+            await get_redis(), family, reason="family_revoked_security"
+        )
 
         await db.commit()
         logger.warning("Token family revoked", family=family, count=len(sessions))
+
+    @staticmethod
+    async def revoke_session(
+        db: AsyncSession, session_id: Any, *, reason: str = "user_revoked"
+    ) -> bool:
+        """Revoke one `sessions` row by id. Returns whether a row was found.
+
+        The caller decides who may revoke it (owner or admin) and commits.
+        """
+        try:
+            session_uuid = session_id if isinstance(session_id, UUID) else UUID(str(session_id))
+        except (ValueError, AttributeError, TypeError):
+            return False
+        result = await db.execute(select(Session).where(Session.id == session_uuid))
+        session = result.scalar_one_or_none()
+        if session is None:
+            return False
+        await AuthService.revoke_sessions([session], reason=reason)
+        return True
 
     @staticmethod
     async def logout(db: AsyncSession, session_id: UUID, user_id: UUID):
@@ -806,19 +868,7 @@ class AuthService:
         if not session or session.user_id != user_id:
             return False
 
-        # Revoke session
-        session.is_active = False
-        session.revoked_at = datetime.utcnow()
-        session.revoked_reason = "user_logout"
-
-        # Blacklist tokens
-        redis = await get_redis()
-        await _blacklist_jti(redis, session.access_token_jti, 86400, reason="user_logout")
-        await _blacklist_jti(redis, session.refresh_token_jti, 86400, reason="user_logout")
-
-        # Remove from Redis session store
-        session_store = SessionStore(redis)
-        await session_store.delete(str(session_id))
+        await AuthService.revoke_sessions([session], reason="user_logout")
 
         # Create audit log
         await AuthService.create_audit_log(
@@ -895,12 +945,6 @@ class AuthService:
             {"session_id": "session_1", "created_at": "2025-01-01T00:00:00"},
             {"session_id": "session_2", "created_at": "2025-01-01T01:00:00"},
         ]
-
-    @staticmethod
-    def revoke_session(db, session_id: str) -> dict:
-        """Revoke a specific user session"""
-        # Placeholder implementation for testing
-        return {"revoked": True}
 
     @staticmethod
     def create_organization(db, user_id: str, org_data: dict) -> dict:

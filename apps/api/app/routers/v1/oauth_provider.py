@@ -47,6 +47,7 @@ from app.config import settings
 from app.core.database import get_db
 from app.core.jwt_manager import jwt_manager
 from app.core.redis import ResilientRedisClient, get_redis
+from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.core.reserved_oauth_boundaries import SILENT_AUTH_SCOPE, is_first_party_name
 from app.core.url_security import (
     is_safe_redirect_url,
@@ -56,6 +57,7 @@ from app.core.url_security import (
 from app.dependencies import get_current_user
 from app.models import OAuthClient, Organization, OrganizationMember, User
 from app.models import Session as UserSession
+from app.services import token_revocation
 from app.services.audit_logger import AuditEventType, AuditLogger
 from app.services.consent_service import ConsentService
 from app.services.entitlements_service import (
@@ -2175,6 +2177,7 @@ async def token(
             refresh_token=refresh_token,
             client=client,
             db=db,
+            redis=redis,
         )
     elif grant_type == "client_credentials":
         return await _handle_client_credentials_grant(
@@ -2491,8 +2494,15 @@ async def _handle_refresh_token_grant(
     refresh_token: Optional[str],
     client: OAuthClient,
     db: AsyncSession,
+    redis: Optional[ResilientRedisClient] = None,
 ) -> TokenResponse:
-    """Handle refresh_token grant type."""
+    """Handle refresh_token grant type.
+
+    A refresh token revoked through `POST /oauth/revoke` (its JTI or its
+    rotation family) is refused with `invalid_grant`. The revocation read is
+    strict: when Redis cannot answer, this raises `RedisUnavailableError`
+    (503 + Retry-After) rather than minting tokens from a possibly revoked grant.
+    """
     if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -2523,6 +2533,13 @@ async def _handle_refresh_token_grant(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="invalid_grant: Token was not issued to this client",
+        )
+
+    # Revoked through POST /oauth/revoke (this token or its family)?
+    if await token_revocation.is_revoked(redis or await get_redis(), payload, "refresh"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid_grant: Invalid refresh token",
         )
 
     # Get user
@@ -2629,6 +2646,7 @@ async def _handle_refresh_token_grant(
 async def userinfo(
     request: Request,
     db: AsyncSession = Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis),
 ):
     """
     OpenID Connect UserInfo Endpoint.
@@ -2656,7 +2674,9 @@ async def userinfo(
             detail="invalid_token: Token expired or invalid",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if not payload:
+    # A token revoked through POST /oauth/revoke is refused like an expired
+    # one. Strict read: 503 when Redis cannot answer.
+    if not payload or await token_revocation.is_revoked(redis, payload, "access"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid_token: Token expired or invalid",
@@ -2712,11 +2732,15 @@ async def introspect(
     client_id: Optional[str] = Form(None),
     client_secret: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis),
 ):
     """
     OAuth 2.0 Token Introspection Endpoint (RFC 7662).
 
-    Allows resource servers to query token validity.
+    Allows resource servers to query token validity. A token revoked through
+    `POST /oauth/revoke` is reported `{"active": false}`. The revocation read
+    is strict: when Redis cannot answer, this answers 503 + Retry-After rather
+    than calling a possibly revoked token active.
     """
     # Authenticate client (required for introspection)
     if not client_id:
@@ -2761,6 +2785,8 @@ async def introspect(
         )
         if not payload:
             return {"active": False}
+        if await token_revocation.is_revoked(redis, payload, token_type):
+            return {"active": False}
 
         return {
             "active": True,
@@ -2771,6 +2797,8 @@ async def introspect(
             "iat": payload.get("iat"),
             "token_type": token_type,
         }
+    except RedisUnavailableError:
+        raise  # 503 + Retry-After: revocation status unknown
     except Exception:
         # Token is invalid or expired
         return {"active": False}
@@ -2781,6 +2809,69 @@ async def introspect(
 # ============================================================================
 
 
+async def _authenticate_revoking_client(
+    request: Request,
+    client_id: Optional[str],
+    client_secret: Optional[str],
+    db: AsyncSession,
+) -> OAuthClient:
+    """Client authentication for `POST /oauth/revoke` (RFC 7009 §2.1).
+
+    The same rules as the token endpoint: credentials by HTTP Basic or form
+    fields; the client must exist and be active; a confidential client must
+    present its secret. A public client identifies itself by `client_id`.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Basic "):
+        import base64
+
+        try:
+            decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
+            client_id, client_secret = decoded.split(":", 1)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="invalid_client: Invalid Basic auth",
+            )
+
+    if not client_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_client: client authentication required",
+        )
+
+    client = await _get_oauth_client(client_id, db)
+    if not client or not client.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_client",
+        )
+
+    if client.is_confidential and not client.verify_secret(client_secret or ""):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_client",
+        )
+    return client
+
+
+async def _verified_token_of_client(
+    token: str, token_type: str, client: OAuthClient, db: AsyncSession
+) -> Optional[dict[str, Any]]:
+    """The token's claims when Janua minted it for `client` and it is unexpired."""
+    try:
+        payload = await _verify_oauth_token(
+            token, token_type=token_type, db=db, expected_client=client
+        )
+    except Exception:
+        return None
+    if not payload or payload.get("client_id") != client.client_id:
+        # Unknown, invalid, expired, or issued to another client (or a Janua
+        # session token, which belongs to no client): nothing to revoke here.
+        return None
+    return payload
+
+
 @router.post("/revoke")
 async def revoke(
     request: Request,
@@ -2789,39 +2880,65 @@ async def revoke(
     client_id: Optional[str] = Form(None),
     client_secret: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis),
 ):
     """
     OAuth 2.0 Token Revocation Endpoint (RFC 7009).
 
-    Revokes access or refresh tokens.
+    - The client authenticates as at the token endpoint (401 `invalid_client`
+      otherwise).
+    - `token_type_hint` (`access_token` / `refresh_token`) sets which kind is
+      tried first; it is optional and a wrong hint still works (§2.1).
+    - A refresh token revokes its whole rotation family: the refresh grant
+      refuses it and every token minted from it later (§2.1).
+    - An access token is blacklisted by `jti` until it expires: `/userinfo`
+      and `/introspect` refuse it. Relying parties that verify tokens
+      offline against the JWKS cannot see a revocation; that is what the
+      short access-token lifetime and introspection are for.
+    - An unknown, invalid or expired token, or one issued to another client,
+      changes nothing and still answers 200 (§2.2): the answer never tells a
+      client whether a token exists.
+    - Fails closed: when Redis cannot store the revocation the answer is 503 +
+      Retry-After, never a 200 for a revocation that did not happen.
     """
-    # Authenticate client
-    if not client_id:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Basic "):
-            import base64
+    client = await _authenticate_revoking_client(request, client_id, client_secret, db)
 
-            try:
-                decoded = base64.b64decode(auth_header[6:]).decode("utf-8")
-                client_id, client_secret = decoded.split(":", 1)
-            except Exception:
-                pass  # Intentionally ignoring - Basic auth decode failure handled by checking client_id below
+    order = ["refresh", "access"] if token_type_hint == "refresh_token" else ["access", "refresh"]
+    for token_type in order:
+        payload = await _verified_token_of_client(token, token_type, client, db)
+        if payload is None:
+            continue
+        if token_type == "refresh":
+            await token_revocation.revoke_family(
+                redis, payload.get("family"), reason="oauth_revoke", strict=True
+            )
+            await token_revocation.revoke_jti(
+                redis,
+                payload.get("jti"),
+                token_revocation.seconds_until(
+                    payload.get("exp"), token_revocation.refresh_token_ttl()
+                ),
+                reason="oauth_revoke",
+                strict=True,
+            )
+        else:
+            await token_revocation.revoke_jti(
+                redis,
+                payload.get("jti"),
+                token_revocation.seconds_until(
+                    payload.get("exp"), token_revocation.access_token_ttl()
+                ),
+                reason="oauth_revoke",
+                strict=True,
+            )
+        logger.info(
+            "OAuth token revoked",
+            client_id=client.client_id,
+            token_type=token_type,
+        )
+        break
 
-    if client_id:
-        client = await _get_oauth_client(client_id, db)
-        if client and client.is_confidential:
-            if not client.verify_secret(client_secret or ""):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="invalid_client",
-                )
-
-    # In production, add token to blacklist in Redis
-    # For now, we just acknowledge the revocation
-    # The token will expire naturally based on its exp claim
-
-    # Return 200 OK regardless of whether token was valid
-    # This is per RFC 7009 - don't leak token validity information
+    # 200 whether or not anything was revoked (RFC 7009 §2.2).
     return {"message": "Token revoked"}
 
 

@@ -28,11 +28,6 @@ class TestAuthServicePlaceholders:
         assert len(result) == 2
         assert result[0]["session_id"] == "session_1"
 
-    def test_revoke_session(self):
-        """Test revoke_session placeholder"""
-        result = AuthService.revoke_session(db=None, session_id="session123")
-        assert result == {"revoked": True}
-
     def test_create_organization(self):
         """Test create_organization placeholder"""
         result = AuthService.create_organization(

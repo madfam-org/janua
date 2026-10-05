@@ -194,20 +194,13 @@ def clear_sso_cookie(response: Any) -> None:
 
 
 def _session_is_live(session: Any) -> bool:
-    """Whether a `sessions` row still authenticates.
+    """Whether a `sessions` row still authenticates (`revoked`, `is_active`, expiry).
 
-    Janua revokes through two different flags depending on the path — `/signout`
-    and `invalidate_user_sessions` set `revoked = True`, `revoke_token_family`
-    sets `is_active = False` — so both are checked, plus the row's own expiry.
+    One definition shared with `/auth/refresh`; see `token_revocation.session_is_live`.
     """
-    if getattr(session, "revoked", False):
-        return False
-    if getattr(session, "is_active", True) is False:
-        return False
-    expires_at = getattr(session, "expires_at", None)
-    if expires_at is not None and expires_at <= datetime.utcnow():
-        return False
-    return True
+    from app.services.token_revocation import session_is_live
+
+    return session_is_live(session)
 
 
 async def resolve_sso_cookie_session(
@@ -340,10 +333,11 @@ async def revoke_sso_session(session_id: Any, db: AsyncSession) -> bool:
     if session is None:
         return False
 
-    session.revoked = True
-    session.is_active = False
-    session.revoked_at = datetime.utcnow()
-    session.revoked_reason = "logout"
+    # The shared revocation: every flag, the refresh-token family (so
+    # /auth/refresh refuses it) and the access-token JTI. The caller commits.
+    from app.services.auth_service import AuthService
+
+    await AuthService.revoke_sessions([session], reason="logout")
     return True
 
 

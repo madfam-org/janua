@@ -32,6 +32,7 @@ from app.database import get_db
 from app.main import app
 from app.models import Base, OAuthClient, User, UserStatus
 from app.routers.v1.oauth_provider import SERVICE_TOKEN_TTL_SECONDS
+from app.routers.v1.oauth_provider import get_redis as oauth_provider_get_redis
 
 TOKEN_URL = "/api/v1/oauth/token"
 INTROSPECT_URL = "/api/v1/oauth/introspect"
@@ -97,10 +98,15 @@ async def service_token_client():
     redis.ping.return_value = True
     redis.get.return_value = None
     redis.set.return_value = True
+    # Revocation-list reads (introspection, refresh grant): nothing revoked.
+    redis.strict_exists.return_value = 0
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[core_get_db] = override_get_db
     app.dependency_overrides[get_redis] = lambda: redis
+    # tests/conftest.py rebinds app.core.redis.get_redis after some routers
+    # imported the original, so override the router's own reference too.
+    app.dependency_overrides[oauth_provider_get_redis] = lambda: redis
 
     admin_id = uuid.uuid4()
     admin = User(

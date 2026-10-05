@@ -14,12 +14,18 @@ and the Allow/Deny form is posted to whichever pod the load balancer picks.
 | `passkey_auth_challenge:<id>` | `POST /passkeys/authenticate/options` | `POST /passkeys/authenticate/verify` | 10 min |
 | `oauth_state:<state>` | `POST /auth/oauth/authorize/{provider}`, `POST /auth/oauth/link/{provider}`, on-behalf link | `GET /auth/oauth/callback/{provider}`, `GET /auth/oauth/link/callback/{provider}` | 10 min |
 
-Two revocation lists are also read on the security path. Their reads are strict:
+The revocation list is also read on the security path. Its reads are strict.
+Every reader goes through `app/services/token_revocation.py` (`is_revoked`),
+which checks all the keys below that apply to the token:
 
 | Key | Written by | Read by |
 |-----|-----------|---------|
-| `blacklist:<jti>` | `AuthService.refresh_tokens` (rotation, token-family revocation); `AuthService.logout` (no mounted caller) | `AuthService.verify_token` (`POST /auth/refresh`, `GET /auth/session`, sessions routes) |
-| `blacklist:<type>:<jti>` | `JWTManager.blacklist_token` (sign-out, devices, password change, session-limit eviction, `refresh_token_pair`) | `JWTManager.refresh_token_pair` (reuse detection, `blacklist:refresh:<jti>`; no mounted caller) |
+| `blacklist:<jti>` | `AuthService.revoke_sessions` (sign-out, password change, session-limit eviction, `DELETE /sessions*`, per-account sign-out, family revocation); refresh rotation; `POST /oauth/revoke` (strict) | `AuthService.verify_token` (`POST /auth/refresh`, `GET /auth/session`, sessions routes); `/oauth/token` `refresh_token` grant, `/oauth/introspect`, `/oauth/userinfo` |
+| `blacklist:<type>:<jti>` | `JWTManager.blacklist_token` (devices, `refresh_token_pair`) | the same readers (both spellings are checked since 2026-10); `JWTManager.refresh_token_pair` (`blacklist:refresh:<jti>`, no mounted caller) |
+| `revoked_family:<family>` | `AuthService.revoke_sessions` (every revoked session's refresh family); `revoke_token_family`; `POST /oauth/revoke` with a refresh token (strict) | refresh-token readers only: `POST /auth/refresh`, the `refresh_token` grant, `/oauth/introspect` |
+
+Every entry expires on its own: a JTI with its token, a family after the
+refresh-token lifetime (no token of a revoked family can be minted later).
 
 ## Failure mode (fixed 2026-10)
 
@@ -110,21 +116,31 @@ Now:
 | `/api/v1/passkeys/*/options` and `/verify` | `503`, same body |
 | Social sign-in and link start, and their callbacks | `503`. Browsers (`Accept: text/html`) get the short "Sign-in is temporarily unavailable" page |
 | OAuth consent, `/oauth/authorize`, `/oauth/token` (`authorization_code`) | `503` (since #694) |
-| Sign-out, password change, sessions list | work. The session row is revoked in the database |
+| Sign-out, password change, sessions list, `DELETE /sessions*` | work. The session row is revoked in the database, and `POST /auth/refresh` checks the row, so the revocation holds once Redis is back |
+| `POST /oauth/revoke` | `503` when the token needs revoking (the revocation could not be stored); `200` for an unknown, invalid or another client's token |
+| `POST /oauth/token` (`refresh_token` grant), `POST /oauth/introspect`, `GET /oauth/userinfo` | `503` (since 2026-10: they read the revocation list) |
 | `GET /.well-known/jwks.json`, `GET /.well-known/openid-configuration` | `200`. They never touch Redis |
 | Routes behind `get_current_user` (most of the API) | work. Signature check plus a database read; that dependency consults no revocation list |
-| `POST /oauth/token` (`refresh_token` grant) | works. That grant consults no Redis revocation list (see follow-ups) |
 
 Logs: `State store unavailable; answering 503` (with `path`) and
 `Strict Redis operation failed` (with `error_type`). The `strict_failures`
 counter in `redis_circuit` on `/ready` goes up.
 
 Relying parties verify Janua access tokens locally against the JWKS. A Redis
-outage does not change that path. Remember that the readiness probe fails when a
-pod cannot PING Redis (see below). In a Redis outage that affects every replica,
-the Service therefore has no ready endpoints after about three probe periods,
-and every route answers from the ingress, not from Janua. That was already true
-before this change, and this change does not alter it.
+outage does not change that path. Since 2026-10 the readiness probe no longer
+fails because of Redis (see "Health and readiness" below), so both replicas stay
+in the Service during a Redis outage: JWKS, discovery and every route in the
+table above answer from Janua.
+
+| Probe or health route | During a Redis outage |
+|-----------------------|-----------------------|
+| `GET /api/v1/health/ready` (the k8s `readinessProbe`) | `200`, `"status": "degraded"`, `"redis": "unhealthy"`, `"degraded": ["redis"]`, `redis_circuit` with `strict_failures` rising |
+| `GET /health` (the k8s `livenessProbe`), `GET /api/v1/health/live` | `200`, unchanged |
+| `GET /api/v1/health/detailed` | `200`, overall `"status": "unhealthy"` and `checks.redis.status: "unhealthy"` (Redis stays a critical check there) |
+| `GET /ready` (not probed) | `200`, `"status": "degraded"`, `"redis": false`, unchanged |
+
+**Readiness going red no longer means "Redis is down".** Alert on the readiness
+body instead (follow-up below).
 
 ### Recovery
 
@@ -136,6 +152,27 @@ breaker to half-open. Clients retry after `Retry-After`. Check
 
 ## Health and readiness
 
+Owner decision, 2026-10-04: "yes, make readiness independent of Redis".
+
+- **Readiness reports Redis but does not gate on it.** Before, a pod that could
+  not PING Redis answered 503 on `/api/v1/health/ready`. Both replicas share one
+  Redis, so a Redis-wide outage took every pod out of the Service after about
+  30 s (period 10 s, failure threshold 3). JWKS and OIDC discovery, which never
+  touch Redis, went down with them, and so did sign-in for every relying party.
+  Now the probe answers 200 and reports the outage in its body: `redis`
+  (`healthy` / `unhealthy` / `error`), `degraded` (the reported-only checks that
+  are failing), `status` (`ready` or `degraded`) and `redis_circuit`. The list
+  of reported-only checks is `READINESS_REPORTED_ONLY` in
+  `app/routers/v1/health.py`; today it holds only `redis`.
+- **Every other dependency gates exactly as before.** The registered checks are
+  `database` (critical, gates), `redis` (critical, reported only) and
+  `encryption_key` (non-critical, never gated). The probe also answers 503 when
+  the health checker never initialised. Liveness (`/health`) is unchanged.
+- **Caveat, unchanged by this PR:** `get_database_health()` returns a dict, and
+  `HealthChecker` counts any non-empty result as healthy. So the `database`
+  check reports `healthy` even when the database is down, and readiness has never
+  failed on a database outage. Fixing that is its own decision: a database
+  outage would then empty the Service the way a Redis outage used to.
 - The readiness probe (`/api/v1/health/ready`) and `/ready` check Redis with a
   strict PING through **this process's own client**, the one requests use. They
   no longer open a fresh connection.
@@ -144,12 +181,13 @@ breaker to half-open. Clients retry after `Retry-After`. Check
   `strict_failures` and `client_initialized`. Hostnames, keys and error text are
   never included. `/api/v1/health/detailed` carries the same block under
   `checks.redis_circuit`. The full counters stay at `/api/v1/health/circuit-breaker`.
-- **Readiness does not fail just because the breaker is open.** The replicas
-  share one Redis, so a short blip opens every breaker at the same moment.
-  Gating readiness on the breaker would remove every pod from the Service for
-  the whole recovery window, which turns a blip into a sign-in outage. Readiness
-  fails when this pod's own client cannot PING Redis. That covers a broken pod
-  while Redis is fine, and it is what the probe already did for a Redis outage.
+- **Readiness does not fail because of the breaker or a failed PING.** The
+  replicas share one Redis, so a short blip opens every breaker at the same
+  moment, and a real outage fails every PING at the same moment. Gating on
+  either removed every pod from the Service. A pod whose own client is broken
+  while Redis is fine is no longer taken out either: it answers 503 on its
+  Redis-backed routes and reports `redis: unhealthy`. Restart it if it does not
+  recover.
 - A strict call that succeeds while the circuit is open moves the circuit to
   half-open. The readiness probe runs every 10 s, so a pod stops serving
   fallbacks within about one probe period after Redis answers again.
@@ -165,6 +203,21 @@ breaker to half-open. Clients retry after `Retry-After`. Check
    logs `CSRF token user mismatch`.
 3. Search for `State store unavailable; answering 503` and
    `Strict Redis operation failed`.
+
+## Follow-up: alerting on the readiness body
+
+Not done in this change, and no monitoring configuration was touched. Because
+readiness stays green during a Redis outage, the platform's alerting has to
+look at the body:
+
+- alert when `GET /api/v1/health/ready` returns `"redis"` other than `"healthy"`
+  (equivalently, a non-empty `"degraded"`) on any replica for more than one or
+  two probe periods;
+- alert when `redis_circuit.strict_failures` keeps rising, or `redis_circuit.state`
+  stays `open`;
+- keep alerting on a 503 from readiness: it now means a gating check failed
+  (today, only a health checker that never initialised; see the database
+  caveat above).
 
 ## Still on the fallback path (follow-ups)
 
@@ -196,19 +249,84 @@ decision:
   pod-memory replay, but a lost write still shows up later as an invalid state.
 - The memory cache ignores TTLs for every key it holds.
 
-Revocation gaps that are not about Redis availability, recorded here so they
-are not mistaken for fixed:
+Revocation gaps that are not about Redis availability. The first three were
+fixed in 2026-10 (next section); the rest remain, recorded here so they are not
+mistaken for fixed:
 
-- `/auth/signout`, password change and session-limit eviction revoke through
-  `JWTManager.blacklist_token` (`blacklist:<type>:<jti>`) and set
-  `sessions.revoked`. `AuthService.verify_token` reads `blacklist:<jti>`, and
-  `AuthService.refresh_tokens` filters on `sessions.is_active`. Those
-  revocations do not stop `POST /auth/refresh`. Device revocation sets
-  `is_active = False`, so it does stop refresh.
-- `DELETE /sessions/{id}` and `DELETE /sessions` call
-  `AuthService.revoke_session`, which is a placeholder that revokes nothing.
+- Fixed: sign-out, password change and session-limit eviction did not stop
+  `POST /auth/refresh` (key spelling and column mismatch).
+- Fixed: `DELETE /sessions/{id}` and `DELETE /sessions` revoked nothing.
+- Fixed: `POST /oauth/revoke` acknowledged without revoking anything.
 - `get_current_user` consults no revocation list, so a logged-out access token
-  is accepted by most routes until it expires.
+  is accepted by most routes until it expires (owner ruling pending).
 - The `refresh_token` grant on `POST /oauth/token` does not rotate-and-blacklist
-  the presented token and has no reuse detection.
-- `POST /oauth/revoke` acknowledges without revoking anything.
+  the presented token and has no reuse detection. A revoked family is refused.
+- Access tokens minted by an OAuth grant carry no family, so revoking the
+  grant's refresh token does not revoke them; they expire on their own
+  (RFC 7009 makes this a SHOULD). Revoke one by presenting it.
+- Password reset (`/auth/password/reset`, the hosted reset form) sets the new
+  password without revoking any session. Password change does.
+- Bulk revocations in `admin.py`, `users.py` and `internal_users.py` set only
+  `sessions.revoked` with an `UPDATE`. That now stops `/auth/refresh` (the row
+  check), but those paths do not blacklist the sessions' access tokens.
+
+## Revocation that revokes (2026-10)
+
+Owner decision, 2026-10-04: "yes, go ahead with the follow-up Janua PR".
+
+A Janua session is one `sessions` row. Its refresh tokens form one rotation
+family: every refresh mints a new token with the same `family` claim and
+moves the row's `refresh_token_jti` to it. Revoking a session therefore means
+revoking that family.
+
+`AuthService.revoke_sessions` is the one implementation every path uses. For
+each row it:
+
+1. sets every flag Janua reads: `revoked = True`, `is_active = False`,
+   `revoked_at`, `revoked_reason`;
+2. writes `revoked_family:<family>` and `blacklist:<refresh jti>` until the
+   row's expiry;
+3. writes `blacklist:<access jti>` for the access-token lifetime;
+4. drops the row's fast-lookup entry from the Redis session store.
+
+The Redis writes are best-effort (an error is logged when one is lost).
+`POST /auth/refresh` also refuses any refresh token whose row is not live
+(`revoked`, `is_active = False` or expired), so a revocation holds even when
+its Redis write was lost, and even for paths that only update the row.
+
+| Action | What is revoked | `revoked_reason` |
+|--------|-----------------|------------------|
+| `POST /auth/signout`, `POST /auth/logout` | this session's family; the presented access token's JTI until it expires | `user_logout` |
+| `POST /auth/sessions/sign-out-one`, `sign-out-all`, OIDC `end_session` | each signed-out account's session (via `revoke_sso_session`) | `logout` |
+| `DELETE /sessions` | every other session of the caller; the current one is kept | `user_revoked_all` |
+| `POST /auth/password/change` | every OTHER session of the user, and their current access tokens; the session that changed the password stays signed in | `password_change` |
+| Session limit (`MAX_SESSIONS_PER_IDENTITY`) at sign-in | the oldest sessions over the limit; that device must sign in again | `session_limit` |
+| `DELETE /sessions/{id}` by its owner | that session | `user_revoked` |
+| `DELETE /sessions/{id}` by a platform admin (`is_admin`) | that session, whoever owns it | `admin_revoked` |
+| Refresh-token reuse detected | the whole family | `family_revoked_security` |
+
+`DELETE /sessions/{id}` answers 404 to anyone who is neither the owner nor a
+platform admin (the same answer as for a session that does not exist), and 400
+for a session already revoked. A revoked session leaves `GET /sessions`, and
+the account chooser and account switching stop offering it, because they
+accept only live rows.
+
+### `POST /oauth/revoke` (RFC 7009)
+
+- The client authenticates as at the token endpoint (HTTP Basic or form
+  fields). A confidential client must present its secret; a public client
+  identifies itself with `client_id`. Otherwise `401 invalid_client`.
+- `token_type_hint` (`access_token` or `refresh_token`) only sets which kind
+  is tried first. It is optional, and a wrong hint still works.
+- A refresh token revokes its family: the `refresh_token` grant answers
+  `400 invalid_grant` for it and for every token the family mints later.
+- An access token is blacklisted by its `jti` until it expires.
+  `/oauth/introspect` reports it `{"active": false}` and `/oauth/userinfo`
+  answers 401. Relying parties that verify tokens offline against the JWKS
+  cannot see a revocation; they rely on the short access-token lifetime or on
+  introspection.
+- An unknown, invalid or expired token, a token issued to another client, and
+  a Janua session token (which belongs to no client) change nothing and answer
+  `200` (RFC 7009 §2.2).
+- When Redis cannot store the revocation the answer is `503` + `Retry-After`,
+  never a `200` for a revocation that did not happen.

@@ -358,6 +358,10 @@ class TestSessionManagement:
         mock_session.refresh_token_jti = refresh_jti
         mock_session.is_active = True
         mock_session.user_id = user_id
+        # A live row: refresh refuses a revoked or deactivated one.
+        mock_session.revoked = False
+        mock_session.is_active = True
+        mock_session.expires_at = datetime.utcnow() + timedelta(days=1)
 
         # Mock user from database
         mock_user = MagicMock()
@@ -460,8 +464,13 @@ class TestSessionManagement:
             assert mock_session.is_active is False
             assert mock_session.revoked_reason == "user_logout"
 
-            # Verify Redis blacklisting
-            assert mock_redis.set.call_count == 2
+            # Verify Redis revocation: the refresh family, the refresh JTI and
+            # the access JTI.
+            assert mock_redis.set.call_count == 3
+            written = {call.args[0] for call in mock_redis.set.call_args_list}
+            assert "blacklist:access_jti" in written
+            assert "blacklist:refresh_jti" in written
+            assert any(key.startswith("revoked_family:") for key in written)
 
             # Verify session store deletion
             mock_session_store.delete.assert_called_once_with(str(session_id))
