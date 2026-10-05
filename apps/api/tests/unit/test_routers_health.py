@@ -1,14 +1,25 @@
+"""
+Tests for the health router (`app/routers/v1/health.py`).
+
+These used to wrap every import and call in `try/except -> pytest.skip`, and
+three of them imported names the router no longer has (`ready_check`,
+`get_db`), so they skipped on every run and tested nothing. They now call the
+router's real functions; an import or signature change fails here instead of
+disappearing into the skip count.
+
+The readiness contract itself (Redis and the database reported, not gated;
+status-only bodies) is pinned in `routers/test_readiness_redis_independent.py`,
+`routers/test_readiness_database_reported.py` and
+`routers/test_health_endpoints_no_error_text.py`.
+"""
+
+import os
+from unittest.mock import AsyncMock, patch
+
 import pytest
+from fastapi import HTTPException
 
 pytestmark = pytest.mark.asyncio
-
-
-"""
-Tests for health router endpoints
-"""
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
-import os
 
 
 @pytest.fixture
@@ -28,185 +39,115 @@ def mock_env():
 
 
 def test_health_router_imports(mock_env):
-    """Test that health router can be imported"""
-    try:
-        from app.routers.v1.health import router
+    """The health router imports and carries routes."""
+    from app.routers.v1.health import router
 
-        assert router is not None
-        assert hasattr(router, "routes")
-    except ImportError as e:
-        pytest.skip(f"Health router imports failed: {e}")
+    assert router is not None
+    assert hasattr(router, "routes")
 
 
 def test_health_endpoint_structure(mock_env):
-    """Test health endpoint structure"""
-    try:
-        from app.routers.v1.health import health_check, ready_check
+    """The probe handlers the deployment points at exist."""
+    from app.routers.v1.health import health_check, liveness_check, readiness_check
 
-        # Check that health check functions exist
-        assert callable(health_check)
-        assert callable(ready_check)
-
-    except ImportError as e:
-        pytest.skip(f"Health endpoint imports failed: {e}")
+    assert callable(health_check)
+    assert callable(readiness_check)
+    assert callable(liveness_check)
 
 
-@pytest.mark.asyncio
 async def test_health_check_function(mock_env):
-    """Test health check function logic"""
-    try:
-        # Mock database and redis dependencies
-        with patch("app.routers.v1.health.get_db") as mock_get_db, patch(
-            "app.routers.v1.health.get_redis"
-        ) as mock_get_redis:
-            # Setup mocks
-            mock_db = AsyncMock()
-            mock_redis = MagicMock()
-            mock_get_db.return_value = mock_db
-            mock_get_redis.return_value = mock_redis
+    """`GET /api/v1/health` answers without touching a dependency."""
+    from app.routers.v1.health import health_check
 
-            from app.routers.v1.health import health_check
+    result = await health_check()
 
-            # Mock successful database execution
-            mock_db.execute = AsyncMock()
-            mock_redis.ping = MagicMock(return_value=True)
-
-            result = await health_check(db=mock_db, redis=mock_redis)
-
-            # Check response structure
-            assert isinstance(result, dict)
-            assert "status" in result
-            assert "timestamp" in result
-
-    except ImportError as e:
-        pytest.skip(f"Health check function imports failed: {e}")
-    except Exception as e:
-        # If the actual function has different signature, skip
-        pytest.skip(f"Health check function test failed: {e}")
+    assert result["status"] == "healthy"
+    assert "timestamp" in result
+    assert result["service"] == "janua-api"
 
 
-@pytest.mark.asyncio
 async def test_ready_check_function(mock_env):
-    """Test ready check function logic"""
-    try:
-        with patch("app.routers.v1.health.get_db") as mock_get_db, patch(
-            "app.routers.v1.health.get_redis"
-        ) as mock_get_redis:
-            # Setup mocks
-            mock_db = AsyncMock()
-            mock_redis = MagicMock()
-            mock_get_db.return_value = mock_db
-            mock_get_redis.return_value = mock_redis
+    """`GET /api/v1/health/ready` with every check healthy is `ready`."""
+    from app.routers.v1.health import readiness_check
 
-            from app.routers.v1.health import ready_check
+    checker = AsyncMock()
+    checker.check_health.return_value = {
+        "status": "healthy",
+        "timestamp": "2026-10-05T00:00:00",
+        "checks": {
+            "database": {"status": "healthy", "critical": True},
+            "redis": {"status": "healthy", "critical": True},
+            "encryption_key": {"status": "healthy", "critical": False},
+        },
+    }
 
-            # Mock successful checks
-            mock_db.execute = AsyncMock()
-            mock_redis.ping = MagicMock(return_value=True)
+    result = await readiness_check(checker=checker)
 
-            result = await ready_check(db=mock_db, redis=mock_redis)
+    assert result["status"] == "ready"
+    assert result["degraded"] == []
+    assert result["database"] == {"healthy": True, "status": "healthy"}
+    assert result["redis"] == "healthy"
+    assert "redis_circuit" in result
 
-            # Check response structure
-            assert isinstance(result, dict)
-            assert "status" in result
 
-    except ImportError as e:
-        pytest.skip(f"Ready check function imports failed: {e}")
-    except Exception as e:
-        # If the actual function has different signature, skip
-        pytest.skip(f"Ready check function test failed: {e}")
+async def test_ready_check_without_a_health_checker_is_503(mock_env):
+    """A health checker that never initialised gates readiness (503).
+
+    Documented in docs/runbooks/oauth-shared-state-redis.md: since Redis and
+    the database no longer gate, a 503 from readiness means a gating check
+    failed, and today the only one is an uninitialised health checker.
+    """
+    from app.routers.v1 import health as health_v1
+
+    with patch.object(health_v1, "health_checker", None):
+        with pytest.raises(HTTPException) as exc:
+            health_v1.get_health_checker()
+
+    assert exc.value.status_code == 503
 
 
 def test_health_router_routes(mock_env):
-    """Test that health router has expected routes"""
-    try:
-        from app.routers.v1.health import router
+    """The router serves the probe paths the deployment uses."""
+    from app.routers.v1.health import router
 
-        # Extract route paths
-        route_paths = [route.path for route in router.routes]
+    route_paths = {route.path for route in router.routes}
 
-        # Check for expected health endpoints
-        health_routes = [path for path in route_paths if "health" in path or "ready" in path]
-        assert len(health_routes) > 0, "Health router should have health-related routes"
-
-    except ImportError as e:
-        pytest.skip(f"Health router routes test failed: {e}")
+    assert {"/health", "/health/ready", "/health/live", "/health/detailed"} <= route_paths
 
 
 def test_health_router_methods(mock_env):
-    """Test that health router uses correct HTTP methods"""
-    try:
-        from app.routers.v1.health import router
+    """Every health route is a GET."""
+    from app.routers.v1.health import router
 
-        # Check that routes use appropriate methods
-        for route in router.routes:
-            # Health checks should typically be GET requests
-            if hasattr(route, "methods"):
-                methods = route.methods
-                # Should include GET method for health checks
-                assert "GET" in methods or "HEAD" in methods
-
-    except ImportError as e:
-        pytest.skip(f"Health router methods test failed: {e}")
-
-
-def test_health_response_format(mock_env):
-    """Test health response format"""
-    try:
-        # Test with mocked dependencies to check response format
-        with patch("app.core.database_manager.DatabaseManager") as mock_db_manager, patch(
-            "redis.Redis"
-        ) as mock_redis_class:
-            mock_db_manager.return_value.health_check = AsyncMock(return_value=True)
-            mock_redis_instance = MagicMock()
-            mock_redis_instance.ping.return_value = True
-            mock_redis_class.return_value = mock_redis_instance
-
-            # Import should work with mocked dependencies
-            from app.routers.v1 import health
-
-            assert health is not None
-
-    except ImportError as e:
-        pytest.skip(f"Health response format test failed: {e}")
+    for route in router.routes:
+        if hasattr(route, "methods"):
+            assert "GET" in route.methods or "HEAD" in route.methods
 
 
 def test_health_dependencies(mock_env):
-    """Test health router dependency imports"""
-    try:
-        # Check if health router imports can be resolved
-        from app.routers.v1.health import router
+    """The health router is a FastAPI router."""
+    from fastapi import APIRouter
 
-        # Verify router is a FastAPI router instance
-        assert hasattr(router, "include_router") or hasattr(router, "routes")
+    from app.routers.v1.health import router
 
-    except ImportError as e:
-        pytest.skip(f"Health dependencies test failed: {e}")
+    assert isinstance(router, APIRouter)
 
 
-@pytest.mark.asyncio
 async def test_check_encryption_key_health_non_production(mock_env):
     """Test encryption key health check passes in non-production."""
-    try:
-        from app.routers.v1.health import check_encryption_key_health
+    from app.routers.v1.health import check_encryption_key_health
 
-        result = await check_encryption_key_health()
-        assert result is True
-    except ImportError as e:
-        pytest.skip(f"Import failed: {e}")
+    result = await check_encryption_key_health()
+    assert result is True
 
 
-@pytest.mark.asyncio
 async def test_check_encryption_key_health_production_missing():
     """Test encryption key health check fails in production without key."""
-    try:
-        from app.routers.v1.health import check_encryption_key_health
+    from app.routers.v1.health import check_encryption_key_health
 
-        with patch("app.config.settings") as mock_settings:
-            mock_settings.ENVIRONMENT = "production"
-            mock_settings.FIELD_ENCRYPTION_KEY = None
+    with patch("app.config.settings") as mock_settings:
+        mock_settings.ENVIRONMENT = "production"
+        mock_settings.FIELD_ENCRYPTION_KEY = None
 
-            result = await check_encryption_key_health()
-            assert result is False
-    except ImportError as e:
-        pytest.skip(f"Import failed: {e}")
+        result = await check_encryption_key_health()
+        assert result is False

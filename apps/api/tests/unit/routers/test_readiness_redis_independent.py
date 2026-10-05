@@ -76,8 +76,8 @@ async def call():
     async def _no_db():
         yield AsyncMock()
 
-    async def _call(method, path, *, redis, checker=None, **kwargs):
-        health_v1.health_checker = checker or _checker()
+    async def _call(method, path, *, redis, checker=None, uninitialised=False, **kwargs):
+        health_v1.health_checker = None if uninitialised else (checker or _checker())
         app.dependency_overrides[get_db] = _no_db
         get = AsyncMock(return_value=redis)
         try:
@@ -157,6 +157,13 @@ class TestOtherDependenciesStillGate:
             checker = _checker()
             checker.register_check("some_critical_dependency", failing, critical=True)
             resp = await call("GET", READY, redis=redis, checker=checker)
+            assert resp.status_code == 503
+
+    async def test_an_uninitialised_health_checker_is_503(self, call):
+        # The one gating failure left today (runbook: "keep alerting on a 503
+        # from readiness"), whether or not Redis answers.
+        for redis in (_redis(), _redis(connected=False)):
+            resp = await call("GET", READY, redis=redis, uninitialised=True)
             assert resp.status_code == 503
 
     async def test_a_non_critical_check_does_not_gate(self, call):
