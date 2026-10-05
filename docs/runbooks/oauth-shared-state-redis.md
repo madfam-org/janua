@@ -117,6 +117,7 @@ Now:
 | Social sign-in and link start, and their callbacks | `503`. Browsers (`Accept: text/html`) get the short "Sign-in is temporarily unavailable" page |
 | OAuth consent, `/oauth/authorize`, `/oauth/token` (`authorization_code`) | `503` (since #694) |
 | Sign-out, password change, sessions list, `DELETE /sessions*` | work. The session row is revoked in the database, and `POST /auth/refresh` checks the row, so the revocation holds once Redis is back |
+| `POST /auth/password/reset`, `POST /auth/reset-password-form` | `503`, nothing applied: the password, the reset link and the sessions are unchanged, and the same link works once Redis answers (since 2026-10: a reset revokes every session strictly, see "Revocation that revokes") |
 | `POST /oauth/revoke` | `503` when the token needs revoking (the revocation could not be stored); `200` for an unknown, invalid or another client's token |
 | `POST /oauth/token` (`refresh_token` grant), `POST /oauth/introspect`, `GET /oauth/userinfo` | `503` (since 2026-10: they read the revocation list) |
 | `GET /.well-known/jwks.json`, `GET /.well-known/openid-configuration` | `200`. They never touch Redis |
@@ -249,7 +250,7 @@ decision:
   pod-memory replay, but a lost write still shows up later as an invalid state.
 - The memory cache ignores TTLs for every key it holds.
 
-Revocation gaps that are not about Redis availability. The first three were
+Revocation gaps that are not about Redis availability. The first four were
 fixed in 2026-10 (next section); the rest remain, recorded here so they are not
 mistaken for fixed:
 
@@ -257,6 +258,8 @@ mistaken for fixed:
   `POST /auth/refresh` (key spelling and column mismatch).
 - Fixed: `DELETE /sessions/{id}` and `DELETE /sessions` revoked nothing.
 - Fixed: `POST /oauth/revoke` acknowledged without revoking anything.
+- Fixed: password reset (`/auth/password/reset`, the hosted reset form) set
+  the new password without revoking any session.
 - `get_current_user` consults no revocation list, so a logged-out access token
   is accepted by most routes until it expires (owner ruling pending).
 - The `refresh_token` grant on `POST /oauth/token` does not rotate-and-blacklist
@@ -264,8 +267,6 @@ mistaken for fixed:
 - Access tokens minted by an OAuth grant carry no family, so revoking the
   grant's refresh token does not revoke them; they expire on their own
   (RFC 7009 makes this a SHOULD). Revoke one by presenting it.
-- Password reset (`/auth/password/reset`, the hosted reset form) sets the new
-  password without revoking any session. Password change does.
 - Bulk revocations in `admin.py`, `users.py` and `internal_users.py` set only
   `sessions.revoked` with an `UPDATE`. That now stops `/auth/refresh` (the row
   check), but those paths do not blacklist the sessions' access tokens.
@@ -300,10 +301,26 @@ its Redis write was lost, and even for paths that only update the row.
 | `POST /auth/sessions/sign-out-one`, `sign-out-all`, OIDC `end_session` | each signed-out account's session (via `revoke_sso_session`) | `logout` |
 | `DELETE /sessions` | every other session of the caller; the current one is kept | `user_revoked_all` |
 | `POST /auth/password/change` | every OTHER session of the user, and their current access tokens; the session that changed the password stays signed in | `password_change` |
+| `POST /auth/password/reset`, hosted `POST /auth/reset-password-form` | EVERY session of the user, and their current access tokens; none is kept (the person resetting may be signed in nowhere). Strict: see below | `password_reset` |
 | Session limit (`MAX_SESSIONS_PER_IDENTITY`) at sign-in | the oldest sessions over the limit; that device must sign in again | `session_limit` |
 | `DELETE /sessions/{id}` by its owner | that session | `user_revoked` |
 | `DELETE /sessions/{id}` by a platform admin (`is_admin`) | that session, whoever owns it | `admin_revoked` |
 | Refresh-token reuse detected | the whole family | `family_revoked_security` |
+
+**Password reset is strict and revokes first** (owner decision 2026-10-04,
+"yes, go with all three recommendations"). The reset writes the revocation
+list with strict Redis writes BEFORE the new password is committed, then
+commits the revoked rows, the new password and the used reset link in one
+transaction. If Redis cannot take a write, the reset answers `503` +
+`Retry-After` and rolls back: the password, the link and the rows are
+unchanged, and the same link works once Redis answers. So no moment exists in
+which the new password is set and an old session still refreshes. (The
+opposite order would leave the new password set with the old sessions live
+whenever the revocation then failed.) A failure after the Redis writes and
+before the commit leaves the user signed out with the old password and an
+unused link: safe and retryable. After the commit the reset sweeps once more,
+best-effort, for a session a concurrent sign-in with the old password
+committed meanwhile.
 
 `DELETE /sessions/{id}` answers 404 to anyone who is neither the owner nor a
 platform admin (the same answer as for a session that does not exist), and 400
