@@ -10,6 +10,16 @@ and the Allow/Deny form is posted to whichever pod the load balancer picks.
 | `oauth:csrf:<token>` | `GET /oauth/authorize` (consent screen) | `POST /oauth/consent`, `POST /oauth/authorize` | 10 min |
 | `oauth:auth_request:<id>` | `GET /oauth/authorize` (consent screen) | `POST /oauth/consent` | 10 min |
 | `oauth:code:<code>` | authorize / consent | `POST /oauth/token` | 10 min |
+| `passkey_challenge:<user>` | `POST /passkeys/register/options` | `POST /passkeys/register/verify` | 5 min |
+| `passkey_auth_challenge:<id>` | `POST /passkeys/authenticate/options` | `POST /passkeys/authenticate/verify` | 10 min |
+| `oauth_state:<state>` | `POST /auth/oauth/authorize/{provider}`, `POST /auth/oauth/link/{provider}`, on-behalf link | `GET /auth/oauth/callback/{provider}`, `GET /auth/oauth/link/callback/{provider}` | 10 min |
+
+Two revocation lists are also read on the security path. Their reads are strict:
+
+| Key | Written by | Read by |
+|-----|-----------|---------|
+| `blacklist:<jti>` | `AuthService.refresh_tokens` (rotation, token-family revocation); `AuthService.logout` (no mounted caller) | `AuthService.verify_token` (`POST /auth/refresh`, `GET /auth/session`, sessions routes) |
+| `blacklist:<type>:<jti>` | `JWTManager.blacklist_token` (sign-out, devices, password change, session-limit eviction, `refresh_token_pair`) | `JWTManager.refresh_token_pair` (reuse detection, `blacklist:refresh:<jti>`; no mounted caller) |
 
 ## Failure mode (fixed 2026-10)
 
@@ -55,6 +65,75 @@ keys above:
   attempts are bounded by `REDIS_CONNECTION_TIMEOUT` (milliseconds).
 - `delete` evicts the pod-local copies of the keys it deletes.
 
+## Revocation checks fail closed (2026-10)
+
+Owner decision, 2026-10-04: "yes, make revocation checks fail closed".
+
+Until then, the revocation list and refresh-token reuse detection were read with
+the breaker's `get` and `exists`. While Redis was unreachable, or a replica's
+breaker was open, those calls returned the fallback (`None` or `0`), which means
+"not revoked". A logged-out, rotated-away or replayed token was accepted.
+
+Now:
+
+- `AuthService.verify_token` reads `blacklist:<jti>` with `strict_exists`.
+  `JWTManager.refresh_token_pair` reads `blacklist:refresh:<jti>` the same way.
+  When Redis cannot answer, they raise `RedisUnavailableError`, and the request
+  gets `503` + `Retry-After`. They never answer "not revoked" without Redis.
+- With Redis healthy, behaviour is unchanged. A token that is not revoked is
+  accepted. A revoked one is refused (`401` on `/auth/refresh` and
+  `/auth/session`). A reused refresh token is refused. If the reuse is detected
+  in the database (no active session row has that JTI), the whole token family is
+  revoked, as before.
+- **Bookkeeping callers do not fail.** Sign-out (`/auth/signout`, `/auth/logout`),
+  password change and the sessions routes (`GET /sessions`, `GET /sessions/{id}`,
+  `DELETE /sessions`) use the token only to find "this" session. The request has
+  already been authenticated by `get_current_user`. They call
+  `AuthService.identify_token`. With Redis healthy that is `verify_token`. During
+  an outage it falls back to the signature-checked claims, so sign-out still
+  revokes the session row and clears cookies.
+- **Revocation writes stay best-effort, and are no longer silent.** Logout,
+  rotation and family revocation still write the list through the fallback,
+  because those flows must finish and the session row in the database is
+  updated too. A write Redis did not take is logged at error level as
+  `Revocation-list write not acknowledged by Redis; token not blacklisted`.
+- Passkey challenges and `oauth_state:*` use `strict_set`, `strict_get` and
+  `strict_delete`, the same as the consent keys above. A challenge or state is
+  consumed exactly once across replicas, using the count from `DEL`.
+
+### What an operator sees during a Redis outage
+
+| Request | Answer |
+|---------|--------|
+| `POST /api/v1/auth/refresh` | `503`, `Retry-After: 5`, `{"error": {"code": "TEMPORARILY_UNAVAILABLE", ...}}` |
+| `GET /api/v1/auth/session` | `503`, same body |
+| `/api/v1/passkeys/*/options` and `/verify` | `503`, same body |
+| Social sign-in and link start, and their callbacks | `503`. Browsers (`Accept: text/html`) get the short "Sign-in is temporarily unavailable" page |
+| OAuth consent, `/oauth/authorize`, `/oauth/token` (`authorization_code`) | `503` (since #694) |
+| Sign-out, password change, sessions list | work. The session row is revoked in the database |
+| `GET /.well-known/jwks.json`, `GET /.well-known/openid-configuration` | `200`. They never touch Redis |
+| Routes behind `get_current_user` (most of the API) | work. Signature check plus a database read; that dependency consults no revocation list |
+| `POST /oauth/token` (`refresh_token` grant) | works. That grant consults no Redis revocation list (see follow-ups) |
+
+Logs: `State store unavailable; answering 503` (with `path`) and
+`Strict Redis operation failed` (with `error_type`). The `strict_failures`
+counter in `redis_circuit` on `/ready` goes up.
+
+Relying parties verify Janua access tokens locally against the JWKS. A Redis
+outage does not change that path. Remember that the readiness probe fails when a
+pod cannot PING Redis (see below). In a Redis outage that affects every replica,
+the Service therefore has no ready endpoints after about three probe periods,
+and every route answers from the ingress, not from Janua. That was already true
+before this change, and this change does not alter it.
+
+### Recovery
+
+Nothing needs to be cleared or replayed. Requests answered `503` changed nothing:
+no token was rotated and no challenge or state was consumed. When Redis answers
+again, the next strict call (or the next readiness probe) moves each replica's
+breaker to half-open. Clients retry after `Retry-After`. Check
+`redis_circuit.strict_failures` on `/ready`: it stops rising.
+
 ## Health and readiness
 
 - The readiness probe (`/api/v1/health/ready`) and `/ready` check Redis with a
@@ -90,23 +169,46 @@ keys above:
 ## Still on the fallback path (follow-ups)
 
 These keys still use the breaker's fallback operations. Each needs its own
-decision on fail-open versus fail-closed:
+decision:
 
 - `oauth:pre_login:<id>` **reads** in the hosted login and magic-link handlers.
   The write is strict. On a miss the readers rebuild the authorize URL from the
   client registration and lose `state` and PKCE.
-- Refresh-token reuse detection: `blacklist:refresh:<jti>` uses `exists`. The
-  fallback `0` means "not revoked", so detection fails open while Redis is
-  unreachable.
-- `JWTService` revocation and replay checks (`revoked:<jti>`, `blacklist:<jti>`,
-  `revoked_user:<id>`, `used:refresh:<jti>`) fail open the same way. Its
-  `jti:<type>:<jti>` registry fails the other way: a lost write when a token is
-  minted makes that token unusable on every pod, and a fallback read rejects
-  valid tokens.
-- `user:valid:<id>` (`get_current_user`): a cached `valid` can outlive a
-  deactivation by up to 5 minutes, and longer from the memory cache, which
-  ignores TTLs.
-- WebAuthn challenges (`passkeys.py`) and social-login `oauth_state:<state>`
-  (`/oauth/{provider}`) are short-lived challenges. They have the same
-  lost-write and stale-read shape as the consent CSRF token.
+- Revocation-list **writes** (`blacklist:*`): best-effort, now logged when lost
+  (above).
+- `JWTService` (`app/services/jwt_service.py`) reads `revoked:<jti>`,
+  `jti:<type>:<jti>`, `used:refresh:<jti>`, `blacklist:<jti>` and
+  `revoked_user:<id>` through whatever client it is given. No mounted route calls
+  its verification or refresh methods. Its `revoke_all_tokens` uses an
+  asyncpg-style `db.fetch`. Left unchanged: delete it or rewire it, not both
+  halves.
+- `user:valid:<id>` (`get_current_user`) only short-circuits a cached
+  **negative** answer. A cached `valid` is not trusted: the database is read on
+  every request. A stale `invalid` from the memory cache can refuse a reactivated
+  user during an outage (fails closed).
+- RBAC caches in `app/services/rbac_service.py` (`permission` and role lookups,
+  5 minutes in Redis) can be served from the per-process memory cache while the
+  breaker is open, and that cache ignores TTLs. A revoked permission could be
+  honoured from memory during an outage. Fix: on a miss or an outage, read the
+  database rather than the fallback cache.
+- Enterprise SSO OIDC state and nonce (`oidc_state:*` through `CacheService`)
+  use a separate raw client that answers `None` or `False` on errors. There is no
+  pod-memory replay, but a lost write still shows up later as an invalid state.
 - The memory cache ignores TTLs for every key it holds.
+
+Revocation gaps that are not about Redis availability, recorded here so they
+are not mistaken for fixed:
+
+- `/auth/signout`, password change and session-limit eviction revoke through
+  `JWTManager.blacklist_token` (`blacklist:<type>:<jti>`) and set
+  `sessions.revoked`. `AuthService.verify_token` reads `blacklist:<jti>`, and
+  `AuthService.refresh_tokens` filters on `sessions.is_active`. Those
+  revocations do not stop `POST /auth/refresh`. Device revocation sets
+  `is_active = False`, so it does stop refresh.
+- `DELETE /sessions/{id}` and `DELETE /sessions` call
+  `AuthService.revoke_session`, which is a placeholder that revokes nothing.
+- `get_current_user` consults no revocation list, so a logged-out access token
+  is accepted by most routes until it expires.
+- The `refresh_token` grant on `POST /oauth/token` does not rotate-and-blacklist
+  the presented token and has no reuse detection.
+- `POST /oauth/revoke` acknowledges without revoking anything.
