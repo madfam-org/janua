@@ -71,19 +71,21 @@ const { accessToken, refreshToken } = await janua.refreshToken()
 ### Sign Out
 
 ```typescript
-// Sign out current session
+// Sign out the current session
 await janua.signOut()
 
-// Sign out all sessions
-await janua.signOutFromAllDevices()
+// Sign out every other session of this user; the current one is kept
+await janua.users.revokeAllSessions()
 ```
+
+See [What signing out and revoking do](/guides/sessions/management#what-signing-out-and-revoking-do) for what each action revokes.
 
 ## Token Types
 
 | Token | Lifetime | Purpose | Storage |
 |-------|----------|---------|---------|
-| Access Token | 15 min | API authentication | Memory/Cookie |
-| Refresh Token | 7 days | Obtain new access token | HTTP-only cookie |
+| Access Token | Set by the deployment (`JWT_ACCESS_TOKEN_EXPIRE_MINUTES`); read `exp` | API authentication | Memory/Cookie |
+| Refresh Token | 7 days by default; rotated on every refresh | Obtain new access token | HTTP-only cookie |
 | ID Token | 15 min | User information | Memory |
 
 ## Configuration
@@ -140,9 +142,10 @@ export function SessionStatus() {
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/v1/sessions` | GET | List active sessions |
-| `/api/v1/sessions/{id}` | DELETE | Revoke specific session |
-| `/api/v1/sessions` | DELETE | Revoke all sessions |
-| `/api/v1/auth/token/refresh` | POST | Refresh access token |
+| `/api/v1/sessions/{id}` | DELETE | Revoke a specific session (owner or platform admin) |
+| `/api/v1/sessions` | DELETE | Revoke every session except the current one |
+| `/api/v1/auth/refresh` | POST | Refresh the access token (rotates the refresh token) |
+| `/api/v1/auth/signout` | POST | Sign out the current session |
 
 ## Next Steps
 

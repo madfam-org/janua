@@ -1,5 +1,5 @@
 import React from 'react'
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 
 // Mock @janua/ui
 jest.mock('@janua/ui', () => ({
@@ -26,6 +26,23 @@ global.fetch = jest.fn(() =>
 // Mock localStorage
 Storage.prototype.getItem = jest.fn(() => 'test-token')
 
+// SessionList loads through the SDK client, not fetch. The mock answers with
+// the API's real shape (`GET /api/v1/sessions/` -> `{ sessions, total }`,
+// SessionsListResponse in apps/api/app/routers/v1/sessions.py). The component
+// still reads `.items`, so it logs "sessionList.map is not a function" and
+// shows its error state: a known gap listed under "Open items" in
+// docs/runbooks/oauth-shared-state-redis.md. This test pins only the load.
+const mockListSessions = jest.fn(() => Promise.resolve({ sessions: [], total: 0 }))
+jest.mock('@/lib/janua-client', () => ({
+  januaClient: {
+    sessions: {
+      listSessions: () => mockListSessions(),
+      revokeSession: jest.fn(),
+      revokeAllSessions: jest.fn(),
+    },
+  },
+}))
+
 import { SessionList } from './session-list'
 
 describe('SessionList', () => {
@@ -39,15 +56,9 @@ describe('SessionList', () => {
     expect(document.body).toBeTruthy()
   })
 
-  // TODO(janua-tests): STALE TEST. SessionList was migrated to the SDK
-  // (januaClient.sessions.listSessions() via useEffect) and no longer calls
-  // global.fetch, so this assertion can never hold. The component DOES fetch on
-  // mount -- rewrite against the mocked januaClient instead of fetch.
-  it.skip('should call the sessions API on mount', () => {
+  it('should load the sessions through the SDK client on mount', async () => {
     render(<SessionList />)
-    expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/v1/sessions'),
-      expect.any(Object)
-    )
+    await waitFor(() => expect(mockListSessions).toHaveBeenCalledTimes(1))
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 })

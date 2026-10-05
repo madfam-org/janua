@@ -7,9 +7,17 @@ from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import fakeredis
 import pytest
+import pytest_asyncio
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
+from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.exceptions import ConflictError
+from app.models import Base, User, UserStatus
+from app.models import Session as UserSession
 from app.services.auth_service import AuthService
 
 pytestmark = pytest.mark.asyncio
@@ -317,66 +325,78 @@ class TestTokenCreation:
 
 
 class TestSessionManagement:
-    """Test session creation and management"""
+    """Session creation against a real (SQLite) `sessions` table.
+
+    These were mock-database tests skipped with "Requires complex async db
+    mocking - needs refactor". They now run `AuthService.create_session`
+    against an in-memory SQLite database and a fakeredis-backed client, the
+    harness `test_revocation_revokes.py` uses. Revocation of what this creates
+    (sign-out, the session limit, password change and reset) is covered there
+    and in `routers/test_revocation_routes.py`.
+    """
+
+    @pytest_asyncio.fixture
+    async def db(self):
+        engine = create_async_engine(
+            "sqlite+aiosqlite:///:memory:",
+            poolclass=StaticPool,
+            connect_args={"check_same_thread": False},
+        )
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with factory() as session:
+            yield session
+        await engine.dispose()
 
     @pytest.fixture
-    def mock_db(self):
-        db = AsyncMock()
-        db.add = Mock()
-        db.commit = AsyncMock()
-        db.refresh = AsyncMock()
-        return db
+    def redis(self):
+        client = ResilientRedisClient(fakeredis.aioredis.FakeRedis(decode_responses=True))
+        with patch("app.services.auth_service.get_redis", AsyncMock(return_value=client)):
+            yield client
 
-    @pytest.fixture
-    def mock_user(self):
-        user = Mock()
-        user.id = uuid4()
-        user.tenant_id = uuid4()
-        user.email = "test@example.com"
+    @pytest_asyncio.fixture
+    async def user(self, db):
+        user = User(
+            id=uuid4(),
+            email="session-person@example.com",
+            email_verified=True,
+            status=UserStatus.ACTIVE,
+            is_active=True,
+        )
+        db.add(user)
+        await db.commit()
         return user
 
-    @pytest.mark.skip(reason="Requires complex async db mocking - needs refactor")
-    async def test_create_session_success(self, mock_db, mock_user):
-        """Test successful session creation"""
-        with patch("app.services.auth_service.get_redis") as mock_get_redis:
-            mock_redis = AsyncMock()
-            mock_session_store = AsyncMock()
-            mock_session_store.set = AsyncMock()
-            mock_get_redis.return_value = mock_redis
+    async def test_create_session_success(self, db, redis, user):
+        """A session row is written with the request's metadata and tokens."""
+        access_token, refresh_token, session = await AuthService.create_session(
+            db=db,
+            user=user,
+            ip_address="192.168.1.1",
+            user_agent="Mozilla/5.0",
+            device_name="Chrome on Windows",
+        )
 
-            with patch("app.services.auth_service.SessionStore", return_value=mock_session_store):
-                access_token, refresh_token, session = await AuthService.create_session(
-                    db=mock_db,
-                    user=mock_user,
-                    ip_address="192.168.1.1",
-                    user_agent="Mozilla/5.0",
-                    device_name="Chrome on Windows",
-                )
+        assert isinstance(access_token, str) and access_token
+        assert isinstance(refresh_token, str) and refresh_token
+        row = (
+            await db.execute(select(UserSession).where(UserSession.id == session.id))
+        ).scalar_one()
+        assert row.user_id == user.id
+        assert row.ip_address == "192.168.1.1"
+        assert row.user_agent == "Mozilla/5.0"
+        assert row.revoked is False
+        assert row.refresh_token_family
+        assert row.refresh_token_jti
 
-        assert isinstance(access_token, str)
-        assert isinstance(refresh_token, str)
-        assert mock_db.add.called
-        assert mock_db.commit.called
-        assert mock_session_store.set.called
+    async def test_create_session_minimal(self, db, redis, user):
+        """Optional parameters may be omitted."""
+        access_token, refresh_token, session = await AuthService.create_session(db=db, user=user)
 
-    @pytest.mark.skip(reason="Requires complex async db mocking - needs refactor")
-    async def test_create_session_minimal(self, mock_db, mock_user):
-        """Test session creation with minimal parameters"""
-        with patch("app.services.auth_service.get_redis") as mock_get_redis:
-            mock_redis = AsyncMock()
-            mock_session_store = AsyncMock()
-            mock_session_store.set = AsyncMock()
-            mock_get_redis.return_value = mock_redis
-
-            with patch("app.services.auth_service.SessionStore", return_value=mock_session_store):
-                access_token, refresh_token, session = await AuthService.create_session(
-                    db=mock_db,
-                    user=mock_user,
-                    # No optional parameters
-                )
-
-        assert isinstance(access_token, str)
-        assert isinstance(refresh_token, str)
+        assert isinstance(access_token, str) and access_token
+        assert isinstance(refresh_token, str) and refresh_token
+        assert session.user_id == user.id
 
 
 class TestAuditLogging:

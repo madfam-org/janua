@@ -149,7 +149,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
 
 ### Logout
 
-Invalidate the current session.
+Revoke the current session: its refresh token stops working at once and its access token is refused by the refresh and session endpoints. Other sessions of the user are not affected (use `DELETE /sessions` for those).
 
 ```http
 POST /auth/logout
@@ -300,51 +300,56 @@ Content-Type: application/json
 
 ## Passkeys (WebAuthn)
 
-### Begin Registration
+Every binary value (challenge, user id, credential ids) is **base64url**, not base64. Decode with `base64UrlToArrayBuffer` from `@janua/typescript-sdk` (never `atob`), or let `client.registerPasskey()` and `client.signInWithPasskey()` run the ceremony. See the [passkeys guide](/guides/authentication/passkeys).
+
+### Registration Options
 
 ```http
-POST /auth/passkey/register/begin
+POST /passkeys/register/options
 Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
 Content-Type: application/json
 
-{
-  "displayName": "John's MacBook"
-}
+{}
 ```
 
-**Response:**
+Send `{"authenticator_attachment": "platform"}` or `"cross-platform"` only to restrict the authenticator; with no preference every kind can register.
+
+**Response** (WebAuthn creation options as JSON):
 
 ```json
 {
-  "options": {
-    "challenge": "...",
-    "rp": { "name": "Janua", "id": "janua.dev" },
-    "user": { "id": "...", "name": "...", "displayName": "..." },
-    "pubKeyCredParams": [...]
-  }
+  "challenge": "base64url...",
+  "rp": { "name": "Janua", "id": "example.com" },
+  "user": { "id": "base64url...", "name": "user@example.com", "displayName": "User" },
+  "pubKeyCredParams": [...],
+  "timeout": 60000,
+  "excludeCredentials": [],
+  "authenticatorSelection": { "residentKey": "discouraged", "requireResidentKey": false, "userVerification": "preferred" },
+  "attestation": "none"
 }
 ```
 
 ---
 
-### Complete Registration
+### Verify Registration
 
 ```http
-POST /auth/passkey/register/complete
+POST /passkeys/register/verify
 Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
 Content-Type: application/json
 
 {
-  "credential": { ... }
+  "credential": { ... },
+  "name": "John's MacBook"
 }
 ```
 
 ---
 
-### Begin Authentication
+### Authentication Options
 
 ```http
-POST /auth/passkey/authenticate/begin
+POST /passkeys/authenticate/options
 Content-Type: application/json
 
 {
@@ -352,18 +357,22 @@ Content-Type: application/json
 }
 ```
 
+**Response** includes `sessionId`, `challenge`, `rpId`, `timeout`, `allowCredentials` and `userVerification`.
+
 ---
 
-### Complete Authentication
+### Verify Authentication
 
 ```http
-POST /auth/passkey/authenticate/complete
+POST /passkeys/authenticate/verify?session_id=<sessionId from the options call>
 Content-Type: application/json
 
 {
   "credential": { ... }
 }
 ```
+
+The server reads the one-time challenge by `session_id`. **Response** carries `access_token`, `refresh_token`, `token_type`, `expires_in` and `user`. While Janua cannot store or read challenges, the passkey endpoints answer `503` with `Retry-After`.
 
 ---
 

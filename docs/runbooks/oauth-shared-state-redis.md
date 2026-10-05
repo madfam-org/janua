@@ -1,4 +1,44 @@
-# OAuth shared state and the Redis circuit breaker
+# OAuth shared state, revocation and readiness
+
+This runbook is the hub for how the Janua API behaves around the OAuth/OIDC
+provider, sessions and revocation, passkeys, and health and readiness. It
+describes the behaviour after janua#694–#698 (October 2026). Start from the
+index: each row says what the behaviour is, where the detail lives (a section
+of this runbook or the document that owns it), and which tests pin it.
+
+## Index
+
+Test paths are under `apps/api/tests/unit/` unless they say otherwise.
+
+| Behaviour | In one line | Detail | Tests |
+|-----------|-------------|--------|-------|
+| OAuth consent state | CSRF token, stored authorization request and authorization code live in Redis only (strict operations). Redis unavailable answers `503` + `Retry-After`; `403` means a real rejection. The consent form submits once. | [Current behaviour](#current-behaviour) | `routers/test_oauth_consent_shared_state.py`, `core/test_redis_strict_operations.py` |
+| First-party clients | Active, confidential clients named `selva-office*` / `madfam-*`, or carrying the `madfam:silent_auth` scope, may use `prompt=none` and are pre-consented (no consent screen). Every other client sees the consent screen. | [SILENT_SSO_SESSION.md → B6](../architecture/SILENT_SSO_SESSION.md#b6--pre-consent) | `routers/test_oauth_provider_silent_auth.py`, `routers/test_oauth_provider_first_party_consent.py`, `core/test_reserved_oauth_boundaries.py` |
+| Account chooser and held sessions | `prompt=select_account` lists each person once (their newest live session). A click posts to `POST /api/v1/auth/switch-session/form` (held-set, live-row and Origin checks) and resumes `/authorize`. | [SILENT_SSO_SESSION.md → L3](../architecture/SILENT_SSO_SESSION.md#l3--multi-account-estate-sessions-janua_sessions) | `routers/test_account_chooser_switch_form.py`, `routers/test_janua_sessions_cookie.py` |
+| Revocation checks fail closed | The revocation list and refresh-token reuse detection are read strictly. While Redis cannot answer, the request gets `503` + `Retry-After`, never "not revoked". | [Revocation checks fail closed](#revocation-checks-fail-closed-2026-10) | `services/test_revocation_fail_closed.py`, `routers/test_fail_closed_redis_routes.py` |
+| What each action revokes | Sign-out, sign-out-one, sign-out-all, OIDC `end_session`, `DELETE /sessions/{id}`, `DELETE /sessions`, password change, password reset, the session limit and refresh-token reuse each revoke a defined set of sessions. | [Revocation that revokes](#revocation-that-revokes-2026-10) | `services/test_revocation_revokes.py`, `routers/test_revocation_routes.py`, `routers/test_password_reset_revokes.py`, `routers/test_janua_sessions_cookie.py` |
+| RFC 7009 `POST /oauth/revoke` | Requires client authentication. A refresh token revokes its family; an access token is blacklisted until it expires; anything else answers `200` and changes nothing; `503` when the revocation cannot be stored. | [`POST /oauth/revoke`](#post-oauthrevoke-rfc-7009) | `routers/test_revocation_routes.py` |
+| Passkeys | Challenges are strict and single use. Options are the WebAuthn library's JSON (binary values base64url). No attachment preference unless the client asks. The SDK decodes and encodes base64url. | [Passkeys](#passkeys) | `routers/test_passkeys_webauthn3.py`, `routers/test_fail_closed_redis_routes.py`; `packages/typescript-sdk/src/__tests__/webauthn-encoding.test.ts`, `webauthn-helper.test.ts`; `apps/dashboard/lib/passkeys.test.ts` |
+| Readiness | Redis and the database are reported, not gated: the probe answers `200` with `"status": "degraded"`. Each check is bounded at 2 s. `503` now means a gating check failed. | [Health and readiness](#health-and-readiness), [Database readiness](#database-readiness-reported-not-gated-2026-10) | `routers/test_readiness_redis_independent.py`, `routers/test_readiness_database_reported.py`, `test_routers_health.py` |
+| Health response bodies | Health and readiness routes publish status fields only. Error text, hostnames and DSNs go to the server log, redacted. | [Health bodies carry status only](#health-bodies-carry-status-only-2026-10) | `routers/test_health_endpoints_no_error_text.py` |
+| Alerting | Readiness stays green through a Redis or database outage, so monitoring must read the readiness body. Not built yet. | [Follow-up: alerting](#follow-up-alerting-on-the-readiness-body) | none (monitoring configuration does not live in this repo) |
+| Still open | Access tokens on most routes, the OIDC `refresh_token` grant, bulk admin revocations and others. | [Open items](#open-items) | — |
+
+### Owner rulings behind these behaviours (2026-10-04)
+
+| Ruling | Where it applies |
+|--------|------------------|
+| Revocation checks fail closed when Redis is unavailable | [Revocation checks fail closed](#revocation-checks-fail-closed-2026-10) |
+| Sign-out, password change, session-limit eviction, `DELETE /sessions*` and `/oauth/revoke` must actually revoke | [Revocation that revokes](#revocation-that-revokes-2026-10) |
+| Readiness is independent of Redis | [Health and readiness](#health-and-readiness) |
+| Readiness reports the database and does not gate on it | [Database readiness](#database-readiness-reported-not-gated-2026-10) |
+| A password reset revokes every session | [Revocation that revokes](#revocation-that-revokes-2026-10) |
+| Passkey registration carries no attachment preference by default | [Passkeys](#passkeys) |
+| Health endpoints publish status fields only; the dashboard decodes base64url | [Health bodies carry status only](#health-bodies-carry-status-only-2026-10), [Passkeys](#passkeys) |
+
+The change history is in [CHANGELOG.md](../CHANGELOG.md) under *Unreleased*.
+
+## Shared state in Redis
 
 The authorization flow keeps short-lived security state in Redis. Every API
 replica must see the same state, because the consent page is rendered by one pod
@@ -164,7 +204,8 @@ Owner decision, 2026-10-04: "yes, make readiness independent of Redis".
   (`healthy` / `unhealthy` / `error`), `degraded` (the reported-only checks that
   are failing), `status` (`ready` or `degraded`) and `redis_circuit`. The list
   of reported-only checks is `READINESS_REPORTED_ONLY` in
-  `app/routers/v1/health.py`; today it holds only `redis`.
+  `app/routers/v1/health.py`; it holds `redis` and, since the database change
+  below, `database`.
 - **Every other dependency gates exactly as before.** The registered checks are
   `database` (critical, reported only since the next section), `redis`
   (critical, reported only) and `encryption_key` (non-critical, never gated).
@@ -299,26 +340,8 @@ decision:
   pod-memory replay, but a lost write still shows up later as an invalid state.
 - The memory cache ignores TTLs for every key it holds.
 
-Revocation gaps that are not about Redis availability. The first four were
-fixed in 2026-10 (next section); the rest remain, recorded here so they are not
-mistaken for fixed:
-
-- Fixed: sign-out, password change and session-limit eviction did not stop
-  `POST /auth/refresh` (key spelling and column mismatch).
-- Fixed: `DELETE /sessions/{id}` and `DELETE /sessions` revoked nothing.
-- Fixed: `POST /oauth/revoke` acknowledged without revoking anything.
-- Fixed: password reset (`/auth/password/reset`, the hosted reset form) set
-  the new password without revoking any session.
-- `get_current_user` consults no revocation list, so a logged-out access token
-  is accepted by most routes until it expires (owner ruling pending).
-- The `refresh_token` grant on `POST /oauth/token` does not rotate-and-blacklist
-  the presented token and has no reuse detection. A revoked family is refused.
-- Access tokens minted by an OAuth grant carry no family, so revoking the
-  grant's refresh token does not revoke them; they expire on their own
-  (RFC 7009 makes this a SHOULD). Revoke one by presenting it.
-- Bulk revocations in `admin.py`, `users.py` and `internal_users.py` set only
-  `sessions.revoked` with an `UPDATE`. That now stops `/auth/refresh` (the row
-  check), but those paths do not blacklist the sessions' access tokens.
+Revocation gaps that do not depend on Redis availability are listed under
+[Open items](#open-items).
 
 ## Revocation that revokes (2026-10)
 
@@ -347,14 +370,24 @@ its Redis write was lost, and even for paths that only update the row.
 | Action | What is revoked | `revoked_reason` |
 |--------|-----------------|------------------|
 | `POST /auth/signout`, `POST /auth/logout` | this session's family; the presented access token's JTI until it expires | `user_logout` |
-| `POST /auth/sessions/sign-out-one`, `sign-out-all`, OIDC `end_session` | each signed-out account's session (via `revoke_sso_session`) | `logout` |
-| `DELETE /sessions` | every other session of the caller; the current one is kept | `user_revoked_all` |
+| `POST /auth/sessions/sign-out-one` | the one held account's session it names (the `sid` must be in this browser's held set); another held account is re-fronted | `logout` |
+| `POST /auth/sessions/sign-out-all` | every session named in this browser's held set (`janua_sessions`, plus the fronted `janua_sso`), then both cookies are cleared. It signs this browser out; that person's sessions on other devices stay live | `logout` |
+| OIDC `end_session` (`GET`/`POST /logout`) | the session the `janua_sso` cookie references, after its signature is verified | `logout` |
+| `DELETE /sessions` | every other session of the caller; the current one (the session of the presented bearer access token) is kept | `user_revoked_all` |
 | `POST /auth/password/change` | every OTHER session of the user, and their current access tokens; the session that changed the password stays signed in | `password_change` |
 | `POST /auth/password/reset`, hosted `POST /auth/reset-password-form` | EVERY session of the user, and their current access tokens; none is kept (the person resetting may be signed in nowhere). Strict: see below | `password_reset` |
 | Session limit (`MAX_SESSIONS_PER_IDENTITY`) at sign-in | the oldest sessions over the limit; that device must sign in again | `session_limit` |
 | `DELETE /sessions/{id}` by its owner | that session | `user_revoked` |
 | `DELETE /sessions/{id}` by a platform admin (`is_admin`) | that session, whoever owns it | `admin_revoked` |
 | Refresh-token reuse detected | the whole family | `family_revoked_security` |
+
+**Access tokens.** Revocation writes the access token's JTI to the list,
+but only the routes that read the list honour it: `POST /auth/refresh`,
+`GET /auth/session`, the sessions routes, and on the OAuth side
+`/oauth/introspect` and `/oauth/userinfo`. Most routes authenticate through
+`get_current_user`, which checks the signature and the user row but not the
+revocation list, so a revoked session's access token keeps working there
+until it expires (see [Open items](#open-items)).
 
 **Password reset is strict and revokes first** (owner decision 2026-10-04,
 "yes, go with all three recommendations"). The reset writes the revocation
@@ -396,3 +429,116 @@ accept only live rows.
   `200` (RFC 7009 §2.2).
 - When Redis cannot store the revocation the answer is `503` + `Retry-After`,
   never a `200` for a revocation that did not happen.
+
+## Passkeys
+
+Owner decisions, 2026-10-04: passkey registration carries no attachment
+preference by default, and the dashboard decodes base64url.
+
+API (`app/routers/v1/passkeys.py`, mounted at `/api/v1/passkeys`):
+
+| Step | Route | Notes |
+|------|-------|-------|
+| Registration options | `POST /api/v1/passkeys/register/options` (signed in), body `{"authenticator_attachment"?: "platform" \| "cross-platform"}` | Returns the WebAuthn library's own JSON (`options_to_json`): `challenge`, `rp`, `user`, `pubKeyCredParams`, `timeout`, `excludeCredentials`, `authenticatorSelection`, `attestation`. Binary values are base64url. |
+| Registration verify | `POST /api/v1/passkeys/register/verify` (signed in), body `{"credential": {...}, "name"?: "..."}` | The credential must answer the stored challenge. |
+| Sign-in options | `POST /api/v1/passkeys/authenticate/options`, body `{"email"?: "..."}` | Returns `sessionId`, `challenge`, `rpId`, `timeout`, `allowCredentials`, `userVerification`. Without `email`, `allowCredentials` is empty (a discoverable credential is needed). |
+| Sign-in verify | `POST /api/v1/passkeys/authenticate/verify?session_id=<sessionId>`, body `{"credential": {...}, "email"?: "..."}` | The challenge is read server-side by `session_id`; a client-supplied challenge is never trusted. On success a normal Janua session is created (`AuthService.create_session`), so it is revocable like any other. |
+
+- **Attachment.** With no preference in the request, `authenticatorAttachment`
+  is omitted, so built-in authenticators (Touch ID, Windows Hello, Android)
+  and roaming ones (security keys, a phone over hybrid) can both register. An
+  explicit `platform` or `cross-platform` is honoured. `residentKey` is
+  `discouraged` and `userVerification` is `preferred`.
+- **Challenges** are stored with strict Redis writes (5 minutes for
+  registration, 10 for sign-in) and consumed once across replicas, using the
+  count from `DEL`. Redis unavailable answers `503` + `Retry-After`, not
+  "challenge expired".
+- **Encoding.** Every binary value the API sends or reads is base64url
+  (`-`, `_`, no padding), which `atob` rejects. `@janua/typescript-sdk`
+  exports `base64UrlToArrayBuffer` and `arrayBufferToBase64Url`;
+  `WebAuthnHelper`, `client.registerPasskey(name)` and
+  `client.signInWithPasskey(email?)` use them in both directions. The
+  dashboard registers passkeys through `client.registerPasskey`. See the
+  SDK README, *Passkeys and WebAuthn*.
+
+## Health bodies carry status only (2026-10)
+
+Owner decision, 2026-10-04 ("yes to both fixes").
+
+No health or readiness route returns error text, hostnames, IPs or DSNs:
+
+- `GET /ready` (not probed) returns `status`, `timestamp`,
+  `database: {"healthy", "status"}`, `redis`, `redis_circuit` and `degraded`,
+  through the same bounded checks as `/api/v1/health/ready`. It answers `200`
+  when degraded.
+- `GET /api/v1/health/detailed`: a check that raises reports
+  `{"status": "error", "critical": ...}` with no message.
+- `GET /api/v1/admin/health` (authenticated) reports a failing cache or
+  storage as `"unhealthy"` with no exception text.
+- The detail is logged server-side through `redact_error_text`
+  (`app/services/monitoring.py`): URL credentials become `scheme://***@`,
+  `password=` / `token=`-style values are masked, and the text is capped at
+  300 characters.
+
+A test sweeps every GET route in the OpenAPI document whose path contains
+`health` or ends in `/ready` with a simulated database error that carries a
+host, an IP and a DSN with a password, and asserts that none of them appears
+in any body.
+
+## Open items
+
+Known gaps, recorded so they are not mistaken for fixed. Each needs its own
+change, and the first needs an owner ruling. The backlog entries live in
+[AGENTS.md → Known gaps / Backlog](../../AGENTS.md#known-gaps--backlog); the
+detail is here.
+
+- **Access tokens on most routes.** `get_current_user` consults no revocation
+  list, so the access token of a signed-out or revoked session is accepted by
+  most routes until it expires. Checking the list there would make every route
+  depend on Redis. The default `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` is 480
+  (8 hours), so "rely on a short access-token lifetime" holds only where the
+  deployment sets a shorter value. Owner ruling pending.
+- **OAuth access-token lifetime.** The `authorization_code` grant answers
+  `expires_in: 3600`, while the access token's `exp` comes from
+  `JWT_ACCESS_TOKEN_EXPIRE_MINUTES`. Relying parties should read `exp`.
+- **OIDC `refresh_token` grant.** `POST /oauth/token` does not
+  rotate-and-blacklist the presented refresh token and has no reuse detection.
+  A revoked family is refused.
+- **Grant access tokens carry no family.** Revoking a grant's refresh token
+  does not revoke the access tokens it minted; they expire on their own
+  (RFC 7009 makes this a SHOULD). Revoke one by presenting it.
+- **Bulk admin revocations.** `admin.py`, `users.py` and `internal_users.py`
+  set only `sessions.revoked` with an `UPDATE`. That stops `/auth/refresh`
+  (the row check), but those paths do not blacklist the sessions' access
+  tokens. Routing them through `AuthService.revoke_sessions` closes it.
+- **Password reset race.** A sign-in that verified the old password before the
+  reset committed, and inserts its session after the post-commit sweep,
+  survives the reset. Closing it needs a password-changed timestamp checked at
+  refresh.
+- **Usernameless passkey sign-in.** With `residentKey: discouraged`, a security
+  key may create a non-discoverable credential, which the email-less sign-in
+  path (empty `allowCredentials`) cannot use. Set `residentKey: preferred` if
+  usernameless sign-in matters (product decision).
+- **Other SDK surfaces.** `packages/react-sdk` decodes JWT payloads with `atob`
+  without the base64url mapping; `packages/react-native-sdk` calls passkey
+  routes that do not exist; `@janua/ui`'s `PasskeyButton` calls SDK methods and
+  routes that do not exist (the dashboard does not use it). In
+  `@janua/typescript-sdk`, `client.sessions.revokeAllSessions()` posts to
+  `/api/v1/sessions/revoke-all`, which does not exist (use
+  `client.users.revokeAllSessions()`, which calls `DELETE /api/v1/sessions/`),
+  and the two-argument `client.users.revokeSession(userId, sessionId)` calls
+  `/api/v1/users/{id}/sessions/{id}`, which does not exist either.
+- **Dashboard Sessions page.** `apps/dashboard/components/sessions/session-list.tsx`
+  reads `.items` from `januaClient.sessions.listSessions()`, but
+  `GET /api/v1/sessions/` answers `{"sessions": [...], "total": n}`, so the list
+  fails with `sessionList.map is not a function` and shows its error state
+  (reproduced in jsdom with the API's response shape). Its "revoke all" button
+  calls `client.sessions.revokeAllSessions()`, the missing route above.
+  `client.sessions.getCurrentSession()` and `client.sessions.refresh()` also
+  call routes the API does not serve (`/api/v1/sessions/current`,
+  `/api/v1/sessions/refresh`).
+- **Passkey verify errors.** A failed passkey verification returns the
+  WebAuthn library's message in `detail`. Return a fixed message and log the
+  exception.
+- **Alerting on the readiness body.** See
+  [Follow-up: alerting](#follow-up-alerting-on-the-readiness-body).

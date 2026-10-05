@@ -112,8 +112,8 @@ DATABASE_URL=postgresql://... uvicorn app.main:app --reload
 # Basic health
 curl http://localhost:8000/health
 
-# Infrastructure readiness
-curl http://localhost:8000/ready
+# Readiness (reports Redis and the database; see docs/runbooks/oauth-shared-state-redis.md)
+curl http://localhost:8000/api/v1/health/ready
 
 # API status
 curl http://localhost:8000/api/status
@@ -204,14 +204,19 @@ apps/api/
 
 | Category | Endpoint | Description |
 |----------|----------|-------------|
-| **Health** | `GET /health` | Application health status |
-| | `GET /ready` | Infrastructure readiness check |
+| **Health** | `GET /health` | Liveness (the k8s `livenessProbe`) |
+| | `GET /api/v1/health/ready` | Readiness (the k8s `readinessProbe`): reports Redis and the database in its body and answers 200 with `"status": "degraded"` when either is down; 503 only when a gating check fails |
+| | `GET /ready` | The same status fields, not probed; never carries error text |
 | **Authentication** | `POST /api/v1/auth/signup` | User registration |
 | | `POST /api/v1/auth/signin` | User authentication |
 | | `POST /api/v1/auth/refresh` | Token refresh |
 | | `GET /api/v1/auth/me` | Current user profile |
-| **WebAuthn** | `POST /api/v1/passkeys/register` | Register passkey |
-| | `POST /api/v1/passkeys/authenticate` | Authenticate with passkey |
+| **Sessions** | `GET /api/v1/sessions/` | List the caller's live sessions |
+| | `DELETE /api/v1/sessions/{id}` | Revoke one session (owner or platform admin) |
+| | `DELETE /api/v1/sessions/` | Revoke every other session of the caller |
+| **OAuth/OIDC** | `POST /api/v1/oauth/revoke` | RFC 7009 revocation; client authentication required |
+| **WebAuthn** | `POST /api/v1/passkeys/register/options`, `/register/verify` | Register a passkey (signed in) |
+| | `POST /api/v1/passkeys/authenticate/options`, `/authenticate/verify` | Sign in with a passkey |
 | **Organizations** | `GET /api/v1/organizations` | List organizations |
 | | `POST /api/v1/organizations` | Create organization |
 | **Enterprise** | `POST /api/v1/sso/saml` | SAML SSO authentication |

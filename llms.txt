@@ -27,6 +27,12 @@ Compact LLM context index for this repository.
 - `docs/architecture/SILENT_SSO_SESSION.md` — one browser session across the
   estate: the `janua_sso` cookie, `prompt=none`, and the hosted hop for hosts
   outside the cookie domain.
+- `docs/runbooks/oauth-shared-state-redis.md` — the hub for OAuth consent
+  state (Redis only; `503` + `Retry-After` when Redis is down, `403` only for a
+  real rejection), first-party clients, the account chooser, what each
+  sign-out / password change / password reset / `DELETE /sessions` revokes,
+  RFC 7009 `/oauth/revoke` (client authentication required), passkeys, and
+  readiness that reports Redis and the database without gating on them.
 - `docs/runbooks/resend-domain-onboarding.md` — onboarding a client sending
   domain, and migrating a client to their own Resend account.
 - `docs/runbooks/resend-email-events.md` — the signed Resend webhook receiver,
@@ -62,6 +68,24 @@ Compact LLM context index for this repository.
   A missing tenant credential degrades the sender to the platform From line; it
   never blocks a sign-in link.
 - A tenant display name is never paired with an address on MADFAM's domain.
+
+## Sessions, revocation and readiness (2026-10-05)
+
+- Revocation reads fail closed: while Redis cannot answer, refresh, session
+  check, the OIDC refresh grant, introspection, userinfo, passkeys and social
+  sign-in answer `503` + `Retry-After`. JWKS and discovery never touch Redis.
+- Every revocation goes through `AuthService.revoke_sessions` (row flags,
+  refresh-token family, access JTI). `/auth/refresh` also refuses a refresh
+  token whose `sessions` row is not live. Password reset revokes every
+  session; password change keeps the current one; `sign-out-all` signs out
+  the accounts held in this browser only.
+- Most routes (`get_current_user`) do not read the revocation list: a revoked
+  session's access token works until `exp`. Owner ruling pending.
+- `GET /api/v1/health/ready` answers `200` with `"status": "degraded"` when
+  Redis or the database is down; alerting must read the body. Health bodies
+  carry status fields only.
+- Passkey binary values are base64url; use the SDK's `WebAuthnHelper` or
+  `base64UrlToArrayBuffer` / `arrayBufferToBase64Url`, never bare `atob`.
 
 ## Email events and measurement (2026-09-26)
 

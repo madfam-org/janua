@@ -201,8 +201,8 @@ Change user password.
 }
 ```
 
-#### GET /api/v1/users/sessions
-Get user's active sessions.
+#### GET /api/v1/sessions
+Get the user's live sessions.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -221,13 +221,13 @@ Get user's active sessions.
 ]
 ```
 
-#### DELETE /api/v1/users/sessions/\{session_id\}
-Revoke a specific session.
+#### DELETE /api/v1/sessions/\{session_id\}
+Revoke a specific session: its refresh token stops working and it leaves the sessions list. Only its owner or a platform admin may revoke it (anyone else gets `404`).
 
 **Headers:** `Authorization: Bearer <access_token>`
 
-#### DELETE /api/v1/users/sessions
-Revoke all user sessions (sign out from all devices).
+#### DELETE /api/v1/sessions
+Revoke every session of the user except the current one.
 
 **Headers:** `Authorization: Bearer <access_token>`
 
@@ -245,17 +245,23 @@ Basic health check endpoint.
 }
 ```
 
-#### GET /ready
-Comprehensive readiness check with dependencies.
+#### GET /api/v1/health/ready
+Readiness probe. It reports the database and the state store (Redis) in its body and does not fail because of them: when either is down it still answers `200`, with `"status": "degraded"` and the dependency named in `degraded`. It answers `503` only when a check that gates readiness fails. Monitoring must read the body, not only the status code.
 
 **Response:**
 ```json
 {
   "status": "ready",
-  "database": true,
-  "redis": true
+  "timestamp": "2026-10-05T12:00:00",
+  "database": { "healthy": true, "status": "healthy" },
+  "redis": "healthy",
+  "redis_circuit": { "state": "closed", "last_failure_time": null, "fallback_calls": 0, "strict_failures": 0, "client_initialized": true },
+  "degraded": []
 }
 ```
+
+#### GET /ready
+The same status fields, outside the versioned API. Health and readiness responses carry status fields only, never error messages.
 
 ## Error Handling
 

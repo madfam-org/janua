@@ -516,3 +516,24 @@ class TestOAuthRevokeFailsClosed:
         env.server.connected = False
         resp = await _revoke(env, "not-a-token-at-all")
         assert resp.status_code == 200
+
+
+class TestOAuthRevokeDiscovery:
+    """Relying parties find the RFC 7009 endpoint through discovery.
+
+    Documented in docs/runbooks/oauth-shared-state-redis.md: client
+    authentication at `/oauth/revoke` works as at the token endpoint, so the
+    advertised token-endpoint auth methods are the ones it accepts.
+    """
+
+    async def test_discovery_advertises_revocation_and_introspection(self, env):
+        resp = await env.http.get("/.well-known/openid-configuration")
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+
+        issuer = body["issuer"]
+        assert body["revocation_endpoint"] == f"{issuer}/api/v1/oauth/revoke"
+        assert body["introspection_endpoint"] == f"{issuer}/api/v1/oauth/introspect"
+        assert {"client_secret_basic", "client_secret_post", "none"} <= set(
+            body["token_endpoint_auth_methods_supported"]
+        )
