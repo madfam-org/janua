@@ -1925,14 +1925,15 @@ async def sign_out(
     payload = await AuthService.identify_token(token, token_type="access")
 
     if payload:
-        # Blacklist the access token JTI
+        # Revoke this session: its row, its refresh-token family (so
+        # /auth/refresh refuses it) and its access token's JTI. Best-effort:
+        # sign-out must never fail on bookkeeping.
         try:
-            from app.core.jwt_manager import jwt_manager
-            await jwt_manager.blacklist_token(payload["jti"], "access")
+            # The presented access token, even when no row is found for it.
+            await AuthService.revoke_access_token(payload, reason="user_logout")
         except Exception:
-            pass  # Best-effort blacklisting
+            logger.warning("Failed to blacklist the access token on sign-out", exc_info=True)
 
-        # Find and revoke session in DB
         try:
             result = await db.execute(
                 select(UserSession).where(UserSession.access_token_jti == payload["jti"])
@@ -1940,17 +1941,10 @@ async def sign_out(
             session = result.scalar_one_or_none()
 
             if session:
-                session.revoked = True
-                # Also blacklist the refresh token
-                if session.refresh_token_jti:
-                    try:
-                        from app.core.jwt_manager import jwt_manager
-                        await jwt_manager.blacklist_token(session.refresh_token_jti, "refresh")
-                    except Exception:
-                        pass
+                await AuthService.revoke_sessions([session], reason="user_logout")
                 await db.commit()
         except Exception:
-            pass  # Best-effort session revocation
+            logger.warning("Failed to revoke the session row on sign-out", exc_info=True)
 
     # SSO (J5/R1): revoke the estate session and clear its cookie. Best-effort,
     # exactly like the blacklisting above — logout must never fail on this.
@@ -2740,8 +2734,11 @@ async def change_password(
     except Exception:
         pass  # If we can't determine current session, revoke all
 
+    # Every OTHER session's refresh-token family stops refreshing and its
+    # current access token is blacklisted; the session that changed the
+    # password stays signed in.
     await AuthService.invalidate_user_sessions(
-        db, current_user.id, exclude_session_id=current_session_id
+        db, current_user.id, exclude_session_id=current_session_id, reason="password_change"
     )
 
     # Log activity

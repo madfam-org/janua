@@ -4,8 +4,9 @@ Session management endpoints
 
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -19,6 +20,22 @@ from ...models import Session as UserSession
 from ...models import User
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
+
+logger = structlog.get_logger()
+
+
+def _live_session_filters() -> tuple[Any, ...]:
+    """SQL twin of `token_revocation.session_is_live` (minus expiry).
+
+    A row is revoked when ANY revocation flag says so: bulk admin and
+    account-deletion updates set only `revoked`, device revocation sets only
+    `is_active = False` and `revoked_at`.
+    """
+    return (
+        UserSession.revoked_at.is_(None),
+        UserSession.revoked.isnot(True),
+        UserSession.is_active.isnot(False),
+    )
 
 
 class SessionResponse(BaseModel):
@@ -113,7 +130,7 @@ async def list_sessions(
         select(UserSession)
         .where(
             UserSession.user_id == current_user.id,
-            UserSession.revoked_at.is_(None),
+            *_live_session_filters(),
             UserSession.expires_at > datetime.utcnow(),
         )
         .order_by(UserSession.last_activity.desc())
@@ -203,29 +220,44 @@ async def get_session(
 async def revoke_session(
     session_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    """Revoke a specific session"""
+    """Revoke a specific session.
+
+    Only the session's owner, or a platform admin (`is_admin`, the same gate as
+    the admin API's session revocation), may revoke it. Anyone else gets 404,
+    the same answer as for a session that does not exist. Revoking marks the
+    row revoked, revokes its refresh-token family (so `/auth/refresh` refuses
+    it) and blacklists its current access token; the account chooser and
+    account switching stop offering it because they only accept live rows.
+    """
     # Parse UUID
     try:
         session_uuid = uuid.UUID(session_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid session ID")
 
-    # Get session
-    result = await db.execute(
-        select(UserSession).where(
-            UserSession.id == session_uuid, UserSession.user_id == current_user.id
-        )
-    )
+    query = select(UserSession).where(UserSession.id == session_uuid)
+    is_admin = bool(getattr(current_user, "is_admin", False))
+    if not is_admin:
+        query = query.where(UserSession.user_id == current_user.id)
+    result = await db.execute(query)
     session = result.scalar_one_or_none()
 
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    if session.revoked:
+    if session.revoked or session.is_active is False or session.revoked_at is not None:
         raise HTTPException(status_code=400, detail="Session already revoked")
 
-    # Revoke session
-    AuthService.revoke_session(db, str(session.id))
+    by_admin = session.user_id != current_user.id
+    await AuthService.revoke_sessions(
+        [session], reason="admin_revoked" if by_admin else "user_revoked"
+    )
+    await db.commit()
+    logger.info(
+        "Session revoked via sessions API",
+        session_id=str(session.id),
+        by_admin=by_admin,
+    )
 
     return {"message": "Session revoked successfully"}
 
@@ -234,7 +266,12 @@ async def revoke_session(
 async def revoke_all_sessions(
     request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    """Revoke all sessions except current"""
+    """Revoke all of the caller's sessions except the current one.
+
+    Each revoked session's refresh-token family stops refreshing. The current
+    session is the one whose access token made this request; when it cannot be
+    identified, every session is revoked.
+    """
     # Get current session JTI
     current_jti = None
     auth_header = request.headers.get("Authorization")
@@ -244,20 +281,20 @@ async def revoke_all_sessions(
         if payload:
             current_jti = payload.get("jti")
 
-    # Revoke all sessions except current
-    result = await db.execute(
-        select(UserSession).where(
-            UserSession.user_id == current_user.id,
-            UserSession.revoked_at.is_(None),
-            UserSession.access_token_jti != current_jti,
-        )
+    query = select(UserSession).where(
+        UserSession.user_id == current_user.id,
+        *_live_session_filters(),
     )
+    if current_jti:
+        # `!=` alone would also drop rows whose access_token_jti is NULL.
+        query = query.where(
+            (UserSession.access_token_jti != current_jti) | UserSession.access_token_jti.is_(None)
+        )
+    result = await db.execute(query)
     sessions = result.scalars().all()
 
-    revoked_count = 0
-    for session in sessions:
-        AuthService.revoke_session(db, str(session.id))
-        revoked_count += 1
+    revoked_count = await AuthService.revoke_sessions(sessions, reason="user_revoked_all")
+    await db.commit()
 
     return {"message": f"Revoked {revoked_count} sessions", "revoked_count": revoked_count}
 

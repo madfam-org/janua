@@ -2,11 +2,11 @@
 Passkeys/WebAuthn authentication endpoints
 """
 
-import base64
+import json
 import secrets
 import uuid
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, Iterable, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -18,7 +18,14 @@ from webauthn import (
     verify_authentication_response,
     verify_registration_response,
 )
-from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
+from webauthn.helpers import base64url_to_bytes, bytes_to_base64url, options_to_json
+from webauthn.helpers.structs import (
+    AuthenticatorAttachment,
+    AuthenticatorSelectionCriteria,
+    PublicKeyCredentialDescriptor,
+    ResidentKeyRequirement,
+    UserVerificationRequirement,
+)
 
 from app.config import settings
 from app.core.redis_circuit_breaker import ResilientRedisClient
@@ -28,7 +35,6 @@ from app.services.auth_service import AuthService
 
 from ...models import ActivityLog, Passkey, User
 from ...services.user_lookup import get_user_by_email
-from ...models import Session as UserSession
 
 router = APIRouter(prefix="/passkeys", tags=["passkeys"])
 
@@ -135,6 +141,35 @@ async def _consume_challenge(
     return str(stored)
 
 
+def _credential_descriptors(passkeys: Iterable[Passkey]) -> List[PublicKeyCredentialDescriptor]:
+    """Stored passkeys as the descriptors webauthn's option builders take.
+
+    `credential_id` is stored base64url (see /register/verify), so it is decoded
+    with `base64url_to_bytes`. webauthn 2.x and 3.x both take descriptor
+    objects here; a plain dict raises AttributeError in 3.x.
+    """
+    return [
+        PublicKeyCredentialDescriptor(id=base64url_to_bytes(str(passkey.credential_id)))
+        for passkey in passkeys
+    ]
+
+
+def _authenticator_selection(attachment: Optional[str]) -> AuthenticatorSelectionCriteria:
+    """The registration ceremony's authenticator requirements.
+
+    Unchanged policy: the requested attachment (default cross-platform), no
+    resident key required, user verification preferred. Built as the library's
+    struct: webauthn 3.x reads `.resident_key` from it and crashed on the dict
+    this used to pass.
+    """
+    return AuthenticatorSelectionCriteria(
+        authenticator_attachment=AuthenticatorAttachment(attachment or "cross-platform"),
+        resident_key=ResidentKeyRequirement.DISCOURAGED,
+        require_resident_key=False,
+        user_verification=UserVerificationRequirement.PREFERRED,
+    )
+
+
 def _reg_challenge_key(user_id) -> str:
     return f"passkey_challenge:{user_id}"
 
@@ -164,12 +199,6 @@ async def get_registration_options(
             detail=f"Passkey limit reached ({max_passkeys}). Remove one before adding another.",
         )
 
-    exclude_credentials = []
-    for passkey in existing_passkeys:
-        exclude_credentials.append(
-            {"id": base64.b64decode(passkey.credential_id), "type": "public-key"}
-        )
-
     # Generate registration options
     options = generate_registration_options(
         rp_id=get_rp_id(),
@@ -177,14 +206,8 @@ async def get_registration_options(
         user_id=str(current_user.id).encode(),
         user_name=current_user.email,
         user_display_name=current_user.display_name or current_user.email,
-        exclude_credentials=exclude_credentials,
-        authenticator_selection={
-            "authenticator_attachment": request.authenticator_attachment
-            if request.authenticator_attachment
-            else "cross-platform",
-            "require_resident_key": False,
-            "user_verification": "preferred",
-        },
+        exclude_credentials=_credential_descriptors(existing_passkeys),
+        authenticator_selection=_authenticator_selection(request.authenticator_attachment),
         timeout=60000,  # 60 seconds
     )
 
@@ -202,27 +225,12 @@ async def get_registration_options(
         ex=300,  # 5 minutes
     )
 
-    # Convert to JSON-serializable format
-    return {
-        "challenge": challenge,
-        "rp": {"id": options.rp.id, "name": options.rp.name},
-        "user": {
-            "id": bytes_to_base64url(options.user.id),
-            "name": options.user.name,
-            "displayName": options.user.display_name,
-        },
-        "pubKeyCredParams": [
-            {"type": "public-key", "alg": -7},  # ES256
-            {"type": "public-key", "alg": -257},  # RS256
-        ],
-        "timeout": options.timeout,
-        "excludeCredentials": [
-            {"id": bytes_to_base64url(cred["id"]), "type": cred["type"]}
-            for cred in exclude_credentials
-        ],
-        "authenticatorSelection": options.authenticator_selection,
-        "attestation": "none",
-    }
+    # The library's own WebAuthn JSON (PublicKeyCredentialCreationOptionsJSON):
+    # challenge, rp, user, pubKeyCredParams, timeout, excludeCredentials,
+    # authenticatorSelection, attestation, all base64url where binary.
+    # pubKeyCredParams is what verify_registration_response accepts, so the two
+    # can no longer disagree.
+    return json.loads(options_to_json(options))
 
 
 @router.post("/register/verify")
@@ -258,8 +266,9 @@ async def verify_registration(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Registration verification failed: {str(e)}")
 
-    if not verification.verified:
-        raise HTTPException(status_code=400, detail="Registration verification failed")
+    # webauthn 2.x and 3.x raise on every failed check (handled above); the
+    # result object has no `verified` flag, and reading one raised
+    # AttributeError (500) after a successful ceremony.
 
     # Store passkey
     credential_id = bytes_to_base64url(verification.credential_id)
@@ -316,7 +325,7 @@ async def get_authentication_options(
     request: PasskeyAuthOptionsRequest, db: Session = Depends(get_db)
 ):
     """Get WebAuthn authentication options"""
-    allow_credentials = []
+    allow_credentials: List[PublicKeyCredentialDescriptor] = []
 
     if request.email:
         # Passwordless login - get user's passkeys. Untenanted / staff pool
@@ -326,22 +335,17 @@ async def get_authentication_options(
         if user:
             passkeys_result = await db.execute(select(Passkey).where(Passkey.user_id == user.id))
             passkeys = passkeys_result.scalars().all()
-            for passkey in passkeys:
-                allow_credentials.append(
-                    {"id": base64.b64decode(passkey.credential_id), "type": "public-key"}
-                )
+            allow_credentials = _credential_descriptors(passkeys)
 
     # Generate authentication options
     options = generate_authentication_options(
         rp_id=get_rp_id(),
         allow_credentials=allow_credentials if allow_credentials else None,
-        user_verification="preferred",
+        user_verification=UserVerificationRequirement.PREFERRED,
         timeout=60000,
     )
 
     # Store challenge in Redis with 10-minute expiry
-    import secrets
-
     from app.core.redis import get_redis
 
     challenge = bytes_to_base64url(options.challenge)
@@ -363,11 +367,8 @@ async def get_authentication_options(
         "rpId": options.rp_id,
         "timeout": options.timeout,
         "allowCredentials": [
-            {"id": bytes_to_base64url(cred["id"]), "type": cred["type"]}
-            for cred in allow_credentials
-        ]
-        if allow_credentials
-        else [],
+            {"id": bytes_to_base64url(cred.id), "type": "public-key"} for cred in allow_credentials
+        ],
         "userVerification": options.user_verification,
     }
 
@@ -428,8 +429,9 @@ async def verify_authentication(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Authentication verification failed: {str(e)}")
 
-    if not verification.verified:
-        raise HTTPException(status_code=400, detail="Authentication verification failed")
+    # webauthn 2.x and 3.x raise on every failed check (handled above); the
+    # result object has no `verified` flag, and reading one raised
+    # AttributeError (500) after a successful ceremony.
 
     # Cloned-authenticator detection (2026-08-23): a non-increasing signature
     # counter means either a cloned credential or a replay. Authenticators that
@@ -459,25 +461,23 @@ async def verify_authentication(
     passkey.sign_count = verification.new_sign_count
     passkey.last_used_at = datetime.utcnow()
 
-    # Create session and tokens
-    str(secrets.token_urlsafe(32))
-    access_token_jti = str(secrets.token_urlsafe(32))
-    refresh_token_jti = str(secrets.token_urlsafe(32))
-
-    tokens = AuthService.create_tokens(user, access_token_jti, refresh_token_jti)
-
-    # Create session record
-    user_session = UserSession(
-        user_id=user.id,
-        access_token_jti=access_token_jti,
-        refresh_token_jti=refresh_token_jti,
-        ip_address=request.client.host
+    # Create the session the same way every other sign-in does, so it carries
+    # a refresh-token family and is revocable like any other session. (This
+    # called `AuthService.create_tokens`, which does not exist, and built a
+    # `sessions` row without its required `token`: a verified passkey sign-in
+    # ended in a 500.)
+    client_ip = (
+        request.client.host
         if request.client
-        else request.headers.get("X-Forwarded-For", "unknown").split(",")[0].strip(),
-        user_agent="Passkey Authentication",
-        expires_at=datetime.utcnow() + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS),
+        else request.headers.get("X-Forwarded-For", "unknown").split(",")[0].strip()
     )
-    db.add(user_session)
+    access_token, refresh_token, user_session = await AuthService.create_session(
+        db,
+        user,
+        ip_address=client_ip,
+        user_agent="Passkey Authentication",
+    )
+    tokens = {"access_token": access_token, "refresh_token": refresh_token}
 
     # Update user last sign in
     user.last_sign_in_at = datetime.utcnow()
