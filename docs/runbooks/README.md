@@ -14,7 +14,7 @@ Operator guides for production GitOps, secrets rotation, and incident records.
 
 | Document | When to use |
 |----------|-------------|
-| [oauth-shared-state-redis.md](./oauth-shared-state-redis.md) | Consent `403 Invalid or expired CSRF token` or `503 temporarily unavailable`; reading `redis_circuit` on `/ready`; which Redis keys still fall back to pod memory |
+| [oauth-shared-state-redis.md](./oauth-shared-state-redis.md) | **Hub** for OAuth consent and first-party clients, the account chooser, sessions and revocation (what sign-out, sign-out-all, password change, password reset, eviction and `DELETE /sessions` revoke), RFC 7009 `/oauth/revoke`, passkeys, and health and readiness (report, don't gate; status-only bodies; what alerting must read). Also: consent `403` vs `503`, reading `redis_circuit`, which Redis keys still fall back to pod memory, open items |
 
 ## Compliance
 

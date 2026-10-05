@@ -6,8 +6,8 @@ Learn how to manage user sessions, handle token refresh, and implement secure se
 
 Janua uses JWT tokens for session management with a dual-token approach:
 
-- **Access Token**: Short-lived (15 minutes), used for API requests
-- **Refresh Token**: Long-lived (7 days), used to obtain new access tokens
+- **Access Token**: Short-lived, used for API requests. The lifetime is set by the deployment (`JWT_ACCESS_TOKEN_EXPIRE_MINUTES`); read `exp` or `expires_in` rather than assuming a value
+- **Refresh Token**: Long-lived (7 days by default), used to obtain new access tokens. Each refresh rotates it
 
 ## Token Lifecycle
 
@@ -66,11 +66,11 @@ try {
 ### Sign Out
 
 ```typescript
-// Sign out current session
+// Sign out the current session (its refresh token stops working)
 await janua.signOut()
 
-// Sign out from all devices
-await janua.signOutFromAllDevices()
+// Sign out every other session of this user; the current one is kept
+await janua.users.revokeAllSessions()
 ```
 
 ## Session Storage
@@ -138,11 +138,11 @@ sessions.forEach((session) => {
 ### Revoke Session
 
 ```typescript
-// Revoke specific session
-await janua.sessions.revoke(sessionId)
+// Revoke a specific session
+await janua.users.revokeSession(sessionId)
 
-// Revoke all sessions except current
-await janua.sessions.revokeOthers()
+// Revoke all sessions except the current one
+await janua.users.revokeAllSessions()
 ```
 
 ## React Hooks
@@ -197,15 +197,33 @@ List all active sessions for the current user.
 
 ### DELETE /api/v1/sessions/:session_id
 
-Revoke a specific session.
+Revoke a specific session. Only its owner or a platform admin may revoke it; anyone else gets `404`. A session that is already revoked answers `400`.
 
 ### DELETE /api/v1/sessions
 
-Revoke all sessions except the current one.
+Revoke all sessions except the current one (the session of the access token that made the request).
 
-### POST /api/v1/auth/token/refresh
+### POST /api/v1/auth/refresh
 
-Refresh the access token using a valid refresh token.
+Exchange a refresh token for a new access and refresh token. A refresh token of a revoked, expired or reused session answers `401`; `503` with `Retry-After` means Janua could not check revocation and the request can be retried.
+
+## What signing out and revoking do
+
+A Janua session is one server-side session record with one rotating refresh-token family. Revoking a session stops its refresh token at once: the next refresh answers `401`, and the session leaves the sessions list and the account chooser.
+
+| Action | What is revoked |
+|--------|-----------------|
+| Sign out (`POST /api/v1/auth/signout` or `/logout`) | This session |
+| Sign out of one account (`POST /api/v1/auth/sessions/sign-out-one`) | That account's session in this browser |
+| Sign out of all accounts (`POST /api/v1/auth/sessions/sign-out-all`) | Every account session held in this browser; sessions on other devices stay signed in |
+| `DELETE /api/v1/sessions/{id}` | That session (its owner or a platform admin only) |
+| `DELETE /api/v1/sessions` | Every other session of the user; the current one is kept |
+| Password change | Every other session of the user; the current one is kept |
+| Password reset | Every session of the user |
+| Session limit reached at sign-in | The oldest sessions over the limit |
+| A refresh token is reused | The whole session |
+
+Access tokens are self-contained JWTs. A revoked session's access token is refused by the refresh, session-check and sessions endpoints and by OAuth introspection, but most API routes accept it until it expires, so keep access-token lifetimes short. If Janua cannot reach its state store, refresh and session checks answer `503` with `Retry-After` rather than accepting a token they cannot check.
 
 ## Security Best Practices
 

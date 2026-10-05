@@ -89,6 +89,16 @@ at `/authorize`. It is the only session that reaches the browser across the
 estate, because products exchange magic links server-to-server and Node drops
 the `Set-Cookie` on a fetch response.
 
+### Revocation and readiness — `services/auth_service.py`, `services/token_revocation.py`, `routers/v1/health.py`
+
+Revocation-list and refresh-reuse reads are strict: Redis unavailable answers
+`503` + `Retry-After`, never "not revoked" (owner ruling 2026-10-04). Every
+revocation path calls `AuthService.revoke_sessions`; `/auth/refresh` also
+checks the `sessions` row, so a revocation holds when its Redis write is lost.
+`POST /oauth/revoke` requires client authentication. Readiness reports Redis
+and the database and gates on neither (each check bounded at 2 s); health
+bodies never carry error text. Hub: `docs/runbooks/oauth-shared-state-redis.md`.
+
 ## Email API surface — `apps/api/app/routers/v1/email.py`
 
 Two internal send endpoints under `/api/v1/internal/email/`:

@@ -4,101 +4,67 @@ Implement passwordless authentication using passkeys (WebAuthn/FIDO2) for enhanc
 
 ## Overview
 
-Passkeys provide a phishing-resistant, passwordless authentication method using biometrics, security keys, or device credentials. Built on WebAuthn/FIDO2 standards, passkeys offer superior security while simplifying the user experience.
+Passkeys provide a phishing-resistant, passwordless authentication method using biometrics, security keys, or device credentials. Built on WebAuthn/FIDO2 standards, passkeys offer strong security while simplifying the user experience.
 
 ## Benefits
 
 - **Phishing Resistant**: Cryptographically bound to specific origins
 - **No Passwords**: Eliminate password-related vulnerabilities
 - **Better UX**: One-touch authentication with biometrics
-- **Cross-Platform**: Works across devices with cloud sync
+- **Any authenticator**: Built-in authenticators (Touch ID, Windows Hello, Android) and roaming ones (security keys, a phone) can both register
 - **Strong Security**: Public key cryptography with hardware backing
 
 ## Quick Start
 
+The TypeScript SDK runs the whole ceremony for you: it fetches the options, decodes them, calls the browser's WebAuthn API, encodes the result and verifies it with the API.
+
 ### 1. Register a Passkey
 
+The user must be signed in.
+
 ```typescript
-import { janua } from '@janua/typescript-sdk'
+import { createClient } from '@janua/typescript-sdk'
 
-// Start passkey registration
-const { options } = await janua.auth.passkey.beginRegistration({
-  userId: currentUser.id,
-  userName: currentUser.email,
-  displayName: currentUser.name
-})
+const client = createClient({ baseURL: 'https://api.janua.dev' })
 
-// Browser WebAuthn API
-const credential = await navigator.credentials.create({
-  publicKey: options
-})
-
-// Complete registration
-const { passkey } = await janua.auth.passkey.completeRegistration({
-  userId: currentUser.id,
-  credential
-})
-
-console.log('Passkey registered:', passkey.id)
+// Fetches the options, calls navigator.credentials.create() and verifies
+// the new credential with the API
+await client.registerPasskey('My Laptop')
 ```
 
-### 2. Authenticate with Passkey
+### 2. Sign In with a Passkey
 
 ```typescript
-// Start authentication
-const { options } = await janua.auth.passkey.beginAuthentication({
-  email: 'user@example.com'
-})
-
-// Browser WebAuthn API
-const credential = await navigator.credentials.get({
-  publicKey: options,
-  mediation: 'conditional' // Enable autofill UI
-})
-
-// Complete authentication
-const { user, session } = await janua.auth.passkey.completeAuthentication({
-  credential
-})
+// With an email, the browser offers that user's passkeys; without one, it
+// offers any discoverable passkey for this site
+const { user, tokens } = await client.signInWithPasskey('user@example.com')
 
 console.log('Authenticated as:', user.email)
 ```
+
+A passkey sign-in creates an ordinary Janua session. Signing out, revoking the session or resetting the password revokes it like any other.
 
 ## React Implementation
 
 ```tsx
 'use client'
 
-import { useState, useEffect } from 'react'
-import { janua } from '@/lib/janua'
+import { useEffect, useState } from 'react'
+import { checkWebAuthnSupport } from '@janua/typescript-sdk'
+import { client } from '@/lib/janua'
 
 export function PasskeyLogin() {
   const [isSupported, setIsSupported] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    // Check if passkeys are supported
-    setIsSupported(
-      typeof window !== 'undefined' &&
-      window.PublicKeyCredential !== undefined
-    )
+    setIsSupported(checkWebAuthnSupport().available)
   }, [])
 
   const handlePasskeyLogin = async () => {
     setIsLoading(true)
     try {
-      const { options } = await janua.auth.passkey.beginAuthentication({})
-
-      const credential = await navigator.credentials.get({
-        publicKey: options,
-        mediation: 'conditional'
-      })
-
-      const { user, session } = await janua.auth.passkey.completeAuthentication({
-        credential
-      })
-
-      // User is now authenticated
+      await client.signInWithPasskey()
       window.location.href = '/dashboard'
     } catch (error) {
       console.error('Passkey authentication failed:', error)
@@ -123,49 +89,79 @@ export function PasskeyLogin() {
 }
 ```
 
+## Encoding: base64url, not base64
+
+The API sends every binary WebAuthn value (the challenge, the user id, credential ids) as **base64url**: `-` and `_` instead of `+` and `/`, and no padding. The browser's `atob` accepts only standard base64 and throws on `-` or `_`, which a random challenge contains most of the time. If you build the ceremony yourself, convert with the SDK's helpers:
+
+```typescript
+import { base64UrlToArrayBuffer, arrayBufferToBase64Url } from '@janua/typescript-sdk'
+
+const challenge = base64UrlToArrayBuffer(options.challenge)   // for navigator.credentials
+const rawId = arrayBufferToBase64Url(credential.rawId)          // back to the API
+```
+
+`WebAuthnHelper`, `client.registerPasskey` and `client.signInWithPasskey` already do this.
+
 ## API Reference
 
-### POST /api/v1/auth/passkey/register/begin
+All routes are under `/api/v1/passkeys`.
 
-Start passkey registration for an authenticated user.
+### POST /api/v1/passkeys/register/options
 
-**Request:**
+Start passkey registration. Requires `Authorization: Bearer <access_token>`.
+
+**Request** (all fields optional):
 ```json
 {
-  "displayName": "John Doe"
+  "authenticator_attachment": "platform"
 }
 ```
 
-**Response:**
+Omit `authenticator_attachment` to allow every kind of authenticator (recommended). Send `"platform"` or `"cross-platform"` only to restrict it.
+
+**Response** (WebAuthn `PublicKeyCredentialCreationOptions` in JSON form; binary values are base64url):
 ```json
 {
-  "options": {
-    "challenge": "base64-encoded-challenge",
-    "rp": { "name": "Janua", "id": "janua.dev" },
-    "user": { "id": "user-id", "name": "user@example.com", "displayName": "John Doe" },
-    "pubKeyCredParams": [
-      { "alg": -7, "type": "public-key" },
-      { "alg": -257, "type": "public-key" }
-    ],
-    "authenticatorSelection": {
-      "residentKey": "required",
-      "userVerification": "preferred"
-    }
-  }
+  "challenge": "base64url-challenge",
+  "rp": { "name": "Janua", "id": "example.com" },
+  "user": { "id": "base64url-user-id", "name": "user@example.com", "displayName": "User" },
+  "pubKeyCredParams": [
+    { "type": "public-key", "alg": -8 },
+    { "type": "public-key", "alg": -7 },
+    { "type": "public-key", "alg": -257 }
+  ],
+  "timeout": 60000,
+  "excludeCredentials": [],
+  "authenticatorSelection": {
+    "residentKey": "discouraged",
+    "requireResidentKey": false,
+    "userVerification": "preferred"
+  },
+  "attestation": "none"
 }
 ```
 
-### POST /api/v1/auth/passkey/register/complete
+The challenge is valid for 5 minutes.
 
-Complete passkey registration with the credential from the browser.
+### POST /api/v1/passkeys/register/verify
 
-### POST /api/v1/auth/passkey/authenticate/begin
+Complete registration. Requires `Authorization: Bearer <access_token>`. Body: `{ "credential": <the browser's credential in JSON form>, "name": "My Laptop" }`.
 
-Start passkey authentication.
+### POST /api/v1/passkeys/authenticate/options
 
-### POST /api/v1/auth/passkey/authenticate/complete
+Start a passkey sign-in. Body: `{ "email": "user@example.com" }` or `{}`. The response carries `sessionId`, `challenge`, `rpId`, `timeout`, `allowCredentials` and `userVerification`. The challenge is valid for 10 minutes.
 
-Complete passkey authentication and receive tokens.
+### POST /api/v1/passkeys/authenticate/verify?session_id=&lt;sessionId&gt;
+
+Complete the sign-in. Pass the `sessionId` from the options call as the `session_id` query parameter; the server reads the challenge by it and never accepts a challenge from the client. Body: `{ "credential": <the browser's assertion in JSON form> }`. The response carries `access_token`, `refresh_token`, `token_type`, `expires_in` and `user`.
+
+### Errors
+
+| Status | Meaning |
+|--------|---------|
+| `400` | The challenge expired or was already used, or verification failed |
+| `404` | The credential is not registered |
+| `503` + `Retry-After` | Janua could not store or read the challenge; retry after the indicated seconds |
 
 ## Browser Support
 
@@ -182,7 +178,7 @@ Complete passkey authentication and receive tokens.
 
 1. **HTTPS Required**: WebAuthn only works over HTTPS
 2. **Origin Binding**: Credentials are bound to the registering origin
-3. **User Verification**: Consider requiring biometric verification for sensitive operations
+3. **One-time challenges**: Each challenge is consumed once, whichever server instance receives the verification
 4. **Fallback Methods**: Always provide alternative authentication methods
 
 ## Next Steps

@@ -400,17 +400,24 @@ const hasConditional = await checkConditionalMediation();
 ### Low-Level Passkey Methods
 
 ```typescript
-// Get registration options from the server
+// Get registration options from the server. With no authenticator_attachment
+// the API sets no attachment preference, so built-in (Touch ID, Windows Hello)
+// and roaming authenticators can both register.
 const options = await client.auth.getPasskeyRegistrationOptions({ name: 'My Key' });
 
-// After calling navigator.credentials.create(), verify with the server
+// Binary values in the options (challenge, user.id, excludeCredentials[].id) are
+// base64url: decode them with base64UrlToArrayBuffer, never atob, before calling
+// navigator.credentials.create(). Then verify with the server; the credential's
+// binary fields are encoded with arrayBufferToBase64Url.
 await client.auth.verifyPasskeyRegistration(credential, 'My Key');
 
-// Get authentication options
+// Get authentication options. The response carries a server-minted sessionId
+// that keys the one-time challenge.
 const authOptions = await client.auth.getPasskeyAuthenticationOptions('user@example.com');
 
-// After calling navigator.credentials.get(), verify with the server
-const result = await client.auth.verifyPasskeyAuthentication(credential, challenge, email);
+// After calling navigator.credentials.get(), verify with the server, passing
+// that sessionId (the server never trusts a client-supplied challenge)
+const result = await client.auth.verifyPasskeyAuthentication(credential, authOptions.sessionId, email);
 
 // Manage registered passkeys
 const passkeys = await client.auth.listPasskeys();
@@ -548,7 +555,7 @@ await client.organizations.deleteCustomRole('org-uuid', 'role-uuid');
 
 ## Sessions
 
-Session management is available on both `client.users` and `client.sessions`.
+Session management is available on both `client.users` and `client.sessions`. Use `client.users` to revoke: `client.sessions.revokeAllSessions()` posts to `/api/v1/sessions/revoke-all`, which the API does not serve. What each revocation stops (refresh, the account chooser, held sessions) is described in the repository's `docs/runbooks/oauth-shared-state-redis.md`.
 
 ```typescript
 // List all active sessions for the authenticated user
@@ -557,10 +564,11 @@ const sessions = await client.users.listSessions({ page: 1, limit: 10 });
 // Get details for a specific session
 const session = await client.users.getSession('session-uuid');
 
-// Revoke a specific session (sign out that device)
+// Revoke a specific session (sign out that device). Its refresh token stops
+// refreshing; only the owner or a platform admin may revoke it.
 await client.users.revokeSession('session-uuid');
 
-// Sign out all sessions across all devices
+// Sign out every OTHER session of this user; the current one is kept
 await client.users.revokeAllSessions();
 
 // Refresh a session's expiry

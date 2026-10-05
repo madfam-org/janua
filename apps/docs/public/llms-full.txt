@@ -94,11 +94,11 @@ If MFA is enabled:
 }
 ```
 
-### POST /api/v1/auth/token/refresh
-Refresh an expired access token.
+### POST /api/v1/auth/refresh
+Exchange a refresh token for a new token pair (the refresh token rotates). A revoked, expired or reused refresh token answers 401. 503 with Retry-After means revocation could not be checked; retry.
 
 ```bash
-curl -X POST https://api.janua.dev/api/v1/auth/token/refresh \
+curl -X POST https://api.janua.dev/api/v1/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{"refresh_token": "eyJhbGciOiJSUzI1NiIs..."}'
 ```
@@ -171,17 +171,36 @@ Generate backup recovery codes.
 
 ## WebAuthn/Passkeys
 
-### POST /api/v1/passkeys/register/begin
-Start passkey registration (returns challenge and options).
+All binary values (challenge, user id, credential ids) are base64url, not base64: decode them with `base64UrlToArrayBuffer` from `@janua/typescript-sdk`, or use `client.registerPasskey(name)` / `client.signInWithPasskey(email?)`, which run the whole ceremony.
 
-### POST /api/v1/passkeys/register/complete
-Complete registration with authenticator response.
+### POST /api/v1/passkeys/register/options
+Start passkey registration (signed in). Body `{"authenticator_attachment"?: "platform" | "cross-platform"}`; omit it to allow every authenticator. Returns WebAuthn creation options as JSON.
 
-### POST /api/v1/passkeys/authenticate/begin
-Start passkey authentication.
+### POST /api/v1/passkeys/register/verify
+Complete registration. Body `{"credential": {...}, "name"?: "..."}`.
 
-### POST /api/v1/passkeys/authenticate/complete
-Complete authentication and receive JWT.
+### POST /api/v1/passkeys/authenticate/options
+Start passkey sign-in. Body `{"email"?: "..."}`. Returns `sessionId`, `challenge`, `rpId`, `timeout`, `allowCredentials`, `userVerification`.
+
+### POST /api/v1/passkeys/authenticate/verify?session_id=<sessionId>
+Complete sign-in and receive tokens. Body `{"credential": {...}}`. The challenge is read server-side by `session_id`.
+
+## Sessions and revocation
+
+### GET /api/v1/sessions
+List the user's live sessions.
+
+### DELETE /api/v1/sessions/{session_id}
+Revoke one session (owner or platform admin; anyone else gets 404). Its refresh token stops working.
+
+### DELETE /api/v1/sessions
+Revoke every session of the user except the current one.
+
+### POST /api/v1/auth/signout
+Sign out the current session. Password change revokes every other session; password reset revokes every session.
+
+### POST /api/v1/oauth/revoke
+RFC 7009 token revocation. Requires client authentication (HTTP Basic or form fields, as at the token endpoint). A refresh token revokes its whole family; an access token is revoked until it expires; unknown tokens and other clients' tokens answer 200 and change nothing.
 
 ---
 
@@ -335,17 +354,13 @@ curl https://api.janua.dev/health
 # → {"status": "healthy"}
 ```
 
-### GET /health/detailed
-Detailed health with dependency status.
-```bash
-curl https://api.janua.dev/health/detailed
-# → {"status": "healthy", "database": true, "redis": true, "kms": true}
-```
+### GET /api/v1/health/detailed
+Detailed health: overall `status` plus one entry per registered check under `checks` (`database`, `redis`, `encryption_key`, `kms`, `redis_circuit`). A failing check reports a status only, never error text.
 
-### GET /health/ready
-Kubernetes readiness probe.
+### GET /api/v1/health/ready
+Kubernetes readiness probe. Reports `database` and `redis` in the body and does not gate on them: when either is down it answers 200 with `"status": "degraded"` and the dependency listed in `degraded`. 503 only when a gating check fails. Alert on the body, not the status code.
 
-### GET /health/live
+### GET /api/v1/health/live
 Kubernetes liveness probe.
 
 ---

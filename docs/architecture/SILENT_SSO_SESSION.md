@@ -200,14 +200,19 @@ That type is the security boundary. Every bearer path in Janua verifies
 fails verification everywhere. It is a **session reference**, not a credential.
 
 Resolution re-reads the `sessions` row on **every** use and refuses it when the
-row is revoked (`revoked = True`, which `/signout` and `invalidate_user_sessions`
-set), deactivated (`is_active = False`, which `revoke_token_family` sets on
-refresh-token theft detection), past `expires_at`, or owned by a non-active user.
-That is what makes the cookie revocable — and it means every revocation path
-Janua already has revokes this cookie too, for free. That includes the ones that
-are not "logout": the concurrent-session-limit eviction in
-`AuthService.create_session` sets `revoked = True` on the oldest row, so a session
-pushed out by the limit stops authenticating its cookie as well. **No new table, no new
+row is revoked (`revoked = True`), deactivated (`is_active = False`), past
+`expires_at`, or owned by a non-active user. Since 2026-10 the sign-out,
+session and password paths go through `AuthService.revoke_sessions`, which sets
+both flags (and revokes the row's refresh-token family); the bulk admin
+revocations set `revoked = True` directly, which this check refuses all the
+same. That is what makes the cookie revocable — and
+it means every revocation path Janua has revokes this cookie too, for free.
+That includes the ones that are not "logout": the concurrent-session-limit
+eviction in `AuthService.create_session`, password change and reset,
+`DELETE /sessions*` and refresh-token reuse detection, so a session pushed out
+by any of them stops authenticating its cookie as well. What each path revokes
+is tabled in
+[runbooks/oauth-shared-state-redis.md → Revocation that revokes](../runbooks/oauth-shared-state-redis.md#revocation-that-revokes-2026-10). **No new table, no new
 column, no alembic revision**, which matters while production is frozen behind
 the migration-drift guard.
 
@@ -350,7 +355,7 @@ session-minting paths were reviewed and deliberately excluded:
 |---|---|
 | `POST /auth/signin` (`app/auth/router.py`) | JSON API returning `TokenResponse`. Its cookies are the legacy `access_token` / `refresh_token` names, which `/authorize` does not read — it establishes no `/authorize`-visible session today, with or without R1. |
 | `POST /mfa/challenge/verify` (`routers/v1/mfa.py`) | JSON API returning tokens in the body; sets **no** cookies at all, not even `janua_access_token`. Nothing to be estate-wide about. |
-| Social OAuth callback (`routers/v1/oauth.py`) | Calls `AuthService.create_user_session`, **which does not exist anywhere in the codebase** — that path raises `AttributeError` the moment a social provider is configured. It is masked in production only because the social-provider env vars are unset (`/auth/oauth/providers` returns `[]`). Fixing it is out of R1's scope and tracked separately; when it is fixed it should emit `janua_sso` (and the `janua_*` cookie pair) too. |
+| Social OAuth callback (`routers/v1/oauth.py`) | Mints its session through `AuthService.create_session` (since 2026-09-06; it used to call a method that did not exist, so every social login ended in a 500). It does not emit `janua_sso` yet; when social login becomes a browser-session door it should emit it (and the `janua_*` cookie pair) too. |
 
 Each of these becomes a one-line change (`user=` / `session=` on the helper, or
 `set_sso_cookie`) if it later becomes a real browser-session door.
@@ -425,9 +430,18 @@ second sign-in adds an account rather than evicting the first.
   can hold several live sessions. The chooser shows that person's newest live
   session only. The held set keeps the older `sid`s, because `sign-out-all`
   revokes every row named there.
-- **Sign out one** (`sign-out-one`): remove that `sid` from the held-set and
+- **Sign out one** (`sign-out-one`): remove that `sid` from the held-set,
+  revoke its `sessions` row (its refresh-token family stops refreshing), and
   re-front another held account; an unheld `sid` is rejected.
-- **Sign out all** (`sign-out-all`): clear both `janua_sso` and `janua_sessions`.
+- **Sign out all** (`sign-out-all`): revoke every `sessions` row named in the
+  held set (and the fronted one), then clear both `janua_sso` and
+  `janua_sessions`. It signs **this browser** out; the person's sessions on
+  other devices are not touched (`DELETE /api/v1/sessions` does that).
+- **Redis is not involved** in switching: the held set is a cookie and the
+  checks read `sessions` rows. The consent screen that may follow the switch
+  does keep its state in Redis, and answers `503` + `Retry-After` while Redis
+  is unavailable (see
+  [runbooks/oauth-shared-state-redis.md](../runbooks/oauth-shared-state-redis.md)).
 
 ### L3t — per-tab session focus (`X-Janua-Session`)
 

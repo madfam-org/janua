@@ -303,10 +303,14 @@ Both admin interfaces (admin.janua.dev and admin.enclii.dev) use the same domain
 ```
 POST   /api/v1/auth/login          # Email/password login
 POST   /api/v1/auth/register       # User registration
-POST   /api/v1/auth/token/refresh  # Refresh JWT
+POST   /api/v1/auth/refresh        # Refresh JWT (refuses a revoked session; 503 while Redis is down)
 GET    /api/v1/auth/me             # Current user
-POST   /api/v1/auth/mfa/setup      # Setup MFA
-POST   /api/v1/auth/passkey/register # Register passkey
+POST   /api/v1/mfa/enable          # Start TOTP MFA enrolment
+POST   /api/v1/passkeys/register/options # Passkey registration options (then /register/verify)
+POST   /api/v1/auth/signout        # Sign out: revokes this session's refresh-token family
+DELETE /api/v1/sessions/{id}       # Revoke one session (owner or platform admin)
+POST   /api/v1/oauth/revoke        # RFC 7009 revocation (client authentication required)
+GET    /api/v1/health/ready        # Readiness probe: reports Redis/DB, gates on neither
 
 GET    /api/v1/users               # List users (admin)
 POST   /api/v1/admin/users         # Create user directly (admin; Supabase createUser parity)
@@ -550,6 +554,8 @@ pnpm test:e2e                    # Playwright E2E
 | SDK Guides | `packages/*/README.md` |
 | Migration Guide | `scripts/migration/README.md` |
 | Architecture | `docs/architecture/` |
+| Silent SSO, estate cookie, account switching | `docs/architecture/SILENT_SSO_SESSION.md` |
+| OAuth consent, revocation, passkeys, health and readiness (runbook hub) | `docs/runbooks/oauth-shared-state-redis.md` |
 | Deployment | `docs/deployment/` |
 | Domain manifest | `enclii.yaml` |
 
@@ -992,10 +998,15 @@ EOF
 |---------|----------|
 | Auth router | `apps/api/app/routers/v1/auth.py` |
 | Auth service | `apps/api/app/services/auth_service.py` |
-| JWT handling | `apps/api/app/services/jwt_service.py` |
-| MFA service | `apps/api/app/services/mfa_service.py` |
-| OAuth service | `apps/api/app/services/oauth_service.py` |
-| Passkey/WebAuthn | `apps/api/app/routers/v1/passkeys.py` |
+| JWT handling | `apps/api/app/core/jwt_manager.py` (`app/services/jwt_service.py` has no mounted caller) |
+| MFA router | `apps/api/app/routers/v1/mfa.py` |
+| Social login (OAuth client side) | `apps/api/app/services/oauth.py`, `apps/api/app/routers/v1/oauth.py` |
+| OAuth/OIDC provider (authorize, consent, token, revoke, introspect, account chooser) | `apps/api/app/routers/v1/oauth_provider.py` |
+| Sessions API | `apps/api/app/routers/v1/sessions.py` |
+| Revocation list reader | `apps/api/app/services/token_revocation.py` |
+| Strict Redis operations and the circuit breaker | `apps/api/app/core/redis_circuit_breaker.py` |
+| Health and readiness | `apps/api/app/routers/v1/health.py`, checks registered in `apps/api/app/main.py` |
+| Passkey/WebAuthn | `apps/api/app/routers/v1/passkeys.py`; SDK `packages/typescript-sdk/src/webauthn-helper.ts`, `src/utils/webauthn-encoding.ts` |
 | SSO/SAML | `apps/api/app/sso/` |
 
 ### SDKs
@@ -1238,6 +1249,9 @@ is tracked privately and appears here only by name.
 | Merge and deploy window for the audit-log fixes | Both PRs change the audit logger and add migration `020`; they need a scheduled window and a migration run | P1 | owner decision | #673, #676 |
 | Next.js hardening checklist for `apps/admin`, `apps/dashboard`, `apps/docs` and `apps/website` (tracked privately) | Brings the four Next apps to the posture the rest of the estate already ships | P1 | engineering | — |
 | Un-skip the 11 core auth e2e tests in `tests/e2e/auth-flows.spec.ts` and run them in CI | Every `test.skip` there (invalid credentials, password reset, MFA enrollment, session persistence, logout, protected-route redirect, Google OAuth, lockout, email verification, concurrent sessions, inactivity timeout) leaves a core auth journey without an E2E proof | P1 | engineering | — |
+| Alert on the readiness body for Redis and the database | Since #696/#697 `GET /api/v1/health/ready` answers 200 with `"status": "degraded"` during a Redis or database outage, so a probe or alert that reads only the HTTP status no longer sees either outage. Monitoring must alert on a non-empty `degraded` and on `redis_circuit.strict_failures` rising | P1 | engineering | [`docs/runbooks/oauth-shared-state-redis.md`](docs/runbooks/oauth-shared-state-redis.md#follow-up-alerting-on-the-readiness-body) |
+| Access-token revocation on `get_current_user` routes | Most routes do not read the revocation list, so a signed-out session's access token works until it expires (default `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` 480). Checking it there makes every route depend on Redis | P2 | owner decision | [runbook → Open items](docs/runbooks/oauth-shared-state-redis.md#open-items) |
+| Auth and OAuth follow-ups after #694–#698 | OIDC `refresh_token` grant has no rotation or reuse detection; grant access tokens carry no family; bulk admin revocations bypass `AuthService.revoke_sessions`; password-reset race; the code grant's `expires_in` (3600) differs from the token's `exp`; SDK surfaces that call routes that do not exist (`client.sessions.revokeAllSessions` / `getCurrentSession` / `refresh`, two-argument `client.users.revokeSession`, react-native passkeys, `@janua/ui` `PasskeyButton`); the dashboard Sessions page reads `.items` from a `{sessions, total}` response and its revoke-all button uses the missing route; react-sdk JWT decoding without base64url; passkey verify errors echo library text | P2 | engineering | [runbook → Open items](docs/runbooks/oauth-shared-state-redis.md#open-items) |
 | Skip-inventory sweep | About 274 `pytest.skip` / `skip` / `xfail` markers under `apps/api/tests` (CI's full API selection reports 99 skipped) and 43 `.skip` calls in JS/TS tests. Largest groups: import-guarded skips (`Model/Config imports failed`), «httpx async await issue in billing service» (16), PostgreSQL-only tests that skip without a database (they run in the PostgreSQL CI job), and rate-limit tests mocked in the test environment. Fix or justify each | P2 | engineering | — |
 | Move the four app Dockerfiles to pnpm 10 with `--frozen-lockfile` | Images install with pnpm 9.15 and `--no-frozen-lockfile`, so they can resolve versions the lockfile does not pin. See «Image installs use pnpm 9» under Deployment Pipeline | P2 | engineering | — |
 | Remove the legacy email-verification token fallback in `apps/api/app/services/email_service.py` | The JSON format shipped in April 2026; the fallback for the older format was meant to last one 24 h token TTL | P3 | engineering | — |

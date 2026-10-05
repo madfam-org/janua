@@ -392,6 +392,30 @@ payload = jwt.decode(
 
 ## Monitoring and Troubleshooting
 
+### Consent, revocation and readiness
+
+The detail lives in the runbook hub
+[`../runbooks/oauth-shared-state-redis.md`](../runbooks/oauth-shared-state-redis.md).
+The short version for operators:
+
+- **Consent `503` vs `403`.** `503` + `Retry-After` on `/oauth/authorize` or
+  `/oauth/consent` means Redis could not store or read the consent state;
+  nothing was consumed and a retry works. `403` means the CSRF token was really
+  unknown, expired, issued to another user or already used (a double submit).
+- **First-party clients skip consent.** An active, confidential client named
+  `selva-office*` / `madfam-*`, or carrying the `madfam:silent_auth` scope, may
+  use `prompt=none` and is pre-consented. Every other client sees the consent
+  screen. See [`../architecture/SILENT_SSO_SESSION.md`](../architecture/SILENT_SSO_SESSION.md).
+- **`POST /api/v1/oauth/revoke` requires client authentication** (RFC 7009),
+  the same as the token endpoint: HTTP Basic or form fields, the secret for a
+  confidential client, `client_id` for a public one. Without it the answer is
+  `401 invalid_client`. Tokens of another client answer `200` and change
+  nothing.
+- **Readiness stays green during a Redis or database outage.**
+  `GET /api/v1/health/ready` answers `200` with `"status": "degraded"` and
+  names the dependency in `degraded`. Alert on the body, not on the HTTP
+  status.
+
 ### CORS errors
 
 **Symptom**: Browser console shows `Access-Control-Allow-Origin` errors when a consumer app calls Janua endpoints.
