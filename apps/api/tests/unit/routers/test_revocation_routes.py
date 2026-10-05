@@ -268,9 +268,8 @@ class TestDeleteSession:
     async def test_revoking_twice_is_refused(self, env):
         access, _, _ = await _sign_in(env, env.alice)
         _, _, other_id = await _sign_in(env, env.alice)
-        assert (
-            await env.http.delete(f"/api/v1/sessions/{other_id}", headers=_bearer(access))
-        ).status_code == 200
+        first = await env.http.delete(f"/api/v1/sessions/{other_id}", headers=_bearer(access))
+        assert first.status_code == 200
         resp = await env.http.delete(f"/api/v1/sessions/{other_id}", headers=_bearer(access))
         assert resp.status_code == 400
 
@@ -332,7 +331,8 @@ class TestPerAccountSignOut:
 
         _, refresh, session_id = await _sign_in(env, env.alice)
         async with env.factory() as db:
-            assert await revoke_sso_session(str(session_id), db) is True
+            revoked = await revoke_sso_session(str(session_id), db)
+            assert revoked is True
             await db.commit()
         assert (await _refresh(env, refresh)).status_code == 401
 
@@ -442,7 +442,8 @@ class TestOAuthRevokeRefreshToken:
 
     async def test_hint_is_optional(self, env):
         _, refresh = _oauth_tokens(env.alice, CLIENT_A)
-        assert (await _revoke(env, refresh)).status_code == 200
+        resp = await _revoke(env, refresh)
+        assert resp.status_code == 200
         assert (await _refresh_grant(env, refresh)).status_code == 400
 
 
@@ -452,7 +453,9 @@ class TestOAuthRevokeAccessToken:
         before = await _introspect(env, access)
         assert before.json()["active"] is True
 
-        assert (await _revoke(env, access, hint="access_token")).status_code == 200
+        resp = await _revoke(env, access, hint="access_token")
+
+        assert resp.status_code == 200
 
         assert (await _introspect(env, access)).json() == {"active": False}
         userinfo = await env.http.get("/api/v1/oauth/userinfo", headers=_bearer(access))
@@ -460,7 +463,8 @@ class TestOAuthRevokeAccessToken:
 
     async def test_a_wrong_hint_still_revokes(self, env):
         access, _ = _oauth_tokens(env.alice, CLIENT_A)
-        assert (await _revoke(env, access, hint="refresh_token")).status_code == 200
+        resp = await _revoke(env, access, hint="refresh_token")
+        assert resp.status_code == 200
         assert (await _introspect(env, access)).json() == {"active": False}
 
     async def test_the_blacklist_entry_expires_with_the_token(self, env):
@@ -491,7 +495,8 @@ class TestOAuthRevokeNoOps:
     async def test_a_janua_session_token_belongs_to_no_client(self, env):
         access, refresh, _ = await _sign_in(env, env.alice)
         for token in (access, refresh):
-            assert (await _revoke(env, token)).status_code == 200
+            resp = await _revoke(env, token)
+            assert resp.status_code == 200
         assert (await _refresh(env, refresh)).status_code == 200
 
 
@@ -509,4 +514,5 @@ class TestOAuthRevokeFailsClosed:
 
     async def test_an_invalid_token_needs_no_redis_and_answers_200(self, env):
         env.server.connected = False
-        assert (await _revoke(env, "not-a-token-at-all")).status_code == 200
+        resp = await _revoke(env, "not-a-token-at-all")
+        assert resp.status_code == 200

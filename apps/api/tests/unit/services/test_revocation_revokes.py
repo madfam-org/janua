@@ -219,15 +219,17 @@ class TestRevokeSessionById:
         user = await _user(db)
         _, refresh, session = await _sign_in(db, user)
 
-        assert await AuthService.revoke_session(db, session.id, reason="user_revoked") is True
+        found = await AuthService.revoke_session(db, session.id, reason="user_revoked")
+        assert found is True
         await db.commit()
 
         assert await AuthService.refresh_tokens(db, refresh) is None
         assert (await _row(db, session.id)).revoked_reason == "user_revoked"
 
     async def test_unknown_or_malformed_id_revokes_nothing(self, db, redis):
-        assert await AuthService.revoke_session(db, uuid.uuid4()) is False
-        assert await AuthService.revoke_session(db, "not-a-uuid") is False
+        unknown = await AuthService.revoke_session(db, uuid.uuid4())
+        malformed = await AuthService.revoke_session(db, "not-a-uuid")
+        assert unknown is False and malformed is False
 
 
 class TestTheRowIsTheDurableRecord:
