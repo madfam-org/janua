@@ -665,8 +665,12 @@ async def check_session(
     if not access_token:
         raise HTTPException(status_code=401, detail="No session cookie or bearer token found")
 
-    # Validate access token
-    payload = AuthService.verify_token(access_token, token_type="access")
+    # Validate access token, revocation list included. `verify_token` is a
+    # coroutine; until 2026-10 it was called here without `await`, so the
+    # revocation check never ran and `payload.get` failed on the coroutine.
+    # When Redis cannot answer the revocation check this raises
+    # RedisUnavailableError (503 + Retry-After), never "session valid".
+    payload = await AuthService.verify_token(access_token, token_type="access")
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
 
@@ -1916,7 +1920,9 @@ async def sign_out(
     which invoke this as a plain coroutine, keep working unchanged.
     """
     token = credentials.credentials
-    payload = await AuthService.verify_token(token, token_type="access")
+    # identify_token, not verify_token: sign-out must still revoke the session
+    # row and clear cookies while Redis is down (see AuthService.identify_token).
+    payload = await AuthService.identify_token(token, token_type="access")
 
     if payload:
         # Blacklist the access token JTI
@@ -2722,7 +2728,7 @@ async def change_password(
     current_session_id = None
     try:
         token = credentials.credentials
-        payload = await AuthService.verify_token(token, token_type="access")
+        payload = await AuthService.identify_token(token, token_type="access")
         if payload:
             # Find current session by access token JTI
             result = await db.execute(

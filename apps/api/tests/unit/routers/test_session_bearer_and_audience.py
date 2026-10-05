@@ -24,7 +24,7 @@ def _no_blacklist():
     """verify_token consults redis for the JTI blacklist; unit tests have no
     redis, and an unmocked call dies on `None.get` before the verdict."""
     redis = AsyncMock()
-    redis.get = AsyncMock(return_value=None)
+    redis.strict_exists = AsyncMock(return_value=0)
     with patch("app.services.auth_service.get_redis", AsyncMock(return_value=redis)):
         yield
 

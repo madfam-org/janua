@@ -107,7 +107,7 @@ class TestOAuthAuthorize:
         with patch("app.routers.v1.oauth.OAuthService") as mock_oauth_service:
             with patch("app.core.redis.get_redis") as mock_get_redis:
                 mock_redis = AsyncMock()
-                mock_redis.set = AsyncMock(return_value=True)
+                mock_redis.strict_set = AsyncMock(return_value=None)
                 mock_get_redis.return_value = mock_redis
 
                 mock_oauth_service.get_provider_config.return_value = {
@@ -167,8 +167,10 @@ class TestOAuthCallback:
         with patch("app.routers.v1.oauth.OAuthService") as mock_service:
             with patch("app.core.redis.get_redis") as mock_get_redis:
                 mock_redis = AsyncMock()
-                mock_redis.get = AsyncMock(return_value="github")
-                mock_redis.delete = AsyncMock(return_value=1)
+                # Social-login state is read and consumed strictly (no breaker
+                # fallback); the DEL count is what makes it single-use.
+                mock_redis.strict_get = AsyncMock(return_value="github")
+                mock_redis.strict_delete = AsyncMock(return_value=1)
                 mock_get_redis.return_value = mock_redis
 
                 user = MagicMock()
@@ -194,7 +196,7 @@ class TestOAuthCallback:
         kwargs = mock_service.handle_oauth_callback.await_args.kwargs
         assert kwargs["user_agent"] == "pytest-ua"
         assert "ip_address" in kwargs
-        mock_redis.delete.assert_awaited_once_with("oauth_state:st4te")
+        mock_redis.strict_delete.assert_awaited_once_with("oauth_state:st4te")
 
 
 class TestLinkOAuthAccount:

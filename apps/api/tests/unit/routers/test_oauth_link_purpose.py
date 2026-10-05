@@ -11,6 +11,7 @@ import uuid
 from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, urlparse
 
+import fakeredis
 import pytest
 import pytest_asyncio
 from consent_helpers import (
@@ -27,6 +28,7 @@ from consent_helpers import (
 from sqlalchemy import select
 
 from app.config import settings
+from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.dependencies import get_current_user
 from app.models import OAuthAccount, OAuthProvider
 from app.models.connected_account import ConnectedAccount, ConnectedAccountStatus
@@ -39,6 +41,18 @@ GOOGLE_SUB = "google-sub-fixture"
 
 @pytest_asyncio.fixture
 async def env(monkeypatch):
+    # Link state is written and consumed with strict Redis operations (no
+    # breaker fallback, no pod memory), which the suite-wide raw FakeRedis from
+    # tests/conftest.py does not offer. Serve the production wrapper over one
+    # in-process fake shared by the link and callback requests.
+    import app.core.redis as redis_module
+
+    shared = ResilientRedisClient(fakeredis.aioredis.FakeRedis(decode_responses=True))
+
+    async def _get_redis():
+        return shared
+
+    monkeypatch.setattr(redis_module, "get_redis", _get_redis)
     monkeypatch.setattr(settings, "OAUTH_GOOGLE_CLIENT_ID", "google-client-placeholder")
     monkeypatch.setattr(settings, "OAUTH_GOOGLE_CLIENT_SECRET", "google-secret-placeholder")
     monkeypatch.setattr(settings, "OAUTH_GITHUB_CLIENT_ID", "github-client-placeholder")

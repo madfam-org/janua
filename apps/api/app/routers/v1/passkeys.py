@@ -21,6 +21,7 @@ from webauthn import (
 from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 
 from app.config import settings
+from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.database import get_db
 from app.routers.v1.auth import get_current_user
 from app.services.auth_service import AuthService
@@ -113,6 +114,27 @@ def get_origin() -> str:
 
 # Redis key builders + TTLs for one-time WebAuthn challenges (server-side only —
 # a challenge must NEVER be supplied by the client, or replay protection is void).
+async def _consume_challenge(
+    redis_client: ResilientRedisClient, key: str, missing_detail: str
+) -> str:
+    """Read and consume a one-time WebAuthn challenge, strictly.
+
+    Strict operations (no breaker fallback, no pod-local cache): Redis being
+    unreachable raises RedisUnavailableError (503 + Retry-After) instead of
+    reading as "no challenge", and a challenge consumed on another replica can
+    never come back from this one's memory. The DEL count makes the challenge
+    single-use across replicas: of two concurrent verifies, exactly one wins.
+    """
+    stored = await redis_client.strict_get(key)
+    if not stored:
+        raise HTTPException(status_code=400, detail=missing_detail)
+    if isinstance(stored, bytes):
+        stored = stored.decode()
+    if await redis_client.strict_delete(key) != 1:
+        raise HTTPException(status_code=400, detail=missing_detail)
+    return str(stored)
+
+
 def _reg_challenge_key(user_id) -> str:
     return f"passkey_challenge:{user_id}"
 
@@ -172,10 +194,12 @@ async def get_registration_options(
     challenge = bytes_to_base64url(options.challenge)
 
     redis_client = await get_redis()
-    await redis_client.setex(
+    # Strict write: the verify call may land on another replica. A challenge
+    # Redis did not take answers 503 here, not "challenge expired" later.
+    await redis_client.strict_set(
         _reg_challenge_key(current_user.id),
-        300,  # 5 minutes
         challenge,
+        ex=300,  # 5 minutes
     )
 
     # Convert to JSON-serializable format
@@ -215,13 +239,11 @@ async def verify_registration(
     from app.core.redis import get_redis
 
     redis_client = await get_redis()
-    challenge_key = _reg_challenge_key(current_user.id)
-    stored_challenge = await redis_client.get(challenge_key)
-    if not stored_challenge:
-        raise HTTPException(status_code=400, detail="No registration in progress or challenge expired")
-    if isinstance(stored_challenge, bytes):
-        stored_challenge = stored_challenge.decode()
-    await redis_client.delete(challenge_key)
+    stored_challenge = await _consume_challenge(
+        redis_client,
+        _reg_challenge_key(current_user.id),
+        "No registration in progress or challenge expired",
+    )
 
     expected_challenge = base64url_to_bytes(stored_challenge)
 
@@ -328,10 +350,11 @@ async def get_authentication_options(
     session_id = secrets.token_urlsafe(32)
 
     redis_client = await get_redis()
-    await redis_client.setex(
-        f"passkey_auth_challenge:{session_id}",
-        600,  # 10 minutes
+    # Strict write (see register/options).
+    await redis_client.strict_set(
+        _auth_challenge_key(session_id),
         challenge,
+        ex=600,  # 10 minutes
     )
 
     return {
@@ -368,13 +391,11 @@ async def verify_authentication(
     from app.core.redis import get_redis
 
     redis_client = await get_redis()
-    challenge_key = _auth_challenge_key(session_id)
-    stored_challenge = await redis_client.get(challenge_key)
-    if not stored_challenge:
-        raise HTTPException(status_code=400, detail="No authentication in progress or challenge expired")
-    if isinstance(stored_challenge, bytes):
-        stored_challenge = stored_challenge.decode()
-    await redis_client.delete(challenge_key)
+    stored_challenge = await _consume_challenge(
+        redis_client,
+        _auth_challenge_key(session_id),
+        "No authentication in progress or challenge expired",
+    )
 
     # Get credential ID from response
     credential_id = auth_request.credential.get("id")

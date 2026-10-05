@@ -422,7 +422,8 @@ class ResilientRedisClient:
     #
     # Use these for state that must be identical on every replica and whose
     # loss must be visible: OAuth consent CSRF tokens, stored authorization
-    # requests, authorization codes. They try Redis whatever the circuit state
+    # requests, authorization codes, token revocation lists, WebAuthn
+    # challenges and social-login state. They try Redis whatever the circuit state
     # (the circuit protects fallback-able callers; a strict caller has no
     # fallback to protect) and raise RedisUnavailableError on any failure.
     # ------------------------------------------------------------------
@@ -455,6 +456,15 @@ class ResilientRedisClient:
     async def strict_get(self, key: str) -> Optional[Any]:
         """GET key from Redis itself (None = absent), or raise RedisUnavailableError."""
         return await self._strict(lambda client: client.get(key))
+
+    async def strict_exists(self, *keys: str) -> int:
+        """EXISTS keys against Redis itself (count of keys present), or raise.
+
+        For revocation lists: the breaker's `exists` answers 0 ("not revoked")
+        when Redis is unreachable, which accepts a revoked token. This one
+        raises RedisUnavailableError instead, so the caller answers 503.
+        """
+        return int(await self._strict(lambda client: client.exists(*keys)))
 
     async def strict_delete(self, *keys: str) -> int:
         """DEL keys; returns how many Redis actually removed, or raises.
