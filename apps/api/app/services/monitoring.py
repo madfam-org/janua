@@ -228,6 +228,19 @@ class MetricsCollector:
             await self._flush_metrics()
 
 
+def _is_healthy(result: Any) -> bool:
+    """Read a health check's result.
+
+    A check may return a bool, or a dict carrying `healthy` (as
+    `get_database_health()` does). A dict is healthy only when it says so:
+    counting any non-empty dict as healthy made the database check report
+    `healthy` through every database outage (J3-001).
+    """
+    if isinstance(result, dict):
+        return result.get("healthy") is True
+    return bool(result)
+
+
 class HealthChecker:
     """
     System health checking and monitoring
@@ -272,7 +285,7 @@ class HealthChecker:
         for name, check in self.checks.items():
             try:
                 start_time = time.time()
-                result = await check["func"]()
+                result = _is_healthy(await check["func"]())
                 duration = (time.time() - start_time) * 1000
 
                 results["checks"][name] = {

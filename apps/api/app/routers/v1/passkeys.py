@@ -157,13 +157,19 @@ def _credential_descriptors(passkeys: Iterable[Passkey]) -> List[PublicKeyCreden
 def _authenticator_selection(attachment: Optional[str]) -> AuthenticatorSelectionCriteria:
     """The registration ceremony's authenticator requirements.
 
-    Unchanged policy: the requested attachment (default cross-platform), no
-    resident key required, user verification preferred. Built as the library's
-    struct: webauthn 3.x reads `.resident_key` from it and crashed on the dict
-    this used to pass.
+    No attachment preference unless the client asks for one (owner decision
+    2026-10-04, J3-006): `authenticatorAttachment` is omitted, so both
+    platform authenticators (Touch ID, Windows Hello, Android) and roaming
+    ones (security keys, a phone via hybrid) can register. Defaulting to
+    `cross-platform` used to exclude every built-in authenticator; the
+    dashboard sends no preference. A client that asks for `platform` or
+    `cross-platform` still gets it. No resident key required and user
+    verification preferred, as before. Built as the library's struct:
+    webauthn 3.x reads `.resident_key` from it and crashed on the dict this
+    used to pass.
     """
     return AuthenticatorSelectionCriteria(
-        authenticator_attachment=AuthenticatorAttachment(attachment or "cross-platform"),
+        authenticator_attachment=AuthenticatorAttachment(attachment) if attachment else None,
         resident_key=ResidentKeyRequirement.DISCOURAGED,
         require_resident_key=False,
         user_verification=UserVerificationRequirement.PREFERRED,

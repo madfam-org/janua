@@ -306,7 +306,9 @@ class AuthService:
         return token, jti, family, expires_at
 
     @staticmethod
-    async def revoke_sessions(sessions: Iterable[Session], *, reason: str) -> int:
+    async def revoke_sessions(
+        sessions: Iterable[Session], *, reason: str, strict: bool = False
+    ) -> int:
         """Revoke `sessions` rows: the one implementation every revocation path uses.
 
         For each row:
@@ -321,9 +323,13 @@ class AuthService:
           lifetime, so routes that read the revocation list refuse it;
         - its fast-lookup entry in the Redis session store is dropped.
 
-        Redis writes are best-effort (logged on failure): the row is the
-        durable record and `/auth/refresh` checks it. The caller commits.
-        Returns the number of rows passed in.
+        Redis writes are best-effort (logged on failure) by default: the row
+        is the durable record and `/auth/refresh` checks it. With
+        `strict=True` (password reset) the revocation-list writes raise
+        `RedisUnavailableError` when Redis cannot take them, so the caller can
+        refuse the whole operation (503) before committing anything. The
+        session-store eviction stays best-effort either way: it is a cache.
+        The caller commits. Returns the number of rows passed in.
         """
         redis = await get_redis()
         session_store = SessionStore(redis)
@@ -339,16 +345,25 @@ class AuthService:
                 getattr(session, "expires_at", None), token_revocation.refresh_token_ttl()
             )
             await token_revocation.revoke_family(
-                redis, getattr(session, "refresh_token_family", None), refresh_ttl, reason=reason
+                redis,
+                getattr(session, "refresh_token_family", None),
+                refresh_ttl,
+                reason=reason,
+                strict=strict,
             )
             await token_revocation.revoke_jti(
-                redis, getattr(session, "refresh_token_jti", None), refresh_ttl, reason=reason
+                redis,
+                getattr(session, "refresh_token_jti", None),
+                refresh_ttl,
+                reason=reason,
+                strict=strict,
             )
             await token_revocation.revoke_jti(
                 redis,
                 getattr(session, "access_token_jti", None),
                 token_revocation.access_token_ttl(),
                 reason=reason,
+                strict=strict,
             )
             if getattr(session, "id", None) is not None:
                 await session_store.delete(str(session.id))
@@ -376,18 +391,27 @@ class AuthService:
         user_id: UUID,
         exclude_session_id: Optional[UUID] = None,
         reason: str = "sessions_invalidated",
+        *,
+        strict: bool = False,
+        commit: bool = True,
     ) -> int:
         """Revoke every live session of a user, optionally keeping one.
 
-        Used by password change (keeping the session that changed it) and by
-        security events that sign a user out everywhere. Each revoked row's
-        refresh-token family stops refreshing (see `revoke_sessions`).
+        Used by password change (keeping the session that changed it), by
+        password reset (keeping none) and by security events that sign a user
+        out everywhere. Each revoked row's refresh-token family stops
+        refreshing (see `revoke_sessions`).
 
         Args:
             db: Database session
             user_id: User whose sessions to invalidate
             exclude_session_id: Optional session ID to keep valid (for current session)
             reason: Recorded in `sessions.revoked_reason`
+            strict: Raise `RedisUnavailableError` when a revocation-list write
+                cannot be stored (see `revoke_sessions`)
+            commit: Commit the revoked rows here. Pass False to commit them
+                in the caller's own transaction (password reset commits the
+                revoked rows and the new password together)
 
         Returns:
             Number of sessions revoked
@@ -405,10 +429,11 @@ class AuthService:
         result = await db.execute(query)
         sessions = result.scalars().all()
 
-        revoked_count = await AuthService.revoke_sessions(sessions, reason=reason)
+        revoked_count = await AuthService.revoke_sessions(sessions, reason=reason, strict=strict)
 
         if revoked_count > 0:
-            await db.commit()
+            if commit:
+                await db.commit()
             logger.info(
                 "Invalidated user sessions",
                 user_id=str(user_id),

@@ -28,6 +28,7 @@ from app.auth.login_method import (
 from app.config import settings
 from app.core.locale import locale_from_request
 from app.core.redis import ResilientRedisClient, get_redis
+from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.core.url_security import validate_redirect_url
 from app.database import AsyncSessionLocal, get_db
 from app.dependencies import get_current_user
@@ -2386,9 +2387,36 @@ async def _dispatch_password_reset(
 
 
 async def _consume_password_reset(token: str, new_password: str, db) -> tuple[bool, str]:
-    """Validate a reset token and set the new password — shared by the JSON
-    endpoint and the hosted reset form. Token check precedes policy check so a
-    dead link surfaces before a weak password does."""
+    """Validate a reset token, sign the user out everywhere and set the new
+    password — shared by the JSON endpoint and the hosted reset form. Token
+    check precedes policy check so a dead link surfaces before a weak password
+    does.
+
+    A completed reset revokes EVERY session of the user (owner decision
+    2026-10-04, J3-003): the person resetting may be signed in nowhere, and a
+    session stolen before the reset must not survive it. Unlike password
+    change, no session is kept.
+
+    Order: revoke first, password second, one commit.
+
+    1. Every live session is revoked through `AuthService.revoke_sessions`
+       with `strict=True`: its refresh family, refresh JTI and access JTI go on
+       the revocation list, and the rows are marked revoked (not committed yet).
+       When Redis cannot take a write this raises `RedisUnavailableError`
+       (503 + Retry-After, as since #695); the transaction is rolled back, so
+       the password, the reset token and the rows are untouched and the same
+       link works again once Redis answers.
+    2. The new password and the used token are set, and the revoked rows, the
+       password and the token are committed together.
+
+    So there is no moment when the new password is set and an old session
+    still refreshes: the revocation is in Redis before the password commit,
+    and the rows are revoked in the same commit. The opposite order (password
+    first) would leave the new password set with the old sessions live
+    whenever the revocation then failed. A failure between the two steps
+    leaves the user signed out with the old password and an unused link,
+    which is safe and retryable.
+    """
     result = await db.execute(
         select(PasswordReset).where(
             PasswordReset.token == token,
@@ -2406,6 +2434,17 @@ async def _consume_password_reset(token: str, new_password: str, db) -> tuple[bo
         return False, message
 
     user = await db.get(User, reset.user_id)
+
+    # Step 1: revoke every session, strictly, before the password changes.
+    try:
+        revoked = await AuthService.invalidate_user_sessions(
+            db, user.id, reason="password_reset", strict=True, commit=False
+        )
+    except RedisUnavailableError:
+        await db.rollback()
+        raise
+
+    # Step 2: the new password, committed with the revoked rows.
     user.password_hash = AuthService.hash_password(new_password)
     # Completing a reset proves control of the mailbox the token was mailed
     # to — the same evidence the magic-link flow auto-verifies on. Without
@@ -2419,8 +2458,14 @@ async def _consume_password_reset(token: str, new_password: str, db) -> tuple[bo
 
     await db.commit()
 
-    await log_activity(db, str(user.id), "password_reset", {})
-    await log_audit_event(db, str(user.id), "password_reset", {})
+    # A sign-in that checked the OLD password while this reset ran can commit
+    # its session after step 1's query. Sweep once more now that the new
+    # password is committed. Best-effort Redis writes are enough here: the
+    # row is revoked and `/auth/refresh` refuses a row that is not live.
+    revoked += await AuthService.invalidate_user_sessions(db, user.id, reason="password_reset")
+
+    await log_activity(db, str(user.id), "password_reset", {"sessions_revoked": revoked})
+    await log_audit_event(db, str(user.id), "password_reset", {"sessions_revoked": revoked})
 
     return True, "Password successfully reset"
 

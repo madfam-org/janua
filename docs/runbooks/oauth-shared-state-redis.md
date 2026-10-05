@@ -117,6 +117,7 @@ Now:
 | Social sign-in and link start, and their callbacks | `503`. Browsers (`Accept: text/html`) get the short "Sign-in is temporarily unavailable" page |
 | OAuth consent, `/oauth/authorize`, `/oauth/token` (`authorization_code`) | `503` (since #694) |
 | Sign-out, password change, sessions list, `DELETE /sessions*` | work. The session row is revoked in the database, and `POST /auth/refresh` checks the row, so the revocation holds once Redis is back |
+| `POST /auth/password/reset`, `POST /auth/reset-password-form` | `503`, nothing applied: the password, the reset link and the sessions are unchanged, and the same link works once Redis answers (since 2026-10: a reset revokes every session strictly, see "Revocation that revokes") |
 | `POST /oauth/revoke` | `503` when the token needs revoking (the revocation could not be stored); `200` for an unknown, invalid or another client's token |
 | `POST /oauth/token` (`refresh_token` grant), `POST /oauth/introspect`, `GET /oauth/userinfo` | `503` (since 2026-10: they read the revocation list) |
 | `GET /.well-known/jwks.json`, `GET /.well-known/openid-configuration` | `200`. They never touch Redis |
@@ -134,7 +135,7 @@ table above answer from Janua.
 
 | Probe or health route | During a Redis outage |
 |-----------------------|-----------------------|
-| `GET /api/v1/health/ready` (the k8s `readinessProbe`) | `200`, `"status": "degraded"`, `"redis": "unhealthy"`, `"degraded": ["redis"]`, `redis_circuit` with `strict_failures` rising |
+| `GET /api/v1/health/ready` (the k8s `readinessProbe`) | `200`, `"status": "degraded"`, `"redis": "unhealthy"`, `"degraded": ["redis"]` (plus `"database"` if it is down too), `redis_circuit` with `strict_failures` rising |
 | `GET /health` (the k8s `livenessProbe`), `GET /api/v1/health/live` | `200`, unchanged |
 | `GET /api/v1/health/detailed` | `200`, overall `"status": "unhealthy"` and `checks.redis.status: "unhealthy"` (Redis stays a critical check there) |
 | `GET /ready` (not probed) | `200`, `"status": "degraded"`, `"redis": false`, unchanged |
@@ -165,14 +166,11 @@ Owner decision, 2026-10-04: "yes, make readiness independent of Redis".
   of reported-only checks is `READINESS_REPORTED_ONLY` in
   `app/routers/v1/health.py`; today it holds only `redis`.
 - **Every other dependency gates exactly as before.** The registered checks are
-  `database` (critical, gates), `redis` (critical, reported only) and
-  `encryption_key` (non-critical, never gated). The probe also answers 503 when
-  the health checker never initialised. Liveness (`/health`) is unchanged.
-- **Caveat, unchanged by this PR:** `get_database_health()` returns a dict, and
-  `HealthChecker` counts any non-empty result as healthy. So the `database`
-  check reports `healthy` even when the database is down, and readiness has never
-  failed on a database outage. Fixing that is its own decision: a database
-  outage would then empty the Service the way a Redis outage used to.
+  `database` (critical, reported only since the next section), `redis`
+  (critical, reported only) and `encryption_key` (non-critical, never gated).
+  The probe also answers 503 when the health checker never initialised, and for
+  any critical check registered later that is not in `READINESS_REPORTED_ONLY`.
+  Liveness (`/health`) is unchanged.
 - The readiness probe (`/api/v1/health/ready`) and `/ready` check Redis with a
   strict PING through **this process's own client**, the one requests use. They
   no longer open a fresh connection.
@@ -191,6 +189,53 @@ Owner decision, 2026-10-04: "yes, make readiness independent of Redis".
 - A strict call that succeeds while the circuit is open moves the circuit to
   half-open. The readiness probe runs every 10 s, so a pod stops serving
   fallbacks within about one probe period after Redis answers again.
+- **Each check is bounded** (`READINESS_CHECK_TIMEOUT_SECONDS` in
+  `app/main.py`, 2 s). The kubelet gives the probe 5 s and the checks run one
+  after another. A dependency that hangs instead of refusing would otherwise
+  outlast the probe, and a timed-out probe counts as failed, which would take
+  the pod out of the Service despite "report, don't gate". A check that times
+  out reports `unhealthy`.
+
+## Database readiness: reported, not gated (2026-10)
+
+Owner decision, 2026-10-04: "yes, go with all three recommendations" (J3-001).
+
+Until then the `database` readiness check could not fail.
+`get_database_health()` returns a dict (`{"healthy": false, ...}` during an
+outage), and `HealthChecker` counted any non-empty result as healthy. So
+readiness said `healthy` through every database outage, and `/health/detailed`
+did too.
+
+Now:
+
+- `HealthChecker` counts a dict result as healthy only when its `healthy` is
+  `true`. The registered check (`_check_database_health` in `app/main.py`)
+  runs `SELECT 1` through the database manager, bounded like the Redis check.
+- If the database was unreachable when the pod started, the check retries the
+  connection on each probe and reports `healthy` once the database answers. It
+  no longer reports `unhealthy` until the pod restarts.
+- **Readiness reports the database and still answers 200.** The replicas
+  share one database. Gating on it would empty the Service during a database
+  outage and take JWKS, discovery and the health routes down with it, while
+  the database-backed routes fail on their own anyway. `database` is in
+  `READINESS_REPORTED_ONLY` with `redis`.
+- The body carries `database: {"healthy": <bool>, "status": "healthy" |
+  "unhealthy" | "error"}`. It never includes error text or hostnames.
+
+### What an operator sees during a database outage
+
+| Probe or route | During a database outage |
+|----------------|--------------------------|
+| `GET /api/v1/health/ready` (the k8s `readinessProbe`) | `200`, `"status": "degraded"`, `"database": {"healthy": false, "status": "unhealthy"}`, `"degraded": ["database"]` (`["database", "redis"]` if Redis is down too) |
+| `GET /health` (the k8s `livenessProbe`), `GET /api/v1/health/live` | `200`, unchanged |
+| `GET /api/v1/health/detailed` | `200`, overall `"status": "unhealthy"` and `checks.database.status: "unhealthy"` |
+| `GET /ready` (not probed) | `200`, `"status": "degraded"`, unchanged |
+| `GET /.well-known/jwks.json`, `GET /.well-known/openid-configuration` | `200`. They never touch the database |
+| Database-backed routes (sign-in, refresh, password reset, sessions, OAuth token, admin...) | fail on their own, typically `503` with the error envelope code `DATABASE_ERROR` |
+
+Both replicas stay in the Service, so relying parties keep verifying Janua
+access tokens against the JWKS. Log line: `Database health check failed`
+(with the error type only).
 
 ## Diagnosing a consent 403 or 503
 
@@ -207,17 +252,19 @@ Owner decision, 2026-10-04: "yes, make readiness independent of Redis".
 ## Follow-up: alerting on the readiness body
 
 Not done in this change, and no monitoring configuration was touched. Because
-readiness stays green during a Redis outage, the platform's alerting has to
-look at the body:
+readiness stays green during a Redis outage AND during a database outage, the
+platform's alerting has to read the body, for both dependencies:
 
-- alert when `GET /api/v1/health/ready` returns `"redis"` other than `"healthy"`
-  (equivalently, a non-empty `"degraded"`) on any replica for more than one or
-  two probe periods;
+- alert when `GET /api/v1/health/ready` has a non-empty `"degraded"` on any
+  replica for more than one or two probe periods. That covers both:
+  - `"database": {"healthy": false, ...}` (`"degraded"` contains `"database"`);
+  - `"redis"` other than `"healthy"` (`"degraded"` contains `"redis"`);
 - alert when `redis_circuit.strict_failures` keeps rising, or `redis_circuit.state`
   stays `open`;
 - keep alerting on a 503 from readiness: it now means a gating check failed
-  (today, only a health checker that never initialised; see the database
-  caveat above).
+  (today, only a health checker that never initialised);
+- a blackbox probe that only reads the HTTP status of readiness will no longer
+  see either outage. Read the body, or probe a database-backed route.
 
 ## Still on the fallback path (follow-ups)
 
@@ -249,7 +296,7 @@ decision:
   pod-memory replay, but a lost write still shows up later as an invalid state.
 - The memory cache ignores TTLs for every key it holds.
 
-Revocation gaps that are not about Redis availability. The first three were
+Revocation gaps that are not about Redis availability. The first four were
 fixed in 2026-10 (next section); the rest remain, recorded here so they are not
 mistaken for fixed:
 
@@ -257,6 +304,8 @@ mistaken for fixed:
   `POST /auth/refresh` (key spelling and column mismatch).
 - Fixed: `DELETE /sessions/{id}` and `DELETE /sessions` revoked nothing.
 - Fixed: `POST /oauth/revoke` acknowledged without revoking anything.
+- Fixed: password reset (`/auth/password/reset`, the hosted reset form) set
+  the new password without revoking any session.
 - `get_current_user` consults no revocation list, so a logged-out access token
   is accepted by most routes until it expires (owner ruling pending).
 - The `refresh_token` grant on `POST /oauth/token` does not rotate-and-blacklist
@@ -264,8 +313,6 @@ mistaken for fixed:
 - Access tokens minted by an OAuth grant carry no family, so revoking the
   grant's refresh token does not revoke them; they expire on their own
   (RFC 7009 makes this a SHOULD). Revoke one by presenting it.
-- Password reset (`/auth/password/reset`, the hosted reset form) sets the new
-  password without revoking any session. Password change does.
 - Bulk revocations in `admin.py`, `users.py` and `internal_users.py` set only
   `sessions.revoked` with an `UPDATE`. That now stops `/auth/refresh` (the row
   check), but those paths do not blacklist the sessions' access tokens.
@@ -300,10 +347,26 @@ its Redis write was lost, and even for paths that only update the row.
 | `POST /auth/sessions/sign-out-one`, `sign-out-all`, OIDC `end_session` | each signed-out account's session (via `revoke_sso_session`) | `logout` |
 | `DELETE /sessions` | every other session of the caller; the current one is kept | `user_revoked_all` |
 | `POST /auth/password/change` | every OTHER session of the user, and their current access tokens; the session that changed the password stays signed in | `password_change` |
+| `POST /auth/password/reset`, hosted `POST /auth/reset-password-form` | EVERY session of the user, and their current access tokens; none is kept (the person resetting may be signed in nowhere). Strict: see below | `password_reset` |
 | Session limit (`MAX_SESSIONS_PER_IDENTITY`) at sign-in | the oldest sessions over the limit; that device must sign in again | `session_limit` |
 | `DELETE /sessions/{id}` by its owner | that session | `user_revoked` |
 | `DELETE /sessions/{id}` by a platform admin (`is_admin`) | that session, whoever owns it | `admin_revoked` |
 | Refresh-token reuse detected | the whole family | `family_revoked_security` |
+
+**Password reset is strict and revokes first** (owner decision 2026-10-04,
+"yes, go with all three recommendations"). The reset writes the revocation
+list with strict Redis writes BEFORE the new password is committed, then
+commits the revoked rows, the new password and the used reset link in one
+transaction. If Redis cannot take a write, the reset answers `503` +
+`Retry-After` and rolls back: the password, the link and the rows are
+unchanged, and the same link works once Redis answers. So no moment exists in
+which the new password is set and an old session still refreshes. (The
+opposite order would leave the new password set with the old sessions live
+whenever the revocation then failed.) A failure after the Redis writes and
+before the commit leaves the user signed out with the old password and an
+unused link: safe and retryable. After the commit the reset sweeps once more,
+best-effort, for a session a concurrent sign-in with the old password
+committed meanwhile.
 
 `DELETE /sessions/{id}` answers 404 to anyone who is neither the owner nor a
 platform admin (the same answer as for a session that does not exist), and 400

@@ -60,6 +60,7 @@ pwd_context = CryptContext(
     bcrypt__rounds=12,  # Strong rounds for security
     bcrypt__ident="2b",  # Use 2b to avoid wrap bug detection
 )
+import asyncio
 import logging
 import os
 import secrets
@@ -1250,10 +1251,11 @@ async def startup_event():
         logger.info("Monitoring services initialized successfully")
 
         # Register health checks
-        health_checker.register_check("database", get_database_health, critical=True)
-        # critical=True keeps /health/detailed honest ("unhealthy" while Redis
-        # is down). The readiness probe reports this check but does not gate on
-        # it: see READINESS_REPORTED_ONLY in routers/v1/health.py.
+        # critical=True keeps /health/detailed honest ("unhealthy" while the
+        # database or Redis is down). The readiness probe reports both checks
+        # but gates on neither: see READINESS_REPORTED_ONLY in
+        # routers/v1/health.py.
+        health_checker.register_check("database", _check_database_health, critical=True)
         health_checker.register_check("redis", _check_redis_health, critical=True)
         logger.info("Health checks registered")
 
@@ -1277,6 +1279,36 @@ async def startup_event():
     logger.info("Janua API started successfully")
 
 
+# Each dependency check the readiness probe runs is bounded. The kubelet gives
+# the probe 5 s (`timeoutSeconds`, k8s/base/deployments/janua-api.yaml) and the
+# checks run one after another. A dependency that hangs instead of refusing
+# (a dropped route, a full connection pool) would otherwise outlast the probe,
+# and a probe that times out counts as failed: the pod would leave the Service
+# even though the check is only reported. A check that times out reports
+# "unhealthy".
+READINESS_CHECK_TIMEOUT_SECONDS = 2.0
+
+
+async def _check_database_health() -> bool:
+    """Can this replica reach the database right now? Reported, not gated.
+
+    `get_database_health()` returns a dict whose `healthy` says whether a
+    `SELECT 1` succeeded; only `healthy is True` counts (J3-001: the dict
+    itself is always truthy, so the check used to report `healthy` through
+    every outage). Owner decision 2026-10-04: readiness reports the database
+    but does not gate on it, so JWKS, discovery and health stay up during a
+    database outage while database-backed routes fail on their own (see
+    READINESS_REPORTED_ONLY in routers/v1/health.py). Bounded by
+    READINESS_CHECK_TIMEOUT_SECONDS. No error text leaves this function.
+    """
+    try:
+        result = await asyncio.wait_for(get_database_health(), READINESS_CHECK_TIMEOUT_SECONDS)
+    except Exception as e:  # includes the timeout
+        logger.warning("Database health check failed: %s", type(e).__name__)
+        return False
+    return isinstance(result, dict) and result.get("healthy") is True
+
+
 async def _check_redis_health():
     """Can THIS replica's own Redis client reach Redis right now?
 
@@ -1290,8 +1322,14 @@ async def _check_redis_health():
     replica stops serving fallbacks within one probe period of Redis answering
     again; the readiness probe keeps running it every period for that reason.
     """
-    try:
+
+    async def ping() -> None:
         await (await get_redis()).strict_ping()
+
+    try:
+        # Bounded (READINESS_CHECK_TIMEOUT_SECONDS): the client's own connect
+        # timeout (REDIS_CONNECTION_TIMEOUT, 5 s by default) equals the probe's.
+        await asyncio.wait_for(ping(), READINESS_CHECK_TIMEOUT_SECONDS)
         return True
     except Exception as e:
         logger.debug("Redis ping check failed: %s", type(e).__name__)

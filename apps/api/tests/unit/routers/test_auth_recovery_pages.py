@@ -120,13 +120,37 @@ class TestConsumePasswordReset:
         db = _db_returning(reset)
         db.get = AsyncMock(return_value=user)
 
+        password_at_revoke = []
+
+        async def invalidate(*args, **kwargs):
+            password_at_revoke.append(user.password_hash)
+            return 0
+
+        invalidate_mock = AsyncMock(side_effect=invalidate)
         with (
             patch("app.routers.v1.auth.log_activity", new=AsyncMock()),
             patch("app.routers.v1.auth.log_audit_event", new=AsyncMock()),
+            patch.object(AuthService, "invalidate_user_sessions", new=invalidate_mock),
         ):
             ok, message = await _consume_password_reset("tok", "Sufficient1!Pass", db)
 
         assert ok is True
+        # Every session is revoked (none kept), strictly, inside the reset's
+        # own transaction and BEFORE the password changes (J3-003).
+        first = invalidate_mock.await_args_list[0]
+        assert first.args[1] == user.id
+        assert first.kwargs["reason"] == "password_reset"
+        assert first.kwargs["strict"] is True
+        assert first.kwargs["commit"] is False
+        assert "exclude_session_id" not in first.kwargs
+        assert password_at_revoke[0] == "old"
+        # After the commit, one best-effort sweep for a session a concurrent
+        # sign-in with the old password committed meanwhile.
+        assert invalidate_mock.await_count == 2
+        sweep = invalidate_mock.await_args_list[1]
+        assert sweep.kwargs["reason"] == "password_reset"
+        assert not sweep.kwargs.get("strict", False)
+        assert password_at_revoke[1] != "old"
         assert AuthService.verify_password("Sufficient1!Pass", user.password_hash)
         # Completing a reset proves control of the mailbox — without this an
         # unverified account recovers its password only to be blocked at the
