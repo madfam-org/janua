@@ -287,9 +287,9 @@ export function SecurityTrustCenter() {
               variant="secondary"
               className="bg-white text-blue-600 hover:bg-gray-100"
             >
-              <a href="mailto:security@janua.dev">
+              <a href="mailto:security@madfam.io">
                 <FileCheck className="mr-2 w-5 h-5" />
-                Email security@janua.dev
+                Email security@madfam.io
               </a>
             </Button>
           </div>

@@ -152,7 +152,7 @@ We welcome documentation contributions! See our [Documentation Contributing Guid
 ### Professional Support
 - **Enterprise Support**: [support@janua.dev](mailto:support@janua.dev)
 - **Integration Consulting**: [consulting@janua.dev](mailto:consulting@janua.dev)
-- **Security Questions**: [security@janua.dev](mailto:security@janua.dev)
+- **Security Questions**: [security@madfam.io](mailto:security@madfam.io)
 
 ---
 

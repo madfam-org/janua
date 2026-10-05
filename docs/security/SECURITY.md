@@ -28,7 +28,7 @@ Report directly through GitHub's Security Advisory feature:
 - Provide detailed information about the vulnerability
 
 #### 2. Email Disclosure
-Send an email to **security@janua.dev** with:
+Send an email to **security@madfam.io** with:
 - Type of vulnerability
 - Full paths of source files related to the vulnerability
 - Location of affected source code (tag/branch/commit or direct URL)
@@ -162,7 +162,7 @@ Janua undergoes regular security audits:
 
 ## Contact
 
-- **Security Team**: security@janua.dev
+- **Security Team**: security@madfam.io
 - **Bug Bounty Program**: Coming Q2 2025
 - **Status Page**: https://status.janua.dev
 

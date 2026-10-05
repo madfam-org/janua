@@ -478,12 +478,12 @@ class SecurityTestSuite:
 ## 🆘 Security Contact
 
 ### Security Team
-- **Security Officer**: [security@janua.dev](mailto:security@janua.dev)
+- **Security Officer**: [security@madfam.io](mailto:security@madfam.io)
 - **Incident Response**: [incident@janua.dev](mailto:incident@janua.dev)
 - **Compliance**: [compliance@janua.dev](mailto:compliance@janua.dev)
 
 ### Vulnerability Reporting
-- **Responsible Disclosure**: [security@janua.dev](mailto:security@janua.dev)
+- **Responsible Disclosure**: [security@madfam.io](mailto:security@madfam.io)
 - **Bug Bounty**: [HackerOne Program](https://hackerone.com/janua)
 - **PGP Key**: [Security PGP Key](https://janua.dev/.well-known/security.txt)
 

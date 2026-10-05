@@ -66,7 +66,7 @@ export const privacyPolicy = {
     {
       title: 'Security',
       content:
-        'We implement encryption in transit, access controls, audit logging, and regular security review. No system is perfectly secure; report vulnerabilities to security@janua.dev.',
+        'We implement encryption in transit, access controls, audit logging, and regular security review. No system is perfectly secure; report vulnerabilities to security@madfam.io.',
     },
     {
       title: 'Changes',

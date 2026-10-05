@@ -336,7 +336,7 @@ python auth0_migrate.py --config config.json
 4. Include: Error message, config (redacted), migration report
 
 **Security concerns:**
-- Email: security@janua.dev
+- Email: security@madfam.io
 
 ---
 

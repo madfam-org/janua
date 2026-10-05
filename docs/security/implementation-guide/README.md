@@ -944,10 +944,10 @@ class SecurityMetrics:
 - [HIPAA Security Requirements](https://docs.janua.dev/compliance/hipaa)
 
 ### Emergency Contacts
-- **Security Team**: [security@janua.dev](mailto:security@janua.dev)
+- **Security Team**: [security@madfam.io](mailto:security@madfam.io)
 - **Incident Response**: [incident@janua.dev](mailto:incident@janua.dev)
 - **Compliance Team**: [compliance@janua.dev](mailto:compliance@janua.dev)
 
 ---
 
-*For additional security implementation support, contact our security team at [security@janua.dev](mailto:security@janua.dev)*
+*For additional security implementation support, contact our security team at [security@madfam.io](mailto:security@madfam.io)*

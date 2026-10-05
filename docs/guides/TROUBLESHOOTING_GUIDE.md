@@ -1167,7 +1167,7 @@ env | grep -E "^(JANUA|DATABASE|REDIS|JWT)" | sed 's/=.*/=REDACTED/'
 
 - **GitHub Issues**: [github.com/madfam-org/janua/issues](https://github.com/madfam-org/janua/issues)
 - **Documentation**: [docs.janua.dev](https://docs.janua.dev)
-- **Security Issues**: security@janua.dev
+- **Security Issues**: security@madfam.io
 
 ---
 

@@ -589,7 +589,7 @@ See [LICENSE](LICENSE) for details.
 - 📖 **Documentation:** [docs/](docs/)
 - 🐛 **Bug Reports:** [GitHub Issues](https://github.com/madfam-org/janua/issues)
 - 💬 **Questions:** [GitHub Discussions](https://github.com/madfam-org/janua/discussions)
-- 📧 **Security Issues:** security@janua.dev
+- 📧 **Security Issues:** security@madfam.io
 
 **No Discord/Slack yet.** We'll create them when we have enough users to justify it.
 

@@ -320,7 +320,7 @@ Other solutions you've considered.
 
 We take security seriously. Please follow responsible disclosure:
 
-1. **Email**: Send security issues to [security@janua.dev](mailto:security@janua.dev)
+1. **Email**: Send security issues to [security@madfam.io](mailto:security@madfam.io)
 2. **Encrypt**: Use our [PGP key](https://janua.dev/.well-known/security.txt) for sensitive reports
 3. **Details**: Include reproduction steps and impact assessment
 4. **Patience**: Allow time for investigation and fix
@@ -503,7 +503,7 @@ We are committed to providing a welcoming and inclusive environment. Please read
 
 ### Maintainer Team
 - **Lead Maintainer**: [lead@janua.dev](mailto:lead@janua.dev)
-- **Security Team**: [security@janua.dev](mailto:security@janua.dev)
+- **Security Team**: [security@madfam.io](mailto:security@madfam.io)
 - **Documentation Team**: [docs@janua.dev](mailto:docs@janua.dev)
 
 ### Response Times
