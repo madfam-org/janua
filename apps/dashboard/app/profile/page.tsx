@@ -51,8 +51,7 @@ import {
   disableMfa,
   listPasskeys,
   deletePasskey,
-  registerPasskeyOptions,
-  verifyPasskeyRegistration,
+  registerPasskey,
   listDevices,
   trustDevice,
   revokeDevice,
@@ -556,73 +555,9 @@ export default function ProfilePage() {
   const handleRegisterPasskey = async () => {
     setRegisteringPasskey(true)
     try {
-      // Step 1: Get registration options from server
-      const options = await registerPasskeyOptions() as Record<string, any>
-
-      // Step 2: Create credential with WebAuthn API
-      const publicKeyOptions: PublicKeyCredentialCreationOptions = {
-        challenge: Uint8Array.from(atob(options.challenge), (c) => c.charCodeAt(0)),
-        rp: {
-          name: options.rp?.name || 'Janua',
-          id: options.rp?.id || window.location.hostname,
-        },
-        user: {
-          id: Uint8Array.from(atob(options.user?.id || ''), (c) => c.charCodeAt(0)),
-          name: options.user?.name || profile?.email || '',
-          displayName: options.user?.displayName || getDisplayName(profile!),
-        },
-        pubKeyCredParams: options.pubKeyCredParams || [
-          { alg: -7, type: 'public-key' },
-          { alg: -257, type: 'public-key' },
-        ],
-        timeout: options.timeout || 60000,
-        authenticatorSelection: options.authenticatorSelection || {
-          authenticatorAttachment: 'platform',
-          residentKey: 'preferred',
-          userVerification: 'preferred',
-        },
-        attestation: options.attestation || 'none',
-        excludeCredentials: (options.excludeCredentials || []).map(
-          (cred: { id: string; type: string; transports?: string[] }) => ({
-            id: Uint8Array.from(atob(cred.id), (c) => c.charCodeAt(0)),
-            type: cred.type,
-            transports: cred.transports,
-          }),
-        ),
-      }
-
-      const credential = (await navigator.credentials.create({
-        publicKey: publicKeyOptions,
-      })) as PublicKeyCredential | null
-
-      if (!credential) {
-        throw new Error('Passkey registration was cancelled')
-      }
-
-      const attestationResponse = credential.response as AuthenticatorAttestationResponse
-
-      // Step 3: Send credential to server for verification
-      const uint8ToBase64 = (buffer: ArrayBuffer): string => {
-        const bytes = new Uint8Array(buffer)
-        let binary = ''
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]!)
-        }
-        return btoa(binary)
-      }
-
-      const verifyBody = {
-        id: credential.id,
-        rawId: uint8ToBase64(credential.rawId),
-        type: credential.type,
-        response: {
-          attestationObject: uint8ToBase64(attestationResponse.attestationObject),
-          clientDataJSON: uint8ToBase64(attestationResponse.clientDataJSON),
-        },
-        name: passkeyName || 'My Passkey',
-      }
-
-      await verifyPasskeyRegistration(verifyBody)
+      // Options, browser ceremony and verification. Binary WebAuthn values
+      // travel as base64url and are converted by the SDK's helper.
+      await registerPasskey(passkeyName || 'My Passkey')
 
       showNotification('success', 'Passkey registered successfully')
       setShowPasskeyNameInput(false)

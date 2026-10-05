@@ -720,14 +720,19 @@ export async function deletePasskey(passkeyId: string): Promise<{ message: strin
   return response.data
 }
 
-export async function registerPasskeyOptions(): Promise<Record<string, unknown>> {
-  const response = await januaClient.http.post<Record<string, unknown>>('/api/v1/passkeys/register/options')
-  return response.data
-}
-
-export async function verifyPasskeyRegistration(data: Record<string, unknown>): Promise<{ message: string }> {
-  const response = await januaClient.http.post<{ message: string }>('/api/v1/passkeys/register/verify', data)
-  return response.data
+/**
+ * Register a passkey for the signed-in user: registration options, the browser
+ * ceremony (`navigator.credentials.create`) and verification, all through the
+ * SDK's WebAuthn helper.
+ *
+ * The API sends and expects WebAuthn binary values as base64url; the helper
+ * converts them with the SDK's base64url <-> ArrayBuffer functions. The
+ * dashboard used to do this itself with `atob`/`btoa` (standard base64), which
+ * throws on most base64url values, posted the options request without a body
+ * and the verification without its `credential` wrapper (both 422).
+ */
+export async function registerPasskey(name: string): Promise<void> {
+  await januaClient.registerPasskey(name)
 }
 
 // ─── MFA ────────────────────────────────────────────────────────────────────

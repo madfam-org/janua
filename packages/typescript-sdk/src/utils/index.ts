@@ -54,5 +54,8 @@ export {
   PKCE_STORAGE_KEYS,
 } from './pkce-utils';
 
+// WebAuthn binary encoding (base64url <-> ArrayBuffer)
+export { base64UrlToArrayBuffer, arrayBufferToBase64Url } from './webauthn-encoding';
+
 // Re-export commonly used types
 export type { TokenStorage as ITokenStorage } from './token-utils';

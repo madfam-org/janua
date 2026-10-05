@@ -216,6 +216,10 @@ export {
   buildAuthorizationUrl,
   buildJanuaAuthorizeUrl,
   PKCE_STORAGE_KEYS,
+
+  // WebAuthn binary encoding (base64url <-> ArrayBuffer)
+  base64UrlToArrayBuffer,
+  arrayBufferToBase64Url,
 } from './utils';
 
 // Token storage type export (interface)

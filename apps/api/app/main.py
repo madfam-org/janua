@@ -265,7 +265,13 @@ from app.core.scalability import (
 )
 from app.core.tenant_context import TenantMiddleware
 from app.core.webhook_dispatcher import webhook_dispatcher
-from app.services.monitoring import AlertManager, HealthChecker, MetricsCollector, SystemMonitor
+from app.services.monitoring import (
+    AlertManager,
+    HealthChecker,
+    MetricsCollector,
+    SystemMonitor,
+    redact_error_text,
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO if settings.DEBUG else logging.WARNING)
@@ -812,38 +818,34 @@ async def scalability_metrics():
     return await get_scalability_status()
 
 
-# Infrastructure connectivity test using database manager
+# Infrastructure connectivity summary. Unauthenticated, so it publishes status
+# fields only (J4-002): the database and Redis checks below never return error
+# text, hostnames or DSNs; the detail goes to the server log, redacted. Same
+# rules and fields as /api/v1/health/ready (see READINESS_REPORTED_ONLY there):
+# it reports the database and Redis and answers 200 while they are down.
 @app.get("/ready")
 async def ready_check():
-    checks = {"status": "ready", "database": {}, "redis": False}
+    database_healthy = await _check_database_health()
+    # THIS process's own Redis client (the one every request uses), bounded:
+    # a fresh connection can succeed while this replica's client is broken.
+    redis_healthy = await _check_redis_health()
 
-    # Test Database with health manager
-    try:
-        db_health = await get_database_health()
-        checks["database"] = db_health
-    except Exception as e:
-        checks["database"] = {"healthy": False, "error": str(e)}
-
-    # Test Redis through THIS process's own client (the one every request
-    # uses), not a fresh connection: a fresh connection can succeed while this
-    # replica's client is broken or its breaker is serving fallbacks.
-    try:
-        await (await get_redis()).strict_ping()
-        checks["redis"] = True
-    except Exception as e:
-        # stdlib logger here: positional args only (a keyword like `error=` would
-        # raise TypeError inside this except block and turn /ready into a 500).
-        logger.warning("Redis health check failed: %s", type(e).__name__)
-        checks["redis"] = False
-    # Per-pod breaker state: state, last failure time and counters only.
-    checks["redis_circuit"] = get_redis_public_status()
-
-    # Overall status
-    checks["status"] = (
-        "ready" if (checks["database"].get("healthy", False) and checks["redis"]) else "degraded"
-    )
-
-    return checks
+    degraded = [
+        name
+        for name, healthy in (("database", database_healthy), ("redis", redis_healthy))
+        if not healthy
+    ]
+    return {
+        "status": "degraded" if degraded else "ready",
+        "database": {
+            "healthy": database_healthy,
+            "status": "healthy" if database_healthy else "unhealthy",
+        },
+        "redis": redis_healthy,
+        # Per-pod breaker state: state, last failure time and counters only.
+        "redis_circuit": get_redis_public_status(),
+        "degraded": degraded,
+    }
 
 
 # Beta endpoints - SECURITY: Gated behind ENABLE_BETA_ENDPOINTS flag
@@ -1304,9 +1306,16 @@ async def _check_database_health() -> bool:
     try:
         result = await asyncio.wait_for(get_database_health(), READINESS_CHECK_TIMEOUT_SECONDS)
     except Exception as e:  # includes the timeout
-        logger.warning("Database health check failed: %s", type(e).__name__)
+        logger.warning(
+            "Database health check failed: %s: %s", type(e).__name__, redact_error_text(str(e))
+        )
         return False
-    return isinstance(result, dict) and result.get("healthy") is True
+    healthy = isinstance(result, dict) and result.get("healthy") is True
+    if not healthy:
+        detail = result.get("error", "") if isinstance(result, dict) else ""
+        # Server-side only, redacted (J4-002); callers publish the bool.
+        logger.warning("Database health check unhealthy: %s", redact_error_text(str(detail)))
+    return healthy
 
 
 async def _check_redis_health():

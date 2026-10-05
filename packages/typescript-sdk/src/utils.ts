@@ -49,6 +49,10 @@ export {
   buildJanuaAuthorizeUrl,
   stripTrailingSlashes,
   PKCE_STORAGE_KEYS,
+
+  // WebAuthn binary encoding (base64url <-> ArrayBuffer)
+  base64UrlToArrayBuffer,
+  arrayBufferToBase64Url,
 } from './utils/index';
 
 // Re-export type aliases for backward compatibility

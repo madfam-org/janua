@@ -138,7 +138,7 @@ table above answer from Janua.
 | `GET /api/v1/health/ready` (the k8s `readinessProbe`) | `200`, `"status": "degraded"`, `"redis": "unhealthy"`, `"degraded": ["redis"]` (plus `"database"` if it is down too), `redis_circuit` with `strict_failures` rising |
 | `GET /health` (the k8s `livenessProbe`), `GET /api/v1/health/live` | `200`, unchanged |
 | `GET /api/v1/health/detailed` | `200`, overall `"status": "unhealthy"` and `checks.redis.status: "unhealthy"` (Redis stays a critical check there) |
-| `GET /ready` (not probed) | `200`, `"status": "degraded"`, `"redis": false`, unchanged |
+| `GET /ready` (not probed) | `200`, `"status": "degraded"`, `"redis": false`, `"degraded": ["redis"]`, `redis_circuit` |
 
 **Readiness going red no longer means "Redis is down".** Alert on the readiness
 body instead (follow-up below).
@@ -229,13 +229,16 @@ Now:
 | `GET /api/v1/health/ready` (the k8s `readinessProbe`) | `200`, `"status": "degraded"`, `"database": {"healthy": false, "status": "unhealthy"}`, `"degraded": ["database"]` (`["database", "redis"]` if Redis is down too) |
 | `GET /health` (the k8s `livenessProbe`), `GET /api/v1/health/live` | `200`, unchanged |
 | `GET /api/v1/health/detailed` | `200`, overall `"status": "unhealthy"` and `checks.database.status: "unhealthy"` |
-| `GET /ready` (not probed) | `200`, `"status": "degraded"`, unchanged |
+| `GET /ready` (not probed) | `200`, `"status": "degraded"`, `"database": {"healthy": false, "status": "unhealthy"}`, `"degraded": ["database"]`; no error text |
 | `GET /.well-known/jwks.json`, `GET /.well-known/openid-configuration` | `200`. They never touch the database |
 | Database-backed routes (sign-in, refresh, password reset, sessions, OAuth token, admin...) | fail on their own, typically `503` with the error envelope code `DATABASE_ERROR` |
 
 Both replicas stay in the Service, so relying parties keep verifying Janua
-access tokens against the JWKS. Log line: `Database health check failed`
-(with the error type only).
+access tokens against the JWKS. Log lines: `Database health check failed`
+(error type and redacted message) or `Database health check unhealthy`
+(redacted driver message). No health or readiness response carries error
+text, hostnames or DSNs; the detail is only in the server log, with URL
+credentials and `password=` values masked.
 
 ## Diagnosing a consent 403 or 503
 

@@ -5,6 +5,7 @@ Production monitoring and alerting system
 import asyncio
 import json
 import logging
+import re
 import time
 from datetime import datetime
 from enum import Enum
@@ -228,6 +229,30 @@ class MetricsCollector:
             await self._flush_metrics()
 
 
+# Credentials that a driver or client error can echo back: the userinfo of a
+# URL/DSN (`scheme://user:secret@host`) and `password=` style pairs.
+_URL_USERINFO = re.compile(r"(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*://)[^/\s@]+@")
+_SECRET_PAIR = re.compile(
+    r"(?P<key>password|passwd|pwd|secret|token|api_key|apikey)(?P<sep>\s*[=:]\s*)[^\s,;&'\"]+",
+    re.IGNORECASE,
+)
+_REDACTED_MAX_LENGTH = 300
+
+
+def redact_error_text(text: str) -> str:
+    """Error text that is safe to write to the server log.
+
+    Removes URL/DSN credentials and `password=`-style values and caps the
+    length. Only for server-side logs: health and readiness responses carry no
+    error text at all (J4-002), redacted or not.
+    """
+    redacted = _URL_USERINFO.sub(r"\g<scheme>***@", text)
+    redacted = _SECRET_PAIR.sub(r"\g<key>\g<sep>***", redacted)
+    if len(redacted) > _REDACTED_MAX_LENGTH:
+        redacted = redacted[:_REDACTED_MAX_LENGTH] + "..."
+    return redacted
+
+
 def _is_healthy(result: Any) -> bool:
     """Read a health check's result.
 
@@ -308,10 +333,18 @@ class HealthChecker:
                 check["last_check"] = time.time()
 
             except Exception as e:
-                logger.error(f"Health check {name} failed: {e}")
+                # The detail goes to the server log, redacted. The result is
+                # published by unauthenticated endpoints (/api/v1/health/*), so
+                # it carries the status only: no driver text, hosts or DSNs
+                # (J4-002).
+                logger.error(
+                    "Health check %s failed: %s: %s",
+                    name,
+                    type(e).__name__,
+                    redact_error_text(str(e)),
+                )
                 results["checks"][name] = {
                     "status": "error",
-                    "error": str(e),
                     "critical": check["critical"],
                 }
 
