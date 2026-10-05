@@ -186,26 +186,47 @@ async def _verify_oauth_token(
     return payload
 
 
+# Consent security state (CSRF tokens, stored authorization requests,
+# authorization codes) must be the SAME on every API replica: the consent page
+# is rendered by one pod and the form is posted to whichever pod the load
+# balancer picks. It therefore goes through the client's STRICT operations,
+# which raise `RedisUnavailableError` (answered as a retryable 503 by
+# `redis_unavailable_handler`) instead of falling back to a value or to one
+# pod's memory. Before 2026-10 these calls used the breaker's fallback: a token
+# "stored" while a pod's circuit was open (or while its client had never
+# connected) was stored nowhere, and the Allow button then failed on every pod
+# with 403 "Invalid or expired CSRF token".
+
+
 async def _generate_csrf_token(user_id: str, redis: ResilientRedisClient) -> str:
-    """Generate a CSRF token for OAuth consent forms."""
+    """Generate a CSRF token for OAuth consent forms.
+
+    Raises RedisUnavailableError when the token cannot be stored, so no consent
+    form is ever rendered with a token that cannot validate.
+    """
     csrf_token = secrets.token_urlsafe(32)
-    await redis.setex(
-        f"oauth:csrf:{csrf_token}",
-        CSRF_TOKEN_TTL,
-        user_id,
-    )
+    await redis.strict_set(f"oauth:csrf:{csrf_token}", user_id, ex=CSRF_TOKEN_TTL)
     return csrf_token
 
 
 async def _validate_csrf_token(csrf_token: str, user_id: str, redis: ResilientRedisClient) -> bool:
-    """Validate a CSRF token and consume it (single use)."""
+    """Validate a CSRF token and consume it (single use).
+
+    False means the token is really unusable (absent, unknown, expired, issued
+    to another user, or consumed by a concurrent submit). Redis being
+    unavailable is NOT that: it raises RedisUnavailableError (→ 503).
+    """
     if not csrf_token:
+        logger.info("oauth.consent.csrf_rejected", reason="missing")
         return False
 
     key = f"oauth:csrf:{csrf_token}"
-    stored_user_id = await redis.get(key)
+    stored_user_id = await redis.strict_get(key)
 
     if not stored_user_id:
+        # Unknown, expired, or already consumed (e.g. the form was submitted
+        # twice). Never "not stored": a failed store raised at render time.
+        logger.info("oauth.consent.csrf_rejected", reason="unknown_or_expired")
         return False
 
     # Verify it belongs to the same user
@@ -217,8 +238,10 @@ async def _validate_csrf_token(csrf_token: str, user_id: str, redis: ResilientRe
         )
         return False
 
-    # Delete token (single use)
-    await redis.delete(key)
+    # Consume (single use). Of two concurrent submits only one deletes the key.
+    if await redis.strict_delete(key) != 1:
+        logger.info("oauth.consent.csrf_rejected", reason="consumed_concurrently")
+        return False
     return True
 
 
@@ -640,36 +663,54 @@ AUTH_CODE_PREFIX = "oauth:code:"
 AUTH_CODE_TTL = 600  # 10 minutes
 
 
+def _auth_code_ref(code: str) -> str:
+    """Log-safe reference to an authorization code (never the code itself).
+
+    The code is a bearer credential until redeemed; logs carry a short hash so
+    store and lookup lines can still be correlated.
+    """
+    return hashlib.sha256(code.encode()).hexdigest()[:12]
+
+
 async def _store_auth_code(code: str, data: dict, redis: ResilientRedisClient):
-    """Store authorization code in Redis with TTL."""
+    """Store authorization code in Redis with TTL.
+
+    Strict: raises RedisUnavailableError (→ 503 + Retry-After) when Redis cannot
+    store it. A breaker fallback here would keep the code in one pod's memory,
+    where the token endpoint on the other pod cannot find it.
+    """
     key = f"{AUTH_CODE_PREFIX}{code}"
-    logger.info("Storing auth code in Redis", key=key, client_id=data.get("client_id"))
-    success = await redis.set(key, json.dumps(data), ex=AUTH_CODE_TTL)
-    if not success:
-        logger.error("Failed to store auth code in Redis", key=key)
-        raise HTTPException(
-            status_code=503,
-            detail="Authorization service temporarily unavailable. Please try again.",
-        )
-    logger.info("Auth code stored successfully", key=key)
+    ref = _auth_code_ref(code)
+    logger.info("Storing auth code in Redis", code_ref=ref, client_id=data.get("client_id"))
+    await redis.strict_set(key, json.dumps(data), ex=AUTH_CODE_TTL)
+    logger.info("Auth code stored successfully", code_ref=ref)
 
 
 async def _get_auth_code(code: str, redis: ResilientRedisClient) -> dict | None:
-    """Retrieve authorization code from Redis."""
+    """Retrieve authorization code from Redis itself (strict: never a pod-local copy).
+
+    A fallback read could return a code this pod saw earlier and another pod
+    already redeemed — replay of a single-use code.
+    """
     key = f"{AUTH_CODE_PREFIX}{code}"
-    logger.info("Retrieving auth code from Redis", key=key)
-    data = await redis.get(key)
+    ref = _auth_code_ref(code)
+    logger.info("Retrieving auth code from Redis", code_ref=ref)
+    data = await redis.strict_get(key)
     if data:
-        logger.info("Auth code found in Redis", key=key)
+        logger.info("Auth code found in Redis", code_ref=ref)
         return json.loads(data)
-    logger.warning("Auth code NOT found in Redis", key=key)
+    logger.warning("Auth code NOT found in Redis", code_ref=ref)
     return None
 
 
-async def _delete_auth_code(code: str, redis: ResilientRedisClient):
-    """Delete authorization code from Redis (single use)."""
+async def _delete_auth_code(code: str, redis: ResilientRedisClient) -> bool:
+    """Consume an authorization code (single use).
+
+    True only for the caller that actually removed it: of two concurrent
+    redemptions of the same code, exactly one wins.
+    """
     key = f"{AUTH_CODE_PREFIX}{code}"
-    await redis.delete(key)
+    return await redis.strict_delete(key) == 1
 
 
 # ============================================================================
@@ -1106,18 +1147,36 @@ def _is_first_party_preconsented(client: OAuthClient) -> bool:
 async def _resolve_held_accounts(
     held_sids: list[str], db: AsyncSession
 ) -> list[tuple[str, Any]]:
-    """Resolve each held `sid` to `(sid, user)`, dropping any that no longer live.
+    """Resolve each held `sid` to `(sid, user)`: live sessions only, one per person.
 
-    Order is preserved (most-recent-last, as `janua_sessions` stores it). A `sid`
-    whose row is revoked, expired, or whose user is not active is silently
-    omitted — the chooser only ever offers accounts a switch could actually front.
+    A `sid` whose row is revoked, expired, or whose user is not active is
+    silently omitted — the chooser only ever offers accounts a switch could
+    actually front.
+
+    One entry per USER: every sign-in appends a new `sid`, so a person who signed
+    in five times holds five live sessions and was listed five times. The entry
+    kept is that user's newest live session (by `created_at`; on a tie or an
+    undatable row, the later position in `janua_sessions`, which is
+    most-recent-last). The list keeps the held order of the sessions kept.
+    The held set itself is not pruned here; see `append_sid` for why.
     """
-    resolved: list[tuple[str, Any]] = []
-    for sid in held_sids:
+    best: dict[str, tuple[int, str, Any, Any]] = {}
+    for position, sid in enumerate(held_sids):
         user, session = await resolve_session_by_id(sid, db)
-        if user is not None and session is not None:
-            resolved.append((sid, user))
-    return resolved
+        if user is None or session is None:
+            continue
+        key = str(getattr(user, "id", sid))
+        current = best.get(key)
+        if current is None:
+            best[key] = (position, sid, user, session)
+            continue
+        new_started = _session_started_at(session)
+        old_started = _session_started_at(current[3])
+        if new_started is not None and old_started is not None and new_started < old_started:
+            continue  # the one already kept is newer
+        best[key] = (position, sid, user, session)
+    kept = sorted(best.values(), key=lambda entry: entry[0])
+    return [(sid, user) for _, sid, user, _ in kept]
 
 
 def _account_chooser_html(
@@ -1129,8 +1188,9 @@ def _account_chooser_html(
 ) -> str:
     """Render the `prompt=select_account` chooser over the held estate accounts.
 
-    Each account is a form that POSTs its `sid` to `/api/v1/auth/switch-session`
-    with `next` set to the rebuilt authorize URL, so choosing an account re-points
+    Each account is a form that POSTs its `sid` to `/api/v1/auth/switch-session/form`
+    (the form-encoded twin of the JSON `/switch-session`, which answers a plain
+    HTML form with 422) with `next` set to the rebuilt authorize URL, so choosing an account re-points
     `janua_sso` and lands back at `/authorize` for that account. "Use another
     account" is a normal interactive login. All user-controlled text is HTML
     escaped (XSS), and only the opaque `sid` and the pre-validated `next` travel
@@ -1146,7 +1206,7 @@ def _account_chooser_html(
         display = html.escape(str(label))
         escaped_sid = html.escape(str(sid))
         rows += f"""
-        <form method="post" action="/api/v1/auth/switch-session" class="account">
+        <form method="post" action="/api/v1/auth/switch-session/form" class="account">
             <input type="hidden" name="sid" value="{escaped_sid}">
             <input type="hidden" name="next" value="{escaped_next}">
             <button type="submit" class="account-btn">
@@ -1427,10 +1487,12 @@ async def authorize_get(
             "code_challenge_method": code_challenge_method,
             "login_method": requested_login_method,
         }
-        await redis.setex(
+        # Strict: if Redis cannot hold the request, answer a retryable 503 now
+        # rather than send the browser to a login page whose id leads nowhere.
+        await redis.strict_set(
             f"oauth:pre_login:{pre_login_id}",
-            600,  # 10 minutes TTL
             json.dumps(pre_login_data),
+            ex=600,  # 10 minutes TTL
         )
 
         # Pass only the opaque ID plus display-only params to the login page
@@ -1622,12 +1684,19 @@ async def authorize_get(
             "code_challenge": code_challenge,
             "code_challenge_method": code_challenge_method,
         }
-        await redis.setex(
+        # Strict, like the CSRF token above: the consent form is only rendered
+        # once both are in Redis, where every replica can read them.
+        await redis.strict_set(
             f"oauth:auth_request:{auth_request_id}",
-            600,  # 10 minutes
             json.dumps(auth_request_data),
+            ex=600,  # 10 minutes
         )
 
+        # The form submits once: a second click (or a double-click) would post
+        # the same single-use CSRF token again, and that second response — a 403
+        # — is the one the browser shows, although the first one succeeded. The
+        # guard is a flag, not `disabled` on the buttons: a disabled submitter
+        # drops its `action` value from the form data.
         consent_html = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -1731,7 +1800,8 @@ async def authorize_get(
             <a href="https://madfam.io/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
         </div>
 
-        <form method="POST" action="/api/v1/oauth/consent">
+        <form method="POST" action="/api/v1/oauth/consent"
+              onsubmit="if (this.dataset.submitted) {{ return false; }} this.dataset.submitted = '1'; return true;">
             <input type="hidden" name="auth_request_id" value="{auth_request_id}">
             <input type="hidden" name="csrf_token" value="{csrf_token}">
             <div class="buttons">
@@ -1806,9 +1876,9 @@ async def handle_consent(
             detail="Invalid or expired CSRF token",
         )
 
-    # Retrieve stored authorization request
+    # Retrieve stored authorization request (strict, like the CSRF token)
     auth_request_key = f"oauth:auth_request:{auth_request_id}"
-    auth_request_json = await redis.get(auth_request_key)
+    auth_request_json = await redis.strict_get(auth_request_key)
 
     if not auth_request_json:
         raise HTTPException(
@@ -1816,8 +1886,12 @@ async def handle_consent(
             detail="Authorization request expired or invalid",
         )
 
-    # Delete the request to prevent replay
-    await redis.delete(auth_request_key)
+    # Delete the request to prevent replay; only one submit may consume it.
+    if await redis.strict_delete(auth_request_key) != 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Authorization request expired or invalid",
+        )
 
     auth_request = json.loads(auth_request_json)
     redirect_uri = auth_request["redirect_uri"]
@@ -2296,8 +2370,18 @@ async def _handle_authorization_code_grant(
             detail="invalid_request: PKCE is required for public clients",
         )
 
-    # Delete the code (single use)
-    await _delete_auth_code(code, redis)
+    # Delete the code (single use). Losing this race means another request
+    # redeemed the same code first: refuse, as for any reused code.
+    if not await _delete_auth_code(code, redis):
+        logger.warning(
+            "token.rejected",
+            reason="code_already_redeemed",
+            client_id=client.client_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid_grant: Code not found or expired",
+        )
 
     # Get user
     user_id = code_data["user_id"]

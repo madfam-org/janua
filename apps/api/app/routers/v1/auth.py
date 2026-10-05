@@ -2048,14 +2048,36 @@ async def switch_session(
     to a validated `next` (default `/`). A sid not in the held set, or whose row is
     not live, is refused with 400 rather than silently ignored.
     """
+    return await _switch_to_held_session(
+        req,
+        db,
+        sid=body.sid,
+        next_url=getattr(body, "next", None),
+        return_sid=bool(getattr(body, "return_sid", False)),
+    )
+
+
+async def _switch_to_held_session(
+    req: Request,
+    db,
+    *,
+    sid: str,
+    next_url: Optional[str],
+    return_sid: bool,
+):
+    """Shared core of the JSON and form switch routes. Every guard lives here.
+
+    Raises HTTPException(400) for a sid that is not in the signed held-set or
+    whose row is not live; otherwise returns the 302 that re-points `janua_sso`.
+    """
     held = _held_sids(req)
-    if body.sid not in held:
+    if sid not in held:
         raise HTTPException(
             status_code=400,
             detail="invalid_request: session is not held by this browser",
         )
 
-    user, session = await resolve_session_by_id(body.sid, db)
+    user, session = await resolve_session_by_id(sid, db)
     if user is None or session is None:
         raise HTTPException(
             status_code=400,
@@ -2064,8 +2086,8 @@ async def switch_session(
 
     from fastapi.responses import RedirectResponse
 
-    safe_next = validate_redirect_url(getattr(body, "next", None) or "/", default_url="/")
-    if getattr(body, "return_sid", False):
+    safe_next = validate_redirect_url(next_url or "/", default_url="/")
+    if return_sid:
         # Two-tab focus: hand the chosen sid to the landing page as a FRAGMENT.
         # Appended AFTER validation, and only to the already-validated same-origin
         # target, so it cannot be used to smuggle a redirect. A fragment is never
@@ -2087,6 +2109,101 @@ async def switch_session(
         **sso_cookie_kwargs(),
     )
     return redirect
+
+
+def _form_post_is_same_origin(req: Request) -> bool:
+    """Origin check for a cookie-authenticated, form-encoded POST (CSRF defence).
+
+    `janua_sso` and `janua_sessions` are SameSite=Lax, so a cross-SITE form post
+    carries neither and is refused by the held-set check anyway. Same-site is
+    wider than same-origin, though: every host under the estate's cookie Domain
+    is the same site. So the form route also requires the request's `Origin`
+    (or, when a browser omits it, `Referer`) to name Janua itself: this
+    request's own Host or the configured public origin. A request with neither
+    header, or with `Origin: null`, is refused.
+    """
+    source = req.headers.get("origin")
+    if not source or source == "null":
+        source = req.headers.get("referer")
+    if not source:
+        return False
+    source_host = urlparse(source).netloc.lower()
+    if not source_host:
+        return False
+    allowed = {req.headers.get("host", "").lower()}
+    public_host = urlparse(settings.public_base_url or "").netloc.lower()
+    if public_host:
+        allowed.add(public_host)
+    allowed.discard("")
+    return source_host in allowed
+
+
+def _switch_refused_html(message: str) -> str:
+    """A short page for a refused chooser click (the browser is on a form post)."""
+    import html as _html
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Choose an account - Janua</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+               background: #f5f5f7; color: #333; display: flex; align-items: center;
+               justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }}
+        .box {{ background: white; border-radius: 12px; padding: 32px; max-width: 420px;
+               box-shadow: 0 8px 30px rgba(0,0,0,0.12); }}
+        h1 {{ font-size: 20px; margin: 0 0 12px; }}
+        p {{ font-size: 14px; line-height: 1.5; color: #555; margin: 0; }}
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>That account can't be used here</h1>
+        <p>{_html.escape(message)} Go back to the application and sign in again.</p>
+    </div>
+</body>
+</html>
+"""
+
+
+@router.post("/switch-session/form")
+async def switch_session_form(
+    req: Request,
+    sid: str = Form(...),
+    next: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Form-encoded twin of `/switch-session`, for the `prompt=select_account` chooser.
+
+    The chooser is a plain HTML page, so each account is a top-level
+    `application/x-www-form-urlencoded` POST; the JSON route answers those with
+    422. This route accepts the form, applies the SAME guards (sid in the signed
+    held-set AND a live row — `_switch_to_held_session`), adds an Origin check
+    because it is a cookie-authenticated form post, and on success 302s to the
+    validated `next` — the chooser sets it to the original `/authorize` request,
+    so the authorization flow resumes for the chosen account. Refusals answer a
+    short HTML page, never a JSON body, because a person is looking at it.
+    """
+    from fastapi.responses import HTMLResponse
+
+    if not _form_post_is_same_origin(req):
+        logger.warning("switch_session_form.rejected", reason="cross_origin")
+        return HTMLResponse(
+            _switch_refused_html("This request did not come from the account chooser."),
+            status_code=403,
+        )
+    try:
+        return await _switch_to_held_session(
+            req, db, sid=sid, next_url=next, return_sid=False
+        )
+    except HTTPException as exc:
+        logger.info("switch_session_form.rejected", reason=str(exc.detail))
+        return HTMLResponse(
+            _switch_refused_html("That account is no longer signed in on this browser."),
+            status_code=exc.status_code,
+        )
 
 
 @router.post("/sessions/sign-out-one")

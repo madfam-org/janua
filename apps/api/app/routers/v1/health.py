@@ -7,7 +7,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.core.redis import get_redis
+from app.core.redis import get_redis, get_redis_public_status
 from app.core.redis_circuit_breaker import ResilientRedisClient
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -65,19 +65,31 @@ async def detailed_health_check(checker=Depends(get_health_checker)) -> Dict[str
         "status": "healthy" if kms_healthy else "unhealthy",
         "provider": provider.provider_name,
     }
+    # This replica's Redis breaker (each pod has its own).
+    result["checks"]["redis_circuit"] = get_redis_public_status()
 
     return result
 
 
 @router.get("/ready")
 async def readiness_check(checker=Depends(get_health_checker)) -> Dict[str, Any]:
-    """Kubernetes readiness probe endpoint"""
+    """Kubernetes readiness probe endpoint.
+
+    The `redis` check is a strict PING through this replica's own client (see
+    `_check_redis_health` in main.py). The breaker state is reported, not gated
+    on: both replicas share one Redis, so gating on an open breaker would take
+    both out of the Service together after a shared blip.
+    """
     result = await checker.check_health()
 
     if result["status"] != "healthy":
         raise HTTPException(status_code=503, detail="Service not ready")
 
-    return {"status": "ready", "timestamp": result["timestamp"]}
+    return {
+        "status": "ready",
+        "timestamp": result["timestamp"],
+        "redis_circuit": get_redis_public_status(),
+    }
 
 
 @router.get("/live")

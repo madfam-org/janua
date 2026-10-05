@@ -78,9 +78,12 @@ from app.core.error_handling import (
     api_exception_handler,
     http_exception_handler,
     janua_exception_handler,
+    redis_unavailable_handler,
     validation_exception_handler,
 )
 from app.core.exceptions import JanuaAPIException
+from app.core.redis import get_redis, get_redis_public_status
+from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.routers.v1 import (
     admin as admin_v1,
 )
@@ -454,6 +457,9 @@ app.add_exception_handler(JanuaAPIException, janua_exception_handler)
 app.add_exception_handler(APIException, api_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+# Strict Redis operations (OAuth consent/authorize/token security state) answer a
+# retryable 503 instead of silently degrading — see redis_unavailable_handler.
+app.add_exception_handler(RedisUnavailableError, redis_unavailable_handler)
 
 # Performance Monitoring Middleware (add early for accurate timing)
 app.add_middleware(PerformanceMonitoringMiddleware, slow_threshold_ms=100.0)
@@ -817,15 +823,19 @@ async def ready_check():
     except Exception as e:
         checks["database"] = {"healthy": False, "error": str(e)}
 
-    # Test Redis with direct connection
+    # Test Redis through THIS process's own client (the one every request
+    # uses), not a fresh connection: a fresh connection can succeed while this
+    # replica's client is broken or its breaker is serving fallbacks.
     try:
-        redis_client = await get_redis_client()
-        await redis_client.ping()
+        await (await get_redis()).strict_ping()
         checks["redis"] = True
-        await redis_client.close()
     except Exception as e:
-        logger.warning("Redis health check failed", error=str(e))
+        # stdlib logger here: positional args only (a keyword like `error=` would
+        # raise TypeError inside this except block and turn /ready into a 500).
+        logger.warning("Redis health check failed: %s", type(e).__name__)
         checks["redis"] = False
+    # Per-pod breaker state: state, last failure time and counters only.
+    checks["redis_circuit"] = get_redis_public_status()
 
     # Overall status
     checks["status"] = (
@@ -1265,14 +1275,22 @@ async def startup_event():
 
 
 async def _check_redis_health():
-    """Redis health check for monitoring"""
+    """Readiness: can THIS replica's own Redis client reach Redis right now?
+
+    Deliberately not "is the breaker closed". The two API replicas share one
+    Redis, so a short blip opens both breakers together; gating readiness on the
+    breaker would then hold both replicas out of the Service for the whole
+    recovery window — a full sign-in outage caused by a blip. A strict PING
+    through the pod's own client catches what matters (a replica whose client
+    is broken while Redis is fine) and recovers on the next probe. The strict
+    ping also moves an OPEN breaker to half-open, so a replica stops serving
+    fallbacks within one probe period of Redis answering again.
+    """
     try:
-        redis_client = await get_redis_client()
-        await redis_client.ping()
-        await redis_client.close()
+        await (await get_redis()).strict_ping()
         return True
     except Exception as e:
-        logger.debug("Redis ping check failed", error=str(e))
+        logger.debug("Redis ping check failed: %s", type(e).__name__)
         return False
 
 

@@ -24,9 +24,10 @@ class TestCSRFTokenManagement:
     def mock_redis(self):
         """Mock Redis client"""
         redis = AsyncMock()
-        redis.setex = AsyncMock(return_value=True)
-        redis.get = AsyncMock(return_value=None)
-        redis.delete = AsyncMock(return_value=True)
+        # Consent CSRF state uses the strict (no-fallback) operations.
+        redis.strict_set = AsyncMock(return_value=None)
+        redis.strict_get = AsyncMock(return_value=None)
+        redis.strict_delete = AsyncMock(return_value=1)
         return redis
 
     async def test_generate_csrf_token_returns_token(self, mock_redis):
@@ -37,7 +38,7 @@ class TestCSRFTokenManagement:
 
         assert token is not None
         assert len(token) > 20  # Base64 encoded 32 bytes
-        mock_redis.setex.assert_called_once()
+        mock_redis.strict_set.assert_called_once()
 
     async def test_generate_csrf_token_stores_user_id(self, mock_redis):
         """Should store user ID with CSRF token"""
@@ -45,20 +46,40 @@ class TestCSRFTokenManagement:
 
         await _generate_csrf_token("user_123", mock_redis)
 
-        call_args = mock_redis.setex.call_args
+        call_args = mock_redis.strict_set.call_args
         assert call_args[0][0].startswith("oauth:csrf:")
-        assert call_args[0][2] == "user_123"
+        assert call_args[0][1] == "user_123"
+        assert call_args[1]["ex"] == oauth_provider_module.CSRF_TOKEN_TTL
 
     async def test_validate_csrf_token_success(self, mock_redis):
         """Should validate valid CSRF token"""
         from app.routers.v1.oauth_provider import _validate_csrf_token
 
-        mock_redis.get = AsyncMock(return_value="user_123")
+        mock_redis.strict_get = AsyncMock(return_value="user_123")
 
         result = await _validate_csrf_token("valid_token", "user_123", mock_redis)
 
         assert result is True
-        mock_redis.delete.assert_called_once()
+        mock_redis.strict_delete.assert_called_once()
+
+    async def test_validate_csrf_token_consumed_concurrently(self, mock_redis):
+        """Should reject a token another submit deleted first"""
+        from app.routers.v1.oauth_provider import _validate_csrf_token
+
+        mock_redis.strict_get = AsyncMock(return_value="user_123")
+        mock_redis.strict_delete = AsyncMock(return_value=0)
+
+        assert await _validate_csrf_token("valid_token", "user_123", mock_redis) is False
+
+    async def test_validate_csrf_token_redis_unavailable_raises(self, mock_redis):
+        """Redis being down is not a CSRF failure: it raises (answered as 503)"""
+        from app.core.redis_circuit_breaker import RedisUnavailableError
+        from app.routers.v1.oauth_provider import _validate_csrf_token
+
+        mock_redis.strict_get = AsyncMock(side_effect=RedisUnavailableError("down"))
+
+        with pytest.raises(RedisUnavailableError):
+            await _validate_csrf_token("valid_token", "user_123", mock_redis)
 
     async def test_validate_csrf_token_empty_token(self, mock_redis):
         """Should reject empty CSRF token"""
@@ -72,7 +93,7 @@ class TestCSRFTokenManagement:
         """Should reject CSRF token not in Redis"""
         from app.routers.v1.oauth_provider import _validate_csrf_token
 
-        mock_redis.get = AsyncMock(return_value=None)
+        mock_redis.strict_get = AsyncMock(return_value=None)
 
         result = await _validate_csrf_token("invalid_token", "user_123", mock_redis)
 
@@ -82,7 +103,7 @@ class TestCSRFTokenManagement:
         """Should reject CSRF token with wrong user"""
         from app.routers.v1.oauth_provider import _validate_csrf_token
 
-        mock_redis.get = AsyncMock(return_value="different_user")
+        mock_redis.strict_get = AsyncMock(return_value="different_user")
 
         result = await _validate_csrf_token("token", "user_123", mock_redis)
 
@@ -166,9 +187,10 @@ class TestAuthCodeStorage:
     def mock_redis(self):
         """Mock Redis client"""
         redis = AsyncMock()
-        redis.set = AsyncMock(return_value=True)
-        redis.get = AsyncMock(return_value=None)
-        redis.delete = AsyncMock(return_value=True)
+        # Authorization codes use the strict (no-fallback) operations.
+        redis.strict_set = AsyncMock(return_value=None)
+        redis.strict_get = AsyncMock(return_value=None)
+        redis.strict_delete = AsyncMock(return_value=1)
         return redis
 
     async def test_store_auth_code_success(self, mock_redis):
@@ -180,30 +202,28 @@ class TestAuthCodeStorage:
 
         await _store_auth_code(code, data, mock_redis)
 
-        mock_redis.set.assert_called_once()
-        call_args = mock_redis.set.call_args
+        mock_redis.strict_set.assert_called_once()
+        call_args = mock_redis.strict_set.call_args
         assert call_args[0][0] == "oauth:code:test_auth_code"
         assert json.loads(call_args[0][1])["client_id"] == "client_123"
+        assert call_args[1]["ex"] == oauth_provider_module.AUTH_CODE_TTL
 
     async def test_store_auth_code_redis_failure(self, mock_redis):
-        """Should raise HTTPException on Redis failure"""
-        from fastapi import HTTPException
-
+        """Should raise RedisUnavailableError (answered 503 + Retry-After) on Redis failure"""
+        from app.core.redis_circuit_breaker import RedisUnavailableError
         from app.routers.v1.oauth_provider import _store_auth_code
 
-        mock_redis.set = AsyncMock(return_value=False)
+        mock_redis.strict_set = AsyncMock(side_effect=RedisUnavailableError("down"))
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(RedisUnavailableError):
             await _store_auth_code("code", {}, mock_redis)
-
-        assert exc_info.value.status_code == 503
 
     async def test_get_auth_code_success(self, mock_redis):
         """Should retrieve authorization code from Redis"""
         from app.routers.v1.oauth_provider import _get_auth_code
 
         code_data = {"client_id": "client_123", "user_id": "user_456"}
-        mock_redis.get = AsyncMock(return_value=json.dumps(code_data))
+        mock_redis.strict_get = AsyncMock(return_value=json.dumps(code_data))
 
         result = await _get_auth_code("test_code", mock_redis)
 
@@ -213,7 +233,7 @@ class TestAuthCodeStorage:
         """Should return None for unknown authorization code"""
         from app.routers.v1.oauth_provider import _get_auth_code
 
-        mock_redis.get = AsyncMock(return_value=None)
+        mock_redis.strict_get = AsyncMock(return_value=None)
 
         result = await _get_auth_code("unknown_code", mock_redis)
 
@@ -223,9 +243,17 @@ class TestAuthCodeStorage:
         """Should delete authorization code from Redis"""
         from app.routers.v1.oauth_provider import _delete_auth_code
 
-        await _delete_auth_code("test_code", mock_redis)
+        assert await _delete_auth_code("test_code", mock_redis) is True
 
-        mock_redis.delete.assert_called_once_with("oauth:code:test_code")
+        mock_redis.strict_delete.assert_called_once_with("oauth:code:test_code")
+
+    async def test_delete_auth_code_already_redeemed(self, mock_redis):
+        """Should report False when another request consumed the code first"""
+        from app.routers.v1.oauth_provider import _delete_auth_code
+
+        mock_redis.strict_delete = AsyncMock(return_value=0)
+
+        assert await _delete_auth_code("test_code", mock_redis) is False
 
 
 class TestOAuthClientRetrieval:

@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 import structlog
 from fastapi import HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -356,3 +356,77 @@ async def janua_exception_handler(request: Request, exc: JanuaAPIException) -> J
     )
 
     return JSONResponse(status_code=exc.status_code, content=error_data)
+
+
+# Seconds a client should wait before retrying when the shared state store is
+# unavailable. Short: the breaker probes Redis again well within this window.
+STATE_STORE_RETRY_AFTER_SECONDS = 5
+
+STATE_STORE_UNAVAILABLE_MESSAGE = (
+    "Sign-in is temporarily unavailable. Please try again in a few seconds."
+)
+
+_STATE_STORE_UNAVAILABLE_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temporarily unavailable - Janua</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+               background: #f5f5f7; color: #333; display: flex; align-items: center;
+               justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+        .box { background: white; border-radius: 12px; padding: 32px; max-width: 420px;
+               box-shadow: 0 8px 30px rgba(0,0,0,0.12); }
+        h1 { font-size: 20px; margin: 0 0 12px; }
+        p { font-size: 14px; line-height: 1.5; color: #555; margin: 0 0 8px; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>Sign-in is temporarily unavailable</h1>
+        <p>Nothing was changed. Please wait a few seconds, then go back and try again.</p>
+    </div>
+</body>
+</html>
+"""
+
+
+async def redis_unavailable_handler(request: Request, exc: Exception) -> Response:
+    """Answer 503 + Retry-After when a strict Redis operation could not run.
+
+    Raised (as `RedisUnavailableError`) only by the strict operations of
+    `ResilientRedisClient`, which guard security state every replica must share
+    (OAuth consent CSRF tokens, stored authorization requests, authorization
+    codes). Browsers get a short human page, API clients the standard error
+    envelope. Never a 403: the request may be perfectly valid; the store is not.
+    """
+    request_id = _get_request_id(request)
+    logger.error(
+        "State store unavailable; answering 503",
+        path=request.url.path,
+        method=request.method,
+        request_id=request_id,
+        error_type=type(exc).__name__,
+    )
+    headers = {
+        "Retry-After": str(STATE_STORE_RETRY_AFTER_SECONDS),
+        "Cache-Control": "no-store",
+    }
+    if "text/html" in request.headers.get("accept", ""):
+        return HTMLResponse(
+            content=_STATE_STORE_UNAVAILABLE_HTML,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            headers=headers,
+        )
+    error_data = {
+        "error": {
+            "code": "TEMPORARILY_UNAVAILABLE",
+            "message": STATE_STORE_UNAVAILABLE_MESSAGE,
+            "request_id": request_id,
+            "timestamp": time.time(),
+        }
+    }
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=error_data, headers=headers
+    )

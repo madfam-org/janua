@@ -10,6 +10,12 @@ Operator guides for production GitOps, secrets rotation, and incident records.
 | [ALEMBIC_CONVERGENCE.md](./ALEMBIC_CONVERGENCE.md) (ES) | Before promoting with unapplied migrations; after applying a migration by hand |
 | [../PP_3B_STAGING_PIPELINE.md](../PP_3B_STAGING_PIPELINE.md) | Full staging → prod pipeline (Pattern B) |
 
+## Identity / OAuth
+
+| Document | When to use |
+|----------|-------------|
+| [oauth-shared-state-redis.md](./oauth-shared-state-redis.md) | Consent `403 Invalid or expired CSRF token` or `503 temporarily unavailable`; reading `redis_circuit` on `/ready`; which Redis keys still fall back to pod memory |
+
 ## Compliance
 
 | Document | When to use |
