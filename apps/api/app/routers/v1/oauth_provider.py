@@ -1170,8 +1170,9 @@ def _account_chooser_html(
 ) -> str:
     """Render the `prompt=select_account` chooser over the held estate accounts.
 
-    Each account is a form that POSTs its `sid` to `/api/v1/auth/switch-session`
-    with `next` set to the rebuilt authorize URL, so choosing an account re-points
+    Each account is a form that POSTs its `sid` to `/api/v1/auth/switch-session/form`
+    (the form-encoded twin of the JSON `/switch-session`, which answers a plain
+    HTML form with 422) with `next` set to the rebuilt authorize URL, so choosing an account re-points
     `janua_sso` and lands back at `/authorize` for that account. "Use another
     account" is a normal interactive login. All user-controlled text is HTML
     escaped (XSS), and only the opaque `sid` and the pre-validated `next` travel
@@ -1187,7 +1188,7 @@ def _account_chooser_html(
         display = html.escape(str(label))
         escaped_sid = html.escape(str(sid))
         rows += f"""
-        <form method="post" action="/api/v1/auth/switch-session" class="account">
+        <form method="post" action="/api/v1/auth/switch-session/form" class="account">
             <input type="hidden" name="sid" value="{escaped_sid}">
             <input type="hidden" name="next" value="{escaped_next}">
             <button type="submit" class="account-btn">
