@@ -318,6 +318,20 @@ async def get_admin_stats(
     )
 
 
+def _log_health_failure(check: str, error: Exception) -> None:
+    """Log a failed admin health check server-side, redacted (J4-002)."""
+    import structlog
+
+    from app.services.monitoring import redact_error_text
+
+    structlog.get_logger().warning(
+        "admin_health_check_failed",
+        check=check,
+        error_type=type(error).__name__,
+        error=redact_error_text(str(error)),
+    )
+
+
 @router.get("/health", response_model=SystemHealthResponse)
 async def get_system_health(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
@@ -340,7 +354,9 @@ async def get_system_health(
         await redis_client.ping()
         cache_status = "healthy"
     except Exception as e:
-        cache_status = f"unhealthy: {str(e)}"
+        # Status only in the body (J4-002); the detail goes to the log, redacted.
+        _log_health_failure("cache", e)
+        cache_status = "unhealthy"
 
     # Check storage (S3/R2 in production)
     try:
@@ -355,7 +371,8 @@ async def get_system_health(
             else:
                 storage_status = "misconfigured"
     except Exception as e:
-        storage_status = f"unhealthy: {str(e)}"
+        _log_health_failure("storage", e)
+        storage_status = "unhealthy"
 
     # Check email service
     from app.services.resend_email_service import get_resend_email_service
