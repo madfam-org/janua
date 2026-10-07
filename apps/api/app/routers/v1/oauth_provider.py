@@ -3204,12 +3204,13 @@ async def _token_for_protected_resource(
         )
     if grant_type == "refresh_token":
         if refresh_token and not resource_tokens.looks_like_resource_refresh_token(refresh_token):
-            # A refresh token from the default flow names no resource.
-            if resource_values:
-                return _oauth_token_error(
-                    "invalid_target", "this refresh token was not issued for a protected resource"
-                )
-            return _oauth_token_error("invalid_grant", "the refresh token is invalid or expired")
+            # Garbage, or a refresh token of the default flow (which names no
+            # resource and can never become a resource token): either way the
+            # grant is unusable here, and `invalid_grant` is what tells a
+            # client like Claude to authorize again.
+            return _oauth_token_error(
+                "invalid_grant", "the refresh token is invalid for this resource"
+            )
         return await _refresh_resource_token(
             refresh_token=refresh_token,
             scope=scope,

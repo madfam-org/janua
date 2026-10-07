@@ -110,7 +110,7 @@ def client_id_host(client_id: str) -> str:
         port = parts.port
     except ValueError as exc:
         raise ClientMetadataError("client_id is not a valid URL") from exc
-    if parts.scheme != "https":
+    if parts.scheme != "https" or not client_id.startswith("https://"):
         raise ClientMetadataError("client_id URL must use https")
     if parts.username is not None or parts.password is not None:
         raise ClientMetadataError("client_id URL must not contain user information")
