@@ -56,6 +56,7 @@ from app.core.protected_resources import (
     PROTECTED_RESOURCES,
     InvalidResourceIndicator,
     ProtectedResource,
+    all_cimd_client_ids,
     all_cimd_hosts,
     canonical_resource,
     granted_scopes,
@@ -1392,15 +1393,6 @@ class _ResourceClient:
         return self.cimd_host or redirect_display_host(redirect_uri)
 
 
-class _AuthorizeFailure(Exception):
-    """A refusal that must NOT redirect: the client or its redirect URI is untrusted."""
-
-    def __init__(self, error: str, description: str) -> None:
-        super().__init__(description)
-        self.error = error
-        self.description = description
-
-
 def _resource_values(value: Any) -> list[str]:
     """The `resource` values of a request (RFC 8707 allows repeating it).
 
@@ -1423,8 +1415,8 @@ def _select_resource(values: list[str]) -> tuple[Optional[ProtectedResource], Op
     for value in values:
         try:
             canonical.add(canonical_resource(value))
-        except InvalidResourceIndicator as exc:
-            return None, str(exc)
+        except InvalidResourceIndicator:
+            return None, "the resource must be an absolute URI without a fragment"
     if len(canonical) != 1:
         return None, "exactly one resource per request is supported"
     resource = PROTECTED_RESOURCES.get(next(iter(canonical)))
@@ -1448,38 +1440,52 @@ def _registered_redirect_uris(client: OAuthClient) -> tuple[str, ...]:
 
 async def _resolve_resource_client(
     client_id: str, resource: Optional[ProtectedResource], db: AsyncSession
-) -> _ResourceClient:
-    """The client behind `client_id`, or _AuthorizeFailure.
+) -> tuple[Optional[_ResourceClient], Optional[str]]:
+    """(the client behind `client_id`, None), or (None, why it was refused).
 
-    A URL client_id is fetched as a Client ID Metadata Document, from a host on
-    the resource's allowlist only. With no usable resource the union of every
-    resource's allowlist decides, so the `invalid_target` error can still be
-    delivered to a verified redirect URI.
+    The reason is for the log only; the person sees a fixed message.
+
+    A URL client_id is fetched as a Client ID Metadata Document only when it is
+    one of the resource's pinned client_id URLs (on its host allowlist). With no
+    usable resource the union of every resource's pins decides, so the
+    `invalid_target` error can still be delivered to a verified redirect URI.
     """
     if is_url_client_id(client_id):
-        allowed = resource.client_policy.cimd_hosts if resource else all_cimd_hosts()
+        if resource is not None:
+            hosts = resource.client_policy.cimd_hosts
+            pinned = resource.client_policy.cimd_client_ids
+        else:
+            hosts, pinned = all_cimd_hosts(), all_cimd_client_ids()
         try:
-            metadata = await resolve_client_metadata(client_id, allowed_hosts=allowed)
+            metadata = await resolve_client_metadata(
+                client_id, allowed_hosts=hosts, pinned_client_ids=pinned
+            )
         except ClientMetadataError as exc:
-            raise _AuthorizeFailure(exc.error, exc.description) from exc
-        return _ResourceClient(
-            client_id=client_id,
-            kind="cimd",
-            client_name=metadata.client_name,
-            redirect_uris=metadata.redirect_uris,
-            grant_types=frozenset(metadata.grant_types),
-            cimd_host=metadata.host,
+            return None, exc.description
+        return (
+            _ResourceClient(
+                client_id=metadata.client_id,
+                kind="cimd",
+                client_name=metadata.client_name,
+                redirect_uris=metadata.redirect_uris,
+                grant_types=frozenset(metadata.grant_types),
+                cimd_host=metadata.host,
+            ),
+            None,
         )
     client = await _get_oauth_client(client_id, db)
     if not client or not client.is_active:
-        raise _AuthorizeFailure("invalid_client", "unknown or disabled client")
-    return _ResourceClient(
-        client_id=client_id,
-        kind="registered",
-        client_name=client.name,
-        redirect_uris=_registered_redirect_uris(client),
-        grant_types=frozenset(_client_grant_types(client)),
-        db_client=client,
+        return None, "unknown or disabled client"
+    return (
+        _ResourceClient(
+            client_id=client_id,
+            kind="registered",
+            client_name=client.name,
+            redirect_uris=_registered_redirect_uris(client),
+            grant_types=frozenset(_client_grant_types(client)),
+            db_client=client,
+        ),
+        None,
     )
 
 
@@ -1489,7 +1495,10 @@ def _resource_policy_error(
     """Why `client` may not obtain tokens for `resource` via `redirect_uri`, or None."""
     policy = resource.client_policy
     if client.kind == "cimd":
-        if client.cimd_host not in policy.cimd_hosts:
+        if (
+            client.cimd_host not in policy.cimd_hosts
+            or policy.pinned_client_id(client.client_id) is None
+        ):
             return "this client is not allowed to request this resource"
     elif not client.redirect_uris or not all(
         policy.allows_redirect(uri) for uri in client.redirect_uris
@@ -1576,16 +1585,15 @@ async def _authorize_protected_resource(
 
     # 1. Who is asking, and may the answer go to `redirect_uri`? Until both are
     #    known nothing is redirected (RFC 6749 §4.1.2.1).
-    try:
-        client = await _resolve_resource_client(client_id, resource, db)
-    except _AuthorizeFailure as failure:
+    client, refusal = await _resolve_resource_client(client_id, resource, db)
+    if client is None:
         logger.warning(
             "oauth.resource_authorize.refused",
-            error=failure.error,
-            reason=failure.description,
+            error="invalid_client",
+            reason=refusal,
             client_kind="cimd" if is_url_client_id(client_id) else "registered",
         )
-        return _authorization_error_page(failure.error, failure.description)
+        return _authorization_error_page("invalid_client", "the client could not be verified")
     if not redirect_uri_matches(redirect_uri, client.redirect_uris):
         logger.warning(
             "oauth.resource_authorize.refused",
@@ -1757,10 +1765,12 @@ async def _complete_protected_resource_consent(
         )
     # Defense in depth: the stored request was validated when the page was
     # rendered, but the registry or the client's document may have changed.
-    try:
-        client = await _resolve_resource_client(client_id, resource, db)
-    except _AuthorizeFailure as failure:
-        return _authorization_error_page(failure.error, failure.description)
+    client, refusal = await _resolve_resource_client(client_id, resource, db)
+    if client is None:
+        logger.warning(
+            "oauth.resource_consent.refused", error="invalid_client", reason=refusal
+        )
+        return _authorization_error_page("invalid_client", "the client could not be verified")
     if not redirect_uri_matches(redirect_uri, client.redirect_uris) or _resource_policy_error(
         resource, client, redirect_uri
     ):
@@ -2862,6 +2872,22 @@ def _oauth_token_error(
     )
 
 
+def _pinned_cimd_client_id(client_id: Optional[str]) -> Optional[str]:
+    """The pinned CIMD client_id (a registry string) equal to `client_id`, or None."""
+    for pinned in sorted(all_cimd_client_ids()):
+        if pinned == client_id:
+            return pinned
+    return None
+
+
+def _cimd_client_allowed(resource: ProtectedResource, client: "_TokenClient") -> bool:
+    policy = resource.client_policy
+    return (
+        client.cimd_host in policy.cimd_hosts
+        and policy.pinned_client_id(client.client_id) is not None
+    )
+
+
 def _token_client_from_row(client: OAuthClient) -> _TokenClient:
     return _TokenClient(
         client_id=client.client_id,
@@ -2881,11 +2907,8 @@ async def _authenticate_resource_token_client(
     if not client_id:
         return None, _oauth_token_error("invalid_request", "client_id is required")
     if is_url_client_id(client_id):
-        try:
-            host = client_id_host(client_id)
-        except ClientMetadataError as exc:
-            return None, _oauth_token_error("invalid_client", exc.description, 401)
-        if host not in all_cimd_hosts():
+        pinned = _pinned_cimd_client_id(client_id)
+        if pinned is None:
             return None, _oauth_token_error(
                 "invalid_client", "this client is not allowed at this server", 401
             )
@@ -2899,10 +2922,10 @@ async def _authenticate_resource_token_client(
             )
         return (
             _TokenClient(
-                client_id=client_id,
+                client_id=pinned,
                 kind="cimd",
                 grant_types=frozenset({"authorization_code", "refresh_token"}),
-                cimd_host=host,
+                cimd_host=client_id_host(pinned),
             ),
             None,
         )
@@ -3012,7 +3035,7 @@ async def _exchange_resource_code(
     mismatch = _requested_resource_mismatch(resource_values, resource)
     if mismatch is not None:
         return mismatch
-    if client.kind == "cimd" and client.cimd_host not in resource.client_policy.cimd_hosts:
+    if client.kind == "cimd" and not _cimd_client_allowed(resource, client):
         return _oauth_token_error(
             "unauthorized_client", "this client may not obtain tokens for this resource"
         )
@@ -3100,7 +3123,7 @@ async def _refresh_resource_token(
     mismatch = _requested_resource_mismatch(resource_values, resource)
     if mismatch is not None:
         return mismatch
-    if client.kind == "cimd" and client.cimd_host not in resource.client_policy.cimd_hosts:
+    if client.kind == "cimd" and not _cimd_client_allowed(resource, client):
         return _oauth_token_error("invalid_grant", "this client may no longer use this resource")
     if "refresh_token" not in client.grant_types:
         return _oauth_token_error("unauthorized_client", "grant type not allowed for this client")
@@ -3923,15 +3946,14 @@ async def _revoke_protected_resource_token(
 ):
     """RFC 7009 for protected-resource tokens (see `revoke`)."""
     if is_url_client_id(client_id):
-        try:
-            host = client_id_host(client_id)
-        except ClientMetadataError as exc:
-            return _oauth_token_error("invalid_client", exc.description, 401)
-        if host not in all_cimd_hosts() or client_secret:
+        pinned = _pinned_cimd_client_id(client_id)
+        if pinned is None or client_secret:
             return _oauth_token_error("invalid_client", "client authentication failed", 401)
-        caller = client_id
+        caller = pinned
     else:
-        caller = (await _authenticate_revoking_client(request, client_id, client_secret, db)).client_id
+        caller = (
+            await _authenticate_revoking_client(request, client_id, client_secret, db)
+        ).client_id
 
     claims = resource_tokens.verify_refresh_token(token)
     if claims is not None and claims.get("client_id") == caller:

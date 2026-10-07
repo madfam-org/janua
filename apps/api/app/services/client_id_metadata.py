@@ -15,9 +15,10 @@ client's metadata (name, redirect URIs, auth method). Janua fetches it at
 A URL client_id makes Janua issue an outbound request whose target the CLIENT
 chose, so the fetch is fenced in on every side (server-side request forgery):
 
-- only hosts on the requested resource's allowlist
-  (``ClientPolicy.cimd_hosts``) are fetched — anything else is refused before
-  any DNS lookup;
+- only the requested resource's pinned client_id URLs
+  (``ClientPolicy.cimd_client_ids``, on its host allowlist ``cimd_hosts``) are
+  fetched, and the URL fetched is the pinned string from the registry, never
+  the request's — anything else is refused before any DNS lookup;
 - ``https`` only, default port, no user info, query or fragment, a real path
   without dot segments;
 - every address the host resolves to must be a public (global unicast)
@@ -376,41 +377,55 @@ def parse_document(raw: bytes, client_id: str, host: str) -> ClientMetadata:
 
 
 async def resolve_client_metadata(
-    client_id: str, *, allowed_hosts: frozenset[str]
+    client_id: str,
+    *,
+    allowed_hosts: frozenset[str],
+    pinned_client_ids: frozenset[str],
 ) -> ClientMetadata:
-    """The validated document for ``client_id``, fetched only from an allowed host.
+    """The validated document for ``client_id``: a pinned URL on an allowed host.
+
+    The URL that is fetched is the pinned one from the registry
+    (``ClientPolicy.cimd_client_ids``), selected by equality — never the string
+    the request carried — so no part of the outbound request is chosen by the
+    caller.
 
     Raises ClientMetadataError (with ``error`` set to the OAuth error code)
     for anything Janua will not use: a malformed URL, a host off the
-    allowlist, a non-public address, a redirect, a non-200, a non-JSON or
-    oversized body, a timeout, or a document that fails validation.
+    allowlist, a URL that is not pinned, a non-public address, a redirect, a
+    non-200, a non-JSON or oversized body, a timeout, or a document that fails
+    validation.
     """
     host = client_id_host(client_id)
     if host not in allowed_hosts:
         logger.warning("oauth.cimd.rejected", reason="host_not_allowed", host=host)
         raise ClientMetadataError("this client is not allowed to request this resource")
+    pinned = next((url for url in sorted(pinned_client_ids) if url == client_id), None)
+    if pinned is None:
+        logger.warning("oauth.cimd.rejected", reason="client_id_not_pinned", host=host)
+        raise ClientMetadataError("this client is not allowed to request this resource")
+    pinned_host = client_id_host(pinned)
 
-    cached = _cache.get(client_id)
+    cached = _cache.get(pinned)
     if cached is not None:
         return cached
 
     async def _load() -> tuple[ClientMetadata, int]:
-        address = await _public_address(host)
-        raw, cache_control = await _fetch_document(client_id, host, address)
-        return parse_document(raw, client_id, host), _cache_ttl(cache_control)
+        address = await _public_address(pinned_host)
+        raw, cache_control = await _fetch_document(pinned, pinned_host, address)
+        return parse_document(raw, pinned, pinned_host), _cache_ttl(cache_control)
 
     try:
         metadata, ttl = await asyncio.wait_for(_load(), timeout=FETCH_TIMEOUT_SECONDS)
     except ClientMetadataError as exc:
-        logger.warning("oauth.cimd.rejected", reason=exc.description, host=host)
+        logger.warning("oauth.cimd.rejected", reason=exc.description, host=pinned_host)
         raise
     except asyncio.TimeoutError as exc:
-        logger.warning("oauth.cimd.rejected", reason="timeout", host=host)
+        logger.warning("oauth.cimd.rejected", reason="timeout", host=pinned_host)
         raise ClientMetadataError("client metadata document did not arrive in time") from exc
     except httpx.HTTPError as exc:
-        logger.warning("oauth.cimd.rejected", reason=type(exc).__name__, host=host)
+        logger.warning("oauth.cimd.rejected", reason=type(exc).__name__, host=pinned_host)
         raise ClientMetadataError("client metadata document could not be fetched") from exc
 
-    _cache.put(client_id, metadata, ttl)
-    logger.info("oauth.cimd.fetched", host=host, cache_seconds=ttl)
+    _cache.put(pinned, metadata, ttl)
+    logger.info("oauth.cimd.fetched", host=pinned_host, cache_seconds=ttl)
     return metadata

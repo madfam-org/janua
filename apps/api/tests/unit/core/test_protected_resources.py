@@ -55,9 +55,24 @@ class TestTheMapEntry:
     def test_client_policy_is_claude_and_claude_code_only(self):
         policy = MAP_CREA_TU_MUNDO.client_policy
         assert policy.cimd_hosts == frozenset({"claude.ai"})
+        assert policy.cimd_client_ids == frozenset(
+            {
+                "https://claude.ai/oauth/mcp-oauth-client-metadata",
+                "https://claude.ai/oauth/claude-code-client-metadata",
+            }
+        )
         assert policy.redirect_uris == frozenset({"https://claude.ai/api/mcp/auth_callback"})
         assert policy.allow_loopback_redirects is True
         assert CLAUDE_HOSTED_CALLBACK == "https://claude.ai/api/mcp/auth_callback"
+
+    def test_pinned_client_id_is_returned_from_the_registry(self):
+        policy = MAP_CREA_TU_MUNDO.client_policy
+        requested = "https://claude.ai/oauth/" + "mcp-oauth-client-metadata"
+        pinned = policy.pinned_client_id(requested)
+        assert pinned == requested
+        assert pinned in policy.cimd_client_ids
+        assert policy.pinned_client_id("https://claude.ai/oauth/other") is None
+        assert policy.pinned_client_id(None) is None
 
     def test_policy_allows_claude_callback_and_loopback_only(self):
         policy = MAP_CREA_TU_MUNDO.client_policy
@@ -119,6 +134,23 @@ class TestRegistryInvariants:
         policy = dataclasses.replace(
             MAP_CREA_TU_MUNDO.client_policy,
             redirect_uris=frozenset({"http://claude.ai/api/mcp/auth_callback"}),
+        )
+        with pytest.raises(RuntimeError):
+            check_registry(self._registry_with(client_policy=policy))
+
+    @pytest.mark.parametrize(
+        "client_id",
+        [
+            "https://evil.example/oauth/client.json",  # not on a CIMD host
+            "http://claude.ai/oauth/client.json",
+            "https://claude.ai",
+            "https://claude.ai/oauth/client.json?x=1",
+            "https://claude.ai:8443/oauth/client.json",
+        ],
+    )
+    def test_a_pinned_client_id_must_be_a_clean_https_url_on_a_cimd_host(self, client_id):
+        policy = dataclasses.replace(
+            MAP_CREA_TU_MUNDO.client_policy, cimd_client_ids=frozenset({client_id})
         )
         with pytest.raises(RuntimeError):
             check_registry(self._registry_with(client_policy=policy))

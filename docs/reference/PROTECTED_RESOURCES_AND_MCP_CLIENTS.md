@@ -34,6 +34,7 @@ whose data. Anything not listed is refused with `invalid_target`.
 | access token lifetime | 15 minutes (the registry refuses more) |
 | refresh token | rotates on every use; ends after 7 days unused or 30 days after consent, whichever is first |
 | CIMD hosts | `claude.ai` |
+| CIMD client_ids (pinned) | `https://claude.ai/oauth/mcp-oauth-client-metadata` (claude.ai, Desktop, mobile, Cowork); `https://claude.ai/oauth/claude-code-client-metadata` (Claude Code) |
 | exact redirect URIs | `https://claude.ai/api/mcp/auth_callback` |
 | loopback redirects | allowed (`127.0.0.1`, `[::1]`, `localhost`, any port) |
 | first login method offered | emailed link (`magic_link`) |
@@ -49,8 +50,9 @@ whose data. Anything not listed is refused with `invalid_target`.
    - `display_name` and every scope `description`: plain Spanish for the
      person who reads the consent screen.
    - scopes: namespaced `area.thing:verb` names; never `offline_access`.
-   - `client_policy`: the CIMD hosts to fetch from, the exact https callback
-     URIs, and whether loopback redirects are allowed.
+   - `client_policy`: the CIMD hosts, the exact CIMD client_id URLs Janua may
+     fetch (each on one of those hosts), the exact https callback URIs, and
+     whether loopback redirects are allowed.
    - `access_token_ttl_seconds` at most 900; the module refuses to import
      otherwise (`check_registry`).
 2. Add the entry's expectations to `tests/unit/core/test_protected_resources.py`.
@@ -136,8 +138,10 @@ resource verifies them offline against the JWKS.
 ## Clients
 
 - **Client ID Metadata Documents** (draft-ietf-oauth-client-id-metadata-document):
-  an `https` client_id is fetched only when its host is on the resource's
-  allowlist. The URL must be `https`, default port, no user info, query or
+  an `https` client_id is fetched only when it is one of the resource's
+  pinned client_id URLs, on its host allowlist; the URL fetched is the
+  registry's string, never the request's (a new Claude client URL needs a
+  registry change). The URL must be `https`, default port, no user info, query or
   fragment, a real path without dot segments, a host name (not an IP). Every
   address the host resolves to must be public; the connection goes to the
   checked address (TLS still verified against the host name); no redirects;

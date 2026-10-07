@@ -18,11 +18,13 @@ Each entry pins:
   screen. Write them for the person who will read them, not for engineers.
 - ``client_policy``: WHICH clients may ask for the resource. A client
   identified by a Client ID Metadata Document (an ``https`` client_id) is
-  accepted only when its host is in ``cimd_hosts``; Janua fetches nothing from
-  any other host. Every client, CIMD or registered in Janua's database, must
-  redirect to one of ``redirect_uris`` exactly, or to a loopback address on
-  any port when ``allow_loopback_redirects`` is set. A database client must
-  additionally have *every* registered redirect URI inside that policy.
+  accepted only when its host is in ``cimd_hosts`` AND the URL is one of the
+  pinned ``cimd_client_ids``; Janua fetches nothing else, and what it fetches
+  is the pinned URL from this file, never a string taken from the request.
+  Every client, CIMD or registered in Janua's database, must redirect to one
+  of ``redirect_uris`` exactly, or to a loopback address on any port when
+  ``allow_loopback_redirects`` is set. A database client must additionally
+  have *every* registered redirect URI inside that policy.
 - token lifetimes: the access token is short (at most 15 minutes, enforced
   below). Refresh tokens rotate on every use; ``refresh_token_idle_seconds``
   ends a connection nobody used, ``refresh_token_max_lifetime_seconds`` ends
@@ -78,8 +80,16 @@ class ClientPolicy:
     """Which clients may obtain tokens for a resource (see the module docstring)."""
 
     cimd_hosts: frozenset[str]
+    cimd_client_ids: frozenset[str]
     redirect_uris: frozenset[str]
     allow_loopback_redirects: bool
+
+    def pinned_client_id(self, client_id: object) -> Optional[str]:
+        """The pinned CIMD URL equal to ``client_id`` (from this policy), or None."""
+        for pinned in sorted(self.cimd_client_ids):
+            if pinned == client_id:
+                return pinned
+        return None
 
     def allows_redirect(self, redirect_uri: str) -> bool:
         """Whether a redirect URI is inside this policy (exact, or loopback on any port)."""
@@ -120,6 +130,12 @@ class ProtectedResource:
 #: this redirect URI; Claude Code uses a loopback redirect instead.
 CLAUDE_HOSTED_CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 
+#: The Client ID Metadata Documents Anthropic publishes (checked 2026-10-06):
+#: the hosted apps' (redirect: CLAUDE_HOSTED_CALLBACK) and Claude Code's
+#: (redirects: http://localhost/callback, http://127.0.0.1/callback).
+CLAUDE_HOSTED_CLIENT_ID = "https://claude.ai/oauth/mcp-oauth-client-metadata"
+CLAUDE_CODE_CLIENT_ID = "https://claude.ai/oauth/claude-code-client-metadata"
+
 #: The MAP (operations app) of Crea Tu Mundo, as an MCP server. Owner decision
 #: 2026-10: Claude and Claude Code only, read-only scopes, no clinical data.
 MAP_CREA_TU_MUNDO = ProtectedResource(
@@ -137,6 +153,7 @@ MAP_CREA_TU_MUNDO = ProtectedResource(
     ),
     client_policy=ClientPolicy(
         cimd_hosts=frozenset({"claude.ai"}),
+        cimd_client_ids=frozenset({CLAUDE_HOSTED_CLIENT_ID, CLAUDE_CODE_CLIENT_ID}),
         redirect_uris=frozenset({CLAUDE_HOSTED_CALLBACK}),
         allow_loopback_redirects=True,
     ),
@@ -215,6 +232,14 @@ def all_cimd_hosts() -> frozenset[str]:
     for resource in PROTECTED_RESOURCES.values():
         hosts.update(resource.client_policy.cimd_hosts)
     return frozenset(hosts)
+
+
+def all_cimd_client_ids() -> frozenset[str]:
+    """Every pinned Client ID Metadata Document URL, across resources."""
+    client_ids: set[str] = set()
+    for resource in PROTECTED_RESOURCES.values():
+        client_ids.update(resource.client_policy.cimd_client_ids)
+    return frozenset(client_ids)
 
 
 def protected_resource_redirect_origins() -> list[str]:
@@ -350,6 +375,18 @@ def check_registry(registry: Mapping[str, ProtectedResource]) -> None:
             _require(
                 host == host.lower() and host.strip() and not set("/:@?#") & set(host),
                 f"CIMD host {host!r} must be a bare lowercase host name",
+            )
+        for client_id in policy.cimd_client_ids:
+            parts = urlsplit(client_id)
+            _require(
+                client_id.startswith("https://")
+                and parts.hostname in policy.cimd_hosts
+                and parts.port is None
+                and parts.path not in ("", "/")
+                and not parts.query
+                and "#" not in client_id
+                and parts.username is None,
+                f"CIMD client_id {client_id!r} must be an https URL with a path on a CIMD host",
             )
         for redirect in policy.redirect_uris:
             parts = urlsplit(redirect)

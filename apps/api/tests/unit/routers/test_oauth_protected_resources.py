@@ -615,6 +615,21 @@ class TestAuthorizeRefusals:
         assert "No se pudo autorizar" in response.text
         assert env.net.requests == []
 
+    async def test_an_unpinned_claude_url_is_never_fetched(self, env):
+        _, challenge = pkce()
+        response = await authorize(
+            env,
+            authorize_params(challenge, client_id="https://claude.ai/oauth/another-document"),
+            env.director,
+        )
+        assert response.status_code == 400 and "location" not in response.headers
+        assert env.net.requests == []
+
+        token_response = await exchange(
+            env, "code", "v" * 43, client_id="https://claude.ai/oauth/another-document"
+        )
+        assert_oauth_error(token_response, "invalid_client", 401)
+
     async def test_http_client_id_is_refused(self, env):
         _, challenge = pkce()
         response = await authorize(
@@ -1317,5 +1332,5 @@ class TestContentSecurityPolicy:
         response = await env.http.get("/.well-known/oauth-authorization-server")
         csp = response.headers["content-security-policy"]
         form_action = next(d for d in csp.split(";") if d.strip().startswith("form-action"))
-        assert "https://claude.ai" in form_action.split()
-        assert "http://localhost:*" in form_action.split()
+        sources = set(form_action.split())
+        assert {"https://claude.ai", "http://localhost:*", "http://127.0.0.1:*"} <= sources

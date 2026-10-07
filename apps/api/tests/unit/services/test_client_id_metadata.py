@@ -54,7 +54,12 @@ CLAUDE_CODE_DOC = {
     "token_endpoint_auth_method": "none",
 }
 ALLOWED = frozenset({"claude.ai"})
+PINNED = frozenset({CLAUDE, CLAUDE_CODE})
 PUBLIC_IP = "104.18.32.47"
+
+
+async def resolve(client_id, *, hosts=ALLOWED, pinned=PINNED):
+    return await resolve_client_metadata(client_id, allowed_hosts=hosts, pinned_client_ids=pinned)
 
 
 class _ChunkStream(httpx.AsyncByteStream):
@@ -181,7 +186,7 @@ class TestPublicAddresses:
 
 class TestFetch:
     async def test_claude_document_is_fetched_from_the_checked_address(self, net):
-        metadata = await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+        metadata = await resolve(CLAUDE)
 
         assert metadata.client_id == CLAUDE
         assert metadata.host == "claude.ai"
@@ -196,7 +201,7 @@ class TestFetch:
         assert request.method == "GET"
 
     async def test_claude_code_document(self, net):
-        metadata = await resolve_client_metadata(CLAUDE_CODE, allowed_hosts=ALLOWED)
+        metadata = await resolve(CLAUDE_CODE)
         assert metadata.redirect_uris == (
             "http://localhost/callback",
             "http://127.0.0.1/callback",
@@ -204,58 +209,70 @@ class TestFetch:
 
     async def test_ipv6_only_host_connects_to_the_bracketed_address(self, net):
         net.addresses["claude.ai"] = ["2606:4700::6812:202f"]
-        await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+        await resolve(CLAUDE)
         assert str(net.requests[0].url).startswith("https://[2606:4700::6812:202f]/")
 
     async def test_valid_documents_are_cached(self, net):
-        await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
-        await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+        await resolve(CLAUDE)
+        await resolve(CLAUDE)
         assert len(net.requests) == 1
 
     async def test_no_store_is_not_cached(self, net):
         net.responses["/oauth/mcp-oauth-client-metadata"] = net.json(
             CLAUDE_DOC, headers={"cache-control": "no-store"}
         )
-        await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
-        await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+        await resolve(CLAUDE)
+        await resolve(CLAUDE)
         assert len(net.requests) == 2
 
     async def test_failures_are_never_cached(self, net):
         net.responses["/oauth/mcp-oauth-client-metadata"] = net.json({}, status=500)
         for _ in range(2):
             with pytest.raises(ClientMetadataError):
-                await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+                await resolve(CLAUDE)
         assert len(net.requests) == 2
         net.responses["/oauth/mcp-oauth-client-metadata"] = net.json(CLAUDE_DOC)
-        assert (await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)).client_id == CLAUDE
+        assert (await resolve(CLAUDE)).client_id == CLAUDE
 
-    async def test_an_allowed_host_is_cached_per_url_but_rechecked_per_resource(self, net):
-        await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+    async def test_a_cached_document_is_still_rechecked_against_the_pins(self, net):
+        await resolve(CLAUDE)
         with pytest.raises(ClientMetadataError):
-            await resolve_client_metadata(CLAUDE, allowed_hosts=frozenset({"other.example"}))
+            await resolve(CLAUDE, pinned=frozenset({CLAUDE_CODE}))
+        with pytest.raises(ClientMetadataError):
+            await resolve(CLAUDE, hosts=frozenset({"other.example"}))
 
 
 class TestSsrfRefusals:
     async def test_host_off_the_allowlist_is_refused_before_any_lookup(self, net):
         with pytest.raises(ClientMetadataError) as excinfo:
-            await resolve_client_metadata(
-                "https://evil.example/oauth/client.json", allowed_hosts=ALLOWED
-            )
+            await resolve("https://evil.example/oauth/client.json")
         assert excinfo.value.error == "invalid_client"
+        assert net.lookups == [] and net.requests == []
+
+    @pytest.mark.parametrize(
+        "client_id",
+        [
+            "https://claude.ai/oauth/some-other-document",
+            "https://claude.ai/latest/meta-data",
+            CLAUDE + "-v2",
+        ],
+    )
+    async def test_an_unpinned_url_on_an_allowed_host_is_refused_before_any_lookup(
+        self, net, client_id
+    ):
+        """The caller never chooses the path Janua fetches: only pinned URLs."""
+        with pytest.raises(ClientMetadataError):
+            await resolve(client_id)
         assert net.lookups == [] and net.requests == []
 
     async def test_subdomain_of_an_allowed_host_is_not_allowed(self, net):
         with pytest.raises(ClientMetadataError):
-            await resolve_client_metadata(
-                "https://evil.claude.ai/oauth/client.json", allowed_hosts=ALLOWED
-            )
+            await resolve("https://evil.claude.ai/oauth/client.json")
         assert net.lookups == []
 
     async def test_non_https_is_refused_before_any_lookup(self, net):
         with pytest.raises(ClientMetadataError):
-            await resolve_client_metadata(
-                "http://claude.ai/oauth/mcp-oauth-client-metadata", allowed_hosts=ALLOWED
-            )
+            await resolve("http://claude.ai/oauth/mcp-oauth-client-metadata")
         assert net.lookups == [] and net.requests == []
 
     @pytest.mark.parametrize(
@@ -265,14 +282,14 @@ class TestSsrfRefusals:
     async def test_private_addresses_are_refused_without_connecting(self, net, addresses):
         net.addresses["claude.ai"] = addresses
         with pytest.raises(ClientMetadataError) as excinfo:
-            await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+            await resolve(CLAUDE)
         assert "non-public" in excinfo.value.description
         assert net.requests == []
 
     async def test_unresolvable_host(self, net):
         net.addresses["claude.ai"] = OSError("NXDOMAIN")
         with pytest.raises(ClientMetadataError):
-            await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+            await resolve(CLAUDE)
 
     @pytest.mark.parametrize("status", [301, 302, 307, 308])
     async def test_redirects_are_not_followed(self, net, status):
@@ -280,20 +297,20 @@ class TestSsrfRefusals:
             status, headers={"location": "http://169.254.169.254/latest/meta-data"}
         )
         with pytest.raises(ClientMetadataError) as excinfo:
-            await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+            await resolve(CLAUDE)
         assert "redirect" in excinfo.value.description
         assert len(net.requests) == 1
 
     async def test_non_200_is_refused(self, net):
         net.responses["/oauth/mcp-oauth-client-metadata"] = net.json(CLAUDE_DOC, status=203)
         with pytest.raises(ClientMetadataError):
-            await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+            await resolve(CLAUDE)
 
     async def test_oversized_declared_body_is_refused(self, net):
         big = dict(CLAUDE_DOC, padding="x" * (11 * 1024))
         net.responses["/oauth/mcp-oauth-client-metadata"] = net.json(big)
         with pytest.raises(ClientMetadataError) as excinfo:
-            await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+            await resolve(CLAUDE)
         assert "too large" in excinfo.value.description
 
     async def test_oversized_streamed_body_is_cut_off(self, net):
@@ -303,7 +320,7 @@ class TestSsrfRefusals:
             stream=_ChunkStream([b"{" + b" " * 6000, b" " * 6000, b"}"]),
         )
         with pytest.raises(ClientMetadataError) as excinfo:
-            await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+            await resolve(CLAUDE)
         assert "too large" in excinfo.value.description
 
     @pytest.mark.parametrize("content_type", ["text/html", "text/plain", "application/xml", ""])
@@ -312,18 +329,18 @@ class TestSsrfRefusals:
             CLAUDE_DOC, headers={"content-type": content_type}
         )
         with pytest.raises(ClientMetadataError):
-            await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+            await resolve(CLAUDE)
 
     async def test_json_with_parameters_is_accepted(self, net):
         net.responses["/oauth/mcp-oauth-client-metadata"] = net.json(
             CLAUDE_DOC, headers={"content-type": "application/json; charset=utf-8"}
         )
-        assert (await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)).client_id == CLAUDE
+        assert (await resolve(CLAUDE)).client_id == CLAUDE
 
     async def test_connect_timeout_is_a_refusal(self, net):
         net.responses["/oauth/mcp-oauth-client-metadata"] = httpx.ConnectTimeout("slow")
         with pytest.raises(ClientMetadataError):
-            await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+            await resolve(CLAUDE)
 
     async def test_overall_deadline(self, net, monkeypatch):
         monkeypatch.setattr(cimd, "FETCH_TIMEOUT_SECONDS", 0.05)
@@ -334,7 +351,7 @@ class TestSsrfRefusals:
 
         monkeypatch.setattr(cimd, "resolver", slow_resolve)
         with pytest.raises(ClientMetadataError) as excinfo:
-            await resolve_client_metadata(CLAUDE, allowed_hosts=ALLOWED)
+            await resolve(CLAUDE)
         assert "in time" in excinfo.value.description
 
 
