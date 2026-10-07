@@ -884,10 +884,20 @@ class TestCodeExchange:
         assert "refresh_token" not in body
         assert body["scope"] == "map.ops:read map.cobro:read"
 
-    async def test_no_scope_parameter_requests_every_resource_scope(self, env):
-        body = await connect(env, scope=None)
+    @pytest.mark.parametrize("scope", [None, "", "  "])
+    async def test_no_scope_parameter_requests_every_resource_scope(self, env, scope):
+        body = await connect(env, scope=scope)
         assert body["scope"] == "map.ops:read map.cobro:read"
         assert "refresh_token" not in body
+
+    async def test_empty_scope_on_refresh_keeps_the_grant(self, env):
+        body = await connect(env)
+        response = await refresh(env, body["refresh_token"], scope="")
+        assert response.status_code == 200, response.text
+        assert (
+            jwt_manager.get_unverified_claims(response.json()["access_token"])["scope"]
+            == "map.ops:read map.cobro:read"
+        )
 
     async def test_form_encoding_is_what_the_endpoint_reads(self, env):
         code, verifier, _ = await get_code(env)

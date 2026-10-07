@@ -1627,7 +1627,9 @@ async def _authorize_protected_resource(
     if not _S256_CHALLENGE.match(code_challenge):
         return refuse("invalid_request", "code_challenge is not a valid S256 challenge")
 
-    requested = scope.split() if scope is not None else None
+    # An absent or empty `scope` asks for the resource's scopes (RFC 6749 §3.3
+    # lets the server apply a default); `offline_access` must be asked for.
+    requested = scope.split() if scope is not None and scope.strip() else None
     scopes, offline_access = granted_scopes(resource, requested)
     if not scopes:
         return refuse("invalid_scope", "no requested scope is available for this resource")
@@ -3110,7 +3112,7 @@ async def _refresh_resource_token(
 
     original = claims["scope"].split()
     current_scopes = [name for name in original if name in resource.scope_names]
-    if scope is not None:
+    if scope is not None and scope.strip():
         requested = scope.split()
         if not set(requested) <= set(original):
             return _oauth_token_error("invalid_scope", "a refresh cannot add scopes")
