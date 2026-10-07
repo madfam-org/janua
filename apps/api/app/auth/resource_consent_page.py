@@ -64,7 +64,7 @@ def render_resource_consent_page(
         scope_items += (
             '<li><span class="check" aria-hidden="true">&#10003;</span>'
             "Mantener el acceso sin pedirte que vuelvas a iniciar sesión, "
-            f"por hasta {days} días; después tendrás que volver a autorizarla.</li>\n"
+            f"por hasta {days} días; después tendrás que volver a autorizar el acceso.</li>\n"
         )
 
     asserted_name = ""

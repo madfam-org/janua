@@ -556,6 +556,7 @@ pnpm test:e2e                    # Playwright E2E
 | Architecture | `docs/architecture/` |
 | Silent SSO, estate cookie, account switching | `docs/architecture/SILENT_SSO_SESSION.md` |
 | OAuth consent, revocation, passkeys, health and readiness (runbook hub) | `docs/runbooks/oauth-shared-state-redis.md` |
+| Protected resources (RFC 8707), CIMD, MCP clients such as Claude | `docs/reference/PROTECTED_RESOURCES_AND_MCP_CLIENTS.md`; after promote: `docs/runbooks/mcp-connector-post-promote.md` |
 | Deployment | `docs/deployment/` |
 | Domain manifest | `enclii.yaml` |
 
@@ -1002,6 +1003,8 @@ EOF
 | MFA router | `apps/api/app/routers/v1/mfa.py` |
 | Social login (OAuth client side) | `apps/api/app/services/oauth.py`, `apps/api/app/routers/v1/oauth.py` |
 | OAuth/OIDC provider (authorize, consent, token, revoke, introspect, account chooser) | `apps/api/app/routers/v1/oauth_provider.py` |
+| Discovery metadata (OIDC + RFC 8414, one document) | `apps/api/app/core/oauth_metadata.py` |
+| Protected-resource registry (closed list, RFC 8707) and its client policy | `apps/api/app/core/protected_resources.py`; CIMD fetcher `apps/api/app/services/client_id_metadata.py`; tokens `apps/api/app/services/resource_tokens.py` |
 | Sessions API | `apps/api/app/routers/v1/sessions.py` |
 | Revocation list reader | `apps/api/app/services/token_revocation.py` |
 | Strict Redis operations and the circuit breaker | `apps/api/app/core/redis_circuit_breaker.py` |
@@ -1252,6 +1255,7 @@ is tracked privately and appears here only by name.
 | Alert on the readiness body for Redis and the database | Since #696/#697 `GET /api/v1/health/ready` answers 200 with `"status": "degraded"` during a Redis or database outage, so a probe or alert that reads only the HTTP status no longer sees either outage. Monitoring must alert on a non-empty `degraded` and on `redis_circuit.strict_failures` rising | P1 | engineering | [`docs/runbooks/oauth-shared-state-redis.md`](docs/runbooks/oauth-shared-state-redis.md#follow-up-alerting-on-the-readiness-body) |
 | Access-token revocation on `get_current_user` routes | Most routes do not read the revocation list, so a signed-out session's access token works until it expires (default `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` 480). Checking it there makes every route depend on Redis | P2 | owner decision | [runbook → Open items](docs/runbooks/oauth-shared-state-redis.md#open-items) |
 | Auth and OAuth follow-ups after #694–#698 | OIDC `refresh_token` grant has no rotation or reuse detection; grant access tokens carry no family; bulk admin revocations bypass `AuthService.revoke_sessions`; password-reset race; the code grant's `expires_in` (3600) differs from the token's `exp`; SDK surfaces that call routes that do not exist (`client.sessions.revokeAllSessions` / `getCurrentSession` / `refresh`, two-argument `client.users.revokeSession`, react-native passkeys, `@janua/ui` `PasskeyButton`); the dashboard Sessions page reads `.items` from a `{sessions, total}` response and its revoke-all button uses the missing route; react-sdk JWT decoding without base64url; passkey verify errors echo library text | P2 | engineering | [runbook → Open items](docs/runbooks/oauth-shared-state-redis.md#open-items) |
+| Discovery advertises `registration_endpoint` (`/api/v1/oauth/register`) but no RFC 7591 route exists (404) | MCP clients that do not support Client ID Metadata Documents fall back to it and fail. Claude does not (CIMD is advertised). Either implement DCR restricted to the protected-resource client policy, or stop advertising it | P2 | owner decision | [`docs/reference/PROTECTED_RESOURCES_AND_MCP_CLIENTS.md`](docs/reference/PROTECTED_RESOURCES_AND_MCP_CLIENTS.md#clients) |
 | Skip-inventory sweep | About 274 `pytest.skip` / `skip` / `xfail` markers under `apps/api/tests` (CI's full API selection reports 99 skipped) and 43 `.skip` calls in JS/TS tests. Largest groups: import-guarded skips (`Model/Config imports failed`), «httpx async await issue in billing service» (16), PostgreSQL-only tests that skip without a database (they run in the PostgreSQL CI job), and rate-limit tests mocked in the test environment. Fix or justify each | P2 | engineering | — |
 | Move the four app Dockerfiles to pnpm 10 with `--frozen-lockfile` | Images install with pnpm 9.15 and `--no-frozen-lockfile`, so they can resolve versions the lockfile does not pin. See «Image installs use pnpm 9» under Deployment Pipeline | P2 | engineering | — |
 | Remove the legacy email-verification token fallback in `apps/api/app/services/email_service.py` | The JSON format shipped in April 2026; the fallback for the older format was meant to last one 24 h token TTL | P3 | engineering | — |

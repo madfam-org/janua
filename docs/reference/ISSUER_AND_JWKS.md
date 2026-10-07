@@ -77,6 +77,7 @@ carry the old `kid`, which the JWKS no longer lists, so they are rejected.
 | Access token for an OAuth client (authorization code, refresh) | the client's registered `audience`, else `JWT_AUDIENCE` | same router |
 | Service token (`client_credentials`) | the client's registered `audience` (e.g. `<service>-api`) | same router; see [service-tokens.md](../service-tokens.md) |
 | First-party session token (Janua's own sign-in) | `JWT_AUDIENCE` (default `janua.dev`) or, for a magic-link session, the audience of its redirect target | `apps/api/app/core/jwt_manager.py` |
+| Protected-resource access token (RFC 8707 `resource`, e.g. an MCP server) | the resource URI exactly, e.g. `https://map.creatumundo.mx/api/mcp`; header `typ: at+jwt`, no `type` claim | `apps/api/app/services/resource_tokens.py`; see [PROTECTED_RESOURCES_AND_MCP_CLIENTS.md](./PROTECTED_RESOURCES_AND_MCP_CLIENTS.md) |
 
 A resource server checks that `aud` equals **its own** registered audience,
 exactly and case-sensitively. A relying party that only consumes the ID token
@@ -93,7 +94,12 @@ exactly and case-sensitively. A relying party that only consumes the ID token
 | `sub` | the stable subject: a Janua user id, or `service-account:<client_id>` for service tokens |
 
 Lifetimes today: ID tokens 1 hour, service tokens 1 hour, user access tokens
-`JWT_ACCESS_TOKEN_EXPIRE_MINUTES` (default 480 minutes).
+`JWT_ACCESS_TOKEN_EXPIRE_MINUTES` (default 480 minutes), protected-resource
+access tokens the resource's own lifetime (at most 15 minutes).
+
+A protected-resource verifier also checks the JOSE header `typ` is `at+jwt`
+(RFC 9068), so no other Janua token can be presented to it, and the `iss` is
+the discovery issuer (`https://auth.madfam.io` in production).
 
 ## Example (Python, PyJWT)
 
