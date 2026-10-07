@@ -357,6 +357,8 @@ async def update_privacy_settings(
             details={"updated_fields": list(update_fields.keys())},
             severity="info",
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await db.commit()
 
         return ComplianceResponse(success=True, message="Privacy settings updated successfully")
 
