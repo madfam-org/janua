@@ -1008,14 +1008,25 @@ class TestRefresh:
         assert jwt_manager.get_unverified_claims(over_lifetime)["exp"] < now
         assert_oauth_error(await refresh(env, over_lifetime), "invalid_grant")
 
-    async def test_suspended_person_cannot_refresh(self, env):
+    @pytest.mark.parametrize(
+        "change",
+        [{"status": UserStatus.SUSPENDED}, {"status": UserStatus.DELETED}, {"is_active": False}],
+    )
+    async def test_inactive_person_cannot_refresh(self, env, change):
         body = await connect(env)
+        async with env.factory() as db:
+            await db.execute(update(User).where(User.id == env.director.id).values(**change))
+            await db.commit()
+        assert_oauth_error(await refresh(env, body["refresh_token"]), "invalid_grant")
+
+    async def test_inactive_person_cannot_redeem_a_code(self, env):
+        code, verifier, _ = await get_code(env)
         async with env.factory() as db:
             await db.execute(
                 update(User).where(User.id == env.director.id).values(status=UserStatus.SUSPENDED)
             )
             await db.commit()
-        assert_oauth_error(await refresh(env, body["refresh_token"]), "invalid_grant")
+        assert_oauth_error(await exchange(env, code, verifier), "invalid_grant")
 
     async def test_revocation_by_claude_ends_the_connection(self, env):
         body = await connect(env)

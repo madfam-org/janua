@@ -206,6 +206,12 @@ grant's, or a default-flow code), `invalid_scope` (a refresh that adds scopes),
   will not recognize the token.
 - The access token carries no email, so a MAP member who has never signed in
   to the MAP (provisional `pending:` subject) is not recognized until they do.
+- A connection is not tied to a Janua session: signing out, "sign out
+  everywhere" or a password change does not end it. It ends when the client
+  revokes it (removing the connector), when the account stops being active, or
+  at the latest 30 days after consent. There is no operator switch for one
+  connection yet; suspending the account ends all of them at the next refresh
+  (access tokens already issued run out within 15 minutes).
 - Consent grants are logged (`oauth.resource_consent.granted`,
   `oauth.resource_token.issued`) but not written to `audit_logs`: the audit
   event type is a database enum and a new value needs a migration.

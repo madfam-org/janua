@@ -1552,7 +1552,7 @@ def _login_redirect_for_resource(
 
 async def _authorize_protected_resource(
     *,
-    request: Request,
+    current_user: Optional[User],
     response_type: str,
     client_id: str,
     redirect_uri: str,
@@ -1566,7 +1566,12 @@ async def _authorize_protected_resource(
     db: AsyncSession,
     redis: ResilientRedisClient,
 ):
-    """GET /authorize for a protected resource (see the section comment above)."""
+    """GET /authorize for a protected resource (see the section comment above).
+
+    `current_user` is who `authorize_get` resolved from the request
+    (`get_user_from_cookie_or_header`, the one reader of the session cookies),
+    or None.
+    """
     resource, resource_error = _select_resource(resource_values)
 
     # 1. Who is asking, and may the answer go to `redirect_uri`? Until both are
@@ -1634,7 +1639,6 @@ async def _authorize_protected_resource(
     silent = "none" in prompt_values and not force_login
 
     app_host = client.app_host(redirect_uri)
-    current_user = await get_user_from_cookie_or_header(request, db)
 
     async def send_to_login(*, mfa_required: bool = False) -> RedirectResponse:
         pre_login_id = secrets.token_urlsafe(16)
@@ -1914,13 +1918,16 @@ async def authorize_get(
         - Email verification or MFA required → respect those checks; never
           bypass them just because `prompt=none` was requested.
     """
+    # Get user from header or cookie (supports browser-based OAuth flow)
+    current_user = await get_user_from_cookie_or_header(request, db)
+
     resource_values = _resource_values(resource)
     if resource_values or is_url_client_id(client_id):
         scope_param = scope
         if isinstance(request, Request) and "scope" not in request.query_params:
             scope_param = None  # omitted: every scope of the resource
         return await _authorize_protected_resource(
-            request=request,
+            current_user=current_user,
             response_type=response_type,
             client_id=client_id,
             redirect_uri=redirect_uri,
@@ -1934,9 +1941,6 @@ async def authorize_get(
             db=db,
             redis=redis,
         )
-
-    # Get user from header or cookie (supports browser-based OAuth flow)
-    current_user = await get_user_from_cookie_or_header(request, db)
 
     # OIDC `prompt` is a space-delimited SET of values, not a single token.
     prompt_values = {p for p in (prompt or "").strip().lower().split() if p}
@@ -2927,6 +2931,8 @@ async def _active_user(user_id: Any, db: AsyncSession) -> Optional[User]:
     result = await db.execute(select(User).where(User.id == user_uuid))
     user = result.scalar_one_or_none()
     if user is None or getattr(user, "status", None) != UserStatus.ACTIVE:
+        return None
+    if getattr(user, "is_active", True) is False:
         return None
     return user
 
