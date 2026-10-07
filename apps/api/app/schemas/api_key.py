@@ -4,10 +4,24 @@ API Key Pydantic schemas for request/response validation
 API Keys allow programmatic access to Janua APIs with scoped permissions.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator
+
+
+def _as_naive_utc(value: Optional[datetime]) -> Optional[datetime]:
+    """Store an expiry the way api_keys keeps every timestamp: naive UTC.
+
+    ``api_keys.expires_at`` is a naive ``DateTime`` column, compared with
+    ``datetime.utcnow()``. An ISO timestamp with an offset (``…Z`` or
+    ``…+00:00``) parses to an aware datetime, which asyncpg refuses for a naive
+    column, so the request failed with a 503 instead of creating the key.
+    Convert it to UTC and drop the offset; a naive value is already UTC.
+    """
+    if value is not None and value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
 
 
 class ApiKeyCreate(BaseModel):
@@ -35,6 +49,11 @@ class ApiKeyCreate(BaseModel):
         default=None,
         description="Optional expiration date for the key (null for no expiration)",
     )
+
+    @field_validator("expires_at")
+    @classmethod
+    def expires_at_as_naive_utc(cls, v: Optional[datetime]) -> Optional[datetime]:
+        return _as_naive_utc(v)
 
     @field_validator("scopes")
     @classmethod
@@ -72,6 +91,11 @@ class ApiKeyUpdate(BaseModel):
         default=None,
         description="Whether the key is active",
     )
+
+    @field_validator("expires_at")
+    @classmethod
+    def expires_at_as_naive_utc(cls, v: Optional[datetime]) -> Optional[datetime]:
+        return _as_naive_utc(v)
 
     @field_validator("scopes")
     @classmethod
