@@ -35,7 +35,6 @@ What these tests pin:
 from __future__ import annotations
 
 import inspect
-import re
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from typing import Dict, Optional
@@ -387,10 +386,12 @@ class TestInterstitialGuardsTheButton:
         token = await _issue(db)
         html = _text(await Browser().open_link(token, db))
         assert "data-janua-magic-link-form" in html
-        script = re.search(r"<script>(.*?)</script>", html, re.S)
-        assert script, "the interstitial must carry its double-submit guard"
-        assert "disabled = true" in script.group(1)
-        assert "pageshow" in script.group(1), "a back-navigation must re-enable the button"
+        # Plain string slicing, not a regex: the page is ours and fixed; this
+        # only locates the one inline guard.
+        assert html.count("<script>") == 1, "the interstitial must carry its double-submit guard"
+        script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+        assert "disabled = true" in script
+        assert "pageshow" in script, "a back-navigation must re-enable the button"
         assert "Entrando" in html
 
     async def test_get_sets_the_browser_cookie_once(self, db, exchange):
