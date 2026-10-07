@@ -103,14 +103,33 @@ class Settings(BaseSettings):
 
     # Redis
     # Rate limits
-    MAGIC_LINK_RATE_LIMIT: str = Field(
+    # Sign-in link limits (app/auth/magic_link_limits.py, 2026-10-07). Same
+    # grammar as slowapi ("5/hour", "100/day").
+    MAGIC_LINK_EMAIL_RATE_LIMIT: str = Field(
         default="5/hour",
         description=(
-            "slowapi limit string for POST /auth/magic-link, keyed by client IP. "
-            "The default protects against email-bombing, but a team onboarding "
-            "ceremony from ONE shared IP (an office WiFi) hard-stops at the 6th "
-            "person. Raise temporarily (e.g. '60/hour') for the ceremony window, "
-            "then restore."
+            "Sign-in links per ADDRESS (normalised, hashed), every caller. The "
+            "email-bombing guard; checked before any user lookup, so a 429 never "
+            "says whether an account exists."
+        ),
+    )
+    MAGIC_LINK_RATE_LIMIT: str = Field(
+        default="60/hour",
+        description=(
+            "Sign-in links per CLIENT IP: the anonymous caller's address as "
+            "resolved through TRUSTED_PROXIES, or the X-Janua-End-User-IP a trusted "
+            "service names. A ceiling far above one person, so a whole office "
+            "(one shared IP) can sign in. Until the tunnel's range is listed in "
+            "TRUSTED_PROXIES, the resolved IP is the tunnel's, and this is one "
+            "shared ceiling for all anonymous traffic."
+        ),
+    )
+    MAGIC_LINK_SERVICE_RATE_LIMIT: str = Field(
+        default="300/hour",
+        description=(
+            "Sign-in links per trusted SERVICE caller (valid X-Internal-API-Key), "
+            "e.g. a product's server asking on behalf of its staff. One shared "
+            "'internal' bucket while Janua has one internal key."
         ),
     )
     MAGIC_LINK_REPLAY_GRACE_SECONDS: int = Field(
@@ -197,7 +216,11 @@ class Settings(BaseSettings):
     # Set to Cloudflare IPs, your load balancer IPs, etc.
     TRUSTED_PROXIES: str = Field(
         default="127.0.0.1,::1",
-        description="Comma-separated list of trusted proxy IPs that can set X-Forwarded-For",
+        description=(
+            "Comma-separated list of trusted proxy IPs that can set X-Forwarded-For. "
+            "The sign-in link limits also accept CIDR ranges here (e.g. the tunnel "
+            "pods' network)."
+        ),
     )
 
     # Account Lockout
@@ -687,6 +710,22 @@ class Settings(BaseSettings):
     COMPLIANCE_DASHBOARD_CACHE_MINUTES: int = Field(
         default=5, description="Dashboard data cache duration"
     )
+
+    @field_validator(
+        "MAGIC_LINK_EMAIL_RATE_LIMIT",
+        "MAGIC_LINK_RATE_LIMIT",
+        "MAGIC_LINK_SERVICE_RATE_LIMIT",
+    )
+    @classmethod
+    def _magic_link_limit_parses(cls, value: str) -> str:
+        """A typo here would 500 every sign-in link request; refuse it at boot."""
+        from limits import parse
+
+        try:
+            parse(value)
+        except ValueError as exc:
+            raise ValueError(f"not a rate limit string (e.g. '5/hour'): {value!r}") from exc
+        return value
 
     @field_validator("JWT_SECRET_KEY", mode="before")
     @classmethod

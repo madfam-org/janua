@@ -28,6 +28,7 @@ from app.auth.login_method import (
     effective_login_method,
     magic_link_login_available,
 )
+from app.auth.magic_link_limits import enforce_magic_link_limits
 from app.config import settings
 from app.core.locale import locale_from_request
 from app.core.redis import ResilientRedisClient, get_redis
@@ -2875,11 +2876,12 @@ async def resend_verification_email(
 
 
 @router.post("/magic-link")
-# Config knob (default "5/hour", per client IP): a team-onboarding ceremony from
-# one shared office IP dies at the 6th request under the hardcoded limit — see
-# Settings.MAGIC_LINK_RATE_LIMIT. Callable so per-request evaluation follows the
-# deployed env without code changes.
-@limiter.limit(lambda: settings.MAGIC_LINK_RATE_LIMIT)
+# Rate limits live in `_issue_magic_link` (app/auth/magic_link_limits.py): per
+# ADDRESS (MAGIC_LINK_EMAIL_RATE_LIMIT) plus a per-caller ceiling (trusted
+# service key, or client IP via TRUSTED_PROXIES). Until 2026-10-07 this was a
+# slowapi decorator at MAGIC_LINK_RATE_LIMIT keyed on `request.client.host` —
+# the tunnel pod's address for every public request, so one 5/hour bucket was
+# shared by every person signing in to the MAP through its server.
 async def send_magic_link(
     request: Request,
     magic_link_data: MagicLinkRequest,
@@ -2909,6 +2911,12 @@ async def _issue_magic_link(
 
     if not settings.EMAIL_ENABLED:
         raise HTTPException(status_code=400, detail="Email service not configured")
+
+    # Rate limits FIRST: before any lookup or write, so a 429 depends only on
+    # request counts — never on whether the address has an account — and an
+    # over-limit caller costs no database work. Per address, plus a per-caller
+    # ceiling (see app/auth/magic_link_limits.py).
+    await enforce_magic_link_limits(request, magic_link_data.email)
 
     # Find or create user. The untenanted / staff pool is still the primary
     # meaning of this bare-email platform entry (see /signin note), but a MISS
@@ -3934,7 +3942,7 @@ def _check_inbox_page_html(*, app_name: str, email: str, password_url: Optional[
 # here. Issues the link through the same path as POST /magic-link, with the
 # pending OAuth authorization as the link's destination.
 @router.post("/login-form/magic-link")
-@limiter.limit(lambda: settings.MAGIC_LINK_RATE_LIMIT)
+# Limited inside `_issue_magic_link`, like POST /magic-link (see there).
 async def login_form_magic_link(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -4048,7 +4056,7 @@ async def login_form_magic_link(
         user = await _issue_magic_link(request, magic_link_data, background_tasks, db)
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, str) else "We could not send a sign-in link."
-        return _rerender(detail, exc.status_code if exc.status_code in (400, 403) else 400)
+        return _rerender(detail, exc.status_code if exc.status_code in (400, 403, 429) else 400)
 
     logger.info(
         "login_form_magic_link.sent",
