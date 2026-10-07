@@ -26,6 +26,23 @@ def setup_test_env():
         yield
 
 
+@pytest.fixture(autouse=True)
+def _isolated_magic_link_limits():
+    """Every test starts with empty sign-in-link counters, held in memory.
+
+    `app/auth/magic_link_limits.py` counts in Redis when it can reach one, and
+    CI runs a real Redis: without this, counters would carry over between
+    tests (5 links per address per hour) and fail unrelated ones. Tests that
+    exercise the limits patch `_redis_client` themselves.
+    """
+    from app.auth import magic_link_limits
+
+    magic_link_limits.reset_memory_counters()
+    with patch.object(magic_link_limits, "_redis_client", AsyncMock(return_value=None)):
+        yield
+    magic_link_limits.reset_memory_counters()
+
+
 @pytest.fixture
 def mock_database():
     """Mock database session"""
