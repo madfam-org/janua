@@ -71,28 +71,26 @@ does nothing in Chrome.
 
 ## 4. MCP Inspector
 
-Once crea-map serves the MCP endpoint (`https://map.creatumundo.mx/api/mcp`):
+Once crea-map serves the MCP endpoint (`https://map.creatumundo.mx/api/mcp`),
+connect the Inspector to it (web: `npx @modelcontextprotocol/inspector`,
+transport Streamable HTTP; or its CLI, which has no browser CORS limits). Its
+Connection Info / Auth view must show the MAP's protected-resource metadata
+(`resource` exactly `https://map.creatumundo.mx/api/mcp`, first
+`authorization_servers` entry `https://auth.madfam.io`) and then Janua's
+metadata (`client_id_metadata_document_supported: true`,
+`code_challenge_methods_supported: ["S256"]`, the `map.*` scopes).
 
-```bash
-npx @modelcontextprotocol/inspector
-```
+The Inspector then identifies itself with its own client (DCR, its own
+metadata URL, or a static client ID). None of those is on the MAP's client
+policy (Claude and Claude Code only), so that step is refused by design: a
+`400` page «No se pudo autorizar la conexión», or a failed registration
+(Janua has no DCR endpoint). That refusal is the expected result; the
+end-to-end check is step 5.
 
-Connect to the URL with transport "Streamable HTTP" and open the OAuth
-debugger ("Open Auth Settings" → guided flow). The metadata step must show the
-MAP's protected-resource metadata (`authorization_servers` first entry
-`https://auth.madfam.io`) and then Janua's metadata with
-`client_id_metadata_document_supported: true`. The Inspector's own client is
-**not** on the MAP's client policy (Claude and Claude Code only), so its
-authorization step is refused: a `400` page «No se pudo autorizar la conexión»
-(or a failed registration if it falls back to DCR). That refusal is the
-expected result.
-
-To run the full Inspector flow anyway, register a public client in Janua whose
-only redirect URIs are the Inspector's loopback callbacks
-(`http://localhost:6274/oauth/callback` and, for the guided debugger,
-`http://localhost:6274/oauth/callback/debug`), and give its client ID to the
-Inspector; a loopback-only client is inside the policy. That is an OAuth client
-mutation: do it deliberately and delete the client afterwards.
+Do not register a Janua client with the Inspector's loopback callback to get
+past it: Janua's CORS layer trusts the origin of every registered redirect URI
+(with credentials), so that client would also open the API to
+`http://localhost:6274`.
 
 ## 5. End to end with Claude Code, then Claude
 
@@ -105,6 +103,10 @@ The browser opens `auth.madfam.io`: sign in (emailed link), then the Spanish
 consent screen: «claude.ai quiere acceder al MAP de Crea Tu Mundo», the two
 scopes, the 30-day line, and the loopback warning («una aplicación en esta
 computadora»). «Permitir» returns to Claude Code, which lists the tools.
+Leave it connected for more than 15 minutes and call a tool again: it must
+work without a new consent. If Claude Code asks again, it did not request
+`offline_access` and received no refresh token (Janua issues one only when
+it is requested); report it before changing the policy.
 
 For the Director in Claude: Customize → Connectors → Add custom connector →
 `https://map.creatumundo.mx/api/mcp`, OAuth client «Use Claude's published

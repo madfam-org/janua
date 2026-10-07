@@ -155,7 +155,9 @@ resource verifies them offline against the JWKS.
   every registered redirect URI is inside the resource's policy
   (`https://claude.ai/api/mcp/auth_callback` or loopback), and the request uses
   one of them. A confidential client authenticates at the token endpoint as
-  usual.
+  usual. Prefer the CIMD path: Janua's CORS layer trusts the origin of every
+  registered redirect URI, with credentials, so a registered loopback client
+  also opens the API to that local origin.
 - **Dynamic Client Registration**: Janua has no RFC 7591 endpoint. Discovery
   has long advertised `registration_endpoint`
   (`/api/v1/oauth/register`), which answers 404; Claude does not use it
