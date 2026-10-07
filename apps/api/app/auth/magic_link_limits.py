@@ -89,7 +89,13 @@ def normalized_email(email: str) -> str:
 
 
 def _digest(value: str, length: int = 32) -> str:
-    return hashlib.sha256(value.encode()).hexdigest()[:length]
+    """A keyed, truncated digest for counter keys: never the raw address or key.
+
+    HMAC with the app secret rather than a bare hash, so a bucket key in Redis
+    cannot be matched against a list of known addresses.
+    """
+    secret = (settings.SECRET_KEY or "janua-magic-link-limits").encode()
+    return hmac.new(secret, value.encode(), hashlib.sha256).hexdigest()[:length]
 
 
 def _trusted_networks() -> List[Network]:

@@ -35,7 +35,6 @@ from starlette.requests import Request
 import app.routers.v1.auth as auth_mod
 from app.auth import magic_link_limits as limits_mod
 from app.models import User, UserStatus
-from app.routers.v1.auth import MagicLinkRequest, send_magic_link
 
 pytestmark = pytest.mark.asyncio
 
@@ -112,9 +111,9 @@ def mail_on():
 
 
 async def _ask(email: str, request: Request | None = None, db=None):
-    return await send_magic_link(
+    return await auth_mod.send_magic_link(
         request=request or _request(),
-        magic_link_data=MagicLinkRequest(email=email),
+        magic_link_data=auth_mod.MagicLinkRequest(email=email),
         background_tasks=MagicMock(),
         db=db or _db(),
     )
