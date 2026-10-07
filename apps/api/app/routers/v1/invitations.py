@@ -366,7 +366,6 @@ async def accept_invitation(
     Accept an invitation using the token.
     """
     service = InvitationService(db)
-    auth_service = AuthService(db)
 
     try:
         # Get user if user_id provided
@@ -381,7 +380,8 @@ async def accept_invitation(
         # Or create new user if registration data provided
         new_user_data = None
         if accept_data.password and accept_data.name and not user:
-            password_hash = auth_service.hash_password(accept_data.password)
+            # hash_password is a static method; AuthService takes no arguments.
+            password_hash = AuthService.hash_password(accept_data.password)
             new_user_data = {"name": accept_data.name, "password_hash": password_hash}
 
         # Accept invitation

@@ -130,6 +130,8 @@ class ConsentService:
             user_agent=user_agent,
             severity="info",
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await self.db.commit()
 
         return consent_record
 
@@ -188,6 +190,8 @@ class ConsentService:
             user_agent=user_agent,
             severity="info",
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await self.db.commit()
 
         return True
 
@@ -315,6 +319,8 @@ class DataSubjectRightsService:
             user_agent=user_agent,
             severity="info",
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await self.db.commit()
 
         return request
 
@@ -450,6 +456,32 @@ class DataSubjectRightsService:
         request.assigned_to = processor_id
         request.response_method = "api"
 
+        # The audit row commits with the status change, or neither does.
+        await self.audit_logger.log(
+            event_type=AuditEventType.DATA_REQUEST_PROCESSED,
+            tenant_id=str(request.tenant_id) if request.tenant_id else "default",
+            identity_id=str(processor_id),
+            data_subject_id=str(request.user_id),
+            resource_type="data_subject_request",
+            resource_id=request_id,
+            details={
+                "request_type": DataSubjectRequestType.ACCESS.value,
+                "status": RequestStatus.COMPLETED.value,
+                "processor_id": str(processor_id),
+            },
+            compliance_context={
+                "framework": "GDPR",
+                "article": "Article 15",
+                "request_id": request_id,
+                "response_time_days": (
+                    (request.completed_at - request.received_at).days
+                    if request.received_at
+                    else None
+                ),
+            },
+            severity="info",
+        )
+
         await self.db.commit()
 
         # Defensive guard: never return an export that carries secret-like
@@ -543,6 +575,8 @@ class DataSubjectRightsService:
             severity="info",
             retention_period=2555,  # Keep deletion logs for 7 years
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await self.db.commit()
 
         return True
 
@@ -608,6 +642,8 @@ class DataRetentionService:
             },
             severity="info",
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await self.db.commit()
 
         return policy
 
