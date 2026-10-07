@@ -1172,6 +1172,15 @@ class TestIsolation:
         )
         assert response.status_code == 401
 
+    async def test_introspection_reports_resource_tokens_inactive(self, env):
+        body = await connect(env, client_id=REG_CLAUDE)
+        for token_value in (body["access_token"], body["refresh_token"]):
+            response = await env.http.post(
+                "/api/v1/oauth/introspect", data={"token": token_value, "client_id": REG_CLAUDE}
+            )
+            assert response.status_code == 200
+            assert response.json() == {"active": False}
+
     async def test_janua_session_token_is_not_a_map_token(self, env):
         token, _, _ = jwt_manager.create_access_token(
             user_id=str(env.director.id), email=env.director.email, additional_claims={"aud": MAP}

@@ -130,7 +130,8 @@ widen it; the rotated refresh token keeps the original grant.
 **Revocation**: `POST /api/v1/oauth/revoke` with `token` and `client_id` (a
 CIMD client sends no secret). A refresh token revokes its family. Access tokens
 are verified offline and expire within 15 minutes, so revoking one has no
-effect. Introspection does not report resource tokens.
+effect. Introspection answers `{"active": false}` for resource tokens: the
+resource verifies them offline against the JWKS.
 
 ## Clients
 
