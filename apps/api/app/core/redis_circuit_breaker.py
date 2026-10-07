@@ -453,6 +453,20 @@ class ResilientRedisClient:
 
         await self._strict(operation)
 
+    async def strict_set_nx(self, key: str, value: Any, ex: int) -> bool:
+        """SET key value EX ex NX: True when this call created the key.
+
+        False means the key already existed (another caller got there first).
+        The answer comes from Redis itself, so of two concurrent callers on any
+        replicas exactly one sees True — what single-use refresh tokens need.
+        Raises RedisUnavailableError when Redis cannot answer.
+        """
+
+        async def operation(client: redis.Redis) -> bool:
+            return bool(await client.set(key, value, ex=ex, nx=True))
+
+        return await self._strict(operation)
+
     async def strict_get(self, key: str) -> Optional[Any]:
         """GET key from Redis itself (None = absent), or raise RedisUnavailableError."""
         return await self._strict(lambda client: client.get(key))

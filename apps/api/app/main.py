@@ -83,6 +83,7 @@ from app.core.error_handling import (
     validation_exception_handler,
 )
 from app.core.exceptions import JanuaAPIException
+from app.core.oauth_metadata import authorization_server_metadata
 from app.core.redis import get_redis, get_redis_public_status
 from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.routers.v1 import (
@@ -663,89 +664,32 @@ async def test_json_endpoint(data: dict):
     return {"received": data}
 
 
-# OpenID Connect discovery endpoints
+# OpenID Connect discovery and RFC 8414 authorization-server metadata.
+# One document, two well-known paths (app/core/oauth_metadata.py): MCP clients
+# such as Claude read /.well-known/oauth-authorization-server first, OIDC
+# relying parties read /.well-known/openid-configuration.
 @app.get("/.well-known/openid-configuration")
 def openid_configuration():
     """
     OpenID Connect Discovery endpoint.
 
-    Returns the OIDC provider configuration document per RFC 8414.
-    Used by clients to automatically configure OAuth2/OIDC integration.
+    Returns the OIDC provider configuration document (OpenID Connect
+    Discovery 1.0). Used by clients to automatically configure OAuth2/OIDC
+    integration. The issuer and every endpoint use JANUA_CUSTOM_DOMAIN when it
+    is set (white-label deployments like auth.madfam.io), else API_BASE_URL.
     """
-    # Use JANUA_CUSTOM_DOMAIN for ALL URLs if set (for white-label deployments like auth.madfam.io)
-    # This ensures issuer and all endpoints use the same domain for OIDC compliance
-    # The OIDC spec requires issuer URL to match the domain serving the endpoints
-    custom_domain = os.getenv("JANUA_CUSTOM_DOMAIN")
-    if custom_domain:
-        # Custom domain: use it for issuer AND all endpoints
-        base_url = f"https://{custom_domain}".rstrip("/")
-    else:
-        # Default: use API_BASE_URL
-        base_url = settings.API_BASE_URL.rstrip("/")
+    return authorization_server_metadata()
 
-    # Issuer is always the base_url (consistent with endpoints)
-    issuer = base_url
 
-    return {
-        "issuer": issuer,
-        "authorization_endpoint": f"{base_url}/api/v1/oauth/authorize",
-        "token_endpoint": f"{base_url}/api/v1/oauth/token",
-        "userinfo_endpoint": f"{base_url}/api/v1/oauth/userinfo",
-        "jwks_uri": f"{base_url}/.well-known/jwks.json",
-        "introspection_endpoint": f"{base_url}/api/v1/oauth/introspect",
-        "revocation_endpoint": f"{base_url}/api/v1/oauth/revoke",
-        "end_session_endpoint": f"{base_url}/logout",
-        "registration_endpoint": f"{base_url}/api/v1/oauth/register",
-        "response_types_supported": [
-            "code",
-            "token",
-            "id_token",
-            "code token",
-            "code id_token",
-            "token id_token",
-            "code token id_token",
-        ],
-        "response_modes_supported": ["query", "fragment", "form_post"],
-        "grant_types_supported": ["authorization_code", "refresh_token", "client_credentials"],
-        "subject_types_supported": ["public"],
-        "id_token_signing_alg_values_supported": ["RS256"],
-        "scopes_supported": [
-            "openid",
-            "profile",
-            "email",
-            "offline_access",
-            # Service-to-service (client_credentials) scopes — see docs/service-tokens.md
-            "cfdi:issue",
-            "billing:events",
-            "legal:draft",
-            "legal:client-profile",
-            "connections:delegate",
-            "white-label:branding",
-        ],
-        "token_endpoint_auth_methods_supported": [
-            "client_secret_basic",
-            "client_secret_post",
-            "none",
-        ],
-        "claims_supported": [
-            "sub",
-            "iss",
-            "aud",
-            "exp",
-            "iat",
-            "auth_time",
-            "nonce",
-            "email",
-            "email_verified",
-            "name",
-            "given_name",
-            "family_name",
-            "picture",
-            "updated_at",
-        ],
-        "code_challenge_methods_supported": ["S256", "plain"],
-        "service_documentation": "https://docs.janua.dev",
-    }
+@app.get("/.well-known/oauth-authorization-server")
+def oauth_authorization_server():
+    """
+    OAuth 2.0 Authorization Server Metadata (RFC 8414).
+
+    The same document as the OpenID configuration. The issuer has no path
+    component, so this is the only RFC 8414 well-known location.
+    """
+    return authorization_server_metadata()
 
 
 @app.get("/.well-known/jwks.json")

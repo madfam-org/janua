@@ -1094,12 +1094,19 @@ class TestLoginFormAuthRequestId:
         assert "_recover_authorize_url_from_client" in source
 
     def test_login_form_filters_none_params_from_url(self):
-        """The reconstructed authorize URL must not include None-valued params."""
+        """The reconstructed authorize URL must not include None-valued params.
+
+        The rebuild is shared by every sign-in path since 2026-10
+        (`app/auth/authorize_resume.py`), so the filter lives there.
+        """
         import inspect
+        from app.auth.authorize_resume import authorize_query
         from app.routers.v1.auth import login_form
 
-        source = inspect.getsource(login_form)
-        assert "is not None" in source, (
+        assert "authorize_query(" in inspect.getsource(login_form)
+        assert authorize_query(
+            {"client_id": "client-abc", "state": None, "nonce": None, "resource": None}
+        ) == {"client_id": "client-abc"}, (
             "login_form must filter out None values when reconstructing the authorize URL"
         )
 
