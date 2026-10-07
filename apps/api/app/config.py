@@ -113,6 +113,18 @@ class Settings(BaseSettings):
             "then restore."
         ),
     )
+    MAGIC_LINK_REPLAY_GRACE_SECONDS: int = Field(
+        default=120,
+        ge=0,
+        le=900,
+        description=(
+            "How long after a magic link is spent the SAME browser (proven by the "
+            "HttpOnly janua_ml_browser cookie the interstitial sets) may finish the "
+            "hand-off again. Covers a second press of the interstitial's button, "
+            "which cancels the first press's navigation (2026-10-07). 0 disables "
+            "the replay; any other browser never gets one."
+        ),
+    )
 
     REDIS_URL: str = Field(default="redis://localhost:6379/0", description="Redis connection URL")
     REDIS_POOL_SIZE: int = Field(default=10)
