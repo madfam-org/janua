@@ -23,8 +23,8 @@ read that as success and told them «Revisa tu correo», and no email ever came.
     nothing about whether an account exists.
   * **Per caller**, a ceiling far above any one person:
       - A trusted service (`X-Internal-API-Key` valid) gets its own bucket
-        (`MAGIC_LINK_SERVICE_RATE_LIMIT`). The bucket is keyed on a hash of the
-        key, so per-client keys would get separate buckets with no change here.
+        (`MAGIC_LINK_SERVICE_RATE_LIMIT`). Janua has one internal key today, so
+        that is one "internal" bucket; the key itself is never hashed or stored.
         A service MAY also pass `X-Janua-End-User-IP`, the address of the
         person at ITS front door. It is believed only with a valid key, and
         gets the per-IP ceiling, so a public sign-in page behind a service
@@ -88,14 +88,9 @@ def normalized_email(email: str) -> str:
     return (email or "").strip().lower()
 
 
-def _digest(value: str, length: int = 32) -> str:
-    """A keyed, truncated digest for counter keys: never the raw address or key.
-
-    HMAC with the app secret rather than a bare hash, so a bucket key in Redis
-    cannot be matched against a list of known addresses.
-    """
-    secret = (settings.SECRET_KEY or "janua-magic-link-limits").encode()
-    return hmac.new(secret, value.encode(), hashlib.sha256).hexdigest()[:length]
+def _address_digest(email: str) -> str:
+    """The counter key for an address: a digest, never the address itself."""
+    return hashlib.sha256(normalized_email(email).encode()).hexdigest()[:32]
 
 
 def _trusted_networks() -> List[Network]:
@@ -162,18 +157,20 @@ def _ip_bucket_key(address: str) -> str:
 
 
 def service_caller(request: Request) -> Optional[str]:
-    """A short hash of a VALID `X-Internal-API-Key`, or None.
+    """The service's bucket name when `X-Internal-API-Key` is VALID, else None.
 
-    A wrong key is not an error here (this endpoint is public); the request is
-    simply treated as anonymous, and the mismatch is logged so a misconfigured
-    product is visible.
+    Janua has one internal key today, so every trusted service shares the
+    "internal" bucket. The key itself never reaches a counter key, not even
+    hashed. A wrong key is not an error here (this endpoint is public): the
+    request is simply treated as anonymous, and the mismatch is logged so a
+    misconfigured product is visible.
     """
     presented = request.headers.get("x-internal-api-key")
     if not presented:
         return None
     expected = settings.INTERNAL_API_KEY
     if expected and hmac.compare_digest(presented.encode(), expected.encode()):
-        return _digest(presented, 16)
+        return "internal"
     logger.warning("magic_link.service_key_rejected")
     return None
 
@@ -181,9 +178,7 @@ def service_caller(request: Request) -> Optional[str]:
 def buckets_for(request: Request, email: str) -> List[Bucket]:
     """Every counter this request is charged against."""
     amount, seconds = parse_limit(settings.MAGIC_LINK_EMAIL_RATE_LIMIT)
-    buckets = [
-        Bucket("email", f"magic_link:rl:email:{_digest(normalized_email(email))}", amount, seconds)
-    ]
+    buckets = [Bucket("email", f"magic_link:rl:email:{_address_digest(email)}", amount, seconds)]
     ip_amount, ip_seconds = parse_limit(settings.MAGIC_LINK_RATE_LIMIT)
     service = service_caller(request)
     if service is not None:

@@ -128,8 +128,8 @@ class Settings(BaseSettings):
         default="300/hour",
         description=(
             "Sign-in links per trusted SERVICE caller (valid X-Internal-API-Key), "
-            "e.g. a product's server asking on behalf of its staff. Keyed on a "
-            "hash of the key."
+            "e.g. a product's server asking on behalf of its staff. One shared "
+            "'internal' bucket while Janua has one internal key."
         ),
     )
     MAGIC_LINK_REPLAY_GRACE_SECONDS: int = Field(
