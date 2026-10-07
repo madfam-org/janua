@@ -589,6 +589,20 @@ class TestAuthorizeTargets:
 
 
 class TestAuthorizeRefusals:
+    async def test_the_form_post_authorize_refuses_resources(self, env):
+        """POST /authorize would issue a code not bound to the resource: refused."""
+        _, challenge = pkce()
+        for form in (
+            dict(authorize_params(challenge, client_id=REG_CLAUDE)),
+            dict(authorize_params(challenge, resource=None)),
+        ):
+            form["csrf_token"] = "irrelevant"
+            response = await env.http.post(
+                "/api/v1/oauth/authorize", data=form, headers=session_bearer(env.director)
+            )
+            assert response.status_code == 400, response.text
+            assert "protected resources" in response.text
+
     async def test_unknown_cimd_host_is_never_fetched_and_never_redirected(self, env):
         _, challenge = pkce()
         response = await authorize(
