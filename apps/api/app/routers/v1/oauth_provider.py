@@ -19,18 +19,22 @@ import os
 import re
 import secrets
 import time
+import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any, List, Optional
 from urllib.parse import urlencode
 
 import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.authorize_resume import authorize_query
 from app.auth.login_method import normalize_login_method
+from app.auth.resource_consent_page import render_resource_consent_page
 from app.auth.sessions_cookie import (
     SESSIONS_COOKIE_NAME,
     TAB_SESSION_HEADER,
@@ -46,6 +50,19 @@ from app.auth.sso_cookie import (
 from app.config import settings
 from app.core.database import get_db
 from app.core.jwt_manager import jwt_manager
+from app.core.oauth_metadata import oauth_issuer
+from app.core.protected_resources import (
+    OFFLINE_ACCESS_SCOPE,
+    PROTECTED_RESOURCES,
+    InvalidResourceIndicator,
+    ProtectedResource,
+    all_cimd_hosts,
+    canonical_resource,
+    granted_scopes,
+    is_loopback_redirect,
+    redirect_display_host,
+    redirect_uri_matches,
+)
 from app.core.redis import ResilientRedisClient, get_redis
 from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.core.reserved_oauth_boundaries import SILENT_AUTH_SCOPE, is_first_party_name
@@ -55,10 +72,16 @@ from app.core.url_security import (
     validate_post_logout_redirect_uri,
 )
 from app.dependencies import get_current_user
-from app.models import OAuthClient, Organization, OrganizationMember, User
+from app.models import OAuthClient, Organization, OrganizationMember, User, UserStatus
 from app.models import Session as UserSession
-from app.services import token_revocation
+from app.services import resource_tokens, token_revocation
 from app.services.audit_logger import AuditEventType, AuditLogger
+from app.services.client_id_metadata import (
+    ClientMetadataError,
+    client_id_host,
+    is_url_client_id,
+    resolve_client_metadata,
+)
 from app.services.consent_service import ConsentService
 from app.services.entitlements_service import (
     entitlements_to_claim,
@@ -807,11 +830,18 @@ def _build_safe_callback_url(
     client_validated: bool = False,
 ) -> str:
     """
-    Build a callback URL with query parameters.
+    Build an authorization-response callback URL with query parameters.
 
     SECURITY: The redirect_uri MUST have been validated against the OAuth client's
     registered redirect URIs BEFORE calling this function. This function assumes
     the redirect_uri is already trusted.
+
+    Every authorization response, success or error, carries `iss` (RFC 9207,
+    advertised as `authorization_response_iss_parameter_supported`): the
+    issuer from the discovery document, so a client talking to more than one
+    authorization server can tell which one answered (mix-up defence). A
+    redirect URI that already has a query keeps it; the parameters are added
+    with `&` (RFC 6749 §3.1.2).
 
     Args:
         redirect_uri: The validated redirect URI from the OAuth client
@@ -841,7 +871,10 @@ def _build_safe_callback_url(
             )
             raise ValueError("Invalid redirect URI")
 
-    return f"{redirect_uri}?{urlencode(params)}"
+    response_params = dict(params)
+    response_params["iss"] = oauth_issuer()
+    separator = "&" if "?" in redirect_uri else "?"
+    return f"{redirect_uri}{separator}{urlencode(response_params)}"
 
 
 #: What a client with no stored ``grant_types`` / ``allowed_scopes`` may use.
@@ -1299,6 +1332,517 @@ def _redirect_with_oauth_error(
     )
 
 
+# ============================================================================
+# Protected resources (RFC 8707) — how Claude and Claude Code get MAP tokens
+# ============================================================================
+#
+# A request that names a `resource`, or whose client_id is an https URL (a
+# Client ID Metadata Document), takes this path end to end: /authorize, the
+# consent POST, /token and /revoke. A request with neither keeps the original
+# behavior byte for byte. Registry and client policy:
+# app/core/protected_resources.py; CIMD fetching: app/services/client_id_metadata.py;
+# tokens: app/services/resource_tokens.py. Rules enforced here:
+#
+# - exactly one registered resource, else `invalid_target`;
+# - the client is a CIMD document from a host on the resource's allowlist, or
+#   a client registered in Janua whose redirect URIs are all inside the
+#   resource's redirect policy;
+# - redirect URIs match exactly, except that a loopback URI matches on any
+#   port (RFC 8252 §7.3);
+# - response_type=code with PKCE S256 only;
+# - consent is asked every time, in Spanish, and never remembered;
+# - errors after the redirect URI is trusted go back to it with `error`,
+#   `state` and `iss`; errors before that render a page and never redirect.
+
+#: Pre-login state for a resource-bound request outlives the 15-minute magic
+#: link that may resume it (the default path keeps 10 minutes).
+RESOURCE_PRE_LOGIN_TTL = 20 * 60
+#: How long the stored consent request waits for the person's answer.
+RESOURCE_AUTH_REQUEST_TTL = 600
+#: RFC 7636 §4.2: an S256 challenge is BASE64URL(SHA256(verifier)), 43 chars.
+_S256_CHALLENGE = re.compile(r"^[A-Za-z0-9_-]{43}$")
+#: RFC 7636 §4.1: the verifier's alphabet and length.
+_CODE_VERIFIER = re.compile(r"^[A-Za-z0-9._~-]{43,128}$")
+
+_TOKEN_RESPONSE_HEADERS = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+
+_ERROR_PAGE_MESSAGES = {
+    "invalid_client": "La aplicación que pidió el acceso no está autorizada o no se pudo verificar.",
+    "invalid_request": "La solicitud de acceso no es válida.",
+    "invalid_target": "El recurso solicitado no existe o no está disponible.",
+    "unauthorized_client": "Esta aplicación no tiene permiso para pedir acceso a este recurso.",
+    "server_error": "No se pudo completar la autorización.",
+}
+
+
+@dataclass(frozen=True)
+class _ResourceClient:
+    """The client of a resource-bound request, from its CIMD document or its row."""
+
+    client_id: str
+    kind: str  # "cimd" | "registered"
+    client_name: Optional[str]
+    redirect_uris: tuple[str, ...]
+    grant_types: frozenset[str]
+    cimd_host: Optional[str] = None
+    db_client: Optional[OAuthClient] = None
+
+    def app_host(self, redirect_uri: str) -> str:
+        """Who is asking, as a host: the client_id host, else the redirect host."""
+        return self.cimd_host or redirect_display_host(redirect_uri)
+
+
+class _AuthorizeFailure(Exception):
+    """A refusal that must NOT redirect: the client or its redirect URI is untrusted."""
+
+    def __init__(self, error: str, description: str) -> None:
+        super().__init__(description)
+        self.error = error
+        self.description = description
+
+
+def _resource_values(value: Any) -> list[str]:
+    """The `resource` values of a request (RFC 8707 allows repeating it).
+
+    Anything that is not a string or a list of strings — notably FastAPI's own
+    `Query(None)` / `Form(None)` default when a route function is called
+    directly — means "no resource".
+    """
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, (list, tuple)):
+        return [item for item in value if isinstance(item, str)]
+    return []
+
+
+def _select_resource(values: list[str]) -> tuple[Optional[ProtectedResource], Optional[str]]:
+    """(the registered resource, None) or (None, why it is `invalid_target`)."""
+    if not values:
+        return None, "the resource parameter is required for this client"
+    canonical: set[str] = set()
+    for value in values:
+        try:
+            canonical.add(canonical_resource(value))
+        except InvalidResourceIndicator as exc:
+            return None, str(exc)
+    if len(canonical) != 1:
+        return None, "exactly one resource per request is supported"
+    resource = PROTECTED_RESOURCES.get(next(iter(canonical)))
+    if resource is None:
+        return None, "unknown resource"
+    return resource, None
+
+
+def _registered_redirect_uris(client: OAuthClient) -> tuple[str, ...]:
+    uris = client.redirect_uris or []
+    if isinstance(uris, str):
+        # Some rows store the array double-encoded (see auth.py's resolvers).
+        try:
+            uris = json.loads(uris)
+        except json.JSONDecodeError:
+            uris = []
+    if not isinstance(uris, list):
+        return ()
+    return tuple(uri for uri in uris if isinstance(uri, str))
+
+
+async def _resolve_resource_client(
+    client_id: str, resource: Optional[ProtectedResource], db: AsyncSession
+) -> _ResourceClient:
+    """The client behind `client_id`, or _AuthorizeFailure.
+
+    A URL client_id is fetched as a Client ID Metadata Document, from a host on
+    the resource's allowlist only. With no usable resource the union of every
+    resource's allowlist decides, so the `invalid_target` error can still be
+    delivered to a verified redirect URI.
+    """
+    if is_url_client_id(client_id):
+        allowed = resource.client_policy.cimd_hosts if resource else all_cimd_hosts()
+        try:
+            metadata = await resolve_client_metadata(client_id, allowed_hosts=allowed)
+        except ClientMetadataError as exc:
+            raise _AuthorizeFailure(exc.error, exc.description) from exc
+        return _ResourceClient(
+            client_id=client_id,
+            kind="cimd",
+            client_name=metadata.client_name,
+            redirect_uris=metadata.redirect_uris,
+            grant_types=frozenset(metadata.grant_types),
+            cimd_host=metadata.host,
+        )
+    client = await _get_oauth_client(client_id, db)
+    if not client or not client.is_active:
+        raise _AuthorizeFailure("invalid_client", "unknown or disabled client")
+    return _ResourceClient(
+        client_id=client_id,
+        kind="registered",
+        client_name=client.name,
+        redirect_uris=_registered_redirect_uris(client),
+        grant_types=frozenset(_client_grant_types(client)),
+        db_client=client,
+    )
+
+
+def _resource_policy_error(
+    resource: ProtectedResource, client: _ResourceClient, redirect_uri: str
+) -> Optional[str]:
+    """Why `client` may not obtain tokens for `resource` via `redirect_uri`, or None."""
+    policy = resource.client_policy
+    if client.kind == "cimd":
+        if client.cimd_host not in policy.cimd_hosts:
+            return "this client is not allowed to request this resource"
+    elif not client.redirect_uris or not all(
+        policy.allows_redirect(uri) for uri in client.redirect_uris
+    ):
+        return "the client's registered redirect URIs are outside this resource's policy"
+    if not policy.allows_redirect(redirect_uri):
+        return "this redirect URI is not allowed for this resource"
+    if "authorization_code" not in client.grant_types:
+        return "this client may not use the authorization_code grant"
+    return None
+
+
+def _authorization_error_page(error: str, description: str) -> HTMLResponse:
+    """A refusal shown to the person, never redirected (untrusted redirect URI)."""
+    message = _ERROR_PAGE_MESSAGES.get(error, _ERROR_PAGE_MESSAGES["server_error"])
+    content = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>No se pudo autorizar - Janua</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+               background: #f4f1ec; color: #1f2933; display: flex; align-items: center;
+               justify-content: center; min-height: 100vh; margin: 0; padding: 16px; }}
+        main {{ background: #fff; border-radius: 14px; padding: 28px; max-width: 440px;
+               box-shadow: 0 12px 40px rgba(31, 41, 51, 0.16); }}
+        h1 {{ font-size: 20px; margin: 0 0 12px; }}
+        p {{ line-height: 1.5; }}
+        code {{ font-size: 12px; color: #52606d; word-break: break-word; }}
+    </style>
+</head>
+<body>
+    <main>
+        <h1>No se pudo autorizar la conexión</h1>
+        <p>{html.escape(message)} Vuelve a la aplicación e inténtalo de nuevo.</p>
+        <p><code>{html.escape(error)}: {html.escape(description)}</code></p>
+    </main>
+</body>
+</html>
+"""
+    return HTMLResponse(content=content, status_code=400, headers={"Cache-Control": "no-store"})
+
+
+def _login_redirect_for_resource(
+    *,
+    pre_login_id: str,
+    client_id: str,
+    app_name: str,
+    login_method: Optional[str],
+    mfa_required: bool = False,
+) -> RedirectResponse:
+    params = {"auth_request_id": pre_login_id, "client_id": client_id, "client_name": app_name}
+    if login_method:
+        params["login_method"] = login_method
+    if mfa_required:
+        params["mfa_required"] = "1"
+    return RedirectResponse(url=f"/api/v1/auth/login?{urlencode(params)}", status_code=302)
+
+
+async def _authorize_protected_resource(
+    *,
+    request: Request,
+    response_type: str,
+    client_id: str,
+    redirect_uri: str,
+    scope: Optional[str],
+    state: Optional[str],
+    code_challenge: Optional[str],
+    code_challenge_method: Optional[str],
+    prompt: Optional[str],
+    login_method: Optional[str],
+    resource_values: list[str],
+    db: AsyncSession,
+    redis: ResilientRedisClient,
+):
+    """GET /authorize for a protected resource (see the section comment above)."""
+    resource, resource_error = _select_resource(resource_values)
+
+    # 1. Who is asking, and may the answer go to `redirect_uri`? Until both are
+    #    known nothing is redirected (RFC 6749 §4.1.2.1).
+    try:
+        client = await _resolve_resource_client(client_id, resource, db)
+    except _AuthorizeFailure as failure:
+        logger.warning(
+            "oauth.resource_authorize.refused",
+            error=failure.error,
+            reason=failure.description,
+            client_kind="cimd" if is_url_client_id(client_id) else "registered",
+        )
+        return _authorization_error_page(failure.error, failure.description)
+    if not redirect_uri_matches(redirect_uri, client.redirect_uris):
+        logger.warning(
+            "oauth.resource_authorize.refused",
+            error="invalid_request",
+            reason="redirect_uri_not_registered",
+            client_id=client_id,
+        )
+        return _authorization_error_page(
+            "invalid_request", "redirect_uri is not registered for this client"
+        )
+
+    def refuse(error: str, description: str) -> RedirectResponse:
+        logger.info(
+            "oauth.resource_authorize.refused",
+            error=error,
+            reason=description,
+            client_id=client_id,
+        )
+        return _redirect_with_oauth_error(
+            redirect_uri,
+            error=error,
+            error_description=description,
+            state=state,
+            client_validated=True,
+        )
+
+    # 2. The request itself; errors now go back to the verified redirect URI.
+    if resource is None:
+        return refuse("invalid_target", resource_error or "unknown resource")
+    if response_type != "code":
+        return refuse("unsupported_response_type", "only response_type=code is supported")
+    policy_error = _resource_policy_error(resource, client, redirect_uri)
+    if policy_error:
+        return refuse("unauthorized_client", policy_error)
+    if not code_challenge:
+        return refuse("invalid_request", "PKCE is required: send code_challenge")
+    if code_challenge_method != "S256":
+        return refuse("invalid_request", "code_challenge_method must be S256")
+    if not _S256_CHALLENGE.match(code_challenge):
+        return refuse("invalid_request", "code_challenge is not a valid S256 challenge")
+
+    requested = scope.split() if scope is not None else None
+    scopes, offline_access = granted_scopes(resource, requested)
+    if not scopes:
+        return refuse("invalid_scope", "no requested scope is available for this resource")
+    if "refresh_token" not in client.grant_types:
+        offline_access = False
+
+    prompt_values = {value for value in (prompt or "").strip().lower().split() if value}
+    force_login = "login" in prompt_values or "select_account" in prompt_values
+    silent = "none" in prompt_values and not force_login
+
+    app_host = client.app_host(redirect_uri)
+    current_user = await get_user_from_cookie_or_header(request, db)
+
+    async def send_to_login(*, mfa_required: bool = False) -> RedirectResponse:
+        pre_login_id = secrets.token_urlsafe(16)
+        pre_login_data = {
+            "response_type": response_type,
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "scope": scope,
+            "state": state,
+            "code_challenge": code_challenge,
+            "code_challenge_method": code_challenge_method,
+            "resource": resource.resource,
+            "login_method": normalize_login_method(login_method) or resource.preferred_login_method,
+        }
+        await redis.strict_set(
+            f"oauth:pre_login:{pre_login_id}",
+            json.dumps(pre_login_data),
+            ex=RESOURCE_PRE_LOGIN_TTL,
+        )
+        return _login_redirect_for_resource(
+            pre_login_id=pre_login_id,
+            client_id=client_id,
+            app_name=f"{resource.display_name} ({app_host})",
+            login_method=pre_login_data["login_method"],
+            mfa_required=mfa_required,
+        )
+
+    if not current_user or force_login:
+        if silent:
+            return refuse("login_required", "no active Janua session")
+        return await send_to_login()
+
+    # Consent is asked on every request for a resource, so a silent request
+    # can never complete.
+    if silent:
+        return refuse("consent_required", "consent is required for this resource")
+
+    # Same identity gates as the default path: verified email (after the
+    # grace period) and, when enforced, a second factor.
+    if settings.REQUIRE_EMAIL_VERIFICATION and not getattr(current_user, "email_verified", False):
+        created_at = getattr(current_user, "created_at", None)
+        if created_at:
+            grace = timedelta(hours=settings.EMAIL_VERIFICATION_GRACE_PERIOD_HOURS)
+            if datetime.utcnow() >= created_at + grace:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Email verification required. Please verify your email before authorizing third-party applications.",
+                )
+
+    from app.auth.mfa_enforcement import mfa_required_for
+
+    if mfa_required_for(current_user):
+        return await send_to_login(mfa_required=True)
+
+    # 3. Consent, in Spanish, every time.
+    csrf_token = await _generate_csrf_token(str(current_user.id), redis)
+    granted = scopes + ([OFFLINE_ACCESS_SCOPE] if offline_access else [])
+    auth_request_id = secrets.token_urlsafe(16)
+    auth_request_data = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "scope": " ".join(granted),
+        "state": state,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+        "resource": resource.resource,
+        "user_id": str(current_user.id),
+    }
+    await redis.strict_set(
+        f"oauth:auth_request:{auth_request_id}",
+        json.dumps(auth_request_data),
+        ex=RESOURCE_AUTH_REQUEST_TTL,
+    )
+    loopback = is_loopback_redirect(redirect_uri)
+    page = render_resource_consent_page(
+        resource=resource,
+        # A registered client on a loopback redirect has no host worth naming.
+        app_host=(
+            app_host
+            if client.kind == "cimd" or not loopback
+            else "Una aplicación en esta computadora"
+        ),
+        client_name=client.client_name,
+        redirect_host=redirect_display_host(redirect_uri),
+        loopback=loopback,
+        scopes=scopes,
+        offline_access=offline_access,
+        user_email=getattr(current_user, "email", "") or "",
+        auth_request_id=auth_request_id,
+        csrf_token=csrf_token,
+    )
+    return HTMLResponse(content=page, headers={"Cache-Control": "no-store"})
+
+
+async def _complete_protected_resource_consent(
+    *,
+    current_user: User,
+    auth_request: dict,
+    action: str,
+    db: AsyncSession,
+    redis: ResilientRedisClient,
+):
+    """POST /consent for a protected resource: re-verify, then code or access_denied."""
+    resource = PROTECTED_RESOURCES.get(auth_request.get("resource") or "")
+    redirect_uri = auth_request.get("redirect_uri") or ""
+    state = auth_request.get("state")
+    client_id = auth_request.get("client_id") or ""
+    if resource is None:
+        return _authorization_error_page("invalid_target", "the resource is no longer available")
+    if auth_request.get("user_id") != str(current_user.id):
+        return _authorization_error_page(
+            "invalid_request", "the signed-in account changed; start the connection again"
+        )
+    # Defense in depth: the stored request was validated when the page was
+    # rendered, but the registry or the client's document may have changed.
+    try:
+        client = await _resolve_resource_client(client_id, resource, db)
+    except _AuthorizeFailure as failure:
+        return _authorization_error_page(failure.error, failure.description)
+    if not redirect_uri_matches(redirect_uri, client.redirect_uris) or _resource_policy_error(
+        resource, client, redirect_uri
+    ):
+        return _authorization_error_page(
+            "unauthorized_client", "the client or its redirect URI is no longer allowed"
+        )
+
+    if action != "allow":
+        logger.info(
+            "oauth.resource_consent.denied",
+            client_id=client_id,
+            resource=resource.resource,
+            user=_redacted(current_user.id),
+        )
+        return _redirect_with_oauth_error(
+            redirect_uri,
+            error="access_denied",
+            error_description="the user denied the request",
+            state=state,
+            client_validated=True,
+        )
+
+    auth_code = secrets.token_urlsafe(32)
+    code_data = {
+        "client_id": client_id,
+        "user_id": str(current_user.id),
+        "redirect_uri": redirect_uri,
+        "scope": auth_request.get("scope") or "",
+        "resource": resource.resource,
+        "nonce": None,
+        "code_challenge": auth_request.get("code_challenge"),
+        "code_challenge_method": "S256",
+        "expires_at": time.time() + AUTH_CODE_TTL,
+    }
+    await _store_auth_code(auth_code, code_data, redis)
+
+    if client.db_client is not None:
+        try:
+            client.db_client.last_used_at = datetime.utcnow()
+            await db.commit()
+        except Exception as e:
+            logger.warning("Failed to update client last_used_at", error=str(e))
+
+    logger.info(
+        "oauth.resource_consent.granted",
+        client_id=client_id,
+        resource=resource.resource,
+        scopes=code_data["scope"],
+        user=_redacted(current_user.id),
+    )
+    callback_params = {"code": auth_code}
+    if state:
+        callback_params["state"] = state
+    return RedirectResponse(
+        url=_build_safe_callback_url(redirect_uri, callback_params, client_validated=True),
+        status_code=302,
+    )
+
+
+@router.get("/authorize/resume")
+async def authorize_resume(
+    auth_request_id: str = Query(..., min_length=8, max_length=64),
+    redis: ResilientRedisClient = Depends(get_redis),
+):
+    """Resume a protected-resource authorization after sign-in by email link.
+
+    The emailed link's destination is stored in a 500-character column, and a
+    full authorize URL for a Client ID Metadata Document client with a
+    `resource` comes close to that. The link therefore carries only this short
+    URL; the authorize parameters stay in the pre-login record, which for
+    these requests outlives the link (RESOURCE_PRE_LOGIN_TTL).
+    """
+    stored = await redis.strict_get(f"oauth:pre_login:{auth_request_id}")
+    params: Optional[dict] = None
+    if stored:
+        try:
+            params = json.loads(stored)
+        except (json.JSONDecodeError, TypeError):
+            params = None
+    if not isinstance(params, dict) or not params.get("resource"):
+        return _authorization_error_page(
+            "invalid_request", "this sign-in request expired; start the connection again"
+        )
+    return RedirectResponse(
+        url=f"/api/v1/oauth/authorize?{urlencode(authorize_query(params))}", status_code=302
+    )
+
+
 @router.get("/authorize")
 async def authorize_get(
     request: Request,
@@ -1334,6 +1878,14 @@ async def authorize_get(
             "deployment default (HOSTED_LOGIN_DEFAULT_METHOD)."
         ),
     ),
+    resource: Optional[List[str]] = Query(
+        None,
+        description=(
+            "RFC 8707 resource indicator: the protected resource (e.g. an MCP "
+            "server URL) the token is for. Must name a registered resource; "
+            "the access token's `aud` is that URI. Absent: the default flow."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -1342,6 +1894,10 @@ async def authorize_get(
 
     If user is not authenticated, redirect to login page.
     If user is authenticated, show consent screen or auto-approve.
+
+    A request with `resource`, or with an https `client_id` (a Client ID
+    Metadata Document), goes through `_authorize_protected_resource` instead:
+    registered resources and clients only, PKCE S256, consent every time.
 
     Authentication is checked, in this order (see
     `get_user_from_cookie_or_header`, which owns the rule):
@@ -1358,6 +1914,27 @@ async def authorize_get(
         - Email verification or MFA required → respect those checks; never
           bypass them just because `prompt=none` was requested.
     """
+    resource_values = _resource_values(resource)
+    if resource_values or is_url_client_id(client_id):
+        scope_param = scope
+        if isinstance(request, Request) and "scope" not in request.query_params:
+            scope_param = None  # omitted: every scope of the resource
+        return await _authorize_protected_resource(
+            request=request,
+            response_type=response_type,
+            client_id=client_id,
+            redirect_uri=redirect_uri,
+            scope=scope_param,
+            state=state,
+            code_challenge=code_challenge,
+            code_challenge_method=code_challenge_method,
+            prompt=prompt,
+            login_method=login_method,
+            resource_values=resource_values,
+            db=db,
+            redis=redis,
+        )
+
     # Get user from header or cookie (supports browser-based OAuth flow)
     current_user = await get_user_from_cookie_or_header(request, db)
 
@@ -1896,6 +2473,17 @@ async def handle_consent(
         )
 
     auth_request = json.loads(auth_request_json)
+    if auth_request.get("resource"):
+        # A protected-resource request: its client may be a CIMD document
+        # (no row), its code is bound to the resource, and nothing is stored
+        # as remembered consent.
+        return await _complete_protected_resource_consent(
+            current_user=current_user,
+            auth_request=auth_request,
+            action=action,
+            db=db,
+            redis=redis,
+        )
     redirect_uri = auth_request["redirect_uri"]
     state = auth_request.get("state")
 
@@ -1992,6 +2580,7 @@ async def authorize_post(
     code_challenge: Optional[str] = Form(None),
     code_challenge_method: Optional[str] = Form(None),
     csrf_token: Optional[str] = Form(None),
+    resource: Optional[List[str]] = Form(None),
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
     current_user: User = Depends(get_current_user),
@@ -2001,7 +2590,16 @@ async def authorize_post(
 
     Used for form-based authorization (consent submission).
     Requires CSRF token for protection against cross-site request forgery.
+
+    Protected resources (`resource`, or an https `client_id`) are authorized
+    through GET /authorize and its consent screen only; this form refuses them
+    rather than issue a code that is not bound to the resource.
     """
+    if _resource_values(resource) or is_url_client_id(client_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid_request: protected resources are authorized through GET /authorize",
+        )
     # SECURITY: Validate CSRF token
     if not csrf_token or not await _validate_csrf_token(csrf_token, str(current_user.id), redis):
         raise HTTPException(
@@ -2095,6 +2693,7 @@ async def token(
     refresh_token: Optional[str] = Form(None),
     code_verifier: Optional[str] = Form(None),
     scope: Optional[str] = Form(None),
+    resource: Optional[List[str]] = Form(None),
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -2107,10 +2706,16 @@ async def token(
     - authorization_code: Exchange auth code for access/refresh/id tokens
     - refresh_token: Get new access token using refresh token
     - client_credentials: Get short-lived machine tokens for service accounts
+
+    Protected resources (RFC 8707): a request with `resource`, from an https
+    `client_id` (CIMD), or presenting a resource refresh token is handled by
+    `_token_for_protected_resource` — RFC 6749 error bodies, RFC 9068 access
+    tokens with `aud` = the resource, single-use rotating refresh tokens.
     """
     # Handle client authentication (Basic auth or form params)
     auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Basic "):
+    used_basic_auth = auth_header.startswith("Basic ")
+    if used_basic_auth:
         import base64
 
         try:
@@ -2121,6 +2726,30 @@ async def token(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="invalid_client: Invalid Basic auth",
             )
+
+    resource_values = _resource_values(resource)
+    if (
+        resource_values
+        or is_url_client_id(client_id)
+        or (
+            grant_type == "refresh_token"
+            and resource_tokens.looks_like_resource_refresh_token(refresh_token)
+        )
+    ):
+        return await _token_for_protected_resource(
+            grant_type=grant_type,
+            code=code,
+            redirect_uri=redirect_uri,
+            client_id=client_id,
+            client_secret=client_secret,
+            refresh_token=refresh_token,
+            code_verifier=code_verifier,
+            scope=scope,
+            resource_values=resource_values,
+            used_basic_auth=used_basic_auth,
+            db=db,
+            redis=redis,
+        )
 
     if not client_id:
         raise HTTPException(
@@ -2190,6 +2819,410 @@ async def token(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"unsupported_grant_type: {grant_type}",
         )
+
+
+# ----------------------------------------------------------------------------
+# Token endpoint for protected resources
+# ----------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _TokenClient:
+    """An authenticated (or, for a public client, identified) token-endpoint client."""
+
+    client_id: str
+    kind: str  # "cimd" | "registered"
+    grant_types: frozenset[str]
+    cimd_host: Optional[str] = None
+    db_client: Optional[OAuthClient] = None
+
+
+def _oauth_token_error(
+    error: str, description: str, status_code: int = 400, *, basic_auth: bool = False
+) -> JSONResponse:
+    """An RFC 6749 §5.2 error: `{"error", "error_description"}`, never cached.
+
+    Clients act on the `error` code itself — Claude, for one, starts a new
+    authorization only when a refresh answers `invalid_grant` — so this path
+    never uses Janua's general error envelope.
+    """
+    headers = dict(_TOKEN_RESPONSE_HEADERS)
+    if status_code == 401 and basic_auth:
+        headers["WWW-Authenticate"] = 'Basic realm="janua"'
+    return JSONResponse(
+        status_code=status_code,
+        content={"error": error, "error_description": description},
+        headers=headers,
+    )
+
+
+def _token_client_from_row(client: OAuthClient) -> _TokenClient:
+    return _TokenClient(
+        client_id=client.client_id,
+        kind="registered",
+        grant_types=frozenset(_client_grant_types(client)),
+        db_client=client,
+    )
+
+
+async def _authenticate_resource_token_client(
+    client_id: Optional[str],
+    client_secret: Optional[str],
+    used_basic_auth: bool,
+    db: AsyncSession,
+) -> tuple[Optional[_TokenClient], Optional[JSONResponse]]:
+    """(client, None) or (None, the RFC 6749 error response)."""
+    if not client_id:
+        return None, _oauth_token_error("invalid_request", "client_id is required")
+    if is_url_client_id(client_id):
+        try:
+            host = client_id_host(client_id)
+        except ClientMetadataError as exc:
+            return None, _oauth_token_error("invalid_client", exc.description, 401)
+        if host not in all_cimd_hosts():
+            return None, _oauth_token_error(
+                "invalid_client", "this client is not allowed at this server", 401
+            )
+        if client_secret or used_basic_auth:
+            # Its document says token_endpoint_auth_method "none": PKCE only.
+            return None, _oauth_token_error(
+                "invalid_client",
+                "this client authenticates with PKCE only",
+                401,
+                basic_auth=used_basic_auth,
+            )
+        return (
+            _TokenClient(
+                client_id=client_id,
+                kind="cimd",
+                grant_types=frozenset({"authorization_code", "refresh_token"}),
+                cimd_host=host,
+            ),
+            None,
+        )
+
+    client = await _get_oauth_client(client_id, db)
+    if not client or not client.is_active:
+        return None, _oauth_token_error(
+            "invalid_client", "unknown or disabled client", 401, basic_auth=used_basic_auth
+        )
+    if client.is_confidential and (not client_secret or not client.verify_secret(client_secret)):
+        return None, _oauth_token_error(
+            "invalid_client", "client authentication failed", 401, basic_auth=used_basic_auth
+        )
+    return _token_client_from_row(client), None
+
+
+async def _active_user(user_id: Any, db: AsyncSession) -> Optional[User]:
+    """The ACTIVE user with this id, else None.
+
+    Only a malformed id is "no user"; a database failure propagates (a 5xx the
+    client retries), never `invalid_grant`, which would make Claude discard a
+    good refresh token.
+    """
+    try:
+        user_uuid = uuid.UUID(str(user_id))
+    except (TypeError, ValueError):
+        return None
+    result = await db.execute(select(User).where(User.id == user_uuid))
+    user = result.scalar_one_or_none()
+    if user is None or getattr(user, "status", None) != UserStatus.ACTIVE:
+        return None
+    return user
+
+
+def _resource_token_response(
+    *,
+    resource: ProtectedResource,
+    subject: str,
+    client: _TokenClient,
+    access_scopes: list[str],
+    refresh_token: Optional[str],
+    grant_type: str,
+) -> JSONResponse:
+    access = resource_tokens.mint_access_token(
+        resource=resource,
+        subject=subject,
+        client_id=client.client_id,
+        scopes=access_scopes,
+    )
+    response_scope = access_scopes + ([OFFLINE_ACCESS_SCOPE] if refresh_token else [])
+    body: dict[str, Any] = {
+        "access_token": access.token,
+        "token_type": "Bearer",
+        "expires_in": access.expires_in,
+        "scope": " ".join(response_scope),
+    }
+    if refresh_token:
+        body["refresh_token"] = refresh_token
+    logger.info(
+        "oauth.resource_token.issued",
+        grant_type=grant_type,
+        client_id=client.client_id,
+        resource=resource.resource,
+        scopes=" ".join(access_scopes),
+        refresh_token_issued=bool(refresh_token),
+        user=_redacted(subject),
+    )
+    return JSONResponse(content=body, headers=dict(_TOKEN_RESPONSE_HEADERS))
+
+
+def _requested_resource_mismatch(
+    resource_values: list[str], bound: ProtectedResource
+) -> Optional[JSONResponse]:
+    """`invalid_target` unless the request names nothing, or exactly `bound`."""
+    if not resource_values:
+        return None
+    requested, error = _select_resource(resource_values)
+    if requested is None:
+        return _oauth_token_error("invalid_target", error or "unknown resource")
+    if requested.resource != bound.resource:
+        return _oauth_token_error(
+            "invalid_target", "the resource does not match the one this grant was issued for"
+        )
+    return None
+
+
+async def _exchange_resource_code(
+    *,
+    code: str,
+    code_data: dict,
+    redirect_uri: Optional[str],
+    code_verifier: Optional[str],
+    client: _TokenClient,
+    resource_values: list[str],
+    db: AsyncSession,
+    redis: ResilientRedisClient,
+) -> JSONResponse:
+    """authorization_code for a code bound to a protected resource."""
+    if code_data.get("client_id") != client.client_id:
+        logger.warning("token.rejected", reason="client_mismatch", client_id=client.client_id)
+        return _oauth_token_error("invalid_grant", "the code was not issued to this client")
+    resource = PROTECTED_RESOURCES.get(code_data.get("resource") or "")
+    if resource is None:
+        return _oauth_token_error("invalid_grant", "the code's resource is no longer available")
+    mismatch = _requested_resource_mismatch(resource_values, resource)
+    if mismatch is not None:
+        return mismatch
+    if client.kind == "cimd" and client.cimd_host not in resource.client_policy.cimd_hosts:
+        return _oauth_token_error(
+            "unauthorized_client", "this client may not obtain tokens for this resource"
+        )
+    if "authorization_code" not in client.grant_types:
+        return _oauth_token_error("unauthorized_client", "grant type not allowed for this client")
+    if redirect_uri is not None and redirect_uri != code_data.get("redirect_uri"):
+        logger.warning("token.rejected", reason="redirect_uri_mismatch", client_id=client.client_id)
+        return _oauth_token_error("invalid_grant", "redirect_uri does not match the authorization")
+    challenge = code_data.get("code_challenge")
+    if not challenge or code_data.get("code_challenge_method") != "S256":
+        return _oauth_token_error("invalid_grant", "the code was not issued with PKCE S256")
+    if not code_verifier:
+        return _oauth_token_error("invalid_request", "code_verifier is required")
+    if not _CODE_VERIFIER.match(code_verifier) or not _verify_pkce(
+        code_verifier, challenge, "S256"
+    ):
+        logger.warning("token.rejected", reason="pkce_mismatch", client_id=client.client_id)
+        return _oauth_token_error("invalid_grant", "PKCE verification failed")
+
+    # Single use: of two concurrent redemptions exactly one deletes the code.
+    if not await _delete_auth_code(code, redis):
+        logger.warning("token.rejected", reason="code_already_redeemed", client_id=client.client_id)
+        return _oauth_token_error("invalid_grant", "the code is invalid or was already used")
+
+    user = await _active_user(code_data.get("user_id"), db)
+    if user is None:
+        return _oauth_token_error("invalid_grant", "the account is not active")
+
+    granted = (code_data.get("scope") or "").split()
+    access_scopes = [scope for scope in granted if scope in resource.scope_names]
+    if not access_scopes:
+        return _oauth_token_error("invalid_scope", "no scope of this resource was granted")
+
+    refresh_token = None
+    if OFFLINE_ACCESS_SCOPE in granted and "refresh_token" in client.grant_types:
+        refresh_token = resource_tokens.mint_refresh_token(
+            resource=resource,
+            subject=str(user.id),
+            client_id=client.client_id,
+            scope=" ".join(access_scopes + [OFFLINE_ACCESS_SCOPE]),
+        )
+
+    if client.db_client is not None:
+        client.db_client.last_used_at = datetime.utcnow()
+        try:
+            await db.commit()
+        except Exception as e:
+            logger.warning("Failed to update client last_used_at", error=str(e))
+
+    return _resource_token_response(
+        resource=resource,
+        subject=str(user.id),
+        client=client,
+        access_scopes=access_scopes,
+        refresh_token=refresh_token,
+        grant_type="authorization_code",
+    )
+
+
+async def _refresh_resource_token(
+    *,
+    refresh_token: Optional[str],
+    scope: Optional[str],
+    client: _TokenClient,
+    resource_values: list[str],
+    db: AsyncSession,
+    redis: ResilientRedisClient,
+) -> JSONResponse:
+    """refresh_token for a resource refresh token: rotate, detect reuse, never upscope."""
+    if not refresh_token:
+        return _oauth_token_error("invalid_request", "refresh_token is required")
+    claims = resource_tokens.verify_refresh_token(refresh_token)
+    if claims is None:
+        return _oauth_token_error("invalid_grant", "the refresh token is invalid or expired")
+    if claims["client_id"] != client.client_id:
+        logger.warning(
+            "token.rejected", reason="refresh_client_mismatch", client_id=client.client_id
+        )
+        return _oauth_token_error(
+            "invalid_grant", "the refresh token was not issued to this client"
+        )
+    resource = PROTECTED_RESOURCES.get(claims["resource"])
+    if resource is None:
+        return _oauth_token_error("invalid_grant", "the token's resource is no longer available")
+    mismatch = _requested_resource_mismatch(resource_values, resource)
+    if mismatch is not None:
+        return mismatch
+    if client.kind == "cimd" and client.cimd_host not in resource.client_policy.cimd_hosts:
+        return _oauth_token_error("invalid_grant", "this client may no longer use this resource")
+    if "refresh_token" not in client.grant_types:
+        return _oauth_token_error("unauthorized_client", "grant type not allowed for this client")
+
+    # Revoked through POST /oauth/revoke, or a family closed by reuse? Strict
+    # read: 503 when Redis cannot answer, never "not revoked".
+    if await token_revocation.is_revoked(redis, claims, "refresh"):
+        return _oauth_token_error("invalid_grant", "the refresh token was revoked")
+
+    original = claims["scope"].split()
+    current_scopes = [name for name in original if name in resource.scope_names]
+    if scope is not None:
+        requested = scope.split()
+        if not set(requested) <= set(original):
+            return _oauth_token_error("invalid_scope", "a refresh cannot add scopes")
+        access_scopes = [name for name in current_scopes if name in requested]
+    else:
+        access_scopes = current_scopes
+    if not access_scopes:
+        return _oauth_token_error("invalid_scope", "no scope of this resource remains")
+
+    user = await _active_user(claims["sub"], db)
+    if user is None:
+        return _oauth_token_error("invalid_grant", "the account is not active")
+
+    # Single use. The first redemption wins the SET NX; any later one is reuse
+    # of a rotated token, so the whole family is revoked.
+    first_use = await redis.strict_set_nx(
+        f"{resource_tokens.USED_REFRESH_KEY_PREFIX}{claims['jti']}",
+        "1",
+        ex=token_revocation.seconds_until(claims.get("exp"), resource.refresh_token_idle_seconds),
+    )
+    if not first_use:
+        await token_revocation.revoke_family(
+            redis,
+            claims["family"],
+            ttl=resource.refresh_token_idle_seconds,
+            reason="resource_refresh_token_reuse",
+            strict=True,
+        )
+        logger.warning(
+            "oauth.resource_refresh.reuse_detected",
+            client_id=client.client_id,
+            resource=resource.resource,
+            user=_redacted(claims["sub"]),
+        )
+        return _oauth_token_error("invalid_grant", "the refresh token was already used")
+
+    # The new refresh token keeps the original scope (RFC 6749 §6) and family.
+    new_refresh_token = resource_tokens.mint_refresh_token(
+        resource=resource,
+        subject=str(user.id),
+        client_id=client.client_id,
+        scope=claims["scope"],
+        family=claims["family"],
+        family_iat=claims["family_iat"],
+    )
+    return _resource_token_response(
+        resource=resource,
+        subject=str(user.id),
+        client=client,
+        access_scopes=access_scopes,
+        refresh_token=new_refresh_token,
+        grant_type="refresh_token",
+    )
+
+
+async def _token_for_protected_resource(
+    *,
+    grant_type: str,
+    code: Optional[str],
+    redirect_uri: Optional[str],
+    client_id: Optional[str],
+    client_secret: Optional[str],
+    refresh_token: Optional[str],
+    code_verifier: Optional[str],
+    scope: Optional[str],
+    resource_values: list[str],
+    used_basic_auth: bool,
+    db: AsyncSession,
+    redis: ResilientRedisClient,
+) -> JSONResponse:
+    client, error = await _authenticate_resource_token_client(
+        client_id, client_secret, used_basic_auth, db
+    )
+    if client is None:
+        return error or _oauth_token_error("invalid_client", "client authentication failed", 401)
+
+    if grant_type == "authorization_code":
+        if not code:
+            return _oauth_token_error("invalid_request", "code is required")
+        code_data = await _get_auth_code(code, redis)
+        if not code_data:
+            return _oauth_token_error("invalid_grant", "the code is invalid or expired")
+        if not code_data.get("resource"):
+            # RFC 8707: a grant made without a resource cannot become one.
+            return _oauth_token_error(
+                "invalid_target", "this code was not issued for a protected resource"
+            )
+        return await _exchange_resource_code(
+            code=code,
+            code_data=code_data,
+            redirect_uri=redirect_uri,
+            code_verifier=code_verifier,
+            client=client,
+            resource_values=resource_values,
+            db=db,
+            redis=redis,
+        )
+    if grant_type == "refresh_token":
+        if refresh_token and not resource_tokens.looks_like_resource_refresh_token(refresh_token):
+            # A refresh token from the default flow names no resource.
+            if resource_values:
+                return _oauth_token_error(
+                    "invalid_target", "this refresh token was not issued for a protected resource"
+                )
+            return _oauth_token_error("invalid_grant", "the refresh token is invalid or expired")
+        return await _refresh_resource_token(
+            refresh_token=refresh_token,
+            scope=scope,
+            client=client,
+            resource_values=resource_values,
+            db=db,
+            redis=redis,
+        )
+    if grant_type == "client_credentials":
+        return _oauth_token_error(
+            "invalid_target", "client_credentials tokens are not issued for protected resources"
+        )
+    return _oauth_token_error("unsupported_grant_type", f"unsupported grant type: {grant_type}")
 
 
 async def _audit_service_token_app_roles(
@@ -2302,6 +3335,21 @@ async def _handle_authorization_code_grant(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="invalid_grant: Code not found or expired",
+        )
+
+    if code_data.get("resource"):
+        # A code bound to a protected resource only ever yields a token for
+        # that resource, even when the token request omits `resource`
+        # (RFC 8707 §2.2 allows that).
+        return await _exchange_resource_code(
+            code=code,
+            code_data=code_data,
+            redirect_uri=redirect_uri,
+            code_verifier=code_verifier,
+            client=_token_client_from_row(client),
+            resource_values=[],
+            db=db,
+            redis=redis,
         )
 
     # Validate client matches
@@ -2855,6 +3903,46 @@ async def _authenticate_revoking_client(
     return client
 
 
+async def _revoke_protected_resource_token(
+    *,
+    request: Request,
+    token: str,
+    client_id: Optional[str],
+    client_secret: Optional[str],
+    db: AsyncSession,
+    redis: ResilientRedisClient,
+):
+    """RFC 7009 for protected-resource tokens (see `revoke`)."""
+    if is_url_client_id(client_id):
+        try:
+            host = client_id_host(client_id)
+        except ClientMetadataError as exc:
+            return _oauth_token_error("invalid_client", exc.description, 401)
+        if host not in all_cimd_hosts() or client_secret:
+            return _oauth_token_error("invalid_client", "client authentication failed", 401)
+        caller = client_id
+    else:
+        caller = (await _authenticate_revoking_client(request, client_id, client_secret, db)).client_id
+
+    claims = resource_tokens.verify_refresh_token(token)
+    if claims is not None and claims.get("client_id") == caller:
+        resource = PROTECTED_RESOURCES.get(claims["resource"])
+        await token_revocation.revoke_family(
+            redis,
+            claims["family"],
+            ttl=(
+                resource.refresh_token_idle_seconds
+                if resource
+                else token_revocation.refresh_token_ttl()
+            ),
+            reason="oauth_revoke",
+            strict=True,
+        )
+        logger.info("OAuth token revoked", client_id=caller, token_type="resource_refresh")
+    # 200 whether or not anything was revoked (RFC 7009 §2.2).
+    return {"message": "Token revoked"}
+
+
 async def _verified_token_of_client(
     token: str, token_type: str, client: OAuthClient, db: AsyncSession
 ) -> Optional[dict[str, Any]]:
@@ -2900,7 +3988,22 @@ async def revoke(
       client whether a token exists.
     - Fails closed: when Redis cannot store the revocation the answer is 503 +
       Retry-After, never a 200 for a revocation that did not happen.
+    - Protected resources: an https `client_id` (CIMD, public: no secret) or
+      a resource refresh token is handled by
+      `_revoke_protected_resource_token`; a resource refresh token revokes its
+      family. Resource access tokens are verified offline by the resource and
+      expire within minutes, so revoking one changes nothing (200).
     """
+    if is_url_client_id(client_id) or resource_tokens.looks_like_resource_refresh_token(token):
+        return await _revoke_protected_resource_token(
+            request=request,
+            token=token,
+            client_id=client_id,
+            client_secret=client_secret,
+            db=db,
+            redis=redis,
+        )
+
     client = await _authenticate_revoking_client(request, client_id, client_secret, db)
 
     order = ["refresh", "access"] if token_type_hint == "refresh_token" else ["access", "refresh"]

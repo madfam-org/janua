@@ -213,14 +213,56 @@ class JWTManager:
         )
         return token, jti, family, expires_at
 
-    def encode_token(self, claims: Dict[str, Any]) -> str:
-        """Encode arbitrary claims into a signed JWT token (e.g., for ID tokens)."""
+    def encode_token(self, claims: Dict[str, Any], typ: Optional[str] = None) -> str:
+        """Encode arbitrary claims into a signed JWT token (e.g., for ID tokens).
+
+        ``typ`` sets the JOSE header ``typ`` (e.g. ``at+jwt`` for RFC 9068
+        access tokens); left None, PyJWT's default ``JWT`` is kept.
+        """
+        headers = self._get_token_headers()
+        if typ:
+            headers = {**headers, "typ": typ}
         return jwt.encode(
             claims,
             self._get_signing_key(),
             algorithm=self.algorithm,
-            headers=self._get_token_headers(),
+            headers=headers,
         )
+
+    def decode_verified(
+        self,
+        token: str,
+        *,
+        issuer: str,
+        audience: str | Sequence[str],
+        required_claims: Sequence[str] = ("exp", "iat", "iss", "aud", "sub", "jti"),
+    ) -> Optional[Dict[str, Any]]:
+        """Verify signature, issuer, audience and expiry; return the claims or None.
+
+        Unlike :meth:`verify_token` this reads no Janua ``type`` claim and takes
+        the issuer explicitly: it is for tokens whose shape is defined
+        elsewhere (protected-resource tokens, RFC 9068), so the caller checks
+        their own type marker on the returned claims.
+        """
+        try:
+            return jwt.decode(
+                token,
+                self._get_verification_key(),
+                algorithms=[self.algorithm],
+                issuer=issuer,
+                audience=audience,
+                options={"require": list(required_claims)},
+            )
+        except jwt.ExpiredSignatureError:
+            logger.info("Token expired")
+            return None
+        except jwt.InvalidTokenError as e:
+            logger.info("Token rejected", error_type=type(e).__name__)
+            return None
+
+    def get_unverified_header(self, token: str) -> Dict[str, Any]:
+        """The JOSE header of a token, unverified (raises on a malformed token)."""
+        return jwt.get_unverified_header(token)
 
     def get_unverified_claims(self, token: str) -> Dict[str, Any]:
         """Decode JWT claims without validating signature, issuer, audience, or expiry."""

@@ -6,7 +6,14 @@ from fastapi import Request
 from fastapi.responses import Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.core.protected_resources import protected_resource_redirect_origins
+
 logger = structlog.get_logger()
+
+#: "https://claude.ai " — space-terminated, ready to splice into form-action.
+_PROTECTED_RESOURCE_FORM_ACTIONS = "".join(
+    f"{origin} " for origin in protected_resource_redirect_origins()
+)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -89,7 +96,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             # the submit silently (same bug class as the enclii/forgesight
             # regressions above).
             "https://creatumundo.mx https://*.creatumundo.mx "
-            "http://127.0.0.1:* http://localhost:*",
+            # 2026-10: the exact redirect URIs of the protected-resource
+            # client policies (app/core/protected_resources.py) — today
+            # https://claude.ai, where the MAP connector's consent POST 302s.
+            # Derived from the registry so a callback added there cannot be
+            # forgotten here ("Permitir" would silently do nothing).
+            f"{_PROTECTED_RESOURCE_FORM_ACTIONS}http://127.0.0.1:* http://localhost:*",
             "upgrade-insecure-requests",
         ]
 

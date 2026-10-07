@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 import structlog
 
+from app.auth.authorize_resume import authorize_query, is_resource_bound
 from app.auth.login_method import (
     LOGIN_METHOD_MAGIC_LINK,
     LOGIN_METHOD_PASSWORD,
@@ -1010,13 +1011,7 @@ async def _resolve_oauth_redirect_target(
         if stored_data:
             try:
                 auth_params = json.loads(stored_data)
-                query_params = {}
-                for key in [
-                    "response_type", "client_id", "redirect_uri", "scope",
-                    "state", "nonce", "code_challenge", "code_challenge_method",
-                ]:
-                    if auth_params.get(key) is not None:
-                        query_params[key] = auth_params[key]
+                query_params = authorize_query(auth_params)
                 return f"/api/v1/oauth/authorize?{urlencode(query_params)}"
             except (json.JSONDecodeError, KeyError):
                 pass
@@ -1412,15 +1407,10 @@ async def login_form(
         if stored_data:
             try:
                 auth_params = json.loads(stored_data)
-                # Reconstruct the authorize URL fresh from stored parameters.
-                # Only include non-None parameters to avoid polluting the URL.
-                query_params = {}
-                for key in [
-                    "response_type", "client_id", "redirect_uri", "scope",
-                    "state", "nonce", "code_challenge", "code_challenge_method",
-                ]:
-                    if auth_params.get(key) is not None:
-                        query_params[key] = auth_params[key]
+                # Reconstruct the authorize URL fresh from stored parameters
+                # (the shared list in app/auth/authorize_resume.py, which
+                # includes the RFC 8707 `resource`). Only non-None parameters.
+                query_params = authorize_query(auth_params)
 
                 safe_next = f"/api/v1/oauth/authorize?{urlencode(query_params)}"
                 redirect_branch = "redis_hit"
@@ -3611,14 +3601,15 @@ async def _oauth_continuation_url(
         if stored:
             try:
                 params = json.loads(stored)
-                query = {
-                    key: params[key]
-                    for key in (
-                        "response_type", "client_id", "redirect_uri", "scope",
-                        "state", "nonce", "code_challenge", "code_challenge_method",
-                    )
-                    if params.get(key) is not None
-                }
+                if is_resource_bound(params):
+                    # The link's destination is stored in a 500-character
+                    # column; a full authorize URL for a protected resource
+                    # (URL client_id + resource) can exceed it. The resume URL
+                    # rebuilds it from this same record, which for these
+                    # requests outlives the link.
+                    resume = urlencode({"auth_request_id": auth_request_id})
+                    return f"{base}/api/v1/oauth/authorize/resume?{resume}"
+                query = authorize_query(params)
                 return f"{base}/api/v1/oauth/authorize?{urlencode(query)}"
             except (json.JSONDecodeError, TypeError, KeyError) as exc:
                 logger.warning(

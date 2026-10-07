@@ -43,6 +43,7 @@ SKIP_PATHS = frozenset({
     "/redoc",
     "/openapi.json",
     "/.well-known/openid-configuration",
+    "/.well-known/oauth-authorization-server",
     "/.well-known/jwks.json",
     "/metrics",
     "/metrics/performance",
