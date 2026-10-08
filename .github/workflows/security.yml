@@ -130,7 +130,7 @@ jobs:
 
       - name: Run Snyk Security Scan
         continue-on-error: true  # Requires SNYK_TOKEN secret — soft-fail until configured
-        uses: snyk/actions/node@12140f4059e244892ae643824a95459a102120dd # master (2026-09-23)
+        uses: snyk/actions/node@11b673cfb4b0dc0d860a1323caa199d54950dcce # master (2026-09-23)
         with:
           args: --all-projects --json-file-output=snyk-report.json
         env:
