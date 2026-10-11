@@ -203,7 +203,8 @@ class TestAuthorizeGet:
     async def test_narrowed_before_the_pre_login_request_is_stored(self):
         resp, _, kwargs = await _run_authorize_get(_client(), "openid crea-map:payment-mail")
         assert "/api/v1/auth/login" in resp.headers["location"]
-        stored = json.loads(kwargs["redis"].setex.await_args.args[2])
+        # main stores the pre-login request with strict_set(key, value, ex=600) (#694).
+        stored = json.loads(kwargs["redis"].strict_set.await_args.args[1])
         assert stored["scope"] == "openid"
 
     async def test_consent_is_checked_against_the_narrowed_scope(self):
