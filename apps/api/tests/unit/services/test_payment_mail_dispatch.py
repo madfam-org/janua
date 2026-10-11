@@ -263,6 +263,18 @@ async def test_real_signed_machine_token_and_strict_body(mail_env, http, signer)
     ).status_code == 422
 
 
+def signed_at(**offsets):
+    """Time claims as offsets from the moment the token is signed.
+
+    ``int(time()) + 300`` written in the parametrize list is computed at
+    collection and drifts by the suite's runtime: some 300 s into a CI run the
+    "future" iat is in the past and the token briefly verifies. The same
+    pattern made the white-label branding test fail on main (janua run
+    38126833783).
+    """
+    return lambda now: {claim: now + offset for claim, offset in offsets.items()}
+
+
 @pytest.mark.parametrize(
     "changes",
     [
@@ -273,9 +285,9 @@ async def test_real_signed_machine_token_and_strict_body(mail_env, http, signer)
         {"iss": None},
         {"exp": None},
         {"iat": None},
-        {"exp": int(time()) - 1},
-        {"exp": int(time()) + 7200},
-        {"iat": int(time()) + 300},
+        signed_at(exp=-1),
+        signed_at(exp=7200),
+        signed_at(iat=300),
         {"type": "refresh"},
         {"token_use": "session"},
         {"actor_type": "user"},
@@ -286,8 +298,31 @@ async def test_real_signed_machine_token_and_strict_body(mail_env, http, signer)
         {"org_id": "invalid"},
         {"org_id": str(uuid.uuid4())},
     ],
+    ids=[
+        "other-audience",
+        "extra-audience",
+        "no-audience",
+        "other-issuer",
+        "no-issuer",
+        "no-exp",
+        "no-iat",
+        "expired",
+        "lifetime-over-an-hour",
+        "issued-in-the-future",
+        "refresh-type",
+        "session-token-use",
+        "user-actor",
+        "human-subject",
+        "other-client",
+        "no-mail-scope",
+        "no-org",
+        "invalid-org",
+        "another-org",
+    ],
 )
 async def test_invalid_signed_claims_cannot_dispatch(mail_env, http, signer, changes):
+    if callable(changes):
+        changes = changes(int(time()))
     result = await http.post(
         "/api/v1/email/payment-notices",
         json=mail_env[2].model_dump(mode="json"),

@@ -279,12 +279,25 @@ async def test_service_token_cannot_set_custom_css(env, http, service_token):
     assert result.json()["detail"]["code"] == "branding_service_custom_css_forbidden"
 
 
+def signed_at(**offsets):
+    """Time claims as offsets from the moment the token is signed.
+
+    A literal such as ``int(time()) + 300`` in a parametrize list is computed
+    once, when the module is collected, and drifts by however long the suite
+    takes to reach the test. Some 300 s into a CI run a "future" iat is no
+    longer in the future, and for a second or two (until the lifetime check
+    catches it) the token is valid and the read answers 404 instead of a
+    refusal (janua run 38126833783).
+    """
+    return lambda now: {claim: now + offset for claim, offset in offsets.items()}
+
+
 @pytest.mark.parametrize(
     "changes",
     [
         {"iss": "other-issuer"},
-        {"exp": int(time()) + 7200},
-        {"iat": int(time()) + 300},
+        signed_at(exp=7200),
+        signed_at(iat=300),
         {"iat": None},
         {"token_use": "session"},
         {"actor_type": "user"},
@@ -295,8 +308,24 @@ async def test_service_token_cannot_set_custom_css(env, http, service_token):
         {"org_id": "invalid"},
         {"org_id": str(uuid.uuid4())},
     ],
+    ids=[
+        "other-issuer",
+        "lifetime-over-an-hour",
+        "issued-in-the-future",
+        "no-iat",
+        "session-token-use",
+        "user-actor",
+        "human-subject",
+        "other-client",
+        "no-branding-scope",
+        "no-org",
+        "invalid-org",
+        "another-org",
+    ],
 )
 async def test_invalid_service_claims_are_refused(env, http, service_token, changes):
+    if callable(changes):
+        changes = changes(int(time()))
     result = await http.get(
         f"/api/v1/white-label/branding/{env['org']}",
         headers=bearer(service_token(env["org"], changes)),
