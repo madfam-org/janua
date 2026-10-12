@@ -5,6 +5,7 @@ import { CheckCircle2, AlertCircle, GitBranch, ExternalLink } from 'lucide-react
 import { Badge } from '@janua/ui'
 import { Button } from '@janua/ui'
 import Link from 'next/link'
+import { SITE_LINKS } from '@/lib/site-links'
 
 // We are in Private Alpha as of May 2026. We refuse to publish dated
 // roadmap commitments here because we have missed every public Q1/Q2
@@ -118,7 +119,7 @@ export function TransparencyRoadmap() {
 
         <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
           <Button asChild>
-            <Link href="https://github.com/madfam-io/janua/issues" target="_blank" rel="noopener">
+            <Link href={SITE_LINKS.githubIssues} target="_blank" rel="noopener">
               <GitBranch className="w-4 h-4 mr-2" />
               Issue tracker
             </Link>

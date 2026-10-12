@@ -5,6 +5,7 @@ import { Check, X, Minus, ExternalLink } from 'lucide-react'
 import { Badge } from '@janua/ui'
 import { Button } from '@janua/ui'
 import Link from 'next/link'
+import { SITE_LINKS } from '@/lib/site-links'
 
 type Cell = 'yes' | 'no' | 'partial' | string
 
@@ -276,7 +277,7 @@ export function AccurateComparison() {
 
         <div className="mt-8 flex gap-4 justify-center">
           <Button asChild>
-            <Link href="https://github.com/madfam-io/janua" target="_blank" rel="noopener">
+            <Link href={SITE_LINKS.github} target="_blank" rel="noopener">
               <ExternalLink className="w-4 h-4 mr-2" />
               Read the source
             </Link>
@@ -291,7 +292,7 @@ export function AccurateComparison() {
         <p className="mt-6 text-xs text-center text-slate-500 dark:text-slate-500">
           Competitor cells are based on public documentation as of 2026.
           Spotted something we got wrong?{' '}
-          <Link href="https://github.com/madfam-io/janua/issues/new" className="underline">
+          <Link href={SITE_LINKS.githubNewIssue} className="underline">
             Open an issue
           </Link>
           .
