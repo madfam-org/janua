@@ -47,8 +47,14 @@ describe('marketing CTA links', () => {
 
   it('every GitHub link uses the madfam-org org', () => {
     for (const href of Object.values(SITE_LINKS)) {
-      if (href.includes('github.com')) {
-        expect(href.startsWith('https://github.com/madfam-org/janua')).toBe(true)
+      let url: URL
+      try {
+        url = new URL(href)
+      } catch {
+        continue // relative links are not GitHub links
+      }
+      if (url.hostname === 'github.com') {
+        expect(url.pathname.startsWith('/madfam-org/janua')).toBe(true)
       }
     }
   })
