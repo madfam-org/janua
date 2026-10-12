@@ -51,9 +51,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
-    "@vue/test-utils": "^2.4.11",
+    "@vue/test-utils": "^2.5.1",
     "@vue/compiler-sfc": "^3.5.42",
-    "happy-dom": "^20.11.1",
+    "happy-dom": "^20.14.5",
     "tsup": "^8.0.0",
     "typescript": "^5.7.2",
     "vitest": "^3.2.4",
