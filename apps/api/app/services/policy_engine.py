@@ -384,6 +384,8 @@ class PolicyEngine:
             },
             ip_address=request.context.get("client_ip") if request.context else None,
         )
+        # The logger flushes into this session; commit so the audit row persists.
+        await self.db.commit()
 
     async def compile_to_wasm(self, policy: Policy) -> Optional[str]:
         """
