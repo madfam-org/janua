@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { ArrowRight, Calendar, FileText, CreditCard } from 'lucide-react'
 import { Button } from '@janua/ui'
 import Link from 'next/link'
+import { SITE_LINKS } from '@/lib/site-links'
 
 export function CTASection() {
   return (
@@ -78,7 +79,7 @@ export function CTASection() {
           className="mt-8 flex flex-wrap gap-6 justify-center text-sm"
         >
           <Link
-            href="https://demo.janua.dev"
+            href={SITE_LINKS.demo}
             className="text-white/80 hover:text-white underline underline-offset-4"
           >
             Schedule a demo

@@ -13,7 +13,7 @@ const steps = [
     n: '01',
     title: 'Run it',
     body: 'Pull the repo, copy the example env, bring it up. Postgres + API + dashboard come up together.',
-    code: `git clone https://github.com/madfam-io/janua
+    code: `git clone https://github.com/madfam-org/janua
 cd janua
 cp .env.example .env
 docker compose up`,

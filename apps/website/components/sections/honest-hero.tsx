@@ -5,6 +5,7 @@ import { ArrowRight, GitBranch, Code2, Server, Webhook } from 'lucide-react'
 import { Button } from '@janua/ui'
 import { Badge } from '@janua/ui'
 import Link from 'next/link'
+import { SITE_LINKS } from '@/lib/site-links'
 
 // All claims here trace to code:
 // - 9 client SDKs in packages/ (typescript-sdk, react-sdk, nextjs-sdk,
@@ -87,7 +88,7 @@ export function HonestHeroSection() {
             className="mt-10 flex flex-col sm:flex-row gap-4 justify-center"
           >
             <Button size="lg" className="group bg-brand-gradient hover:opacity-90 text-white shadow-brand" asChild>
-              <Link href="https://docs.janua.dev/self-hosting">
+              <Link href={SITE_LINKS.selfHosting} target="_blank" rel="noopener">
                 Start self-hosting
                 <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
               </Link>
