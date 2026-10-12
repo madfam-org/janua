@@ -185,6 +185,17 @@ class TestEmailService:
         assert TOKEN in service._send_email.await_args.kwargs["html_content"]
 
 
+def _rows(db, rows):
+    """Answer the service's ``await db.execute(...)`` calls with ``rows``, in order."""
+
+    def result(row):
+        answer = MagicMock()
+        answer.scalars.return_value.first.return_value = row
+        return answer
+
+    db.execute = AsyncMock(side_effect=[result(row) for row in rows])
+
+
 class TestCreate:
     """create_invitation is the entry point to the send path."""
 
@@ -195,13 +206,9 @@ class TestCreate:
         organization.owner_id = owner_id
 
         db = MagicMock()
-        # organization -> invitee User -> existing invitation -> Role
-        db.query.return_value.filter.return_value.first.side_effect = [
-            organization,
-            None,
-            None,
-            None,
-        ]
+        db.commit = AsyncMock()
+        # organization -> invitee User -> existing invitation
+        _rows(db, [organization, None, None])
 
         def flush(obj=None, *args, **kwargs):
             """Stand in for the defaults SQLAlchemy applies at flush time."""
@@ -213,7 +220,7 @@ class TestCreate:
                 obj.id = uuid.uuid4()
 
         db.add.side_effect = flush
-        db.refresh.side_effect = flush
+        db.refresh = AsyncMock(side_effect=flush)
 
         service = InvitationService(db)
         service.email_service._send_email = AsyncMock(return_value=True)
@@ -273,14 +280,10 @@ class TestCreate:
         # require_org_admin only proves the caller administers SOME org, so
         # this per-organization check is what stops a cross-org invite.
         service = self._service(owner_id="someone-else")
-        service.db.query.return_value.filter.return_value.first.side_effect = None
         organization = MagicMock()
         organization.id = "22222222-2222-2222-2222-222222222222"
         organization.owner_id = "someone-else"
-        service.db.query.return_value.filter.return_value.first.side_effect = [
-            organization,
-            None,  # no admin membership for the caller
-        ]
+        _rows(service.db, [organization, None])  # no admin membership for the caller
         with pytest.raises(ValueError):
             await self._create(service, inviter_id="u-1")
         service.email_service._send_email.assert_not_awaited()
@@ -292,10 +295,7 @@ class TestCreate:
         organization = MagicMock()
         organization.id = "22222222-2222-2222-2222-222222222222"
         organization.owner_id = None
-        service.db.query.return_value.filter.return_value.first.side_effect = [
-            organization,
-            None,  # no admin membership
-        ]
+        _rows(service.db, [organization, None])  # no admin membership
         inviter = MagicMock()
         inviter.id = None
         inviter.email = "ada@example.com"

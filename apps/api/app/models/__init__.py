@@ -744,6 +744,14 @@ class AuditLog(Base):
     ip_address = Column(InetAddress)  # Cross-database IP address type
     user_agent = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Hash chain written by app/services/audit_logger.py (migration 020). NULL on
+    # rows written by other code, which sets `action` only.
+    event_type = Column(String(100))
+    tenant_id = Column(String(255))
+    current_hash = Column(String(64))
+    previous_hash = Column(String(64))
+
+    __table_args__ = (sa.Index("ix_audit_logs_tenant_chain", "tenant_id", "created_at", "id"),)
 
 
 # Webhook models

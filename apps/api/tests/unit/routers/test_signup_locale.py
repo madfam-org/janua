@@ -223,7 +223,14 @@ class TestInviteAccept:
         )
 
         db = MagicMock()
-        db.query.return_value.filter.return_value.first.return_value = invitation
+        found = MagicMock()
+        found.scalars.return_value.first.return_value = invitation
+        # invitation by token, then its organization (none here)
+        none = MagicMock()
+        none.scalars.return_value.first.return_value = None
+        db.execute = AsyncMock(side_effect=[found, none])
+        db.flush = AsyncMock()
+        db.commit = AsyncMock()
 
         service = InvitationService(db)
         service.cache = MagicMock()

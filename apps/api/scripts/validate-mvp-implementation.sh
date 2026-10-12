@@ -60,7 +60,7 @@ else
     check_fail "RBAC Service missing"
 fi
 
-if [ -f "apps/api/app/services/webhook_enhanced.py" ]; then
+if [ -f "apps/api/app/services/webhooks.py" ]; then
     check_pass "Webhook Service exists"
 else
     check_fail "Webhook Service missing"

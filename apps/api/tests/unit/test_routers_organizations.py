@@ -252,10 +252,9 @@ def test_organizations_audit_logging(mock_env):
     try:
         with patch("app.services.auth_service.AuthService") as mock_auth_service, patch(
             "app.models.Organization"
-        ) as mock_org, patch("app.core.audit_logger.AuditLogger") as mock_audit:
+        ) as mock_org:
             mock_auth_service.return_value = MagicMock()
             mock_org.return_value = MagicMock()
-            mock_audit.return_value = MagicMock()
 
             from app.routers.v1.organizations import router
 

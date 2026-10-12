@@ -227,80 +227,75 @@ Tamper-proof audit logging with hash chain for compliance (SOC 2, HIPAA, GDPR).
 
 ### Features
 
-- **Hash Chain**: Each log entry contains hash of previous entry
-- **Tamper Detection**: Automatic verification of log integrity
-- **Compliance Tags**: Tag logs for specific compliance frameworks
-- **Retention Policies**: Automatic retention based on compliance requirements
-- **Export Formats**: JSON, CSV, SIEM (CEF)
+- **Hash Chain**: Each entry stores the hash of the previous entry of the same tenant
+- **Tamper Detection**: `verify_integrity` recomputes the chain and reports the first broken entry
+- **Compliance Context**: severity, organization and compliance fields are stored with the entry
+- **Session Ownership**: entries commit with the caller's transaction, or in a session the logger owns
+- **Export**: JSON export to the dedicated audit bucket
 
 ### Creating Audit Logs
 
-```python
-from app.core.audit_logger import audit_logger, AuditEventType
+`app.services.audit_logger.AuditLogger` writes `audit_logs` rows. Over a
+caller's session it flushes the row and never commits; the caller commits.
 
-log = await audit_logger.log_event(
-    session=db,
-    event_type=AuditEventType.ACCESS,
-    event_name="document.viewed",
-    resource_type="document",
-    resource_id="doc-123",
-    user_id=current_user_id,
+```python
+from app.services.audit_logger import AuditEventType, AuditLogger
+
+await AuditLogger(db).log(
+    event_type=AuditEventType.USER_UPDATE,
+    tenant_id=str(org_id),
+    identity_id=str(current_user.id),
+    organization_id=str(org_id),
+    resource_type="user",
+    resource_id=str(user.id),
+    details={"field": "email"},
     ip_address=request.client.host,
     user_agent=request.headers.get("user-agent"),
-    compliance_tags=["HIPAA", "SOC2"]
+    severity="info",
+    compliance_context={"framework": "SOC2"},
 )
+await db.commit()
 ```
 
-### Using Audit Decorators
+Background work with no request session uses a logger that owns its session
+and commits each entry:
 
 ```python
-from app.core.audit_logger import audit_event
-
-@router.post("/documents")
-@audit_event(
-    event_type=AuditEventType.CREATE,
-    event_name="document.created",
-    resource_type="document"
-)
-async def create_document(data: DocumentCreate):
-    # Automatically logs audit event on success
-    pass
+async with AuditLogger.with_own_session() as audit:
+    await audit.log(event_type=AuditEventType.DATA_ARCHIVAL, tenant_id=str(org_id))
 ```
+
+`severity`, `organization_id` and the compliance fields have no column of their
+own; they are stored in `details` under `audit_context`.
 
 ### Verifying Log Integrity
 
 ```python
-result = await audit_logger.verify_integrity(
-    session=db,
-    organization_id=org_id,
+result = await AuditLogger(db).verify_integrity(
+    tenant_id=str(org_id),
     start_date=datetime(2024, 1, 1),
-    end_date=datetime(2024, 12, 31)
+    end_date=datetime(2024, 12, 31),
 )
 
-if not result["verified"]:
-    print(f"Integrity violations found: {result['broken_links']}")
+if not result["valid"]:
+    print(result["message"])  # "Hash chain broken at index N"
 ```
 
 ### Exporting Audit Logs
 
 ```python
-# Export as JSON
-json_logs = await audit_logger.export_logs(
-    session=db,
-    organization_id=org_id,
+# Returns a presigned URL when the audit bucket is configured, else the export id
+url = await AuditLogger(db).export_logs(
+    tenant_id=str(org_id),
+    start_date=start,
+    end_date=end,
     format="json",
-    compliance_filter="HIPAA"
-)
-
-# Export as SIEM format (CEF)
-siem_logs = await audit_logger.export_logs(
-    session=db,
-    organization_id=org_id,
-    format="siem"
 )
 ```
 
 ### Retention Policies
+
+Callers pass `retention_period` (days) with the entry. Typical values:
 
 | Compliance | Retention Period |
 |------------|-----------------|
@@ -527,10 +522,10 @@ print(f"User permissions: {permissions}")
 #### Audit Log Integrity Failed
 
 ```python
-# Identify tampered entries
-result = await audit_logger.verify_integrity(session, org_id)
-for violation in result["broken_links"]:
-    print(f"Violation at {violation['timestamp']}: {violation['type']}")
+# Identify the first tampered, reordered or missing entry
+result = await AuditLogger(db).verify_integrity(tenant_id=str(org_id))
+if not result["valid"]:
+    print(f"Chain broken at index {result['broken_at']} of {result['count']}")
 ```
 
 #### Webhook Not Delivering

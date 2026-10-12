@@ -142,7 +142,7 @@ class TestNoClientWhenNotConfigured:
         assert AuditLogger(mock_db).r2_client is None
         assert boto3_client.call_count == 0
 
-    async def test_flush_stores_entries_without_archiving(
+    async def test_flush_without_a_client_neither_archives_nor_stores(
         self, mock_db, r2_not_configured, boto3_client
     ):
         logger = AuditLogger(mock_db)
@@ -154,7 +154,8 @@ class TestNoClientWhenNotConfigured:
         ):
             await logger._flush_buffer()
 
-        assert store.await_count == 2
+        # Entries are stored when logged; a flush only archives.
+        store.assert_not_awaited()
         archive.assert_not_awaited()
         assert logger.buffer == []
 
