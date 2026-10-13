@@ -44,6 +44,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v7
@@ -64,11 +66,33 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-test.txt
 
-      - name: Run linting
+      - name: Check changed Python source (blocking)
+        env:
+          JANUA_CHANGED_PYTHON_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import subprocess
+
+          base = os.environ["JANUA_CHANGED_PYTHON_BASE"]
+          if not re.fullmatch(r"[a-f0-9]{40}", base) or base == "0" * 40:
+              raise RuntimeError("Changed-Python gate needs a known base commit")
+          subprocess.run(["git", "cat-file", "-e", f"{base}^{{commit}}"], check=True)
+          paths = subprocess.check_output([
+              "git", "diff", "--name-only", "-z", "--diff-filter=ACMR",
+              base, "HEAD", "--", ":(glob)apps/api/**/*.py",
+          ]).decode().split("\0")
+          paths = [p for p in paths if p and os.path.isfile(p)]
+          print(f"Changed Python source files: {len(paths)}")
+          if paths:
+              subprocess.run(["ruff", "check", *paths], check=True)
+          PY
+
+      - name: Legacy global Python diagnostics (advisory)
         working-directory: ./apps/api
         run: |
-          # Auto-fix linting issues before checking
-          ruff check . --fix --unsafe-fixes || true
+          # Existing global backlog is reported; no source is auto-rewritten.
           ruff check . || true
           black --check . || true
 
@@ -208,6 +232,46 @@ jobs:
         # Fails if any test would run in both API jobs or in neither.
         run: bash ../../scripts/check-api-test-split.sh
 
+      - name: Prepare ordinary organization-creation fixture
+        working-directory: ./apps/api
+        env:
+          LOCAL_DB: 'yes'
+          JANUA_ORG_BOOTSTRAP_DATABASE_URL: postgresql://janua:janua_test@127.0.0.1:5432/janua_test
+        run: |
+          python - <<'PY'
+          import asyncio
+          import os
+          from urllib.parse import urlsplit
+
+          import asyncpg
+
+          async def prepare():
+              raw = os.environ["JANUA_ORG_BOOTSTRAP_DATABASE_URL"]
+              url = urlsplit(raw)
+              if (os.environ.get("CI") != "true" or os.environ.get("LOCAL_DB") != "yes"
+                  or url.scheme != "postgresql" or url.hostname != "127.0.0.1"
+                  or url.username != "janua" or url.path != "/janua_test"
+                  or url.query or url.fragment):
+                  raise RuntimeError("Organization fixture bootstrap is outside CI test scope")
+              conn = await asyncpg.connect(raw, timeout=5, command_timeout=15)
+              try:
+                  actual = await conn.fetchrow("SELECT current_database() base,current_user role,"
+                                               "current_setting('server_version_num') version")
+                  if (actual["base"] != "janua_test" or actual["role"] != "janua"
+                      or not 150000 <= int(actual["version"]) < 160000):
+                      raise RuntimeError("Organization fixture service identity differs")
+                  # Fixed fresh objects only; duplicates fail instead of adopting
+                  # an existing role/database. Other native test URLs stay intact.
+                  await conn.execute("CREATE ROLE janua_org_owner LOGIN PASSWORD 'janua_org_test' "
+                                     "NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION")
+                  await conn.execute("CREATE DATABASE janua_org_create_test OWNER janua_org_owner")
+                  await conn.execute("REVOKE ALL ON DATABASE janua_org_create_test FROM PUBLIC")
+              finally:
+                  await conn.close()
+
+          asyncio.run(prepare())
+          PY
+
       - name: Run PostgreSQL tests with coverage
         working-directory: ./apps/api
         env:
@@ -218,6 +282,8 @@ jobs:
           # tests reach the postgres service above. Unset in CI, they fail
           # rather than skip; see tests/unit/test_migration_reentrancy.py.
           MIGRATION_TEST_DATABASE_URL: postgresql+asyncpg://janua:janua_test@localhost:5432/janua_test
+          # This proof uses an ordinary owner, never the service's superuser.
+          JANUA_ORG_CREATE_TEST_DATABASE_URL: postgresql+asyncpg://janua_org_owner:janua_org_test@127.0.0.1:5432/janua_org_create_test
           # Separate guarded URL: payment-mail concurrency tests must use real
           # PostgreSQL despite pytest.ini overriding the application's URL.
           LOCAL_DB: 'yes'
