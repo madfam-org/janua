@@ -48,9 +48,17 @@ export function middleware(request: NextRequest) {
   // Get token from cookie
   const token = request.cookies.get(AUTH_COOKIE)?.value
   const hasValidToken = isValidTokenStructure(token)
+  const redirects = request.nextUrl.searchParams.getAll('redirect')
+  const reasons = request.nextUrl.searchParams.getAll('reason')
+  const invitationAccountSwitch = pathname === '/login' && redirects.length === 1 &&
+    reasons.length === 1 && reasons[0] === 'session_expired' &&
+    Array.from(request.nextUrl.searchParams.keys()).every(key => key === 'redirect' || key === 'reason') &&
+    /^\/invitations\/accept\?token=[A-Za-z0-9_-]{32,128}$/.test(redirects[0]!)
 
   // If user is authenticated and trying to access login page, redirect to home
-  if (pathname === '/login' && hasValidToken) {
+  // An explicit invitation account switch uses the existing expired-session
+  // login flow, which clears the local session before a fresh sign-in.
+  if (pathname === '/login' && hasValidToken && !invitationAccountSwitch) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 
@@ -72,7 +80,16 @@ export function middleware(request: NextRequest) {
     // Add redirect param so user returns after login
     const loginUrl = new URL('/login', request.url)
     if (pathname !== '/') {
-      loginUrl.searchParams.set('redirect', pathname)
+      // The invitation remains protected. Preserve only its bounded bearer
+      // token through login, never an arbitrary query/return URL.
+      const invitationTokens = request.nextUrl.searchParams.getAll('token')
+      const invitationToken = invitationTokens[0]
+      const returnPath = pathname === '/invitations/accept' &&
+        invitationTokens.length === 1 && invitationToken &&
+        /^[A-Za-z0-9_-]{32,128}$/.test(invitationToken)
+        ? `${pathname}?${new URLSearchParams({ token: invitationToken })}`
+        : pathname
+      loginUrl.searchParams.set('redirect', returnPath)
     }
 
     // If token was present but invalid, indicate session expired
