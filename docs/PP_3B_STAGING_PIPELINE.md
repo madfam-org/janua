@@ -1,199 +1,84 @@
 # PP.3b — Janua staging pipeline and consumer provisioning
 
-> Last updated: 2026-05-23  
-> PR: [#404](https://github.com/madfam-org/janua/pull/404) (`feat/pp-3b-staging-overlay`)  
-> Audit baseline: [PP_3_STAGING_AUDIT.md](./PP_3_STAGING_AUDIT.md)  
-> RFC: [internal-devops/rfcs/0001-dev-staging-prod-pipeline.md](https://github.com/madfam-org/internal-devops/blob/main/rfcs/0001-dev-staging-prod-pipeline.md)
+> Updated: 2026-10-13. Source profile prepared; deployment and runtime soak
+> require their own operational receipts.
 
-This document is the **canonical operator and developer reference** for Janua's
-3-tier deploy pipeline (dev → staging → prod) and the OAuth consumer provisioning
-path shipped in the May 2026 commercial-GA sprint.
+Janua uses the RFC 0001 manual promotion gate because it is the ecosystem
+identity provider. The isolated staging profile currently deploys **the API
+and its private Redis only**. Built frontend images are not staged frontend
+proof; promotion accepts only `api` until separate frontend staging is reviewed.
 
----
+## Source and runtime boundaries
 
-## Session deliverables (wrap-up)
+The staging Kustomization is flat and self-contained: `api.yaml`, `service.yaml`,
+`redis.yaml`, and `secrets.yaml`. It does not import the production base,
+namespace, HPA, frontend origins or integration credentials. This keeps the
+existing governed flat-manifest admission preflight usable without a general
+Kustomize interpreter or an exception.
 
-| Area | Status | Reference |
-|------|--------|-----------|
-| `@janua/cli@0.2.0` consumer provisioning | Shipped, published | [packages/cli/README.md](../packages/cli/README.md), [release cli-v0.2.0](https://github.com/madfam-org/janua/releases/tag/cli-v0.2.0) |
-| npm.madfam.io auth + ARC runners | Shipped | PRs #398–#403, solarpunk-foundry `npm-madfam-auth` action |
-| CEQ Studio OAuth (prod) | Janua side done | Break-glass DB insert; secret in `madfam-org/ceq` → `JANUA_CLIENT_SECRET` |
-| PP.3b staging overlay + prod overlay | PR #404 | This document |
-| PP.3c promote / rollback workflows | On `main` (awaiting PP.3b paths) | `.github/workflows/promote-to-prod.yml`, `rollback-prod.yml` |
-| OAuth `client_id` pin on register API | PR #404 | § Consumer provisioning below |
+The API uses the staging issuer and origin, host-only cookies, fresh staging
+RSA keys and fresh symmetric/Fernet keys. Email, SMTP, Resend, tracking,
+federation, magic links and public signup remain off. No production identity or
+client dataset is copied. Stage smoke uses synthetic identities registered
+through the approved staging flow, with no invitation or email delivery.
 
----
+Runtime PostgreSQL requires a dedicated fresh addon with a separate migrator,
+a nonowner role and `DATABASE_SSL_MODE=verify-full`. Mount the verified public
+CA at `/var/run/janua-staging/ca/ca.crt`; runtime never receives the migrator
+credential. The shared transport helper propagates this CA and hostname
+verification into router, health, metadata and Alembic engines. Missing explicit
+CA files, invalid modes and incomplete client-certificate pairs fail closed;
+default disabled transport and prepared-statement cache compatibility remain.
 
-## Pipeline architecture
+Redis is a private authenticated deployment with its own staging password and
+1Gi persistent volume. The image reuses the platform's governed digest. The
+API may reach only its own bound addon and this Redis; no shared data namespace,
+production Janua, provider/mail or generic internet egress is required.
 
-Janua is **RFC 0001 Pattern B** (manual promote gate). Auth is the ecosystem
-floor — a bad prod deploy breaks every downstream login.
+ExternalSecrets read only `secret/janua-staging` through the existing Vault
+ClusterSecretStore. They project runtime keys, public CA and Redis password
+separately. Fresh material must enter through reviewed Enclii intake targets;
+there are no committed values or direct Vault/cluster secret commands.
 
-```mermaid
-flowchart LR
-  subgraph ci [CI on main]
-    A[docker-publish.yml] --> B[Build 5 images]
-    B --> C[Commit digests to k8s/overlays/staging]
-  end
-  subgraph staging [Staging tenant]
-    C --> D[ArgoCD janua-staging]
-    D --> E[janua-staging namespace]
-  end
-  subgraph prod [Production tenant]
-    F[promote-to-prod.yml] --> G[Commit digests to k8s/overlays/production]
-    G --> H[ArgoCD janua]
-    H --> I[janua namespace]
-  end
-  E -->|30min soak + manual gate| F
-  I -->|incident| J[rollback-prod.yml]
-```
+## Normal activation and promotion
 
-### What runs on every push to `main`
+1. Prepare a persisted `staging` environment and its exact owned namespace
+   through the supported project-scoped Enclii bootstrap. Require matching
+   repository/project ownership and default-deny; never use production
+   onboarding `ensure` to retarget its existing registration.
+2. Provision the dedicated addon, verify managed role Ready and public CA
+   ownership, and establish fresh staging custody. Migrate through a separately
+   approved migrator job before activating the nonowner API; runtime auto-DDL
+   and `JANUA_APPLY_MIGRATIONS` remain false.
+3. Review exact signed API digest, resource/storage allocation, image admission,
+   namespace/network policy and secret readiness. Register the separate
+   ApplicationSet declaration through the normal central GitOps PR. Production
+   registration stays separate.
+4. Verify actual stage readiness **body**, database/Redis health, pod/image
+   digest parity, real human authorization-code/PKCE, protected-resource
+   audience/scope isolation and rotating refresh using synthetic stage actors.
+   HTTP200 or a source pin alone is insufficient.
+5. Record a continuous healthy runtime soak of at least 30 minutes after the
+   intended digest is actually running. The existing workflow also checks
+   staging pin age; elapsed pin time is not operational soak evidence.
+6. Check the normal migration-drift guard, serialize with key/client changes,
+   then run `promote-to-prod.yml` for `api` with the verified digest and reason.
+   No break-glass soak override. Confirm actual production digest, readiness and
+   hosted synthetic boundary receipts after promotion.
 
-| Workflow | Effect |
-|----------|--------|
-| `docker-publish.yml` | Builds changed services, signs images, commits digests to **`k8s/overlays/staging/kustomization.yaml` only** |
-| ArgoCD `janua-staging` (after ops bootstrap) | Reconciles staging namespace |
+`docker-publish.yml` signs builds and commits candidate digests only to the
+staging overlay. The production pointer changes through the manual promotion
+workflow. This document does not claim staging activation, soak or production
+promotion has occurred.
 
-**Path-filter trap (docs image).** `docker-publish.yml` decides per service with
-`dorny/paths-filter`. The `docs` filter is only `apps/docs/**` and
-`Dockerfile.docs`: it does **not** include `pnpm-lock.yaml` or `packages/**`. A
-lockfile-only change (a dependency or advisory bump) rebuilds admin, dashboard
-and website, but **not** the docs image, so the docs service keeps the old
-dependencies. Ship it with a dispatch: `gh workflow run docker-publish.yml`.
-A `workflow_dispatch` run rebuilds **all five** services (the `force_all`
-input is informational; every build job runs on dispatch) and commits all five
-staging digests, so promote only what you mean to.
+## Platform prerequisites still needing runtime evidence
 
-### What promotes to production
-
-| Workflow | Trigger | Effect |
-|----------|---------|--------|
-| `promote-to-prod.yml` | `workflow_dispatch` (or schedule if `AUTO_PROMOTE_ENABLED=true`) | Validates ≥30min soak, writes staging digest(s) → `k8s/overlays/production/` |
-| `sync-prod-gitops.yml` | `workflow_dispatch` (break-glass) | ARC in-cluster apply when Argo/GHCR block reconcile |
-| `rollback-prod.yml` | `workflow_dispatch` (human only) | Writes previous or explicit digest to production overlay; RTO target <5min |
-
-Policy record: `enclii.yaml` → `promotion.pattern: manual`, `min_soak_minutes: 30`.
-
----
-
-## K8s layout (post PP.3b)
-
-```
-k8s/
-├── base/                          # Env-agnostic manifests (no image digests)
-│   ├── deployments/               # Legacy path — DEPRECATED (no CI digest writes)
-│   ├── services/
-│   └── hpa-janua-api.yaml
-└── overlays/
-    ├── dev/                       # Local Minikube/KIND
-    ├── staging/                   # janua-staging tenant (CI digest target)
-    └── production/                # janua prod tenant (promote-only digests)
-```
-
-| Overlay | Namespace | Secrets | Issuer |
-|---------|-----------|---------|--------|
-| `staging` | `janua-staging` | `janua-staging-secrets` | `https://staging-auth.madfam.io` |
-| `production` | `janua` | `janua-secrets` | `https://auth.madfam.io` |
-
-### Staging overlay patches
-
-- **Replicas:** 1 for all five deployments
-- **HPA:** min=max=1 on `janua-api`
-- **API env:** `ENVIRONMENT=staging`, staging CORS, `ENABLE_DOCS=true`
-- **Secrets:** all `secretKeyRef` → `janua-staging-secrets` (via strategic merge in `env-patch-api.yaml`)
-
----
-
-## Operator bootstrap checklist
-
-Complete these **after PR #404 merges**. Routine ops should move to Enclii once
-adapters exist; record gaps when using break-glass.
-
-### 1. ArgoCD applications
-
-| App | Config file | Manifest path | Namespace |
-|-----|-------------|---------------|-----------|
-| `janua` (prod) | [infra/argocd/config.json](../infra/argocd/config.json) | `k8s/overlays/production` | `janua` |
-| `janua-staging` | [infra/argocd/staging-config.json](../infra/argocd/staging-config.json) | `k8s/overlays/staging` | `janua-staging` |
-
-**Action:** Re-point existing `janua` App from `k8s/base/deployments` → `k8s/overlays/production`. Register new `janua-staging` App.
-
-### 2. Namespace and secrets
-
-```bash
-# Break-glass — prefer Enclii when adapter exists
-kubectl create namespace janua-staging
-```
-
-Generate distinct values (never reuse prod):
-
-| Key | Generate |
-|-----|----------|
-| JWT keypair | `openssl genrsa -out private.pem 2048` + `openssl rsa -pubout` |
-| `JWT_SECRET` | `openssl rand -base64 48` |
-| `FIELD_ENCRYPTION_KEY` | `python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'` |
-| `ADMIN_BOOTSTRAP_PASSWORD` | `openssl rand -base64 24` |
-
-Template: [infra/secrets/janua-staging-secrets.template.yaml](../infra/secrets/janua-staging-secrets.template.yaml)  
-Registry: [infra/secrets/SECRETS_REGISTRY.yaml](../infra/secrets/SECRETS_REGISTRY.yaml) → `janua-staging` section
-
-**Hard requirements:**
-
-- Separate PostgreSQL database `janua_staging` (never a prod replica)
-- Distinct RSA-2048 JWT keypair (compromised staging must not issue prod-valid tokens)
-- Distinct Fernet `FIELD_ENCRYPTION_KEY`
-
-### 3. Cloudflare tunnel routes
-
-Add staging hostnames (ops-managed in `enclii/infra/k8s/production/cloudflared-unified.yaml`):
-
-| Public hostname | Service |
-|-----------------|---------|
-| `staging-auth.madfam.io` | janua-api |
-| `staging-api.janua.dev` | janua-api |
-| `staging-app.janua.dev` | janua-dashboard |
-| `staging-admin.janua.dev` | janua-admin |
-| `staging-docs.janua.dev` | janua-docs |
-
-Tunnel routes target **K8s Service port 80**, not container ports (4100–4104).
-
-### 4. Upstream OAuth providers (staging apps)
-
-Register staging OAuth apps with redirect URIs:
-
-```
-https://staging-auth.madfam.io/oauth/<provider>/callback
-```
-
-Store client IDs/secrets in `janua-staging-secrets`.
-
-### 5. First deploy and promote
-
-1. Merge to `main` → `docker-publish.yml` populates staging digests (replaces zero placeholders).
-2. Verify staging: `curl https://staging-auth.madfam.io/health`
-3. Wait ≥30 minutes (or `MIN_SOAK_MINUTES` repo variable).
-4. Run **Promote staging → prod** workflow (`workflow_dispatch`):
-   - Component: `all` (or single service)
-   - Reason: required audit string
-5. Monitor ArgoCD `janua` App reconcile (~3 min).
-
-**Post-promote reconcile (required):** Updating git does not guarantee live pods
-adopt the digest. After every prod promote:
-
-1. `enclii ops apps diff janua-services -n argocd --json` — confirm drift
-2. `enclii ops apps sync janua-services -n argocd --apply --reason "..."` if OutOfSync
-3. If `janua-website` (or any service) shows `ImagePullBackOff`, refresh
-   `janua/ghcr-credentials` via Enclii **Rotate GHCR credentials (namespace)**
-   on `madfam-org/enclii` (see [production-gitops-reconcile.md](./runbooks/production-gitops-reconcile.md))
-
-Argo CD Application name is **`janua-services`** (not `janua`).
-
-### 6. Rollback (incident)
-
-Run **Rollback prod** workflow with component + reason. Optionally pass explicit `sha256:...` digest. Shares `prod-promote` concurrency group with promotes — do not run during JWT key rotation.
-
----
+The product manifests do not create or relabel namespaces and do not own
+NetworkPolicies. Enclii owns namespace/default-deny/bootstrap and the exact
+addon-bound and same-namespace Redis rules. A source helper or CI proof does not
+establish live role attributes, certificate transport, RLS, workload network
+denial, resource placement, migration or application readiness. Preserve a
+concrete adapter gap instead of substituting raw infrastructure access.
 
 ## Consumer OAuth provisioning
 
@@ -246,7 +131,10 @@ X-Internal-API-Key: <INTERNAL_API_KEY>
 
 Implementation: [apps/api/app/routers/v1/oauth_clients.py](../apps/api/app/routers/v1/oauth_clients.py)
 
-### CEQ Studio (P0 handoff)
+### Historical CEQ Studio handoff
+
+The following records an earlier operational handoff. It is not authority for
+new database inserts, production credential copying or staging bootstrap.
 
 Janua prod registration completed via break-glass DB insert (register API auto-generates IDs). CEQ agent must:
 
@@ -258,7 +146,10 @@ Secret location: GitHub Actions secret `JANUA_CLIENT_SECRET` on `madfam-org/ceq`
 
 ---
 
-## Enclii adapter gaps (record when using break-glass)
+## Historical PP.3b adapter-gap record
+
+These workarounds are historical. New staging work uses the governed adapters
+and source prerequisites above; missing capacity remains a blocker.
 
 | Gap | Workaround used |
 |-----|-----------------|
@@ -269,7 +160,10 @@ Secret location: GitHub Actions secret `JANUA_CLIENT_SECRET` on `madfam-org/ceq`
 
 ---
 
-## Compliance snapshot (post PP.3b)
+## Historical PP.3b compliance snapshot
+
+This table describes the earlier plan and is not a current runtime receipt.
+The isolated API-only staging namespace, migration and soak remain unverified.
 
 | RFC 0001 area | Before PP.3 | After PP.3b merge + ops bootstrap |
 |---------------|-------------|-----------------------------------|

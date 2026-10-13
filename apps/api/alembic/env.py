@@ -15,11 +15,12 @@ from alembic import context
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import application components
-from app.config import settings
-from app.core.database import Base
 # Import all models to register them with SQLAlchemy metadata for Alembic migrations
 # Note: This import has a side effect of registering models with Base.metadata
 from app import models  # noqa: F401 - Side effect import for SQLAlchemy metadata registration
+from app.config import settings
+from app.core.database import Base
+from app.core.database_ssl import asyncpg_options
 
 # Reference to prevent unused import warning (models must be imported for Alembic)
 __all__ = ["models"]
@@ -35,7 +36,9 @@ config = context.config
 database_url = getattr(settings, "DIRECT_DATABASE_URL", None) or settings.DATABASE_URL
 if database_url.startswith("postgresql://"):
     database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
-config.set_main_option("sqlalchemy.url", database_url)
+# ConfigParser treats percent signs as interpolation syntax. Preserve URL-
+# escaped managed credentials; online transport uses the original typed URL.
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:
@@ -82,10 +85,14 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     """Run migrations in async mode."""
+    migration_url, connect_args = asyncpg_options(database_url, settings)
+    section = config.get_section(config.config_ini_section, {})
+    section["sqlalchemy.url"] = migration_url
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
 
     async with connectable.connect() as connection:
