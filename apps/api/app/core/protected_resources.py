@@ -1,6 +1,6 @@
 """Protected resources: the closed list of APIs Janua mints audience-bound tokens for.
 
-A *protected resource* is a resource server (today: one MCP server) that a
+A *protected resource* is a resource server (including MCP servers) that a
 third-party client may ask Janua for an access token for, by naming it in the
 RFC 8707 ``resource`` parameter on ``/oauth/authorize`` and ``/oauth/token``.
 A token issued for a resource carries ``aud`` = the resource URI exactly, the
@@ -162,8 +162,35 @@ MAP_CREA_TU_MUNDO = ProtectedResource(
     preferred_login_method="magic_link",
 )
 
+#: The isolated training MAP. These scopes never authorize production MAP
+#: requests; the resource server still enforces the human's lesson and native
+#: role. Only pre-registered portal clients use this exact hosted callback.
+CREA_SIM_MCP_CALLBACK = "https://sim.creatumundo.mx/auth/mcp/callback"
+MAP_SIM_CREA_TU_MUNDO = ProtectedResource(
+    resource="https://map-sim.creatumundo.mx/api/simulacion/mcp",
+    display_name="Simulador de Crea Tu Mundo",
+    scopes=(
+        ResourceScope(
+            name="map.sim:read",
+            description="Consultar ejercicios del MAP con datos sintéticos",
+        ),
+        ResourceScope(
+            name="map.sim:write",
+            description="Practicar acciones del MAP con datos sintéticos según el rol del ejercicio",
+        ),
+    ),
+    client_policy=ClientPolicy(
+        cimd_hosts=frozenset(),
+        cimd_client_ids=frozenset(),
+        redirect_uris=frozenset({CREA_SIM_MCP_CALLBACK}),
+        allow_loopback_redirects=False,
+    ),
+    access_token_ttl_seconds=15 * 60,
+    preferred_login_method="magic_link",
+)
+
 _REGISTRY: dict[str, ProtectedResource] = {
-    resource.resource: resource for resource in (MAP_CREA_TU_MUNDO,)
+    resource.resource: resource for resource in (MAP_CREA_TU_MUNDO, MAP_SIM_CREA_TU_MUNDO)
 }
 
 PROTECTED_RESOURCES: Mapping[str, ProtectedResource] = MappingProxyType(_REGISTRY)

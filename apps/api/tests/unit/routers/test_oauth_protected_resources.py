@@ -52,7 +52,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import StaticPool
 
 from app.core.jwt_manager import jwt_manager
-from app.core.protected_resources import MAP_CREA_TU_MUNDO
+from app.core.protected_resources import (
+    CREA_SIM_MCP_CALLBACK,
+    MAP_CREA_TU_MUNDO,
+    MAP_SIM_CREA_TU_MUNDO,
+)
 from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import Base, OAuthClient, User, UserStatus
 from app.services import client_id_metadata as cimd
@@ -99,13 +103,22 @@ REG_OUTSIDE = "jnc_test_mcp_registered_outside"
 LEGACY = "jnc_test_mcp_legacy_first_party"
 LEGACY_SECRET = "jns_test_mcp_legacy_secret_placeholder"
 LEGACY_CALLBACK = "https://app.example.test/callback"
+TRAINING = "https://map-sim.creatumundo.mx/api/simulacion/mcp"
+TRAINING_UI_CALLBACK = "https://sim.creatumundo.mx/auth/callback"
+REG_TRAINING = "jnc_test_crea_sim_mcp"
+REG_TRAINING_SECRET = "jns_test_crea_sim_mcp_secret_placeholder"
+REG_TRAINING_UI = "jnc_test_crea_sim_ui"
+REG_TRAINING_MIXED = "jnc_test_crea_sim_mixed"
+TRAINING_SCOPES = "map.sim:read map.sim:write offline_access"
 
 
 def _hash(secret: str) -> str:
     return bcrypt.hashpw(secret.encode(), bcrypt.gensalt(rounds=4)).decode()
 
 
-def _row(created_by, client_id, *, name, redirect_uris, secret=None, scopes=None) -> OAuthClient:
+def _row(
+    created_by, client_id, *, name, redirect_uris, secret=None, scopes=None, audience=None
+) -> OAuthClient:
     stored = secret or "jns_test_public_unused_placeholder"
     return OAuthClient(
         id=uuid.uuid4(),
@@ -114,6 +127,7 @@ def _row(created_by, client_id, *, name, redirect_uris, secret=None, scopes=None
         client_secret_hash=_hash(stored),
         client_secret_prefix=stored[:8],
         name=name,
+        audience=audience,
         redirect_uris=redirect_uris,
         allowed_scopes=scopes or ["openid", "profile", "email", "offline_access"],
         grant_types=["authorization_code", "refresh_token"],
@@ -244,6 +258,30 @@ async def env(monkeypatch):
                     name="madfam-legacy-regression",
                     redirect_uris=[LEGACY_CALLBACK],
                     secret=LEGACY_SECRET,
+                ),
+                _row(
+                    admin.id,
+                    REG_TRAINING,
+                    name="crea-sim-mcp",
+                    audience="crea-sim-mcp",
+                    redirect_uris=[CREA_SIM_MCP_CALLBACK],
+                    secret=REG_TRAINING_SECRET,
+                    scopes=TRAINING_SCOPES.split(),
+                ),
+                _row(
+                    admin.id,
+                    REG_TRAINING_UI,
+                    name="crea-sim",
+                    audience="crea-sim",
+                    redirect_uris=[TRAINING_UI_CALLBACK],
+                    secret=LEGACY_SECRET,
+                ),
+                _row(
+                    admin.id,
+                    REG_TRAINING_MIXED,
+                    name="crea-sim-mixed",
+                    redirect_uris=[CREA_SIM_MCP_CALLBACK, TRAINING_UI_CALLBACK],
+                    secret=REG_TRAINING_SECRET,
                 ),
             ]
         )
@@ -1327,10 +1365,220 @@ class TestSignInResume:
         assert parse_qs(urlparse(target).query)["resource"] == [MAP]
 
 
+class TestTrainingResource:
+    async def _code(self, env, *, scope=TRAINING_SCOPES, **extra):
+        return await get_code(
+            env,
+            client_id=REG_TRAINING,
+            redirect_uri=CREA_SIM_MCP_CALLBACK,
+            resource=TRAINING,
+            scope=scope,
+            **extra,
+        )
+
+    async def _exchange(self, env, code, verifier, **extra):
+        return await exchange(
+            env,
+            code,
+            verifier,
+            client_id=REG_TRAINING,
+            redirect_uri=CREA_SIM_MCP_CALLBACK,
+            resource=TRAINING,
+            **extra,
+        )
+
+    async def _connect(self, env):
+        code, verifier, _ = await self._code(env)
+        response = await self._exchange(env, code, verifier, client_secret=REG_TRAINING_SECRET)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    async def test_real_consent_and_confidential_exchange_for_the_human(self, env):
+        verifier, challenge = pkce()
+        params = authorize_params(
+            challenge,
+            client_id=REG_TRAINING,
+            redirect_uri=CREA_SIM_MCP_CALLBACK,
+            resource=TRAINING,
+            scope=TRAINING_SCOPES,
+        )
+        page = await authorize(
+            env,
+            params,
+            env.other,
+        )
+        assert page.status_code == 200
+        assert "Simulador de Crea Tu Mundo" in page.text
+        assert "datos sintéticos" in page.text
+        assert "según el rol del ejercicio" in page.text
+        assert not env.net.requests  # The registered-only policy fetches no CIMD.
+
+        redirect = await consent(env, page, env.other)
+        assert redirect.status_code == 302
+        callback = query(redirect.headers["location"])
+        assert redirect.headers["location"].startswith(CREA_SIM_MCP_CALLBACK + "?")
+        response = await self._exchange(
+            env, callback["code"], verifier, client_secret=REG_TRAINING_SECRET
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        header, claims = jwks_claims(body["access_token"], TRAINING)
+        assert header["typ"] == "at+jwt"
+        assert claims["aud"] == TRAINING
+        assert claims["sub"] == str(env.other.id)
+        assert claims["client_id"] == REG_TRAINING
+        assert claims["scope"] == "map.sim:read map.sim:write"
+        assert claims["exp"] - claims["iat"] == body["expires_in"] == 900
+        assert set(claims) == {"iss", "aud", "sub", "client_id", "scope", "iat", "exp", "jti"}
+        assert resource_tokens.verify_access_token(body["access_token"], MAP_CREA_TU_MUNDO) is None
+        assert resource_tokens.verify_access_token(body["access_token"], MAP_SIM_CREA_TU_MUNDO)
+        second = await authorize(env, params, env.other)
+        assert second.status_code == 200
+        assert 'name="auth_request_id"' in second.text
+
+    async def test_confidential_client_must_authenticate(self, env):
+        code, verifier, _ = await self._code(env)
+        assert_oauth_error(await self._exchange(env, code, verifier), "invalid_client", 401)
+        assert_oauth_error(
+            await self._exchange(env, code, verifier, client_secret="wrong-placeholder"),
+            "invalid_client",
+            401,
+        )
+        response = await self._exchange(env, code, verifier, client_secret=REG_TRAINING_SECRET)
+        assert response.status_code == 200, response.text
+
+    async def test_machine_grant_cannot_replace_human_resource_authorization(self, env):
+        response = await token(
+            env,
+            {
+                "grant_type": "client_credentials",
+                "client_id": REG_TRAINING,
+                "client_secret": REG_TRAINING_SECRET,
+                "resource": TRAINING,
+                "scope": "map.sim:write",
+            },
+        )
+        assert_oauth_error(response, "invalid_target")
+
+    @pytest.mark.parametrize(
+        "client_id,callback,resource,scopes",
+        [
+            (REG_TRAINING_UI, TRAINING_UI_CALLBACK, TRAINING, TRAINING_SCOPES),
+            (REG_TRAINING_MIXED, CREA_SIM_MCP_CALLBACK, TRAINING, TRAINING_SCOPES),
+            (REG_TRAINING, CREA_SIM_MCP_CALLBACK, MAP, ALL_SCOPES),
+            (CLAUDE, CLAUDE_CALLBACK, TRAINING, TRAINING_SCOPES),
+            (REG_LOOPBACK, CODE_LOOPBACK, TRAINING, TRAINING_SCOPES),
+        ],
+    )
+    async def test_callback_and_client_policies_do_not_cross_resources(
+        self, env, client_id, callback, resource, scopes
+    ):
+        _, challenge = pkce()
+        response = await authorize(
+            env,
+            authorize_params(
+                challenge,
+                client_id=client_id,
+                redirect_uri=callback,
+                resource=resource,
+                scope=scopes,
+            ),
+            env.director,
+        )
+        if client_id == CLAUDE:
+            assert response.status_code == 400 and "location" not in response.headers
+        else:
+            assert_redirect_error(response, "unauthorized_client", redirect_uri=callback)
+        assert not env.net.requests
+
+    async def test_production_scopes_are_not_training_scopes(self, env):
+        _, challenge = pkce()
+        response = await authorize(
+            env,
+            authorize_params(
+                challenge,
+                client_id=REG_TRAINING,
+                redirect_uri=CREA_SIM_MCP_CALLBACK,
+                resource=TRAINING,
+                scope=ALL_SCOPES,
+            ),
+            env.director,
+        )
+        assert_redirect_error(response, "invalid_scope", redirect_uri=CREA_SIM_MCP_CALLBACK)
+
+    async def test_code_exchange_cannot_switch_to_the_production_resource(self, env):
+        code, verifier, _ = await self._code(env)
+        response = await exchange(
+            env,
+            code,
+            verifier,
+            client_id=REG_TRAINING,
+            redirect_uri=CREA_SIM_MCP_CALLBACK,
+            resource=MAP,
+            client_secret=REG_TRAINING_SECRET,
+        )
+        assert_oauth_error(response, "invalid_target")
+
+    async def test_refresh_rotates_and_reuse_revokes_the_training_family(self, env):
+        first = await self._connect(env)
+        opts = {
+            "client_id": REG_TRAINING,
+            "resource": TRAINING,
+            "client_secret": REG_TRAINING_SECRET,
+        }
+        wrong_resource = await refresh(env, first["refresh_token"], **{**opts, "resource": MAP})
+        assert_oauth_error(wrong_resource, "invalid_target")
+        second = await refresh(env, first["refresh_token"], scope="map.sim:read", **opts)
+        assert second.status_code == 200, second.text
+        body = second.json()
+        assert body["refresh_token"] != first["refresh_token"]
+        _, claims = jwks_claims(body["access_token"], TRAINING)
+        assert claims["sub"] == str(env.director.id) and claims["scope"] == "map.sim:read"
+        assert_oauth_error(await refresh(env, first["refresh_token"], **opts), "invalid_grant")
+        assert_oauth_error(await refresh(env, body["refresh_token"], **opts), "invalid_grant")
+
+    async def test_refresh_cannot_add_write_to_a_read_only_consent(self, env):
+        code, verifier, _ = await self._code(env, scope="map.sim:read offline_access")
+        response = await self._exchange(env, code, verifier, client_secret=REG_TRAINING_SECRET)
+        assert response.status_code == 200, response.text
+        opts = {
+            "client_id": REG_TRAINING,
+            "resource": TRAINING,
+            "client_secret": REG_TRAINING_SECRET,
+        }
+        refresh_token = response.json()["refresh_token"]
+        widened = await refresh(env, refresh_token, scope="map.sim:read map.sim:write", **opts)
+        assert_oauth_error(widened, "invalid_scope")
+        allowed = await refresh(env, refresh_token, scope="map.sim:read", **opts)
+        assert allowed.status_code == 200, allowed.text
+
+    async def test_training_token_is_not_a_ui_session_or_production_token(self, env):
+        body = await self._connect(env)
+        bearer = {"Authorization": f"Bearer {body['access_token']}"}
+        assert (await env.http.get("/api/v1/oauth/userinfo", headers=bearer)).status_code == 401
+        assert (await env.http.get("/api/v1/auth/me", headers=bearer)).status_code == 401
+        production = await connect(env)
+        assert (
+            resource_tokens.verify_access_token(production["access_token"], MAP_SIM_CREA_TU_MUNDO)
+            is None
+        )
+        ui, _, _ = jwt_manager.create_access_token(
+            user_id=str(env.director.id),
+            email=env.director.email,
+            additional_claims={"aud": "crea-sim"},
+        )
+        assert resource_tokens.verify_access_token(ui, MAP_SIM_CREA_TU_MUNDO) is None
+
+
 class TestContentSecurityPolicy:
     async def test_form_action_allows_claudes_callback(self, env):
         response = await env.http.get("/.well-known/oauth-authorization-server")
         csp = response.headers["content-security-policy"]
         form_action = next(d for d in csp.split(";") if d.strip().startswith("form-action"))
         sources = set(form_action.split())
-        assert {"https://claude.ai", "http://localhost:*", "http://127.0.0.1:*"} <= sources
+        assert {
+            "https://claude.ai",
+            "https://sim.creatumundo.mx",
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+        } <= sources

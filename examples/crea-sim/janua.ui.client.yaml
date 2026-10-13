@@ -1,0 +1,20 @@
+# Reviewed declaration only. Resolve the CTM organization UUID and custody
+# targets before registration; see the protected-resource reference.
+apiVersion: janua.dev/v1
+kind: OAuthClient
+metadata:
+  name: crea-sim
+spec:
+  audience: crea-sim
+  description: Portal privado de capacitación de Crea Tu Mundo con datos sintéticos
+  redirect_uris:
+    - https://sim.creatumundo.mx/auth/callback
+  allowed_scopes:
+    - openid
+    - profile
+    - email
+    - offline_access
+  grant_types:
+    - authorization_code
+    - refresh_token
+  is_confidential: true
