@@ -1,21 +1,25 @@
-"""
-Service for managing organization invitations.
-"""
+"""Async native invitation intents, membership and bounded mail receipts."""
 
+import asyncio
 import secrets
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+from uuid import UUID, uuid4
 
 import structlog
-from sqlalchemy import and_, or_
-from sqlalchemy.orm import Session
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models import Organization, OrganizationMember
-from app.models.invitation import Invitation, InvitationCreate, InvitationResponse, InvitationStatus
-from app.models.policy import Role
+from app.models import AuditLog, Organization, OrganizationMember, UserStatus
+from app.models.invitation import (
+    Invitation,
+    InvitationCreate,
+    InvitationEmailStatus,
+    InvitationResponse,
+    InvitationStatus,
+)
 from app.models.user import User
-from app.services.audit_logger import AuditAction, AuditLogger
 from app.services.cache import CacheService
 from app.services.email_service import EmailService
 
@@ -23,461 +27,329 @@ logger = structlog.get_logger()
 
 
 class InvitationService:
-    """
-    Service for managing organization invitations.
-    """
+    """One retained intent/attempt; acknowledgement never means delivery."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
         self.email_service = EmailService()
-        self.audit_logger = AuditLogger(db)
         self.cache = CacheService()
 
-    async def create_invitation(
-        self, invitation_data: InvitationCreate, invited_by: User, tenant_id: str
-    ) -> InvitationResponse:
-        """
-        Create a new invitation.
-        """
-        # Verify the organization exists.
-        #
-        # This used to filter on `Organization.tenant_id`, a column the
-        # organizations table does not have, so the query raised before it
-        # could scope anything. The scoping it was reaching for is restored
-        # below against columns that exist — it must not simply be dropped:
-        # `require_org_admin` only proves the caller administers SOME
-        # organization, so without a per-organization check any org admin
-        # could invite members into an organization they have nothing to do
-        # with.
-        organization = (
-            self.db.query(Organization)
-            .filter(Organization.id == invitation_data.organization_id)
-            .first()
-        )
+    @staticmethod
+    def _uuid(value) -> UUID:
+        try:
+            return UUID(str(value))
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise ValueError("Invalid invitation or organization identifier") from exc
 
-        if not organization:
+    async def _organization(self, organization_id) -> Organization:
+        org = (await self.db.execute(select(Organization).where(
+            Organization.id == self._uuid(organization_id),
+        ).with_for_update())).scalar_one_or_none()
+        if org is None:
             raise ValueError("Organization not found")
+        return org
 
-        # The caller must administer THIS organization — as its owner, or via
-        # an admin/owner membership row. Both ids must be present before they
-        # can match: an ownerless organization and an id-less caller would
-        # otherwise compare equal as "None" and grant access to neither party's
-        # organization.
-        owner_id = getattr(organization, "owner_id", None)
-        is_owner = bool(owner_id) and bool(invited_by.id) and str(owner_id) == str(invited_by.id)
-        if not is_owner:
-            admin_membership = (
-                self.db.query(OrganizationMember)
-                .filter(
-                    and_(
-                        OrganizationMember.organization_id == organization.id,
-                        OrganizationMember.user_id == invited_by.id,
-                        OrganizationMember.role.in_(["admin", "owner"]),
-                    )
-                )
-                .first()
-            )
-            if not admin_membership:
-                raise ValueError("Organization not found")
+    async def require_admin(self, organization: Organization, user: User, role="member"):
+        """Native active authority for this target; no policy-role translation."""
+        if not user or not user.id:
+            raise ValueError("Organization not found")
+        actor = (await self.db.execute(select(User).where(
+            User.id == user.id, User.status == UserStatus.ACTIVE,
+        ))).scalar_one_or_none()
+        if actor is None:
+            raise ValueError("Organization not found")
+        if organization.owner_id and organization.owner_id == actor.id:
+            actual_role = "owner"
+        else:
+            actual_role = (await self.db.execute(select(OrganizationMember.role).where(
+                OrganizationMember.organization_id == organization.id,
+                OrganizationMember.user_id == actor.id,
+                OrganizationMember.status == "active",
+                OrganizationMember.role.in_(["admin", "owner"]),
+            ).limit(1).with_for_update())).scalar_one_or_none()
+        hierarchy = {"viewer": 0, "member": 1, "admin": 2, "owner": 3}
+        if actual_role not in {"admin", "owner"}:
+            raise ValueError("Organization not found")
+        if role not in hierarchy or hierarchy[role] > hierarchy[actual_role]:
+            raise ValueError("Cannot invite with a higher organization role")
 
-        # Check if the invitee is already a member. Membership is keyed by
-        # user_id, not by email, so resolve the address first; an address with
-        # no account cannot already be a member. Resolve in the untenanted /
-        # staff pool: invitees are platform identities and membership is via
-        # OrganizationMember (decoupled from tenant_id). Email is per-tenant
-        # since migration 013, so scope the lookup to that pool (sync session
-        # here, so this filters inline rather than via get_user_by_email).
-        invitee = (
-            self.db.query(User)
-            .filter(User.email == invitation_data.email, User.tenant_id.is_(None))
-            .first()
-        )
-        if invitee is not None:
-            existing_member = (
-                self.db.query(OrganizationMember)
-                .filter(
-                    and_(
-                        OrganizationMember.organization_id == organization.id,
-                        OrganizationMember.user_id == invitee.id,
-                    )
-                )
-                .first()
-            )
+    def _audit(self, action: str, invitation: Invitation, actor_id, **details) -> AuditLog:
+        row = AuditLog(id=uuid4(), user_id=actor_id, action=action,
+                       resource_type="invitation", resource_id=invitation.id,
+                       details={"organization_id": str(invitation.organization_id),
+                                "invitation_id": str(invitation.id), **details})
+        self.db.add(row)
+        return row
 
-            if existing_member:
-                raise ValueError("User is already a member of this organization")
+    async def email_statuses(self, invitations) -> dict:
+        """Classify only retained, correctly paired native metadata."""
+        by_id = {inv.id: inv for inv in invitations}
+        if not by_id:
+            return {}
+        rows = (await self.db.execute(select(AuditLog).where(
+            AuditLog.resource_type == "invitation",
+            AuditLog.resource_id.in_(by_id),
+            AuditLog.action.in_(["invitation.create", "invitation.email_attempt",
+                                "invitation.email_ack"]),
+        ))).scalars().all()
+        classified = {}
+        for inv_id, inv in by_id.items():
+            matching = [r for r in rows if r.resource_id == inv_id
+                        and isinstance(r.details, dict)
+                        and r.details.get("organization_id") == str(inv.organization_id)
+                        and r.details.get("invitation_id") == str(inv_id)]
+            attempts = {str(r.id) for r in matching if r.action == "invitation.email_attempt"
+                        and r.details.get("attempt_id") == str(r.id)
+                        and r.details.get("email_status") == "unconfirmed"}
+            acknowledged = any(r.action == "invitation.email_ack"
+                               and r.details.get("attempt_id") in attempts
+                               and r.details.get("email_status") == "acknowledged"
+                               for r in matching)
+            if attempts:
+                classified[inv_id] = (InvitationEmailStatus.ACKNOWLEDGED
+                                      if acknowledged and inv.email_sent
+                                      else InvitationEmailStatus.UNCONFIRMED)
+            elif any(r.resource_id == inv_id and r.action == "invitation.email_attempt"
+                     for r in rows):
+                classified[inv_id] = None  # Unclassified attempts never become not-attempted.
+            elif any(r.action == "invitation.create"
+                     and r.details.get("email_status") == "not_attempted" for r in matching):
+                classified[inv_id] = (None if inv.email_sent
+                                      else InvitationEmailStatus.NOT_ATTEMPTED)
+            else:
+                classified[inv_id] = None  # Legacy or unclassified, never retry authority.
+        return classified
 
-        # Check for existing pending invitation
-        existing_invitation = (
-            self.db.query(Invitation)
-            .filter(
-                and_(
-                    Invitation.organization_id == invitation_data.organization_id,
-                    Invitation.email == invitation_data.email,
-                    Invitation.status == InvitationStatus.PENDING.value,
-                )
-            )
-            .first()
-        )
-
-        if existing_invitation and not existing_invitation.is_expired:
-            raise ValueError("An active invitation already exists for this email")
-
-        # Get role if specified
-        role = None
-        if invitation_data.role:
-            role = (
-                self.db.query(Role)
-                .filter(or_(Role.id == invitation_data.role, Role.name == invitation_data.role))
-                .first()
-            )
-
-        # Calculate expiration
-        expires_at = datetime.utcnow() + timedelta(days=invitation_data.expires_in or 7)
-
-        # Create invitation.
-        #
-        # `token` is NOT NULL and unique, and it is the only thing
-        # /invitations/validate/{token} and /invitations/accept look up — yet
-        # nothing here ever generated one. Every invitation was therefore
-        # un-redeemable even before the email failed to send. Mint it here so
-        # the value that gets mailed is the value the verify path validates.
-        invitation = Invitation(
-            organization_id=invitation_data.organization_id,
-            email=invitation_data.email,
-            role=(role.name if role else invitation_data.role) or "member",
-            status=InvitationStatus.PENDING.value,
-            token=secrets.token_urlsafe(32),
-            created_by=invited_by.id,
-            expires_at=expires_at,
-        )
-
-        self.db.add(invitation)
-        self.db.commit()
-        self.db.refresh(invitation)
-
-        # Send invitation email
-        email_sent = await self._send_invitation_email(invitation, organization, invited_by)
-
-        # Log audit event
-        await self.audit_logger.log(
-            event_type=AuditAction.INVITATION_CREATE,
-            tenant_id=tenant_id,
-            identity_id=str(invited_by.id),
-            resource_type="invitation",
-            resource_id=str(invitation.id),
-            details={"email": invitation_data.email, "organization": organization.name},
-        )
-
-        # Create response. `email_sent` reports what actually happened on this
-        # request rather than reading a column that does not exist.
-        response = InvitationResponse(
-            id=str(invitation.id),
-            organization_id=str(invitation.organization_id),
-            email=invitation.email,
-            role=invitation.role,
-            status=invitation.status,
-            invited_by=str(invitation.created_by),
-            message=invitation_data.message,
-            expires_at=invitation.expires_at,
-            created_at=invitation.created_at,
+    async def response(self, invitation: Invitation) -> InvitationResponse:
+        email_status = (await self.email_statuses([invitation]))[invitation.id]
+        return InvitationResponse(
+            id=str(invitation.id), organization_id=str(invitation.organization_id),
+            email=invitation.email, role=invitation.role or "member", status=invitation.status,
+            invited_by=str(invitation.created_by), message=invitation.message,
+            expires_at=invitation.expires_at, created_at=invitation.created_at,
             invite_url=invitation.generate_invite_url(settings.FRONTEND_URL or settings.BASE_URL),
-            email_sent=email_sent,
+            email_sent=(bool(invitation.email_sent) if email_status is None else
+                        email_status == InvitationEmailStatus.ACKNOWLEDGED),
+            email_status=email_status,
         )
 
-        return response
+    async def create_invitation(self, invitation_data: InvitationCreate,
+                                invited_by: User, tenant_id: str) -> InvitationResponse:
+        # tenant_id is a legacy argument; this model's tenancy is organization_id.
+        try:
+            org = await self._organization(invitation_data.organization_id)
+            await self.require_admin(org, invited_by, invitation_data.role)
+            invitee = (await self.db.execute(select(User).where(
+                User.email == invitation_data.email, User.tenant_id.is_(None),
+            ))).scalar_one_or_none()
+            if invitee is not None and (await self.db.execute(select(OrganizationMember.id).where(
+                OrganizationMember.organization_id == org.id,
+                OrganizationMember.user_id == invitee.id,
+            ).limit(1))).scalar_one_or_none() is not None:
+                raise ValueError("User already has a membership; no automatic reactivation")
+            existing = (await self.db.execute(select(Invitation).where(
+                Invitation.organization_id == org.id, Invitation.email == invitation_data.email,
+                Invitation.status == InvitationStatus.PENDING.value,
+                Invitation.expires_at >= datetime.utcnow(),
+            ).limit(1))).scalar_one_or_none()
+            if existing is not None:
+                raise ValueError("An active invitation already exists for this email")
+            invitation = Invitation(id=uuid4(), organization_id=org.id,
+                                    email=invitation_data.email, role=invitation_data.role,
+                                    message=invitation_data.message, email_sent=False,
+                                    token=secrets.token_urlsafe(32), created_by=invited_by.id,
+                                    expires_at=datetime.utcnow() + timedelta(
+                                        days=invitation_data.expires_in))
+            self.db.add(invitation)
+            self._audit("invitation.create", invitation, invited_by.id,
+                        email_status="not_attempted")
+            await self.db.commit()
+            await self.db.refresh(invitation)
+        except Exception:
+            await self.db.rollback()
+            raise
+        return await self._send_once(invitation, invited_by)
 
-    async def create_bulk_invitations(
-        self,
-        emails: List[str],
-        organization_id: str,
-        role: Optional[str],
-        message: Optional[str],
-        expires_in: Optional[int],
-        invited_by: User,
-        tenant_id: str,
-    ) -> Dict[str, Any]:
-        """
-        Create multiple invitations at once.
-        """
-        successful = []
-        failed = []
+    async def _send_once(self, invitation: Invitation, actor: User) -> InvitationResponse:
+        """Commit one attempt before the provider; unconfirmed attempts cannot replay."""
+        try:
+            org = await self._organization(invitation.organization_id)
+            await self.require_admin(org, actor)
+            invitation = (await self.db.execute(select(Invitation).where(
+                Invitation.id == invitation.id,
+            ).with_for_update().execution_options(populate_existing=True))).scalar_one()
+            prior = (await self.db.execute(select(AuditLog.id).where(
+                AuditLog.resource_type == "invitation", AuditLog.resource_id == invitation.id,
+                AuditLog.action == "invitation.email_attempt",
+            ).limit(1))).scalar_one_or_none()
+            classified = (await self.email_statuses([invitation]))[invitation.id]
+            if (prior is not None or classified != InvitationEmailStatus.NOT_ATTEMPTED
+                    or not invitation.is_valid):
+                raise ValueError("Previous mail attempt is not replayable; reconciliation required")
+            attempt = self._audit("invitation.email_attempt", invitation, actor.id,
+                                  email_status="unconfirmed")
+            attempt.details = {**attempt.details, "attempt_id": str(attempt.id)}
+            attempt_id = str(attempt.id)
+            await self.db.commit()
+            await self.db.refresh(invitation)
+            retained = await self.response(invitation)
+        except Exception:
+            await self.db.rollback()
+            raise
+        # Even a crash before this call leaves an honest may-have-been-sent attempt.
+        try:
+            sent = await asyncio.wait_for(
+                self._send_invitation_email(invitation, org, actor), timeout=15,
+            )
+        except Exception:
+            sent = False
+        if sent:
+            try:
+                invitation.email_sent = True
+                self._audit("invitation.email_ack", invitation, actor.id,
+                            attempt_id=attempt_id, email_status="acknowledged")
+                await self.db.commit()
+                await self.db.refresh(invitation)
+                return await self.response(invitation)
+            except Exception as exc:
+                await self.db.rollback()
+                logger.warning("Invitation acknowledgement unconfirmed",
+                               invitation_id=retained.id, error_type=type(exc).__name__)
+        # The retained attempt already proves this state, even if ACK commit/read lost its response.
+        return retained.model_copy(update={"email_sent": False,
+                                           "email_status": InvitationEmailStatus.UNCONFIRMED})
 
+    async def create_bulk_invitations(self, emails: List[str], organization_id: str,
+                                      role: Optional[str], message: Optional[str],
+                                      expires_in: Optional[int], invited_by: User,
+                                      tenant_id: str) -> Dict[str, Any]:
+        successful, failed = [], []
         for email in emails:
             try:
-                invitation_data = InvitationCreate(
-                    organization_id=organization_id,
-                    email=email,
-                    role=role,
-                    message=message,
-                    expires_in=expires_in,
-                )
+                successful.append(await self.create_invitation(InvitationCreate(
+                    organization_id=organization_id, email=email, role=role or "member",
+                    message=message, expires_in=expires_in or 7,
+                ), invited_by, tenant_id))
+            except ValueError as exc:
+                failed.append({"email": email, "error": str(exc)})
+        return {"successful": successful, "failed": failed,
+                "total_sent": sum(response.email_sent for response in successful),
+                "total_failed": len(failed)}
 
-                response = await self.create_invitation(
-                    invitation_data=invitation_data, invited_by=invited_by, tenant_id=tenant_id
-                )
-
-                successful.append(response)
-
-            except Exception as e:
-                failed.append({"email": email, "error": str(e)})
-
-        return {
-            "successful": successful,
-            "failed": failed,
-            "total_sent": len(successful),
-            "total_failed": len(failed),
-        }
-
-    async def accept_invitation(
-        self,
-        token: str,
-        user: Optional[User] = None,
-        new_user_data: Optional[Dict[str, Any]] = None,
-        locale: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """
-        Accept an invitation.
-
-        `locale` is the language negotiated from the acceptance request. It is
-        applied only to a user created here — an existing account keeps the
-        preference it already has.
-        """
-        # Find invitation by token
-        invitation = self.db.query(Invitation).filter(Invitation.token == token).first()
-
-        if not invitation:
-            raise ValueError("Invalid invitation token")
-
-        if not invitation.is_valid:
-            if invitation.is_expired:
-                raise ValueError("Invitation has expired")
+    async def accept_invitation(self, token: str, user: Optional[User] = None,
+                                new_user_data: Optional[Dict[str, Any]] = None,
+                                locale: Optional[str] = None) -> Dict[str, Any]:
+        try:
+            found = (await self.db.execute(select(Invitation).where(
+                Invitation.token == token,
+            ))).scalar_one_or_none()
+            if found is None:
+                raise ValueError("Invalid invitation token")
+            org = await self._organization(found.organization_id)
+            invitation = (await self.db.execute(select(Invitation).where(
+                Invitation.id == found.id,
+            ).with_for_update().execution_options(populate_existing=True))).scalar_one()
+            if not invitation.is_valid:
+                raise ValueError("Invitation expired or no longer pending")
+            is_new_user = user is None
+            if user is not None:
+                user = (await self.db.execute(select(User).where(
+                    User.id == user.id, User.status == UserStatus.ACTIVE,
+                ))).scalar_one_or_none()
+                if user is None:
+                    raise ValueError("Active authenticated user required")
+            elif new_user_data:
+                if (await self.db.execute(select(User.id).where(
+                    User.email == invitation.email, User.tenant_id.is_(None),
+                ).limit(1))).scalar_one_or_none() is not None:
+                    raise ValueError("Existing account must sign in to accept")
+                user = User(email=invitation.email, display_name=new_user_data.get("name"),
+                            password_hash=new_user_data.get("password_hash"),
+                            tenant_id=getattr(org, "tenant_id", None),
+                            email_verified=True, locale=locale)
+                self.db.add(user)
+                await self.db.flush()
             else:
-                raise ValueError(f"Invitation is {invitation.status}")
-
-        # Create user if needed.
-        # `name` is a read-only property on User (derived from first/last/display),
-        # and invitations carry no tenant of their own — both kwargs used to
-        # raise before a single account could be created this way. The tenant
-        # comes from the organization being joined, which is the only place it
-        # is actually recorded.
-        if not user and new_user_data:
-            organization = (
-                self.db.query(Organization)
-                .filter(Organization.id == invitation.organization_id)
-                .first()
-            )
-            user = User(
-                email=invitation.email,
-                display_name=new_user_data.get("name") or invitation.email.split("@")[0],
-                password_hash=new_user_data.get("password_hash"),
-                tenant_id=getattr(organization, "tenant_id", None),
-                email_verified=True,  # Auto-verify since they have the invitation
-                locale=locale,
-            )
-            self.db.add(user)
-            self.db.flush()
-        elif not user:
-            raise ValueError("User account required to accept invitation")
-
-        # Verify email matches
-        if user.email != invitation.email:
-            raise ValueError("Invitation email does not match user email")
-
-        # Add user to organization. Membership is keyed by user_id; there is
-        # no user_email column, and passing one raised before any invitation
-        # could ever be redeemed.
-        org_member = OrganizationMember(
-            organization_id=invitation.organization_id,
-            user_id=user.id,
-            role=invitation.role or "member",
-        )
-        self.db.add(org_member)
-
-        # Update invitation status. There is no accepted_by column; accepted_at
-        # plus the membership row record who redeemed it.
-        invitation.status = InvitationStatus.ACCEPTED.value
-        invitation.accepted_at = datetime.utcnow()
-
-        self.db.commit()
-
-        # Clear cache
+                raise ValueError("User account required to accept invitation")
+            if user.email != invitation.email:
+                raise ValueError("Invitation email does not match authenticated user")
+            if (await self.db.execute(select(OrganizationMember.id).where(
+                OrganizationMember.organization_id == org.id,
+                OrganizationMember.user_id == user.id,
+            ).limit(1))).scalar_one_or_none() is not None:
+                raise ValueError("Existing membership cannot be adopted or reactivated")
+            self.db.add(OrganizationMember(organization_id=org.id, user_id=user.id,
+                                           role=invitation.role or "member", status="active",
+                                           joined_at=datetime.utcnow()))
+            invitation.status = InvitationStatus.ACCEPTED.value
+            invitation.accepted_at = datetime.utcnow()
+            self._audit("invitation.accept", invitation, user.id)
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
         await self.cache.delete(f"user:organizations:{user.id}")
-
-        # Log audit event
-        await self.audit_logger.log(
-            event_type=AuditAction.INVITATION_ACCEPT,
-            tenant_id=str(invitation.tenant_id) if hasattr(invitation, "tenant_id") else "",
-            identity_id=str(user.id),
-            resource_type="invitation",
-            resource_id=str(invitation.id),
-            details={"organization_id": str(invitation.organization_id)},
-        )
-
-        return {
-            "success": True,
-            "message": "Invitation accepted successfully",
-            "user_id": str(user.id),
-            "organization_id": str(invitation.organization_id),
-            "role": invitation.role,
-            "redirect_url": f"/dashboard/org/{invitation.organization_id}",
-        }
+        return {"success": True, "message": "Invitation accepted successfully",
+                "user_id": str(user.id), "organization_id": str(invitation.organization_id),
+                "is_new_user": is_new_user}
 
     async def revoke_invitation(self, invitation_id: str, revoked_by: User) -> bool:
-        """
-        Revoke a pending invitation.
-        """
-        invitation = self.db.query(Invitation).filter(Invitation.id == invitation_id).first()
-
-        if not invitation:
-            raise ValueError("Invitation not found")
-
-        if invitation.status != InvitationStatus.PENDING.value:
-            raise ValueError(f"Cannot revoke invitation with status: {invitation.status}")
-
-        # Update status
-        invitation.status = InvitationStatus.REVOKED.value
-        invitation.updated_at = datetime.utcnow()
-
-        self.db.commit()
-
-        # Log audit event
-        await self.audit_logger.log(
-            event_type=AuditAction.INVITATION_REVOKE,
-            tenant_id=str(invitation.tenant_id) if hasattr(invitation, "tenant_id") else "",
-            identity_id=str(revoked_by.id),
-            resource_type="invitation",
-            resource_id=str(invitation.id),
-            details={"email": invitation.email},
-        )
-
+        try:
+            invitation = (await self.db.execute(select(Invitation).where(
+                Invitation.id == self._uuid(invitation_id),
+            ))).scalar_one_or_none()
+            if invitation is None:
+                raise ValueError("Invitation not found")
+            org = await self._organization(invitation.organization_id)
+            await self.require_admin(org, revoked_by)
+            invitation = (await self.db.execute(select(Invitation).where(
+                Invitation.id == invitation.id,
+            ).with_for_update().execution_options(populate_existing=True))).scalar_one()
+            if invitation.status != InvitationStatus.PENDING.value:
+                raise ValueError("Only pending invitations can be revoked")
+            invitation.status = InvitationStatus.REVOKED.value
+            self._audit("invitation.revoke", invitation, revoked_by.id)
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
         return True
 
     async def resend_invitation(self, invitation_id: str, resent_by: User) -> InvitationResponse:
-        """
-        Resend an invitation email.
-        """
-        invitation = self.db.query(Invitation).filter(Invitation.id == invitation_id).first()
-
-        if not invitation:
+        invitation = (await self.db.execute(select(Invitation).where(
+            Invitation.id == self._uuid(invitation_id),
+        ))).scalar_one_or_none()
+        if invitation is None:
             raise ValueError("Invitation not found")
+        return await self._send_once(invitation, resent_by)
 
-        if invitation.status != InvitationStatus.PENDING.value:
-            raise ValueError(f"Cannot resend invitation with status: {invitation.status}")
-
-        # Get organization
-        organization = (
-            self.db.query(Organization)
-            .filter(Organization.id == invitation.organization_id)
-            .first()
-        )
-
-        # Resend email
-        email_sent = await self._send_invitation_email(invitation, organization, resent_by)
-
-        # Log audit event
-        await self.audit_logger.log(
-            event_type=AuditAction.INVITATION_RESEND,
-            tenant_id=str(invitation.tenant_id) if hasattr(invitation, "tenant_id") else "",
-            identity_id=str(resent_by.id),
-            resource_type="invitation",
-            resource_id=str(invitation.id),
-            details={"email": invitation.email},
-        )
-
-        # Create response
-        response = InvitationResponse(
-            id=str(invitation.id),
-            organization_id=str(invitation.organization_id),
-            email=invitation.email,
-            role=invitation.role,
-            status=invitation.status,
-            invited_by=str(invitation.created_by),
-            message=None,
-            expires_at=invitation.expires_at,
-            created_at=invitation.created_at,
-            invite_url=invitation.generate_invite_url(settings.FRONTEND_URL or settings.BASE_URL),
-            email_sent=email_sent,
-        )
-
-        return response
-
-    async def _send_invitation_email(
-        self, invitation: Invitation, organization: Organization, inviter: User
-    ) -> bool:
-        """
-        Send invitation email to the invitee. Returns whether it was sent.
-
-        This used to compose its own HTML and hand it to
-        `EmailService.send_email`, a method that does not exist on that class,
-        so every invitation raised AttributeError into a bare `except` that
-        printed and moved on. Nothing was ever mailed and nothing ever said so.
-
-        It now renders the maintained invitation templates and reports the
-        outcome instead of swallowing it. A send failure still does not undo
-        the invitation — the row is real and the link stays redeemable — but
-        the caller can now tell the difference.
-        """
+    async def _send_invitation_email(self, invitation: Invitation,
+                                     organization: Organization, inviter: User) -> bool:
         try:
-            invite_url = invitation.generate_invite_url(settings.FRONTEND_URL or settings.BASE_URL)
-            sent = await self.email_service.send_invitation_email(
+            return await self.email_service.send_invitation_email(
                 email=invitation.email,
-                invite_url=invite_url,
-                organization_name=getattr(organization, "name", None) or "your organization",
-                inviter_name=(getattr(inviter, "name", None) or inviter.email),
-                role=invitation.role or "member",
-                expires_at=invitation.expires_at,
+                invite_url=invitation.generate_invite_url(settings.FRONTEND_URL or settings.BASE_URL),
+                organization_name=organization.name or "your organization",
+                inviter_name=getattr(inviter, "name", None) or inviter.email,
+                role=invitation.role or "member", expires_at=invitation.expires_at,
             )
-        except Exception:
-            logger.exception(
-                "Invitation email raised", invitation_id=str(getattr(invitation, "id", ""))
-            )
+        except Exception as exc:
+            logger.warning("Invitation transport unconfirmed", invitation_id=str(invitation.id),
+                           error_type=type(exc).__name__)
             return False
 
-        if not sent:
-            logger.warning(
-                "Invitation email NOT sent — the recipient will never receive a link",
-                invitation_id=str(getattr(invitation, "id", "")),
-            )
-        return sent
+    async def get_pending_invitations(self, organization_id: str, skip: int = 0,
+                                      limit: int = 100) -> List[Invitation]:
+        return list((await self.db.execute(select(Invitation).where(
+            Invitation.organization_id == self._uuid(organization_id),
+            Invitation.status == InvitationStatus.PENDING.value,
+        ).offset(skip).limit(limit))).scalars().all())
 
-    def get_pending_invitations(
-        self, organization_id: str, skip: int = 0, limit: int = 100
-    ) -> List[Invitation]:
-        """
-        Get pending invitations for an organization.
-        """
-        return (
-            self.db.query(Invitation)
-            .filter(
-                and_(
-                    Invitation.organization_id == organization_id,
-                    Invitation.status == InvitationStatus.PENDING.value,
-                )
-            )
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
-
-    def cleanup_expired_invitations(self):
-        """
-        Mark expired invitations as expired.
-        """
-        expired_invitations = (
-            self.db.query(Invitation)
-            .filter(
-                and_(
-                    Invitation.status == InvitationStatus.PENDING.value,
-                    Invitation.expires_at < datetime.utcnow(),
-                )
-            )
-            .all()
-        )
-
-        for invitation in expired_invitations:
-            invitation.status = InvitationStatus.EXPIRED.value
-
-        self.db.commit()
-
-        return len(expired_invitations)
+    async def cleanup_expired_invitations(self) -> int:
+        """Legacy internal helper; the mounted API uses its own scoped cleanup."""
+        result = await self.db.execute(update(Invitation).where(
+            Invitation.status == InvitationStatus.PENDING.value,
+            Invitation.expires_at < datetime.utcnow(),
+        ).values(status=InvitationStatus.EXPIRED.value))
+        await self.db.commit()
+        return result.rowcount

@@ -186,131 +186,84 @@ class TestEmailService:
 
 
 class TestCreate:
-    """create_invitation is the entry point to the send path."""
+    """Real AsyncSession/model creation; final transport alone is recorded."""
 
-    def _service(self, owner_id="u-1"):
-        organization = MagicMock()
-        organization.id = "22222222-2222-2222-2222-222222222222"
-        organization.name = "Acme Corp"
-        organization.owner_id = owner_id
+    @pytest.fixture
+    def native_service(self):
+        from contextlib import asynccontextmanager
 
-        db = MagicMock()
-        # organization -> invitee User -> existing invitation -> Role
-        db.query.return_value.filter.return_value.first.side_effect = [
-            organization,
-            None,
-            None,
-            None,
-        ]
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+        from sqlalchemy.pool import StaticPool
 
-        def flush(obj=None, *args, **kwargs):
-            """Stand in for the defaults SQLAlchemy applies at flush time."""
-            if obj is None:
-                return
-            if getattr(obj, "created_at", None) is None:
-                obj.created_at = datetime.utcnow()
-            if getattr(obj, "id", None) is None:
-                obj.id = uuid.uuid4()
+        from app.models import AuditLog, Base, Organization, OrganizationMember, User
 
-        db.add.side_effect = flush
-        db.refresh.side_effect = flush
+        @asynccontextmanager
+        async def build(owner="self"):
+            engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
+            async with engine.begin() as connection:
+                await connection.run_sync(lambda c: Base.metadata.create_all(c, tables=[
+                    User.__table__, Organization.__table__, OrganizationMember.__table__,
+                    Invitation.__table__, AuditLog.__table__,
+                ]))
+            factory = async_sessionmaker(engine, expire_on_commit=False)
+            async with factory() as db:
+                actor = User(email="inviter@example.com", display_name="Synthetic inviter")
+                foreign = User(email="foreign@example.com")
+                db.add_all([actor, foreign])
+                await db.flush()
+                org = Organization(name="Synthetic organization", slug="synthetic",
+                                   owner_id=actor.id if owner == "self" else
+                                   foreign.id if owner == "foreign" else None)
+                db.add(org)
+                await db.commit()
+                service = InvitationService(db)
+                service.email_service._send_email = AsyncMock(return_value=True)
+                yield service, actor, org
+            await engine.dispose()
 
-        service = InvitationService(db)
-        service.email_service._send_email = AsyncMock(return_value=True)
-        service.audit_logger = MagicMock()
-        service.audit_logger.log = AsyncMock()
-        return service
+        return build
 
-    async def _create(self, service, inviter_id="u-1"):
+    async def _create(self, service, actor, org):
         from app.models.invitation import InvitationCreate
 
-        inviter = MagicMock()
-        inviter.id = inviter_id
-        inviter.email = "ada@example.com"
-        inviter.name = "Ada Lovelace"
-        return await service.create_invitation(
-            InvitationCreate(
-                organization_id="22222222-2222-2222-2222-222222222222",
-                email="invitee@example.com",
-                role="admin",
-                expires_in=7,
-            ),
-            inviter,
-            "tenant-1",
-        )
+        return await service.create_invitation(InvitationCreate(
+            organization_id=str(org.id), email="invitee@example.com", role="admin", expires_in=7,
+        ), actor, "")
 
-    async def test_mails_invitee(self):
-        service = self._service()
-        response = await self._create(service)
-        assert response.email_sent is True
-        assert _payload(service)["to_email"] == "invitee@example.com"
+    async def test_mails_invitee(self, native_service):
+        async with native_service() as (service, actor, org):
+            response = await self._create(service, actor, org)
+            assert response.email_sent is True
+            assert _payload(service)["to_email"] == "invitee@example.com"
 
-    async def test_token_minted(self):
-        # token is NOT NULL and is the only thing /accept looks up, yet
-        # nothing ever generated one.
-        service = self._service()
-        response = await self._create(service)
-        token = response.invite_url.split("token=")[1]
-        assert len(token) >= 32
+    async def test_token_minted(self, native_service):
+        async with native_service() as (service, actor, org):
+            response = await self._create(service, actor, org)
+            assert len(response.invite_url.split("token=")[1]) >= 32
 
-    async def test_mailed_token_matches(self):
-        # The link the invitee receives must be the one the API reports —
-        # otherwise the invitation can never be redeemed.
-        service = self._service()
-        response = await self._create(service)
-        assert f'href="{response.invite_url}"' in _payload(service)["html_content"]
+    async def test_mailed_token_matches(self, native_service):
+        async with native_service() as (service, actor, org):
+            response = await self._create(service, actor, org)
+            assert f'href="{response.invite_url}"' in _payload(service)["html_content"]
 
-    async def test_send_failure_reported(self):
-        service = self._service()
-        service.email_service._send_email = AsyncMock(return_value=False)
-        response = await self._create(service)
-        # The invitation still exists and stays redeemable; the caller is just
-        # told the truth about delivery.
-        assert response.email_sent is False
-        assert "token=" in response.invite_url
+    async def test_send_failure_reported(self, native_service):
+        async with native_service() as (service, actor, org):
+            service.email_service._send_email = AsyncMock(return_value=False)
+            response = await self._create(service, actor, org)
+            assert response.email_sent is False
+            assert response.email_status == "unconfirmed"
+            assert "token=" in response.invite_url
 
-    async def test_foreign_org_refused(self):
-        # require_org_admin only proves the caller administers SOME org, so
-        # this per-organization check is what stops a cross-org invite.
-        service = self._service(owner_id="someone-else")
-        service.db.query.return_value.filter.return_value.first.side_effect = None
-        organization = MagicMock()
-        organization.id = "22222222-2222-2222-2222-222222222222"
-        organization.owner_id = "someone-else"
-        service.db.query.return_value.filter.return_value.first.side_effect = [
-            organization,
-            None,  # no admin membership for the caller
-        ]
-        with pytest.raises(ValueError):
-            await self._create(service, inviter_id="u-1")
-        service.email_service._send_email.assert_not_awaited()
+    async def test_foreign_org_refused(self, native_service):
+        async with native_service("foreign") as (service, actor, org):
+            with pytest.raises(ValueError):
+                await self._create(service, actor, org)
+            service.email_service._send_email.assert_not_awaited()
 
-    async def test_ownerless_org_refused(self):
-        # An ownerless organization and an id-less caller must not compare
-        # equal as "None" and grant each other access.
-        service = self._service(owner_id=None)
-        organization = MagicMock()
-        organization.id = "22222222-2222-2222-2222-222222222222"
-        organization.owner_id = None
-        service.db.query.return_value.filter.return_value.first.side_effect = [
-            organization,
-            None,  # no admin membership
-        ]
-        inviter = MagicMock()
-        inviter.id = None
-        inviter.email = "ada@example.com"
-        inviter.name = "Ada Lovelace"
-        from app.models.invitation import InvitationCreate
+    async def test_ownerless_org_refused(self, native_service):
+        from app.models import User
 
-        with pytest.raises(ValueError):
-            await service.create_invitation(
-                InvitationCreate(
-                    organization_id="22222222-2222-2222-2222-222222222222",
-                    email="invitee@example.com",
-                    role="admin",
-                    expires_in=7,
-                ),
-                inviter,
-                "tenant-1",
-            )
-        service.email_service._send_email.assert_not_awaited()
+        async with native_service("none") as (service, _, org):
+            with pytest.raises(ValueError):
+                await self._create(service, User(id=None, email="unbound@example.com"), org)
+            service.email_service._send_email.assert_not_awaited()

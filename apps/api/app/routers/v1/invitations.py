@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.locale import locale_from_request
 from app.database import get_db
-from app.dependencies import get_current_user, require_org_admin
+from app.dependencies import get_current_user, get_current_user_optional, require_org_admin
 from app.models import Organization, OrganizationMember
 from app.models.invitation import (
     BulkInvitationCreate,
@@ -22,6 +22,7 @@ from app.models.invitation import (
     InvitationAcceptRequest,
     InvitationAcceptResponse,
     InvitationCreate,
+    InvitationEmailStatus,
     InvitationListResponse,
     InvitationResponse,
     InvitationStatus,
@@ -66,7 +67,9 @@ async def _accessible_org_ids(db: AsyncSession, user: User) -> set:
     define. Either one raised before a single row could be scoped.
     """
     member_rows = await db.execute(
-        select(OrganizationMember.organization_id).where(OrganizationMember.user_id == user.id)
+        select(OrganizationMember.organization_id).where(
+            OrganizationMember.user_id == user.id, OrganizationMember.status == "active"
+        )
     )
     org_ids = set(member_rows.scalars().all())
 
@@ -100,7 +103,9 @@ async def _require_org_admin_for(db: AsyncSession, user: User, organization_id) 
                 OrganizationMember.organization_id == organization_id,
                 OrganizationMember.user_id == user.id,
                 OrganizationMember.role.in_(["admin", "owner"]),
+                OrganizationMember.status == "active",
             )
+            .limit(1)
         )
     ).scalar_one_or_none()
 
@@ -108,7 +113,9 @@ async def _require_org_admin_for(db: AsyncSession, user: User, organization_id) 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
 
 
-def _to_response(invitation: Invitation) -> InvitationResponse:
+def _to_response(
+    invitation: Invitation, email_status: Optional[InvitationEmailStatus] = None
+) -> InvitationResponse:
     """Build the API response from columns that exist.
 
     `role_name`, `invited_by`, `message` and `email_sent` were read here; the
@@ -126,7 +133,9 @@ def _to_response(invitation: Invitation) -> InvitationResponse:
         expires_at=invitation.expires_at,
         created_at=invitation.created_at,
         invite_url=invitation.generate_invite_url(_invite_base_url()),
-        email_sent=bool(invitation.email_sent),
+        email_sent=(bool(invitation.email_sent) if email_status is None else
+                    email_status == InvitationEmailStatus.ACKNOWLEDGED),
+        email_status=email_status,
     )
 
 
@@ -230,9 +239,10 @@ async def list_invitations(
         listing.order_by(Invitation.created_at.desc()).offset(skip).limit(limit)
     )
     invitations = result.scalars().all()
+    email_statuses = await InvitationService(db).email_statuses(invitations)
 
     return InvitationListResponse(
-        invitations=[_to_response(inv) for inv in invitations],
+        invitations=[_to_response(inv, email_statuses[inv.id]) for inv in invitations],
         total=total,
         pending_count=pending_count,
         accepted_count=accepted_count,
@@ -264,7 +274,7 @@ async def get_invitation(
     Get a specific invitation by ID.
     """
     invitation = await _load_scoped(db, invitation_id, current_user)
-    return _to_response(invitation)
+    return await InvitationService(db).response(invitation)
 
 
 @router.patch("/{invitation_id}", response_model=InvitationResponse)
@@ -279,6 +289,13 @@ async def update_invitation(
     """
     invitation = await _load_scoped(db, invitation_id, current_user)
     await _require_org_admin_for(db, current_user, invitation.organization_id)
+    organization = await InvitationService(db)._organization(invitation.organization_id)
+    try:
+        await InvitationService(db).require_admin(
+            organization, current_user, update_data.role or "member"
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     if invitation.status != InvitationStatus.PENDING.value:
         raise HTTPException(
@@ -301,7 +318,7 @@ async def update_invitation(
     await db.commit()
     await db.refresh(invitation)
 
-    return _to_response(invitation)
+    return await InvitationService(db).response(invitation)
 
 
 @router.post("/{invitation_id}/resend", response_model=InvitationResponse)
@@ -361,22 +378,23 @@ async def accept_invitation(
     accept_data: InvitationAcceptRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user_optional),
 ):
     """
     Accept an invitation using the token.
     """
     service = InvitationService(db)
-    auth_service = AuthService(db)
+    auth_service = AuthService()
 
     try:
-        # Get user if user_id provided
-        user = None
-        if accept_data.user_id:
-            result = await db.execute(select(User).where(User.id == accept_data.user_id))
-            user = result.scalar_one_or_none()
-
-            if not user:
-                raise ValueError("User not found")
+        # Existing identities are selected by the verified actor, never a body ID.
+        user = current_user
+        if accept_data.user_id is not None:
+            if user is None:
+                raise HTTPException(status_code=401, detail="Sign in to accept for an existing account")
+            requested = _as_uuid(accept_data.user_id)
+            if requested is None or requested != user.id:
+                raise HTTPException(status_code=403, detail="Invitation user does not match authenticated self")
 
         # Or create new user if registration data provided
         new_user_data = None
