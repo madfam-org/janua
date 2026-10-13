@@ -17,7 +17,9 @@ import pytest
 from app.core.oauth_metadata import authorization_server_metadata, oauth_issuer
 from app.core.protected_resources import (
     CLAUDE_HOSTED_CALLBACK,
+    CREA_SIM_MCP_CALLBACK,
     MAP_CREA_TU_MUNDO,
+    MAP_SIM_CREA_TU_MUNDO,
     MAX_ACCESS_TOKEN_TTL_SECONDS,
     OFFLINE_ACCESS_SCOPE,
     PROTECTED_RESOURCES,
@@ -90,7 +92,74 @@ class TestTheMapEntry:
             PROTECTED_RESOURCES["https://other.example/mcp"] = MAP_CREA_TU_MUNDO  # type: ignore[index]
 
     def test_csp_origins_come_from_the_policies(self):
-        assert protected_resource_redirect_origins() == ["https://claude.ai"]
+        assert protected_resource_redirect_origins() == [
+            "https://claude.ai",
+            "https://sim.creatumundo.mx",
+        ]
+
+
+class TestTheTrainingEntry:
+    def test_separate_resource_and_training_only_scopes(self):
+        resource = MAP_SIM_CREA_TU_MUNDO
+        assert lookup_resource("https://map-sim.creatumundo.mx/api/simulacion/mcp") is resource
+        assert resource.display_name == "Simulador de Crea Tu Mundo"
+        assert [(s.name, s.description) for s in resource.scopes] == [
+            ("map.sim:read", "Consultar ejercicios del MAP con datos sintéticos"),
+            (
+                "map.sim:write",
+                "Practicar acciones del MAP con datos sintéticos según el rol del ejercicio",
+            ),
+        ]
+        assert resource.scope_names.isdisjoint(MAP_CREA_TU_MUNDO.scope_names)
+
+    def test_registered_portal_callback_only(self):
+        policy = MAP_SIM_CREA_TU_MUNDO.client_policy
+        assert policy.cimd_hosts == policy.cimd_client_ids == frozenset()
+        assert policy.redirect_uris == frozenset({CREA_SIM_MCP_CALLBACK})
+        assert policy.allow_loopback_redirects is False
+        assert policy.allows_redirect(CREA_SIM_MCP_CALLBACK)
+
+    @pytest.mark.parametrize(
+        "callback",
+        [
+            "https://sim.creatumundo.mx/auth/callback",
+            "https://sim.creatumundo.mx/auth/mcp/callback/",
+            "https://sim.creatumundo.mx/auth/mcp/callback?next=/",
+            "https://sim.creatumundo.mx.evil.example/auth/mcp/callback",
+            "http://sim.creatumundo.mx/auth/mcp/callback",
+            "http://localhost:3000/auth/mcp/callback",
+            CLAUDE_HOSTED_CALLBACK,
+        ],
+    )
+    def test_other_callbacks_are_refused(self, callback):
+        assert not MAP_SIM_CREA_TU_MUNDO.client_policy.allows_redirect(callback)
+
+    def test_existing_access_and_refresh_lifetimes(self):
+        resource = MAP_SIM_CREA_TU_MUNDO
+        assert resource.access_token_ttl_seconds == 900
+        assert resource.refresh_token_idle_seconds == 7 * 86400
+        assert resource.refresh_token_max_lifetime_seconds == 30 * 86400
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "https://map-sim.creatumundo.mx/api/simulacion/mcp/",
+            "https://map-sim.creatumundo.mx/api/mcp",
+            "https://map.creatumundo.mx/api/simulacion/mcp",
+        ],
+    )
+    def test_no_training_or_production_alias(self, value):
+        assert lookup_resource(value) is None
+
+    def test_production_scopes_cannot_be_granted_for_training(self):
+        assert granted_scopes(MAP_SIM_CREA_TU_MUNDO, ["map.ops:read", "map.cobro:read"]) == (
+            [],
+            False,
+        )
+        assert granted_scopes(MAP_CREA_TU_MUNDO, ["map.sim:read", "map.sim:write"]) == (
+            [],
+            False,
+        )
 
 
 class TestRegistryInvariants:
@@ -289,9 +358,14 @@ class TestAuthorizationServerMetadata:
         assert doc["authorization_response_iss_parameter_supported"] is True
         assert doc["client_id_metadata_document_supported"] is True
         assert "none" in doc["token_endpoint_auth_methods_supported"]
-        assert {"map.ops:read", "map.cobro:read", "offline_access", "openid"} <= set(
-            doc["scopes_supported"]
-        )
+        assert {
+            "map.ops:read",
+            "map.cobro:read",
+            "map.sim:read",
+            "map.sim:write",
+            "offline_access",
+            "openid",
+        } <= set(doc["scopes_supported"])
         assert len(doc["scopes_supported"]) == len(set(doc["scopes_supported"]))
 
     def test_issuer_without_custom_domain_is_the_api_base_url(self, monkeypatch):

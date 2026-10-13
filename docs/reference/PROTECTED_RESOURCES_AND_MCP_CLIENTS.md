@@ -1,6 +1,6 @@
 # Protected resources and MCP clients
 
-Janua can mint access tokens for a **protected resource**: an API, today one
+Janua can mint access tokens for a **protected resource**: an API, including an
 MCP server, that a third-party client names in the RFC 8707 `resource`
 parameter. The token's `aud` is that resource's URI, its scopes are the
 resource's own, and it lives at most 15 minutes. This is how the center's
@@ -38,6 +38,125 @@ whose data. Anything not listed is refused with `invalid_target`.
 | exact redirect URIs | `https://claude.ai/api/mcp/auth_callback` |
 | loopback redirects | allowed (`127.0.0.1`, `[::1]`, `localhost`, any port) |
 | first login method offered | emailed link (`magic_link`) |
+
+### Isolated Crea Tu Mundo training resource
+
+The training resource is separate from the production MAP. Its declaration
+does not provision a service, client, organization, invitation or role grant.
+The MAP training endpoint and portal must be released before anyone can use it.
+
+| Field | Simulador de Crea Tu Mundo |
+| --- | --- |
+| `resource` (= token `aud`) | `https://map-sim.creatumundo.mx/api/simulacion/mcp` |
+| scopes | `map.sim:read` «Consultar ejercicios del MAP con datos sintéticos»; `map.sim:write` «Practicar acciones del MAP con datos sintéticos según el rol del ejercicio» |
+| access / refresh lifetime | 900 seconds / existing rotation, 7-day idle and 30-day family maximum |
+| clients | pre-registered Janua clients whose **every** callback matches the policy |
+| exact callback | `https://sim.creatumundo.mx/auth/mcp/callback` |
+| CIMD / loopback | none / refused |
+| first login method | emailed link (`magic_link`); initiated by the person through Janua |
+
+The portal uses two separate confidential registrations. Reviewed templates
+are in `examples/crea-sim/`; they intentionally contain no organization UUID,
+client ID or secret. An operator resolves the CTM organization and adds its
+actual UUID as `spec.organization_id` in the private provisioning input before
+applying either declaration. Binding a client to CTM does **not** turn a login
+into a CTM membership or grant an application role.
+
+| Logical registration name | Normal access-token audience | Sole callback | Grants |
+| --- | --- | --- | --- |
+| `crea-sim` | `crea-sim` | `https://sim.creatumundo.mx/auth/callback` | `authorization_code`, `refresh_token` |
+| `crea-sim-mcp` | `crea-sim-mcp` | `https://sim.creatumundo.mx/auth/mcp/callback` | `authorization_code`, `refresh_token` |
+
+The second authorization uses S256 PKCE, the exact training `resource`, and an
+explicit `map.sim:read` / `map.sim:write` request. Adding `offline_access` requests
+the existing rotating refresh token. Resource authorization always shows
+consent; no silent-auth grant is added by these declarations. A UI access token
+has `type=access` and `aud=crea-sim`; an MCP resource token has `typ=at+jwt` and
+the exact URI as `aud`. Neither token may authorize the other's surface, the
+production MAP resource, or Selva inference.
+
+Start UI login through the authorization-code flow with the actual UI client
+ID. The native magic-link helper currently selects its session audience by
+redirect **host** (`auth.py:_oauth_client_for_redirect`), and both portal
+callbacks share that host. A direct magic-link handoff to either portal
+callback therefore does not deterministically select the UI audience. Janua's
+hosted login may complete inside the code flow; the ensuing exchange is bound
+to the explicit client's registered audience. Do not change that contract into
+a direct token handoff or treat native MAP login as a training registration.
+
+`map.sim:write` authorizes only training operations. The isolated MAP still
+binds the actual human `sub` to the owned lesson and active local `Member`,
+checks that lesson's selected native role and RLS on each operation, and
+blocks writes for the technical and preschool read-only roles. Operations
+support remains outside clinical data. Consent never creates a Director actor
+or overrides native permissions. The existing production scopes, clients,
+callback policy and read-only `/api/mcp` contract remain unchanged.
+
+#### Invited CTM membership gate
+
+Initial access is for invited CTM users through Janua, with no public
+self-registration in the portal. Use the operator-resolved CTM organization
+UUID, never an email suffix, mailbox comparison, organization name or guessed
+primary tenant. On a freshly minted/refreshed, signature/issuer/audience/expiry
+verified **human UI access token**, require an exact matching `orgs[].id`.
+`services/org_claims_service.py` resolves that list from **active** organization
+memberships at every code exchange and refresh. Inactive/pending/removed rows
+do not contribute; the portal must fail closed if mint or refresh emits no
+matching membership. Also check `type=access`, the actual registered UI
+`client_id`, and refuse `is_service_account=true` or
+`grant_type=client_credentials` before allocating a lesson.
+A membership claim is evidence of active membership at mint, not proof of how
+that person joined or an instantly revocable entitlement. Keep portal session
+rechecks tied to mint/refresh; do not keep a stale membership claim indefinitely.
+
+Application access, if later narrowed, must come from explicit CTM app grants
+such as an operator-approved `crea-sim:<role>`; organization `admin`/`owner`
+must never imply a training or MAP role. Namespaced app grants appear under
+`roles` only for an unambiguous primary organization. A multi-organization
+person can have CTM in `orgs` without CTM being primary: match that membership
+explicitly and do not interpret another organization's `roles` as CTM grants.
+The training lesson's MAP role remains a separate authorization decision.
+
+The existing authenticated `GET /api/v1/organizations/{org_id}/app-roles`
+rechecks active membership and returns the caller's live grants, but currently
+accepts Janua's default session audience, not the `crea-sim` UI audience.
+`GET /api/v1/oauth/userinfo` accepts a registered client's audience but returns
+profile claims without memberships or grants. The organization listing lacks
+an active-status filter. None is a substitute live membership-introspection
+API for a `crea-sim` token; adding such a surface requires its own reviewed
+Janua change. No tenant records were queried to produce these declarations.
+
+#### Registration and credential custody
+
+1. Resolve the CTM organization and the portal's Enclii/Vault custody targets;
+   add the UUID to private copies of each template. Plan and verify with Janua's
+   existing idempotent registration-by-name API/CLI. Do not run the legacy MAP
+   bootstrap helper, which prints the first returned secret.
+2. Register each client separately through the supported internal registration
+   adapter. Capture the actual returned `client_id`; the logical name is **not**
+   the generated `jnc_…` identifier. Store each secret only in its dedicated
+   portal custody target. Never give the kernel the OAuth client secret.
+3. Pin the actual UI client ID in the portal's UI OAuth configuration. Pin the
+   actual MCP client ID in the portal's independent MCP OAuth configuration and
+   the kernel's `MAP_SIMULATION_MCP_CLIENT_ID` allowlist. The kernel's UI
+   audience remains `crea-sim`, and its MCP audience remains the exact resource
+   URI. Keep generated IDs out of example declarations and do not guess them.
+4. Janua CLI `provision apply` can write a mode-0600 secrets file. If used by an
+   authorized operator, use **one manifest per invocation**, the default table
+   format, `--quiet` and a fresh private `--secrets-file` path; import through the
+   custody adapter and remove the temporary file. Do not select JSON/YAML output:
+   the current CLI emits the returned secret there even with `--quiet`. A list
+   manifest overwrites the same secrets-file path for each client. An idempotent
+   200 response has no secret; preserve existing custody and never overwrite it
+   with an ID-only file. These commands are not a deployment or permission grant.
+5. Keep inference independent: a dedicated organization-bound machine client
+   edge named `crea-sim-selva`, audience `selva-office`, scope `selva:infer`, grant
+   `client_credentials`, no redirect URIs. Its `organization_id` must be the
+   operator-resolved CTM UUID and its credentials must be held only by the
+   gateway's inference adapter. Do not reuse another product's org, identity or
+   generic worker token. Do not pass a trainee UI/MCP token to Selva or use the
+   machine identity as a human MAP actor. No inference client is provisioned by
+   the two human-client templates.
 
 ### Registering a new resource
 
@@ -153,7 +272,8 @@ resource verifies them offline against the JWKS.
 - **Registered clients** (`jnc_…`, created through the admin API; this is
   also what Claude's "use your own OAuth client" option uses): allowed when
   every registered redirect URI is inside the resource's policy
-  (`https://claude.ai/api/mcp/auth_callback` or loopback), and the request uses
+  (the production MAP uses `https://claude.ai/api/mcp/auth_callback` or loopback;
+  training uses its sole portal callback), and the request uses
   one of them. A confidential client authenticates at the token endpoint as
   usual. Prefer the CIMD path: Janua's CORS layer trusts the origin of every
   registered redirect URI, with credentials, so a registered loopback client

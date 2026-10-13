@@ -5,16 +5,18 @@ Unit tests for POST /api/v1/oauth/clients/register and internal name lookup.
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
+import yaml
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.config import settings
-from app.database import get_db
 from app.core.redis import get_redis
+from app.database import get_db
 from app.main import app
 from app.models import Base, User, UserStatus
 
@@ -98,6 +100,64 @@ async def test_register_creates_client_with_secret(oauth_register_client: AsyncC
     assert body["client_id"].startswith("jnc_")
     assert body["client_secret"] is not None
     assert body["client_secret"].startswith("jns_")
+
+
+@pytest.mark.parametrize("kind", ["ui", "mcp"])
+@pytest.mark.asyncio
+async def test_training_declarations_register_separate_generated_clients(
+    oauth_register_client: AsyncClient, kind: str
+):
+    path = Path(__file__).resolve().parents[5] / "examples" / "crea-sim"
+    manifest = yaml.safe_load((path / f"janua.{kind}.client.yaml").read_text())
+    assert manifest["apiVersion"] == "janua.dev/v1"
+    assert manifest["kind"] == "OAuthClient"
+    payload = {"name": manifest["metadata"]["name"], **manifest["spec"]}
+    assert "client_id" not in payload and "client_secret" not in payload
+    assert payload["grant_types"] == ["authorization_code", "refresh_token"]
+    assert payload["is_confidential"] is True
+    expected_callback = (
+        "https://sim.creatumundo.mx/auth/callback"
+        if kind == "ui"
+        else "https://sim.creatumundo.mx/auth/mcp/callback"
+    )
+    assert payload["redirect_uris"] == [expected_callback]
+    expected_scopes = (
+        ["openid", "profile", "email", "offline_access"]
+        if kind == "ui"
+        else ["map.sim:read", "map.sim:write", "offline_access"]
+    )
+    assert payload["allowed_scopes"] == expected_scopes
+
+    first = await oauth_register_client.post(
+        REGISTER_URL, json=payload, headers={"X-Internal-API-Key": INTERNAL_KEY}
+    )
+    assert first.status_code == 201
+    created = first.json()
+    assert created["client_id"].startswith("jnc_")
+    assert created["client_id"] != payload["name"]
+    assert created["audience"] == payload["audience"] == payload["name"]
+    assert created["allowed_scopes"] == expected_scopes
+    assert created["client_secret"] is not None
+
+    repeated = await oauth_register_client.post(
+        REGISTER_URL, json=payload, headers={"X-Internal-API-Key": INTERNAL_KEY}
+    )
+    assert repeated.status_code == 200
+    assert repeated.json()["client_id"] == created["client_id"]
+    assert repeated.json()["client_secret"] is None
+
+
+@pytest.mark.parametrize("scope", ["map.sim read", "map.sim/read", "map.sim:", ":read"])
+@pytest.mark.asyncio
+async def test_register_still_rejects_malformed_resource_scopes(
+    oauth_register_client: AsyncClient, scope: str
+):
+    payload = _client_payload("malformed-resource-scope")
+    payload["allowed_scopes"] = [scope]
+    response = await oauth_register_client.post(
+        REGISTER_URL, json=payload, headers={"X-Internal-API-Key": INTERNAL_KEY}
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -270,6 +330,7 @@ async def test_register_returns_503_without_admin_user():
             yield session
 
     from unittest.mock import AsyncMock
+
     from app.database import get_db as database_get_db
 
     app.dependency_overrides[get_db] = override_get_db
