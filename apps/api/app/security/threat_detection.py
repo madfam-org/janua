@@ -473,12 +473,11 @@ class AdvancedThreatDetectionSystem:
                     return True
 
         except (ValueError, ipaddress.AddressValueError) as e:
-            # Invalid IP address format
+            # Invalid IP address format. Stdlib logger: fields go through
+            # `extra` (keyword fields raise TypeError out of this handler).
             logger.warning(
                 "Invalid IP address format in threat detection",
-                ip=ip,
-                error=str(e),
-                error_type=type(e).__name__,
+                extra={"ip": ip, "error": str(e), "error_type": type(e).__name__},
             )
 
         return False
