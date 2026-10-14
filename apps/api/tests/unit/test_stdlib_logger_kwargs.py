@@ -76,8 +76,8 @@ STDLIB_LOGGER_FACTORIES = frozenset(
 )
 
 #: (path under app/, log message) of known hits fixed by another open change.
-#: janua#718 fixes CacheService.delete; drop this entry once it is on main.
-PENDING_ELSEWHERE = frozenset({("services/cache.py", "Cache delete error")})
+#: Empty: janua#718 (CacheService.delete) is on main.
+PENDING_ELSEWHERE: frozenset[tuple[str, str]] = frozenset()
 
 
 @dataclass
