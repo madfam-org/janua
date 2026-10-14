@@ -25,11 +25,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.database import get_db
 from app.models import EntitlementSource, Organization, User
-from app.services.user_lookup import get_user_by_email
 from app.services.entitlements_service import (
     cancel_entitlement,
     upsert_entitlement,
 )
+from app.services.user_lookup import get_user_by_email
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/webhooks/dhanam", tags=["webhooks"])
