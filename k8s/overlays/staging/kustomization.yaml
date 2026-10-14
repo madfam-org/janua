@@ -7,7 +7,7 @@ resources:
 - secrets.yaml
 - redis.yaml
 images:
-- digest: sha256:2f767527c174e25eed59ac09889acec8fa88352004918f4ac59e2fbac084be7f
+- digest: sha256:bd83cbd6a9b0f568bc9ff404d535688c096529be107e48068e3c36f1cc2884af
   name: ghcr.io/madfam-org/janua-api
   newName: ghcr.io/madfam-org/janua-api
 - digest: sha256:fb374d896e4a8e4fd0b71d346b8c67a940b860d378fac5103a70203a60dca445
