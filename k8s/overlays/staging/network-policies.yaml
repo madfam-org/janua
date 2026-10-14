@@ -1,0 +1,119 @@
+# Explicit allow-list for the isolated staging namespace. NetworkPolicies are
+# additive: a pod selected for a direction denies everything not listed here.
+#
+# - janua-api EGRESS is limited to its Redis, the CNPG addon (5432) and DNS.
+# - janua-api INGRESS is deliberately not selected: the public staging host,
+#   kubelet probes and metrics scraping keep their current path. The probe's
+#   reach is limited on its own side (admission -> api 8080 only).
+# - Redis admits only janua-api on 6379 and has no egress.
+# - The admission Job reaches only janua-api 8080 and DNS, and admits nothing.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: janua-staging-redis-from-api
+  namespace: janua-staging
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: janua-staging-redis
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: janua-api
+    ports:
+    - protocol: TCP
+      port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: janua-staging-api-to-redis
+  namespace: janua-staging
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: janua-api
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: janua-staging-redis
+    ports:
+    - protocol: TCP
+      port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: janua-staging-api-to-cnpg
+  namespace: janua-staging
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: janua-api
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: project-569a23e7
+      podSelector:
+        matchLabels:
+          cnpg.io/podRole: instance
+    ports:
+    - protocol: TCP
+      port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: janua-staging-admission-to-api
+  namespace: janua-staging
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: janua-staging-admission
+  policyTypes:
+  - Ingress
+  - Egress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: janua-api
+    ports:
+    - protocol: TCP
+      port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: janua-staging-dns
+  namespace: janua-staging
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: In
+      values:
+      - janua-api
+      - janua-staging-admission
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53

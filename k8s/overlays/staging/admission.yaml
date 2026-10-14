@@ -1,0 +1,83 @@
+# Synthetic admission probe, run by Argo CD after every successful sync.
+# Plain HTTP to the staging Service only (port 80 -> container 8080); its
+# identities come from `python -m app.staging_seed` (run once, separately).
+# No database credential: the env is the three synthetic passwords only.
+# backoffLimit 0: non-idempotent steps must never be retried.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: janua-staging-admission
+  namespace: janua-staging
+  labels:
+    app.kubernetes.io/name: janua-staging-admission
+    app.kubernetes.io/component: admission
+    app.kubernetes.io/part-of: janua-staging
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: janua-staging-admission
+        app.kubernetes.io/part-of: janua-staging
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+      - name: ghcr-credentials
+      containers:
+      - name: admission
+        image: ghcr.io/madfam-org/janua-api
+        imagePullPolicy: IfNotPresent
+        command:
+        - python
+        - -m
+        - app.staging_admission
+        - --base-url
+        - http://janua-api.janua-staging.svc.cluster.local
+        securityContext:
+          privileged: false
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        env:
+        - name: STAGING_OPERATOR_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: janua-staging-acceptance
+              key: operator-password
+        - name: STAGING_INVITEE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: janua-staging-acceptance
+              key: invitee-password
+        - name: STAGING_FOREIGN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: janua-staging-acceptance
+              key: foreign-password
+        resources:
+          requests:
+            cpu: 50m
+            memory: 192Mi
+          limits:
+            cpu: 500m
+            memory: 320Mi
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir:
+          sizeLimit: 16Mi

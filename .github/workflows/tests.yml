@@ -272,6 +272,43 @@ jobs:
           asyncio.run(prepare())
           PY
 
+      - name: Prepare staging seed fixture (owner + runtime roles)
+        working-directory: ./apps/api
+        env:
+          LOCAL_DB: 'yes'
+          JANUA_SEED_BOOTSTRAP_DATABASE_URL: postgresql://janua:janua_test@127.0.0.1:5432/janua_test
+        run: |
+          python - <<'PY'
+          import asyncio
+          import os
+          from urllib.parse import urlsplit
+
+          import asyncpg
+
+          async def prepare():
+              raw = os.environ["JANUA_SEED_BOOTSTRAP_DATABASE_URL"]
+              url = urlsplit(raw)
+              if (os.environ.get("CI") != "true" or os.environ.get("LOCAL_DB") != "yes"
+                  or url.hostname != "127.0.0.1" or url.username != "janua"
+                  or url.path != "/janua_test" or url.query or url.fragment):
+                  raise RuntimeError("Staging seed fixture bootstrap is outside CI test scope")
+              conn = await asyncpg.connect(raw, timeout=5, command_timeout=15)
+              try:
+                  # Fresh fixed objects only: an ordinary owner that runs Alembic
+                  # and a separate runtime role the seed must accept (DML only).
+                  for role, password in (("janua_seed_owner", "janua_seed_owner_test"),
+                                         ("janua_seed_runtime", "janua_seed_runtime_test")):
+                      await conn.execute(f"CREATE ROLE {role} LOGIN PASSWORD '{password}' "
+                                         "NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION")
+                  await conn.execute("CREATE DATABASE janua_staging_seed_sim OWNER janua_seed_owner")
+                  await conn.execute("REVOKE ALL ON DATABASE janua_staging_seed_sim FROM PUBLIC")
+                  await conn.execute("GRANT CONNECT ON DATABASE janua_staging_seed_sim TO janua_seed_runtime")
+              finally:
+                  await conn.close()
+
+          asyncio.run(prepare())
+          PY
+
       - name: Run PostgreSQL tests with coverage
         working-directory: ./apps/api
         env:
@@ -291,6 +328,10 @@ jobs:
           # The reserved OAuth client audit's real-PostgreSQL run (loopback,
           # *_test database, one scratch schema per test).
           AUDIT_TEST_DATABASE_URL: postgresql://janua:janua_test@127.0.0.1:5432/janua_test
+          # Staging seed proof: Alembic as the ordinary owner, the seed as a
+          # separate DML-only runtime role on a *_sim database.
+          JANUA_STAGING_SEED_OWNER_TEST_DATABASE_URL: postgresql+asyncpg://janua_seed_owner:janua_seed_owner_test@127.0.0.1:5432/janua_staging_seed_sim
+          JANUA_STAGING_SEED_TEST_DATABASE_URL: postgresql+asyncpg://janua_seed_runtime:janua_seed_runtime_test@127.0.0.1:5432/janua_staging_seed_sim
           SECRET_KEY: test-secret-key-do-not-use-in-production
           PYTHONPATH: ${{ github.workspace }}/apps/api
         # Coverage: this job measures only its own tests, so it has no

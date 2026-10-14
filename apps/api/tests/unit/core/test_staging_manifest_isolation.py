@@ -70,14 +70,130 @@ def test_runtime_has_only_fresh_staging_secret_references():
 
 def test_external_secret_paths_and_private_service_are_isolated():
     items = objects()
+    assert {o["kind"] for o in items} == {
+        "Deployment", "Service", "PersistentVolumeClaim", "ExternalSecret", "NetworkPolicy", "Job",
+    }
     for obj in items:
         assert obj["metadata"]["namespace"] == "janua-staging"
-        assert obj["kind"] not in {"Secret", "Ingress", "NetworkPolicy", "Namespace"}
         if obj["kind"] == "ExternalSecret":
             for entry in obj["spec"]["data"]:
                 assert entry["remoteRef"]["key"] == "secret/janua-staging"
         if obj["kind"] == "Service":
             assert obj["spec"]["type"] == "ClusterIP"
+    assert {o["metadata"]["name"] for o in items if o["kind"] == "ExternalSecret"} == {
+        "janua-staging-secrets", "janua-staging-ca", "janua-staging-redis",
+        "janua-staging-acceptance",
+    }
+
+
+def pods(name):
+    return {"matchLabels": {"app.kubernetes.io/name": name}}
+
+
+def tcp(port):
+    return [{"protocol": "TCP", "port": port}]
+
+
+# The complete allowed set. Anything added, removed or widened fails here.
+ALLOWED_NETWORK_POLICIES = {
+    "janua-staging-redis-from-api": {
+        "podSelector": pods("janua-staging-redis"),
+        "policyTypes": ["Ingress", "Egress"],
+        "ingress": [{"from": [{"podSelector": pods("janua-api")}], "ports": tcp(6379)}],
+    },
+    "janua-staging-api-to-redis": {
+        "podSelector": pods("janua-api"),
+        "policyTypes": ["Egress"],
+        "egress": [{"to": [{"podSelector": pods("janua-staging-redis")}], "ports": tcp(6379)}],
+    },
+    "janua-staging-api-to-cnpg": {
+        "podSelector": pods("janua-api"),
+        "policyTypes": ["Egress"],
+        "egress": [{"to": [{
+            "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "project-569a23e7"}},
+            "podSelector": {"matchLabels": {"cnpg.io/podRole": "instance"}},
+        }], "ports": tcp(5432)}],
+    },
+    "janua-staging-admission-to-api": {
+        "podSelector": pods("janua-staging-admission"),
+        "policyTypes": ["Ingress", "Egress"],
+        "egress": [{"to": [{"podSelector": pods("janua-api")}], "ports": tcp(8080)}],
+    },
+    "janua-staging-dns": {
+        "podSelector": {"matchExpressions": [{
+            "key": "app.kubernetes.io/name", "operator": "In",
+            "values": ["janua-api", "janua-staging-admission"],
+        }]},
+        "policyTypes": ["Egress"],
+        "egress": [{"to": [{"namespaceSelector": {
+            "matchLabels": {"kubernetes.io/metadata.name": "kube-system"}}}],
+            "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}]}],
+    },
+}
+
+
+def test_network_policies_are_exactly_the_allowed_set():
+    policies = {o["metadata"]["name"]: o["spec"] for o in objects() if o["kind"] == "NetworkPolicy"}
+    assert policies == ALLOWED_NETWORK_POLICIES
+    # The API's ingress stays unselected: the public host and probes are untouched.
+    api = [n for n, p in policies.items() if p["podSelector"] == pods("janua-api")]
+    assert all(policies[n]["policyTypes"] == ["Egress"] for n in api)
+
+
+def test_policies_select_the_labels_the_workloads_carry():
+    templates = {o["metadata"]["name"]: o["spec"]["template"]["metadata"]["labels"]
+                 for o in objects() if o["kind"] in {"Deployment", "Job"}}
+    assert templates["janua-api"]["app.kubernetes.io/name"] == "janua-api"
+    assert templates["janua-staging-redis"]["app.kubernetes.io/name"] == "janua-staging-redis"
+    assert templates["janua-staging-admission"]["app.kubernetes.io/name"] == "janua-staging-admission"
+    api_ports = [p["containerPort"] for c in next(
+        o for o in objects() if o["metadata"]["name"] == "janua-api" and o["kind"] == "Deployment"
+    )["spec"]["template"]["spec"]["containers"] for p in c["ports"]]
+    assert 8080 in api_ports
+
+
+def test_admission_job_is_a_postsync_probe_without_database_credentials():
+    jobs = [o for o in objects() if o["kind"] == "Job"]
+    assert [j["metadata"]["name"] for j in jobs] == ["janua-staging-admission"]
+    job = jobs[0]
+    assert job["metadata"]["annotations"] == {
+        "argocd.argoproj.io/hook": "PostSync",
+        "argocd.argoproj.io/hook-delete-policy": "BeforeHookCreation",
+    }
+    assert job["spec"]["backoffLimit"] == 0  # Non-idempotent steps are never retried.
+    spec = job["spec"]["template"]["spec"]
+    assert spec["restartPolicy"] == "Never"
+    assert spec["automountServiceAccountToken"] is False
+    assert spec["securityContext"]["runAsNonRoot"] is True
+    [container] = spec["containers"]
+    assert container["image"] == "ghcr.io/madfam-org/janua-api"  # Pinned by the images: digest.
+    assert container["command"] == [
+        "python", "-m", "app.staging_admission",
+        "--base-url", "http://janua-api.janua-staging.svc.cluster.local",
+    ]
+    security = container["securityContext"]
+    assert security["readOnlyRootFilesystem"] is True
+    assert security["allowPrivilegeEscalation"] is False
+    assert security["capabilities"]["drop"] == ["ALL"]
+    assert container["resources"]["limits"] == {"cpu": "500m", "memory": "320Mi"}
+    env = {e["name"]: e["valueFrom"]["secretKeyRef"] for e in container["env"]}
+    assert env == {
+        "STAGING_OPERATOR_PASSWORD": {"name": "janua-staging-acceptance", "key": "operator-password"},
+        "STAGING_INVITEE_PASSWORD": {"name": "janua-staging-acceptance", "key": "invitee-password"},
+        "STAGING_FOREIGN_PASSWORD": {"name": "janua-staging-acceptance", "key": "foreign-password"},
+    }
+    assert "envFrom" not in container
+
+
+def test_acceptance_secret_carries_only_the_three_synthetic_passwords():
+    secret = next(o for o in objects()
+                  if o["kind"] == "ExternalSecret" and o["metadata"]["name"] == "janua-staging-acceptance")
+    assert secret["spec"]["target"]["name"] == "janua-staging-acceptance"
+    assert {(d["secretKey"], d["remoteRef"]["property"]) for d in secret["spec"]["data"]} == {
+        ("operator-password", "operator_password"),
+        ("invitee-password", "invitee_password"),
+        ("foreign-password", "foreign_password"),
+    }
 
 
 def test_promotion_rejects_unstaged_frontends():
