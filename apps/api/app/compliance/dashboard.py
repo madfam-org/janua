@@ -161,12 +161,16 @@ class ComplianceDashboard:
                 try:
                     return ComplianceDashboardData(**json.loads(cached_data))
                 except Exception as e:
-                    # Log cache deserialization error and regenerate
+                    # Log cache deserialization error and regenerate. Stdlib
+                    # logger: fields go through `extra` (keyword fields raise
+                    # TypeError and the regeneration never happens).
                     logger.warning(
                         "Failed to deserialize cached dashboard data, regenerating",
-                        organization_id=str(organization_id),
-                        error=str(e),
-                        error_type=type(e).__name__,
+                        extra={
+                            "organization_id": str(organization_id),
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                        },
                     )
 
         # Generate fresh dashboard data

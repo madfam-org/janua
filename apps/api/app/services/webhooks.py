@@ -17,7 +17,8 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 
-from ..models import WebhookDelivery, WebhookEndpoint, LegacyWebhookEvent as WebhookEvent
+from ..models import LegacyWebhookEvent as WebhookEvent
+from ..models import WebhookDelivery, WebhookEndpoint
 
 logger = logging.getLogger(__name__)
 
@@ -256,8 +257,9 @@ class WebhookService:
         db.commit()
         db.refresh(endpoint)
 
-        # SECURITY: Use parameterized logging to prevent log injection
-        logger.info("Registered webhook endpoint", url=url)
+        # SECURITY: constant message, values as fields (no log injection).
+        # Stdlib logger: fields go through `extra` (keyword fields raise TypeError).
+        logger.info("Registered webhook endpoint", extra={"url": url})
 
         return endpoint
 
@@ -294,8 +296,9 @@ class WebhookService:
         db.commit()
         db.refresh(endpoint)
 
-        # SECURITY: Use parameterized logging to prevent log injection
-        logger.info("Updated webhook endpoint", endpoint_id=endpoint_id)
+        # SECURITY: constant message, values as fields (no log injection).
+        # Stdlib logger: fields go through `extra` (keyword fields raise TypeError).
+        logger.info("Updated webhook endpoint", extra={"endpoint_id": endpoint_id})
 
         return endpoint
 
@@ -310,8 +313,9 @@ class WebhookService:
         db.delete(endpoint)
         db.commit()
 
-        # SECURITY: Use parameterized logging to prevent log injection
-        logger.info("Deleted webhook endpoint", endpoint_id=endpoint_id)
+        # SECURITY: constant message, values as fields (no log injection).
+        # Stdlib logger: fields go through `extra` (keyword fields raise TypeError).
+        logger.info("Deleted webhook endpoint", extra={"endpoint_id": endpoint_id})
 
         return True
 

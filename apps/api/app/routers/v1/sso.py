@@ -394,8 +394,12 @@ async def saml_acs(
         db.add(session)
         await db.commit()
 
-        logger = structlog.get_logger()
-        logger.info("SSO session created", user_id=str(user.id), session_id=str(session.id))
+        # Not `logger = ...`: binding the name here would make `logger` local to
+        # the whole function, and the `except` below would hit UnboundLocalError
+        # whenever the failure happens before this line.
+        structlog.get_logger().info(
+            "SSO session created", user_id=str(user.id), session_id=str(session.id)
+        )
 
         return_url = result.get("return_url", "/")
 
@@ -470,8 +474,9 @@ async def oidc_callback(
     """
     try:
         if error:
-            # SECURITY: Use parameterized logging to prevent log injection
-            logger.error("OIDC error", error=error, description=error_description)
+            # SECURITY: constant message, values as fields (no log injection).
+            # Stdlib logger: fields go through `extra` (keyword fields raise TypeError).
+            logger.error("OIDC error", extra={"error": error, "description": error_description})
             raise HTTPException(
                 status_code=400, detail=error_description or "Authentication failed"
             )
