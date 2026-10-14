@@ -130,8 +130,10 @@ class CacheService:
             return True
 
         except Exception as e:
-            # SECURITY: Use parameterized logging to prevent log injection
-            logger.error("Cache delete error", key=key, error=str(e))
+            # SECURITY: constant message, values as fields (no log injection).
+            # This is a stdlib logger: keyword fields go through `extra`, or the
+            # handler itself raises TypeError and delete stops returning False.
+            logger.error("Cache delete error", extra={"key": key, "error": str(e)})
             return False
 
     async def exists(self, key: str, namespace: Optional[str] = None) -> bool:
