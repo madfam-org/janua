@@ -536,3 +536,67 @@ class TestTriggerUserWebhookSignature:
                 user_data,
                 user_id="user-123",
             )
+
+
+class TestEndpointMutationLogging:
+    """register/update/delete log through a stdlib logger after `db.commit()`.
+
+    They used to pass structlog-style keyword fields (`url=…`, `endpoint_id=…`),
+    which stdlib `Logger._log()` rejects with TypeError: the change was already
+    committed, yet the call raised and the API answered 500. Real logger, not
+    patched, at INFO so the call actually reaches `Logger._log()`.
+    """
+
+    LOGGER_NAME = "app.services.webhooks"
+
+    @pytest.fixture
+    def service(self):
+        return WebhookService()
+
+    @staticmethod
+    def _messages(caplog, message):
+        return [r for r in caplog.records if r.getMessage() == message]
+
+    async def test_register_endpoint_returns_endpoint_and_logs_url_in_extra(self, service, caplog):
+        from unittest.mock import MagicMock
+
+        caplog.set_level("INFO", logger=self.LOGGER_NAME)
+        db = MagicMock()
+
+        endpoint = await service.register_endpoint(
+            db, url="https://hooks.example.test/janua", events=[WebhookEventType.USER_CREATED]
+        )
+
+        assert endpoint.url == "https://hooks.example.test/janua"
+        db.commit.assert_called_once()
+        (record,) = self._messages(caplog, "Registered webhook endpoint")
+        assert record.url == "https://hooks.example.test/janua"
+
+    async def test_update_endpoint_returns_endpoint_and_logs_id_in_extra(self, service, caplog):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+
+        caplog.set_level("INFO", logger=self.LOGGER_NAME)
+        stored = SimpleNamespace(url="https://old.example.test", is_active=True, updated_at=None)
+        db = MagicMock()
+        db.query.return_value.filter.return_value.first.return_value = stored
+
+        endpoint = await service.update_endpoint(db, "endpoint-1", is_active=False)
+
+        assert endpoint is stored
+        assert stored.is_active is False
+        (record,) = self._messages(caplog, "Updated webhook endpoint")
+        assert record.endpoint_id == "endpoint-1"
+
+    async def test_delete_endpoint_returns_true_and_logs_id_in_extra(self, service, caplog):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+
+        caplog.set_level("INFO", logger=self.LOGGER_NAME)
+        db = MagicMock()
+        db.query.return_value.filter.return_value.first.return_value = SimpleNamespace()
+
+        assert await service.delete_endpoint(db, "endpoint-1") is True
+        db.commit.assert_called_once()
+        (record,) = self._messages(caplog, "Deleted webhook endpoint")
+        assert record.endpoint_id == "endpoint-1"
