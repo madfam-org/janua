@@ -12,10 +12,15 @@ MAX_RETRIES=30
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    # The readiness probe uses the same explicit transport settings as the
+    # runtime and Alembic engines. DATABASE_SSL_MODE=disable (the default)
+    # leaves connect_args empty, so unconfigured environments are unchanged.
     if python -c "
 from sqlalchemy import create_engine, text
 import os
-engine = create_engine(os.environ.get('DATABASE_URL', ''))
+from app.config import settings
+from app.core.database_ssl import sync_postgres_options
+engine = create_engine(os.environ.get('DATABASE_URL', ''), connect_args=sync_postgres_options(settings))
 with engine.connect() as conn:
     conn.execute(text('SELECT 1'))
 print('Database is ready')

@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 from urllib.parse import urlencode, urlparse
 
+import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
@@ -20,8 +21,6 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-import structlog
-
 from app.auth.authorize_resume import authorize_query, is_resource_bound
 from app.auth.login_method import (
     LOGIN_METHOD_MAGIC_LINK,
@@ -30,32 +29,6 @@ from app.auth.login_method import (
     magic_link_login_available,
 )
 from app.auth.magic_link_limits import enforce_magic_link_limits
-from app.config import settings
-from app.core.locale import locale_from_request
-from app.core.redis import ResilientRedisClient, get_redis
-from app.core.redis_circuit_breaker import RedisUnavailableError
-from app.core.url_security import validate_redirect_url
-from app.database import AsyncSessionLocal, get_db
-from app.dependencies import get_current_user
-from app.services.account_lockout_service import AccountLockoutService
-from app.services.auth_service import AuthService
-from app.services.user_lookup import (
-    AmbiguousEmailAcrossPools,
-    get_user_by_email,
-    log_ambiguous_email,
-    resolve_user_by_email_across_pools,
-)
-from app.services.audit_logger import AuditEventType, AuditLogger
-from app.services.email import EmailService
-from app.services.email_i18n import normalize_formality
-from app.services.email_service import (
-    send_magic_link_email_task,
-    send_password_reset_email_task,
-    send_verification_email_task,
-)
-from app.models.system_settings import SettingKeys
-from app.services.system_settings_service import SystemSettingsService
-from app.services.webhooks import WebhookEventType, trigger_user_webhook
 from app.auth.sessions_cookie import (
     SESSIONS_COOKIE_NAME,
     append_sid,
@@ -74,6 +47,31 @@ from app.auth.sso_cookie import (
     set_sso_cookie,
     sso_cookie_kwargs,
 )
+from app.config import settings
+from app.core.locale import locale_from_request
+from app.core.redis import ResilientRedisClient, get_redis
+from app.core.redis_circuit_breaker import RedisUnavailableError
+from app.core.url_security import validate_redirect_url
+from app.database import AsyncSessionLocal, get_db
+from app.dependencies import get_current_user
+from app.models.system_settings import SettingKeys
+from app.services.account_lockout_service import AccountLockoutService
+from app.services.audit_logger import AuditEventType, AuditLogger
+from app.services.auth_service import AuthService
+from app.services.email_i18n import normalize_formality
+from app.services.email_service import (
+    send_magic_link_email_task,
+    send_password_reset_email_task,
+    send_verification_email_task,
+)
+from app.services.system_settings_service import SystemSettingsService
+from app.services.user_lookup import (
+    AmbiguousEmailAcrossPools,
+    get_user_by_email,
+    log_ambiguous_email,
+    resolve_user_by_email_across_pools,
+)
+from app.services.webhooks import WebhookEventType, trigger_user_webhook
 
 from ...models import ActivityLog, EmailVerification, MagicLink, PasswordReset, User, UserStatus
 from ...models import Session as UserSession

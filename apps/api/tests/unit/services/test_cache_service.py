@@ -306,9 +306,8 @@ class TestDelete:
         service._redis_client = mock_client
         mock_client.delete.side_effect = Exception("Redis error")
 
-        # The logger uses structlog with keyword args, need to patch it
-        with patch("app.services.cache.logger"):
-            result = await service.delete("key")
+        # Real stdlib logger, unpatched: the error handler itself must not raise.
+        result = await service.delete("key")
 
         assert result is False
 

@@ -7,10 +7,11 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Organization, User, organization_members
+from app.models import Organization, OrganizationMember, User, organization_members
 from app.routers.v1.auth import get_current_user
 
 from .dependencies import (
@@ -34,7 +35,7 @@ router = APIRouter()
 async def create_organization(
     request: OrganizationCreateRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Create a new organization"""
     # Validate unique slug
@@ -53,20 +54,22 @@ async def create_organization(
     )
 
     db.add(org)
-    db.flush()
-
-    # Add owner as admin member
-    db.execute(
-        organization_members.insert().values(
-            organization_id=org.id,
-            user_id=current_user.id,
-            role="admin",
-            permissions=[],
-            joined_at=datetime.utcnow(),
+    try:
+        await db.flush()
+        # Creation and the creator's active membership share one native commit.
+        db.add(
+            OrganizationMember(
+                organization_id=org.id,
+                user_id=current_user.id,
+                role="admin",
+                status="active",
+                joined_at=datetime.utcnow(),
+            )
         )
-    )
-
-    await db.commit()
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
     await db.refresh(org)
 
     # Get member count

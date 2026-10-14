@@ -204,50 +204,60 @@ class TestOauth:
 
 
 class TestInviteAccept:
-    """A user created by redeeming an invitation."""
+    """A newly registered invitation user retains locale on real mapped rows."""
 
-    def _run(self, locale):
+    @pytest.fixture
+    def native_registration(self):
+        from contextlib import asynccontextmanager
+        from datetime import timedelta
+
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+        from sqlalchemy.pool import StaticPool
+
+        from app.models import AuditLog, Base, Invitation, Organization, OrganizationMember, User
         from app.services.invitation_service import InvitationService
 
-        invitation = SimpleNamespace(
-            id="inv-1",
-            email="new@example.com",
-            organization_id="org-1",
-            role="member",
-            status="pending",
-            token="tok",
-            expires_at=None,
-            is_valid=True,
-            is_expired=False,
-            accepted_at=None,
-        )
+        @asynccontextmanager
+        async def build():
+            engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
+            async with engine.begin() as connection:
+                await connection.run_sync(lambda c: Base.metadata.create_all(c, tables=[
+                    User.__table__, Organization.__table__, OrganizationMember.__table__,
+                    Invitation.__table__, AuditLog.__table__,
+                ]))
+            factory = async_sessionmaker(engine, expire_on_commit=False)
+            async with factory() as db:
+                creator = User(email="creator@example.com")
+                db.add(creator)
+                await db.flush()
+                org = Organization(name="Synthetic organization", slug="synthetic", owner_id=creator.id)
+                db.add(org)
+                await db.flush()
+                db.add(Invitation(email="new@example.com", organization_id=org.id, role="member",
+                                  status="pending", token="synthetic-registration-token",
+                                  created_by=creator.id, expires_at=datetime.utcnow() + timedelta(days=1)))
+                await db.commit()
+                service = InvitationService(db)
+                # Locale compatibility only; cache delivery is covered separately.
+                service.cache = SimpleNamespace(delete=AsyncMock())
+                yield service, db
+            await engine.dispose()
 
-        db = MagicMock()
-        db.query.return_value.filter.return_value.first.return_value = invitation
+        return build
 
-        service = InvitationService(db)
-        service.cache = MagicMock()
-        service.cache.delete = AsyncMock()
-        service.audit_logger = MagicMock()
-        service.audit_logger.log = AsyncMock()
-        return service, db, invitation
+    async def _accept(self, native_registration, locale):
+        from sqlalchemy import select
 
-    async def test_locale_stored(self):
-        service, db, _ = self._run("es")
-        await service.accept_invitation(
-            token="tok",
-            user=None,
-            new_user_data={"name": "New Person", "password_hash": "x"},
-            locale="es",
-        )
-        assert _only_locale(db) == "es"
+        from app.models import User
 
-    async def test_no_locale(self):
-        service, db, _ = self._run(None)
-        await service.accept_invitation(
-            token="tok",
-            user=None,
-            new_user_data={"name": "New Person", "password_hash": "x"},
-            locale=None,
-        )
-        assert _only_locale(db) is None
+        async with native_registration() as (service, db):
+            await service.accept_invitation(token="synthetic-registration-token", user=None,
+                                            new_user_data={"name": "Synthetic member", "password_hash": "x"},
+                                            locale=locale)
+            return (await db.execute(select(User.locale).where(User.email == "new@example.com"))).scalar_one()
+
+    async def test_locale_stored(self, native_registration):
+        assert await self._accept(native_registration, "es") == "es"
+
+    async def test_no_locale(self, native_registration):
+        assert await self._accept(native_registration, None) is None

@@ -147,10 +147,10 @@ from app.routers.v1 import (
     oauth_provider as oauth_provider_v1,
 )
 from app.routers.v1 import (
-    organization_members as organization_members_v1,
+    organization_app_roles as organization_app_roles_v1,
 )
 from app.routers.v1 import (
-    organization_app_roles as organization_app_roles_v1,
+    organization_members as organization_members_v1,
 )
 from app.routers.v1 import (
     organizations as organizations_v1,

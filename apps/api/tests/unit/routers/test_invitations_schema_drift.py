@@ -45,7 +45,7 @@ pytestmark = pytest.mark.asyncio
 
 # Tables this module touches. Creating only these keeps the fixture independent
 # of unrelated models that fail to map under SQLite.
-_TABLES = ["users", "organizations", "organization_members", "invitations"]
+_TABLES = ["users", "organizations", "organization_members", "invitations", "audit_logs"]
 
 
 @pytest_asyncio.fixture

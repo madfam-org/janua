@@ -21,6 +21,14 @@ class InvitationStatus(str, enum.Enum):
     REVOKED = "revoked"
 
 
+class InvitationEmailStatus(str, enum.Enum):
+    """Retained attempt/transport acknowledgement, never external delivery."""
+
+    NOT_ATTEMPTED = "not_attempted"
+    UNCONFIRMED = "unconfirmed"
+    ACKNOWLEDGED = "acknowledged"
+
+
 # Pydantic Schemas
 
 
@@ -56,6 +64,8 @@ class InvitationResponse(BaseModel):
     created_at: datetime
     invite_url: str
     email_sent: bool = False
+    # None means a legacy invitation has no retained attempt classification.
+    email_status: Optional[InvitationEmailStatus] = None
 
     class Config:
         from_attributes = True

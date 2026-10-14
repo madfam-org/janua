@@ -299,7 +299,8 @@ async def require_org_admin(
         select(OrganizationMember).where(
             OrganizationMember.user_id == current_user.id,
             OrganizationMember.role.in_(["admin", "owner"]),
-        )
+            OrganizationMember.status == "active",
+        ).limit(1)
     )
     org_member = result.scalar_one_or_none()
 

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool
 
 from app.config import settings
+from app.core.database_ssl import asyncpg_options, sync_postgres_options
 
 # Create async engine for production
 if hasattr(settings, "DATABASE_URL") and settings.DATABASE_URL:
@@ -49,7 +50,9 @@ if hasattr(settings, "DATABASE_URL") and settings.DATABASE_URL:
             # and pool-safe; named-cache entries break when consecutive
             # transactions land on different server connections. One extra
             # round-trip when connecting direct.
-            engine_kwargs["connect_args"] = {"ssl": False, "statement_cache_size": 0}
+            async_database_url, engine_kwargs["connect_args"] = asyncpg_options(
+                async_database_url, settings
+            )
     else:
         # Use NullPool for SQLite to avoid connection sharing issues
         engine_kwargs["poolclass"] = NullPool
@@ -83,6 +86,8 @@ if hasattr(settings, "DATABASE_URL") and settings.DATABASE_URL:
                 "pool_timeout": settings.DATABASE_POOL_TIMEOUT,
             }
         )
+        if transport_options := sync_postgres_options(settings):
+            sync_engine_kwargs["connect_args"] = transport_options
     sync_engine = create_engine(database_url, **sync_engine_kwargs)
 else:
     # Require explicit DATABASE_URL configuration
@@ -104,6 +109,7 @@ else:
     _max_overflow = int(os.getenv("DATABASE_MAX_OVERFLOW", "5"))
     _pool_timeout = int(os.getenv("DATABASE_POOL_TIMEOUT", "30"))
 
+    async_database_url, _transport_options = asyncpg_options(async_database_url, settings)
     engine = create_async_engine(
         async_database_url,
         echo=True,
@@ -112,7 +118,7 @@ else:
         max_overflow=_max_overflow,
         pool_recycle=3600,  # Recycle connections after 1 hour
         pool_timeout=_pool_timeout,
-        connect_args={"ssl": False, "statement_cache_size": 0},  # asyncpg: no SSL; unnamed statements for pgbouncer
+        connect_args=_transport_options,
     )
 
     sync_engine = create_engine(

@@ -42,11 +42,6 @@ on:
         type: choice
         options:
           - api
-          - admin
-          - dashboard
-          - docs
-          - website
-          - all
       digest:
         description: "Staging image digest to promote (sha256:...). Leave blank to read current staging overlay digest for the chosen component."
         required: false
@@ -163,6 +158,14 @@ jobs:
             REASON="auto:scheduled"
           else
             REASON="manual:$INPUT_REASON"
+          fi
+
+          # The governed staging overlay currently deploys the API only.
+          # A built/pinned frontend digest is not a deployed staging candidate.
+          # Re-enable additional components only with their isolated stage proof.
+          if [[ "$COMPONENT" != "api" ]]; then
+            echo "::error::Only api is deployed by the isolated staging profile; refusing an unstaged component."
+            exit 1
           fi
 
           STAGING_FILE="k8s/overlays/staging/kustomization.yaml"

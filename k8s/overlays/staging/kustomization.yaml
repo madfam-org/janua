@@ -1,56 +1,12 @@
-# Staging overlay — separate Janua tenant (RFC 0001 / PP.3b).
-#
-# Janua cannot use prod Janua as its staging auth provider. This overlay
-# deploys a fully isolated instance: janua-staging namespace, distinct
-# secrets (janua-staging-secrets), distinct JWT keys, distinct issuer URL.
-#
-# Image digests are updated by docker-publish.yml on every main-branch merge.
-# Cloudflare tunnel routes + DNS for staging hostnames are ops-managed — see
-# internal-devops/runbooks/staging-bootstrap.md and docs/PP_3_STAGING_AUDIT.md.
-
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
 namespace: janua-staging
-
 resources:
-- ../../base
-
-replicas:
-- count: 1
-  name: janua-api
-- count: 1
-  name: janua-admin
-- count: 1
-  name: janua-dashboard
-- count: 1
-  name: janua-docs
-- count: 1
-  name: janua-website
-
-# Staging image digests — CI overwrites on each main-branch push.
+- api.yaml
+- service.yaml
+- secrets.yaml
+- redis.yaml
 images:
-- digest: sha256:ffc95b58e42931cc9ac5810193e0233d75c3ca5156095907bd15e051c9165a28
-  name: ghcr.io/madfam-org/janua-admin
-  newName: ghcr.io/madfam-org/janua-admin
 - digest: sha256:ebcd14e9e1b7feb22d2aba61f78445f27bdd2b6ed7b5b1738e926e1e4f48a3c2
   name: ghcr.io/madfam-org/janua-api
   newName: ghcr.io/madfam-org/janua-api
-- digest: sha256:d8113d95da3738ab45d8de684f742695880fd09750e4b49545c601d488da5e48
-  name: ghcr.io/madfam-org/janua-dashboard
-  newName: ghcr.io/madfam-org/janua-dashboard
-- digest: sha256:34838311bba0053895bc883b4d917d146d7ce756f614ef5266ffdfe9df0b1d7e
-  name: ghcr.io/madfam-org/janua-docs
-  newName: ghcr.io/madfam-org/janua-docs
-- digest: sha256:d94ed93fbaba271510010860f1f90f70409a0826b9f74d3a0a649e4973b82725
-  name: ghcr.io/madfam-org/janua-website
-  newName: ghcr.io/madfam-org/janua-website
-
-patches:
-- path: env-patch-api.yaml
-  target:
-    kind: Deployment
-    name: janua-api
-- path: hpa-disable-patch.yaml
-  target:
-    kind: HorizontalPodAutoscaler

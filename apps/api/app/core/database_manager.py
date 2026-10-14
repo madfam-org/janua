@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import StaticPool
 
 from app.config import settings
+from app.core.database_ssl import asyncpg_options
 
 logger = structlog.get_logger()
 
@@ -70,13 +71,13 @@ class DatabaseManager:
                     }
                 )
 
-                # Disable SSL for asyncpg connections when DATABASE_SSL_MODE is 'disable'
-                ssl_mode = getattr(settings, "DATABASE_SSL_MODE", "disable")
-                if ssl_mode == "disable" and "asyncpg" in database_url:
+                if "asyncpg" in database_url:
                     # statement_cache_size=0 for pgbouncer transaction pooling
                     # (same rationale as app/database.py — the two engine
                     # paths must not diverge on pooler compatibility).
-                    engine_kwargs["connect_args"] = {"ssl": False, "statement_cache_size": 0}
+                    database_url, engine_kwargs["connect_args"] = asyncpg_options(
+                        database_url, settings
+                    )
 
                 # Production-specific optimizations
                 if settings.ENVIRONMENT == "production":
