@@ -170,3 +170,28 @@ def test_partial_client_certificate_fails_closed(verified_database, monkeypatch)
     monkeypatch.setattr(settings, "DATABASE_SSL_CERT_FILE", "/fixture/client.crt")
     with pytest.raises(ValueError, match="configured together"):
         create_ssl_context(settings)
+
+
+def _entrypoint_probe() -> str:
+    """The inline Python readiness probe from the container entrypoint."""
+    script = (Path(__file__).parents[3] / "docker-entrypoint.sh").read_text()
+    start = script.index('if python -c "\n') + len('if python -c "\n')
+    return script[start : script.index('" 2>/dev/null; then', start)]
+
+
+@pytest.mark.parametrize("verified", [True, False])
+def test_entrypoint_probe_uses_configured_transport(verified, request, monkeypatch):
+    if verified:
+        request.getfixturevalue("verified_database")
+    else:
+        monkeypatch.setattr(settings, "DATABASE_SSL_MODE", "disable")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://runtime@database.fixture.svc:5432/staging_sim")
+    engine = MagicMock()
+    monkeypatch.setattr("sqlalchemy.create_engine", engine)
+    exec(compile(_entrypoint_probe(), "docker-entrypoint.sh", "exec"), {})
+    call = engine.call_args
+    assert call.args == ("postgresql://runtime@database.fixture.svc:5432/staging_sim",)
+    expected = (
+        {"sslmode": "verify-full", "sslrootcert": settings.DATABASE_SSL_CA_FILE} if verified else {}
+    )
+    assert call.kwargs == {"connect_args": expected}
