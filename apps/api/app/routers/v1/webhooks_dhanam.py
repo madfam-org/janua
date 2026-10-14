@@ -56,6 +56,10 @@ LEGACY_PLAN_MAP = {
 # Plans that mean "not billed" — remove product tier on these
 CANCEL_TIERS = {"free", "community", "trial"}
 
+# `data.grant_to` value of a user-scoped (org-less) grant from Dhanam's hosted
+# checkout (owner ruling G1-1, 2026-10-14).
+USER_GRANT = "user"
+
 
 def verify_dhanam_signature(payload: bytes, signature: str, secret: str) -> bool:
     """Verify Dhanam webhook HMAC-SHA256 signature."""
@@ -284,6 +288,26 @@ async def dhanam_subscription_webhook(
                 detail="Missing plan_id in webhook payload",
             )
 
+    # User-scoped grant (Dhanam hosted checkout, owner ruling G1-1): the buyer
+    # had no organization, so the purchase entitles the Janua user. Decided
+    # BEFORE the org lookup: customer_id may already be linked to some org as
+    # its billing customer, and a user grant must never land on that org.
+    grant_to = event_data.get("grant_to")
+    if grant_to is not None:
+        if grant_to != USER_GRANT:
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported grant_to (expected 'user')",
+            )
+        return await _process_user_scoped_grant(
+            db=db,
+            event_type=event_type,
+            plan_id=plan_id,
+            user_id_payload=user_id_payload,
+            user_email_payload=user_email_payload,
+            subscription_id=subscription_id_payload,
+        )
+
     # Find organization using multiple strategies
     organization = await find_organization(db, customer_id, org_id, metadata)
 
@@ -410,6 +434,92 @@ async def _resolve_user(
     return None
 
 
+async def _process_user_scoped_grant(
+    *,
+    db: AsyncSession,
+    event_type: str,
+    plan_id: str | None,
+    user_id_payload: str | None,
+    user_email_payload: str | None,
+    subscription_id: str | None,
+) -> dict:
+    """Apply a user-scoped (org-less) grant: `data.grant_to == "user"`.
+
+    Sent by Dhanam when its hosted checkout found no organization the buyer
+    owns or administers (owner ruling G1-1, 2026-10-14). The entitlement is a
+    `user_entitlements` row (source DHANAM_SUBSCRIPTION), surfaced in the
+    `madfam_entitled_products` claim and `GET /api/v1/me/entitlements`. No
+    organization is read or written.
+
+    Strict where the org path is lenient, because a user grant has no org
+    fallback to stay authoritative:
+      - 400 without `user_id`/`user_email`, or without `plan_id` (a cancel
+        must say which product it revokes);
+      - 422 when the plan does not name a product (a bare `pro`, or an
+        unknown slug, parses as `dhanam` and would grant or revoke the wrong
+        product);
+      - 404 when no Janua user matches.
+    """
+    if not (user_id_payload or user_email_payload):
+        raise HTTPException(
+            status_code=400,
+            detail="A user-scoped grant needs data.user_id or data.user_email",
+        )
+    if not plan_id:
+        raise HTTPException(
+            status_code=400,
+            detail="A user-scoped grant needs data.plan_id",
+        )
+
+    product, tier = parse_product_plan(plan_id)
+    if product == "dhanam" and not plan_id.strip().lower().startswith("dhanam_"):
+        logger.warning("User-scoped grant plan names no product", plan_id=plan_id)
+        raise HTTPException(
+            status_code=422,
+            detail="plan_id does not name a product",
+        )
+
+    user = await _resolve_user(db, user_id_payload, user_email_payload)
+    if user is None:
+        logger.warning(
+            "User-scoped grant: user not found",
+            has_user_id=bool(user_id_payload),
+            has_user_email=bool(user_email_payload),
+            plan_id=plan_id,
+        )
+        raise HTTPException(status_code=404, detail="User not found for user-scoped grant")
+
+    is_cancel = event_type in ("subscription.canceled", "subscription.deleted")
+    status = await _apply_user_entitlement(
+        db=db,
+        user=user,
+        product=product,
+        new_tier=None if is_cancel else tier,
+        event_type=event_type,
+        subscription_id=subscription_id,
+    )
+    await db.commit()
+
+    logger.info(
+        "User-scoped entitlement updated via Dhanam webhook",
+        user_id=str(user.id),
+        product=product,
+        new_tier=None if is_cancel else tier,
+        plan_id=plan_id,
+        event_type=event_type,
+        action=status.get("action"),
+    )
+
+    return {
+        "status": "processed",
+        "grant_to": USER_GRANT,
+        "product": product,
+        "new_tier": None if is_cancel else tier,
+        "event_type": event_type,
+        "user_entitlement": status,
+    }
+
+
 async def _maybe_upsert_user_entitlement(
     *,
     db: AsyncSession,
@@ -436,6 +546,26 @@ async def _maybe_upsert_user_entitlement(
     if user is None:
         return {"action": "skipped", "reason": "user_not_found"}
 
+    return await _apply_user_entitlement(
+        db=db,
+        user=user,
+        product=product,
+        new_tier=new_tier,
+        event_type=event_type,
+        subscription_id=subscription_id,
+    )
+
+
+async def _apply_user_entitlement(
+    *,
+    db: AsyncSession,
+    user: User,
+    product: str,
+    new_tier: str | None,
+    event_type: str,
+    subscription_id: str | None,
+) -> dict:
+    """Upsert or cancel one user's entitlement for `product`."""
     if event_type in ("subscription.canceled", "subscription.deleted"):
         cancelled = await cancel_entitlement(
             db,
