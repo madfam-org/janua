@@ -5,6 +5,7 @@ Main SSO orchestration service
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
+import structlog
 from sqlalchemy import select
 
 from ...domain.protocols.base import SSOConfiguration, SSOProtocol, SSOSession
@@ -16,6 +17,8 @@ from ...exceptions import AuthenticationError, ValidationError
 from ...infrastructure.configuration.config_repository import SSOConfigurationRepository
 from ...infrastructure.session.session_repository import SSOSessionRepository
 from .product_tiers import resolve_product_tiers
+
+logger = structlog.get_logger()
 
 
 class SSOOrchestrator:
@@ -175,19 +178,32 @@ class SSOOrchestrator:
         # Store session
         await self.session_repository.create(sso_session)
 
-        # Query organization to get per-product tier claims
-        tier_claims = {"foundry_tier": "community"}  # Default if no organization
+        # Per-product tier claims: the SSO organization's product_tiers merged
+        # with the user's own active grants (G1-1, see pick_product_tier).
+        from app.services.entitlements_service import get_active_user_grant_tiers
+
+        db = self.config_repository.db
+        try:
+            user_tiers = await get_active_user_grant_tiers(user.id, db)
+        except Exception:  # never block an SSO login on the grant read
+            logger.warning("Failed to read user grants for SSO tier claims", user_id=str(user.id))
+            await db.rollback()
+            user_tiers = {}
+
+        tier_claims = resolve_product_tiers(None, None, user_tiers)  # no organization
         if organization_id:
             from app.models import Organization
 
-            result = await self.config_repository.db.execute(
+            result = await db.execute(
                 select(Organization.subscription_tier, Organization.product_tiers).where(
                     Organization.id == organization_id
                 )
             )
             row = result.one_or_none()
             if row:
-                tier_claims = resolve_product_tiers(row.product_tiers, row.subscription_tier)
+                tier_claims = resolve_product_tiers(
+                    row.product_tiers, row.subscription_tier, user_tiers
+                )
 
         # Generate JWT token with per-product tier claims
         jwt_payload = {

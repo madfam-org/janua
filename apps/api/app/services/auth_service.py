@@ -565,6 +565,13 @@ class AuthService:
 
         org_claims = merge_app_roles_into_claims(await get_user_org_claims_safe(user, db))
 
+        # `{product}_tier` claims (G1-1): the primary org's product tiers merged
+        # with the user's own active grants. Spread FIRST so no other claim can
+        # be overridden by a product slug; never blocks login.
+        from app.services.entitlements_service import get_product_tier_claims
+
+        tier_claims = await get_product_tier_claims(user, db, org_id=org_claims.get("org_id"))
+
         # Create tokens
         access_token, access_jti, access_expires = AuthService.create_access_token(
             user_id=str(user.id),
@@ -572,6 +579,7 @@ class AuthService:
             email=user.email,
             audience=audience,
             additional_claims={
+                **tier_claims,
                 "madfam_entitled_products": madfam_entitled_products,
                 **org_claims,
                 # `is_service_account: true` only for technical logins; absent
@@ -811,12 +819,19 @@ class AuthService:
 
         org_claims = merge_app_roles_into_claims(await get_user_org_claims_safe(user, db))
 
+        # `{product}_tier` re-resolved on refresh, so a grant or a cancel since
+        # the last mint reaches the live session (G1-1).
+        from app.services.entitlements_service import get_product_tier_claims
+
+        tier_claims = await get_product_tier_claims(user, db, org_id=org_claims.get("org_id"))
+
         # Create new tokens
         access_token, access_jti, access_expires = AuthService.create_access_token(
             user_id=str(user.id),
             tenant_id=str(user.tenant_id),
             email=user.email,
             additional_claims={
+                **tier_claims,
                 "madfam_entitled_products": madfam_entitled_products,
                 **org_claims,
                 **service_principal_claims(user),
