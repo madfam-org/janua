@@ -394,8 +394,12 @@ async def saml_acs(
         db.add(session)
         await db.commit()
 
-        logger = structlog.get_logger()
-        logger.info("SSO session created", user_id=str(user.id), session_id=str(session.id))
+        # Not `logger = ...`: binding the name here would make `logger` local to
+        # the whole function, and the `except` below would hit UnboundLocalError
+        # whenever the failure happens before this line.
+        structlog.get_logger().info(
+            "SSO session created", user_id=str(user.id), session_id=str(session.id)
+        )
 
         return_url = result.get("return_url", "/")
 

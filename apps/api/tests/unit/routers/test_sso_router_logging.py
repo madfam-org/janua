@@ -3,6 +3,10 @@
 * `oidc_callback` logs an IdP error through a stdlib logger. It used to pass
   structlog-style keyword fields, which stdlib `Logger._log()` rejects with
   TypeError, so the IdP's error never reached the logs.
+* `saml_acs` bound `logger` locally (`logger = structlog.get_logger()`) deep in
+  its `try`, which made `logger` local to the whole function: any failure
+  before that line hit UnboundLocalError inside the `except` handler instead
+  of the documented 500.
 
 Real loggers, not patched.
 """
@@ -11,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import HTTPException
@@ -48,3 +52,15 @@ async def test_oidc_idp_error_is_logged_with_fields_in_extra(caplog):
     (record,) = [r for r in caplog.records if r.getMessage() == "OIDC error"]
     assert record.error == "access_denied"
     assert record.description == "synthetic description"
+
+
+async def test_saml_acs_failure_before_session_creation_returns_documented_500(caplog):
+    caplog.set_level(logging.INFO, logger=LOGGER_NAME)
+    request = SimpleNamespace(form=AsyncMock(return_value={}))  # no SAMLResponse
+
+    with pytest.raises(HTTPException) as exc_info:
+        await sso_router.saml_acs(request=request, db=MagicMock(), sso_service=MagicMock())
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "SSO authentication failed"
+    assert any(r.getMessage().startswith("SAML ACS error") for r in caplog.records)
