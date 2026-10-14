@@ -86,6 +86,7 @@ from app.services.client_id_metadata import (
 from app.services.consent_service import ConsentService
 from app.services.entitlements_service import (
     entitlements_to_claim,
+    get_product_tier_claims,
     get_user_entitlements,
 )
 from app.services.oauth_client_authority import client_registered_by_platform_admin
@@ -3598,6 +3599,12 @@ async def _handle_authorization_code_grant(
         org_claims, existing_roles=entitlements["roles"]
     )
 
+    # `{product}_tier` claims (G1-1): the token's own org's product tiers merged
+    # with the user's active per-user grants. Products authorize on these, not
+    # on `madfam_entitled_products`. Spread FIRST below so no product slug can
+    # override another claim.
+    tier_claims = await get_product_tier_claims(user, db, org_id=org_claims.get("org_id"))
+
     # Resolve per-client audience (falls back to global JWT_AUDIENCE)
     client_audience = client.audience or settings.JWT_AUDIENCE
 
@@ -3614,6 +3621,7 @@ async def _handle_authorization_code_grant(
         user_id=str(user.id),
         email=user.email,
         additional_claims={
+            **tier_claims,
             "client_id": client.client_id,
             "aud": client_audience,
             "scope": scope,
@@ -3763,6 +3771,12 @@ async def _handle_refresh_token_grant(
         org_claims, existing_roles=entitlements["roles"]
     )
 
+    # `{product}_tier` claims (G1-1): the token's own org's product tiers merged
+    # with the user's active per-user grants. Products authorize on these, not
+    # on `madfam_entitled_products`. Spread FIRST below so no product slug can
+    # override another claim.
+    tier_claims = await get_product_tier_claims(user, db, org_id=org_claims.get("org_id"))
+
     # Resolve per-client audience (falls back to global JWT_AUDIENCE)
     client_audience = client.audience or settings.JWT_AUDIENCE
 
@@ -3784,6 +3798,7 @@ async def _handle_refresh_token_grant(
         user_id=str(user.id),
         email=user.email,
         additional_claims={
+            **tier_claims,
             "client_id": client.client_id,
             "aud": client_audience,
             "scope": scope,

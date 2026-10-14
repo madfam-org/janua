@@ -49,6 +49,10 @@ from app.models import (
     User,
     UserEntitlement,
 )
+from app.sso.application.services.product_tiers import (
+    merge_product_tiers,
+    product_tier_claims,
+)
 
 logger = structlog.get_logger()
 
@@ -68,6 +72,7 @@ async def _rollback_after_read_failure(
     """
     logger.warning(event, error=str(exc), **log_kw)
     await db.rollback()
+
 
 # Admin catch-all: these products are always granted at `admin` tier to any
 # user marked `is_admin=True`. Keeps first-run admin access working before
@@ -239,6 +244,84 @@ async def get_user_entitlements(
 def entitlements_to_claim(entitlements: Iterable[Entitlement]) -> list[str]:
     """Render the entitlements list to the JWT claim shape (sorted strings)."""
     return [e.to_claim() for e in sorted(entitlements, key=lambda e: e.product)]
+
+
+# ---------------------------------------------------------------------------
+# `{product}_tier` claims for human tokens (owner ruling G1-1, 2026-10-14)
+# ---------------------------------------------------------------------------
+#
+# Products authorize on `{product}_tier` (Tezca `tezca_tier`, Yantra4D
+# `yantra4d_tier`, Karafiel `karafiel_tier`), not on
+# `madfam_entitled_products`. Until G1-1 only client-credentials tokens and
+# the enterprise SSO orchestrator carried those claims, so neither an org
+# purchase nor a user-scoped Dhanam grant reached a person's token. These
+# helpers build the claims for every human mint seam (OIDC code + refresh,
+# session create + refresh). `madfam_entitled_products` is unchanged.
+#
+# Sources, merged by `pick_product_tier` (product_tiers.py):
+#   - the product_tiers of the org named by the token's own `org_id` claim —
+#     the SAME unambiguous primary org org_claims_service resolves (tenant pin
+#     or exactly one active membership). A multi-org user with no pin gets no
+#     org tiers, for the same reason they get no `org_id`: never guess a tenant;
+#   - the user's ACTIVE `user_entitlements` rows. A cancelled grant has
+#     `expires_at <= now` (cancel_entitlement) and drops out.
+
+
+async def get_active_user_grant_tiers(
+    user_id: UuidType,
+    db: AsyncSession,
+    *,
+    now: Optional[datetime] = None,
+) -> dict[str, str]:
+    """`{product: tier}` for the user's active (unexpired) entitlement rows."""
+    if now is None:
+        now = datetime.utcnow()
+    rows = await _fetch_user_rows(user_id, db)
+    return {row.product: row.tier for row in rows if _is_active(row.expires_at, now)}
+
+
+async def _fetch_org_product_tiers(org_id: str, db: AsyncSession) -> dict[str, str]:
+    try:
+        org_uuid = UuidType(str(org_id))
+    except (TypeError, ValueError):
+        return {}
+    result = await db.execute(select(Organization).where(Organization.id == org_uuid))
+    org = result.scalar_one_or_none()
+    if not org or not org.product_tiers:
+        return {}
+    return {str(k): str(v) for k, v in dict(org.product_tiers).items() if v}
+
+
+async def get_product_tier_claims(
+    user: User,
+    db: AsyncSession,
+    *,
+    org_id: Optional[str],
+    now: Optional[datetime] = None,
+) -> dict[str, str]:
+    """`{product}_tier` claims for a human token. Never raises.
+
+    `org_id` is the token's resolved `org_id` claim (None when ambiguous or
+    absent). A failed read degrades to the other source, and a failure of
+    both to no claims: the tier claims enrich a token, they never block one.
+    """
+    org_tiers: dict[str, str] = {}
+    if org_id:
+        try:
+            org_tiers = await _fetch_org_product_tiers(org_id, db)
+        except Exception as exc:
+            await _rollback_after_read_failure(
+                db, exc, event="Failed to read org product_tiers for tier claims", org_id=org_id
+            )
+            org_tiers = {}
+    try:
+        user_tiers = await get_active_user_grant_tiers(user.id, db, now=now)
+    except Exception as exc:
+        await _rollback_after_read_failure(
+            db, exc, event="Failed to read user grants for tier claims", user_id=str(user.id)
+        )
+        user_tiers = {}
+    return product_tier_claims(merge_product_tiers(org_tiers, user_tiers))
 
 
 async def get_org_entitlements(
