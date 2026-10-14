@@ -10,12 +10,12 @@ from datetime import datetime
 import pytest
 
 from app.services.webhooks import (
-    WebhookService,
     WebhookEventType,
     WebhookPayload,
-    trigger_user_webhook,
+    WebhookService,
     trigger_organization_webhook,
     trigger_security_webhook,
+    trigger_user_webhook,
 )
 
 pytestmark = pytest.mark.asyncio

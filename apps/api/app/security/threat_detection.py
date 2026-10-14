@@ -574,7 +574,7 @@ class AdvancedThreatDetectionSystem:
         anomaly_score = 0.0
 
         # 1. Rapid IP changes
-        recent_ips = set(b["ip"] for b in list(behavior)[-10:])
+        recent_ips = {b["ip"] for b in list(behavior)[-10:]}
         if len(recent_ips) > 3:
             anomaly_score += 0.3
 
