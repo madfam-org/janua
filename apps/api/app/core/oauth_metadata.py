@@ -44,6 +44,8 @@ CORE_SCOPES = (
     "billing:events",
     "legal:draft",
     "legal:client-profile",
+    "fiscal:invoice",
+    "fiscal:csf-intake",
     "connections:delegate",
     "white-label:branding",
 )
