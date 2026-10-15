@@ -62,6 +62,8 @@ def test_consent_purpose_audiences_and_names_are_reserved_by_construction():
         "billing:events",
         "legal:draft",
         "legal:client-profile",
+        "fiscal:invoice",
+        "fiscal:csf-intake",
         "yantra4d:render",
         "pravara-mes:jobs",
         "pravara-mes:nodes",

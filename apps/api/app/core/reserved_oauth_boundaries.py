@@ -118,6 +118,8 @@ RESERVED_SCOPES: frozenset[str] = frozenset(
         "billing:events",
         "legal:draft",
         "legal:client-profile",
+        "fiscal:invoice",
+        "fiscal:csf-intake",
         "yantra4d:render",
     }
     | PRAVARA_SCOPES

@@ -86,6 +86,8 @@ RESERVED_SCOPES = frozenset(
         "billing:events",
         "legal:draft",
         "legal:client-profile",
+        "fiscal:invoice",
+        "fiscal:csf-intake",
         "yantra4d:render",
         "pravara-mes:jobs",
         "pravara-mes:nodes",

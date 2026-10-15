@@ -6,7 +6,7 @@ Cross-service identity for the RFC 0024 §P4 consolidations:
 |---|---|---|---|---|
 | Zavlo → Karafiel CFDI bridge (§P4.2) | `zavlo-cfdi-emitter` | `cfdi:issue` | `karafiel-api` | Karafiel API |
 | RouteCraft → Dhanam billing (§P4.3) | `routecraft-billing-relay` | `billing:events` | `dhanam-api` | Dhanam API |
-| Nauta → Karafiel legal drafts (D3.5) | `nauta-legal-drafts` | `legal:draft`, `legal:client-profile` | `karafiel-api` | Karafiel API |
+| Nauta → Karafiel legal drafts (D3.5) and fiscal edge | `nauta-legal-drafts` | `legal:draft`, `legal:client-profile`, `fiscal:invoice`, `fiscal:csf-intake` | `karafiel-api` | Karafiel API |
 | Forj → Yantra4D catalog render | `forj-catalog-materializer` | `yantra4d:render` | `yantra4d-api` | Yantra4D render API |
 | Pravara MES → Yantra4D STEP export | `pravara-yantra4d-step-reader` | `yantra4d:render` | `yantra4d-api` | Yantra4D render API |
 | Yantra4D → asset-shells type shells | `yantra4d-asset-shells-publisher` | `asset-shells:publish-types` | `asset-shells-api` | asset-shells publish API |
@@ -360,6 +360,17 @@ Scope map on the Karafiel side:
 - `legal:client-profile` — creates and updates the calling client's **own**
   legal-entity profile (`ClientProfile`) at `/api/v1/legal/clients`
   (`POST`/`PUT`/`PATCH`/`GET`; `DELETE` is refused). Karafiel PR #148.
+- `fiscal:invoice` — stamps a CFDI for a payment Nauta recorded and lists or
+  streams the client's comprobantes (`/api/v1/cfdi/`, filtered by
+  `client_id`). Karafiel `FISCAL_INVOICE_SCOPE`.
+- `fiscal:csf-intake` — submits a constancia de situación fiscal at client
+  onboarding and returns a proposal to confirm.
+
+The fiscal scopes are on `nauta-legal-drafts` **in the seed list**, not by
+hand: `scripts/seed_service_clients.py` rewrites `allowed_scopes` on every
+existing client it seeds, so a scope added only in the database disappears
+on the next seed run, and Nauta's stamping, CFDI listing and CSF intake then
+fail with `invalid_scope`. Grant a machine scope by editing the seed list.
 
 `legal:draft` and `legal:client-profile` are **independent**: neither
 implies the other, and Karafiel enforces each separately on its own routes.
