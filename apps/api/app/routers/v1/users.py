@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
@@ -18,6 +18,13 @@ from app.database import get_db
 from app.routers.v1.auth import get_current_user
 from app.services.auth_service import AuthService
 from app.services.service_principal import is_service_principal
+from app.services.spanish_formality import (
+    CLEARING_REFUSED_DETAIL,
+    SOURCE_SELF,
+    SpanishFormality,
+    record_spanish_formality,
+    stored_formality,
+)
 
 from ...models import Organization, OrganizationMember, User, UserConsent, UserStatus
 from ...models import Session as UserSession
@@ -36,6 +43,26 @@ class UserUpdateRequest(BaseModel):
     timezone: Optional[str] = Field(None, max_length=50)
     locale: Optional[str] = Field(None, max_length=10)
     user_metadata: Optional[dict] = None
+    # How Spanish should address this person: "tu" or "usted", exactly. Omit
+    # the field to leave it as it is. Unlike the fields above, an explicit
+    # `null` is REFUSED (422) rather than ignored: NULL means "never asked", and
+    # an answer, once given, is kept — see app/services/spanish_formality.py.
+    spanish_formality: Optional[SpanishFormality] = Field(
+        None,
+        description=(
+            "Spanish register to address this person in: 'tu' or 'usted'. "
+            "Omit to leave unchanged; null is refused (an answer cannot be cleared)."
+        ),
+    )
+
+    @field_validator("spanish_formality", mode="before")
+    @classmethod
+    def _refuse_clearing_spanish_formality(cls, value):
+        # Runs only when the field is SENT: an omitted field keeps the default
+        # without validation, so "omitted" and "explicit null" stay distinct.
+        if value is None:
+            raise ValueError(CLEARING_REFUSED_DETAIL)
+        return value
 
 
 class UserResponse(BaseModel):
@@ -65,6 +92,9 @@ class UserResponse(BaseModel):
     # False so a caller reading an older serialization sees "person" — the
     # same answer migration 015 gives every pre-existing row.
     is_service_account: bool = False
+    # The person's Spanish register: "tu", "usted", or None when they have not
+    # been asked yet (the column is NULL until someone answers).
+    spanish_formality: Optional[str] = None
 
     @field_validator("email_verified", "phone_verified", "is_service_account", mode="before")
     @classmethod
@@ -106,6 +136,7 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
         updated_at=current_user.updated_at,
         last_sign_in_at=current_user.last_sign_in_at,
         is_service_account=is_service_principal(current_user),
+        spanish_formality=stored_formality(current_user),
         user_metadata=current_user.user_metadata or {},
     )
 
@@ -113,10 +144,18 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
 @router.patch("/me", response_model=UserResponse)
 async def update_current_user_profile(
     request: UserUpdateRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Update current user's profile"""
+    """Update current user's profile.
+
+    `spanish_formality` ("tu" | "usted") is the person's own answer to how
+    Spanish should address them; it outranks every product's default voice in
+    janua's mail and rides their tokens as the `spanish_formality` claim. A
+    change is audited (`audit_logs`, action `user.update`, field
+    `spanish_formality`, old and new value) in the same transaction as the write.
+    """
     # Update fields if provided
     if request.first_name is not None:
         current_user.first_name = request.first_name
@@ -134,6 +173,20 @@ async def update_current_user_profile(
         current_user.locale = request.locale
     if request.user_metadata is not None:
         current_user.user_metadata = request.user_metadata
+    if request.spanish_formality is not None:
+        # Value + audit row are staged together and committed below as one.
+        record_spanish_formality(
+            db,
+            current_user,
+            request.spanish_formality,
+            actor_user_id=current_user.id,
+            actor=SOURCE_SELF,
+            actor_type="user",
+            source=SOURCE_SELF,
+            via="users.me.patch",
+            ip_address=http_request.client.host if http_request.client else None,
+            user_agent=http_request.headers.get("user-agent"),
+        )
 
     await db.commit()
     await db.refresh(current_user)
@@ -157,6 +210,7 @@ async def update_current_user_profile(
         updated_at=current_user.updated_at,
         last_sign_in_at=current_user.last_sign_in_at,
         is_service_account=is_service_principal(current_user),
+        spanish_formality=stored_formality(current_user),
         user_metadata=current_user.user_metadata or {},
     )
 
@@ -281,6 +335,7 @@ async def get_user_by_id(
         updated_at=user.updated_at,
         last_sign_in_at=user.last_sign_in_at,
         is_service_account=is_service_principal(user),
+        spanish_formality=stored_formality(user),
         user_metadata=user.user_metadata or {},
     )
 
@@ -368,6 +423,7 @@ async def list_users(
                 updated_at=user.updated_at,
                 last_sign_in_at=user.last_sign_in_at,
                 is_service_account=is_service_principal(user),
+                spanish_formality=stored_formality(user),
                 user_metadata=user.user_metadata or {},
             )
         )

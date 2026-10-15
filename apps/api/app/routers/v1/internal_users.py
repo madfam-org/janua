@@ -38,6 +38,16 @@ points (magic link, password reset) could not find them, and the magic-link
 handler's create branch then collided with the then-global ``ix_users_email``
 and 503'd. See ADR-001 «Email lookup pools and the 013 schema/code drift».
 
+Spanish register relay
+----------------------
+``POST /spanish-formality`` records the ``tú``/``usted`` answer a person gave
+INSIDE a product (Nauta's onboarding asks it), so every other surface honours it
+instead of asking again. Same key, same scoping rules as the lifecycle calls,
+plus: ``source_app`` names the product on the audit row (the key is shared, so
+it is the only record of which product relayed the answer), NULL is refused
+(it means "never asked"), and repeating the stored answer is a no-op. See
+``app/services/spanish_formality.py``.
+
 Scope guarantee
 ---------------
 This surface provisions and toggles lifecycle state. It has NO delete/purge
@@ -62,10 +72,13 @@ from app.routers.v1.oauth_clients import INTERNAL_API_KEY_PRINCIPAL
 from app.schemas.internal import (
     ProvisionUserRequest,
     ProvisionUserResponse,
+    SpanishFormalityWriteRequest,
+    SpanishFormalityWriteResponse,
     UserLifecycleRequest,
     UserLifecycleResponse,
 )
 from app.services.audit_logger import AuditEventType, AuditLogger
+from app.services.spanish_formality import SOURCE_PRODUCT, record_spanish_formality
 from app.services.user_lookup import (
     AmbiguousEmailAcrossPools,
     get_user_by_email,
@@ -565,4 +578,89 @@ async def reactivate_user(
         email=user.email,
         status=UserStatus.ACTIVE.value,
         changed=True,
+    )
+
+
+#: THE refusal text for "no such person for this caller". One message for "no
+#: such user", "deleted", and "not a member of the organization you named": an
+#: internal caller has no business telling those apart.
+NO_USER_DETAIL = "No janua user for that address"
+
+
+async def _resolve_formality_subject(
+    db: AsyncSession, body: SpanishFormalityWriteRequest
+) -> User | None:
+    """The person a relay names, or None. See ``SpanishFormalityWriteRequest``."""
+    if body.email is not None:
+        # Same resolution and the same membership scoping as suspend/reactivate.
+        return await _resolve_provisioned_user(
+            db, _normalize_email(str(body.email)), body.organization_id
+        )
+
+    result = await db.execute(select(User).where(User.id == body.user_id))
+    user = result.scalars().first()
+    if user is None or user.status == UserStatus.DELETED:
+        return None
+    if body.organization_id is not None and not await _has_membership(
+        db, user_id=user.id, organization_id=body.organization_id
+    ):
+        return None
+    return user
+
+
+@router.post(
+    "/spanish-formality",
+    response_model=SpanishFormalityWriteResponse,
+)
+async def relay_spanish_formality(
+    body: SpanishFormalityWriteRequest,
+    _auth: bool = Depends(verify_internal_api_key),
+    db: AsyncSession = Depends(get_db),
+) -> SpanishFormalityWriteResponse:
+    """Record the ``tú``/``usted`` answer a person gave inside a product. Idempotent.
+
+    Always 200 when the person exists: ``changed`` reports whether this call
+    altered the stored value, and ``previous_spanish_formality`` what it was
+    (``null`` = never asked). Repeating the stored answer changes nothing and
+    writes no audit row. 404 when there is no such person for this caller; 409
+    when an email matches people in more than one identity pool.
+
+    A different answer than the stored one IS recorded — it is the person's own
+    latest answer either way — but a product should not re-ask someone whose
+    token already carries ``spanish_formality``.
+    """
+    user = await _resolve_formality_subject(db, body)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NO_USER_DETAIL)
+
+    change = record_spanish_formality(
+        db,
+        user,
+        body.spanish_formality,
+        # The actor is a service, not a person: `user_id` stays NULL and the
+        # principal is named in details, as for internal-key OAuth registrations.
+        actor_user_id=None,
+        actor=INTERNAL_API_KEY_PRINCIPAL,
+        actor_type="service",
+        source=SOURCE_PRODUCT,
+        via="internal.users.spanish_formality",
+        source_app=body.source_app,
+        organization_id=str(body.organization_id) if body.organization_id else None,
+    )
+    _user_id = str(user.id)
+    if change.changed:
+        await db.commit()
+        logger.info(
+            "Recorded Spanish register via internal API",
+            user_id=_user_id,
+            source_app=body.source_app,
+            previous=change.previous,
+            current=change.current,
+        )
+
+    return SpanishFormalityWriteResponse(
+        id=_user_id,
+        spanish_formality=change.current,
+        previous_spanish_formality=change.previous,
+        changed=change.changed,
     )

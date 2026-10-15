@@ -9,6 +9,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
+from app.services.email_i18n import SpanishFormality
+
 
 class TierSyncRequest(BaseModel):
     """Request to sync an organization's subscription tier from Dhanam."""
@@ -177,4 +179,61 @@ class UserLifecycleResponse(BaseModel):
     id: str
     email: str
     status: str
+    changed: bool
+
+
+# The `source_app` shape: a short lowercase product slug (`nauta`, `phynd-crm`).
+# Validated for SHAPE only, like every other product name janua records — janua
+# holds no table of products, and a new one must not need a janua deploy.
+SOURCE_APP_PATTERN = r"^[a-z0-9][a-z0-9._-]{0,63}$"
+
+
+class SpanishFormalityWriteRequest(BaseModel):
+    """A product relaying the `tú`/`usted` answer a person gave INSIDE it.
+
+    Address the person by exactly one of:
+
+    * ``user_id`` — their janua user id (the ``sub`` of their janua token). This
+      is how a product that signs people in through janua knows them.
+      ``organization_id`` is optional here; when sent, the person must hold a
+      membership in that organization or the call is a 404.
+    * ``email`` + ``organization_id`` — for a product that knows the person only
+      by address. Resolved the way the lifecycle endpoints resolve it (platform
+      pool, then the organization's pool) and scoped to people who hold a
+      membership in that organization, so naming an organization never reaches
+      somebody else's person.
+
+    ``spanish_formality`` is REQUIRED and must be exactly ``"tu"`` or
+    ``"usted"``; ``null`` is refused (422). NULL on the row means "never asked",
+    and a relay cannot put it back.
+    """
+
+    user_id: Optional[UUID] = None
+    email: Optional[EmailStr] = None
+    organization_id: Optional[UUID] = None
+    spanish_formality: SpanishFormality
+    # Which product heard the answer. Recorded on the audit row: the internal key
+    # is shared by every sibling app, so this is the only place "which product"
+    # is written down.
+    source_app: str = Field(pattern=SOURCE_APP_PATTERN)
+
+    @model_validator(mode="after")
+    def _exactly_one_address(self) -> "SpanishFormalityWriteRequest":
+        if (self.user_id is None) == (self.email is None):
+            raise ValueError("send exactly one of user_id or email")
+        if self.email is not None and self.organization_id is None:
+            raise ValueError(
+                "organization_id is required with email: an address is looked up "
+                "within one organization's people"
+            )
+        return self
+
+
+class SpanishFormalityWriteResponse(BaseModel):
+    """Result of a relay. `changed` is False when that register was already stored."""
+
+    id: str
+    spanish_formality: SpanishFormality
+    # What was stored before this call; None when the person had never been asked.
+    previous_spanish_formality: Optional[str] = None
     changed: bool

@@ -96,6 +96,7 @@ from app.services.org_claims_service import (
     merge_app_roles_into_claims,
 )
 from app.services.service_principal import service_principal_claims
+from app.services.spanish_formality import spanish_formality_claims, stored_formality
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/oauth", tags=["OAuth Provider"])
@@ -680,6 +681,11 @@ class UserInfoResponse(BaseModel):
     family_name: Optional[str] = None
     picture: Optional[str] = None
     updated_at: Optional[int] = None
+    # How Spanish should address this person: "tu" or "usted". Profile-scope
+    # claim; `null` until the person has been asked (see
+    # app/services/spanish_formality.py). A relying party that gets `null` and
+    # asks the person relays the answer to POST /api/v1/internal/users/spanish-formality.
+    spanish_formality: Optional[str] = None
 
 
 # ============================================================================
@@ -811,6 +817,10 @@ def _generate_id_token(
         "email_verified": user.email_verified if hasattr(user, "email_verified") else True,
         "name": user.name if hasattr(user, "name") else None,
     }
+
+    # The person's Spanish register ("tu" | "usted"), only once they have
+    # answered; absent otherwise, so an unanswered person's ID token is unchanged.
+    claims.update(spanish_formality_claims(user))
 
     if nonce:
         claims["nonce"] = nonce
@@ -3643,6 +3653,9 @@ async def _handle_authorization_code_grant(
             # `is_service_account: true` only for technical logins; absent for
             # people, so a person's token shape is unchanged.
             **service_principal_claims(user),
+            # `spanish_formality` ("tu" | "usted") only once the person has
+            # answered; re-read from the row at every mint, refresh included.
+            **spanish_formality_claims(user),
             # PostgREST/data-API shaping — ONLY when the client opted into the
             # `data-api` scope; a no-op otherwise (see _data_api_claims).
             **_data_api_claims(scope, client, org_claims),
@@ -3820,6 +3833,9 @@ async def _handle_refresh_token_grant(
             # `is_service_account: true` only for technical logins; absent for
             # people, so a person's token shape is unchanged.
             **service_principal_claims(user),
+            # `spanish_formality` ("tu" | "usted") only once the person has
+            # answered; re-read from the row at every mint, refresh included.
+            **spanish_formality_claims(user),
             # PostgREST/data-API shaping — ONLY when the client opted into the
             # `data-api` scope; a no-op otherwise (see _data_api_claims). Carried
             # across refresh because the granted scope rides the refresh token
@@ -3931,6 +3947,8 @@ async def userinfo(
         response.picture = user.avatar_url or user.profile_image_url or None
         if hasattr(user, "updated_at") and user.updated_at:
             response.updated_at = int(user.updated_at.timestamp())
+        # Read live from the row, so a change shows here before the next refresh.
+        response.spanish_formality = stored_formality(user)
 
     return response
 

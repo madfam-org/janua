@@ -100,6 +100,8 @@ def authorization_server_metadata() -> dict[str, Any]:
             "family_name",
             "picture",
             "updated_at",
+            # Janua-specific: the person's Spanish register, "tu" | "usted".
+            "spanish_formality",
         ],
         # S256 only: `plain` was listed until 2026-10 but /authorize has always
         # refused it (OAuth 2.1).

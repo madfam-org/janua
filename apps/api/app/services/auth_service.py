@@ -562,6 +562,7 @@ class AuthService:
             merge_app_roles_into_claims,
         )
         from app.services.service_principal import service_principal_claims
+        from app.services.spanish_formality import spanish_formality_claims
 
         org_claims = merge_app_roles_into_claims(await get_user_org_claims_safe(user, db))
 
@@ -585,6 +586,9 @@ class AuthService:
                 # `is_service_account: true` only for technical logins; absent
                 # for everyone else, so a person's token shape is unchanged.
                 **service_principal_claims(user),
+                # `spanish_formality` ("tu" | "usted") only once the person has
+                # answered; absent otherwise. Re-read at every refresh.
+                **spanish_formality_claims(user),
             },
         )
 
@@ -816,6 +820,7 @@ class AuthService:
             merge_app_roles_into_claims,
         )
         from app.services.service_principal import service_principal_claims
+        from app.services.spanish_formality import spanish_formality_claims
 
         org_claims = merge_app_roles_into_claims(await get_user_org_claims_safe(user, db))
 
@@ -835,6 +840,7 @@ class AuthService:
                 "madfam_entitled_products": madfam_entitled_products,
                 **org_claims,
                 **service_principal_claims(user),
+                **spanish_formality_claims(user),
             },
         )
 
