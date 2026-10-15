@@ -45,6 +45,16 @@ export class Users {
       throw new ValidationError('Invalid locale format (expected format: en, en-US)');
     }
 
+    // `in` (not a truthiness check) so an explicit null/'' is caught here too:
+    // the API refuses both, because an answer cannot be cleared.
+    if (
+      'spanish_formality' in request &&
+      request.spanish_formality !== 'tu' &&
+      request.spanish_formality !== 'usted'
+    ) {
+      throw new ValidationError("Invalid spanish_formality (expected 'tu' or 'usted')");
+    }
+
     const response = await this.http.patch<User>('/api/v1/users/me', request);
     return response.data;
   }

@@ -51,6 +51,7 @@ export type {
   // User types
   User,
   UserUpdateRequest,
+  SpanishFormality,
   UserListParams,
 
   // Session types

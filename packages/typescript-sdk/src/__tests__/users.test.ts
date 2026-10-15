@@ -91,6 +91,28 @@ describe('Users', () => {
         new ValidationError('Invalid locale format (expected format: en, en-US)')
       );
     });
+
+    it('should send a spanish_formality answer', async () => {
+      const request = { spanish_formality: 'tu' as const };
+      mockHttpClient.patch.mockResolvedValue({ data: { id: 'u1', spanish_formality: 'tu' } });
+
+      const result = await users.updateCurrentUser(request);
+
+      expect(mockHttpClient.patch).toHaveBeenCalledWith('/api/v1/users/me', request);
+      expect(result.spanish_formality).toBe('tu');
+    });
+
+    it.each([null, '', 'tú', 'vosotros'])(
+      'should refuse spanish_formality %p before calling the API',
+      async (value) => {
+        const request = { spanish_formality: value } as any;
+
+        await expect(users.updateCurrentUser(request)).rejects.toThrow(
+          new ValidationError("Invalid spanish_formality (expected 'tu' or 'usted')")
+        );
+        expect(mockHttpClient.patch).not.toHaveBeenCalled();
+      }
+    );
   });
 
   describe('uploadAvatar', () => {
