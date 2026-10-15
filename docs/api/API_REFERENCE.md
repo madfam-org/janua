@@ -235,9 +235,16 @@ GET /users/me
   },
   "created_at": "2025-01-18T12:00:00Z",
   "updated_at": "2025-01-18T14:00:00Z",
-  "is_service_account": false
+  "is_service_account": false,
+  "spanish_formality": null
 }
 ```
+
+`spanish_formality` is how Spanish should address this person: `"tu"`,
+`"usted"`, or `null` when they have not been asked yet. It is also reported on
+`/users/{id}` and `/users/`, in `/oauth/userinfo` (profile scope), and as the
+`spanish_formality` token claim once answered (absent before). Contract:
+[`docs/EMAIL_SENDER_POLICY.md`](../EMAIL_SENDER_POLICY.md#tier-2-is-writable-2026-10-14).
 
 `is_service_account` marks an identity as a technical/service account rather
 than a person — a development access login, an importer, an integration
@@ -264,9 +271,18 @@ PATCH /users/me
     "preferences": {
       "theme": "light"
     }
-  }
+  },
+  "spanish_formality": "tu"
 }
 ```
+
+`spanish_formality` records the person's own answer to how Spanish should
+address them. It must be exactly `"tu"` or `"usted"` (anything else is `422`).
+Omit it to leave it unchanged. Unlike the other fields, an explicit `null` is
+refused with `422`: `null` means "never asked", and an answer cannot be cleared
+(send the other register instead). A change is audited (`audit_logs`, action
+`user.update`, `details.field = "spanish_formality"`, old and new value) in the
+same transaction as the write; repeating the stored value audits nothing.
 
 ### Delete User
 
@@ -762,6 +778,69 @@ const isValid = verifyWebhookSignature(
   secret
 );
 ```
+
+---
+
+## Internal API — Spanish Register Relay
+
+A product that asked a person how Spanish should address them (nauta does
+during onboarding) relays the answer here, so every other surface — janua's
+mail first — honours it instead of asking again. Authenticated with the
+`X-Internal-API-Key` header like every `/api/v1/internal/*` endpoint: a missing
+header is `422`, a wrong key `401`, an unconfigured key `503`.
+
+```http
+POST /api/v1/internal/users/spanish-formality
+```
+
+**Request Body** — address the person by `user_id` (the `sub` of their janua
+token):
+```json
+{
+  "user_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "spanish_formality": "tu",
+  "source_app": "nauta"
+}
+```
+
+…or by `email` within one organization:
+```json
+{
+  "email": "persona@example.com",
+  "organization_id": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
+  "spanish_formality": "usted",
+  "source_app": "phynd-crm"
+}
+```
+
+| Field | Rule |
+|---|---|
+| `user_id` / `email` | exactly one. With `email`, `organization_id` is required and the person must hold a membership in that organization. With `user_id`, `organization_id` is optional; when sent, the same membership rule applies. |
+| `spanish_formality` | required, exactly `"tu"` or `"usted"`. `null` is `422`: NULL means "never asked" and cannot be written back. |
+| `source_app` | required, a lowercase product slug (`^[a-z0-9][a-z0-9._-]{0,63}$`). Recorded on the audit row: the key is shared, so this is the only record of which product relayed the answer. |
+
+**Response** — always `200` when the person exists:
+```json
+{
+  "id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "spanish_formality": "tu",
+  "previous_spanish_formality": null,
+  "changed": true
+}
+```
+
+Idempotent: relaying the stored answer returns `changed: false` and writes no
+audit row. A different answer is recorded (it is the person's own latest
+answer), with an `audit_logs` row: action `user.update`, `user_id` NULL (a
+service acted), `resource_id` the person, `details` = `field`, `old`, `new`,
+`source: "product"`, `source_app`, `actor: "internal-api-key"`. `404` when there
+is no such person for the caller (unknown, deleted, or not a member of the
+organization named); `409` when an email matches people in more than one
+identity pool.
+
+Read the `spanish_formality` token claim first and relay only when it is absent.
+Access tokens pick up a change at their next refresh; `/oauth/userinfo` and
+`/users/me` read it live.
 
 ---
 

@@ -292,14 +292,16 @@ falls through instead of shadowing a good one below it.
 | # | Tier | Where it comes from |
 |---|------|---------------------|
 | 1 | The request | `formality` on `POST /api/v1/auth/magic-link` — `"tu"` or `"usted"` |
-| 2 | The reader | `users.spanish_formality`, read by the router while it still holds a session |
+| 2 | The reader | `users.spanish_formality`, read by the router while it still holds a session; written by the person or relayed by a product (see [Tier 2 is writable](#tier-2-is-writable-2026-10-14)) |
 | 3 | The product | the redirect host's registered voice — `email_branding.default_formality_for` |
 | 4 | The default | `usted` (`email_i18n.DEFAULT_FORMALITY`) |
 
-Tier 3 is the one that fires in practice: `users.spanish_formality` is NULL for
-almost every row, because NULL means "has not chosen" rather than "usted". It
-is keyed on the SAME redirect host as the branding above, so a message's
-header, its voice, and its From line all resolve from one signal:
+Until 2026-10-14 tier 3 was the one that fired in practice: nothing could
+write `users.spanish_formality`, so it was NULL for every row, and NULL means
+"has not chosen" rather than "usted". Tier 3 still answers for everyone who has
+not been asked yet. It is keyed on the SAME redirect host as the branding
+above, so a message's header, its voice, and its From line all resolve from one
+signal:
 
 - hosts registered to a tenant whose products speak in `tú` → `tú`
 - everything else, including the nauta client portal and every unlisted host → `usted`
@@ -318,6 +320,57 @@ from its host's registered default. A `tú` tenant portal should send `"tu"`
 explicitly so its mail does not depend on a host table entry; nauta needs no
 change — its portal hosts already resolve to `usted`, and its request route deliberately
 cannot vary its behavior per recipient (that would leak workspace membership).
+
+### Tier 2 is writable (2026-10-14)
+
+Owner direction: ask each person once — products such as nauta already ask
+during onboarding — and honour the answer everywhere. Two writers, one rule
+(`app/services/spanish_formality.py`):
+
+| Who | How | Auth |
+|---|---|---|
+| The person | `PATCH /api/v1/users/me` with `{"spanish_formality": "tu" \| "usted"}` | their own access token |
+| A product relaying the answer the person gave inside it | `POST /api/v1/internal/users/spanish-formality` | `X-Internal-API-Key` (the same key as `/internal/email/*`) |
+
+- **Strict values.** Exactly `"tu"` or `"usted"`: a write is a person's answer,
+  so `tú`, `TU` or `vosotros` is a 422, not something normalized. (The magic-link
+  `formality` field above stays lenient: it is a cosmetic request hint, not a
+  stored answer.)
+- **NULL is refused.** NULL means "never asked"; an answer, once given, is kept.
+  A person who changes their mind sends the other register.
+- **Idempotent.** Writing the stored register changes nothing and audits
+  nothing; the relay answers `changed: false`.
+- **Audited.** Every change writes an `audit_logs` row (action `user.update`,
+  `details.field = "spanish_formality"`, `old`, `new`, `source` = `self` or
+  `product`, and for a relay `source_app`), in the same transaction as the
+  value. The internal key is shared, so `source_app` is the only record of
+  which product relayed the answer.
+- **Read back** by relying parties as the `spanish_formality` claim — in the ID
+  token and in session and OIDC access tokens, only once the person has
+  answered (absent otherwise), refreshed at every token refresh — and in
+  `/oauth/userinfo` (profile scope; `null` until answered) and `/users/me`.
+
+The relay request (synthetic ids):
+
+```http
+POST /api/v1/internal/users/spanish-formality
+X-Internal-API-Key: <INTERNAL_API_KEY>
+
+{"user_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+ "spanish_formality": "tu",
+ "source_app": "nauta"}
+```
+
+Address the person by `user_id` (the `sub` of their janua token; an optional
+`organization_id` scopes the call to that organization's members) or by
+`email` + `organization_id` (looked up among that organization's members only).
+`404` when there is no such person for the caller, `409` when an email matches
+people in more than one identity pool.
+
+**Consumers:** read the claim first and ask only when it is absent; relay the
+answer once. Tier 1 still outranks a stored answer, so a product that sends
+`formality` on a magic-link request overrides the person's own choice for that
+message — send it only when the product has a reason to.
 
 ## The timestamp on every re-sendable subject
 
