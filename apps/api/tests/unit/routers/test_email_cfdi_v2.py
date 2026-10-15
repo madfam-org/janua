@@ -145,7 +145,9 @@ async def test_the_first_real_payload_is_refused_naming_what_is_missing(cfdi_var
 @pytest.mark.asyncio
 async def test_a_placeholder_nothing_fills_refuses_the_render(cfdi_variables, monkeypatch):
     monkeypatch.setattr(
-        email_module, "_read_text_template_source", lambda _tid: "Total {{total}} {{desconocido}}"
+        email_module,
+        "_read_text_template_source",
+        lambda _tid, _formality=None: "Total {{total}} {{desconocido}}",
     )
     with pytest.raises(UnresolvedTemplateVariablesError) as exc:
         await _render(cfdi_variables)
@@ -162,7 +164,16 @@ async def test_braces_inside_a_value_never_trip_the_guard(cfdi_variables):
 @pytest.mark.parametrize("template_id", sorted(EMAIL_TEMPLATES))
 async def test_every_template_renders_with_its_required_vars_and_leaks_nothing(template_id):
     entry = EMAIL_TEMPLATES[template_id]
-    variables = {name: f"valor-{name}" for name in entry["required"]}
+    lists = entry.get("lists", {})
+    variables = {
+        name: (
+            # A list variable takes one item carrying its required keys.
+            [{key: f"valor-{name}-{key}" for key in lists[name][0]}]
+            if name in lists
+            else f"valor-{name}"
+        )
+        for name in entry["required"]
+    }
     r = await render_registered_template(template_id, variables)
     assert "{{" not in r.html, template_id
     assert r.text is None or "{{" not in r.text, template_id
@@ -195,7 +206,9 @@ async def test_send_template_carries_text_part_and_reply_to(sent, client, cfdi_v
 async def test_send_template_answers_400_naming_an_unfilled_placeholder(
     sent, client, cfdi_variables, monkeypatch
 ):
-    monkeypatch.setattr(email_module, "_read_text_template_source", lambda _tid: "{{desconocido}}")
+    monkeypatch.setattr(
+        email_module, "_read_text_template_source", lambda _tid, _formality=None: "{{desconocido}}"
+    )
     body = {
         "to": ["cliente@example.com"],
         "template": "billing/cfdi",

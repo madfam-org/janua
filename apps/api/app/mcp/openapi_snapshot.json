@@ -724,6 +724,21 @@
             ],
             "title": "Attachments"
           },
+          "formality": {
+            "anyOf": [
+              {
+                "enum": [
+                  "tu",
+                  "usted"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formality"
+          },
           "from_email": {
             "anyOf": [
               {
@@ -864,6 +879,21 @@
             "additionalProperties": true,
             "title": "Context",
             "type": "object"
+          },
+          "formality": {
+            "anyOf": [
+              {
+                "enum": [
+                  "tu",
+                  "usted"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formality"
           },
           "from_email": {
             "anyOf": [

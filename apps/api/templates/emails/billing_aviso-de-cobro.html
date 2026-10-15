@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<!--
+  Monthly billing notice (billing/aviso-de-cobro): nauta → a vCTO client, Spanish.
+
+  Every line of copy arrives from nauta already composed in the reader's
+  register (tú or usted); this file only lays it out, and its own static words
+  ("Total a pagar", "Periodo", "Desglose"…) are labels that do not address the
+  reader. So there is one variant for both registers.
+
+  Rendered by render_template(): NAIVE {{key}} substitution plus FLAT
+  {{#flag}}…{{/flag}} sections (kept only when the flag is set), never nested.
+  Repeating rows (conceptos, pago_datos, the delivered-work tiles and checklist,
+  the timeline, the client's actions) are composed and HTML-escaped in
+  app/routers/v1/email_billing_notice.py; every caller value used here directly
+  is escaped too (escape_html). Each optional section is driven by a derived
+  `mostrar_*` flag that is set only when the section has a title AND content,
+  so an absent optional never leaves an empty heading.
+
+  Email-client constraints: table layout and inline styles (Outlook desktop
+  ignores most <style>); the <style> block below only adds the phone layout;
+  hosted PNG logo with a live-text wordmark; system font stacks (no web-font
+  request); color-scheme: light. Palette: obsidian #0A0E27, lavender #9B59B6,
+  leaf #6BCB77, sun #FFD93D.
+-->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>{{titulo}}</title>
+<style>
+  :root { color-scheme: light; supported-color-schemes: light; }
+  @media only screen and (max-width: 620px) {
+    .mf-card { width: 100% !important; }
+    .mf-pad { padding-left: 20px !important; padding-right: 20px !important; }
+    .mf-inner { padding-left: 18px !important; padding-right: 18px !important; }
+    .mf-total { font-size: 30px !important; }
+    .mf-col { display: block !important; width: 100% !important; box-sizing: border-box; }
+    .mf-col.mf-summary { padding: 0 0 14px 0 !important; border-left: 0 !important; }
+    .mf-col.mf-tile { padding: 0 0 8px 0 !important; }
+    .mf-row td { display: block !important; width: 100% !important; }
+    .mf-row td.mf-label { padding-bottom: 0 !important; }
+    .mf-row td.mf-when { padding-bottom: 4px !important; }
+  }
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#F4F3F8; color-scheme:light; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+<!-- Preheader: the inbox preview line. -->
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#F4F3F8;">{{preencabezado}}</div>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#F4F3F8;">
+<tr>
+<td align="center" style="padding:32px 12px;">
+
+  <table role="presentation" class="mf-card" width="600" cellspacing="0" cellpadding="0" border="0" style="width:600px; max-width:600px; background-color:#FFFFFF; border:1px solid #E6E4F0; border-radius:14px; overflow:hidden;">
+
+    <!-- Brand stripe: lavender, leaf, sun. -->
+    <tr>
+      <td style="padding:0; font-size:0; line-height:0;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td width="34%" height="5" style="background-color:#9B59B6; font-size:0; line-height:0;">&nbsp;</td>
+            <td width="33%" height="5" style="background-color:#6BCB77; font-size:0; line-height:0;">&nbsp;</td>
+            <td width="33%" height="5" style="background-color:#FFD93D; font-size:0; line-height:0;">&nbsp;</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Header: logo + live-text wordmark. -->
+    <tr>
+      <td class="mf-pad" style="padding:28px 40px 4px 40px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td style="vertical-align:middle; padding-right:14px;">
+              <a href="https://madfam.io" style="text-decoration:none;"><img src="https://madfam.io/assets/brand/email/madfam-logo-224.png" width="64" height="65" alt="MADFAM" style="display:block; width:64px; height:65px; border:0; outline:none;"></a>
+            </td>
+            <td style="vertical-align:middle; font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:22px; font-weight:700; letter-spacing:3px; color:#0A0E27; line-height:1.1;">{{marca}}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Eyebrow, title and message. -->
+    <tr>
+      <td class="mf-pad" style="padding:22px 40px 0 40px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; color:#2B2E45;">
+        <div style="font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#9B59B6; line-height:1.4; padding-bottom:8px;">{{etiqueta}}</div>
+        <h1 style="margin:0 0 16px 0; font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:26px; line-height:1.25; font-weight:700; color:#0A0E27;">{{titulo}}</h1>
+        <p style="margin:0 0 12px 0; font-size:16px; line-height:1.6;">{{saludo}}</p>
+        <p style="margin:0; font-size:16px; line-height:1.6;">{{introduccion}}</p>
+      </td>
+    </tr>
+
+    <!-- Summary card: total, then period / due date / CFDI timing. -->
+    <tr>
+      <td class="mf-pad" style="padding:24px 40px 0 40px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#0A0E27; border-radius:12px;">
+          <tr>
+            <td class="mf-inner" style="padding:22px 24px 18px 24px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif;">
+              <div style="font-size:12px; font-weight:600; letter-spacing:1.5px; text-transform:uppercase; color:#C9B3DD;">Total a pagar</div>
+              <div style="padding-top:4px; line-height:1.15;"><span class="mf-total" style="font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:36px; font-weight:700; color:#6BCB77;">{{total}}</span> <span style="font-size:14px; font-weight:600; letter-spacing:1px; color:#C9B3DD;">{{moneda}}</span></div>
+              <div style="font-size:14px; line-height:1.5; color:#D9DBE8; padding-top:6px;">{{total_nota}}</div>
+            </td>
+          </tr>
+          <tr>
+            <td class="mf-inner" style="padding:0 24px 22px 24px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-top:1px solid #2A2F55; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif;">
+                <tr>
+                  <td class="mf-col mf-summary" width="33%" style="padding:16px 12px 0 0; vertical-align:top;">
+                    <div style="font-size:11px; font-weight:600; letter-spacing:1.2px; text-transform:uppercase; color:#C9B3DD;">Periodo</div>
+                    <div style="font-size:15px; font-weight:600; line-height:1.45; color:#FFFFFF; padding-top:4px;">{{periodo}}</div>
+                  </td>
+                  <td class="mf-col mf-summary" width="34%" style="padding:16px 12px 0 12px; vertical-align:top; border-left:1px solid #2A2F55;">
+                    <div style="font-size:11px; font-weight:600; letter-spacing:1.2px; text-transform:uppercase; color:#C9B3DD;">Fecha de pago</div>
+                    <div style="font-size:15px; font-weight:600; line-height:1.45; color:#FFD93D; padding-top:4px;">{{fecha_pago}}</div>
+                    {{#mostrar_fecha_pago_nota}}<div style="font-size:13px; line-height:1.45; color:#D9DBE8; padding-top:2px;">{{fecha_pago_nota}}</div>{{/mostrar_fecha_pago_nota}}
+                  </td>
+                  <td class="mf-col mf-summary" width="33%" style="padding:16px 0 0 12px; vertical-align:top; border-left:1px solid #2A2F55;">
+                    <div style="font-size:11px; font-weight:600; letter-spacing:1.2px; text-transform:uppercase; color:#C9B3DD;">Factura (CFDI)</div>
+                    <div style="font-size:15px; font-weight:600; line-height:1.45; color:#FFFFFF; padding-top:4px;">{{factura_cuando}}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Breakdown: concept lines, subtotal, IVA, total. -->
+    <tr>
+      <td class="mf-pad" style="padding:28px 40px 0 40px;">
+        <h2 style="margin:0 0 6px 0; font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:18px; line-height:1.3; font-weight:700; color:#0A0E27;">Desglose</h2>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td style="padding:8px 12px 8px 0; border-bottom:2px solid #0A0E27; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#5B5F77;">Concepto</td>
+            <td align="right" style="padding:8px 0; border-bottom:2px solid #0A0E27; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:11px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:#5B5F77;">Importe</td>
+          </tr>
+          {{conceptos_filas}}
+          <tr>
+            <td style="padding:12px 12px 4px 0; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:14px; color:#5B5F77;">Subtotal</td>
+            <td align="right" style="padding:12px 0 4px 0; white-space:nowrap; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:14px; color:#2B2E45;">{{subtotal}}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 12px 12px 0; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:14px; color:#5B5F77;">{{iva_etiqueta}}</td>
+            <td align="right" style="padding:4px 0 12px 0; white-space:nowrap; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:14px; color:#2B2E45;">{{iva}}</td>
+          </tr>
+          <tr>
+            <td style="padding:12px 12px 0 0; border-top:1px solid #E6E4F0; font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:16px; font-weight:700; color:#0A0E27;">Total</td>
+            <td align="right" style="padding:12px 0 0 0; border-top:1px solid #E6E4F0; white-space:nowrap; font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:16px; font-weight:700; color:#0A0E27;">{{total_linea}}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- How to pay. -->
+    <tr>
+      <td class="mf-pad" style="padding:28px 40px 0 40px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#F6F1FA; border-left:4px solid #9B59B6; border-radius:0 10px 10px 0;">
+          <tr>
+            <td class="mf-inner" style="padding:18px 20px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif;">
+              <div style="font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:16px; font-weight:700; line-height:1.3; color:#0A0E27; padding-bottom:8px;">{{pago_titulo}}</div>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                {{pago_datos_filas}}
+              </table>
+              <div style="font-size:14px; line-height:1.55; color:#2B2E45; padding-top:10px;">{{pago_nota}}</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    {{#mostrar_cta_comprobante}}<!-- Payment-receipt button (bulletproof). -->
+    <tr>
+      <td class="mf-pad" style="padding:20px 40px 0 40px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td style="border-radius:8px; background-color:#9B59B6;">
+              <a href="{{cta_comprobante_href}}" target="_blank" style="display:inline-block; padding:12px 22px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:15px; font-weight:600; color:#FFFFFF; text-decoration:none; border-radius:8px;">{{cta_comprobante_etiqueta}}</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>{{/mostrar_cta_comprobante}}
+
+    <!-- CFDI note. -->
+    <tr>
+      <td class="mf-pad" style="padding:20px 40px 0 40px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#FFF9DB; border-left:4px solid #FFD93D;">
+          <tr>
+            <td style="padding:14px 16px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:14px; line-height:1.55; color:#2B2E45;">{{factura_nota}}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    {{#mostrar_entregado}}<!-- What we delivered: heading. -->
+    <tr>
+      <td class="mf-pad" style="padding:32px 40px 0 40px;">
+        <h2 style="margin:0; font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:18px; line-height:1.3; font-weight:700; color:#0A0E27;">{{entregado_titulo}}</h2>
+      </td>
+    </tr>{{/mostrar_entregado}}
+    {{#mostrar_entregado_periodo}}<tr>
+      <td class="mf-pad" style="padding:4px 40px 0 40px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:14px; line-height:1.5; color:#5B5F77;">{{entregado_periodo}}</td>
+    </tr>{{/mostrar_entregado_periodo}}
+    {{#mostrar_entregado_destacados}}<!-- What we delivered: stat tiles. -->
+    <tr>
+      <td class="mf-pad" style="padding:14px 36px 0 36px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+          {{entregado_destacados_filas}}
+        </table>
+      </td>
+    </tr>{{/mostrar_entregado_destacados}}
+    {{#mostrar_entregado_lista}}<!-- What we delivered: checklist. -->
+    <tr>
+      <td class="mf-pad" style="padding:8px 40px 0 40px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+          {{entregado_filas}}
+        </table>
+      </td>
+    </tr>{{/mostrar_entregado_lista}}
+
+    {{#mostrar_viene}}<!-- What comes next: dated timeline. -->
+    <tr>
+      <td class="mf-pad" style="padding:32px 40px 0 40px;">
+        <h2 style="margin:0 0 14px 0; font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:18px; line-height:1.3; font-weight:700; color:#0A0E27;">{{viene_titulo}}</h2>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+          {{viene_filas}}
+        </table>
+      </td>
+    </tr>{{/mostrar_viene}}
+
+    {{#mostrar_acciones}}<!-- The client's actions: numbered list. -->
+    <tr>
+      <td class="mf-pad" style="padding:28px 40px 0 40px;">
+        <h2 style="margin:0 0 8px 0; font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:18px; line-height:1.3; font-weight:700; color:#0A0E27;">{{acciones_titulo}}</h2>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+          {{acciones_filas}}
+        </table>
+      </td>
+    </tr>{{/mostrar_acciones}}
+    {{#mostrar_acciones_enlace}}<tr>
+      <td class="mf-pad" style="padding:8px 40px 0 40px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:15px; line-height:1.5;">
+        <a href="{{acciones_enlace_href}}" target="_blank" style="color:#9B59B6; font-weight:600; text-decoration:underline;">{{acciones_enlace_etiqueta}}</a>
+      </td>
+    </tr>{{/mostrar_acciones_enlace}}
+
+    <!-- Sign-off. -->
+    <tr>
+      <td class="mf-pad" style="padding:32px 40px 32px 40px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; color:#2B2E45;">
+        <p style="margin:0 0 14px 0; font-size:16px; line-height:1.6;">{{cierre}}</p>
+        <div style="font-size:15px; font-weight:700; line-height:1.4; color:#0A0E27;">{{firma_nombre}}</div>
+        <div style="font-size:14px; line-height:1.4; color:#5B5F77;">{{firma_cargo}}</div>
+      </td>
+    </tr>
+
+    <!-- Footer. -->
+    <tr>
+      <td class="mf-pad" style="padding:20px 40px 24px 40px; background-color:#F6F5FA; border-top:1px solid #E6E4F0; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#5B5F77;">
+        {{#mostrar_estado_cuenta}}<div style="padding-bottom:8px;"><a href="{{estado_cuenta_href}}" target="_blank" style="color:#9B59B6; font-weight:600; text-decoration:underline;">{{estado_cuenta_etiqueta}}</a></div>{{/mostrar_estado_cuenta}}
+        <div>{{pie}}</div>
+        <div style="padding-top:4px;">{{pie_nota}}</div>
+        <div style="padding-top:8px;"><a href="https://madfam.io" target="_blank" style="color:#0A0E27; text-decoration:none; font-weight:600;">madfam.io</a> &nbsp;·&nbsp; © {{anio}} MADFAM</div>
+      </td>
+    </tr>
+
+  </table>
+
+</td>
+</tr>
+</table>
+</body>
+</html>
