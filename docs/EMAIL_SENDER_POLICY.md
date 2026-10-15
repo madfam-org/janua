@@ -310,6 +310,12 @@ Tier 2 sitting ABOVE tier 3 is deliberate: a product may state its own voice,
 but it must never overwrite someone who has told us how they want to be
 addressed.
 
+**Template sends (2026-10-14).** `POST /api/v1/internal/email/send-template`
+takes the same `formality` and the same order, with tier 2 read per recipient
+and tier 3 being the template's declared voice when it has one (`billing/cfdi`
+stays `usted` on a `tú` product host). Unlike the magic link it is validated:
+an unsupported value is a 422. See `docs/MADFAM_EMAIL_INTEGRATION.md`.
+
 `formality` is normalized rather than validated: an unsupported value (
 `vosotros` included — see `email_i18n` for why that register is not coming)
 becomes None and falls to the next tier. A sign-in request must not 422 over a

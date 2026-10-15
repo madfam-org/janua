@@ -8,7 +8,11 @@ THE CONTRACT (sending apps code against this; keep it exact). Same
        "context": {"periodo": "septiembre de 2026"}, "org_id": "<uuid>"?}
       {"kind": "raw", <the same body as POST /internal/email/send>}
       Optional on both, mirroring the send routes: org_id, from_email,
-      from_name, redirect_url. "raw" accepts the whole SendEmailRequest schema
+      from_name, redirect_url. "template" also takes `formality` ("tu" |
+      "usted"), as /send-template does; with none, the template's or the
+      product's voice applies. A preview never reads the recipient's stored
+      register (it opens no database session), so it shows what a send renders
+      for a recipient who has not chosen one. "raw" accepts the whole SendEmailRequest schema
       (to/cc/bcc optional and ignored; reply_to, source_app, source_type, tags,
       attachments, contains_token_link accepted and applied as a send would --
       none of them changes subject, From or bodies) and IGNORES unknown fields,
@@ -51,6 +55,7 @@ from app.routers.v1.email import (
     UnknownTemplateError,
     UnresolvedTemplateVariablesError,
     render_registered_template,
+    resolve_template_formality,
 )
 from app.services.email_sender import message_class_for_internal_send
 from app.services.resend_email_service import resolve_message_envelope
@@ -71,6 +76,8 @@ class TemplatePreviewRequest(_SenderSignals):
     kind: Literal["template"]
     template: str = Field(min_length=1)
     context: Dict[str, Any] = Field(default_factory=dict)
+    # Same field and rule as SendTemplateEmailRequest.formality.
+    formality: Optional[Literal["tu", "usted"]] = None
 
 
 class RawPreviewRequest(_SenderSignals):
@@ -133,7 +140,15 @@ async def preview_email(
     from_email, from_name = request.from_email, request.from_name
     if isinstance(request, TemplatePreviewRequest):
         try:
-            rendered = await render_registered_template(request.template, request.context)
+            formality = resolve_template_formality(
+                request.template,
+                request.formality,
+                redirect_url=request.redirect_url,
+                org_id=request.org_id,
+            )
+            rendered = await render_registered_template(
+                request.template, request.context, formality
+            )
         except UnknownTemplateError:
             return JSONResponse(status_code=404, content={"detail": "Unknown template"})
         except UnresolvedTemplateVariablesError as exc:

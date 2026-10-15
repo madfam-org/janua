@@ -1,0 +1,46 @@
+{{marca}} · {{etiqueta}}
+
+{{titulo}}
+
+{{saludo}}
+
+{{introduccion}}
+
+Total a pagar: {{total}} {{moneda}}
+{{total_nota}}
+
+Periodo: {{periodo}}
+Fecha de pago: {{fecha_pago}}
+{{#mostrar_fecha_pago_nota}}{{fecha_pago_nota}}
+{{/mostrar_fecha_pago_nota}}Factura (CFDI): {{factura_cuando}}
+
+DESGLOSE
+{{conceptos_texto}}Subtotal: {{subtotal}}
+{{iva_etiqueta}}: {{iva}}
+Total: {{total_linea}}
+
+{{pago_titulo}}
+{{pago_datos_texto}}{{pago_nota}}
+{{#mostrar_cta_comprobante}}
+{{cta_comprobante_etiqueta}}: {{cta_comprobante_enlace}}
+{{/mostrar_cta_comprobante}}
+{{factura_nota}}
+{{#mostrar_entregado}}
+{{entregado_titulo}}
+{{/mostrar_entregado}}{{#mostrar_entregado_periodo}}{{entregado_periodo}}
+{{/mostrar_entregado_periodo}}{{entregado_destacados_texto}}{{entregado_texto}}{{#mostrar_viene}}
+{{viene_titulo}}
+{{viene_texto}}{{/mostrar_viene}}{{#mostrar_acciones}}
+{{acciones_titulo}}
+{{acciones_texto}}{{/mostrar_acciones}}{{#mostrar_acciones_enlace}}{{acciones_enlace_etiqueta}}: {{acciones_enlace}}
+{{/mostrar_acciones_enlace}}
+{{cierre}}
+
+{{firma_nombre}}
+{{firma_cargo}}
+
+--
+{{#mostrar_estado_cuenta}}{{estado_cuenta_etiqueta}}: {{estado_cuenta_enlace}}
+{{/mostrar_estado_cuenta}}{{pie}}
+{{pie_nota}}
+madfam.io · © {{anio}} MADFAM

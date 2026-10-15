@@ -57,6 +57,42 @@ Over quota, Resend answers HTTP 429 `daily_quota_exceeded` or
   Contract and limits: `app/routers/v1/internal_email_usage.py`,
   `app/services/email_usage.py`.
 
+## Register and the monthly billing notice (2026-10-14)
+
+**`formality` on `POST /send-template`.** Optional, `"tu"` or `"usted"` exactly
+(anything else is `422`; `null` or absent means "not named"). It is the highest
+tier of the register precedence, as on the magic link: the request, then the
+recipient's stored `users.spanish_formality` (looked up per recipient by address;
+an unknown, ambiguous or unreachable answer falls through and never blocks the
+send), then the template's own voice, then `usted`. A template's voice is its
+registry `default_formality` when it declares one (`billing/cfdi`: `usted`, MADFAM's
+fiscal voice, so a `tú` product host does not change it) and otherwise the
+requesting product's (`email_branding.default_formality_for`). The register only
+changes templates that ship a `tú` file (`TEMPLATE_FILENAMES_TU`: today
+`billing/cfdi`, subject «Tu CFDI …»); for every other template the caller's copy
+already carries its register and the stored value is not looked up.
+`POST /preview` takes the same field but never reads the stored register.
+
+**`billing/aviso-de-cobro`.** The monthly billing notice nauta sends to a vCTO
+client. Spanish, HTML + text, subject `{asunto}`, every value HTML-escaped, no
+default sender (the platform sender applies). The copy arrives composed in the
+reader's register; the template only lays it out, so it has one variant.
+
+| Kind | Variables |
+|---|---|
+| Required | `asunto`, `preencabezado`, `marca`, `etiqueta`, `titulo`, `saludo`, `introduccion`, `total`, `moneda`, `total_nota`, `periodo`, `fecha_pago`, `factura_cuando`, `subtotal`, `iva_etiqueta`, `iva`, `total_linea`, `pago_titulo`, `pago_nota`, `factura_nota`, `cierre`, `firma_nombre`, `firma_cargo`, `pie`, `pie_nota` |
+| Required lists (non-empty) | `conceptos[{concepto, monto, detalle?}]`, `pago_datos[{etiqueta, valor}]` |
+| Optional | `fecha_pago_nota`, `cta_comprobante_etiqueta` + `cta_comprobante_url`, `entregado_titulo`, `entregado_periodo`, `viene_titulo`, `acciones_titulo`, `acciones_enlace_etiqueta` + `acciones_enlace_url`, `estado_cuenta_etiqueta` + `estado_cuenta_url` |
+| Optional lists | `entregado_destacados[{valor, etiqueta}]`, `entregado[{titulo, detalle?}]`, `viene[{cuando, que}]`, `acciones[{titulo, detalle?}]` |
+
+Item values are strings or numbers; `detalle` may be omitted. A list that breaks
+its shape is `400 Invalid template variables: <path>` (e.g. `pago_datos[0].valor`).
+A section renders only when it is complete: «entregado» needs `entregado_titulo`
+and at least one of its two lists, «viene» and «acciones» need their title and
+list, a link needs its label and an `https://` (or, for the receipt button,
+`mailto:`) URL. Anything less drops the whole section, heading included. Rows
+and section logic: `app/routers/v1/email_billing_notice.py`.
+
 ## Architecture Overview
 
 ```
