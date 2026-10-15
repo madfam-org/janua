@@ -24,7 +24,7 @@ never picks a register.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Literal, Optional, Set
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from jinja2 import Environment, FileSystemLoader, pass_context, select_autoescape
@@ -128,6 +128,13 @@ def template_candidates(template_name: str, locale: str) -> List[str]:
 FORMALITY_TU = "tu"
 FORMALITY_USTED = "usted"
 SPANISH_FORMALITIES: tuple = (FORMALITY_TU, FORMALITY_USTED)
+
+# The same two registers as a TYPE, for the surfaces that WRITE a person's
+# choice (`PATCH /users/me`, the internal relay): those accept exactly these
+# strings — no accent, no case folding — where `normalize_formality` below is
+# deliberately lenient for READS. Pinned equal to SPANISH_FORMALITIES by
+# tests/unit/services/test_spanish_formality_write.py.
+SpanishFormality = Literal["tu", "usted"]
 
 # `usted` is the default, and NULL on the user row means "has not chosen".
 # A first contact is with someone who has told us nothing about themselves;

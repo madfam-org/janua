@@ -121,11 +121,12 @@ class User(Base):
     # would make widening it a migration on a hot table. `vosotros` is not a
     # supported value and is not coming; see email_i18n for why.
     #
-    # Intended as the source of truth for EVERY surface, not just mail. Today
-    # only janua's transactional email reads it; nauta's client portal still
-    # hardcodes `tú` while this service's email is `usted`, so the same person
-    # is addressed two ways in one journey. Whoever fixes the portal side
-    # should read this column rather than introduce a second preference.
+    # Intended as the source of truth for EVERY surface, not just mail. Since
+    # 2026-10-14 it is written by the person (`PATCH /users/me`) or relayed by
+    # a product that asked them (`POST /internal/users/spanish-formality`), and
+    # read by relying parties as the `spanish_formality` token/userinfo claim —
+    # all through app/services/spanish_formality.py. A product portal should
+    # read that claim rather than introduce a second preference.
     spanish_formality = Column(String(10))
     email_verified_at = Column(DateTime)
 

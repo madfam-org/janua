@@ -162,6 +162,9 @@ EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("POST", f"{INTERNAL_PREFIX}/users/provision", _DESTRUCTIVE),
     Exemption("POST", f"{INTERNAL_PREFIX}/users/suspend", _DESTRUCTIVE),
     Exemption("POST", f"{INTERNAL_PREFIX}/users/reactivate", _DESTRUCTIVE),
+    # A product relaying a person's tú/usted answer -- a credentialed write to
+    # their profile that every later email and token honours.
+    Exemption("POST", f"{INTERNAL_PREFIX}/users/spanish-formality", _READ_OR_GRANT),
     # internal_app_roles -- app-role grants that flow into JWT `roles`.
     Exemption("POST", f"{INTERNAL_PREFIX}/app-roles/grant", _READ_OR_GRANT),
     Exemption("POST", f"{INTERNAL_PREFIX}/app-roles/revoke", _DESTRUCTIVE),

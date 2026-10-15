@@ -65,6 +65,10 @@ export enum WebhookEventType {
   ORGANIZATION_MEMBER_REMOVED = 'organization.member_removed'
 }
 
+// How Spanish should address a person. `vosotros` is deliberately not a value
+// (see the API's email_i18n for why that register is not coming).
+export type SpanishFormality = 'tu' | 'usted';
+
 // Core Interfaces
 
 export interface User {
@@ -84,6 +88,11 @@ export interface User {
   phone_verified: boolean;
   timezone?: string;
   locale?: string;
+  /**
+   * How Spanish should address this person. `null` (or absent) until they have
+   * been asked; also carried as the `spanish_formality` token claim once set.
+   */
+  spanish_formality?: SpanishFormality | null;
   status: UserStatus;
   mfa_enabled: boolean;
   is_admin: boolean;
@@ -255,6 +264,11 @@ export interface UserUpdateRequest {
   phone_number?: string;
   timezone?: string;
   locale?: string;
+  /**
+   * The person's own answer: exactly 'tu' or 'usted'. Omit to leave it as it
+   * is; it cannot be cleared (the API refuses `null` with 422).
+   */
+  spanish_formality?: SpanishFormality;
   user_metadata?: Record<string, any>;
 }
 

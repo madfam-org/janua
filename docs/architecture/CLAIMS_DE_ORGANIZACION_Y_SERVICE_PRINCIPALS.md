@@ -57,6 +57,7 @@ alguien deja de trabajar— o abierta — alguien gana un tenant).
 | `madfam_org_roles` | lista de strings | igual que `org_id` | rol de organización **en esa org** |
 | `roles` | lista de strings | **solo** con concesiones vivas | roles de **aplicación** (`hcm:hr`), ver §5 |
 | `is_service_account` | `true` | **solo** si la identidad es técnica | ver §4 |
+| `spanish_formality` | `"tu"` \| `"usted"` | **solo** si la persona ya respondió | cómo dirigirse a ella en español; también en el ID token y en `/oauth/userinfo`. No lo resuelve `org_claims_service` sino `app/services/spanish_formality.py`; ver `docs/EMAIL_SENDER_POLICY.md` |
 
 **«Sin ambigüedad»** significa: exactamente una membresía activa, o
 `user.tenant_id` nombra una de ellas. Con varias organizaciones y sin ancla, se
