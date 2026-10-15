@@ -16,8 +16,10 @@ Every person, company, address and amount here is synthetic.
 from __future__ import annotations
 
 import html as html_lib
+import importlib
 import re
 import uuid
+from email.utils import parseaddr
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -26,7 +28,6 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
-import app.routers.v1.email as email_module
 import app.services.resend_email_service as resend_module
 from app.dependencies import verify_internal_api_key
 from app.main import app
@@ -49,6 +50,10 @@ from app.routers.v1.email import (
 from app.routers.v1.email_billing_notice import _tile_row_sizes
 from app.services import resend_transport
 from app.services.user_lookup import AmbiguousEmailAcrossPools
+
+# One way in for this module: CodeQL flags a module imported with both `import`
+# and `from … import`, and the tests need the module object to patch it.
+email_module = importlib.import_module("app.routers.v1.email")
 
 AVISO = "billing/aviso-de-cobro"
 CFDI = "billing/cfdi"
@@ -543,7 +548,9 @@ async def test_a_template_the_register_cannot_change_never_looks_it_up(
     assert params["subject"] == "Aviso de cobro · octubre 2026"
     assert "Acompañamiento vCTO" in params["html"] and "Acompañamiento vCTO" in params["text"]
     # No default sender: the platform sender, never the fiscal mailbox.
-    assert "facturacion@" not in params["from"] and "madfam.io" in params["from"]
+    _, from_address = parseaddr(params["from"])
+    assert from_address.split("@", 1)[1] == "madfam.io"
+    assert from_address.split("@", 1)[0] != "facturacion"
 
 
 @pytest.mark.asyncio
