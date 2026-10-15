@@ -19,7 +19,7 @@ from pydantic import BaseModel, EmailStr, Field
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.dependencies import verify_internal_api_key
-from app.routers.v1 import email_billing_notice
+from app.routers.v1 import email_billing_notice, email_ops_alert
 from app.routers.v1.email_cfdi import cfdi_portal_slots
 from app.services.email_branding import CTM_BRANDING, default_formality_for
 from app.services.email_i18n import (
@@ -125,6 +125,16 @@ class SendTemplateEmailRequest(BaseModel):
     # CFDI template sends from facturacion@madfam.io); a caller that knows who
     # should answer (the client's advisor) says so here.
     reply_to: Optional[EmailStr] = None
+    # A blind copy of ONE recipient's message. Each address in `to` gets its own
+    # message (rendered in that recipient's register), so the BCC rides on the
+    # message to the FIRST address in `to` only: a BCC holder receives exactly
+    # one copy, and it is exactly what that recipient received (same register,
+    # same greeting). It is never attached to the other recipients' messages.
+    # An address that is also in `to` (case-insensitive) is dropped, since it
+    # already gets its own message, and a repeated address is kept once. An
+    # empty list is the same as none. Every BCC address counts against the
+    # sending Resend account's quota, like any recipient.
+    bcc: Optional[List[EmailStr]] = None
     source_app: str
     source_type: Optional[str] = "notification"
     redirect_url: Optional[str] = None
@@ -463,6 +473,22 @@ EMAIL_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "optional": ["sesiones"],
         "subject": "Tu pago quedó confirmado",
     },
+    # Operator alert (a MADFAM service → MADFAM's operators), Spanish. Generic on
+    # purpose: a probe or worker says what broke or recovered, where, and when.
+    # Internal, so it addresses nobody: the template's own words are labels with
+    # no tú/usted marker and it has ONE register-neutral variant (no
+    # TEMPLATE_FILENAMES_TU entry, no default_formality). `detalle` is
+    # multi-line plain text; email_ops_alert.py escapes it line by line for the
+    # HTML. The optional action link reaches the body only through derived slots
+    # and only for an https URL. No default sender: the platform sender applies
+    # (app/services/email_sender.py), as for the other operator notices.
+    "ops/alert": {
+        "description": "Aviso operativo interno para el equipo de MADFAM (registro neutro)",
+        "required": ["asunto", "titulo", "detalle", "servicio", "ocurrio"],
+        "optional": ["accion_url", "accion_texto"],
+        "subject": "{asunto}",
+        "escape_html": True,
+    },
 }
 
 # ==========================================
@@ -494,6 +520,7 @@ TEMPLATE_FILENAMES: Dict[str, str] = {
     "transactional/workspace-activated": "transactional_workspace-activated.html",
     "transactional/request-filed": "transactional_request-filed.html",
     "map/pago-confirmado": "map_pago-confirmado.html",
+    "ops/alert": "ops_alert.html",
 }
 
 # Plain-text companions, whitelisted exactly like TEMPLATE_FILENAMES. A template
@@ -502,6 +529,7 @@ TEMPLATE_FILENAMES: Dict[str, str] = {
 TEXT_TEMPLATE_FILENAMES: Dict[str, str] = {
     "billing/cfdi": "billing_cfdi.txt",
     "billing/aviso-de-cobro": "billing_aviso-de-cobro.txt",
+    "ops/alert": "ops_alert.txt",
 }
 
 # `tú` variants, whitelisted the same way. A template listed here has copy of its
@@ -579,6 +607,26 @@ async def _stored_formality_for(email: str, org_id: Optional[str]) -> Optional[s
         logger.warning("Stored register lookup failed", error_type=type(exc).__name__)
         return None
     return normalize_formality(getattr(user, "spanish_formality", None)) if user else None
+
+
+def _first_message_bcc(to: List[str], bcc: Optional[List[str]]) -> Optional[List[str]]:
+    """The BCC list for the first recipient's template message, or None.
+
+    Drops every address that is also a `to` recipient (it gets its own message)
+    and every repeat, comparing case-insensitively, so each BCC holder receives
+    exactly one copy. None when nothing is left, so the provider payload never
+    carries an empty `bcc`.
+    """
+    if not bcc:
+        return None
+    seen = {address.lower() for address in to}
+    kept: List[str] = []
+    for address in bcc:
+        key = address.lower()
+        if key not in seen:
+            seen.add(key)
+            kept.append(address)
+    return kept or None
 
 
 # ==========================================
@@ -750,9 +798,13 @@ async def send_template_email(
         # lets a CFDI-delivery template carry its stamped XML + PDF.
         resend_attachments = _attachments_for_resend(request.attachments)
 
+        # The blind copy rides on the first recipient's message only
+        # (SendTemplateEmailRequest.bcc), so it is one copy of one real message.
+        first_message_bcc = _first_message_bcc(request.to, request.bcc)
+
         # Send to each recipient (service expects single email address)
         results = []
-        for recipient in request.to:
+        for index, recipient in enumerate(request.to):
             message = per_recipient[recipient]
             result = await resend_service.send_email(
                 to_email=recipient,
@@ -761,6 +813,7 @@ async def send_template_email(
                 text_content=message.text,
                 tags=tag_list,
                 reply_to=request.reply_to,
+                bcc=first_message_bcc if index == 0 else None,
                 from_email=from_email,
                 from_name=from_name,
                 redirect_url=request.redirect_url,
@@ -952,6 +1005,13 @@ def _derive_template_variables(
         # Rows, links and section flags; set after the caller's values so a
         # same-named variable cannot replace composed markup.
         derived.update(email_billing_notice.billing_notice_slots(variables))
+        derived["anio"] = str(datetime.now(ZoneInfo("America/Mexico_City")).year)
+        return derived
+    if template_id == email_ops_alert.TEMPLATE_ID:
+        derived = dict(variables)
+        # The escaped multi-line detail and the optional action link; set after
+        # the caller's values so a same-named variable cannot replace them.
+        derived.update(email_ops_alert.ops_alert_slots(variables))
         derived["anio"] = str(datetime.now(ZoneInfo("America/Mexico_City")).year)
         return derived
     return variables

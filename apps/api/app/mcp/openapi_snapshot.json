@@ -724,6 +724,21 @@
             ],
             "title": "Attachments"
           },
+          "bcc": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "email",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bcc"
+          },
           "formality": {
             "anyOf": [
               {

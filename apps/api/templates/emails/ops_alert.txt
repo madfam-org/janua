@@ -1,0 +1,15 @@
+MADFAM · Aviso operativo
+
+{{titulo}}
+
+Servicio: {{servicio}}
+Ocurrió: {{ocurrio}}
+
+Detalle:
+{{detalle}}
+{{#mostrar_accion}}
+{{accion_etiqueta_texto}}: {{accion_enlace}}
+{{/mostrar_accion}}
+--
+Aviso automático para el equipo de operación de MADFAM.
+madfam.io · © {{anio}} MADFAM
