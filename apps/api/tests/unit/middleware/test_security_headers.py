@@ -298,9 +298,13 @@ class TestContentSecurityPolicy:
             if (parts := directive.split())
         }
         assert result.headers["Location"] == "https://app.nauta.quest/auth/callback"
-        assert "https://app.nauta.quest" in directives["form-action"]
-        assert "https://*.nauta.quest" not in directives["form-action"]
-        assert "https://app.nauta.quest" not in directives["connect-src"]
+        assert directives["form-action"].count("https://app.nauta.quest") == 1
+        assert directives["form-action"].count("https://*.nauta.quest") == 0
+        assert directives["connect-src"] == [
+            "'self'",
+            "https://api.janua.dev",
+            "https://cloudflareinsights.com",
+        ]
         assert directives["frame-ancestors"] == ["'none'"]
 
 
