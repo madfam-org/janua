@@ -73,6 +73,9 @@ jobs:
         run: pnpm build:packages
         continue-on-error: true
 
+      - name: Build feature flags prerequisite
+        run: pnpm --filter @janua/feature-flags build
+
       - name: Build frontend packages
         run: pnpm build:frontend
         continue-on-error: true
