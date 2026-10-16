@@ -1,5 +1,7 @@
 'use client'
 
+import { useJanua } from '@janua/nextjs/app/client'
+
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@janua/ui'
 import { Button } from '@janua/ui'
@@ -28,7 +30,7 @@ import {
   regenerateScimToken,
 } from '@/lib/api'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+
 
 interface SCIMConfig {
   id: string
@@ -82,6 +84,7 @@ const providerLabels: Record<string, string> = {
 }
 
 export default function SCIMSettingsPage() {
+  const API_BASE_URL = useJanua().client.getConfig().baseURL
   const [config, setConfig] = useState<SCIMConfig | null>(null)
   const [syncStatus, setSyncStatus] = useState<SCIMSyncStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)

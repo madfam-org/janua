@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { AdminSessionError, verifyAdminSession } from '@/lib/admin-session'
+import { consoleSessionCookie } from '@janua/ui/console-runtime'
+import { readConsoleConfig } from '@/lib/console-runtime.server'
 
 const legacyCookies = ['janua_admin_email', 'janua_admin_roles', 'janua_refresh_token']
 
-function cookieOptions(maxAge: number) {
-  return { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax' as const, path: '/', maxAge }
+function cookieOptions(maxAge: number, environment: string) {
+  return { httpOnly: true, secure: environment !== 'development', sameSite: 'lax' as const, path: '/', maxAge }
 }
 
 /** Exchange the SDK token for a host-only cookie after authoritative checks. */
@@ -21,11 +23,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const runtime = readConsoleConfig()
     const { user, expiresAt } = await verifyAdminSession(token.trim())
     const cookieStore = await cookies()
-    cookieStore.set('janua_access_token', token.trim(), cookieOptions(Math.max(1, Math.floor(expiresAt - Date.now() / 1000))))
+    cookieStore.set(consoleSessionCookie(runtime), token.trim(), cookieOptions(Math.max(1, Math.floor(expiresAt - Date.now() / 1000)), runtime.environment))
     // Retire the former unsigned authorization hints and unused refresh cookie.
-    for (const name of legacyCookies) cookieStore.set(name, '', cookieOptions(0))
+    if (runtime.environment !== 'staging') for (const name of legacyCookies) cookieStore.set(name, '', cookieOptions(0, runtime.environment))
     return NextResponse.json({ ok: true, user }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     const status = error instanceof AdminSessionError ? error.status : 503
@@ -37,9 +40,13 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE() {
+  let runtime
+  try { runtime = readConsoleConfig() } catch {
+    return NextResponse.json({ error: 'Console configuration unavailable' }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+  }
   const cookieStore = await cookies()
-  for (const name of ['janua_access_token', ...legacyCookies]) {
-    cookieStore.set(name, '', cookieOptions(0))
+  for (const name of [consoleSessionCookie(runtime), ...(runtime.environment === 'staging' ? [] : legacyCookies)]) {
+    cookieStore.set(name, '', cookieOptions(0, runtime.environment))
   }
   return NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } })
 }

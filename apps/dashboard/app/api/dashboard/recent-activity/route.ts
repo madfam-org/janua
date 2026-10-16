@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 // Server-side environment variable (runtime, not baked into build)
-const API_BASE_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+import { readConsoleApi } from '@/lib/console-runtime.server'
 
 export async function GET(request: NextRequest) {
   try {
+    const apiOrigin = readConsoleApi()
     const authHeader = request.headers.get('authorization')
     
     if (!authHeader) {
@@ -15,10 +16,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Forward the request to the Janua Admin API (v1 versioned endpoint)
-    const apiUrl = `${API_BASE_URL}/api/v1/admin/activity-logs?per_page=10`
+    const apiUrl = `${apiOrigin}/api/v1/admin/activity-logs?per_page=10`
 
     const apiResponse = await fetch(apiUrl, {
       method: 'GET',
+      credentials: 'omit',
+      redirect: 'error',
       headers: {
         'Authorization': authHeader,
         'Content-Type': 'application/json',

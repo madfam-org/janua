@@ -5,29 +5,30 @@
  */
 
 import { JanuaClient } from '@janua/typescript-sdk'
+import { lazyConsoleClient, lazyConsoleObject } from '@janua/ui/console-runtime'
 
-const baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
-const wsURL = process.env.NEXT_PUBLIC_WS_URL || baseURL.replace(/^http/, 'ws') + '/ws'
-
-export const januaClient = new JanuaClient({
-  baseURL,
-  audience: process.env.NEXT_PUBLIC_JANUA_AUDIENCE || 'janua.dev',
-  debug: process.env.NODE_ENV === 'development',
+// Imports never read credentials, construct an SDK or mutate server state.
+export const januaClient = lazyConsoleClient('dashboard', config => new JanuaClient({
+  baseURL: config.apiOrigin,
+  issuer: config.issuer,
+  audience: config.audience,
   tokenStorage: 'localStorage',
   autoRefreshTokens: true,
-  wsUrl: wsURL,
+  // Browser WebSockets attach cookies without a credentials:omit option.
+  // Stage uses the existing polling fallback until host isolation is approved.
+  wsUrl: config.environment === 'staging' ? undefined : config.apiOrigin.replace(/^http/, 'ws') + '/ws',
   wsAutoConnect: false, // Connect on demand (e.g. audit live feed)
-} as any)
+}))
 
 // Export modules for convenience
-export const auth = januaClient.auth
-export const users = januaClient.users
-export const sessions = januaClient.sessions
-export const organizations = januaClient.organizations
-export const webhooks = januaClient.webhooks
-export const admin = januaClient.admin
-export const sso = januaClient.sso
-export const invitations = januaClient.invitations
-export const scim = januaClient.scim
+export const auth = lazyConsoleObject(() => januaClient.auth)
+export const users = lazyConsoleObject(() => januaClient.users)
+export const sessions = lazyConsoleObject(() => januaClient.sessions)
+export const organizations = lazyConsoleObject(() => januaClient.organizations)
+export const webhooks = lazyConsoleObject(() => januaClient.webhooks)
+export const admin = lazyConsoleObject(() => januaClient.admin)
+export const sso = lazyConsoleObject(() => januaClient.sso)
+export const invitations = lazyConsoleObject(() => januaClient.invitations)
+export const scim = lazyConsoleObject(() => januaClient.scim)
 
 export default januaClient

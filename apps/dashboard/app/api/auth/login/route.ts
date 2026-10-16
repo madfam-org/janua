@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 // Server-side environment variable (runtime, not baked into build)
-// Priority: INTERNAL_API_URL > NEXT_PUBLIC_API_URL > localhost fallback
-const API_BASE_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+import { readConsoleApi } from '@/lib/console-runtime.server'
 
 export async function POST(request: NextRequest) {
   try {
+    const apiOrigin = readConsoleApi()
     const body = await request.json()
     const { email, password } = body
 
@@ -17,10 +17,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Forward to the Janua API (v1 versioned endpoint)
-    const apiUrl = `${API_BASE_URL}/api/v1/auth/login`
+    const apiUrl = `${apiOrigin}/api/v1/auth/login`
 
     const apiResponse = await fetch(apiUrl, {
       method: 'POST',
+      credentials: 'omit',
+      redirect: 'error',
       headers: {
         'Content-Type': 'application/json',
       },

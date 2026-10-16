@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 import { AdminSessionError, verifyAdminSession } from './lib/admin-session'
+import { consoleCsp, consoleSessionCookie, type ConsoleRuntimeConfig } from '@janua/ui/console-runtime'
+import { readConsoleConfig } from './lib/console-runtime.server'
 
 // Public paths that don't require authentication
 const publicPaths = [
@@ -23,14 +25,20 @@ function isPublicPath(pathname: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
+  let runtime
+  try { runtime = readConsoleConfig() } catch {
+    return NextResponse.json({ error: 'Console configuration unavailable' }, {
+      status: 503, headers: { 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'" },
+    })
+  }
   const { pathname } = request.nextUrl
-  if (isPublicPath(pathname)) return addSecurityHeaders(NextResponse.next())
+  if (isPublicPath(pathname)) return addSecurityHeaders(NextResponse.next(), runtime)
 
-  const token = request.cookies.get('janua_access_token')?.value
+  const token = request.cookies.get(consoleSessionCookie(runtime))?.value
   try {
     if (!token) throw new AdminSessionError(401)
     await verifyAdminSession(token)
-    return addSecurityHeaders(NextResponse.next())
+    return addSecurityHeaders(NextResponse.next(), runtime)
   } catch (error) {
     const status = error instanceof AdminSessionError ? error.status : 503
     // Never log request cookies, tokens, claims or identity records.
@@ -38,13 +46,13 @@ export async function middleware(request: NextRequest) {
       return addSecurityHeaders(NextResponse.json(
         { error: status === 403 ? 'Forbidden' : status === 503 ? 'Authentication unavailable' : 'Unauthorized' },
         { status, headers: { 'Cache-Control': 'no-store' } },
-      ))
+      ), runtime)
     }
-    return addSecurityHeaders(NextResponse.redirect(new URL(status === 403 ? '/access-denied' : '/login', request.url)))
+    return addSecurityHeaders(NextResponse.redirect(new URL(status === 403 ? '/access-denied' : '/login', request.url)), runtime)
   }
 }
 
-function addSecurityHeaders(response: NextResponse): NextResponse {
+function addSecurityHeaders(response: NextResponse, runtime: ConsoleRuntimeConfig): NextResponse {
   const securityHeaders = {
     // Prevent clickjacking attacks
     'X-Frame-Options': 'DENY',
@@ -59,15 +67,8 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     'Referrer-Policy': 'strict-origin-when-cross-origin',
 
     // Strict Content Security Policy
-    'Content-Security-Policy': [
-      "default-src 'self'",
-      `script-src 'self'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} 'unsafe-inline' https://static.cloudflareinsights.com`,
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' data: https://fonts.gstatic.com",
-      "img-src 'self' data: https:",
-      `connect-src 'self' ${process.env.NEXT_PUBLIC_JANUA_API_URL || 'https://api.janua.dev'} https://cloudflareinsights.com`,
-      "frame-ancestors 'none'",
-    ].join('; '),
+    'Content-Security-Policy': consoleCsp(runtime),
+    'Cache-Control': response.headers.get('Cache-Control') || 'private, no-store',
 
     // Restrict browser features
     'Permissions-Policy': [

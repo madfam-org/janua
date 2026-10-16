@@ -1,9 +1,11 @@
 'use client'
 
+import { browserConsoleConfig } from '@janua/ui/console-runtime'
+
 import { useState, useEffect } from 'react'
 import { z } from 'zod'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+const apiOrigin = () => browserConsoleConfig('admin').apiOrigin
 
 // Validate displayed fields before accepting an API response as current state.
 const dateString = z.string().refine((value) => Number.isFinite(Date.parse(value)))
@@ -40,7 +42,7 @@ type ApiKey = z.infer<typeof apiKeySchema>
 type BrandingConfig = z.infer<typeof brandingSchema>
 
 async function fetchSettings<T>(path: string, schema: z.ZodType<T>, label: string): Promise<T> {
-  const response = await fetch(`${API_URL}/api/v1/${path}`, { headers: getAuthHeaders() })
+  const response = await fetch(`${apiOrigin()}/api/v1/${path}`, { headers: getAuthHeaders() })
   if (!response.ok) throw new Error(`${label} unavailable (HTTP ${response.status}).`)
   const result = schema.safeParse(await response.json())
   if (!result.success) throw new Error(`${label} unavailable: invalid response.`)
@@ -134,7 +136,7 @@ function AlertsSettings() {
 
   const handleAcknowledge = async (alertId: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/alerts/${alertId}/acknowledge`, {
+      const res = await fetch(`${apiOrigin()}/api/v1/alerts/${alertId}/acknowledge`, {
         method: 'POST',
         headers: getAuthHeaders(),
       })
@@ -147,7 +149,7 @@ function AlertsSettings() {
 
   const handleResolve = async (alertId: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/alerts/${alertId}/resolve`, {
+      const res = await fetch(`${apiOrigin()}/api/v1/alerts/${alertId}/resolve`, {
         method: 'POST',
         headers: getAuthHeaders(),
       })
@@ -160,7 +162,7 @@ function AlertsSettings() {
 
   const handleToggleRule = async (ruleId: string, enabled: boolean) => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/alerts/rules/${ruleId}`, {
+      const res = await fetch(`${apiOrigin()}/api/v1/alerts/rules/${ruleId}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ enabled }),
@@ -322,7 +324,7 @@ function ApiKeysSettings() {
     if (!confirm('Are you sure you want to revoke this API key?')) return
 
     try {
-      const res = await fetch(`${API_URL}/api/v1/api-keys/${keyId}`, {
+      const res = await fetch(`${apiOrigin()}/api/v1/api-keys/${keyId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       })
@@ -431,7 +433,7 @@ function BrandingSettings() {
 
   const handleToggleBranding = async (configId: string, enabled: boolean) => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/white-label/configurations/${configId}`, {
+      const res = await fetch(`${apiOrigin()}/api/v1/white-label/configurations/${configId}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ is_enabled: enabled }),

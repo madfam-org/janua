@@ -44,10 +44,7 @@ RUN pnpm --filter @janua/react-sdk build || true
 RUN pnpm --filter @janua/nextjs build || true
 RUN pnpm --filter @janua/ui build || true
 
-# Build admin with production API URL baked in
-# NEXT_PUBLIC_* vars must be set at BUILD time for client-side code
-ARG NEXT_PUBLIC_API_URL=https://api.janua.dev
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# Build once; console deployment settings are validated at request time.
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter admin build
 

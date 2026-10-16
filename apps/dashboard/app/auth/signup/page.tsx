@@ -15,6 +15,7 @@ import {
 } from '@janua/ui'
 import { Building2, Loader2, Shield, Sparkles } from 'lucide-react'
 import { januaClient } from '@/lib/janua-client'
+import { setAuthCookie } from '@/lib/auth-storage'
 import { useAuth } from '@/lib/auth'
 
 // Storage keys - must match auth.tsx
@@ -132,8 +133,7 @@ function SignupFlow() {
   const handleAfterSignUp = (user: unknown) => {
     const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN)
     if (token) {
-      const cookieDomain = window.location.hostname.includes('janua.dev') ? '; domain=.janua.dev' : ''
-      document.cookie = `${STORAGE_KEYS.COOKIE}=${token}; path=/${cookieDomain}; secure; samesite=lax`
+      setAuthCookie(token)
     }
     if (user) {
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user))

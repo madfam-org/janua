@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useJanua } from '@janua/nextjs/app/client'
 import { Button } from '@janua/ui'
 import { Copy, CheckCircle2 } from 'lucide-react'
 
@@ -19,13 +20,13 @@ const TAB_LABELS: Record<SdkTab, string> = {
   go: 'Go',
 }
 
-function getSnippet(tab: SdkTab, clientId: string, redirectUri: string): string {
+function getSnippet(tab: SdkTab, clientId: string, redirectUri: string, apiOrigin: string): string {
   switch (tab) {
     case 'react':
       return `import { JanuaClient } from '@janua/react-sdk'
 
 const januaClient = new JanuaClient({
-  baseURL: '${process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'}',
+  baseURL: '${apiOrigin}',
   clientId: '${clientId}',
   redirectUri: '${redirectUri}',
 })
@@ -48,7 +49,7 @@ function LoginButton() {
 import { JanuaClient } from '@janua/nextjs-sdk'
 
 export const januaClient = new JanuaClient({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || '${process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'}',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || '${apiOrigin}',
   clientId: '${clientId}',
   redirectUri: '${redirectUri}',
 })
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
 import { createJanuaClient } from '@janua/vue-sdk'
 
 export const januaClient = createJanuaClient({
-  baseURL: '${process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'}',
+  baseURL: '${apiOrigin}',
   clientId: '${clientId}',
   redirectUri: '${redirectUri}',
 })
@@ -102,7 +103,7 @@ function handleLogin() {
       return `from janua import JanuaClient
 
 client = JanuaClient(
-    base_url="${process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'}",
+    base_url="${apiOrigin}",
     client_id="${clientId}",
     client_secret="YOUR_CLIENT_SECRET",  # Keep secret server-side only
 )
@@ -126,7 +127,7 @@ import (
 
 func main() {
     client := janua.NewClient(janua.Config{
-        BaseURL:      "${process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'}",
+        BaseURL:      "${apiOrigin}",
         ClientID:     "${clientId}",
         ClientSecret: "YOUR_CLIENT_SECRET", // Keep secret server-side only
     })
@@ -150,7 +151,7 @@ export function CodeSnippets({ clientId, redirectUri }: CodeSnippetsProps) {
   const [activeTab, setActiveTab] = useState<SdkTab>('react')
   const [copied, setCopied] = useState(false)
 
-  const snippet = getSnippet(activeTab, clientId, redirectUri)
+  const snippet = getSnippet(activeTab, clientId, redirectUri, useJanua().client.getConfig().baseURL)
 
   const handleCopy = async () => {
     try {

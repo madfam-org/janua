@@ -1,5 +1,7 @@
 'use client'
 
+import { useJanua } from '@janua/nextjs/app/client'
+
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@janua/ui'
 import { Button } from '@janua/ui'
@@ -24,7 +26,7 @@ import {
 import { januaClient } from '@/lib/janua-client'
 import { useAuth } from '@/lib/auth'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+
 
 interface SSOConfiguration {
   id: string
@@ -62,6 +64,7 @@ const statusLabels = {
 const PLATFORM_SCOPE = 'platform'
 
 export default function SSOSettingsPage() {
+  const API_BASE_URL = useJanua().client.getConfig().baseURL
   const { user } = useAuth()
   const isMasterAdmin = user?.is_admin === true
   const [configurations, setConfigurations] = useState<SSOConfiguration[]>([])

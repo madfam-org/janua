@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react'
 import { januaClient } from './janua-client'
 import type { User } from '@janua/typescript-sdk'
+import { browserConsoleConfig, consoleCookieDomain, parseConsoleRuntimeConfig, type ConsoleRuntimeConfig } from '@janua/ui/console-runtime'
 
 interface AuthContextType {
   user: User | null
@@ -20,6 +21,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 function sharedSsoToken(): string | null {
+  if (browserConsoleConfig('admin').environment === 'staging') return null
   return document.cookie.split('; ').find(cookie => cookie.startsWith('janua_access_token='))?.split('=').slice(1).join('=') || null
 }
 
@@ -27,10 +29,12 @@ function clearBrowserCredentials() {
   localStorage.removeItem('janua_access_token')
   localStorage.removeItem('janua_refresh_token')
   localStorage.removeItem('janua_token_expires_at')
-  document.cookie = 'janua_access_token=; path=/; domain=.janua.dev; max-age=0; secure; samesite=lax'
+  const config = browserConsoleConfig('admin')
+  if (consoleCookieDomain(config)) document.cookie = `janua_access_token=; path=/${consoleCookieDomain(config)}; max-age=0; secure; samesite=lax`
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children, runtimeConfig }: { children: ReactNode; runtimeConfig?: ConsoleRuntimeConfig }) {
+  parseConsoleRuntimeConfig(runtimeConfig || browserConsoleConfig('admin'), 'admin')
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const pending = useRef<Promise<boolean> | null>(null)

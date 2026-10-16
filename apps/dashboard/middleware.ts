@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
-import { AUTH_COOKIE } from '@/lib/auth-keys'
 import { isAccountSwitchRequest } from '@/lib/account-switch'
 import type { NextRequest } from 'next/server'
+import { consoleCsp, consoleSessionCookie } from '@janua/ui/console-runtime'
+import { readConsoleConfig } from '@/lib/console-runtime.server'
 
 /**
  * Validates JWT token structure (not signature - that's API-side)
@@ -43,11 +44,11 @@ const PUBLIC_ROUTES = [
   '/health',
 ]
 
-export function middleware(request: NextRequest) {
+function routeResponse(request: NextRequest, cookieName: string) {
   const { pathname } = request.nextUrl
 
   // Get token from cookie
-  const token = request.cookies.get(AUTH_COOKIE)?.value
+  const token = request.cookies.get(cookieName)?.value
   const hasValidToken = isValidTokenStructure(token)
   const redirects = request.nextUrl.searchParams.getAll('redirect')
   const reasons = request.nextUrl.searchParams.getAll('reason')
@@ -74,9 +75,11 @@ export function middleware(request: NextRequest) {
   if (!hasValidToken) {
     // Clear the invalid cookie
     const response = NextResponse.redirect(new URL('/login', request.url))
-    response.cookies.set(AUTH_COOKIE, '', {
+    response.cookies.set(cookieName, '', {
       path: '/',
       expires: new Date(0),
+      secure: true,
+      sameSite: 'lax',
     })
 
     // Add redirect param so user returns after login
@@ -105,6 +108,20 @@ export function middleware(request: NextRequest) {
   // Token appears valid (structure-wise), allow the request
   // Actual signature validation happens API-side
   return NextResponse.next()
+}
+
+export function middleware(request: NextRequest) {
+  try {
+    const runtime = readConsoleConfig()
+    const response = routeResponse(request, consoleSessionCookie(runtime))
+    response.headers.set('Content-Security-Policy', consoleCsp(runtime))
+    response.headers.set('Cache-Control', 'private, no-store')
+    return response
+  } catch {
+    return NextResponse.json({ error: 'Console configuration unavailable' }, {
+      status: 503, headers: { 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'" },
+    })
+  }
 }
 
 export const config = {

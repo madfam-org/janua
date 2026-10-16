@@ -3,22 +3,21 @@
  */
 
 import { JanuaClient } from '@janua/typescript-sdk'
+import { lazyConsoleClient, lazyConsoleObject } from '@janua/ui/console-runtime'
 
 // SDK methods already include /api/v1 prefix in their paths,
 // so baseURL should be the API root without the base path
-const baseURL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
-
-export const januaClient = new JanuaClient({
-  baseURL,
-  audience: process.env.NEXT_PUBLIC_JANUA_AUDIENCE || 'janua.dev',
-  debug: process.env.NODE_ENV === 'development',
+export const januaClient = lazyConsoleClient('admin', config => new JanuaClient({
+  baseURL: config.apiOrigin,
+  issuer: config.issuer,
+  audience: config.audience,
   tokenStorage: 'localStorage',
   autoRefreshTokens: true,
   timeout: 30000,
-})
+}))
 
-export const auth = januaClient.auth
-export const users = januaClient.users
-export const organizations = januaClient.organizations
+export const auth = lazyConsoleObject(() => januaClient.auth)
+export const users = lazyConsoleObject(() => januaClient.users)
+export const organizations = lazyConsoleObject(() => januaClient.organizations)
 
 export default januaClient

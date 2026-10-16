@@ -5,42 +5,11 @@ const nextConfig = {
   transpilePackages: ['@janua/ui', '@janua/react-sdk'],
   // Enable Turbopack with empty config (Next.js 16 default)
   turbopack: {},
-  env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev',
-  },
   async headers() {
-    const isDev = process.env.NODE_ENV === 'development'
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
-
-    // Cloudflare Insights is auto-injected by the Cloudflare proxy on production
-    // hosts; allow its beacon script and analytics endpoint without weakening
-    // the rest of the CSP. Inter is self-hosted via next/font, so we don't need
-    // to permit fonts.googleapis.com.
-    const cfInsightsScript = 'https://static.cloudflareinsights.com'
-    const cfInsightsConnect = 'https://cloudflareinsights.com'
-
-    const cspDirectives = [
-      "default-src 'self'",
-      `script-src 'self'${isDev ? " 'unsafe-eval'" : ""} 'unsafe-inline' ${cfInsightsScript}`,
-      `script-src-elem 'self' 'unsafe-inline' ${cfInsightsScript}`,
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      `connect-src 'self' ${apiUrl} ${cfInsightsConnect}${isDev ? ' ws://localhost:*' : ''}`,
-      "font-src 'self'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'none'",
-    ]
-
     return [
       {
         source: '/:path*',
         headers: [
-          {
-            key: 'Content-Security-Policy',
-            value: cspDirectives.join('; '),
-          },
           {
             key: 'Strict-Transport-Security',
             value: 'max-age=31536000; includeSubDomains',

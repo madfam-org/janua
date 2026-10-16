@@ -6,6 +6,10 @@ import './globals.css'
 import { AuthProvider } from '@/lib/auth'
 import { FeatureFlagProvider } from '@janua/feature-flags'
 import { ThemeProvider, FloatingThemeToggle } from '@janua/ui'
+import { CONSOLE_CONFIG_ELEMENT } from '@janua/ui/console-runtime'
+import { readConsoleConfig } from '@/lib/console-runtime.server'
+
+export const dynamic = 'force-dynamic'
 
 // const inter = Inter({ subsets: ['latin'] })
 
@@ -19,11 +23,16 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  let config
+  try { config = readConsoleConfig() } catch {
+    return <html lang="en"><body><p role="alert">Console configuration unavailable</p></body></html>
+  }
   return (
     <html lang="en" suppressHydrationWarning>
       <body>{/* className={inter.className} */}
+        <div id={CONSOLE_CONFIG_ELEMENT} hidden data-config={JSON.stringify(config)} />
         <ThemeProvider>
-          <AuthProvider>
+          <AuthProvider runtimeConfig={config}>
             <FeatureFlagProvider
               context={{
                 attributes: {

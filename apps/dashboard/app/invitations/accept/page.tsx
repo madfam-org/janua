@@ -5,10 +5,10 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useJanua } from '@janua/nextjs/app/client'
 import { useAuth } from '@/lib/auth'
+import { browserConsoleConfig } from '@janua/ui/console-runtime'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const TOKEN = /^[A-Za-z0-9_-]{32,128}$/
-const DECLARED_API = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
 const UNKNOWN = 'The acceptance result is unconfirmed. Do not submit again. Check the invitation status without sending another acceptance.'
 
 type Phase = 'loading' | 'ready' | 'blocked' | 'sending' | 'unknown' | 'accepted'
@@ -18,7 +18,7 @@ type Verification = { self: NativeSelf; invitation: Invitation; bearer: string; 
 
 function apiEndpoint(baseURL: string): string {
   const base = new URL(baseURL)
-  const declared = new URL(DECLARED_API)
+  const declared = new URL(browserConsoleConfig('dashboard').apiOrigin)
   if (base.href !== declared.href || base.protocol !== 'https:' || base.username || base.password ||
       base.pathname !== '/' || base.search || base.hash) {
     throw new Error('The configured API address cannot be used for invitation acceptance.')

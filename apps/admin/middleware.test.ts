@@ -2,6 +2,7 @@
 import { NextRequest } from 'next/server'
 import { middleware } from './middleware'
 import { AdminSessionError, verifyAdminSession } from './lib/admin-session'
+import { installConsoleFixture } from '../../tests/console-runtime-fixture'
 
 jest.mock('./lib/admin-session', () => ({
   ...jest.requireActual('./lib/admin-session'),
@@ -11,6 +12,18 @@ const verify = jest.mocked(verifyAdminSession)
 const request = (path = '/', cookie = '') => new NextRequest(`https://admin.example${path}`, { headers: { cookie } })
 
 beforeEach(() => { verify.mockReset() })
+
+it('ignores inherited production cookies in stage, then accepts only the separate host cookie', async () => {
+  installConsoleFixture('admin', { environment: 'staging', consoleOrigin: 'https://staging-admin.madfam.io',
+    apiOrigin: 'https://staging-auth.madfam.io', issuer: 'https://staging-auth.madfam.io',
+    audience: 'janua-staging', jwksUri: 'https://staging-auth.madfam.io/.well-known/jwks.json' })
+  expect((await middleware(request('/', 'janua_access_token=production-fixture'))).headers.get('location')).toContain('/login')
+  expect(verify).not.toHaveBeenCalled()
+  verify.mockResolvedValue({ user: { id: 'operator-id', email: 'operator@janua.dev', is_admin: true }, expiresAt: 9999999999 })
+  const response = await middleware(request('/', 'janua_access_token=production-fixture; __Host-janua_stage_session=stage-fixture'))
+  expect(verify).toHaveBeenCalledWith('stage-fixture')
+  expect(response.headers.get('content-security-policy')).not.toContain('https://api.janua.dev')
+})
 
 it('never lets forged role/email cookies replace a valid token', async () => {
   verify.mockRejectedValue(new AdminSessionError(401))

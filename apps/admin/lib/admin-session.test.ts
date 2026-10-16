@@ -1,6 +1,7 @@
 /** @jest-environment node */
 import { createRemoteJWKSet, generateKeyPair, SignJWT } from 'jose'
 import { verifyAdminSession } from './admin-session'
+import { installConsoleFixture } from '../../../tests/console-runtime-fixture'
 
 // Keep real signature verification. Only replace the remote JWKS transport.
 let keys: Awaited<ReturnType<typeof generateKeyPair>>
@@ -52,34 +53,35 @@ it('accepts OIDC access tokens with the console audience and authoritative platf
   await expect(verifyAdminSession(await token({ client_id: 'console', roles: ['member'], is_admin: true }))).resolves.toMatchObject({ user: operator })
 })
 
-it('discovers the canonical hosted issuer from the trusted API origin, caching metadata but never user authorization', async () => {
-  delete process.env.JANUA_ISSUER
-  process.env.NEXT_PUBLIC_API_URL = 'https://api.janua.dev'
-  mockFetch.mockImplementation(async (url: string) => url.endsWith('/.well-known/openid-configuration')
-    ? { ok: true, json: async () => ({ issuer: 'https://auth.madfam.io', jwks_uri: 'https://auth.madfam.io/.well-known/jwks.json' }) }
-    : { ok: true, json: async () => operator })
-  const accessToken = await token({ iss: 'https://auth.madfam.io', exp: Math.floor(Date.now() / 1000) + 3600 })
+it('uses the configured canonical issuer/key endpoint and rechecks current authorization on every call', async () => {
+  installConsoleFixture('admin', { issuer: 'https://auth.madfam.io', jwksUri: 'https://auth.madfam.io/.well-known/jwks.json' })
+  const accessToken = await token({ iss: 'https://auth.madfam.io' })
   await expect(verifyAdminSession(accessToken)).resolves.toMatchObject({ user: operator })
   await expect(verifyAdminSession(accessToken)).resolves.toMatchObject({ user: operator })
-  expect(mockFetch.mock.calls.filter(([url]) => url.includes('openid-configuration'))).toHaveLength(1)
-  expect(mockFetch.mock.calls.filter(([url]) => url.endsWith('/auth/me'))).toHaveLength(2)
+  expect(mockFetch.mock.calls.filter(([url]) => url.includes('openid-configuration'))).toHaveLength(0)
+  expect(mockFetch).toHaveBeenCalledTimes(2)
   expect(createRemoteJWKSet).toHaveBeenCalledWith(new URL('https://auth.madfam.io/.well-known/jwks.json'), { timeoutDuration: 5000 })
-  // An otherwise valid token cannot replace the discovered issuer.
   await expect(verifyAdminSession(await token({ iss: 'https://other.example' }))).rejects.toMatchObject({ status: 401 })
-  const now = jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 301_000)
-  try {
-    await verifyAdminSession(accessToken)
-    expect(mockFetch.mock.calls.filter(([url]) => url.includes('openid-configuration'))).toHaveLength(2)
-  } finally {
-    now.mockRestore()
-  }
 })
 
-it('fails closed when trusted discovery is unavailable', async () => {
-  delete process.env.JANUA_ISSUER
-  process.env.NEXT_PUBLIC_API_URL = 'https://unavailable.example'
-  mockFetch.mockRejectedValue(new Error('discovery unavailable'))
+it('fails closed on missing configuration before any remote request', async () => {
+  delete process.env.JANUA_CONSOLE_ISSUER
   await expect(verifyAdminSession(await token())).rejects.toMatchObject({ status: 503 })
+  expect(mockFetch).not.toHaveBeenCalled()
+})
+
+it('pins stage issuer/audience and internal JWKS/user lookup, rejecting a production token before forwarding it', async () => {
+  installConsoleFixture('admin', { environment: 'staging', consoleOrigin: 'https://staging-admin.madfam.io',
+    apiOrigin: 'https://staging-auth.madfam.io', issuer: 'https://staging-auth.madfam.io',
+    audience: 'janua-staging', jwksUri: 'https://staging-auth.madfam.io/.well-known/jwks.json' })
+  await expect(verifyAdminSession(await token())).rejects.toMatchObject({ status: 401 })
+  expect(mockFetch).not.toHaveBeenCalled()
+  const stageToken = await token({ iss: 'https://staging-auth.madfam.io', aud: 'janua-staging' })
+  await expect(verifyAdminSession(stageToken)).resolves.toMatchObject({ user: operator })
+  expect(createRemoteJWKSet).toHaveBeenCalledWith(new URL('http://janua-api.janua-staging.svc.cluster.local/.well-known/jwks.json'), { timeoutDuration: 5000 })
+  expect(mockFetch).toHaveBeenCalledWith('http://janua-api.janua-staging.svc.cluster.local/api/v1/auth/me', expect.objectContaining({
+    headers: { Authorization: `Bearer ${stageToken}` }, credentials: 'omit', redirect: 'error',
+  }))
 })
 
 it.each([

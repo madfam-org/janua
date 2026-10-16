@@ -194,7 +194,6 @@ jobs:
             ${{ env.IMAGE_PREFIX }}/janua-admin:${{ github.sha }}
           build-args: |
             NPM_MADFAM_TOKEN=${{ secrets.NPM_MADFAM_TOKEN }}
-            NEXT_PUBLIC_API_URL=https://api.janua.dev
           cache-from: type=gha,scope=janua-admin
           cache-to: type=gha,scope=janua-admin,mode=max
           provenance: false
@@ -266,8 +265,6 @@ jobs:
             ${{ env.IMAGE_PREFIX }}/janua-dashboard:${{ github.sha }}
           build-args: |
             NPM_MADFAM_TOKEN=${{ secrets.NPM_MADFAM_TOKEN }}
-            NEXT_PUBLIC_API_URL=https://api.janua.dev
-            NEXT_PUBLIC_APP_URL=https://app.janua.dev
           cache-from: type=gha,scope=janua-dashboard
           cache-to: type=gha,scope=janua-dashboard,mode=max
           provenance: false

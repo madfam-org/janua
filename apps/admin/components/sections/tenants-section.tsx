@@ -15,8 +15,9 @@ import {
   ChevronUp,
 } from 'lucide-react'
 import { adminAPI, type AdminOrganization } from '@/lib/admin-api'
+import { browserConsoleConfig } from '@janua/ui/console-runtime'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+const apiOrigin = () => browserConsoleConfig('admin').apiOrigin
 
 interface OrgMember {
   id: string
@@ -67,7 +68,7 @@ export function TenantsSection() {
     setMembersLoading(orgId)
     try {
       const token = localStorage.getItem('janua_access_token')
-      const response = await fetch(`${API_URL}/api/v1/organizations/${orgId}/members`, {
+      const response = await fetch(`${apiOrigin()}/api/v1/organizations/${orgId}/members`, {
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -98,7 +99,7 @@ export function TenantsSection() {
     setActionLoading(`delete-${orgId}`)
     try {
       const token = localStorage.getItem('janua_access_token')
-      const response = await fetch(`${API_URL}/api/v1/admin/organizations/${orgId}`, {
+      const response = await fetch(`${apiOrigin()}/api/v1/admin/organizations/${orgId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

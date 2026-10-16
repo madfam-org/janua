@@ -1,6 +1,7 @@
 /** @jest-environment node */
 import { NextRequest } from 'next/server'
 import { POST, DELETE } from './route'
+import { installConsoleFixture } from '../../../../../../tests/console-runtime-fixture'
 import { AdminSessionError, verifyAdminSession } from '@/lib/admin-session'
 
 type CookieCall = { name: string; value: string; options: Record<string, unknown> }
@@ -16,6 +17,20 @@ beforeEach(() => {
   verify.mockReset().mockResolvedValue({ user, expiresAt: Math.floor(Date.now() / 1000) + 300 })
 })
 afterEach(() => { (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv })
+
+it('stage writes and clears only its Secure host-only cookie, without touching inherited legacy names', async () => {
+  installConsoleFixture('admin', { environment: 'staging', consoleOrigin: 'https://staging-admin.madfam.io',
+    apiOrigin: 'https://staging-auth.madfam.io', issuer: 'https://staging-auth.madfam.io',
+    audience: 'janua-staging', jwksUri: 'https://staging-auth.madfam.io/.well-known/jwks.json' })
+  expect((await POST(request({ access_token: 'stage-token' }))).status).toBe(200)
+  expect(cookieCalls).toHaveLength(1)
+  expect(cookieCalls[0]).toMatchObject({ name: '__Host-janua_stage_session', options: { secure: true, httpOnly: true, path: '/' } })
+  expect(cookieCalls[0].options).not.toHaveProperty('domain')
+  cookieCalls.length = 0
+  await DELETE()
+  expect(cookieCalls).toHaveLength(1)
+  expect(cookieCalls[0]).toMatchObject({ name: '__Host-janua_stage_session', value: '', options: { maxAge: 0, secure: true } })
+})
 
 it('sets a token cookie only after authoritative validation and expires legacy role/email cookies', async () => {
   ;(process.env as Record<string, string | undefined>).NODE_ENV = 'production'
@@ -44,6 +59,7 @@ it('rejects malformed JSON before authentication', async () => {
 })
 it('supports secure=false for local HTTP development only', async () => {
   ;(process.env as Record<string, string | undefined>).NODE_ENV = 'development'
+  installConsoleFixture('admin', { environment: 'development', consoleOrigin: 'http://localhost:4102', apiOrigin: 'http://localhost:4100', issuer: 'http://localhost:4100', jwksUri: 'http://localhost:4100/.well-known/jwks.json' })
   await POST(request({ access_token: 'token' }))
   expect(cookieCalls[0].options.secure).toBe(false)
 })

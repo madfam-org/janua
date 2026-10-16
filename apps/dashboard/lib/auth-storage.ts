@@ -18,10 +18,7 @@
  * Import these constants. Do not re-type the strings.
  */
 
-import {
-  AUTH_COOKIE,
-  COOKIE_DOMAIN_SUFFIX,
-} from './auth-keys'
+import { browserConsoleConfig, consoleCookieDomain, consoleSessionCookie } from '@janua/ui/console-runtime'
 
 // Re-exported so callers have one import site for keys AND helpers.
 export {
@@ -45,7 +42,8 @@ export function getCookie(name: string): string | null {
 
 /** The session token as middleware sees it. */
 export function getAuthToken(): string | null {
-  return getCookie(AUTH_COOKIE)
+  if (typeof document === 'undefined') return null
+  return getCookie(consoleSessionCookie(browserConsoleConfig('dashboard')))
 }
 
 /**
@@ -55,10 +53,8 @@ export function getAuthToken(): string | null {
  */
 export function setAuthCookie(token: string): void {
   if (typeof document === 'undefined') return
-  const domain = window.location.hostname.includes(COOKIE_DOMAIN_SUFFIX)
-    ? `; domain=.${COOKIE_DOMAIN_SUFFIX}`
-    : ''
-  document.cookie = `${AUTH_COOKIE}=${token}; path=/${domain}; secure; samesite=lax`
+  const config = browserConsoleConfig('dashboard')
+  document.cookie = `${consoleSessionCookie(config)}=${token}; path=/${consoleCookieDomain(config)}; secure; samesite=lax`
 }
 
 /**
@@ -70,6 +66,8 @@ export function setAuthCookie(token: string): void {
 export function clearAuthCookie(): void {
   if (typeof document === 'undefined') return
   const expired = 'expires=Thu, 01 Jan 1970 00:00:01 GMT'
-  document.cookie = `${AUTH_COOKIE}=; path=/; ${expired}`
-  document.cookie = `${AUTH_COOKIE}=; path=/; domain=.${COOKIE_DOMAIN_SUFFIX}; ${expired}`
+  const config = browserConsoleConfig('dashboard')
+  const name = consoleSessionCookie(config)
+  document.cookie = `${name}=; path=/; ${expired}; secure; samesite=lax`
+  if (consoleCookieDomain(config)) document.cookie = `${name}=; path=/${consoleCookieDomain(config)}; ${expired}; secure; samesite=lax`
 }

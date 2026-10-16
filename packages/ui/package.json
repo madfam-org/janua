@@ -4,6 +4,7 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
+    "./console-runtime": "./src/lib/console-runtime.ts",
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"

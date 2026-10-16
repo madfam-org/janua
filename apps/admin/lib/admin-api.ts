@@ -1,10 +1,12 @@
+
+import { browserConsoleConfig } from '@janua/ui/console-runtime'
 /**
  * Admin API Client
  *
  * Fetches real data from the Janua API admin endpoints
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+const apiOrigin = () => browserConsoleConfig('admin').apiOrigin
 
 export interface AdminStats {
   total_users: number
@@ -86,7 +88,7 @@ class AdminAPI {
   }
 
   async getStats(): Promise<AdminStats> {
-    const response = await fetch(`${API_URL}/api/v1/admin/stats`, {
+    const response = await fetch(`${apiOrigin()}/api/v1/admin/stats`, {
       headers: this.getAuthHeaders(),
     })
 
@@ -98,7 +100,7 @@ class AdminAPI {
   }
 
   async getHealth(): Promise<SystemHealth> {
-    const response = await fetch(`${API_URL}/api/v1/admin/health`, {
+    const response = await fetch(`${apiOrigin()}/api/v1/admin/health`, {
       headers: this.getAuthHeaders(),
     })
 
@@ -110,7 +112,7 @@ class AdminAPI {
   }
 
   async getUsers(page: number = 1, limit: number = 20): Promise<AdminUser[] | { items: AdminUser[]; total: number; page: number; pages: number }> {
-    const response = await fetch(`${API_URL}/api/v1/admin/users?page=${page}&limit=${limit}`, {
+    const response = await fetch(`${apiOrigin()}/api/v1/admin/users?page=${page}&limit=${limit}`, {
       headers: this.getAuthHeaders(),
     })
 
@@ -122,7 +124,7 @@ class AdminAPI {
   }
 
   async getOrganizations(page: number = 1, limit: number = 20): Promise<AdminOrganization[]> {
-    const response = await fetch(`${API_URL}/api/v1/admin/organizations?page=${page}&limit=${limit}`, {
+    const response = await fetch(`${apiOrigin()}/api/v1/admin/organizations?page=${page}&limit=${limit}`, {
       headers: this.getAuthHeaders(),
     })
 
@@ -134,7 +136,7 @@ class AdminAPI {
   }
 
   async getActivityLogs(limit: number = 50): Promise<ActivityLog[]> {
-    const response = await fetch(`${API_URL}/api/v1/admin/activity-logs?limit=${limit}`, {
+    const response = await fetch(`${apiOrigin()}/api/v1/admin/activity-logs?limit=${limit}`, {
       headers: this.getAuthHeaders(),
     })
 
@@ -146,7 +148,7 @@ class AdminAPI {
   }
 
   async updateUserStatus(userId: string, status: string): Promise<void> {
-    const response = await fetch(`${API_URL}/api/v1/admin/users/${userId}`, {
+    const response = await fetch(`${apiOrigin()}/api/v1/admin/users/${userId}`, {
       method: 'PATCH',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({ status }),
@@ -158,7 +160,7 @@ class AdminAPI {
   }
 
   async deleteUser(userId: string): Promise<void> {
-    const response = await fetch(`${API_URL}/api/v1/admin/users/${userId}`, {
+    const response = await fetch(`${apiOrigin()}/api/v1/admin/users/${userId}`, {
       method: 'DELETE',
       headers: this.getAuthHeaders(),
     })
@@ -169,7 +171,7 @@ class AdminAPI {
   }
 
   async revokeAllSessions(): Promise<void> {
-    const response = await fetch(`${API_URL}/api/v1/admin/sessions/revoke-all`, {
+    const response = await fetch(`${apiOrigin()}/api/v1/admin/sessions/revoke-all`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
     })
@@ -180,7 +182,7 @@ class AdminAPI {
   }
 
   async setMaintenanceMode(enabled: boolean): Promise<void> {
-    const response = await fetch(`${API_URL}/api/v1/admin/maintenance-mode`, {
+    const response = await fetch(`${apiOrigin()}/api/v1/admin/maintenance-mode`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({ enabled }),

@@ -15,8 +15,9 @@ import {
 } from '@janua/nextjs/app/client'
 import { januaClient } from './janua-client'
 import type { User } from '@janua/typescript-sdk'
+import { browserConsoleConfig, parseConsoleRuntimeConfig, type ConsoleRuntimeConfig } from '@janua/ui/console-runtime'
+import { setAuthCookie, clearAuthCookie } from './auth-storage'
 
-const COOKIE_NAME = 'janua_access_token'
 
 /**
  * Syncs the access token to a cookie for Next.js middleware route protection
@@ -25,14 +26,8 @@ const COOKIE_NAME = 'janua_access_token'
 function syncTokenCookie(token: string | null): void {
   if (typeof window === 'undefined') return
 
-  if (token) {
-    const cookieDomain = window.location.hostname.includes('janua.dev') ? '; domain=.janua.dev' : ''
-    document.cookie = `${COOKIE_NAME}=${token}; path=/${cookieDomain}; secure; samesite=lax`
-  } else {
-    document.cookie = `${COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT`
-    document.cookie = `${COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; secure`
-    document.cookie = `${COOKIE_NAME}=; path=/; domain=.janua.dev; expires=Thu, 01 Jan 1970 00:00:01 GMT`
-  }
+  if (token) setAuthCookie(token)
+  else clearAuthCookie()
 }
 
 // ── Auth context with dashboard-specific additions ──
@@ -171,19 +166,15 @@ function DashboardAuthBridge({ children }: { children: ReactNode }) {
 
 // ── JanuaProvider config ──
 
-const januaConfig = {
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev',
-  audience: process.env.NEXT_PUBLIC_JANUA_AUDIENCE || 'janua.dev',
-  debug: process.env.NODE_ENV === 'development',
-  tokenStorage: 'localStorage' as const,
-  autoRefreshTokens: true,
-}
 
 /**
  * AuthProvider wraps JanuaProvider from @janua/nextjs with a bridge
  * that handles cookie sync and provides backward-compatible useAuth().
  */
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children, runtimeConfig }: { children: ReactNode; runtimeConfig?: ConsoleRuntimeConfig }) {
+  const config = parseConsoleRuntimeConfig(runtimeConfig || browserConsoleConfig('dashboard'), 'dashboard')
+  const januaConfig = { baseURL: config.apiOrigin, issuer: config.issuer, audience: config.audience,
+    tokenStorage: 'localStorage' as const, autoRefreshTokens: true }
   return (
     <JanuaProvider config={januaConfig}>
       <DashboardAuthBridge>

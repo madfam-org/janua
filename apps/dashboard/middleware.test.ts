@@ -2,8 +2,8 @@ import type { NextRequest } from 'next/server'
 
 jest.mock('next/server', () => ({
   NextResponse: {
-    redirect: (url: URL) => ({ destination: url, cookies: { set: jest.fn() } }),
-    next: () => ({ allowed: true }),
+    redirect: (url: URL) => Object.defineProperty({ destination: url, cookies: { set: jest.fn() } }, 'headers', { value: new Headers() }),
+    next: () => Object.defineProperty({ allowed: true }, 'headers', { value: new Headers() }),
   },
 }))
 import { middleware } from './middleware'

@@ -1,5 +1,7 @@
 'use client'
 
+import { browserConsoleConfig } from '@janua/ui/console-runtime'
+
 import { useState, useEffect, useCallback } from 'react'
 import { z } from 'zod'
 import {
@@ -17,7 +19,7 @@ import {
   Fingerprint,
 } from 'lucide-react'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.janua.dev'
+const apiOrigin = () => browserConsoleConfig('admin').apiOrigin
 
 const dateString = z.string().refine((value) => Number.isFinite(Date.parse(value)))
 const keyStatus = z.enum(['active', 'rotation_needed', 'expired', 'rotating'])
@@ -98,7 +100,7 @@ export function VaultSection() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       }
 
-      const response = await fetch(`${API_URL}/api/v1/admin/vault/status`, { headers })
+      const response = await fetch(`${apiOrigin()}/api/v1/admin/vault/status`, { headers })
       if (!response.ok) throw new Error(`Vault status unavailable (HTTP ${response.status}).`)
       const result = vaultStatusSchema.safeParse(await response.json())
       if (!result.success) throw new Error('Vault status unavailable: invalid response.')
@@ -140,7 +142,7 @@ export function VaultSection() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       }
 
-      const response = await fetch(`${API_URL}/api/v1/admin/vault/keys/${encodeURIComponent(keyId)}/rotate`, {
+      const response = await fetch(`${apiOrigin()}/api/v1/admin/vault/keys/${encodeURIComponent(keyId)}/rotate`, {
         method: 'POST',
         headers,
       })

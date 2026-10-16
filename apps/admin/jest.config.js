@@ -5,5 +5,6 @@
 const createNextAppJestConfig = require('../../jest.next-app')
 
 module.exports = createNextAppJestConfig({
-  setupFilesAfterEnv: ['<rootDir>/../../tests/setup.js'],
+  testEnvironmentOptions: { url: 'https://admin.janua.dev' },
+  setupFilesAfterEnv: ['<rootDir>/../../tests/setup.js', '<rootDir>/console-runtime.setup.ts'],
 })
