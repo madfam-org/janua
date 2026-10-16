@@ -2098,7 +2098,7 @@ async def _switch_to_held_session(
     # only which one is fronted.
     redirect.set_cookie(
         key=SSO_COOKIE_NAME,
-        value=mint_sso_cookie_value(str(user.id), str(session.id)),
+        value=mint_sso_cookie_value(str(user.id), str(session.id), selected=True),
         **sso_cookie_kwargs(),
     )
     return redirect

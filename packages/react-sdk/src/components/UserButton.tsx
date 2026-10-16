@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
+import type { JanuaAccountSwitchOptions } from '@janua/typescript-sdk'
 import { UserButton as UIUserButton } from '@janua/ui/components/auth'
 import { useJanua } from '../provider'
 
@@ -13,6 +14,8 @@ export interface UserButtonProps {
   showOrganizations?: boolean
   /** Active organization name to display */
   activeOrganization?: string
+  /** Registered RP client/callback. Without it no switch action is displayed. */
+  switchAccountOptions?: JanuaAccountSwitchOptions
 }
 
 /**
@@ -27,8 +30,17 @@ export function UserButton({
   manageAccountUrl,
   showOrganizations,
   activeOrganization,
+  switchAccountOptions,
 }: UserButtonProps) {
-  const { user, signOut } = useJanua()
+  const { client, user, signOut } = useJanua()
+  const [switchError, setSwitchError] = useState(false)
+
+  const handleSwitchAccount = useCallback(async () => {
+    if (!switchAccountOptions) return
+    setSwitchError(false)
+    try { await client.auth.switchAccount(switchAccountOptions) }
+    catch { setSwitchError(true) }
+  }, [client, switchAccountOptions])
 
   const handleSignOut = useCallback(async () => {
     await signOut()
@@ -56,14 +68,18 @@ export function UserButton({
   }
 
   return (
-    <UIUserButton
-      user={mappedUser}
-      onSignOut={handleSignOut}
-      showManageAccount={showManageAccount}
-      manageAccountUrl={manageAccountUrl}
-      showOrganizations={showOrganizations}
-      activeOrganization={activeOrganization}
-      className={className}
-    />
+    <>
+      <UIUserButton
+        user={mappedUser}
+        onSignOut={handleSignOut}
+        onSwitchAccount={switchAccountOptions?.clientId && switchAccountOptions.redirectUri ? handleSwitchAccount : undefined}
+        showManageAccount={showManageAccount}
+        manageAccountUrl={manageAccountUrl}
+        showOrganizations={showOrganizations}
+        activeOrganization={activeOrganization}
+        className={className}
+      />
+      {switchError && <span role="alert">Could not open account selection. Your current session is unchanged.</span>}
+    </>
   )
 }

@@ -114,6 +114,22 @@ describe('UserButton', () => {
   })
 
   describe('Menu Items', () => {
+    it('shows a configured account switch without signing out', async () => {
+      const user = userEvent.setup()
+      const switchAccount = vi.fn()
+      render(<UserButton user={mockUser} onSwitchAccount={switchAccount} onSignOut={mockOnSignOut} />)
+      await user.click(screen.getByRole('button', { name: /user menu/i }))
+      await user.click(screen.getByRole('menuitem', { name: /switch account/i }))
+      expect(switchAccount).toHaveBeenCalledOnce()
+      expect(mockOnSignOut).not.toHaveBeenCalled()
+    })
+
+    it('does not advertise switching without a configured flow', async () => {
+      const user = userEvent.setup()
+      render(<UserButton user={mockUser} />)
+      await user.click(screen.getByRole('button', { name: /user menu/i }))
+      expect(screen.queryByRole('menuitem', { name: /switch account/i })).not.toBeInTheDocument()
+    })
     it('should show manage account option when enabled', async () => {
       const user = userEvent.setup()
       render(<UserButton user={mockUser} showManageAccount={true} />)

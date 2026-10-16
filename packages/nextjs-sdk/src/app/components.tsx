@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import type { JanuaAccountSwitchOptions } from '@janua/typescript-sdk';
 import { useAuth, useUser as _useUser } from './provider';
 import {
   SignIn as UISignIn,
@@ -9,7 +10,6 @@ import {
 } from '@janua/ui/components/auth';
 import type { SignInProps as UISignInProps } from '@janua/ui/components/auth';
 import type { SignUpProps as UISignUpProps } from '@janua/ui/components/auth';
-import type { UserButtonProps as UIUserButtonProps } from '@janua/ui/components/auth';
 
 // SignIn Component - thin wrapper around @janua/ui SignIn
 export interface SignInFormProps {
@@ -171,6 +171,8 @@ export interface UserButtonProps {
   manageAccountUrl?: string;
   showOrganizations?: boolean;
   activeOrganization?: string;
+  /** Registered RP client/callback. Without it no switch action is displayed. */
+  switchAccountOptions?: JanuaAccountSwitchOptions;
 }
 
 export function UserButton({
@@ -180,8 +182,10 @@ export function UserButton({
   manageAccountUrl,
   showOrganizations,
   activeOrganization,
+  switchAccountOptions,
 }: UserButtonProps) {
-  const { user, signOut } = useAuth();
+  const { auth, user, signOut } = useAuth();
+  const [switchError, setSwitchError] = React.useState(false);
 
   if (!user) {
     return null;
@@ -194,22 +198,33 @@ export function UserButton({
     }
   };
 
+  const handleSwitchAccount = async () => {
+    if (!switchAccountOptions) return;
+    setSwitchError(false);
+    try { await auth.switchAccount(switchAccountOptions); }
+    catch { setSwitchError(true); }
+  };
+
   return (
-    <UIUserButton
-      className={className}
-      user={{
-        id: user.id,
-        email: user.email,
-        firstName: user.first_name,
-        lastName: user.last_name,
-        avatarUrl: user.profile_image_url,
-      }}
-      onSignOut={handleSignOut}
-      showManageAccount={showManageAccount}
-      manageAccountUrl={manageAccountUrl}
-      showOrganizations={showOrganizations}
-      activeOrganization={activeOrganization}
-    />
+    <>
+      <UIUserButton
+        className={className}
+        user={{
+          id: user.id,
+          email: user.email,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          avatarUrl: user.profile_image_url,
+        }}
+        onSignOut={handleSignOut}
+        onSwitchAccount={switchAccountOptions?.clientId && switchAccountOptions.redirectUri ? handleSwitchAccount : undefined}
+        showManageAccount={showManageAccount}
+        manageAccountUrl={manageAccountUrl}
+        showOrganizations={showOrganizations}
+        activeOrganization={activeOrganization}
+      />
+      {switchError && <span role="alert">Could not open account selection. Your current session is unchanged.</span>}
+    </>
   );
 }
 

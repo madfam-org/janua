@@ -392,3 +392,54 @@ class TestChooserListsEachPersonOnce:
                 [str(a_old.id), str(b.id), str(a_new.id)], AsyncMock()
             )
         assert [sid for sid, _ in accounts] == [str(b.id), str(a_new.id)]
+
+
+class TestChooserCancelAndReauthentication:
+    async def test_cancel_is_an_oauth_error_at_the_registered_callback_without_cookie_changes(self):
+        alice = _user("alice@example.test")
+        session = _session(alice, minutes_ago=1)
+        estate = _Estate([(alice, session)])
+        held = mint_sessions_cookie_value([str(session.id)])
+
+        async def run(http):
+            with patch.object(oauth_provider, "get_user_from_cookie_or_header", AsyncMock(return_value=alice)):
+                page = await http.get("/api/v1/oauth/authorize", params=_authorize_query("select_account"))
+            match = re.search(r'href="([^"]+)"[^>]*>Cancel and return', page.text)
+            assert match is not None
+            destination = urlparse(unescape(match.group(1)))
+            assert destination.scheme + "://" + destination.netloc + destination.path == REDIRECT_URI
+            assert parse_qs(destination.query)["error"] == ["access_denied"]
+            assert parse_qs(destination.query)["state"] == ["rp-state"]
+            assert not page.headers.get_list("set-cookie")
+
+        await _http(estate, {SESSIONS_COOKIE_NAME: held}, run)
+
+    async def test_cancel_target_is_never_rendered_for_an_unregistered_redirect(self):
+        validation = oauth_provider._validate_redirect_uri
+
+        async def run(http):
+            params = _authorize_query("select_account")
+            params["redirect_uri"] = "https://foreign.invalid/callback"
+            with patch.object(oauth_provider, "_validate_redirect_uri", side_effect=validation):
+                page = await http.get("/api/v1/oauth/authorize", params=params)
+            assert page.status_code == 400
+            assert "Choose an account" not in page.text
+            assert not page.headers.get_list("set-cookie")
+
+        await _http(_Estate([]), {}, run)
+
+    @pytest.mark.parametrize("prompt", ["login", "none login"])
+    async def test_force_login_does_not_reuse_a_valid_selected_account(self, prompt):
+        alice = _user("alice@example.test")
+        session = _session(alice, minutes_ago=1)
+        held = mint_sessions_cookie_value([str(session.id)])
+
+        async def run(http):
+            with patch.object(oauth_provider, "get_user_from_cookie_or_header", AsyncMock(return_value=alice)):
+                page = await http.get("/api/v1/oauth/authorize", params=_authorize_query(prompt))
+            assert page.status_code == 302
+            assert page.headers["location"].startswith("/api/v1/auth/login?")
+            assert "code=" not in page.headers["location"]
+            assert not page.headers.get_list("set-cookie")
+
+        await _http(_Estate([(alice, session)]), {SESSIONS_COOKIE_NAME: held}, run)

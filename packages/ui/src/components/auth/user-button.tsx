@@ -1,6 +1,6 @@
 import * as React from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { User, Users, Settings, LogOut } from 'lucide-react'
+import { User, Users, Settings, LogOut, UserCog } from 'lucide-react'
 import { Avatar, AvatarImage, AvatarFallback } from '../avatar'
 import { cn } from '../../lib/utils'
 
@@ -15,6 +15,8 @@ export interface UserButtonProps {
   }
   /** Callback when user signs out */
   onSignOut?: () => void
+  /** Present only when the consumer has a functional account selection flow. */
+  onSwitchAccount?: () => void | Promise<void>
   /** Show manage account option */
   showManageAccount?: boolean
   /** Custom manage account URL */
@@ -30,6 +32,7 @@ export interface UserButtonProps {
 export function UserButton({
   user,
   onSignOut,
+  onSwitchAccount,
   showManageAccount = true,
   manageAccountUrl = '/account',
   showOrganizations = false,
@@ -82,6 +85,16 @@ export function UserButton({
           </div>
 
           <DropdownMenu.Separator className="h-px bg-border my-1" />
+
+          {onSwitchAccount && (
+            <DropdownMenu.Item
+              className="relative flex items-center px-3 py-2 text-sm outline-none cursor-pointer hover:bg-accent hover:text-accent-foreground rounded-sm"
+              onSelect={() => { void onSwitchAccount() }}
+            >
+              <UserCog className="w-4 h-4 mr-2" />
+              Switch account
+            </DropdownMenu.Item>
+          )}
 
           {/* Manage Account */}
           {showManageAccount && (

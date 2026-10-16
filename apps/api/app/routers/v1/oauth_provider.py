@@ -22,7 +22,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Optional
+from typing import Annotated, Any, List, Optional
 from urllib.parse import urlencode
 
 import structlog
@@ -92,6 +92,7 @@ from app.services.entitlements_service import (
 from app.services.oauth_client_authority import client_registered_by_platform_admin
 from app.services.org_claims_service import (
     ORG_ROLES_CLAIM,
+    InvalidOrganizationSelection,
     get_user_org_claims,
     merge_app_roles_into_claims,
 )
@@ -281,6 +282,8 @@ async def _validate_csrf_token(csrf_token: str, user_id: str, redis: ResilientRe
 async def _get_user_entitlements(
     user: User,
     db: AsyncSession,
+    *,
+    organization_id: Optional[str] = None,
 ) -> dict:
     """
     Fetch user entitlements for JWT enrichment.
@@ -312,13 +315,16 @@ async def _get_user_entitlements(
         memberships = result.scalars().all()
 
         if memberships:
-            # Collect all roles across active organizations
+            # Explicit selection confines legacy roles to the same membership.
+            # With no selection, preserve the existing cross-org role list.
+            if organization_id is not None:
+                memberships = [m for m in memberships if str(m.organization_id) == organization_id]
             roles = list({m.role for m in memberships if m.role})
             entitlements["roles"] = roles
 
             # Get primary organization (tenant, or first ACTIVE membership).
-            primary_org_id = memberships[0].organization_id
-            if hasattr(user, "tenant_id") and user.tenant_id:
+            primary_org_id = organization_id or memberships[0].organization_id
+            if organization_id is None and hasattr(user, "tenant_id") and user.tenant_id:
                 primary_org_id = user.tenant_id
 
             # Fetch organization for subscription tier
@@ -357,6 +363,31 @@ async def _get_user_entitlements(
 # Re-exported under the historical private name so existing call sites and
 # tests keep addressing it here.
 _get_user_org_claims = get_user_org_claims
+
+
+def _normalize_organization_selection(
+    organization_id: Optional[str], client: OAuthClient, *, error: str = "invalid_request"
+) -> Optional[str]:
+    """A request selection is context, never authority or an identity-pool write."""
+    if organization_id is None:
+        return None
+    try:
+        selected = str(uuid.UUID(organization_id))
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise HTTPException(400, f"{error}: Invalid organization selection") from exc
+    client_org = getattr(client, "organization_id", None)
+    if client_org is not None and str(client_org) != selected:
+        raise HTTPException(400, f"{error}: Organization does not match the client")
+    return selected
+
+
+async def _selected_organization_claims(
+    user: User, db: AsyncSession, organization_id: str, *, error: str = "access_denied"
+) -> dict[str, Any]:
+    try:
+        return await _get_user_org_claims(user, db, organization_id=organization_id)
+    except InvalidOrganizationSelection as exc:
+        raise HTTPException(400, f"{error}: Selected organization membership is not active") from exc
 
 
 # ============================================================================
@@ -577,6 +608,22 @@ async def get_user_from_cookie_or_header(
             estate_user, estate_session = await resolve_sso_cookie_session(sso_cookie, db)
         except Exception:
             logger.warning("janua_sso cookie resolution failed", exc_info=True)
+
+    # A chooser click is newer intent even when the selected session is older.
+    # Do not let an unrelated hosted access cookie silently undo that choice.
+    # The marker is signed by the switch endpoint, and preference requires BOTH
+    # the held-set proof and the live row/owner check performed above. Explicit
+    # bearer and per-tab focus have already taken precedence. No RP token or
+    # session is cleared, revoked or copied by this decision.
+    if estate_user is not None and estate_session is not None and sso_cookie:
+        from app.auth.sso_cookie import is_explicit_sso_selection
+
+        selected_sid = str(estate_session.id)
+        if (
+            selected_sid in read_sessions_cookie(request.cookies.get(SESSIONS_COOKIE_NAME))
+            and is_explicit_sso_selection(sso_cookie, selected_sid)
+        ):
+            return estate_user
 
     # Third, the hosted-login cookie. Resolved even when the estate cookie
     # already answered, but only so a disagreement can be detected and decided
@@ -1299,6 +1346,7 @@ def _account_chooser_html(
     authorize_next: str,
     add_account_url: str,
     client_name: str,
+    cancel_url: str = "",
 ) -> str:
     """Render the `prompt=select_account` chooser over the held estate accounts.
 
@@ -1313,6 +1361,10 @@ def _account_chooser_html(
     escaped_client = html.escape(client_name or "the application")
     escaped_next = html.escape(authorize_next)
     escaped_add = html.escape(add_account_url)
+    cancel_link = (
+        f'<a class="add" href="{html.escape(cancel_url)}">Cancel and return to the application</a>'
+        if cancel_url else ""
+    )
 
     rows = ""
     for sid, user in accounts:
@@ -1377,6 +1429,7 @@ def _account_chooser_html(
         <p class="sub">to continue to {escaped_client}</p>
         {rows}
         <a class="add" href="{escaped_add}">Use another account</a>
+        {cancel_link}
     </div>
 </body>
 </html>
@@ -1980,6 +2033,7 @@ async def authorize_get(
             "the access token's `aud` is that URI. Absent: the default flow."
         ),
     ),
+    organization_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -2013,6 +2067,8 @@ async def authorize_get(
 
     resource_values = _resource_values(resource)
     if resource_values or is_url_client_id(client_id):
+        if organization_id is not None:
+            raise HTTPException(400, "invalid_request: Organization selection is not supported for protected resources")
         scope_param = scope
         if isinstance(request, Request) and "scope" not in request.query_params:
             scope_param = None  # omitted: every scope of the resource
@@ -2077,6 +2133,14 @@ async def authorize_get(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="invalid_redirect_uri: URI not registered for this client",
+        )
+
+    try:
+        organization_id = _normalize_organization_selection(organization_id, client)
+    except HTTPException:
+        return _redirect_with_oauth_error(
+            redirect_uri, error="invalid_request", error_description="Invalid organization selection",
+            state=state, client_validated=True,
         )
 
     # Validate PKCE - SECURITY: Only S256 is allowed (OAuth 2.1 requirement)
@@ -2176,6 +2240,7 @@ async def authorize_get(
             "code_challenge": code_challenge,
             "code_challenge_method": code_challenge_method,
             "login_method": requested_login_method,
+            **({"organization_id": organization_id} if organization_id is not None else {}),
         }
         # Strict: if Redis cannot hold the request, answer a retryable 503 now
         # rather than send the browser to a login page whose id leads nowhere.
@@ -2218,6 +2283,7 @@ async def authorize_get(
                     ("nonce", nonce),
                     ("code_challenge", code_challenge),
                     ("code_challenge_method", code_challenge_method),
+                    ("organization_id", organization_id),
                 ):
                     if value is not None:
                         authorize_params[key] = value
@@ -2228,10 +2294,26 @@ async def authorize_get(
                         authorize_next=authorize_next,
                         add_account_url=login_url,
                         client_name=client.name or "",
+                        cancel_url=_redirect_with_oauth_error(
+                            redirect_uri,
+                            error="access_denied",
+                            error_description="Account selection cancelled",
+                            state=state,
+                            client_validated=True,
+                        ).headers["location"],
                     )
                 )
 
         return RedirectResponse(url=login_url, status_code=302)
+
+    if organization_id is not None:
+        try:
+            await _selected_organization_claims(current_user, db, organization_id)
+        except HTTPException:
+            return _redirect_with_oauth_error(
+                redirect_uri, error="access_denied", error_description="Selected organization membership is not active",
+                state=state, client_validated=True,
+            )
 
     # SECURITY: Require email verification for OAuth authorization
     if settings.REQUIRE_EMAIL_VERIFICATION and not getattr(current_user, "email_verified", False):
@@ -2373,6 +2455,7 @@ async def authorize_get(
             "nonce": nonce,
             "code_challenge": code_challenge,
             "code_challenge_method": code_challenge_method,
+            **({"organization_id": organization_id} if organization_id is not None else {}),
         }
         # Strict, like the CSRF token above: the consent form is only rendered
         # once both are in Redis, where every replica can read them.
@@ -2520,6 +2603,7 @@ async def authorize_get(
         "code_challenge": code_challenge,
         "code_challenge_method": code_challenge_method or "S256",
         "expires_at": time.time() + AUTH_CODE_TTL,
+        **({"organization_id": organization_id} if organization_id is not None else {}),
     }
     await _store_auth_code(auth_code, code_data, redis)
 
@@ -2615,6 +2699,16 @@ async def handle_consent(
         error_url = _build_safe_callback_url(redirect_uri, error_params, client_validated=True)
         return RedirectResponse(url=error_url, status_code=302)
 
+    try:
+        organization_id = _normalize_organization_selection(auth_request.get("organization_id"), client)
+        if organization_id is not None:
+            await _selected_organization_claims(current_user, db, organization_id)
+    except HTTPException:
+        return _redirect_with_oauth_error(
+            redirect_uri, error="access_denied", error_description="Invalid organization selection",
+            state=state, client_validated=True,
+        )
+
     # User approved - store consent
     client_id = auth_request["client_id"]
     scope = auth_request["scope"]
@@ -2650,6 +2744,7 @@ async def handle_consent(
         "code_challenge": auth_request.get("code_challenge"),
         "code_challenge_method": auth_request.get("code_challenge_method") or "S256",
         "expires_at": time.time() + AUTH_CODE_TTL,
+        **({"organization_id": organization_id} if organization_id is not None else {}),
     }
     await _store_auth_code(auth_code, code_data, redis)
 
@@ -2692,6 +2787,7 @@ async def authorize_post(
     code_challenge_method: Optional[str] = Form(None),
     csrf_token: Optional[str] = Form(None),
     resource: Optional[List[str]] = Form(None),
+    organization_id: Annotated[Optional[str], Form()] = None,
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
     current_user: User = Depends(get_current_user),
@@ -2706,6 +2802,12 @@ async def authorize_post(
     through GET /authorize and its consent screen only; this form refuses them
     rather than issue a code that is not bound to the resource.
     """
+    # FastAPI treats an empty optional form string as its default (None).
+    # Recover presence, so an explicitly blank selection is refused instead
+    # of silently requesting the legacy, unselected organization context.
+    if organization_id is None and isinstance(request, Request):
+        if "organization_id" in await request.form():
+            organization_id = ""
     if _resource_values(resource) or is_url_client_id(client_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -2732,6 +2834,16 @@ async def authorize_post(
     # SECURITY: Validate redirect_uri against registered URIs (CWE-601 prevention)
     if not _validate_redirect_uri(redirect_uri, client.redirect_uris):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_redirect_uri")
+
+    try:
+        organization_id = _normalize_organization_selection(organization_id, client)
+        if organization_id is not None:
+            await _selected_organization_claims(current_user, db, organization_id)
+    except HTTPException:
+        return _redirect_with_oauth_error(
+            redirect_uri, error="access_denied", error_description="Invalid organization selection",
+            state=state, client_validated=True,
+        )
 
     # Validate PKCE - SECURITY: Only S256 is allowed (OAuth 2.1 requirement)
     if code_challenge_method and code_challenge_method != "S256":
@@ -2784,6 +2896,7 @@ async def authorize_post(
         "code_challenge": code_challenge,
         "code_challenge_method": code_challenge_method or "S256",
         "expires_at": time.time() + AUTH_CODE_TTL,
+        **({"organization_id": organization_id} if organization_id is not None else {}),
     }
     await _store_auth_code(auth_code, code_data, redis)
 
@@ -3584,17 +3697,26 @@ async def _handle_authorization_code_grant(
             detail="invalid_grant: User not found",
         )
 
-    # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status)
-    entitlements = await _get_user_entitlements(user, db)
+    organization_id = _normalize_organization_selection(
+        code_data.get("organization_id"), client, error="invalid_grant"
+    )
+    selected_claims = (
+        await _selected_organization_claims(user, db, organization_id, error="invalid_grant")
+        if organization_id is not None else None
+    )
+    selection = {"organization_id": organization_id} if organization_id is not None else {}
+
+    # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status).
+    entitlements = await _get_user_entitlements(user, db, **selection)
 
     # Per-product MADFAM ecosystem grants (Selva-unified SSO Phase 1).
     # Sourced from the user_entitlements table + org inheritance + admin
     # bootstrap. See app/services/entitlements_service.py.
-    madfam_entitled_products = entitlements_to_claim(await get_user_entitlements(user, db))
+    madfam_entitled_products = entitlements_to_claim(await get_user_entitlements(user, db, **selection))
 
     # Organization claims for org-scoped resource servers (symbiosis-hcm etc.);
     # unambiguous org_id or none — see _get_user_org_claims.
-    org_claims = await _get_user_org_claims(user, db)
+    org_claims = selected_claims if selected_claims is not None else await _get_user_org_claims(user, db)
 
     # APPLICATION roles (`hcm:hr` and friends) are UNIONED onto the legacy
     # organization-role list rather than replacing it: `roles` has been an OIDC
@@ -3671,6 +3793,7 @@ async def _handle_authorization_code_grant(
             "client_id": client.client_id,
             "aud": client_audience,
             "scope": scope,
+            **selection,
         },
     )
 
@@ -3761,15 +3884,24 @@ async def _handle_refresh_token_grant(
             detail="invalid_grant: User not found",
         )
 
-    # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status)
-    entitlements = await _get_user_entitlements(user, db)
+    organization_id = _normalize_organization_selection(
+        payload.get("organization_id"), client, error="invalid_grant"
+    )
+    selected_claims = (
+        await _selected_organization_claims(user, db, organization_id, error="invalid_grant")
+        if organization_id is not None else None
+    )
+    selection = {"organization_id": organization_id} if organization_id is not None else {}
+
+    # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status).
+    entitlements = await _get_user_entitlements(user, db, **selection)
 
     # Per-product MADFAM ecosystem grants (Selva-unified SSO Phase 1).
-    madfam_entitled_products = entitlements_to_claim(await get_user_entitlements(user, db))
+    madfam_entitled_products = entitlements_to_claim(await get_user_entitlements(user, db, **selection))
 
     # Organization claims for org-scoped resource servers (symbiosis-hcm etc.);
     # unambiguous org_id or none — see _get_user_org_claims.
-    org_claims = await _get_user_org_claims(user, db)
+    org_claims = selected_claims if selected_claims is not None else await _get_user_org_claims(user, db)
 
     # APPLICATION roles (`hcm:hr` and friends) are UNIONED onto the legacy
     # organization-role list rather than replacing it: `roles` has been an OIDC
@@ -3853,6 +3985,7 @@ async def _handle_refresh_token_grant(
             "client_id": client.client_id,
             "aud": client_audience,
             "scope": scope,
+            **selection,
         },
     )
 

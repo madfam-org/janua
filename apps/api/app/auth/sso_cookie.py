@@ -141,8 +141,15 @@ def sso_cookie_delete_kwargs() -> dict[str, Any]:
     return kwargs
 
 
-def mint_sso_cookie_value(user_id: str, session_id: str) -> str:
-    """Mint the signed reference the cookie carries."""
+def mint_sso_cookie_value(
+    user_id: str, session_id: str, *, selected: bool = False
+) -> str:
+    """Mint a session reference, optionally marking a deliberate account switch.
+
+    Only the held-session switch path opts into ``selected``. Ordinary sign-in
+    replaces that reference without the marker. It grants no additional scope:
+    the authorize resolver still validates the held set, live row and owner.
+    """
     now = datetime.utcnow()
     return jwt_manager.encode_token(
         {
@@ -153,7 +160,20 @@ def mint_sso_cookie_value(user_id: str, session_id: str) -> str:
             "exp": now + timedelta(seconds=sso_cookie_max_age()),
             "iss": jwt_manager.issuer,
             "aud": jwt_manager.audience,
+            **({"selected": True} if selected else {}),
         }
+    )
+
+
+def is_explicit_sso_selection(cookie_value: str, session_id: str) -> bool:
+    """Verify the marker and its sid; this alone never authenticates a user."""
+    payload = jwt_manager.verify_token(
+        cookie_value, token_type=SSO_TOKEN_TYPE, verify_audience=False
+    )
+    return bool(
+        payload
+        and payload.get("selected") is True
+        and str(payload.get("sid", "")) == str(session_id)
     )
 
 

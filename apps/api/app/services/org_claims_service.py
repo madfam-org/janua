@@ -24,8 +24,9 @@ Claim contract
     user has none.
 
 ``org_id`` / ``tenant_id`` / ``org_slug``
-    Emitted ONLY when unambiguous — exactly one active membership, or
-    ``user.tenant_id`` names one of them. Ambiguity emits ``orgs`` alone;
+    An explicit ``organization_id`` must name an active membership. Without
+    selection, emitted only when unambiguous — exactly one active membership,
+    or ``user.tenant_id`` names one of them. Ambiguity emits ``orgs`` alone;
     consumers must not guess a tenant. This is deliberate: guessing a primary
     org for a multi-org user is how one tenant's operator reads another
     tenant's payroll.
@@ -118,13 +119,16 @@ this — see ``symbiosis-hcm/apps/api/core/permissions.py``). The OIDC path keep
 emitting ``roles`` unchanged for existing clients — this module adds the
 namespaced claim alongside it, it does not remove anything.
 
-Resolution never raises: a failure emits no org claims at all (fail-closed —
-downstream org-scoped services reject, and never mis-scope).
+Without explicit selection, a failure emits no org claims (the existing
+fail-closed contract). An explicit selection instead raises
+``InvalidOrganizationSelection`` on invalid or unverifiable membership: a
+caller must refuse that grant, never fall back to a different organization.
 """
 
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 import structlog
 from sqlalchemy import select
@@ -152,16 +156,29 @@ APP_ROLES_CLAIM = "roles"
 APP_ROLES_KEY = "_app_roles"
 
 
-async def get_user_org_claims(user: User, db: AsyncSession) -> dict[str, Any]:
+class InvalidOrganizationSelection(ValueError):
+    """An explicit organization must never degrade to another membership."""
+
+
+async def get_user_org_claims(
+    user: User, db: AsyncSession, *, organization_id: str | None = None
+) -> dict[str, Any]:
     """Resolve organization claims for a human token.
 
     Returns a dict ready to merge into a JWT payload. Empty when the user has
-    no active membership, or when resolution fails.
+    no active membership, or when resolution fails, unless ``organization_id``
+    was explicitly selected. Selection requires that active membership and
+    raises on failure; it never changes ``user.tenant_id`` or any membership.
 
     Memberships with status other than ``active`` (pending/inactive/removed)
     never contribute — a removed member must not keep tenant access through a
     long-lived refresh chain.
     """
+    if organization_id is not None:
+        try:
+            organization_id = str(UUID(organization_id))
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise InvalidOrganizationSelection("Invalid organization selection") from exc
     try:
         result = await db.execute(
             select(OrganizationMember, Organization)
@@ -185,9 +202,13 @@ async def get_user_org_claims(user: User, db: AsyncSession) -> dict[str, Any]:
             await db.rollback()
         except Exception:  # pragma: no cover - defensive; rollback may itself fail
             pass
+        if organization_id is not None:
+            raise InvalidOrganizationSelection("Organization membership could not be verified") from e
         return {}
 
     if not rows:
+        if organization_id is not None:
+            raise InvalidOrganizationSelection("No active membership in the selected organization")
         return {}
 
     claims: dict[str, Any] = {
@@ -199,7 +220,14 @@ async def get_user_org_claims(user: User, db: AsyncSession) -> dict[str, Any]:
 
     primary_member = None
     primary = None
-    if len(rows) == 1:
+    if organization_id is not None:
+        for member, org in rows:
+            if str(org.id) == organization_id and member.status == "active":
+                primary_member, primary = member, org
+                break
+        if primary is None:
+            raise InvalidOrganizationSelection("No active membership in the selected organization")
+    elif len(rows) == 1:
         primary_member, primary = rows[0]
     else:
         tenant_id = getattr(user, "tenant_id", None)
@@ -224,7 +252,7 @@ async def get_user_org_claims(user: User, db: AsyncSession) -> dict[str, Any]:
         )
 
         # Application roles ride ONLY with an unambiguous primary org. Without
-        # one there is no single membership to read grants from, and picking
+        # one (selected or automatically resolved) there is no single membership to read grants from, and picking
         # any of several would hand one tenant's HR authority to a session the
         # user opened for another.
         if primary_member is not None:
