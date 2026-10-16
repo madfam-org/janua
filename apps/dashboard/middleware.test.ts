@@ -19,6 +19,13 @@ function destination(path: string, cookie?: string): URL {
 const validCookie = () => `header.${Buffer.from(JSON.stringify({ sub: 'fixture-self', exp: Math.floor(Date.now() / 1000) + 120 })).toString('base64url')}.signature`
 
 describe('middleware invitation login return', () => {
+  it('allows deliberate account reauthentication without clearing the existing cookie', () => {
+    expect(middleware(request('/login?switch_account=1&redirect=%2Fprofile', validCookie()))).toEqual({ allowed: true })
+  })
+
+  it.each(['switch_account=1&redirect=https://foreign.invalid', 'switch_account=1&reason=expired', 'switch_account=1&switch_account=1'])('does not admit unsafe account-switch controls: %s', query => {
+    expect(destination(`/login?${query}`, validCookie()).pathname).toBe('/')
+  })
   it('keeps exact invitation token through protected login and removes unrelated URL controls', () => {
     const login = destination(`/invitations/accept?token=${token}&redirect=https://foreign.invalid&organization=fixture`)
     expect(login.origin).toBe('https://app.janua.dev')

@@ -419,6 +419,13 @@ second sign-in adds an account rather than evicting the first.
   another `sid` the held-set already vouches for **and** whose row is live — no
   re-authentication, because that session is already proven. An unheld or dead
   `sid` is rejected.
+  The signed reference carries `selected: true` for this deliberate choice.
+  At authorization it outranks a different hosted cookie's newer session only
+  while its sid remains held and its row, owner and user remain live. Otherwise
+  ordinary resolution applies. This prevents the newer-session tie-break from
+  silently undoing a choice of an older account. Fresh login replaces the
+  reference without that marker; explicit bearer and per-tab focus still rank
+  first. No other application's session or credential is cleared or revoked.
 - **Switch from the chooser** (`POST /api/v1/auth/switch-session/form`): the
   form-encoded twin that the `prompt=select_account` chooser posts to. The JSON
   route answers a plain HTML form with 422. It applies the same two guards and
@@ -471,6 +478,37 @@ reopen it.
 
 **No migration.** L1–L3 add no table, no column and no alembic revision —
 `janua_sessions` is a cookie, and `sids` reference the existing `sessions` rows.
+
+### Consumer account-switch actions
+
+An RP starts a new ordinary authorization request with `prompt=select_account`,
+fresh state/PKCE and its registered callback. The chooser offers the browser's
+live held accounts and **Use another account** for fresh credentials/MFA.
+**Cancel** returns `error=access_denied` and the original state to that registered
+callback. The RP must preserve its current session on cancellation or failure;
+only a successful callback replaces the RP identity and re-reads its roles and
+organization membership. Switching the estate reference alone never replaces an
+already established RP session.
+
+The TypeScript SDK exposes `client.auth.switchAccount(options)` and
+`client.auth.addAccount(options)`. Both reuse the normal Janua OIDC flow;
+`switchAccount` forces `select_account`, `addAccount` forces `login`, and neither
+calls logout or discards current credentials at initiation. The React and Next.js
+`UserButton` accepts `switchAccountOptions` containing the registered `clientId`
+and `redirectUri` (plus normal SSO options). It displays no switch action when
+that registration is absent. The callback still uses
+`client.auth.handleJanuaSSOCallback` for a public client, or the RP's existing
+server-side exchange for a confidential client. Frameworks that already own
+their OIDC flow should pass `prompt=select_account` through that framework.
+
+Janua Dashboard currently signs in directly through the SDK rather than as a
+registered OIDC RP. Its **Switch account** action therefore opens a deliberately
+fresh credential/MFA sign-in, retaining the old dashboard session until success.
+Cancel returns to the old account. Successful proof replaces the single local
+credential set and performs a full navigation so no old user/role context is
+carried forward. This direct dashboard entry is reauthentication, not a saved
+account chooser; the issuer chooser is used by registered OIDC consumers. No
+password vault, local multi-token list or extra identity database is introduced.
 
 ## Operator steps
 

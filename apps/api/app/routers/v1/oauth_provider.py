@@ -578,6 +578,22 @@ async def get_user_from_cookie_or_header(
         except Exception:
             logger.warning("janua_sso cookie resolution failed", exc_info=True)
 
+    # A chooser click is newer intent even when the selected session is older.
+    # Do not let an unrelated hosted access cookie silently undo that choice.
+    # The marker is signed by the switch endpoint, and preference requires BOTH
+    # the held-set proof and the live row/owner check performed above. Explicit
+    # bearer and per-tab focus have already taken precedence. No RP token or
+    # session is cleared, revoked or copied by this decision.
+    if estate_user is not None and estate_session is not None and sso_cookie:
+        from app.auth.sso_cookie import is_explicit_sso_selection
+
+        selected_sid = str(estate_session.id)
+        if (
+            selected_sid in read_sessions_cookie(request.cookies.get(SESSIONS_COOKIE_NAME))
+            and is_explicit_sso_selection(sso_cookie, selected_sid)
+        ):
+            return estate_user
+
     # Third, the hosted-login cookie. Resolved even when the estate cookie
     # already answered, but only so a disagreement can be detected and decided
     # deliberately — never so it can win by arriving second.
@@ -1299,6 +1315,7 @@ def _account_chooser_html(
     authorize_next: str,
     add_account_url: str,
     client_name: str,
+    cancel_url: str = "",
 ) -> str:
     """Render the `prompt=select_account` chooser over the held estate accounts.
 
@@ -1313,6 +1330,10 @@ def _account_chooser_html(
     escaped_client = html.escape(client_name or "the application")
     escaped_next = html.escape(authorize_next)
     escaped_add = html.escape(add_account_url)
+    cancel_link = (
+        f'<a class="add" href="{html.escape(cancel_url)}">Cancel and return to the application</a>'
+        if cancel_url else ""
+    )
 
     rows = ""
     for sid, user in accounts:
@@ -1377,6 +1398,7 @@ def _account_chooser_html(
         <p class="sub">to continue to {escaped_client}</p>
         {rows}
         <a class="add" href="{escaped_add}">Use another account</a>
+        {cancel_link}
     </div>
 </body>
 </html>
@@ -2228,6 +2250,13 @@ async def authorize_get(
                         authorize_next=authorize_next,
                         add_account_url=login_url,
                         client_name=client.name or "",
+                        cancel_url=_redirect_with_oauth_error(
+                            redirect_uri,
+                            error="access_denied",
+                            error_description="Account selection cancelled",
+                            state=state,
+                            client_validated=True,
+                        ).headers["location"],
                     )
                 )
 

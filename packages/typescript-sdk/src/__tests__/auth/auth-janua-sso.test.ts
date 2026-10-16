@@ -243,4 +243,33 @@ describe('Auth - Sign in with Janua (OIDC provider flow)', () => {
       ).rejects.toThrow(/code_verifier/i);
     });
   });
+
+  describe('deliberate account switching', () => {
+    const registration = { clientId: 'fixture-rp', redirectUri: 'https://rp.example.test/callback' };
+
+    it('forces the hosted chooser and preserves current tokens until the RP callback completes', async () => {
+      const start = jest.spyOn(auth, 'initiateJanuaSSO').mockResolvedValue(undefined);
+      await auth.switchAccount({ ...registration, prompt: 'none' } as any);
+      expect(start).toHaveBeenCalledWith({ ...registration, prompt: 'select_account' });
+      expect(mockTokenManager.clearTokens).not.toHaveBeenCalled();
+      expect(mockTokenManager.setTokens).not.toHaveBeenCalled();
+      expect(mockHttpClient.post).not.toHaveBeenCalled();
+      expect(mockOnSignIn).not.toHaveBeenCalled();
+    });
+
+    it('adds another account through fresh credential and MFA proof, without logout', async () => {
+      const start = jest.spyOn(auth, 'initiateJanuaSSO').mockResolvedValue(undefined);
+      await auth.addAccount({ ...registration, prompt: 'none' } as any);
+      expect(start).toHaveBeenCalledWith({ ...registration, prompt: 'login' });
+      expect(mockTokenManager.clearTokens).not.toHaveBeenCalled();
+      expect(mockHttpClient.post).not.toHaveBeenCalled();
+    });
+
+    it('does not discard the active RP session when selection cannot start', async () => {
+      jest.spyOn(auth, 'initiateJanuaSSO').mockRejectedValue(new Error('Cannot start authorization'));
+      await expect(auth.switchAccount(registration)).rejects.toThrow('Cannot start authorization');
+      expect(mockTokenManager.clearTokens).not.toHaveBeenCalled();
+      expect(mockTokenManager.setTokens).not.toHaveBeenCalled();
+    });
+  });
 });
