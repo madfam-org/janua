@@ -1,3 +1,5 @@
+'use client'
+
 import * as React from 'react'
 import type { JanuaAuthConfig } from '../config/types'
 import { defaultAuthConfig, mergeConfig } from '../config/defaults'
