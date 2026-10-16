@@ -165,6 +165,7 @@ export function buildJanuaAuthorizeUrl(params: {
   scopes?: string;
   nonce?: string;
   prompt?: string;
+  organizationId?: string;
 }): string {
   const {
     baseURL,
@@ -175,6 +176,7 @@ export function buildJanuaAuthorizeUrl(params: {
     scopes = 'openid profile email',
     nonce,
     prompt,
+    organizationId,
   } = params;
 
   // Trim a trailing slash so `${baseURL}/api/...` never double-slashes.
@@ -192,6 +194,9 @@ export function buildJanuaAuthorizeUrl(params: {
   }
   if (prompt) {
     url.searchParams.set('prompt', prompt);
+  }
+  if (organizationId !== undefined) {
+    url.searchParams.set('organization_id', organizationId);
   }
   return url.toString();
 }

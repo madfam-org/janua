@@ -170,6 +170,7 @@ async def get_user_entitlements(
     db: AsyncSession,
     *,
     now: Optional[datetime] = None,
+    organization_id: Optional[str] = None,
 ) -> list[Entitlement]:
     """
     Resolve the active entitlements for a user.
@@ -177,6 +178,10 @@ async def get_user_entitlements(
     Result is sorted by product slug for deterministic JWT claim ordering.
     Per-user rows beat org inheritance beat admin bootstrap; the highest-
     priority source wins on duplicate product slugs.
+
+    ``organization_id`` is an already membership-validated OAuth selection.
+    It confines inheritance to that organization; absent keeps the legacy
+    identity-pool/first-membership behavior. It never changes the user's pool.
     """
     if now is None:
         now = datetime.utcnow()
@@ -195,7 +200,11 @@ async def get_user_entitlements(
 
     # 2nd priority — org membership inheritance.
     try:
-        org_tiers = await _fetch_org_tiers(user, db)
+        org_tiers = (
+            await _fetch_org_product_tiers(organization_id, db)
+            if organization_id is not None
+            else await _fetch_org_tiers(user, db)
+        )
     except Exception as exc:
         # Failure to read org tiers must not block JWT issuance — degrade
         # gracefully to "no inherited grants" and log loudly so ops can see.

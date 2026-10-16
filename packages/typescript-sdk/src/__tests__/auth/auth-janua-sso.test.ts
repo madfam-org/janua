@@ -62,6 +62,16 @@ describe('Auth - Sign in with Janua (OIDC provider flow)', () => {
   });
 
   describe('getJanuaAuthorizeUrl', () => {
+    it('binds an explicit organization to the authorization request without changing tokens', async () => {
+      const result = await auth.getJanuaAuthorizeUrl({
+        clientId: 'fixture-rp', redirectUri: 'https://rp.example.test/callback',
+        organizationId: '00000000-0000-4000-8000-000000000001',
+      });
+      expect(new URL(result.url).searchParams.get('organization_id')).toBe('00000000-0000-4000-8000-000000000001');
+      expect(mockTokenManager.setTokens).not.toHaveBeenCalled();
+      expect(mockTokenManager.clearTokens).not.toHaveBeenCalled();
+    });
+
     it('builds the OIDC provider authorize URL with PKCE and persists verifier + state', async () => {
       const result = await auth.getJanuaAuthorizeUrl({
         clientId: 'dhanam-web',

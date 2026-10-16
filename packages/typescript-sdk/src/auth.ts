@@ -55,6 +55,8 @@ export interface JanuaSSOOptions {
   nonce?: string;
   /** OIDC `prompt` (e.g. `'none'` for silent auth on first-party clients). */
   prompt?: string;
+  /** Explicit active organization for this grant; never changes the identity pool. */
+  organizationId?: string;
   /**
    * Override the Janua issuer base URL. Defaults to the client's configured
    * `baseURL`. Only needed when the SDK client points somewhere else.
@@ -724,6 +726,7 @@ export class Auth {
       scopes,
       nonce: options.nonce,
       prompt: options.prompt,
+      organizationId: options.organizationId,
     });
 
     return { url, state, codeVerifier };

@@ -22,6 +22,7 @@ AUTHORIZE_RESUME_PARAMS = (
     "code_challenge",
     "code_challenge_method",
     "resource",
+    "organization_id",
 )
 
 
