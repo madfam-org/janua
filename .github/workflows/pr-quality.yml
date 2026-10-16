@@ -76,9 +76,13 @@ jobs:
       - name: Build feature flags prerequisite
         run: pnpm --filter @janua/feature-flags build
 
+      # Dashboard imports the SDK's dist-only app/client export. A build of
+      # core + typescript-sdk alone cannot satisfy a clean frontend checkout.
+      - name: Build Next.js SDK prerequisite
+        run: pnpm --filter @janua/nextjs build
+
       - name: Build frontend packages
         run: pnpm build:frontend
-        continue-on-error: true
 
       - name: Upload build artifacts
         if: success()
