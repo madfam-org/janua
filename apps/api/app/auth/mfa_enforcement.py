@@ -20,6 +20,8 @@ which already exists and issues the real session once the second factor checks.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 from datetime import datetime, timedelta
 
 import jwt as pyjwt
@@ -28,6 +30,34 @@ from app.config import settings
 
 MFA_CHALLENGE_TYPE = "mfa_challenge"
 _CHALLENGE_TTL_MINUTES = 5
+
+# The value config.py substitutes for an unset JWT_SECRET_KEY outside
+# production. It is published in this repository, so it is never a signing key.
+_DEV_DEFAULT_SECRET = "development-secret-key"
+_DEV_ENVIRONMENTS = {"development", "test", "testing", "local"}
+
+
+def mfa_challenge_signing_key() -> str:
+    """The HS256 key for MFA challenge tokens (mint and verify).
+
+    Uses JWT_SECRET_KEY when it is configured. When it is unset (RS256-only
+    deployments do not need it for sessions), the key is derived from
+    SECRET_KEY, which production requires. Only a development or test
+    environment with neither configured falls back to the development default;
+    anywhere else this raises rather than sign with a known value.
+    """
+    configured = settings.JWT_SECRET_KEY
+    if configured and configured != _DEV_DEFAULT_SECRET:
+        return configured
+    app_secret = settings.SECRET_KEY
+    if app_secret:
+        return hmac.new(
+            app_secret.encode("utf-8"), b"janua.mfa_challenge.v1", hashlib.sha256
+        ).hexdigest()
+    environment = str(getattr(settings, "ENVIRONMENT", "") or "").lower()
+    if environment in _DEV_ENVIRONMENTS:
+        return _DEV_DEFAULT_SECRET
+    raise RuntimeError("No signing key is configured for MFA challenge tokens")
 
 
 def mfa_required_for(user) -> bool:
@@ -61,6 +91,6 @@ def mint_mfa_challenge_token(user) -> str:
     }
     return pyjwt.encode(
         payload,
-        settings.JWT_SECRET_KEY or "development-secret-key",
+        mfa_challenge_signing_key(),
         algorithm="HS256",
     )
