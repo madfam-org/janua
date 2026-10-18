@@ -135,6 +135,31 @@ async def test_invalid_code_rerenders_challenge(mfa_form_client):
 
 
 @pytest.mark.asyncio
+async def test_wrong_codes_lock_the_account(mfa_form_client, monkeypatch):
+    """Wrong codes on the hosted screen count against the account lockout."""
+    monkeypatch.setattr(settings, "ACCOUNT_LOCKOUT_ENABLED", True, raising=False)
+    monkeypatch.setattr(settings, "ACCOUNT_LOCKOUT_THRESHOLD", 3, raising=False)
+    user_id = mfa_form_client.__dict__["_seeded_user_id"]
+
+    for _ in range(3):
+        resp = await mfa_form_client.post(
+            MFA_FORM_URL, data={"mfa_token": _mint_challenge(user_id), "code": "000000"}
+        )
+        assert resp.status_code == 401
+
+    resp = await mfa_form_client.post(
+        MFA_FORM_URL,
+        data={
+            "mfa_token": _mint_challenge(user_id),
+            "code": pyotp.TOTP(TEST_SECRET).now(),
+            "next": "/dashboard",
+        },
+    )
+
+    assert resp.status_code != 302
+
+
+@pytest.mark.asyncio
 async def test_password_form_challenges_enrolled_user_with_flag_off(mfa_form_client, monkeypatch):
     """A user who enrolled in MFA gets the second-factor screen from the hosted
     password form even while MFA_ENFORCE_ON_LOGIN is off, as /signin does."""
