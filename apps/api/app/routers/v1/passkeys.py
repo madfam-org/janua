@@ -606,7 +606,7 @@ async def delete_passkey(
     )
     db.add(activity)
 
-    db.delete(passkey)
+    await db.delete(passkey)
     await db.commit()
 
     return {"message": "Passkey deleted successfully"}
