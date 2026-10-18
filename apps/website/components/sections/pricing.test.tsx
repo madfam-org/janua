@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { PricingSection } from './pricing'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { PricingSection, mxnChargeNote } from './pricing'
 
 describe('PricingSection', () => {
   it('should render without crashing', () => {
@@ -37,5 +37,28 @@ describe('PricingSection', () => {
     render(<PricingSection />)
     expect(screen.getByText('Frequently Asked Questions')).toBeInTheDocument()
     expect(screen.getByText('What counts as a Monthly Active User (MAU)?')).toBeInTheDocument()
+  })
+
+  it('shows the MXN amount the checkout charges, from the catalog', () => {
+    render(<PricingSection proMxn={{ monthly: 499, yearly: 4789 }} />)
+    expect(screen.getByTestId('pro-mxn-charge')).toHaveTextContent(
+      'Charged MX$499/month in MXN, IVA incluido.'
+    )
+  })
+
+  it('shows the yearly MXN amount on the annual toggle', () => {
+    render(<PricingSection proMxn={{ monthly: 499, yearly: 4789 }} />)
+    fireEvent.click(screen.getByText('Monthly').nextElementSibling as HTMLElement)
+    expect(screen.getByTestId('pro-mxn-charge')).toHaveTextContent(
+      'Charged MX$4,789/year in MXN, IVA incluido.'
+    )
+  })
+
+  it('names no MXN figure when the catalog could not be read', () => {
+    render(<PricingSection />)
+    expect(screen.getByTestId('pro-mxn-charge')).toHaveTextContent(
+      'Charged in MXN with IVA at checkout.'
+    )
+    expect(mxnChargeNote(null, true)).toBe('Charged in MXN with IVA at checkout.')
   })
 })
