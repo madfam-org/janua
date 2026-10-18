@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from app.auth.mfa_enforcement import mfa_challenge_signing_key
 from app.config import settings
 from app.database import get_db
-from app.routers.v1.auth import get_current_user, SignInResponse, UserResponse, TokenResponse
+from app.routers.v1.auth import SignInResponse, TokenResponse, UserResponse, get_current_user
 from app.services.auth_service import AuthService
 
 from ...models import ActivityLog, User, UserStatus
