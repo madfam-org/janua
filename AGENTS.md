@@ -968,7 +968,7 @@ EOF
 | Auth fails | Token expiry, algorithm | Refresh token, check JWT_ALGORITHM |
 | DB connection | PostgreSQL status | `docker-compose up -d postgres` |
 | Cache miss | Redis connection | `docker-compose up -d redis` |
-| CORS errors | allowed_origins in config | Add frontend URL to CORS |
+| CORS errors | Preflight from the origin: `204` without `access-control-allow-origin` means not allowed | Register the origin in an OAuth client's `redirect_uris`, or add it to the static `CORS_ORIGINS` in `k8s/base/deployments/janua-api.yaml` ([procedure](docs/guides/PROVIDER_OPERATIONS.md#adding-a-static-browser-origin)) |
 | SSO fails | Certificate, clock sync | Check IdP cert, NTP sync |
 
 ---

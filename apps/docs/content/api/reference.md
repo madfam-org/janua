@@ -475,34 +475,39 @@ Change user password.
 }
 ```
 
-### POST /users/me/verify-email/send
+### POST /auth/email/resend-verification
 
-Send email verification.
+Send a new verification email to the signed-in user. Requires a bearer token; rate-limited to 5 per hour.
 
 **Response (200):**
 ```json
 {
-  "success": true,
   "message": "Verification email sent"
 }
 ```
 
-### POST /users/me/verify-email/confirm
+### POST /auth/email/verify
 
-Verify email with token.
+Verify email with token. `POST /auth/verify-email` is an alias.
 
 **Request:**
 ```json
 {
-  "token": "evt_abc123..."
+  "token": "verification_token_from_email"
 }
 ```
 
 **Response (200):**
 ```json
 {
-  "success": true,
-  "message": "Email verified successfully"
+  "message": "Email successfully verified"
+}
+```
+
+**Response (400)**, for an unknown, already used or expired token (tokens are valid for 48 hours):
+```json
+{
+  "detail": "Invalid or expired verification token"
 }
 ```
 
