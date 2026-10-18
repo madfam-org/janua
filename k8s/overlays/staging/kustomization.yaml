@@ -16,3 +16,6 @@ images:
 - digest: sha256:b7ae16900c9331d3c9eda1b397b7e9396d859b908cf6e988247c2764dbc43c8b
   name: ghcr.io/madfam-org/janua-dashboard
   newName: ghcr.io/madfam-org/janua-dashboard
+- digest: sha256:88f5797463a9003df0b39ef55007cde98d04d1089db4a81581405dcbea9c96a5
+  name: ghcr.io/madfam-org/janua-docs
+  newName: ghcr.io/madfam-org/janua-docs
