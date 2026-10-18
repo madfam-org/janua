@@ -427,6 +427,15 @@ JWT_PRIVATE_KEY_PATH=./keys/private.pem
 JWT_PUBLIC_KEY_PATH=./keys/public.pem
 ACCESS_TOKEN_EXPIRE_MINUTES=15       # Default: 15min
 REFRESH_TOKEN_EXPIRE_DAYS=7          # Default: 7 days
+# MFA challenge tokens (HS256, 5 min) are signed with JWT_SECRET_KEY when set,
+# otherwise with a key derived from SECRET_KEY; outside dev/test there is no
+# built-in default (#729). Note: k8s/base sets `JWT_SECRET`, which the API does
+# not read; production therefore uses the SECRET_KEY-derived key. Renaming that
+# variable changes the challenge key (in-flight challenges expire): do it with a
+# promote, not silently.
+# Wrong second-factor codes count toward ACCOUNT_LOCKOUT_* (#731). The hosted
+# password form always challenges MFA-enrolled users, independent of
+# MFA_ENFORCE_ON_LOGIN (#732).
 
 # Field Encryption (required in production — SOC 2 CF-01)
 # Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
