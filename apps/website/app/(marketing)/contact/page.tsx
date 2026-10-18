@@ -2,6 +2,7 @@ import { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ArrowRight, Mail, MessageCircle, Phone as _Phone, MapPin, Clock, Users } from 'lucide-react'
+import { SITE_LINKS } from '@/lib/site-links'
 
 export const metadata: Metadata = {
   title: 'Contact Us | Janua',
@@ -203,7 +204,7 @@ export default function ContactPage() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button variant="outline" className="group" asChild>
-              <Link href="https://github.com/madfam-io/janua" target="_blank" rel="noopener">
+              <Link href={SITE_LINKS.github} target="_blank" rel="noopener">
                 GitHub Community
                 <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
               </Link>
