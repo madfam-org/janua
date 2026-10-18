@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { getBillingCurrent, getInvoices, getPaymentMethods, createCheckout } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
+import { SALES_CONTACT_URL, isContactSalesPlan } from '@/lib/billing-plans'
 import { januaClient } from '@/lib/janua-client'
 
 /** Roles allowed to initiate billing changes (mirrors the checkout API's owner/admin check). */
@@ -281,8 +282,8 @@ export default function BillingPage() {
   }
 
   const handleUpgrade = async (planId: string) => {
-    if (planId === 'enterprise') {
-      window.open('mailto:sales@janua.dev?subject=Enterprise%20Plan%20Inquiry', '_blank')
+    if (isContactSalesPlan(planId)) {
+      window.open(SALES_CONTACT_URL, '_blank', 'noopener')
       return
     }
 
@@ -518,11 +519,11 @@ export default function BillingPage() {
                           <CheckCircle2 className="mr-2 size-4" />
                           Current Plan
                         </Button>
-                      ) : plan.id === 'enterprise' ? (
+                      ) : isContactSalesPlan(plan.id) ? (
                         <Button
                           variant="outline"
                           className="w-full"
-                          onClick={() => handleUpgrade('enterprise')}
+                          onClick={() => handleUpgrade(plan.id)}
                         >
                           <ExternalLink className="mr-2 size-4" />
                           Contact Sales

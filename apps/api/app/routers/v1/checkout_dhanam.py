@@ -118,6 +118,12 @@ def build_catalog_plan_id(plan_id: str) -> tuple[str, Optional[str], str]:
     qualified as "janua_{tier}" — the id Dhanam's PriceResolver parses back
     into (product="janua", tier). Billing-period suffixes are preserved so
     Dhanam still resolves the monthly/yearly interval.
+
+    A bare legacy name ("scale", "enterprise", "sovereign") maps to another
+    product's plan in the webhook grammar ("scale" -> dhanam/pro). From this
+    checkout it would sell that product to a Janua buyer, so it resolves to no
+    tier and the caller answers 400. Other products' plans must be qualified
+    ("enclii_pro").
     """
     product, tier = parse_product_plan(plan_id)
     if tier is None:
@@ -125,6 +131,8 @@ def build_catalog_plan_id(plan_id: str) -> tuple[str, Optional[str], str]:
     core, suffix = _strip_billing_period(plan_id)
     if core in VALID_TIERS:
         product = JANUA_PRODUCT_SLUG
+    elif "_" not in core and product != JANUA_PRODUCT_SLUG:
+        return product, None, ""
     return product, tier, f"{product}_{tier}{suffix}"
 
 

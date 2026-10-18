@@ -116,14 +116,15 @@ describe.skip('BillingPage checkout contract', () => {
 
     render(<BillingPage />)
 
-    fireEvent.click(await screen.findByRole('button', { name: /upgrade to scale/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /upgrade to pro/i }))
 
     await waitFor(() => {
       expect(createCheckout).toHaveBeenCalledWith(
-        expect.objectContaining({ plan_id: 'scale', organization_id: 'org-admin' })
+        expect.objectContaining({ plan_id: 'pro', organization_id: 'org-admin' })
       )
     })
   })
+
 
   it('shows an error and does not call checkout when the user has no billable org', async () => {
     januaClient.organizations.listOrganizations.mockResolvedValue([
