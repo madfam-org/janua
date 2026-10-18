@@ -1612,9 +1612,12 @@ async def login_form(
     # with no second factor. Gated behind MFA_ENFORCE_ON_LOGIN (default OFF), so
     # this is inert until the challenge UI ships and the flag is flipped; when off,
     # mfa_required_for() returns False and behavior is unchanged.
-    from app.auth.mfa_enforcement import mfa_required_for
+    # The second-factor screen and /login-form/mfa exist, so a user who
+    # enrolled in MFA is always challenged here, as on /signin; the flag still
+    # extends enforcement through mfa_required_for().
+    from app.auth.mfa_enforcement import mfa_enrolled, mfa_required_for
 
-    if mfa_required_for(user):
+    if mfa_enrolled(user) or mfa_required_for(user):
         await log_activity(
             db, str(user.id), "signin", {"method": "oauth_form", "mfa_required": True}, request
         )

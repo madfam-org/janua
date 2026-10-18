@@ -45,6 +45,15 @@ def mfa_required_for(user) -> bool:
     return bool(getattr(user, "mfa_enabled", False) and getattr(user, "mfa_secret", None))
 
 
+def mfa_enrolled(user) -> bool:
+    """True when the user has MFA configured (enabled with a secret).
+
+    Paths that already have a second-factor step (JSON /signin and the hosted
+    password form) challenge enrolled users regardless of MFA_ENFORCE_ON_LOGIN.
+    """
+    return bool(getattr(user, "mfa_enabled", False) and getattr(user, "mfa_secret", None))
+
+
 def mint_mfa_challenge_token(user) -> str:
     """Mint a short-lived challenge token (NOT a session token).
 
