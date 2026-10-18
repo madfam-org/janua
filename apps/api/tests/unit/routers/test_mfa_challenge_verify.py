@@ -111,6 +111,7 @@ async def mfa_client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         client.__dict__["_seeded_user_id"] = str(user_id)
+        client.__dict__["_session_factory"] = session_factory
         yield client
 
     app.dependency_overrides.clear()
@@ -185,3 +186,57 @@ async def test_non_challenge_token_is_rejected(mfa_client):
     )
 
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_wrong_codes_lock_the_account(mfa_client, monkeypatch):
+    """Wrong second-factor codes count against the account lockout, so a
+    correct code is refused once the threshold is reached."""
+    monkeypatch.setattr(settings, "ACCOUNT_LOCKOUT_ENABLED", True, raising=False)
+    monkeypatch.setattr(settings, "ACCOUNT_LOCKOUT_THRESHOLD", 3, raising=False)
+    user_id = mfa_client.__dict__["_seeded_user_id"]
+
+    for _ in range(3):
+        resp = await mfa_client.post(
+            CHALLENGE_URL, json={"mfa_token": _mint_challenge(user_id), "code": "000000"}
+        )
+        assert resp.status_code == 401
+
+    resp = await mfa_client.post(
+        CHALLENGE_URL,
+        json={"mfa_token": _mint_challenge(user_id), "code": pyotp.TOTP(TEST_SECRET).now()},
+    )
+
+    assert resp.status_code == 401
+    assert "tokens" not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_password_step_keeps_second_factor_failures(mfa_client, monkeypatch):
+    """A correct password for an MFA user must not clear the failure counter
+    before the second factor is verified."""
+    from sqlalchemy import select
+
+    from app.services.auth_service import AuthService
+
+    monkeypatch.setattr(settings, "ACCOUNT_LOCKOUT_ENABLED", True, raising=False)
+    monkeypatch.setattr(settings, "ACCOUNT_LOCKOUT_THRESHOLD", 5, raising=False)
+    factory = mfa_client.__dict__["_session_factory"]
+    user_id = uuid.UUID(mfa_client.__dict__["_seeded_user_id"])
+    password = "Correct-Horse-Battery-9!"
+    async with factory() as session:
+        user = (await session.execute(select(User).where(User.id == user_id))).scalar_one()
+        user.password_hash = AuthService.hash_password(password)
+        user.failed_login_attempts = 2
+        user.username = "mfa-user"
+        await session.commit()
+
+    resp = await mfa_client.post(
+        "/api/v1/auth/signin", json={"username": "mfa-user", "password": password}
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json().get("tokens") is None
+
+    async with factory() as session:
+        user = (await session.execute(select(User).where(User.id == user_id))).scalar_one()
+        assert user.failed_login_attempts == 2

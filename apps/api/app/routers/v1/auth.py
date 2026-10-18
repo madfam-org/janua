@@ -560,10 +560,9 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
             )
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    # Reset failed attempts on successful login
-    await AccountLockoutService.reset_failed_attempts(db, user)
-
-    # SECURITY: Check if MFA is required before issuing session tokens
+    # SECURITY: Check if MFA is required before issuing session tokens.
+    # The failure counter is reset only once no second factor is pending
+    # (/mfa/challenge/verify resets it after the code checks).
     if getattr(user, 'mfa_enabled', False) and getattr(user, 'mfa_secret', None):
         # Issue a short-lived MFA challenge token (not a session token)
         import jwt as pyjwt
@@ -601,6 +600,9 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
             mfa_required=True,
             mfa_token=mfa_token,
         )
+
+    # No second factor pending: the sign-in is complete.
+    await AccountLockoutService.reset_failed_attempts(db, user)
 
     # Create session (no MFA required)
     access_token, refresh_token, session = await AuthService.create_session(
@@ -1604,9 +1606,6 @@ async def login_form(
             )
         return make_error_page("Invalid email or password. Please try again.")
 
-    # Reset failed attempts on successful login
-    await AccountLockoutService.reset_failed_attempts(db, user)
-
     # SECURITY (2026-08-23): enforce MFA on the OAuth browser-login path. This was
     # the primary bypass — a user with MFA enabled was issued a full session here
     # with no second factor. Gated behind MFA_ENFORCE_ON_LOGIN (default OFF), so
@@ -1636,6 +1635,10 @@ async def login_form(
             # auth_request_id (matches _oauth_context_hidden_fields_html's rule).
             next_url=safe_next if not auth_request_id else None,
         )
+
+    # No second factor pending: reset the failure counter only now, so a
+    # correct password cannot clear failures counted by /login-form/mfa.
+    await AccountLockoutService.reset_failed_attempts(db, user)
 
     # Create session and tokens
     access_token, refresh_token, session = await AuthService.create_session(
@@ -1782,6 +1785,12 @@ async def login_form_mfa(
     if not user or not user.mfa_enabled or not user.mfa_secret:
         return _reject("Invalid verification session. Please sign in again.")
 
+    # Wrong codes count against the same per-account lockout as passwords; a
+    # locked account cannot keep guessing with a re-minted challenge.
+    is_locked, _ = AccountLockoutService.is_account_locked(user)
+    if is_locked:
+        return _reject("Too many failed attempts. Please wait and sign in again.")
+
     # Verify TOTP, then fall back to a single-use backup code (shared helper).
     import pyotp
 
@@ -1799,9 +1808,16 @@ async def login_form_mfa(
         code_valid = True
 
     if not code_valid:
+        is_now_locked, _ = await AccountLockoutService.record_failed_attempt(
+            db, user, ip_address=request.client.host if request.client else None
+        )
+        if is_now_locked:
+            return _reject("Too many failed attempts. Please wait and sign in again.")
         # Wrong code — re-render with a fresh challenge token so retry works even
         # if the original is close to expiry.
         return _reject("Invalid verification code. Please try again.", remint_for=user)
+
+    await AccountLockoutService.reset_failed_attempts(db, user)
 
     # Second factor cleared — create the session and resume the OAuth redirect.
     access_token, refresh_token, session = await AuthService.create_session(

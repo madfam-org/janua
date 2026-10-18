@@ -131,3 +131,29 @@ async def test_invalid_code_rerenders_challenge(mfa_form_client):
     assert "Verification code" in resp.text
     assert "Invalid verification code" in resp.text
     assert "janua_access_token=" not in " ".join(resp.headers.get_list("set-cookie"))
+
+
+@pytest.mark.asyncio
+async def test_wrong_codes_lock_the_account(mfa_form_client, monkeypatch):
+    """Wrong codes on the hosted screen count against the account lockout."""
+    monkeypatch.setattr(settings, "ACCOUNT_LOCKOUT_ENABLED", True, raising=False)
+    monkeypatch.setattr(settings, "ACCOUNT_LOCKOUT_THRESHOLD", 3, raising=False)
+    user_id = mfa_form_client.__dict__["_seeded_user_id"]
+
+    for _ in range(3):
+        resp = await mfa_form_client.post(
+            MFA_FORM_URL, data={"mfa_token": _mint_challenge(user_id), "code": "000000"}
+        )
+        assert resp.status_code == 401
+
+    resp = await mfa_form_client.post(
+        MFA_FORM_URL,
+        data={
+            "mfa_token": _mint_challenge(user_id),
+            "code": pyotp.TOTP(TEST_SECRET).now(),
+            "next": "/dashboard",
+        },
+    )
+
+    assert resp.status_code != 302
+    assert "janua_access_token=" not in " ".join(resp.headers.get_list("set-cookie"))
