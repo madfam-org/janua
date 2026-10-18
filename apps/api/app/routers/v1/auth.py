@@ -2799,7 +2799,10 @@ async def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db
     result = await db.execute(
         select(EmailVerification).where(
             EmailVerification.token == request.token,
-            EmailVerification.verified == False,
+            # The model records use as a timestamp; it has no boolean
+            # `verified` column, and referencing one raised AttributeError,
+            # so every verification link answered 500.
+            EmailVerification.verified_at.is_(None),
             EmailVerification.expires_at > datetime.utcnow(),
         )
     )
@@ -2814,7 +2817,6 @@ async def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db
     user.email_verified_at = datetime.utcnow()
 
     # Mark verification as used
-    verification.verified = True
     verification.verified_at = datetime.utcnow()
 
     await db.commit()
