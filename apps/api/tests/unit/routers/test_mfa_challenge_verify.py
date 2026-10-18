@@ -240,3 +240,31 @@ async def test_password_step_keeps_second_factor_failures(mfa_client, monkeypatc
     async with factory() as session:
         user = (await session.execute(select(User).where(User.id == user_id))).scalar_one()
         assert user.failed_login_attempts == 2
+
+
+@pytest.mark.asyncio
+async def test_challenge_signed_with_dev_default_is_rejected_without_jwt_secret(
+    mfa_client, monkeypatch
+):
+    """With JWT_SECRET_KEY unset, a challenge signed with the development
+    default must not be accepted: that default is not a secret."""
+    monkeypatch.setattr(settings, "JWT_SECRET_KEY", None, raising=False)
+    monkeypatch.setattr(settings, "SECRET_KEY", "s" * 48, raising=False)
+    user_id = mfa_client.__dict__["_seeded_user_id"]
+    token = pyjwt.encode(
+        {
+            "sub": user_id,
+            "type": "mfa_challenge",
+            "exp": datetime.utcnow() + timedelta(minutes=5),
+            "iat": datetime.utcnow(),
+            "iss": settings.JWT_ISSUER,
+        },
+        "development-secret-key",
+        algorithm="HS256",
+    )
+
+    resp = await mfa_client.post(
+        CHALLENGE_URL, json={"mfa_token": token, "code": pyotp.TOTP(TEST_SECRET).now()}
+    )
+
+    assert resp.status_code == 401

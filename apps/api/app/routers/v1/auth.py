@@ -29,6 +29,7 @@ from app.auth.login_method import (
     magic_link_login_available,
 )
 from app.auth.magic_link_limits import enforce_magic_link_limits
+from app.auth.mfa_enforcement import mfa_challenge_signing_key
 from app.auth.sessions_cookie import (
     SESSIONS_COOKIE_NAME,
     append_sid,
@@ -576,7 +577,7 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
         }
         mfa_token = pyjwt.encode(
             mfa_challenge_payload,
-            settings.JWT_SECRET_KEY or "development-secret-key",
+            mfa_challenge_signing_key(),
             algorithm="HS256",
         )
 
@@ -1611,9 +1612,12 @@ async def login_form(
     # with no second factor. Gated behind MFA_ENFORCE_ON_LOGIN (default OFF), so
     # this is inert until the challenge UI ships and the flag is flipped; when off,
     # mfa_required_for() returns False and behavior is unchanged.
-    from app.auth.mfa_enforcement import mfa_required_for
+    # The second-factor screen and /login-form/mfa exist, so a user who
+    # enrolled in MFA is always challenged here, as on /signin; the flag still
+    # extends enforcement through mfa_required_for().
+    from app.auth.mfa_enforcement import mfa_enrolled, mfa_required_for
 
-    if mfa_required_for(user):
+    if mfa_enrolled(user) or mfa_required_for(user):
         await log_activity(
             db, str(user.id), "signin", {"method": "oauth_form", "mfa_required": True}, request
         )
@@ -1765,7 +1769,7 @@ async def login_form_mfa(
     try:
         payload = pyjwt.decode(
             mfa_token,
-            settings.JWT_SECRET_KEY or "development-secret-key",
+            mfa_challenge_signing_key(),
             algorithms=["HS256"],
             options={"require": ["sub", "type", "exp"]},
         )

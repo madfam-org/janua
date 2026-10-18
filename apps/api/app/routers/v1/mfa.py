@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.auth.mfa_enforcement import mfa_challenge_signing_key
 from app.config import settings
 from app.database import get_db
 from app.routers.v1.auth import SignInResponse, TokenResponse, UserResponse, get_current_user
@@ -580,7 +581,7 @@ async def verify_mfa_challenge(
     try:
         payload = pyjwt.decode(
             request_data.mfa_token,
-            settings.JWT_SECRET_KEY or "development-secret-key",
+            mfa_challenge_signing_key(),
             algorithms=["HS256"],
             options={"require": ["sub", "type", "exp"]},
         )
