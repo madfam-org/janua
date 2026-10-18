@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.routers.v1.auth import get_current_user, SignInResponse, UserResponse, TokenResponse
+from app.routers.v1.auth import SignInResponse, TokenResponse, UserResponse, get_current_user
 from app.services.account_lockout_service import AccountLockoutService
 from app.services.auth_service import AuthService
 
