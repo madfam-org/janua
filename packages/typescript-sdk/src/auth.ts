@@ -55,12 +55,17 @@ export interface JanuaSSOOptions {
   nonce?: string;
   /** OIDC `prompt` (e.g. `'none'` for silent auth on first-party clients). */
   prompt?: string;
+  /** Explicit active organization for this grant; never changes the identity pool. */
+  organizationId?: string;
   /**
    * Override the Janua issuer base URL. Defaults to the client's configured
    * `baseURL`. Only needed when the SDK client points somewhere else.
    */
   baseUrl?: string;
 }
+
+/** Existing RP registration and callback contract, with deliberate prompt semantics. */
+export type JanuaAccountSwitchOptions = Omit<JanuaSSOOptions, 'prompt'>;
 
 /**
  * Result of building the Janua OIDC authorize URL.
@@ -721,6 +726,7 @@ export class Auth {
       scopes,
       nonce: options.nonce,
       prompt: options.prompt,
+      organizationId: options.organizationId,
     });
 
     return { url, state, codeVerifier };
@@ -739,6 +745,20 @@ export class Auth {
       );
     }
     window.location.href = url;
+  }
+
+  /**
+   * Ask Janua to choose a held account or authenticate another one. Existing RP
+   * credentials stay intact until its normal state/PKCE callback succeeds.
+   * Requires this app's registered client and callback; never invokes logout.
+   */
+  async switchAccount(options: JanuaAccountSwitchOptions): Promise<void> {
+    await this.initiateJanuaSSO({ ...options, prompt: 'select_account' });
+  }
+
+  /** Prove another account with fresh credentials/MFA, without signing out any account. */
+  async addAccount(options: JanuaAccountSwitchOptions): Promise<void> {
+    await this.initiateJanuaSSO({ ...options, prompt: 'login' });
   }
 
   /**

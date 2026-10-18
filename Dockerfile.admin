@@ -38,7 +38,7 @@ COPY .npmrc ./
 RUN pnpm install --no-frozen-lockfile --shamefully-hoist
 
 # Build workspace packages first
-RUN pnpm --filter @janua/feature-flags build || true
+RUN pnpm --filter @janua/feature-flags build
 RUN pnpm --filter @janua/typescript-sdk build || true
 RUN pnpm --filter @janua/react-sdk build || true
 RUN pnpm --filter @janua/nextjs build || true

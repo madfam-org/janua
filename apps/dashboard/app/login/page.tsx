@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@janu
 import { SignIn } from '@janua/ui'
 import { Shield, Loader2, AlertCircle } from 'lucide-react'
 import { januaClient } from '@/lib/janua-client'
+import { isAccountSwitchRequest, isSafeAccountReturn } from '@/lib/account-switch'
 
 // Storage keys - must match auth.tsx
 
@@ -33,22 +34,15 @@ function clearAuthStateOnLoad(reason: string | null): void {
   clearAuthCookie()
 }
 
-function isSafeRedirectPath(path: string): boolean {
-  if (!path || !path.startsWith('/')) return false
-  if (path.startsWith('//')) return false
-  if (path.includes('\\')) return false
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(path)) return false
-  return true
-}
-
 function LoginForm() {
   const [sessionMessage, setSessionMessage] = useState('')
 
   const router = useRouter()
   const searchParams = useSearchParams()
   const rawRedirect = searchParams.get('redirect') || '/'
-  const redirectTo = isSafeRedirectPath(rawRedirect) ? rawRedirect : '/'
+  const redirectTo = isSafeAccountReturn(rawRedirect) ? rawRedirect : '/'
   const reason = searchParams.get('reason')
+  const switchingAccount = isAccountSwitchRequest(new URLSearchParams(searchParams.toString()))
 
   useEffect(() => {
     if (reason === 'session_expired') {
@@ -63,13 +57,23 @@ function LoginForm() {
   const handleAfterSignIn = (user: any) => {
     // Sync cookie for middleware compatibility
     const token = localStorage.getItem(ACCESS_TOKEN_KEY)
+    if (switchingAccount && (!token || !user?.id)) {
+      setSessionMessage('Complete sign-in before switching accounts.')
+      // SignIn awaits this bridge before navigating. Reject incomplete proof
+      // so its normal redirect cannot replace the active account screen.
+      throw new Error('Complete sign-in before switching accounts.')
+    }
     if (token) {
       setAuthCookie(token)
     }
     if (user) {
       localStorage.setItem(USER_KEY, JSON.stringify(user))
     }
-    router.push(redirectTo)
+    if (switchingAccount) {
+      // Rebuild every user/organization/role context from the newly proven
+      // identity. A cancelled or failed sign-in never reaches this branch.
+      window.location.assign(redirectTo)
+    } else router.push(redirectTo)
   }
 
   return (
@@ -78,9 +82,9 @@ function LoginForm() {
         <div className="mb-4 flex justify-center">
           <Shield className="text-primary size-12" />
         </div>
-        <h2 className="text-2xl font-bold">Sign in to Janua</h2>
+        <h2 className="text-2xl font-bold">{switchingAccount ? 'Switch Janua account' : 'Sign in to Janua'}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Enter your credentials to access your dashboard
+          {switchingAccount ? 'Sign in to another account. Your current session stays available until sign-in succeeds.' : 'Enter your credentials to access your dashboard'}
         </p>
       </div>
 
@@ -104,6 +108,8 @@ function LoginForm() {
         // unchanged for all three paths.
         enablePasskey
       />
+
+      {switchingAccount && <a href={redirectTo} className="text-primary mt-4 block text-center text-sm hover:underline">Cancel and return to your current account</a>}
 
       <div className="text-muted-foreground text-center text-sm mt-4">
         Don&apos;t have an account?{' '}

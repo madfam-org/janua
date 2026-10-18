@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { accountSwitchUrl } from '@/lib/account-switch'
 import { cn, Button, Badge } from '@janua/ui'
 import {
   Shield,
@@ -199,6 +200,14 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
 
       {/* Footer */}
       <div className="border-t p-2">
+        <Link
+          href={accountSwitchUrl(pathname)}
+          className={cn('text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors', collapsed && 'justify-center px-2')}
+          title={collapsed ? 'Switch account' : undefined}
+        >
+          <UserCog className="size-4" />
+          {!collapsed && <span>Switch account</span>}
+        </Link>
         <Link
           href="/settings"
           className={cn(

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { AUTH_COOKIE } from '@/lib/auth-keys'
+import { isAccountSwitchRequest } from '@/lib/account-switch'
 import type { NextRequest } from 'next/server'
 
 /**
@@ -58,7 +59,8 @@ export function middleware(request: NextRequest) {
   // If user is authenticated and trying to access login page, redirect to home
   // An explicit invitation account switch uses the existing expired-session
   // login flow, which clears the local session before a fresh sign-in.
-  if (pathname === '/login' && hasValidToken && !invitationAccountSwitch) {
+  const deliberateAccountSwitch = pathname === '/login' && isAccountSwitchRequest(request.nextUrl.searchParams)
+  if (pathname === '/login' && hasValidToken && !invitationAccountSwitch && !deliberateAccountSwitch) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 

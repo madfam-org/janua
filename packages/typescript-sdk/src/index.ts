@@ -15,6 +15,7 @@ import { createClient } from './client';
 
 // Module exports
 export { Auth } from './auth';
+export type { JanuaSSOOptions, JanuaAccountSwitchOptions, JanuaAuthorizeUrlResult, JanuaSSOTokenResponse } from './auth';
 export { Users } from './users';
 export { Sessions } from './sessions';
 export { Organizations } from './organizations';

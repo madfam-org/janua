@@ -43,6 +43,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.auth.sessions_cookie import SESSIONS_COOKIE_NAME, mint_sessions_cookie_value
 from app.auth.sso_cookie import SSO_COOKIE_NAME, mint_sso_cookie_value
 from app.config import settings
 from app.core.jwt_manager import jwt_manager
@@ -460,3 +461,100 @@ class TestAuthorizeHonoursThePrecedence:
         assert "code=" in response.headers["location"]
         assert str(issued["user_id"]) == str(map_user.id)
         assert str(issued["user_id"]) != str(operator.id)
+
+
+class TestExplicitAccountSelection:
+    """Real switch and resolver: an older chosen account must stay chosen."""
+
+    async def _selection(self):
+        from app.routers.v1.auth import _switch_to_held_session
+
+        now = datetime.utcnow()
+        chosen = _user(email="chosen@example.test")
+        chosen.roles = ["viewer"]
+        other = _user(email="other@example.test")
+        other.is_admin = True
+        other.roles = ["owner"]
+        old = _session_row(chosen.id, created_at=now - timedelta(hours=2))
+        jti = str(uuid4())
+        new = _session_row(other.id, created_at=now - timedelta(minutes=1), jti=jti)
+        db = _db(sessions=[old, new], users=[chosen, other])
+        held = mint_sessions_cookie_value([str(old.id), str(new.id)])
+        request = _request({SESSIONS_COOKIE_NAME: held})
+        switched = await _switch_to_held_session(
+            request, db, sid=str(old.id), next_url="/", return_sid=False
+        )
+        cookie = next(
+            value.split("=", 1)[1].split(";", 1)[0]
+            for value in switched.headers.getlist("set-cookie")
+            if value.startswith(f"{SSO_COOKIE_NAME}=")
+        )
+        request.cookies.update({
+            SSO_COOKIE_NAME: cookie,
+            "janua_access_token": _hosted_cookie(other, jti=jti),
+        })
+        return chosen, other, old, new, request, db, switched
+
+    async def test_older_selected_account_beats_newer_hosted_cookie_without_role_carry(self):
+        chosen, other, old, new, request, db, switched = await self._selection()
+        resolved = await get_user_from_cookie_or_header(request, db)
+        assert resolved is chosen
+        assert resolved.is_admin is False
+        assert resolved.roles == ["viewer"]
+        assert other.is_admin is True and other.roles == ["owner"]
+        assert not old.revoked and not new.revoked
+        # Switching changes only the SSO reference, never deletes RP credentials.
+        cookies = switched.headers.getlist("set-cookie")
+        assert len(cookies) == 1 and cookies[0].startswith(f"{SSO_COOKIE_NAME}=")
+        assert "Max-Age=0" not in cookies[0]
+        db.commit.assert_not_called()
+
+    async def test_actual_authorize_code_names_the_older_selected_account(self):
+        chosen, _, _, _, request, db, _ = await self._selection()
+        issued = {}
+
+        async def capture(_code, data, _redis):
+            issued.update(data)
+
+        with (
+            patch.object(oauth_provider_router, "_get_oauth_client", AsyncMock(return_value=_oauth_client())),
+            patch.object(oauth_provider_router.ConsentService, "has_consent", AsyncMock(return_value=True)),
+            patch.object(oauth_provider_router, "_store_auth_code", AsyncMock(side_effect=capture)),
+        ):
+            response = await oauth_provider_router.authorize_get(
+                request=request, response_type="code", client_id="madfam-erp",
+                redirect_uri="https://erp.example.test/auth/callback",
+                scope="openid profile email", state="selection-state", nonce=None,
+                code_challenge="challenge", code_challenge_method="S256", prompt=None,
+                db=db, redis=AsyncMock(),
+            )
+        assert response.status_code == 302
+        assert "code=" in response.headers["location"]
+        assert str(issued["user_id"]) == str(chosen.id)
+
+    @pytest.mark.parametrize("invalid", ["revoked", "inactive", "expired", "owner", "unheld"])
+    async def test_selection_does_not_bypass_live_row_owner_or_held_set(self, invalid):
+        _, other, old, _, request, db, _ = await self._selection()
+        if invalid == "revoked":
+            old.revoked = True
+        elif invalid == "inactive":
+            old.is_active = False
+        elif invalid == "expired":
+            old.expires_at = datetime.utcnow() - timedelta(seconds=1)
+        elif invalid == "owner":
+            old.user_id = other.id
+        else:
+            request.cookies[SESSIONS_COOKIE_NAME] = mint_sessions_cookie_value([])
+        assert await get_user_from_cookie_or_header(request, db) is other
+
+    async def test_fresh_login_has_no_selection_marker_and_default_recency_still_applies(self):
+        chosen, other, old, _, request, db, _ = await self._selection()
+        request.cookies[SSO_COOKIE_NAME] = mint_sso_cookie_value(str(chosen.id), str(old.id))
+        assert await get_user_from_cookie_or_header(request, db) is other
+
+    async def test_bearer_and_held_tab_focus_still_outrank_the_selected_cookie(self):
+        _, other, _, new, request, db, _ = await self._selection()
+        request.headers["Authorization"] = f"Bearer {_hosted_cookie(other)}"
+        assert await get_user_from_cookie_or_header(request, db) is other
+        request.headers = {"X-Janua-Session": str(new.id)}
+        assert await get_user_from_cookie_or_header(request, db) is other
