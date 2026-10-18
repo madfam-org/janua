@@ -29,6 +29,7 @@ from app.auth.login_method import (
     magic_link_login_available,
 )
 from app.auth.magic_link_limits import enforce_magic_link_limits
+from app.auth.mfa_enforcement import mfa_challenge_signing_key
 from app.auth.sessions_cookie import (
     SESSIONS_COOKIE_NAME,
     append_sid,
@@ -577,7 +578,7 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
         }
         mfa_token = pyjwt.encode(
             mfa_challenge_payload,
-            settings.JWT_SECRET_KEY or "development-secret-key",
+            mfa_challenge_signing_key(),
             algorithm="HS256",
         )
 
@@ -1762,7 +1763,7 @@ async def login_form_mfa(
     try:
         payload = pyjwt.decode(
             mfa_token,
-            settings.JWT_SECRET_KEY or "development-secret-key",
+            mfa_challenge_signing_key(),
             algorithms=["HS256"],
             options={"require": ["sub", "type", "exp"]},
         )
