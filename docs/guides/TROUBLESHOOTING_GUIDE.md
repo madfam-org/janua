@@ -134,6 +134,8 @@ curl https://api.janua.dev/ready
    ```
    **Solution:** Check `email_verified` field, resend verification email
 
+   A verification link that answers `400` `Invalid or expired verification token` was unknown, already used (`EmailVerification.verified_at` is set) or older than 48 hours: request a new one with `POST /api/v1/auth/email/resend-verification`. Until janua#728 reached production on 2026-10-18 01:45 UTC, every verification link answered `500`; links sent before then and still inside their 48 hours work now, and older ones need a resend. See [Verify Email](../api/API_DOCUMENTATION.md#verify-email).
+
 3. **Account locked**
    ```json
    {

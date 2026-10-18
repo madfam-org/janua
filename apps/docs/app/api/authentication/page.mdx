@@ -231,9 +231,11 @@ Content-Type: application/json
 ### Resend Verification Email
 
 ```http
-POST /auth/email/verify/resend
+POST /auth/email/resend-verification
 Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
 ```
+
+Rate-limited to 5 per hour.
 
 ---
 
@@ -247,6 +249,8 @@ Content-Type: application/json
   "token": "verification_token"
 }
 ```
+
+`POST /auth/verify-email` is an alias. A valid token answers `200` with `{"message": "Email successfully verified"}`. An unknown, already used or expired token (tokens are valid for 48 hours) answers `400` with `{"detail": "Invalid or expired verification token"}`.
 
 ---
 

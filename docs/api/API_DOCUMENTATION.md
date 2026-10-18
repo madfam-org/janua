@@ -347,6 +347,33 @@ Content-Type: application/json
 }
 ```
 
+`POST /api/v1/auth/verify-email` is an alias with the same request and responses.
+
+**Response (200)**:
+```json
+{
+  "message": "Email successfully verified"
+}
+```
+
+**Response (400)**, when the token is unknown, already used, or expired (tokens are valid for 48 hours):
+```json
+{
+  "detail": "Invalid or expired verification token"
+}
+```
+
+A used token is one whose `EmailVerification.verified_at` is set; the endpoint sets it, together with the user's `email_verified` and `email_verified_at`. Before janua#728 (in production since 2026-10-18 01:45 UTC) every call answered 500.
+
+#### Resend Verification Email
+
+```http
+POST /api/v1/auth/email/resend-verification
+Authorization: Bearer {access_token}
+```
+
+Rate-limited to 5 per hour. Answers 400 `Email already verified` when there is nothing to resend, and 400 `Email service not configured` when email is disabled.
+
 ### Sessions (`/api/v1/sessions`)
 
 #### List Active Sessions
