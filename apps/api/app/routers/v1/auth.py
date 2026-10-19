@@ -2188,9 +2188,20 @@ async def switch_session_form(
             status_code=403,
         )
     try:
-        return await _switch_to_held_session(
+        redirect = await _switch_to_held_session(
             req, db, sid=sid, next_url=next, return_sid=False
         )
+        # An explicit chooser click must survive the resumed authorize request.
+        # A newer hosted session otherwise outranks the chosen older held row.
+        # Clear its browser credentials on this SAME response, using the exact
+        # Domain/Path of _set_session_cookies; do not revoke any held session or
+        # change ordinary cookie precedence outside this explicit chooser flow.
+        delete_kwargs: dict = {"path": "/", "secure": True, "samesite": "lax"}
+        if settings.COOKIE_DOMAIN:
+            delete_kwargs["domain"] = settings.COOKIE_DOMAIN
+        redirect.delete_cookie("janua_access_token", httponly=False, **delete_kwargs)
+        redirect.delete_cookie("janua_refresh_token", httponly=True, **delete_kwargs)
+        return redirect
     except HTTPException as exc:
         logger.info("switch_session_form.rejected", reason=str(exc.detail))
         return HTMLResponse(
