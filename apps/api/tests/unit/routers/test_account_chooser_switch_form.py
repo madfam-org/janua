@@ -24,7 +24,7 @@ import fakeredis
 import pytest
 
 # Imported at collection time on purpose (a session fixture can swap httpx).
-from httpx import ASGITransport, AsyncClient
+from httpx import ASGITransport, AsyncClient, Cookies
 
 from app.auth.sessions_cookie import SESSIONS_COOKIE_NAME, mint_sessions_cookie_value
 from app.auth.sso_cookie import SSO_COOKIE_NAME, SSO_TOKEN_TYPE
@@ -89,15 +89,19 @@ class _Estate:
         return self.rows.get(str(sid), (None, None))
 
 
-async def _http(estate, cookies, run):
+async def _http(estate, cookies, run, *, db=None, base_url="http://test"):
     """Run `run(http)` against the real app with the estate wired in."""
     from app import main
 
     redis = ResilientRedisClient(fakeredis.aioredis.FakeRedis(decode_responses=True))
     saved = dict(main.app.dependency_overrides)
     main.app.dependency_overrides[oauth_provider.get_redis] = lambda: redis
-    main.app.dependency_overrides[oauth_provider.get_db] = lambda: AsyncMock()
-    main.app.dependency_overrides[auth_router.get_db] = lambda: AsyncMock()
+    main.app.dependency_overrides[oauth_provider.get_db] = lambda: (
+        db if db is not None else AsyncMock()
+    )
+    main.app.dependency_overrides[auth_router.get_db] = lambda: (
+        db if db is not None else AsyncMock()
+    )
     try:
         with (
             patch(
@@ -117,9 +121,7 @@ async def _http(estate, cookies, run):
             ),
         ):
             transport = ASGITransport(app=main.app)
-            async with AsyncClient(
-                transport=transport, base_url="http://test", cookies=cookies
-            ) as http:
+            async with AsyncClient(transport=transport, base_url=base_url, cookies=cookies) as http:
                 return await run(http)
     finally:
         main.app.dependency_overrides.clear()
@@ -233,6 +235,8 @@ class TestChooserSwitchesByForm:
                 headers={"Origin": "http://test"},
             )
             assert resp.status_code == 400
+            assert "janua_access_token" not in resp.headers.get("set-cookie", "")
+            assert "janua_refresh_token" not in resp.headers.get("set-cookie", "")
             assert resp.headers["content-type"].startswith("text/html")
             assert SSO_COOKIE_NAME not in resp.headers.get("set-cookie", "")
 
@@ -246,6 +250,8 @@ class TestChooserSwitchesByForm:
         async def run(http):
             resp = await http.post(FORM, data={"sid": dead}, headers={"Origin": "http://test"})
             assert resp.status_code == 400
+            assert "janua_access_token" not in resp.headers.get("set-cookie", "")
+            assert "janua_refresh_token" not in resp.headers.get("set-cookie", "")
 
         await _http(estate, {SESSIONS_COOKIE_NAME: held}, run)
 
@@ -267,6 +273,8 @@ class TestChooserSwitchesByForm:
         async def run(http):
             resp = await http.post(FORM, data={"sid": str(s_alice.id)}, headers=headers)
             assert resp.status_code == 403
+            assert "janua_access_token" not in resp.headers.get("set-cookie", "")
+            assert "janua_refresh_token" not in resp.headers.get("set-cookie", "")
             assert _sso_sid(resp) is None
 
         await _http(estate, {SESSIONS_COOKIE_NAME: held}, run)
@@ -392,3 +400,83 @@ class TestChooserListsEachPersonOnce:
                 [str(a_old.id), str(b.id), str(a_new.id)], AsyncMock()
             )
         assert [sid for sid, _ in accounts] == [str(b.id), str(a_new.id)]
+
+
+@pytest.mark.parametrize("cookie_domain", [None, ".janua.dev"])
+async def test_explicit_older_account_beats_newer_hosted_cookie(monkeypatch, cookie_domain):
+    """Exercise the real chooser AND resolver; never mock the chosen identity."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "COOKIE_DOMAIN", cookie_domain)
+    chosen, hosted = _user("chosen@example.test"), _user("hosted@example.test")
+    older, newer = _session(chosen, minutes_ago=30), _session(hosted, minutes_ago=5)
+    access, jti, _expires = jwt_manager.create_access_token(
+        user_id=str(hosted.id), email=hosted.email
+    )
+    newer.access_token_jti = jti
+    older.access_token_jti = "older-synthetic-jti"
+    estate = _Estate([(chosen, older), (hosted, newer)])
+
+    async def execute(statement):
+        entity = statement.column_descriptions[0]["entity"]
+        compiled = str(statement.compile(compile_kwargs={"literal_binds": True}))
+        # Authorization also queries UserConsent; a user row is not consent.
+        candidates = {"Session": [older, newer], "User": [chosen, hosted]}.get(entity.__name__, [])
+        found = next(
+            (
+                row
+                for row in candidates
+                if str(row.id) in compiled
+                or (
+                    getattr(row, "access_token_jti", None)
+                    and f"'{row.access_token_jti}'" in compiled
+                )
+            ),
+            None,
+        )
+        return SimpleNamespace(scalar_one_or_none=lambda: found)
+
+    db = SimpleNamespace(execute=AsyncMock(side_effect=execute), commit=AsyncMock())
+    cookies = Cookies()
+    held = mint_sessions_cookie_value([str(older.id), str(newer.id)])
+    # ASGITransport stays in-process; use the app's shipped trusted hostname.
+    domain = cookie_domain or "auth.janua.dev"
+    for key, value in {
+        SESSIONS_COOKIE_NAME: held,
+        "janua_access_token": access,
+        "janua_refresh_token": "synthetic-refresh-cookie-not-a-credential",
+    }.items():
+        cookies.set(key, value, domain=domain, path="/")
+    resolved = []
+    resolver = oauth_provider.get_user_from_cookie_or_header
+
+    async def observe(request, actual_db):
+        user = await resolver(request, actual_db)
+        resolved.append(user)
+        return user
+
+    async def run(http):
+        page = await http.get("/api/v1/oauth/authorize", params=_authorize_query("select_account"))
+        assert page.status_code == 200, page.text
+        assert resolved[-1] is hosted, "the competing hosted cookie is genuinely valid"
+        action, sid, nxt = next(f for f in _forms(page.text) if f[1] == str(older.id))
+        switched = await http.post(
+            action, data={"sid": sid, "next": nxt}, headers={"Origin": "https://auth.janua.dev"}
+        )
+        assert switched.status_code == 302
+        assert _sso_sid(switched) == str(older.id)
+        resumed = await http.get(switched.headers["location"])
+        assert resumed.status_code == 302
+        assert resolved[-1] is chosen
+        assert "code=" in resumed.headers["location"]
+        assert "state=rp-state" in resumed.headers["location"]
+        assert all(
+            c.name not in {"janua_access_token", "janua_refresh_token"} for c in http.cookies.jar
+        )
+        # Choosing does not revoke or discard the other held account.
+        assert not newer.revoked
+        assert newer.is_active
+        assert http.cookies.get(SESSIONS_COOKIE_NAME) == held
+
+    with patch("app.routers.v1.oauth_provider.get_user_from_cookie_or_header", side_effect=observe):
+        await _http(estate, cookies, run, db=db, base_url="https://auth.janua.dev")
