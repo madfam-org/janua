@@ -196,15 +196,23 @@ class TestBuildCatalogPlanId:
             ("enclii_pro", ("enclii", "pro", "enclii_pro")),
             ("tezca_essentials_monthly", ("tezca", "essentials", "tezca_essentials_monthly")),
             ("karafiel_pro", ("karafiel", "pro", "karafiel_pro")),
-            # Legacy names keep their historical product mapping
-            ("sovereign", ("enclii", "pro", "enclii_pro")),
-            ("sovereign_yearly", ("enclii", "pro", "enclii_pro_yearly")),
-            ("scale", ("dhanam", "pro", "dhanam_pro")),
-            ("enterprise", ("dhanam", "madfam", "dhanam_madfam")),
+            # Qualified legacy names keep their historical product mapping
+            ("enclii_sovereign", ("enclii", "pro", "enclii_pro")),
         ],
     )
     def test_catalog_plan_ids(self, plan_id: str, expected: tuple):
         assert build_catalog_plan_id(plan_id) == expected
+
+    @pytest.mark.parametrize(
+        "plan_id",
+        # Bare legacy names map to another product's plan ("scale" -> dhanam_pro);
+        # Janua's checkout must not sell those, so they resolve to no tier.
+        ["scale", "enterprise", "sovereign", "sovereign_yearly", "scale_yearly"],
+    )
+    def test_bare_legacy_names_for_other_products_have_no_catalog_id(self, plan_id: str):
+        _, tier, catalog_id = build_catalog_plan_id(plan_id)
+        assert tier is None
+        assert catalog_id == ""
 
     @pytest.mark.parametrize("plan_id", ["free", "community", "trial", ""])
     def test_cancel_tiers_have_no_catalog_id(self, plan_id: str):
@@ -384,6 +392,17 @@ async def test_empty_dhanam_session_id_gets_local_audit_reference(checkout_env: 
 async def test_invalid_plan_id_returns_400_without_calling_dhanam(checkout_env: CheckoutEnv):
     response = await checkout_env.client.post(
         CHECKOUT_URL, json=_checkout_payload(checkout_env, plan_id="free")
+    )
+
+    assert response.status_code == 400
+    assert not respx.calls
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_dashboard_scale_plan_returns_400_and_never_sells_dhanam_pro(checkout_env: CheckoutEnv):
+    response = await checkout_env.client.post(
+        CHECKOUT_URL, json=_checkout_payload(checkout_env, plan_id="scale")
     )
 
     assert response.status_code == 400
