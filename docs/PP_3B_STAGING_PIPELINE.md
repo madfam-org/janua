@@ -1,6 +1,6 @@
 # PP.3b — Janua staging pipeline and consumer provisioning
 
-> Updated: 2026-10-13. Source profile prepared; deployment and runtime soak
+> Updated: 2026-10-19. Source profile prepared; deployment and runtime soak
 > require their own operational receipts.
 
 Janua uses the RFC 0001 manual promotion gate because it is the ecosystem
@@ -62,14 +62,20 @@ there are no committed values or direct Vault/cluster secret commands.
    intended digest is actually running. The existing workflow also checks
    staging pin age; elapsed pin time is not operational soak evidence.
 6. Check the normal migration-drift guard, serialize with key/client changes,
-   then run `promote-to-prod.yml` for `api` with the verified digest and reason.
+   then dispatch `promote-to-prod.yml` through the supported Enclii promotion
+   adapter for `api` with the verified digest and reason. An absent adapter
+   blocks production promotion; direct provider dispatch is not a substitute.
    No break-glass soak override. Confirm actual production digest, readiness and
    hosted synthetic boundary receipts after promotion.
 
 `docker-publish.yml` signs builds and commits candidate digests only to the
 staging overlay. The production pointer changes through the manual promotion
-workflow. This document does not claim staging activation, soak or production
-promotion has occurred.
+workflow. An explicit digest must equal the current staging API pin; it cannot
+select a historical candidate. Every fresh-main retry checks that binding again
+before writing production, and refuses a changed, missing or ambiguous staging
+pin. Requalify the running candidate and its soak after a staging replacement.
+These source checks do not establish runtime health or custody. This document
+does not claim staging activation, soak or production promotion has occurred.
 
 ## Platform prerequisites still needing runtime evidence
 
