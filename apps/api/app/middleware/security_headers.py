@@ -75,6 +75,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "https://forgesight.app https://*.forgesight.app "
             "https://*.fortuna.tube https://*.avala.studio "
             "https://*.cotiza.studio https://*.almanac.solar https://*.yantra4d.com "
+            # Nauta's staff cockpit uses this product origin. The hosted-login
+            # POST redirects here after authentication; omitting it leaves the
+            # accepted login on the form when the browser blocks the redirect.
+            "https://app.nauta.quest "
             "https://*.coforma.studio https://*.routecraft.app https://*.solar "
             # 2026-05-04: added the remaining MADFAM ecosystem domains. Login
             # via Janua SSO from these origins was browser-blocked by CSP

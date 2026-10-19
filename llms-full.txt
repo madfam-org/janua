@@ -132,6 +132,9 @@ template may declare a `default_from_email` (e.g. `billing/cfdi` →
 `facturacion@madfam.io`); otherwise the sender resolves from `org_id` or the
 `redirect_url` host (e.g. a tenant's template → that tenant's own sender). `attachments`
 on either endpoint are forwarded to Resend (used for CFDI XML+PDF delivery).
+`bcc` on `/send-template` rides on the FIRST `to` recipient's message only (each
+recipient gets its own rendering, so a BCC holder gets one copy of one real
+message); `/send` puts its `cc`/`bcc` on every message.
 
 Full walkthrough and the template table: `docs/MADFAM_EMAIL_INTEGRATION.md`.
 

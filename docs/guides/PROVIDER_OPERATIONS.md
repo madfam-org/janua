@@ -103,9 +103,10 @@ Janua automatically derives allowed CORS origins from the `redirect_uris` regist
 
 ### How it works
 
-1. The `DynamicCORSMiddleware` loads CORS origins from three sources:
-   - Static configuration (`CORS_ORIGINS` environment variable)
-   - Database (`allowed_cors_origins` table)
+1. The `DynamicCORSMiddleware` (`apps/api/app/middleware/dynamic_cors.py`) loads CORS origins from four sources:
+   - Static configuration (the `CORS_ORIGINS` environment variable, always included)
+   - Database `system_settings` table
+   - Database `allowed_cors_origins` table
    - OAuth client `redirect_uris` (origins extracted automatically)
 
 2. For each active OAuth client, the middleware parses the scheme and host from every registered `redirect_uri` and adds the resulting origin to the allowed set. For example, `https://tezca.dev/api/auth/callback` produces the allowed origin `https://tezca.dev`.
@@ -129,6 +130,16 @@ This clears the in-memory CORS cache. Under normal operations, waiting for the 6
 ### Wildcard origins
 
 The middleware supports wildcard patterns such as `*.janua.dev` in the static configuration. These are evaluated on every request alongside the cached origin set.
+
+### Adding a static browser origin
+
+Auto-provisioning only covers origins that appear in an active OAuth client's `redirect_uris`. A front end that calls the Janua API directly from the browser without such a client (for example an embedded sign-up or sign-in form on a staging host) needs a static entry:
+
+1. Add the exact origin (scheme and host, no path, no trailing slash) to the `CORS_ORIGINS` value of `janua-api` in `k8s/base/deployments/janua-api.yaml`. The value is one comma-separated string.
+2. Merge to `main`. The production overlay (`k8s/overlays/production`) is synced from `main` by GitOps, so the merge itself rolls `janua-api` with the new environment; the image digests do not change and no promote is needed. See [`docs/runbooks/production-gitops-reconcile.md`](../runbooks/production-gitops-reconcile.md).
+3. Verify with a preflight from that origin, for example `curl -sS -o /dev/null -D - -X OPTIONS -H 'Origin: https://staging.example.com' -H 'Access-Control-Request-Method: POST' https://auth.example.com/api/v1/auth/register`. A working origin answers `204` **with** `access-control-allow-origin` set to the origin.
+
+The static list also feeds the magic-link redirect allowlist (`app/core/url_security.py`); see [`docs/architecture/SILENT_SSO_SESSION.md`](../architecture/SILENT_SSO_SESSION.md). Example: `https://staging.dhan.am` was added this way on 2026-10-17 (janua#727) because Dhanam staging signs users up against the production Janua.
 
 ---
 
@@ -433,9 +444,9 @@ The short version for operators:
 
 3. If the client was just created or updated, wait up to 60 seconds for the CORS cache to refresh.
 
-4. Check that the origin is not blocked by a more specific rule in the static `CORS_ORIGINS` configuration.
+4. Send a preflight from the origin (see [Adding a static browser origin](#adding-a-static-browser-origin)). The middleware answers every preflight with `204`; an origin that is not allowed gets a `204` **without** `access-control-allow-origin`, which the browser reports as a network or connection error rather than as a CORS status code. The static `CORS_ORIGINS` list only adds origins; it never blocks one.
 
-**Resolution**: Update the client's `redirect_uris` to include a URI whose origin matches the browser's request origin.
+**Resolution**: Update the client's `redirect_uris` to include a URI whose origin matches the browser's request origin. If the front end has no OAuth client for that origin, add the origin to the static `CORS_ORIGINS` instead.
 
 ### Audience mismatch
 

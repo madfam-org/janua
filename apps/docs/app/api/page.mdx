@@ -134,7 +134,7 @@ Get current user information.
 ```
 
 #### POST /api/v1/auth/verify-email
-Verify email address with verification token.
+Verify email address with verification token. Alias of `POST /api/v1/auth/email/verify`.
 
 **Request Body:**
 ```json
@@ -142,6 +142,8 @@ Verify email address with verification token.
   "token": "verification-token-from-email"
 }
 ```
+
+**Responses:** `200` `{"message": "Email successfully verified"}`; `400` `{"detail": "Invalid or expired verification token"}` for an unknown, already used or expired token.
 
 #### POST /api/v1/auth/forgot-password
 Request password reset email.

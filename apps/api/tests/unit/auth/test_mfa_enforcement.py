@@ -52,3 +52,61 @@ class TestChallengeToken:
         assert decoded["type"] == MFA_CHALLENGE_TYPE
         assert decoded["sub"] == "u-1"
         assert "exp" in decoded and "iat" in decoded
+
+
+class TestChallengeSigningKey:
+    def test_uses_configured_jwt_secret(self, monkeypatch):
+        from app.auth.mfa_enforcement import mfa_challenge_signing_key
+
+        monkeypatch.setattr(settings, "JWT_SECRET_KEY", "k" * 40, raising=False)
+        assert mfa_challenge_signing_key() == "k" * 40
+
+    def test_never_uses_dev_default_when_unset(self, monkeypatch):
+        from app.auth.mfa_enforcement import mfa_challenge_signing_key
+
+        monkeypatch.setattr(settings, "JWT_SECRET_KEY", None, raising=False)
+        monkeypatch.setattr(settings, "SECRET_KEY", "s" * 48, raising=False)
+        key = mfa_challenge_signing_key()
+        assert key and key != "development-secret-key"
+        assert key != "s" * 48  # derived, not the raw application secret
+
+    def test_dev_default_value_is_treated_as_unset(self, monkeypatch):
+        from app.auth.mfa_enforcement import mfa_challenge_signing_key
+
+        monkeypatch.setattr(settings, "JWT_SECRET_KEY", "development-secret-key", raising=False)
+        monkeypatch.setattr(settings, "SECRET_KEY", "s" * 48, raising=False)
+        assert mfa_challenge_signing_key() != "development-secret-key"
+
+    def test_refuses_outside_dev_when_nothing_configured(self, monkeypatch):
+        import pytest
+
+        from app.auth.mfa_enforcement import mfa_challenge_signing_key
+
+        monkeypatch.setattr(settings, "JWT_SECRET_KEY", None, raising=False)
+        monkeypatch.setattr(settings, "SECRET_KEY", None, raising=False)
+        monkeypatch.setattr(settings, "ENVIRONMENT", "production", raising=False)
+        with pytest.raises(RuntimeError):
+            mfa_challenge_signing_key()
+
+    def test_minted_challenge_verifies_with_signing_key_only(self, monkeypatch):
+        import pytest
+
+        from app.auth.mfa_enforcement import mfa_challenge_signing_key
+
+        monkeypatch.setattr(settings, "JWT_SECRET_KEY", None, raising=False)
+        monkeypatch.setattr(settings, "SECRET_KEY", "s" * 48, raising=False)
+        token = mint_mfa_challenge_token(_user())
+        decoded = pyjwt.decode(
+            token,
+            mfa_challenge_signing_key(),
+            algorithms=["HS256"],
+            options={"verify_iss": False},
+        )
+        assert decoded["sub"] == "u-1"
+        with pytest.raises(pyjwt.InvalidSignatureError):
+            pyjwt.decode(
+                token,
+                "development-secret-key",
+                algorithms=["HS256"],
+                options={"verify_iss": False},
+            )

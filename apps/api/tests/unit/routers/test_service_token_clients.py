@@ -138,7 +138,12 @@ async def service_token_client():
                 client_id=NAUTA_CLIENT_ID,
                 secret=NAUTA_SECRET,
                 audience="karafiel-api",
-                allowed_scopes=["legal:draft", "legal:client-profile"],
+                allowed_scopes=[
+                    "legal:draft",
+                    "legal:client-profile",
+                    "fiscal:invoice",
+                    "fiscal:csf-intake",
+                ],
                 grant_types=["client_credentials"],
             )
         )
@@ -306,8 +311,8 @@ class TestServiceTokenIssuance:
             assert granted in scopes
             assert withheld not in scopes
 
-    async def test_nauta_client_defaults_to_both_legal_scopes(self, service_token_client):
-        """Omitting scope grants the client's full allowlist — both legal scopes."""
+    async def test_nauta_client_defaults_to_its_full_allowlist(self, service_token_client):
+        """Omitting scope grants the client's full allowlist — legal and fiscal."""
         response = await _request_token(
             service_token_client,
             client_id=NAUTA_CLIENT_ID,
@@ -316,16 +321,47 @@ class TestServiceTokenIssuance:
         )
         assert response.status_code == 200, response.text
         assert sorted(response.json()["scope"].split()) == [
+            "fiscal:csf-intake",
+            "fiscal:invoice",
             "legal:client-profile",
             "legal:draft",
         ]
+
+    @pytest.mark.parametrize("scope", ["fiscal:invoice", "fiscal:csf-intake"])
+    async def test_nauta_fiscal_scope_is_granted_alone(self, service_token_client, scope):
+        """Nauta's fiscal edges each request ONE scope (karafiel guards them
+        separately), and the token carries exactly that scope — never the
+        legal ones, never the other fiscal one."""
+        response = await _request_token(
+            service_token_client,
+            client_id=NAUTA_CLIENT_ID,
+            client_secret=NAUTA_SECRET,
+            scope=scope,
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["scope"] == scope
+        claims = jwt_manager.verify_token(
+            response.json()["access_token"], token_type="access", audience="karafiel-api"
+        )
+        assert claims is not None
+        assert claims["sub"] == f"service-account:{NAUTA_CLIENT_ID}"
+        assert claims["scope"] == scope
 
     def test_seed_list_pins_the_nauta_legal_drafts_contract(self):
         from scripts.seed_service_clients import SERVICE_CLIENTS
 
         entry = next(c for c in SERVICE_CLIENTS if c["name"] == "nauta-legal-drafts")
         assert entry["audience"] == "karafiel-api"
-        assert entry["allowed_scopes"] == ["legal:draft", "legal:client-profile"]
+        # The fiscal scopes live HERE, in the seed, because the seed SYNCs
+        # allowed_scopes on every re-run: a scope granted only by hand is
+        # silently dropped by the next seed run, and Nauta's CFDI stamping,
+        # CFDI listing and CSF intake then fail closed with invalid_scope.
+        assert entry["allowed_scopes"] == [
+            "legal:draft",
+            "legal:client-profile",
+            "fiscal:invoice",
+            "fiscal:csf-intake",
+        ]
         assert entry["grant_types"] == ["client_credentials"]
         assert entry["is_confidential"] is True
         assert entry["redirect_uris"] == []

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<!--
+  Operator alert (ops/alert): a MADFAM service → MADFAM's operators, Spanish.
+
+  Internal mail that addresses nobody: every static word here is a label
+  ("Aviso operativo", "Servicio", "Ocurrió", "Detalle") with no tú/usted marker,
+  so there is one register-neutral variant. Keep it that way:
+  tests/unit/routers/test_email_ops_alert.py checks the visible copy.
+
+  Rendered by render_template(): NAIVE {{key}} substitution plus FLAT
+  {{#flag}}…{{/flag}} sections (kept only when the flag is set). Caller values
+  used here directly are HTML-escaped (escape_html). `detalle_html` (the
+  multi-line detail, escaped line by line) and the action link slots are
+  composed in app/routers/v1/email_ops_alert.py; the button renders only for an
+  https URL (`mostrar_accion`).
+
+  The frame is MADFAM's billing-notice frame (billing_aviso-de-cobro.html):
+  table layout and inline styles, hosted PNG logo with a live-text wordmark,
+  system font stacks, color-scheme: light. Palette: obsidian #0A0E27, lavender
+  #9B59B6, leaf #6BCB77, sun #FFD93D.
+-->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>{{titulo}}</title>
+<style>
+  :root { color-scheme: light; supported-color-schemes: light; }
+  @media only screen and (max-width: 620px) {
+    .mf-card { width: 100% !important; }
+    .mf-pad { padding-left: 20px !important; padding-right: 20px !important; }
+    .mf-row td { display: block !important; width: 100% !important; }
+    .mf-row td.mf-label { padding-bottom: 0 !important; }
+  }
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#F4F3F8; color-scheme:light; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+<!-- Preheader: the inbox preview line. -->
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:#F4F3F8;">{{servicio}} · {{ocurrio}}</div>
+
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#F4F3F8;">
+<tr>
+<td align="center" style="padding:32px 12px;">
+
+  <table role="presentation" class="mf-card" width="600" cellspacing="0" cellpadding="0" border="0" style="width:600px; max-width:600px; background-color:#FFFFFF; border:1px solid #E6E4F0; border-radius:14px; overflow:hidden;">
+
+    <!-- Brand stripe: lavender, leaf, sun. -->
+    <tr>
+      <td style="padding:0; font-size:0; line-height:0;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td width="34%" height="5" style="background-color:#9B59B6; font-size:0; line-height:0;">&nbsp;</td>
+            <td width="33%" height="5" style="background-color:#6BCB77; font-size:0; line-height:0;">&nbsp;</td>
+            <td width="33%" height="5" style="background-color:#FFD93D; font-size:0; line-height:0;">&nbsp;</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Header: logo + live-text wordmark. -->
+    <tr>
+      <td class="mf-pad" style="padding:28px 40px 4px 40px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td style="vertical-align:middle; padding-right:14px;">
+              <a href="https://madfam.io" style="text-decoration:none;"><img src="https://madfam.io/assets/brand/email/madfam-logo-224.png" width="64" height="65" alt="MADFAM" style="display:block; width:64px; height:65px; border:0; outline:none;"></a>
+            </td>
+            <td style="vertical-align:middle; font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:22px; font-weight:700; letter-spacing:3px; color:#0A0E27; line-height:1.1;">MADFAM</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Eyebrow and title. -->
+    <tr>
+      <td class="mf-pad" style="padding:22px 40px 0 40px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; color:#2B2E45;">
+        <div style="font-size:12px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#9B59B6; line-height:1.4; padding-bottom:8px;">Aviso operativo</div>
+        <h1 style="margin:0; font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:24px; line-height:1.3; font-weight:700; color:#0A0E27;">{{titulo}}</h1>
+      </td>
+    </tr>
+
+    <!-- Facts: which service, and when. -->
+    <tr>
+      <td class="mf-pad" style="padding:22px 40px 0 40px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#F6F1FA; border-left:4px solid #9B59B6; border-radius:0 10px 10px 0;">
+          <tr>
+            <td style="padding:14px 20px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif;">
+                <tr class="mf-row">
+                  <td class="mf-label" width="28%" style="padding:4px 12px 4px 0; vertical-align:top; font-size:13px; line-height:1.5; color:#5B5F77;">Servicio</td>
+                  <td style="padding:4px 0; vertical-align:top; font-size:15px; font-weight:600; line-height:1.5; color:#0A0E27;">{{servicio}}</td>
+                </tr>
+                <tr class="mf-row">
+                  <td class="mf-label" width="28%" style="padding:4px 12px 4px 0; vertical-align:top; font-size:13px; line-height:1.5; color:#5B5F77;">Ocurrió</td>
+                  <td style="padding:4px 0; vertical-align:top; font-size:15px; font-weight:600; line-height:1.5; color:#0A0E27;">{{ocurrio}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Detail: multi-line plain text, escaped line by line. -->
+    <tr>
+      <td class="mf-pad" style="padding:24px 40px 0 40px;">
+        <h2 style="margin:0 0 8px 0; font-family:'Poppins','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:16px; line-height:1.3; font-weight:700; color:#0A0E27;">Detalle</h2>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#F6F5FA; border:1px solid #E6E4F0; border-radius:10px;">
+          <tr>
+            <td style="padding:14px 16px; font-family:'Space Mono','SFMono-Regular',Menlo,Consolas,'Courier New',monospace; font-size:13px; line-height:1.6; color:#0A0E27; word-break:break-word; overflow-wrap:anywhere;">{{detalle_html}}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    {{#mostrar_accion}}<!-- Action button (bulletproof), only for an https URL. -->
+    <tr>
+      <td class="mf-pad" style="padding:20px 40px 0 40px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+          <tr>
+            <td style="border-radius:8px; background-color:#9B59B6;">
+              <a href="{{accion_href}}" target="_blank" style="display:inline-block; padding:12px 22px; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:15px; font-weight:600; color:#FFFFFF; text-decoration:none; border-radius:8px;">{{accion_etiqueta}}</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>{{/mostrar_accion}}
+
+    <!-- Spacer above the footer (the button above it is optional). -->
+    <tr>
+      <td height="32" style="padding:0; height:32px; font-size:0; line-height:0;">&nbsp;</td>
+    </tr>
+
+    <!-- Footer. -->
+    <tr>
+      <td class="mf-pad" style="padding:20px 40px 24px 40px; background-color:#F6F5FA; border-top:1px solid #E6E4F0; font-family:'Inter','Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif; font-size:12px; line-height:1.6; color:#5B5F77;">
+        <div>Aviso automático para el equipo de operación de MADFAM.</div>
+        <div style="padding-top:8px;"><a href="https://madfam.io" target="_blank" style="color:#0A0E27; text-decoration:none; font-weight:600;">madfam.io</a> &nbsp;·&nbsp; © {{anio}} MADFAM</div>
+      </td>
+    </tr>
+
+  </table>
+
+</td>
+</tr>
+</table>
+</body>
+</html>

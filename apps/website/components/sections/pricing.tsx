@@ -6,6 +6,7 @@ import { Check, X, ArrowRight, AlertCircle } from 'lucide-react'
 import { Button } from '@janua/ui'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { formatMxnPesos, type CatalogMxnPrice } from '@/lib/dhanam-catalog'
 
 type Plan = {
   name: string
@@ -17,9 +18,28 @@ type Plan = {
   note?: string
   features: string[]
   limitations: string[]
+  /** The plan Dhanam's checkout charges in MXN (the managed Pro plan). */
+  chargedInMxn?: boolean
 }
 
-export function PricingSection() {
+export interface PricingSectionProps {
+  /**
+   * Pro's MXN price with IVA, read from Dhanam's catalog by the pricing route.
+   * null or absent: the catalog could not be read, so no MXN figure is shown.
+   */
+  proMxn?: CatalogMxnPrice | null
+}
+
+/** What the Pro card says about the MXN amount the checkout charges. */
+export function mxnChargeNote(proMxn: CatalogMxnPrice | null | undefined, isAnnual: boolean): string {
+  if (!proMxn) return 'Charged in MXN with IVA at checkout.'
+  if (isAnnual && proMxn.yearly !== null) {
+    return `Charged ${formatMxnPesos(proMxn.yearly)}/year in MXN, IVA incluido.`
+  }
+  return `Charged ${formatMxnPesos(proMxn.monthly)}/month in MXN, IVA incluido.`
+}
+
+export function PricingSection({ proMxn = null }: PricingSectionProps = {}) {
   const [isAnnual, setIsAnnual] = useState(false)
 
   const plans: Plan[] = [
@@ -56,6 +76,7 @@ export function PricingSection() {
       featured: true,
       cta: 'Get started',
       href: 'https://app.janua.dev/auth/signup?plan=pro',
+      chargedInMxn: true,
       features: [
         'Up to 10,000 MAU (flat, fair use)',
         'Everything in Community',
@@ -245,6 +266,11 @@ export function PricingSection() {
                 <span className="text-3xl font-bold text-gray-900 dark:text-white">
                   {plan.price.monthly}
                 </span>
+              )}
+              {plan.chargedInMxn && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2" data-testid="pro-mxn-charge">
+                  {mxnChargeNote(proMxn, isAnnual)}
+                </p>
               )}
               {plan.note && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">

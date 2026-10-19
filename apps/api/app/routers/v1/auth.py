@@ -29,6 +29,7 @@ from app.auth.login_method import (
     magic_link_login_available,
 )
 from app.auth.magic_link_limits import enforce_magic_link_limits
+from app.auth.mfa_enforcement import mfa_challenge_signing_key
 from app.auth.sessions_cookie import (
     SESSIONS_COOKIE_NAME,
     append_sid,
@@ -560,10 +561,9 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
             )
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    # Reset failed attempts on successful login
-    await AccountLockoutService.reset_failed_attempts(db, user)
-
-    # SECURITY: Check if MFA is required before issuing session tokens
+    # SECURITY: Check if MFA is required before issuing session tokens.
+    # The failure counter is reset only once no second factor is pending
+    # (/mfa/challenge/verify resets it after the code checks).
     if getattr(user, 'mfa_enabled', False) and getattr(user, 'mfa_secret', None):
         # Issue a short-lived MFA challenge token (not a session token)
         import jwt as pyjwt
@@ -577,7 +577,7 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
         }
         mfa_token = pyjwt.encode(
             mfa_challenge_payload,
-            settings.JWT_SECRET_KEY or "development-secret-key",
+            mfa_challenge_signing_key(),
             algorithm="HS256",
         )
 
@@ -601,6 +601,9 @@ async def sign_in(credentials: SignInRequest, request: Request, db: Session = De
             mfa_required=True,
             mfa_token=mfa_token,
         )
+
+    # No second factor pending: the sign-in is complete.
+    await AccountLockoutService.reset_failed_attempts(db, user)
 
     # Create session (no MFA required)
     access_token, refresh_token, session = await AuthService.create_session(
@@ -1604,17 +1607,17 @@ async def login_form(
             )
         return make_error_page("Invalid email or password. Please try again.")
 
-    # Reset failed attempts on successful login
-    await AccountLockoutService.reset_failed_attempts(db, user)
-
     # SECURITY (2026-08-23): enforce MFA on the OAuth browser-login path. This was
     # the primary bypass — a user with MFA enabled was issued a full session here
     # with no second factor. Gated behind MFA_ENFORCE_ON_LOGIN (default OFF), so
     # this is inert until the challenge UI ships and the flag is flipped; when off,
     # mfa_required_for() returns False and behavior is unchanged.
-    from app.auth.mfa_enforcement import mfa_required_for
+    # The second-factor screen and /login-form/mfa exist, so a user who
+    # enrolled in MFA is always challenged here, as on /signin; the flag still
+    # extends enforcement through mfa_required_for().
+    from app.auth.mfa_enforcement import mfa_enrolled, mfa_required_for
 
-    if mfa_required_for(user):
+    if mfa_enrolled(user) or mfa_required_for(user):
         await log_activity(
             db, str(user.id), "signin", {"method": "oauth_form", "mfa_required": True}, request
         )
@@ -1636,6 +1639,10 @@ async def login_form(
             # auth_request_id (matches _oauth_context_hidden_fields_html's rule).
             next_url=safe_next if not auth_request_id else None,
         )
+
+    # No second factor pending: reset the failure counter only now, so a
+    # correct password cannot clear failures counted by /login-form/mfa.
+    await AccountLockoutService.reset_failed_attempts(db, user)
 
     # Create session and tokens
     access_token, refresh_token, session = await AuthService.create_session(
@@ -1762,7 +1769,7 @@ async def login_form_mfa(
     try:
         payload = pyjwt.decode(
             mfa_token,
-            settings.JWT_SECRET_KEY or "development-secret-key",
+            mfa_challenge_signing_key(),
             algorithms=["HS256"],
             options={"require": ["sub", "type", "exp"]},
         )
@@ -1782,6 +1789,12 @@ async def login_form_mfa(
     if not user or not user.mfa_enabled or not user.mfa_secret:
         return _reject("Invalid verification session. Please sign in again.")
 
+    # Wrong codes count against the same per-account lockout as passwords; a
+    # locked account cannot keep guessing with a re-minted challenge.
+    is_locked, _ = AccountLockoutService.is_account_locked(user)
+    if is_locked:
+        return _reject("Too many failed attempts. Please wait and sign in again.")
+
     # Verify TOTP, then fall back to a single-use backup code (shared helper).
     import pyotp
 
@@ -1799,9 +1812,16 @@ async def login_form_mfa(
         code_valid = True
 
     if not code_valid:
+        is_now_locked, _ = await AccountLockoutService.record_failed_attempt(
+            db, user, ip_address=request.client.host if request.client else None
+        )
+        if is_now_locked:
+            return _reject("Too many failed attempts. Please wait and sign in again.")
         # Wrong code — re-render with a fresh challenge token so retry works even
         # if the original is close to expiry.
         return _reject("Invalid verification code. Please try again.", remint_for=user)
+
+    await AccountLockoutService.reset_failed_attempts(db, user)
 
     # Second factor cleared — create the session and resume the OAuth redirect.
     access_token, refresh_token, session = await AuthService.create_session(
@@ -2810,7 +2830,10 @@ async def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db
     result = await db.execute(
         select(EmailVerification).where(
             EmailVerification.token == request.token,
-            EmailVerification.verified == False,
+            # The model records use as a timestamp; it has no boolean
+            # `verified` column, and referencing one raised AttributeError,
+            # so every verification link answered 500.
+            EmailVerification.verified_at.is_(None),
             EmailVerification.expires_at > datetime.utcnow(),
         )
     )
@@ -2825,7 +2848,6 @@ async def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db
     user.email_verified_at = datetime.utcnow()
 
     # Mark verification as used
-    verification.verified = True
     verification.verified_at = datetime.utcnow()
 
     await db.commit()

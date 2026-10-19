@@ -16,7 +16,7 @@ Janua provides complete identity management — email/password, OAuth social log
 - [Quick Start](https://docs.janua.dev/guides/quick-start): Get Janua running in 5 minutes
 - [Documentation](https://docs.janua.dev): Complete developer documentation
 - [GitHub](https://github.com/madfam-org/janua): Source code, issues, contributions
-- [Demo](https://demo.janua.dev): Live demo application
+- [Demo](https://janua.dev/demo): Live auth component playground
 - [API Reference](https://api.janua.dev/docs): Interactive OpenAPI documentation
 
 ## SDKs

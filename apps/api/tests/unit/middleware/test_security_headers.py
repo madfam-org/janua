@@ -3,8 +3,9 @@ Comprehensive Security Headers Middleware Test Suite
 Tests for security header injection and Content Security Policy handling
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from fastapi import Request
 from starlette.responses import Response
 
@@ -272,12 +273,39 @@ class TestContentSecurityPolicy:
             "https://*.dhan.am",
             "https://*.tezca.mx",
             "https://*.karafiel.mx",
+            "https://app.nauta.quest",
             # 2026-09-06 (J7): the Crea Tu Mundo brand zone — map./erp.
             # creatumundo.mx serve the MAP and the ERP portal.
             "https://creatumundo.mx",
             "https://*.creatumundo.mx",
         ]:
             assert domain in csp, f"form-action missing required OAuth callback domain: {domain}"
+
+    async def test_nauta_login_redirect_allows_only_the_cockpit_origin(self, middleware):
+        """An accepted staff login can return to Nauta without a domain wildcard."""
+        request = MagicMock(spec=Request)
+        request.url.scheme = "https"
+        request.url.path = "/api/v1/auth/login-form"
+        response = Response(
+            status_code=302, headers={"Location": "https://app.nauta.quest/auth/callback"}
+        )
+
+        result = await middleware.dispatch(request, AsyncMock(return_value=response))
+
+        directives = {
+            parts[0]: parts[1:]
+            for directive in result.headers["Content-Security-Policy"].split(";")
+            if (parts := directive.split())
+        }
+        assert result.headers["Location"] == "https://app.nauta.quest/auth/callback"
+        assert directives["form-action"].count("https://app.nauta.quest") == 1
+        assert directives["form-action"].count("https://*.nauta.quest") == 0
+        assert directives["connect-src"] == [
+            "'self'",
+            "https://api.janua.dev",
+            "https://cloudflareinsights.com",
+        ]
+        assert directives["frame-ancestors"] == ["'none'"]
 
 
 class TestCSPDynamicApiHost:

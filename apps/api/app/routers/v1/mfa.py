@@ -19,9 +19,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.auth.mfa_enforcement import mfa_challenge_signing_key
 from app.config import settings
 from app.database import get_db
-from app.routers.v1.auth import get_current_user, SignInResponse, UserResponse, TokenResponse
+from app.routers.v1.auth import SignInResponse, TokenResponse, UserResponse, get_current_user
+from app.services.account_lockout_service import AccountLockoutService
 from app.services.auth_service import AuthService
 
 from ...models import ActivityLog, User, UserStatus
@@ -579,7 +581,7 @@ async def verify_mfa_challenge(
     try:
         payload = pyjwt.decode(
             request_data.mfa_token,
-            settings.JWT_SECRET_KEY or "development-secret-key",
+            mfa_challenge_signing_key(),
             algorithms=["HS256"],
             options={"require": ["sub", "type", "exp"]},
         )
@@ -602,6 +604,12 @@ async def verify_mfa_challenge(
     if not user or not user.mfa_enabled or not user.mfa_secret:
         raise HTTPException(status_code=401, detail="Invalid MFA challenge")
 
+    # Wrong codes count against the same per-account lockout as passwords, so a
+    # challenge token cannot be used for unbounded guessing.
+    is_locked, _ = AccountLockoutService.is_account_locked(user)
+    if is_locked:
+        raise HTTPException(status_code=401, detail="Too many failed attempts. Sign in again later.")
+
     # Verify TOTP code
     totp = pyotp.TOTP(user.mfa_secret)
     code_valid = totp.verify(request_data.code, valid_window=1)
@@ -618,7 +626,16 @@ async def verify_mfa_challenge(
         code_valid = True
 
     if not code_valid:
+        is_now_locked, _ = await AccountLockoutService.record_failed_attempt(
+            db, user, ip_address=request.client.host if request.client else None
+        )
+        if is_now_locked:
+            raise HTTPException(
+                status_code=401, detail="Too many failed attempts. Sign in again later."
+            )
         raise HTTPException(status_code=401, detail="Invalid MFA code")
+
+    await AccountLockoutService.reset_failed_attempts(db, user)
 
     # MFA verified — issue real session tokens
     access_token, refresh_token, session = await AuthService.create_session(

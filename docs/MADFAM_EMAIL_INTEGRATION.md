@@ -93,6 +93,62 @@ list, a link needs its label and an `https://` (or, for the receipt button,
 `mailto:`) URL. Anything less drops the whole section, heading included. Rows
 and section logic: `app/routers/v1/email_billing_notice.py`.
 
+## BCC on template sends and the operator alert (2026-10-15)
+
+**`bcc` on `POST /send-template`.** Optional list of addresses (`null`, absent
+or `[]` mean none; an invalid address is a `422`). `/send-template` sends each
+`to` address a message of its own, rendered in that recipient's register, so the
+BCC does **not** ride on every message: it rides on the message to the **first**
+address in `to` only. A BCC holder therefore receives exactly one copy, and it is
+exactly the message that first recipient received (same register, same greeting).
+The other recipients' messages never carry it. An address that is also in `to`
+is dropped from the BCC (case-insensitive; it already gets its own message), and
+a repeated address is kept once. Everything else (subject, sender, `reply_to`,
+attachments, tags, the receipt) is unchanged. Every BCC address counts against
+the sending Resend account's quota. Put the recipient whose copy the BCC holder
+should see first in `to` (nauta: the client, with the advisor in `bcc`). `/send`
+is unchanged: its `cc`/`bcc` still ride on every message.
+
+**`ops/alert`.** A generic operator alert for MADFAM services (first caller:
+nauta's worker, for its fiscal-edge probe: "unreadable", then "recovered").
+Spanish, HTML + text, subject `{asunto}`, every value HTML-escaped, no default
+sender (the platform sender applies, as for the other operator notices). It is
+internal and addresses nobody, so it has one register-neutral variant: the
+template's own words are labels with no tú/usted marker, and `formality` changes
+nothing.
+
+| Variable | Kind | Use |
+|---|---|---|
+| `asunto` | required | The subject line. |
+| `titulo` | required | The heading (what happened, in one line). |
+| `detalle` | required | Multi-line plain text. Each line is escaped and a newline becomes a line break in the HTML; the text part carries it as is. |
+| `servicio` | required | Which service raised it, e.g. `Nauta · worker`. |
+| `ocurrio` | required | When, as a human timestamp, e.g. `15 de octubre de 2026, 14:05 (CDMX)`. |
+| `accion_url` | optional | An `https://` link (plain host). Anything else (http, `mailto:`, `javascript:`, quotes or brackets) is ignored. |
+| `accion_texto` | optional | The button label. Defaults to «Abrir enlace» when only `accion_url` is given. Ignored without a usable `accion_url`. |
+
+Without a usable `accion_url` the alert has no button in the HTML and no link
+line in the text part. Derived slots: `app/routers/v1/email_ops_alert.py`.
+
+```json
+{
+  "to": ["operaciones@example.com"],
+  "template": "ops/alert",
+  "variables": {
+    "asunto": "[Nauta] El borde fiscal no se puede leer",
+    "titulo": "El borde fiscal no se puede leer",
+    "detalle": "GET https://fiscal.example.com/health -> 503\nÚltimo éxito: 15 de octubre de 2026, 12:00 (CDMX)",
+    "servicio": "Nauta · worker",
+    "ocurrio": "15 de octubre de 2026, 14:05 (CDMX)",
+    "accion_url": "https://nauta.example.com/ops/fiscal",
+    "accion_texto": "Abrir el panel fiscal"
+  },
+  "bcc": ["guardia@example.com"],
+  "source_app": "nauta",
+  "source_type": "notification"
+}
+```
+
 ## Architecture Overview
 
 ```
@@ -384,6 +440,7 @@ how the From line is chosen — see [Sender resolution](#sender-resolution).
 | `transactional/request-filed`        | Client priority filed — operator notification (Nauta)                          | `workspace_name`, `submitted_by`, `title`, `kind`, `severity`, `sla_line`, `filed_at`, `body_excerpt`, `cockpit_url` | dedicated | per org_id                      |
 | `transactional/workspace-activated`  | Workspace activated — client notification (Nauta, register-composed)           | `heading`, `greeting`, `line_deposit`, `line_next`, `workspace_url`, `cta_label`, `line_support`, `workspace_host` | dedicated | per org_id                      |
 | *(tenant payment notice, see below)* | Payment-confirmation notice to a member of a vCTO client's team (money-light)   | `periodo`                                                                                                   | dedicated | per org_id (tenant)             |
+| `ops/alert`                          | Operator alert for MADFAM's team (internal, register-neutral, HTML + text)       | `asunto`, `titulo`, `detalle`, `servicio`, `ocurrio`                                                        | dedicated | per org_id (platform sender)    |
 
 Some templates declare **optional** variables in addition to the required ones
 above; consult `EMAIL_TEMPLATES` for the full contract of any id.
