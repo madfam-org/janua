@@ -22,6 +22,10 @@ from uuid import uuid4
 
 import fakeredis
 import pytest
+
+# Imported at collection time on purpose (a session fixture can swap httpx).
+from httpx import ASGITransport, AsyncClient, Cookies
+
 from app.auth.sessions_cookie import SESSIONS_COOKIE_NAME, mint_sessions_cookie_value
 from app.auth.sso_cookie import SSO_COOKIE_NAME, SSO_TOKEN_TYPE
 from app.core.jwt_manager import jwt_manager
@@ -29,9 +33,6 @@ from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import UserStatus
 from app.routers.v1 import auth as auth_router
 from app.routers.v1 import oauth_provider
-
-# Imported at collection time on purpose (a session fixture can swap httpx).
-from httpx import ASGITransport, AsyncClient, Cookies
 
 pytestmark = pytest.mark.asyncio
 
