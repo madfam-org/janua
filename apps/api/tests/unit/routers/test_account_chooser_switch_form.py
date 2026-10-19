@@ -402,7 +402,7 @@ class TestChooserListsEachPersonOnce:
         assert [sid for sid, _ in accounts] == [str(b.id), str(a_new.id)]
 
 
-@pytest.mark.parametrize("cookie_domain", [None, ".example.test"])
+@pytest.mark.parametrize("cookie_domain", [None, ".janua.dev"])
 async def test_explicit_older_account_beats_newer_hosted_cookie(monkeypatch, cookie_domain):
     """Exercise the real chooser AND resolver; never mock the chosen identity."""
     from app.config import settings
@@ -420,7 +420,8 @@ async def test_explicit_older_account_beats_newer_hosted_cookie(monkeypatch, coo
     async def execute(statement):
         entity = statement.column_descriptions[0]["entity"]
         compiled = str(statement.compile(compile_kwargs={"literal_binds": True}))
-        candidates = [older, newer] if entity.__name__ == "Session" else [chosen, hosted]
+        # Authorization also queries UserConsent; a user row is not consent.
+        candidates = {"Session": [older, newer], "User": [chosen, hosted]}.get(entity.__name__, [])
         found = next(
             (
                 row
@@ -438,7 +439,8 @@ async def test_explicit_older_account_beats_newer_hosted_cookie(monkeypatch, coo
     db = SimpleNamespace(execute=AsyncMock(side_effect=execute), commit=AsyncMock())
     cookies = Cookies()
     held = mint_sessions_cookie_value([str(older.id), str(newer.id)])
-    domain = cookie_domain or "auth.example.test"
+    # ASGITransport stays in-process; use the app's shipped trusted hostname.
+    domain = cookie_domain or "auth.janua.dev"
     for key, value in {
         SESSIONS_COOKIE_NAME: held,
         "janua_access_token": access,
@@ -455,11 +457,11 @@ async def test_explicit_older_account_beats_newer_hosted_cookie(monkeypatch, coo
 
     async def run(http):
         page = await http.get("/api/v1/oauth/authorize", params=_authorize_query("select_account"))
-        assert page.status_code == 200
+        assert page.status_code == 200, page.text
         assert resolved[-1] is hosted, "the competing hosted cookie is genuinely valid"
         action, sid, nxt = next(f for f in _forms(page.text) if f[1] == str(older.id))
         switched = await http.post(
-            action, data={"sid": sid, "next": nxt}, headers={"Origin": "https://auth.example.test"}
+            action, data={"sid": sid, "next": nxt}, headers={"Origin": "https://auth.janua.dev"}
         )
         assert switched.status_code == 302
         assert _sso_sid(switched) == str(older.id)
@@ -477,4 +479,4 @@ async def test_explicit_older_account_beats_newer_hosted_cookie(monkeypatch, coo
         assert http.cookies.get(SESSIONS_COOKIE_NAME) == held
 
     with patch("app.routers.v1.oauth_provider.get_user_from_cookie_or_header", side_effect=observe):
-        await _http(estate, cookies, run, db=db, base_url="https://auth.example.test")
+        await _http(estate, cookies, run, db=db, base_url="https://auth.janua.dev")
