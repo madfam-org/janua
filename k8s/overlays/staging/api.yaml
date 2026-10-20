@@ -193,7 +193,7 @@ spec:
           timeoutSeconds: 5
         readinessProbe:
           httpGet:
-            path: /api/v1/health/ready
+            path: /api/v1/health/ready?require_dependencies=true
             port: 8080
             httpHeaders:
             - name: Host

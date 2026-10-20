@@ -193,6 +193,12 @@ breaker to half-open. Clients retry after `Retry-After`. Check
 
 ## Health and readiness
 
+The isolated staging probe opts into
+`/api/v1/health/ready?require_dependencies=true`. It returns 503 unless both
+database and Redis checks are registered and healthy. Production probes keep
+the default availability contract described below. See the
+[staging pipeline](../PP_3B_STAGING_PIPELINE.md#normal-activation-and-promotion).
+
 Owner decision, 2026-10-04: "yes, make readiness independent of Redis".
 
 - **Readiness reports Redis but does not gate on it.** Before, a pod that could
