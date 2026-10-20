@@ -1,6 +1,6 @@
 # PP.3b — Janua staging pipeline and consumer provisioning
 
-> Updated: 2026-10-19. Source profile prepared; deployment and runtime soak
+> Updated: 2026-10-20. Source profile prepared; deployment and runtime soak
 > require their own operational receipts.
 
 Janua uses the RFC 0001 manual promotion gate because it is the ecosystem
@@ -58,6 +58,12 @@ there are no committed values or direct Vault/cluster secret commands.
    digest parity, real human authorization-code/PKCE, protected-resource
    audience/scope isolation and rotating refresh using synthetic stage actors.
    HTTP200 or a source pin alone is insufficient.
+   The staging readiness probe requests
+   `/api/v1/health/ready?require_dependencies=true`; missing, unhealthy or errored
+   database/Redis checks return 503. The default production probe still reports
+   these dependencies without removing every replica from service during a
+   shared outage. A Ready staging pod is only one prerequisite: native custody,
+   migration, isolation and hosted acceptance still require separate receipts.
 5. Record a continuous healthy runtime soak of at least 30 minutes after the
    intended digest is actually running. The existing workflow also checks
    staging pin age; elapsed pin time is not operational soak evidence.

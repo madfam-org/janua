@@ -93,7 +93,9 @@ READINESS_REPORTED_ONLY = frozenset({"redis", "database"})
 
 
 @router.get("/ready")
-async def readiness_check(checker=Depends(get_health_checker)) -> Dict[str, Any]:
+async def readiness_check(
+    checker=Depends(get_health_checker), require_dependencies: bool = False
+) -> Dict[str, Any]:
     """Kubernetes readiness probe endpoint.
 
     Gates on every registered critical check EXCEPT those in
@@ -109,7 +111,10 @@ async def readiness_check(checker=Depends(get_health_checker)) -> Dict[str, Any]
     - `degraded`: the reported-only checks that are not healthy;
     - `status`: "ready", or "degraded" when `degraded` is non-empty.
 
-    The HTTP status stays 200 while only reported-only checks fail.
+    The HTTP status stays 200 while only reported-only checks fail. Isolated
+    staging probes opt into `require_dependencies=true`: both checks must be
+    registered and healthy before the candidate can become Ready. Production
+    probes retain their dependency-independent availability contract.
     """
     result = await checker.check_health()
     checks: Dict[str, Any] = result.get("checks", {})
@@ -121,7 +126,10 @@ async def readiness_check(checker=Depends(get_health_checker)) -> Dict[str, Any]
         and name not in READINESS_REPORTED_ONLY
         and check.get("status") != "healthy"
     ]
-    if gating_failures:
+    required_dependencies_failed = require_dependencies and any(
+        checks.get(name, {}).get("status") != "healthy" for name in READINESS_REPORTED_ONLY
+    )
+    if gating_failures or required_dependencies_failed:
         raise HTTPException(status_code=503, detail="Service not ready")
 
     degraded = sorted(

@@ -86,3 +86,16 @@ def test_promotion_rejects_unstaged_frontends():
     assert trigger["workflow_dispatch"]["inputs"]["component"]["options"] == ["api"]
     resolve = next(s for s in workflow["jobs"]["validate"]["steps"] if s.get("id") == "resolve")
     assert '[[ "$COMPONENT" != "api" ]]' in resolve["run"]
+
+
+def test_staging_requires_dependencies_while_production_keeps_availability():
+    api = next(
+        o for o in objects() if o["kind"] == "Deployment" and o["metadata"]["name"] == "janua-api"
+    )
+    container = api["spec"]["template"]["spec"]["containers"][0]
+    assert container["readinessProbe"]["httpGet"]["path"] == (
+        "/api/v1/health/ready?require_dependencies=true"
+    )
+    production = yaml.safe_load((ROOT / "k8s/base/deployments/janua-api.yaml").read_text())
+    runtime = production["spec"]["template"]["spec"]["containers"][0]
+    assert runtime["readinessProbe"]["httpGet"]["path"] == "/api/v1/health/ready"
