@@ -635,8 +635,12 @@ async def test_rotate_unknown_id_is_404(caplinks_client):
 
 
 def _auth_matrix_targets() -> list[tuple[str, dict]]:
-    """(url, body) pairs covering every endpoint for the auth tests."""
-    placeholder_id = str(uuid.uuid4())
+    """(url, body) pairs covering every endpoint for the auth tests.
+
+    The placeholder id is fixed, not uuid4(): it ends up in the test ids, and
+    pytest-xdist requires every worker to collect identical ids.
+    """
+    placeholder_id = "00000000-0000-4000-8000-00000000c0de"
     return [
         (CREATE_URL, _create_payload()),
         (RESOLVE_URL, {"token": "irrelevant"}),

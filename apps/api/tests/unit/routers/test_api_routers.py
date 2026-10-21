@@ -3,15 +3,23 @@ API Routers Test Suite
 Tests for all API router modules including auth, users, billing, organizations, and admin.
 """
 
+import sys
+from unittest.mock import Mock
+
 import pytest
-from unittest.mock import Mock, patch
 
 pytestmark = pytest.mark.asyncio
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(autouse=True, scope="module")
 def mock_external_dependencies():
-    """Mock external dependencies for router testing"""
+    """Stub external client libraries in sys.modules while this module runs.
+
+    Module scope, restoring only these keys: at session scope the stubs stayed
+    installed for every later test in the same process, so what unrelated
+    tests imported depended on file order (and, under pytest-xdist, on which
+    worker ran this file).
+    """
     mocked_modules = {
         "aioredis": Mock(),
         "redis": Mock(),
@@ -20,7 +28,9 @@ def mock_external_dependencies():
         "requests": Mock(),
         "httpx": Mock(),
     }
-    with patch.dict("sys.modules", mocked_modules):
+    with pytest.MonkeyPatch.context() as mp:
+        for name, module in mocked_modules.items():
+            mp.setitem(sys.modules, name, module)
         yield
 
 

@@ -54,7 +54,12 @@ async def test_real_template_and_envelope_are_stable_without_persisting_secret(e
     assert params["headers"]["X-Message-ID"].startswith("janua-payment/")
 
 
-@pytest.mark.parametrize("field,value", [("org_id", str(uuid.uuid4())), ("provider", "smtp")])
+# A fixed foreign org id, not uuid4(): it is part of the test id, and pytest-xdist
+# requires every worker to collect identical ids.
+FOREIGN_ORG_ID = "00000000-0000-4000-8000-0000000f0e19"
+
+
+@pytest.mark.parametrize("field,value", [("org_id", FOREIGN_ORG_ID), ("provider", "smtp")])
 async def test_foreign_or_unsupported_binding_refuses(envelope_env, monkeypatch, field, value):
     principal, intent, binding, secret = envelope_env
     monkeypatch.setattr(

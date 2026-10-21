@@ -3,15 +3,23 @@ Alerting and Monitoring Services Test Suite
 Tests for alerting system, monitoring services, and SLA management.
 """
 
+import sys
+from unittest.mock import AsyncMock, Mock
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
 
 pytestmark = pytest.mark.asyncio
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(autouse=True, scope="module")
 def mock_external_dependencies():
-    """Mock external dependencies for alerting and monitoring testing"""
+    """Stub external client libraries in sys.modules while this module runs.
+
+    Module scope, restoring only these keys: at session scope the stubs stayed
+    installed for every later test in the same process, so what unrelated
+    tests imported depended on file order (and, under pytest-xdist, on which
+    worker ran this file).
+    """
     mocked_modules = {
         "aioredis": Mock(),
         "redis": Mock(),
@@ -22,7 +30,9 @@ def mock_external_dependencies():
         "requests": Mock(),
         "httpx": Mock(),
     }
-    with patch.dict("sys.modules", mocked_modules):
+    with pytest.MonkeyPatch.context() as mp:
+        for name, module in mocked_modules.items():
+            mp.setitem(sys.modules, name, module)
         yield
 
 
