@@ -133,9 +133,41 @@ jobs:
           SECRET_KEY: test-secret-key-do-not-use-in-production
           PYTHONPATH: ${{ github.workspace }}/apps/api
         run: |
+          # Parallel workers (pytest-xdist), one per CPU this job may actually
+          # use. `-n auto` counts the node's CPUs and ignores the container's
+          # CPU limit (the ARC runner pod is capped at 1.5 CPU on a much larger
+          # node), so the count comes from the cgroup quota, rounded up, and
+          # never exceeds 4. Workers share nothing: each has its own in-memory
+          # SQLite and fakeredis (this job's Redis service gets no traffic),
+          # and tests use tmp_path and port 0. --dist loadfile keeps each
+          # file's tests together, in file order, on one worker.
+          WORKERS=$(python - <<'PY'
+          import math
+          import os
+          cpus = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count()
+          quota = None
+          try:
+              raw_quota, raw_period = open("/sys/fs/cgroup/cpu.max").read().split()
+              if raw_quota != "max":
+                  quota = int(raw_quota) / int(raw_period)
+          except FileNotFoundError:
+              try:
+                  raw_quota = int(open("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").read())
+                  raw_period = int(open("/sys/fs/cgroup/cpu/cpu.cfs_period_us").read())
+                  if raw_quota > 0:
+                      quota = raw_quota / raw_period
+              except FileNotFoundError:
+                  pass
+          workers = cpus if quota is None else min(cpus, math.ceil(quota))
+          print(max(1, min(workers, 4)))
+          PY
+          )
+          echo "pytest-xdist workers: $WORKERS (visible CPUs: $(nproc), cgroup cpu.max: $(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo n/a))"
           # Stale tests moved to tests/quarantine/ for restoration
           # See tests/quarantine/README.md for restoration process
           pytest \
+            -n "$WORKERS" \
+            --dist loadfile \
             --cov=app \
             --cov-report=xml \
             --cov-report=term-missing \
