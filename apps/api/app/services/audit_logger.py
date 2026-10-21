@@ -7,13 +7,15 @@ import hashlib
 import json
 import threading
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, AsyncContextManager, AsyncIterator, Callable, Dict, List, Optional, Tuple
 
 import boto3
 from botocore.exceptions import ClientError
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, text
+from sqlalchemy import event as sa_event
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -223,10 +225,78 @@ def get_shared_r2_client() -> Optional[Any]:
         return cached[1]
 
 
-# Stable codes for the archive's log lines, so operators can alert on them.
+# Stable codes for the audit logger's log lines, so operators can alert on them.
 AUDIT_ARCHIVE_BUCKET_REFUSED = "AUDIT_ARCHIVE_BUCKET_REFUSED"
 AUDIT_ARCHIVE_FAILED = "AUDIT_ARCHIVE_FAILED"
-AUDIT_BUFFER_OVERFLOW = "AUDIT_BUFFER_OVERFLOW"
+AUDIT_STORE_FAILED = "AUDIT_STORE_FAILED"
+
+# Keys in `details` that hold an identity or resource reference that is not a
+# UUID, so it cannot go in the `user_id` / `resource_id` columns.
+IDENTITY_REF_KEY = "identity_ref"
+RESOURCE_REF_KEY = "resource_ref"
+
+# Shape of encrypted details: {"encrypted": true, "ciphertext": "<Fernet token>"}.
+ENCRYPTED_DETAILS_FLAG = "encrypted"
+ENCRYPTED_DETAILS_CIPHERTEXT = "ciphertext"
+
+# Namespace of the PostgreSQL advisory lock taken per tenant chain.
+CHAIN_LOCK_NAMESPACE = "janua.audit_logs.chain"
+
+
+def _event_type_value(event_type: Any) -> str:
+    """The event name as stored: an ``AuditEventType`` member's value, else ``str()``."""
+    if isinstance(event_type, Enum):
+        return str(event_type.value)
+    return str(event_type)
+
+
+def _split_reference(value: Any) -> Tuple[Optional[str], Optional[str]]:
+    """Split a reference into ``(uuid, other)``: exactly one is set, or neither.
+
+    A UUID (object or string, any case) comes back in canonical form as the
+    first item. Anything else non-empty comes back as a string in the second.
+    """
+    if value is None or value == "":
+        return None, None
+    if isinstance(value, uuid.UUID):
+        return str(value), None
+    try:
+        return str(uuid.UUID(str(value))), None
+    except (ValueError, TypeError, AttributeError):
+        return None, str(value)
+
+
+def _as_uuid(value: Optional[str]) -> Optional[uuid.UUID]:
+    return uuid.UUID(value) if value else None
+
+
+def _json_safe(value: Any) -> Any:
+    """``value`` as plain JSON data; values JSON cannot hold become strings."""
+    return json.loads(json.dumps(value, default=str))
+
+
+def decode_details(value: Any) -> Any:
+    """Return stored audit ``details`` as written, decrypting them if encrypted.
+
+    Values that are not in the encrypted shape are returned unchanged. If the
+    ciphertext cannot be decrypted (for example after a key change), the stored
+    value is returned unchanged and a warning is logged.
+    """
+    if not (
+        isinstance(value, dict)
+        and set(value) == {ENCRYPTED_DETAILS_FLAG, ENCRYPTED_DETAILS_CIPHERTEXT}
+        and value[ENCRYPTED_DETAILS_FLAG] is True
+    ):
+        return value
+    try:
+        from app.core.encryption import FieldEncryptor
+
+        plaintext = FieldEncryptor.get_instance().decrypt_field(value[ENCRYPTED_DETAILS_CIPHERTEXT])
+        return json.loads(plaintext)
+    except Exception as e:
+        logger.warning(f"Could not decrypt audit details: {type(e).__name__}")
+        return value
+
 
 # The refused bucket name already reported, so the error is logged once per
 # process rather than on every flush.
@@ -262,31 +332,92 @@ def get_audit_archive_bucket() -> Optional[str]:
     return bucket
 
 
+@asynccontextmanager
+async def _logger_with_own_session(
+    logger_class: Any,
+    session_factory: Optional[Callable[[], AsyncSession]],
+    r2_client: Optional[Any],
+) -> AsyncIterator[Any]:
+    """The context manager behind ``AuditLogger.with_own_session``."""
+    if session_factory is None:
+        from app.database import AsyncSessionLocal
+
+        session_factory = AsyncSessionLocal
+    async with session_factory() as session:
+        yield logger_class(session, r2_client=r2_client, owns_session=True)
+
+
 class AuditLogger:
     """
     Comprehensive audit logging with hash chain integrity
     and Cloudflare R2 archival
+
+    Every entry is written to ``audit_logs`` when it is logged, linked to the
+    previous entry of the same tenant: ``previous_hash`` is that entry's
+    ``current_hash``, and ``current_hash`` is the SHA-256 of the entry's stable
+    fields (``_calculate_hash``). ``created_at`` is the entry's timestamp and
+    increases strictly along each tenant's chain, so ``(tenant_id, created_at,
+    id)`` orders it.
+
+    Session ownership is explicit:
+
+    - ``AuditLogger(db)``: the caller owns ``db``. ``log()`` inserts the row in
+      a SAVEPOINT and flushes it; it never commits. The row commits or rolls
+      back with the caller's transaction, so a caller that logs after its own
+      last commit must commit again.
+    - ``AuditLogger.with_own_session()``: the logger opens, owns and closes its
+      session, and ``log()`` commits each entry.
+
+    When archiving is enabled (see ``get_audit_archive_bucket``), committed
+    entries are also buffered and archived to R2 in batches. Archiving never
+    writes to the database.
     """
 
-    def __init__(self, db: AsyncSession, r2_client: Optional[Any] = None):
+    def __init__(
+        self,
+        db: AsyncSession,
+        r2_client: Optional[Any] = None,
+        *,
+        owns_session: bool = False,
+    ):
         self.db = db
+        # True only when this logger opened ``db`` itself (``with_own_session``).
+        # Then, and only then, ``log()`` commits.
+        self.owns_session = owns_session
         self.r2_client = r2_client or self._create_r2_client()
+        # Committed entries waiting to be archived. Only filled while archiving
+        # is enabled; flushed at ``buffer_size`` entries or every
+        # ``flush_interval`` seconds.
         self.buffer: List[Dict[str, Any]] = []
+        # Entries flushed into the caller's transaction, archived only once
+        # that transaction commits and dropped if it rolls back.
+        self._awaiting_commit: List[Dict[str, Any]] = []
+        self._watching_caller_transaction = False
         self.buffer_size = 100
-        # Upper bound on entries kept while the database is failing. Beyond it
-        # the oldest entries are dropped, with an error, rather than growing
-        # memory without bound.
-        self.max_buffer_size = 1000
         self.flush_interval = 60  # seconds
-        self._flush_task = None
-        # Ids of buffered entries already written to the database at log time
-        # (critical and high severity). A flush archives them but never writes
-        # them again.
-        self._stored_event_ids: Set[str] = set()
+        self._flush_task: Optional[asyncio.Task[None]] = None
+
+    @classmethod
+    def with_own_session(
+        cls,
+        session_factory: Optional[Callable[[], AsyncSession]] = None,
+        r2_client: Optional[Any] = None,
+    ) -> AsyncContextManager["AuditLogger"]:
+        """Yield a logger over a session it opens, owns and closes.
+
+        Its ``log()`` commits each entry in its own transaction, independent of
+        any request session. For background work, or for code whose business
+        transaction has already committed and must not be reopened.
+        ``session_factory`` defaults to ``app.database.AsyncSessionLocal``.
+        """
+        return _logger_with_own_session(cls, session_factory, r2_client)
 
     def _create_r2_client(self) -> Optional[Any]:
         """Return the shared Cloudflare R2 client, or None when R2 is not configured."""
         return get_shared_r2_client()
+
+    def _archiving_enabled(self) -> bool:
+        return self.r2_client is not None and get_audit_archive_bucket() is not None
 
     async def log(
         self,
@@ -307,30 +438,55 @@ class AuditLogger:
     ) -> str:
         """
         Create an audit log entry with hash chain integrity
+
+        The row is written before this returns: flushed into the caller's
+        transaction, or committed when the logger owns its session. A database
+        failure is logged with the stable code ``AUDIT_STORE_FAILED`` and raised;
+        in a caller's transaction only the SAVEPOINT is rolled back.
+
+        ``identity_id`` and ``resource_id`` are stored in their UUID columns
+        only when they are UUIDs. Any other value is kept in ``details`` under
+        ``IDENTITY_REF_KEY`` / ``RESOURCE_REF_KEY``.
         """
 
         # Generate unique event ID
         event_id = str(uuid.uuid4())
+        tenant = "" if tenant_id is None else str(tenant_id)
+        event_name = _event_type_value(event_type)
 
-        # Get previous hash for chain
-        previous_hash = await self._get_previous_hash(tenant_id)
+        identity_uuid, identity_ref = _split_reference(identity_id)
+        resource_uuid, resource_ref = _split_reference(resource_id)
+        stored_details = _json_safe(details or {})
+        if not isinstance(stored_details, dict):
+            stored_details = {"value": stored_details}
+        if identity_ref is not None:
+            stored_details[IDENTITY_REF_KEY] = identity_ref
+        if resource_ref is not None:
+            stored_details[RESOURCE_REF_KEY] = resource_ref
+
+        # Serialize writers of this tenant's chain until the entry is committed.
+        await self._lock_chain(tenant)
+        previous_hash, previous_at = await self._chain_tail(tenant)
+        timestamp = datetime.utcnow()
+        if previous_at is not None and timestamp <= previous_at:
+            timestamp = previous_at + timedelta(microseconds=1)
 
         # Create audit entry
         audit_entry = {
             "event_id": event_id,
-            "event_type": event_type,
-            "tenant_id": tenant_id,
-            "identity_id": identity_id,
+            "event_type": event_name,
+            "tenant_id": tenant,
+            "identity_id": identity_uuid,
             "organization_id": organization_id,
             "resource_type": resource_type,
-            "resource_id": resource_id,
-            "details": details or {},
+            "resource_id": resource_uuid,
+            "details": stored_details,
             "ip_address": ip_address,
             "user_agent": user_agent,
             "severity": severity,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": timestamp.isoformat(),
             "previous_hash": previous_hash,
-            "compliance_context": compliance_context or {},
+            "compliance_context": _json_safe(compliance_context or {}),
             "data_subject_id": data_subject_id,
             "legal_basis": legal_basis,
             "retention_period": retention_period,
@@ -340,30 +496,33 @@ class AuditLogger:
         entry_hash = self._calculate_hash(audit_entry)
         audit_entry["hash"] = entry_hash
 
-        # Add to buffer for batch processing
-        self.buffer.append(audit_entry)
+        await self._store_entry(audit_entry)
 
-        # Store in database immediately for critical events
-        if severity in ["critical", "high"]:
-            await self._store_entry(audit_entry)
-            self._stored_event_ids.add(event_id)
+        if self._archiving_enabled():
+            if self.owns_session:
+                self.buffer.append(audit_entry)
+            else:
+                self._awaiting_commit.append(audit_entry)
+                self._watch_caller_transaction()
+            if len(self.buffer) >= self.buffer_size:
+                await self._flush_buffer()
+            if (self.buffer or self._awaiting_commit) and not self._flush_task:
+                self._flush_task = asyncio.create_task(self._periodic_flush())
 
-        # Check if buffer needs flushing
-        if len(self.buffer) >= self.buffer_size:
-            await self._flush_buffer()
-
-        # Start flush timer if not running
-        if not self._flush_task:
-            self._flush_task = asyncio.create_task(self._periodic_flush())
-
-        logger.info(
-            f"Audit logged: {event_type} for tenant {tenant_id}", extra={"event_id": event_id}
-        )
+        logger.info(f"Audit logged: {event_name} for tenant {tenant}", extra={"event_id": event_id})
 
         return event_id
 
     async def _store_entry(self, entry: Dict[str, Any]) -> None:
-        """Store audit entry in database, optionally encrypting details (CF-11)."""
+        """Store audit entry in database, optionally encrypting details (CF-11).
+
+        The row is inserted and flushed inside a SAVEPOINT, so a failed insert
+        rolls back only the SAVEPOINT and the caller's own work stays in its
+        transaction. The row is committed only when the logger owns its session
+        (``owns_session``); otherwise it commits with the caller. Encrypted details are
+        stored as ``{"encrypted": true, "ciphertext": ...}`` so the column always
+        holds a JSON object; ``decode_details`` reverses it.
+        """
 
         details = entry.get("details", {})
 
@@ -373,40 +532,90 @@ class AuditLogger:
                 from app.core.encryption import FieldEncryptor
 
                 encryptor = FieldEncryptor.get_instance()
-                details = encryptor.encrypt_field(json.dumps(details))
+                details = {
+                    ENCRYPTED_DETAILS_FLAG: True,
+                    ENCRYPTED_DETAILS_CIPHERTEXT: encryptor.encrypt_field(json.dumps(details)),
+                }
             except Exception as e:
                 logger.warning(f"Failed to encrypt audit details, storing plaintext: {e}")
 
         audit_log = AuditLog(
-            id=entry["event_id"],
+            id=uuid.UUID(entry["event_id"]),
+            action=entry["event_type"],
             event_type=entry["event_type"],
             tenant_id=entry["tenant_id"],
-            user_id=entry.get("identity_id"),
+            user_id=_as_uuid(entry.get("identity_id")),
             resource_type=entry.get("resource_type"),
-            resource_id=entry.get("resource_id"),
+            resource_id=_as_uuid(entry.get("resource_id")),
             details=details,
             ip_address=entry.get("ip_address"),
             user_agent=entry.get("user_agent"),
             current_hash=entry["hash"],
             previous_hash=entry["previous_hash"],
-            timestamp=datetime.fromisoformat(entry["timestamp"]),
+            created_at=datetime.fromisoformat(entry["timestamp"]),
         )
 
-        self.db.add(audit_log)
-        await self.db.commit()
+        try:
+            async with self.db.begin_nested():
+                self.db.add(audit_log)
+        except Exception as e:
+            self._log_store_failure(entry, e)
+            raise
+
+        if not self.owns_session:
+            return
+
+        try:
+            await self.db.commit()
+        except Exception as e:
+            self._log_store_failure(entry, e)
+            try:
+                await self.db.rollback()
+            except Exception:  # pragma: no cover - the session is unusable either way
+                pass
+            raise
+
+    def _watch_caller_transaction(self) -> None:
+        """Move entries to the archive buffer when the caller's transaction
+        commits, and drop them when it rolls back.
+
+        SQLAlchemy fires ``after_commit`` / ``after_rollback`` for SAVEPOINTs too;
+        only the outermost transaction (no nested transaction open while the
+        event fires) decides.
+        """
+        if self._watching_caller_transaction:
+            return
+        target = getattr(self.db, "sync_session", self.db)
+        sa_event.listen(target, "after_commit", self._on_caller_commit)
+        sa_event.listen(target, "after_rollback", self._on_caller_rollback)
+        self._watching_caller_transaction = True
+
+    def _on_caller_commit(self, session: Any) -> None:
+        if session.in_nested_transaction():
+            return
+        self.buffer.extend(self._awaiting_commit)
+        self._awaiting_commit.clear()
+
+    def _on_caller_rollback(self, session: Any) -> None:
+        if session.in_nested_transaction():
+            return
+        self._awaiting_commit.clear()
+
+    def _log_store_failure(self, entry: Dict[str, Any], error: BaseException) -> None:
+        logger.error(
+            f"[{AUDIT_STORE_FAILED}] Audit entry {entry.get('event_id')} "
+            f"({entry.get('event_type')}) was not stored: {type(error).__name__}",
+            code=AUDIT_STORE_FAILED,
+            event_type=entry.get("event_type"),
+            error_type=type(error).__name__,
+        )
 
     async def _flush_buffer(self) -> None:
-        """Store buffered entries in the database, then archive the stored ones to R2.
+        """Archive the buffered entries to R2.
 
-        Storing and archiving are independent outcomes:
-
-        - Each entry is written to the database at most once. Entries already
-          stored at log time are not written again.
-        - An archive failure is logged once, with a stable code, and changes
-          nothing else: stored entries are never put back in the buffer.
-        - If a database write fails, that entry and the ones after it that were
-          not yet stored stay buffered for the next flush, up to
-          ``max_buffer_size``. They are archived once they are stored.
+        Every buffered entry is already stored: a flush never writes to the
+        database. An archive failure is logged once, with a stable code, and
+        changes nothing else: entries are never put back in the buffer.
         """
 
         if not self.buffer:
@@ -415,64 +624,11 @@ class AuditLogger:
         entries_to_flush = self.buffer.copy()
         self.buffer.clear()
 
-        stored: List[Dict[str, Any]] = []
-        unstored: List[Dict[str, Any]] = []
-        store_error: Optional[Exception] = None
-
-        for entry in entries_to_flush:
-            event_id = entry.get("event_id")
-            if event_id in self._stored_event_ids:
-                self._stored_event_ids.discard(event_id)
-                stored.append(entry)
-                continue
-            if store_error is not None:
-                # After a failed write the session must be rolled back before
-                # it can write again, so the rest wait for the next flush.
-                unstored.append(entry)
-                continue
+        if self.r2_client is not None and get_audit_archive_bucket():
             try:
-                await self._store_entry(entry)
+                await self._archive_to_r2(entries_to_flush)
             except Exception as e:
-                store_error = e
-                unstored.append(entry)
-            else:
-                stored.append(entry)
-
-        if store_error is not None:
-            logger.error(
-                f"Failed to store {len(unstored)} audit entries; "
-                f"kept for the next flush: {store_error}"
-            )
-            self._requeue_unstored(unstored)
-
-        if stored and self.r2_client is not None and get_audit_archive_bucket():
-            try:
-                await self._archive_to_r2(stored)
-            except Exception as e:
-                self._log_archive_failure(len(stored), e)
-
-    def _requeue_unstored(self, entries: List[Dict[str, Any]]) -> None:
-        """Put entries whose database write failed back at the head of the buffer.
-
-        The buffer is capped at ``max_buffer_size``; beyond it the oldest entries
-        are dropped with one error carrying a stable code.
-        """
-
-        self.buffer[:0] = entries
-        overflow = len(self.buffer) - self.max_buffer_size
-        if overflow <= 0:
-            return
-
-        dropped = self.buffer[:overflow]
-        del self.buffer[:overflow]
-        for entry in dropped:
-            self._stored_event_ids.discard(entry.get("event_id"))
-        logger.error(
-            f"[{AUDIT_BUFFER_OVERFLOW}] Dropped the {overflow} oldest unstored audit "
-            f"entries: the buffer is capped at {self.max_buffer_size}.",
-            code=AUDIT_BUFFER_OVERFLOW,
-            dropped=overflow,
-        )
+                self._log_archive_failure(len(entries_to_flush), e)
 
     def _log_archive_failure(self, entry_count: int, error: BaseException) -> None:
         logger.warning(
@@ -485,11 +641,20 @@ class AuditLogger:
         )
 
     async def _periodic_flush(self) -> None:
-        """Periodically flush buffer"""
+        """Flush the buffer every ``flush_interval`` seconds while entries wait.
 
-        while True:
-            await asyncio.sleep(self.flush_interval)
-            await self._flush_buffer()
+        Ends once nothing is buffered or waiting for the caller's commit; the
+        next logged entry starts it again.
+        """
+
+        try:
+            while True:
+                await asyncio.sleep(self.flush_interval)
+                await self._flush_buffer()
+                if not self.buffer and not self._awaiting_commit:
+                    return
+        finally:
+            self._flush_task = None
 
     async def _archive_to_r2(self, entries: List[Dict[str, Any]]) -> None:
         """Archive stored audit entries to the dedicated R2 audit bucket.
@@ -548,29 +713,65 @@ class AuditLogger:
         if last_error is not None:
             self._log_archive_failure(unarchived, last_error)
 
+    def _is_postgresql(self) -> bool:
+        if not isinstance(self.db, AsyncSession):
+            return False
+        try:
+            return self.db.get_bind().dialect.name == "postgresql"
+        except Exception:
+            return False
+
+    async def _lock_chain(self, tenant_id: str) -> None:
+        """Hold a transaction-scoped lock on this tenant's chain (PostgreSQL only).
+
+        Two writers of one tenant would otherwise read the same tail and both
+        link to it. The lock is released when ``_store_entry`` commits, or when
+        the caller's transaction ends.
+        """
+
+        if self._is_postgresql():
+            await self.db.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                {"key": f"{CHAIN_LOCK_NAMESPACE}:{tenant_id}"},
+            )
+
+    async def _chain_tail(self, tenant_id: str) -> Tuple[Optional[str], Optional[datetime]]:
+        """Return ``(current_hash, created_at)`` of the tenant's latest entry."""
+
+        result = await self.db.execute(
+            select(AuditLog.current_hash, AuditLog.created_at)
+            .where(AuditLog.tenant_id == tenant_id, AuditLog.current_hash.is_not(None))
+            .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+            .limit(1)
+        )
+        row = result.first()
+        if row is None:
+            return None, None
+        return row[0], row[1]
+
     async def _get_previous_hash(self, tenant_id: str) -> Optional[str]:
         """Get the hash of the previous audit entry for this tenant"""
 
-        result = await self.db.execute(
-            select(AuditLog.current_hash)
-            .where(AuditLog.tenant_id == tenant_id)
-            .order_by(AuditLog.timestamp.desc())
-            .limit(1)
-        )
-
-        row = result.scalar_one_or_none()
-        return row if row else None
+        previous_hash, _ = await self._chain_tail(tenant_id)
+        return previous_hash
 
     def _calculate_hash(self, entry: Dict[str, Any]) -> str:
-        """Calculate SHA-256 hash of audit entry"""
+        """Calculate SHA-256 hash of audit entry
+
+        Covers the fields stored in their own columns, with the values the
+        columns hold, so ``verify_integrity`` recomputes it from the row alone.
+        ``details`` is not covered: it may be stored encrypted.
+        """
 
         # Create deterministic string representation
         hash_input = json.dumps(
             {
                 "event_id": entry["event_id"],
-                "event_type": entry["event_type"],
+                "event_type": _event_type_value(entry["event_type"]),
                 "tenant_id": entry["tenant_id"],
                 "identity_id": entry.get("identity_id"),
+                "resource_type": entry.get("resource_type"),
+                "resource_id": entry.get("resource_id"),
                 "timestamp": entry["timestamp"],
                 "previous_hash": entry.get("previous_hash"),
             },
@@ -578,6 +779,20 @@ class AuditLogger:
         )
 
         return hashlib.sha256(hash_input.encode()).hexdigest()
+
+    def _row_hash(self, log: Any) -> str:
+        return self._calculate_hash(
+            {
+                "event_id": str(log.id),
+                "event_type": log.event_type,
+                "tenant_id": log.tenant_id,
+                "identity_id": str(log.user_id) if log.user_id else None,
+                "resource_type": log.resource_type,
+                "resource_id": str(log.resource_id) if log.resource_id else None,
+                "timestamp": log.created_at.isoformat(),
+                "previous_hash": log.previous_hash,
+            }
+        )
 
     async def verify_integrity(
         self,
@@ -587,19 +802,23 @@ class AuditLogger:
     ) -> Dict[str, Any]:
         """
         Verify the integrity of the audit log hash chain
+
+        Walks the tenant's entries in chain order and recomputes each hash.
+        Without ``start_date`` the first entry must start the chain (no
+        ``previous_hash``); with it, the first entry's link is not checked.
         """
 
         # Build query
         query = (
             select(AuditLog)
-            .where(AuditLog.tenant_id == tenant_id)
-            .order_by(AuditLog.timestamp.asc())
+            .where(AuditLog.tenant_id == tenant_id, AuditLog.current_hash.is_not(None))
+            .order_by(AuditLog.created_at.asc(), AuditLog.id.asc())
         )
 
         if start_date:
-            query = query.where(AuditLog.timestamp >= start_date)
+            query = query.where(AuditLog.created_at >= start_date)
         if end_date:
-            query = query.where(AuditLog.timestamp <= end_date)
+            query = query.where(AuditLog.created_at <= end_date)
 
         result = await self.db.execute(query)
         logs = result.scalars().all()
@@ -614,24 +833,14 @@ class AuditLogger:
 
         for i, log in enumerate(logs):
             # Check if previous hash matches
-            if i > 0 and log.previous_hash != previous_hash:
-                valid = False
-                broken_at = i
-                break
+            if i > 0 or start_date is None:
+                if log.previous_hash != previous_hash:
+                    valid = False
+                    broken_at = i
+                    break
 
             # Recalculate hash and verify
-            entry = {
-                "event_id": str(log.id),
-                "event_type": log.event_type,
-                "tenant_id": str(log.tenant_id),
-                "identity_id": str(log.user_id) if log.user_id else None,
-                "timestamp": log.timestamp.isoformat(),
-                "previous_hash": log.previous_hash,
-            }
-
-            calculated_hash = self._calculate_hash(entry)
-
-            if calculated_hash != log.current_hash:
+            if self._row_hash(log) != log.current_hash:
                 valid = False
                 broken_at = i
                 break
@@ -645,8 +854,8 @@ class AuditLogger:
             ),
             "count": len(logs),
             "broken_at": broken_at,
-            "first_log": logs[0].timestamp.isoformat() if logs else None,
-            "last_log": logs[-1].timestamp.isoformat() if logs else None,
+            "first_log": logs[0].created_at.isoformat() if logs else None,
+            "last_log": logs[-1].created_at.isoformat() if logs else None,
         }
 
     async def export_logs(
@@ -662,11 +871,11 @@ class AuditLogger:
             .where(
                 and_(
                     AuditLog.tenant_id == tenant_id,
-                    AuditLog.timestamp >= start_date,
-                    AuditLog.timestamp <= end_date,
+                    AuditLog.created_at >= start_date,
+                    AuditLog.created_at <= end_date,
                 )
             )
-            .order_by(AuditLog.timestamp.asc())
+            .order_by(AuditLog.created_at.asc(), AuditLog.id.asc())
         )
 
         logs = result.scalars().all()
@@ -684,12 +893,13 @@ class AuditLogger:
                     "event_type": log.event_type,
                     "identity_id": str(log.user_id) if log.user_id else None,
                     "resource_type": log.resource_type,
-                    "resource_id": log.resource_id,
-                    "details": log.details,
-                    "ip_address": log.ip_address,
+                    "resource_id": str(log.resource_id) if log.resource_id else None,
+                    "details": decode_details(log.details),
+                    "ip_address": str(log.ip_address) if log.ip_address else None,
                     "user_agent": log.user_agent,
-                    "timestamp": log.timestamp.isoformat(),
+                    "timestamp": log.created_at.isoformat(),
                     "hash": log.current_hash,
+                    "previous_hash": log.previous_hash,
                 }
                 for log in logs
             ],
