@@ -89,17 +89,9 @@ jobs:
               subprocess.run(["ruff", "check", *paths], check=True)
           PY
 
-      - name: Legacy global Python diagnostics (advisory)
-        working-directory: ./apps/api
-        run: |
-          # Existing global backlog is reported; no source is auto-rewritten.
-          ruff check . || true
-          black --check . || true
-
-      - name: Run type checking
-        working-directory: ./apps/api
-        run: mypy app
-        continue-on-error: true
+      # The whole-tree ruff/black/mypy diagnostics run in api-diagnostics, not
+      # here: they never block, but they took about 3 minutes of this job's
+      # 25-minute limit, and their backlog output buried the real test result.
 
       - name: Verify Python environment
         working-directory: ./apps/api
@@ -179,6 +171,48 @@ jobs:
           name: api-coverage-report
           path: apps/api/htmlcov/
           retention-days: 30
+
+  api-diagnostics:
+    name: API Diagnostics (advisory)
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    # Advisory only, exactly as before the move: these steps report the
+    # existing whole-tree backlog and never fail the run. The blocking lint of
+    # changed Python files stays in api-tests.
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: apps/api/requirements*.txt
+
+      - name: Install system dependencies for xmlsec
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxmlsec1-dev pkg-config
+
+      - name: Install dependencies
+        working-directory: ./apps/api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+
+      - name: Legacy global Python diagnostics (advisory)
+        working-directory: ./apps/api
+        run: |
+          # Existing global backlog is reported; no source is auto-rewritten.
+          ruff check . || true
+          black --check . || true
+
+      - name: Run type checking
+        working-directory: ./apps/api
+        run: mypy app
+        continue-on-error: true
 
   api-postgres-tests:
     name: API Tests (PostgreSQL)
