@@ -10,7 +10,7 @@
     }
   },
   "dependencies": {
-    "@sentry/nextjs": "^10.51.0"
+    "@sentry/nextjs": "^10.75.2"
   },
   "peerDependencies": {
     "next": ">=16.4.1",
