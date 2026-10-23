@@ -163,6 +163,7 @@ TEMPLATE_MESSAGE_CLASS: Dict[str, str] = {
     "verification": MESSAGE_CLASS_SYSTEM,
     "password_reset": MESSAGE_CLASS_SYSTEM,
     "invitation": MESSAGE_CLASS_SYSTEM,
+    "product_invite": MESSAGE_CLASS_SYSTEM,
     "data_export_ready": MESSAGE_CLASS_SYSTEM,
     "sso_configuration": MESSAGE_CLASS_SYSTEM,
     "sso_enabled": MESSAGE_CLASS_SYSTEM,

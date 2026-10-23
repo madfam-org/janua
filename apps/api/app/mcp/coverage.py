@@ -182,6 +182,10 @@ EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("POST", f"{INTERNAL_PREFIX}/oauth-clients/{{client_id}}/scopes/revoke", _DESTRUCTIVE),
     # internal_org_entitlements -- entitlement read.
     Exemption("GET", f"{INTERNAL_PREFIX}/orgs/{{org_id}}/entitlements", _READ_OR_GRANT),
+    # internal_product_invites -- invite-only client access: creates an identity,
+    # grants an entitlement and mails a sign-in link (invite), or cancels it.
+    Exemption("POST", f"{INTERNAL_PREFIX}/product-invites", _DESTRUCTIVE),
+    Exemption("POST", f"{INTERNAL_PREFIX}/product-invites/revoke", _DESTRUCTIVE),
 )
 
 

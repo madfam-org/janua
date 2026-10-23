@@ -1085,6 +1085,17 @@ try:
 except Exception as e:
     logger.warning(f"Internal oauth client scopes router not available: {e}")
 
+# Internal product invitations (invite-only clients: grant the client's product,
+# mail ONE sign-in link) and the public entry route the link lands on.
+try:
+    from app.routers.v1 import internal_product_invites as internal_product_invites_v1
+
+    app.include_router(internal_product_invites_v1.router, prefix="/api/v1/internal")
+    app.include_router(internal_product_invites_v1.entry_router, prefix="/api/v1")
+    logger.info("Registered internal product invites router successfully")
+except Exception as e:
+    logger.warning(f"Internal product invites router not available: {e}")
+
 # Internal role/tier sync router (Dhanam → Janua hub-and-spoke)
 try:
     from app.routers.internal import roles as internal_roles
