@@ -255,6 +255,13 @@ SUBJECTS: Dict[str, Dict[str, str]] = {
         "en": "You're invited to join {organization_name} on Janua",
         "es": "Le invitaron a unirse a {organization_name} en Janua",
     },
+    # An operator invitation to ONE product (internal product-invites,
+    # 2026-10-22). Names the product, never Janua: the reader was invited to
+    # the product and has never heard of the platform underneath.
+    "product_invite": {
+        "en": "Your invitation to {app_name}",
+        "es": "Su invitación a {app_name}",
+    },
 }
 
 # `tú` subjects. Keyed identically to SUBJECTS; a message missing from here
@@ -267,6 +274,7 @@ SUBJECTS_ES_TU: Dict[str, str] = {
     "magic_link": "Tu enlace de acceso",
     "welcome": "Te damos la bienvenida a Janua",
     "invitation": "Te invitaron a unirse a {organization_name} en Janua",
+    "product_invite": "Tu invitación a {app_name}",
 }
 
 
@@ -560,6 +568,28 @@ ES_BODY: Dict[str, str] = {
     "invitation.questions": "¿Tiene alguna duda? Escriba a",
     "invitation.txt_open_link": "Abra el siguiente enlace para aceptar su invitación:",
     "invitation.txt_questions": "¿Tiene alguna duda? Escríbanos a",
+    # -- product_invite ---------------------------------------------------
+    "product_invite.intro": (
+        "Se abrió una cuenta a su nombre. Use el siguiente botón para entrar; "
+        "no necesita contraseña."
+    ),
+    "product_invite.later": (
+        "Más adelante, entre desde la página de inicio de sesión y pida un enlace "
+        "nuevo por correo."
+    ),
+    "product_invite.security_notice": (
+        "Si no esperaba esta invitación, puede ignorar este correo electrónico. "
+        "Nunca reenvíe el enlace: cualquier persona que lo tenga podría entrar a su "
+        "cuenta hasta que venza."
+    ),
+    "product_invite.txt_intro": (
+        "Se abrió una cuenta a su nombre. Entre con este enlace (no necesita contraseña):"
+    ),
+    "product_invite.txt_security_notice": (
+        "Si no esperaba esta invitación, puede ignorar este correo electrónico. Nunca\n"
+        "reenvíe el enlace: cualquier persona que lo tenga podría entrar a su cuenta hasta\n"
+        "que venza."
+    ),
 }
 
 # Every Spanish string a template can ask for, in the USTED register. Built
@@ -719,6 +749,28 @@ ES_TU: Dict[str, str] = {
     "invitation.questions": "¿Tienes alguna duda? Escribe a",
     "invitation.txt_open_link": "Abre el siguiente enlace para aceptar tu invitación:",
     "invitation.txt_questions": "¿Tienes alguna duda? Escríbenos a",
+    # -- product_invite ---------------------------------------------------
+    "product_invite.intro": (
+        "Se abrió una cuenta a tu nombre. Usa el siguiente botón para entrar; "
+        "no necesitas contraseña."
+    ),
+    "product_invite.later": (
+        "Más adelante, entra desde la página de inicio de sesión y pide un enlace "
+        "nuevo por correo."
+    ),
+    "product_invite.security_notice": (
+        "Si no esperabas esta invitación, puedes ignorar este correo electrónico. "
+        "Nunca reenvíes el enlace: cualquier persona que lo tenga podría entrar a tu "
+        "cuenta hasta que venza."
+    ),
+    "product_invite.txt_intro": (
+        "Se abrió una cuenta a tu nombre. Entra con este enlace (no necesitas contraseña):"
+    ),
+    "product_invite.txt_security_notice": (
+        "Si no esperabas esta invitación, puedes ignorar este correo electrónico. Nunca\n"
+        "reenvíes el enlace: cualquier persona que lo tenga podría entrar a tu cuenta hasta\n"
+        "que venza."
+    ),
 }
 
 # --------------------------------------------------------------------------

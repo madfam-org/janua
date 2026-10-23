@@ -22,6 +22,9 @@ AUTHORIZE_RESUME_PARAMS = (
     "code_challenge",
     "code_challenge_method",
     "resource",
+    # OIDC ui_locales (2026-10-22): the hosted pages' language survives the
+    # emailed link and the password form, so the page after them matches.
+    "ui_locales",
 )
 
 

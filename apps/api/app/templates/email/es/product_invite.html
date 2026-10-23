@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{# Prose that ADDRESSES THE READER goes through t(), so it follows the
+   recipient's tú/usted choice; register-neutral text stays inline. See
+   app/services/email_i18n.py. #}
+
+{% block content %}
+<h2 style="color: #1f2937; margin: 0 0 20px 0;">Invitación a {{ app_name }}</h2>
+
+<p style="margin: 0 0 20px 0;">
+    Hola{% if first_name %} {{ first_name }}{% endif %}:
+</p>
+
+<p style="margin: 0 0 20px 0;">
+    {{ t('product_invite.intro') }}
+</p>
+
+<div style="text-align: center;">
+    <a href="{{ magic_link }}" class="button">Entrar a {{ app_name }}</a>
+</div>
+
+<p style="margin: 20px 0 0 0; color: #6b7280; font-size: 14px;">
+    Este enlace funciona una sola vez y vence en {{ expires_hours }} horas. {{ t('product_invite.later') }}
+</p>
+
+<div class="warning">
+    <strong>⚠️ Aviso de seguridad</strong><br>
+    {{ t('product_invite.security_notice') }}
+</div>
+
+<p style="margin: 20px 0 0 0; color: #6b7280; font-size: 12px;">
+    {{ t('magic_link.button_fallback') }}<br>
+    {{ magic_link }}
+</p>
+{% endblock %}
