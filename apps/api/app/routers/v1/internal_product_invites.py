@@ -185,8 +185,10 @@ async def _audit(db: AsyncSession, event_type: AuditEventType, *, user_id: str, 
             details={"actor": INTERNAL_API_KEY_PRINCIPAL, **details},
             severity="info",
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        # Same stance as internal_users: the audit chain is a side record and
+        # must not block the grant, but its failure is said out loud.
+        logger.warning("product_invite.audit_write_failed", error=type(exc).__name__)
 
 
 @router.post("", response_model=ProductInviteResponse, status_code=status.HTTP_201_CREATED)

@@ -31,6 +31,9 @@ UI_LOCALES_PARAM = "ui_locales"
 #: What a hosted page renders in when the request named no supported language.
 DEFAULT_HOSTED_LOCALE = "en"
 
+#: The languages the hosted pages have copy for (keys of HOSTED_COPY below).
+HOSTED_LOCALES = ("es", "en")
+
 # A ui_locales value is attacker-controlled; read a bounded prefix.
 _MAX_UI_LOCALES_CHARS = 256
 _MAX_UI_LOCALES_TAGS = 16
@@ -46,8 +49,12 @@ def hosted_locale(ui_locales: Any) -> Optional[str]:
         return None
     for tag in ui_locales[:_MAX_UI_LOCALES_CHARS].split()[:_MAX_UI_LOCALES_TAGS]:
         normalized = normalize_locale(tag)
-        if normalized:
-            return normalized
+        # Return OUR constant, never a slice of the request: every hosted page
+        # prints this value (lang attribute, hidden field, links), so it must be
+        # provably one of a fixed set, not merely checked against one.
+        for supported in HOSTED_LOCALES:
+            if normalized == supported:
+                return supported
     return None
 
 
@@ -206,15 +213,15 @@ def hidden_ui_locales_field(locale: Optional[str]) -> str:
     """The hidden form field that carries a NON-default page language forward.
 
     Empty for English, so the English forms stay byte-identical to the forms
-    every client already had.
+    every client already had. Only Spanish produces a field (a constant).
     """
-    if not locale or locale == DEFAULT_HOSTED_LOCALE:
-        return ""
-    return f'<input type="hidden" name="{UI_LOCALES_PARAM}" value="{locale}">'
+    if locale == "es":
+        return f'<input type="hidden" name="{UI_LOCALES_PARAM}" value="es">'
+    return ""
 
 
 def ui_locales_query(locale: Optional[str]) -> str:
     """``?ui_locales=es`` for a non-default page language, else an empty string."""
-    if not locale or locale == DEFAULT_HOSTED_LOCALE:
-        return ""
-    return f"?{UI_LOCALES_PARAM}={locale}"
+    if locale == "es":
+        return f"?{UI_LOCALES_PARAM}=es"
+    return ""
