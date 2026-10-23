@@ -448,6 +448,8 @@ async def _hosted_cookie_session(payload: dict[str, Any], db: AsyncSession) -> O
 async def get_user_from_cookie_or_header(
     request: Request,
     db: AsyncSession,
+    *,
+    allow_bearer: bool = True,
 ) -> Optional[User]:
     """
     Get authenticated user from, in precedence order:
@@ -515,8 +517,11 @@ async def get_user_from_cookie_or_header(
     # First, the Authorization header. Unchanged and still first: an API client
     # that attaches a bearer token is naming the identity it means to act as,
     # explicitly, per request — nothing ambient can be staler than that.
+    # `allow_bearer=False` (GET /authorize, POST /consent): the consent screen,
+    # its CSRF token and the codes it leads to belong to a browser session, so
+    # a bearer token is not an identity there.
     auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
+    if allow_bearer and auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         try:
             payload = _verify_own_access_token(token)
@@ -2021,7 +2026,7 @@ async def authorize_get(
           bypass them just because `prompt=none` was requested.
     """
     # Get user from header or cookie (supports browser-based OAuth flow)
-    current_user = await get_user_from_cookie_or_header(request, db)
+    current_user = await get_user_from_cookie_or_header(request, db, allow_bearer=False)
 
     resource_values = _resource_values(resource)
     if resource_values or is_url_client_id(client_id):
@@ -2602,7 +2607,7 @@ async def handle_consent(
     User can either 'allow' or 'deny' the authorization request.
     """
     # Get user from cookie or header (supports browser-based OAuth flow)
-    current_user = await get_user_from_cookie_or_header(request, db)
+    current_user = await get_user_from_cookie_or_header(request, db, allow_bearer=False)
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
