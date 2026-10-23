@@ -277,6 +277,15 @@ spec:
               value: "true"
             - name: ENABLE_MAGIC_LINKS
               value: "true"
+            # Invite-only clients (docs/runbooks/invite-only-clients.md): MADFAM CV
+            # (cv-app, client pinned in enclii's ecosystem-oidc-provision.yaml)
+            # admits only people entitled to the `cv` product, granted with
+            # POST /api/v1/internal/product-invites. THIS IS THE ON-SWITCH, and it
+            # is inert until the janua-api image carries invite_only_clients.py:
+            # merge it after that promote, then invite the first people at once
+            # (until then nobody, operators included, can sign in to cv).
+            - name: INVITE_ONLY_CLIENTS
+              value: "jnc_M08TqJZOCUeW5M03YXjMtXxFrogxmI6X=cv"
             - name: ENABLE_ORGANIZATIONS
               value: "true"
           resources:
