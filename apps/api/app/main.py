@@ -50,8 +50,9 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.core.rate_limit_keys import client_ip_key
 
 # Secure password hashing context - using bcrypt 2b to avoid passlib wrap bug detection issue
 pwd_context = CryptContext(
@@ -279,7 +280,7 @@ logging.basicConfig(level=logging.INFO if settings.DEBUG else logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Initialize rate limiter (kept for backward compatibility with existing endpoints)
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=client_ip_key)
 
 # Import global rate limiting middleware
 from app.middleware.global_rate_limit import create_rate_limit_middleware

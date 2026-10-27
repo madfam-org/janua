@@ -16,7 +16,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Re
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -60,6 +59,7 @@ from app.auth.sso_cookie import (
 )
 from app.config import settings
 from app.core.locale import locale_from_request
+from app.core.rate_limit_keys import client_ip_key
 from app.core.redis import ResilientRedisClient, get_redis
 from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.core.url_security import validate_redirect_url
@@ -91,7 +91,7 @@ from ...models import Session as UserSession
 logger = structlog.get_logger()
 
 # Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=client_ip_key)
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
