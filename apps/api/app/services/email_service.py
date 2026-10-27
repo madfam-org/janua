@@ -527,6 +527,16 @@ class EmailService:
                 if spanish
                 else f"Welcome to Janua, {name}!"
             )
+        if "product_invite" in template_name:
+            url = data.get("magic_url", "")
+            app = data.get("app_name", "")
+            if informal:
+                return f"Entra a {app} con este enlace: {url}"
+            return (
+                f"Entre a {app} con este enlace: {url}"
+                if spanish
+                else f"Sign in to {app} with this link: {url}"
+            )
         if "invitation" in template_name:
             url = data.get("invitation_url", "")
             if informal:
@@ -1031,6 +1041,73 @@ async def send_magic_link_email_task(
             )
     except Exception:
         logger.exception("Magic link email task failed")
+
+
+async def send_product_invite_email_task(
+    email: str,
+    magic_token: str,
+    *,
+    app_name: str,
+    expires_hours: int,
+    locale: Optional[str] = None,
+    formality: Optional[str] = None,
+    first_name: Optional[str] = None,
+) -> None:
+    """Background-task entrypoint for an operator invitation (product-invites).
+
+    ONE message: it names the product the person is invited to and carries the
+    single sign-in link. The link always lands on Janua's own callback (the
+    hosted hop), never on the product, so no access token is ever appended to
+    a product URL; the callback forwards to the invitation's entry route,
+    which sends the browser to the product's front door.
+
+    The frame is MADFAM's (no tenant host is involved), the From line is the
+    platform system sender (R101 class `system`, as for every token link), and
+    the language and register are the operator's: the invitation endpoint
+    passes the `locale` and `formality` it was called with. Never logs the
+    address unredacted.
+    """
+    try:
+        service = EmailService()
+        recipient_locale = resolve_locale(locale, default=service._default_locale())
+        recipient_formality = resolve_formality(formality)
+        magic_url = f"{settings.public_base_url}/api/v1/auth/magic-link/callback?token={magic_token}"
+        template_data = {
+            "app_name": app_name,
+            "first_name": first_name,
+            "expires_hours": expires_hours,
+            "magic_url": magic_url,
+            "magic_link": magic_url,
+            "base_url": settings.BASE_URL,
+            "company_name": "Janua",
+            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            **resolve_branding(redirect_url=None),
+        }
+        subject = stamp_subject(
+            subject_for("product_invite", recipient_locale, recipient_formality, app_name=app_name),
+            now_for_timezone(timezone_for()),
+        )
+        sent = await service._send_email(
+            to_email=email,
+            subject=subject,
+            html_content=service._render_template(
+                "product_invite.html", template_data, recipient_locale, recipient_formality
+            ),
+            text_content=service._render_template(
+                "product_invite.txt", template_data, recipient_locale, recipient_formality
+            ),
+            template="product_invite",
+            token_link=True,
+        )
+        if sent:
+            logger.info("Product invitation email sent", email=_redact_email(email))
+        else:
+            logger.warning(
+                "Product invitation email NOT sent — the invitee will never receive their link",
+                email=_redact_email(email),
+            )
+    except Exception:
+        logger.exception("Product invitation email task failed")
 
 
 async def send_verification_email_task(

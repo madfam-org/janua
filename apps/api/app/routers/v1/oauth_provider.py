@@ -33,6 +33,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.authorize_resume import authorize_query
+from app.auth.hosted_locale import UI_LOCALES_PARAM, hosted_locale, page_locale
+from app.auth.invite_only_page import render_invite_only_refusal
 from app.auth.login_method import normalize_login_method
 from app.auth.resource_consent_page import render_resource_consent_page
 from app.auth.sessions_cookie import (
@@ -89,6 +91,7 @@ from app.services.entitlements_service import (
     get_product_tier_claims,
     get_user_entitlements,
 )
+from app.services.invite_only_clients import has_invited_access
 from app.services.oauth_client_authority import client_registered_by_platform_admin
 from app.services.org_claims_service import (
     ORG_ROLES_CLAIM,
@@ -1972,6 +1975,15 @@ async def authorize_get(
             "deployment default (HOSTED_LOGIN_DEFAULT_METHOD)."
         ),
     ),
+    ui_locales: Optional[str] = Query(
+        None,
+        description=(
+            "OIDC ui_locales: space-separated BCP 47 tags in order of "
+            "preference. The hosted login, sign-in link and recovery pages "
+            "render in the first one Janua supports (es or en); absent or "
+            "unsupported means English, as before."
+        ),
+    ),
     resource: Optional[List[str]] = Query(
         None,
         description=(
@@ -2166,6 +2178,10 @@ async def authorize_get(
         # hosted page reads it from the login URL, and the hosted magic-link
         # form finds the rest of the authorize request under this key.
         requested_login_method = normalize_login_method(login_method)
+        # The page language travels the same way: stored with the request (so
+        # the rebuilt authorize URL after an emailed link still carries it) and
+        # named on the login URL. Normalized here; None leaves both unchanged.
+        requested_ui_locale = hosted_locale(ui_locales)
         pre_login_data = {
             "response_type": response_type,
             "client_id": client_id,
@@ -2176,6 +2192,7 @@ async def authorize_get(
             "code_challenge": code_challenge,
             "code_challenge_method": code_challenge_method,
             "login_method": requested_login_method,
+            "ui_locales": requested_ui_locale,
         }
         # Strict: if Redis cannot hold the request, answer a retryable 503 now
         # rather than send the browser to a login page whose id leads nowhere.
@@ -2193,6 +2210,8 @@ async def authorize_get(
         }
         if requested_login_method:
             login_param_values["login_method"] = requested_login_method
+        if requested_ui_locale:
+            login_param_values[UI_LOCALES_PARAM] = requested_ui_locale
         login_params = urlencode(login_param_values)
         login_url = f"/api/v1/auth/login?{login_params}"
 
@@ -2232,6 +2251,37 @@ async def authorize_get(
                 )
 
         return RedirectResponse(url=login_url, status_code=302)
+
+    # INVITE-ONLY CLIENTS (2026-10-22). A client listed in INVITE_ONLY_CLIENTS
+    # admits only people entitled to its product; everyone else stops here,
+    # before email verification, MFA, consent or a code. The token endpoint
+    # repeats the check (code AND refresh grants), so this page is the visible
+    # half of the gate, not the only one. See services/invite_only_clients.py.
+    if not await has_invited_access(current_user, client.client_id, db):
+        logger.info(
+            "authorize.invite_only_refused",
+            client_id=client_id,
+            user=_redacted(getattr(current_user, "id", "")),
+            silent=silent_auth,
+        )
+        if silent_auth:
+            return _redirect_with_oauth_error(
+                redirect_uri,
+                error="access_denied",
+                error_description="invite_only",
+                state=state,
+                client_validated=True,
+            )
+        other_account_url = None
+        if isinstance(request, Request):
+            retry = [(k, v) for k, v in request.query_params.multi_items() if k != "prompt"]
+            retry_query = urlencode([*retry, ("prompt", "login")])
+            other_account_url = f"/api/v1/oauth/authorize?{retry_query}"
+        return render_invite_only_refusal(
+            app_name=client.name or client_id,
+            locale=page_locale(ui_locales),
+            other_account_url=other_account_url,
+        )
 
     # SECURITY: Require email verification for OAuth authorization
     if settings.REQUIRE_EMAIL_VERIFICATION and not getattr(current_user, "email_verified", False):
@@ -3453,6 +3503,22 @@ async def _handle_client_credentials_grant(
     )
 
 
+async def _require_invited_access(user: User, client: OAuthClient, db: AsyncSession) -> None:
+    """400 invalid_grant unless ``user`` may use ``client`` (always true for open clients)."""
+    if await has_invited_access(user, client.client_id, db):
+        return
+    logger.info(
+        "token.rejected",
+        reason="invite_only",
+        client_id=client.client_id,
+        user=_redacted(getattr(user, "id", "")),
+    )
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="invalid_grant: This account has not been invited to this application",
+    )
+
+
 async def _handle_authorization_code_grant(
     code: Optional[str],
     redirect_uri: Optional[str],
@@ -3583,6 +3649,12 @@ async def _handle_authorization_code_grant(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="invalid_grant: User not found",
         )
+
+    # Invite-only clients: the enforcement half of the /authorize gate. Every
+    # code path (password, emailed link, consent, account chooser) and every
+    # refresh ends here, so a person without the client's product entitlement —
+    # or whose invitation was revoked since — gets no token.
+    await _require_invited_access(user, client, db)
 
     # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status)
     entitlements = await _get_user_entitlements(user, db)
@@ -3760,6 +3832,12 @@ async def _handle_refresh_token_grant(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="invalid_grant: User not found",
         )
+
+    # Invite-only clients: the enforcement half of the /authorize gate. Every
+    # code path (password, emailed link, consent, account chooser) and every
+    # refresh ends here, so a person without the client's product entitlement —
+    # or whose invitation was revoked since — gets no token.
+    await _require_invited_access(user, client, db)
 
     # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status)
     entitlements = await _get_user_entitlements(user, db)

@@ -491,6 +491,20 @@ class Settings(BaseSettings):
     # a public PKCE client whose users may hold no password. Kept "password" so
     # no existing product's login changes by default. See app/auth/login_method.py.
     HOSTED_LOGIN_DEFAULT_METHOD: str = Field(default="password")
+    # Invite-only OAuth clients (2026-10-22, MADFAM CV beta). Comma-separated
+    # `client_id=product` pairs: a person may sign in to that client only while
+    # they hold an ACTIVE entitlement for `product` (user_entitlements, org
+    # inheritance included), and a sign-in link requested for that client never
+    # creates an identity. Empty (the default) = every client stays open, exactly
+    # as before. A client listed without a usable product is LOCKED, never opened
+    # (fail closed). See app/services/invite_only_clients.py and
+    # docs/runbooks/INVITE_ONLY_CLIENTS.md.
+    INVITE_ONLY_CLIENTS: str = Field(default="")
+    # How long the ONE sign-in link in an operator invitation stays valid
+    # (POST /api/v1/internal/product-invites). Longer than a requested link's 15
+    # minutes because an invitation is read whenever the person gets to it; the
+    # link is still single-use, and re-inviting mails a fresh one.
+    PRODUCT_INVITE_LINK_TTL_HOURS: int = Field(default=72, ge=1, le=168)
     ENABLE_OAUTH: bool = Field(default=True)
     ENABLE_MFA: bool = Field(default=True)
     # Enforce MFA at the login paths (OAuth browser login, /authorize, magic-link)

@@ -9,7 +9,7 @@ import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
-from urllib.parse import urlencode, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request, Response
@@ -22,6 +22,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.authorize_resume import authorize_query, is_resource_bound
+from app.auth.hosted_locale import (
+    DEFAULT_HOSTED_LOCALE,
+    UI_LOCALES_PARAM,
+    hidden_ui_locales_field,
+    hosted_copy,
+    hosted_locale,
+    page_locale,
+    ui_locales_query,
+)
+from app.auth.hosted_locale import html_lang as hosted_html_lang
 from app.auth.login_method import (
     LOGIN_METHOD_MAGIC_LINK,
     LOGIN_METHOD_PASSWORD,
@@ -65,6 +75,7 @@ from app.services.email_service import (
     send_password_reset_email_task,
     send_verification_email_task,
 )
+from app.services.invite_only_clients import is_invite_only
 from app.services.system_settings_service import SystemSettingsService
 from app.services.user_lookup import (
     AmbiguousEmailAcrossPools,
@@ -721,8 +732,13 @@ def _oauth_context_hidden_fields_html(
     client_id: Optional[str],
     client_name: Optional[str],
     next_url: Optional[str] = None,
+    ui_locale: Optional[str] = None,
 ) -> str:
-    """Hidden form fields that preserve OAuth context across retries."""
+    """Hidden form fields that preserve OAuth context across retries.
+
+    `ui_locale` (a NORMALIZED page language) carries a non-English page
+    language forward; English adds nothing, so English forms are unchanged.
+    """
     import html
 
     parts: list[str] = []
@@ -740,6 +756,7 @@ def _oauth_context_hidden_fields_html(
         parts.append(
             f'<input type="hidden" name="client_name" value="{html.escape(client_name)}">'
         )
+    parts.append(hidden_ui_locales_field(ui_locale))
     return "".join(parts)
 
 
@@ -1030,33 +1047,35 @@ async def _resolve_oauth_redirect_target(
     return validate_redirect_url(next_url, default_url="/")
 
 
-def _password_form_html(hidden_fields: str) -> str:
-    """The historical email + password form."""
+def _password_form_html(hidden_fields: str, locale: str = DEFAULT_HOSTED_LOCALE) -> str:
+    """The historical email + password form (in the page's language)."""
+    c = hosted_copy(locale)
     return f"""<form id="loginForm" method="POST" action="/api/v1/auth/login-form">
             {hidden_fields}
             <div class="form-group">
-                <label for="email">Email</label>
+                <label for="email">{c["email_label"]}</label>
                 <input type="email" id="email" name="email" required autocomplete="email" autofocus>
             </div>
             <div class="form-group">
-                <label for="password">Password</label>
+                <label for="password">{c["password_label"]}</label>
                 <input type="password" id="password" name="password" required autocomplete="current-password">
-                <div class="aux-link"><a href="/api/v1/auth/forgot-password">Forgot your password?</a></div>
+                <div class="aux-link"><a href="/api/v1/auth/forgot-password{ui_locales_query(locale)}">{c["forgot_password"]}</a></div>
             </div>
-            <button type="submit" id="submitBtn">Sign In</button>
+            <button type="submit" id="submitBtn">{c["sign_in_button"]}</button>
         </form>"""
 
 
-def _magic_link_form_html(hidden_fields: str) -> str:
+def _magic_link_form_html(hidden_fields: str, locale: str = DEFAULT_HOSTED_LOCALE) -> str:
     """Email-only form: Janua mails a sign-in link, no password involved."""
+    c = hosted_copy(locale)
     return f"""<form id="magicLinkForm" method="POST" action="/api/v1/auth/login-form/magic-link">
             {hidden_fields}
             <div class="form-group">
-                <label for="email">Email</label>
+                <label for="email">{c["email_label"]}</label>
                 <input type="email" id="email" name="email" required autocomplete="email" autofocus>
             </div>
-            <p class="hint">We'll email you a link that signs you in &mdash; no password needed.</p>
-            <button type="submit" id="submitBtn">Email me a sign-in link</button>
+            <p class="hint">{c["magic_hint"]}</p>
+            <button type="submit" id="submitBtn">{c["magic_button"]}</button>
         </form>"""
 
 
@@ -1067,6 +1086,7 @@ def _login_page_switch_url(
     client_id: Optional[str],
     client_name: Optional[str],
     next_url: Optional[str],
+    ui_locale: Optional[str] = None,
 ) -> str:
     """The same login page, other method first, OAuth context preserved."""
     params: dict[str, str] = {"login_method": method}
@@ -1078,6 +1098,8 @@ def _login_page_switch_url(
         params["client_id"] = client_id
     if client_name:
         params["client_name"] = client_name
+    if ui_locale and ui_locale != DEFAULT_HOSTED_LOCALE:
+        params[UI_LOCALES_PARAM] = ui_locale
     return f"/api/v1/auth/login?{urlencode(params)}"
 
 
@@ -1088,6 +1110,7 @@ def _hosted_login_page_html(
     method: str,
     switch_url: Optional[str],
     error_message: Optional[str] = None,
+    locale: str = DEFAULT_HOSTED_LOCALE,
 ) -> str:
     """The hosted login page with ONE method first and the other one click away.
 
@@ -1099,12 +1122,13 @@ def _hosted_login_page_html(
     """
     import html as _html
 
+    c = hosted_copy(locale)
     if method == LOGIN_METHOD_MAGIC_LINK:
-        form_html = _magic_link_form_html(hidden_fields)
-        switch_label = "Use a password instead"
+        form_html = _magic_link_form_html(hidden_fields, locale)
+        switch_label = c["switch_to_password"]
     else:
-        form_html = _password_form_html(hidden_fields)
-        switch_label = "Email me a sign-in link instead"
+        form_html = _password_form_html(hidden_fields, locale)
+        switch_label = c["switch_to_magic"]
     switch_html = (
         f'<div class="switch"><a href="{_html.escape(switch_url)}">{switch_label}</a></div>'
         if switch_url
@@ -1117,11 +1141,11 @@ def _hosted_login_page_html(
     )
     return f"""
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{hosted_html_lang(locale)}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign in - Janua</title>
+    <title>{c["sign_in_title"]}</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{
@@ -1262,11 +1286,11 @@ def _hosted_login_page_html(
     <div class="login-container">
         <div class="logo">
             <h1>&#128274; Janua</h1>
-            <p>Identity Platform</p>
+            <p>{c["tagline"]}</p>
         </div>
 
         <div class="app-info">
-            <span>Signing in to <strong>{_html.escape(app_name)}</strong></span>
+            <span>{c["signing_in_to"]} <strong>{_html.escape(app_name)}</strong></span>
         </div>
 
         {error_html}
@@ -1275,7 +1299,7 @@ def _hosted_login_page_html(
         {switch_html}
 
         <div class="footer">
-            Powered by Janua &bull; Secure Authentication
+            {c["footer"]}
         </div>
     </div>
 </body>
@@ -1292,6 +1316,7 @@ async def login_page(
     client_id: Optional[str] = None,
     client_name: Optional[str] = None,
     login_method: Optional[str] = None,
+    ui_locales: Optional[str] = None,
     db=Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -1308,8 +1333,12 @@ async def login_page(
     - next: URL to redirect to after successful login (fallback for non-OAuth logins)
     - client_id: OAuth client requesting authorization
     - client_name: Human-readable name of the OAuth client
+    - ui_locales: the page language /authorize normalized from the client's
+      OIDC ui_locales (es or en; absent = English)
     """
     from fastapi.responses import HTMLResponse, RedirectResponse
+
+    locale = page_locale(ui_locales)
 
     # Stale bookmarked login URLs carry an expired auth_request_id. Restart the
     # OAuth flow instead of rendering a form that cannot complete.
@@ -1334,6 +1363,7 @@ async def login_page(
         client_id=client_id,
         client_name=client_name,
         next_url=safe_next if not auth_request_id else None,
+        ui_locale=locale,
     )
 
     # Which method comes first: the request's hint (carried from /authorize or
@@ -1348,12 +1378,14 @@ async def login_page(
             client_id=client_id,
             client_name=client_name,
             next_url=safe_next if not auth_request_id else None,
+            ui_locale=locale,
         )
     html_content = _hosted_login_page_html(
         app_name=app_name,
         hidden_fields=hidden_fields,
         method=method,
         switch_url=switch_url,
+        locale=locale,
     )
     return HTMLResponse(content=html_content)
 
@@ -1369,6 +1401,7 @@ async def login_form(
     auth_request_id: Optional[str] = Form(None),
     client_id: Optional[str] = Form(None),
     client_name: Optional[str] = Form(None),
+    ui_locales: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -1473,22 +1506,25 @@ async def login_form(
 
     # Preserve full OAuth context on error-page retries (including client_id so
     # Redis expiry recovery still works after a wrong-password attempt).
+    locale = page_locale(ui_locales)
+    copy = hosted_copy(locale)
     error_hidden_field = _oauth_context_hidden_fields_html(
         auth_request_id=auth_request_id,
         client_id=client_id,
         client_name=client_name,
         next_url=safe_next if not auth_request_id else None,
+        ui_locale=locale,
     )
 
     # Helper to return error page
     def make_error_page(error_message: str) -> HTMLResponse:
         error_html = f"""
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{hosted_html_lang(locale)}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign in - Janua</title>
+    <title>{copy["sign_in_title"]}</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{
@@ -1547,23 +1583,23 @@ async def login_form(
     <div class="login-container">
         <div class="logo">
             <h1>&#128274; Janua</h1>
-            <p>Identity Platform</p>
+            <p>{copy["tagline"]}</p>
         </div>
         <div class="error">{html.escape(error_message)}</div>
         <form method="POST" action="/api/v1/auth/login-form">
             {error_hidden_field}
             <div class="form-group">
-                <label for="email">Email</label>
+                <label for="email">{copy["email_label"]}</label>
                 <input type="email" id="email" name="email" value="{html.escape(email)}" required autofocus>
             </div>
             <div class="form-group">
-                <label for="password">Password</label>
+                <label for="password">{copy["password_label"]}</label>
                 <input type="password" id="password" name="password" required>
-                <div style="text-align:right;margin-top:6px"><a href="/api/v1/auth/forgot-password" style="color:#667eea;font-size:13px;text-decoration:none">Forgot your password?</a></div>
+                <div style="text-align:right;margin-top:6px"><a href="/api/v1/auth/forgot-password{ui_locales_query(locale)}" style="color:#667eea;font-size:13px;text-decoration:none">{copy["forgot_password"]}</a></div>
             </div>
-            <button type="submit">Sign In</button>
+            <button type="submit">{copy["sign_in_button"]}</button>
         </form>
-        <div class="footer">Powered by Janua &bull; Secure Authentication</div>
+        <div class="footer">{copy["footer"]}</div>
     </div>
 </body>
 </html>
@@ -1577,20 +1613,17 @@ async def login_form(
     user = await get_user_by_email(db, email, tenant_id=None)
 
     if not user:
-        return make_error_page("Invalid email or password. Please try again.")
+        return make_error_page(copy["invalid_credentials"])
 
     # Check if account is locked
     is_locked, seconds_remaining = AccountLockoutService.is_account_locked(user)
     if is_locked:
         minutes_remaining = (seconds_remaining or 0) // 60 + 1
-        return make_error_page(
-            f"Account temporarily locked due to too many failed login attempts. "
-            f"Please try again in {minutes_remaining} minute(s)."
-        )
+        return make_error_page(copy["locked_temporarily"].format(minutes=minutes_remaining))
 
     # Check user status after lockout check
     if user.status != UserStatus.ACTIVE:
-        return make_error_page("Invalid email or password. Please try again.")
+        return make_error_page(copy["invalid_credentials"])
 
     # Verify password
     if not user.password_hash or not AuthService.verify_password(password, user.password_hash):
@@ -1601,11 +1634,8 @@ async def login_form(
         )
         if is_now_locked:
             minutes_remaining = (lock_seconds or 0) // 60 + 1
-            return make_error_page(
-                f"Account locked due to too many failed login attempts. "
-                f"Please try again in {minutes_remaining} minute(s)."
-            )
-        return make_error_page("Invalid email or password. Please try again.")
+            return make_error_page(copy["locked_now"].format(minutes=minutes_remaining))
+        return make_error_page(copy["invalid_credentials"])
 
     # SECURITY (2026-08-23): enforce MFA on the OAuth browser-login path. This was
     # the primary bypass — a user with MFA enabled was issued a full session here
@@ -2344,6 +2374,8 @@ async def _dispatch_password_reset(
     redirect_base_raw: Optional[str],
     background_tasks: BackgroundTasks,
     db,
+    *,
+    email_locale: Optional[str] = None,
 ) -> None:
     """Create a reset token and queue the email — shared by the JSON endpoint
     and the hosted forgot-password form. Does nothing when no ACTIVE user
@@ -2405,7 +2437,7 @@ async def _dispatch_password_reset(
         user.email,
         reset_token,
         redirect_base,
-        locale=getattr(user, "locale", None),
+        locale=email_locale or getattr(user, "locale", None),
     )
 
 
@@ -2518,12 +2550,14 @@ async def reset_password(request: ResetPasswordRequest, db: Session = Depends(ge
     return {"message": message}
 
 
-def _recovery_page_html(body: str, title: str = "Password recovery - Janua") -> str:
+def _recovery_page_html(
+    body: str, title: str = "Password recovery - Janua", lang: str = "en"
+) -> str:
     """Visual shell for the hosted recovery pages — same look as the hosted
     login page (whose CSS is inlined per-page by existing convention)."""
     return f"""
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{lang}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -2648,27 +2682,35 @@ def _reset_form_body(token: str, error: Optional[str] = None) -> str:
 
 
 @router.get("/forgot-password")
-async def forgot_password_page():
+async def forgot_password_page(ui_locales: Optional[str] = None):
     """Hosted forgot-password page, linked from the hosted login page.
 
     Before this page existed the hosted login form offered no recovery
     affordance at all — a user who forgot their password had nowhere to go
-    (observed live 2026-08-13)."""
+    (observed live 2026-08-13). `ui_locales` is the login page's language,
+    carried on its "Forgot your password?" link (English when absent)."""
     from fastapi.responses import HTMLResponse
 
-    body = """
-        <div class="logo"><h1>&#128274; Janua</h1><p>Password recovery</p></div>
-        <p class="lead">Enter your account email and we&#39;ll send you a reset link. The link works once and expires in 1 hour.</p>
+    locale = page_locale(ui_locales)
+    c = hosted_copy(locale)
+    body = f"""
+        <div class="logo"><h1>&#128274; Janua</h1><p>{c["recovery_tagline"]}</p></div>
+        <p class="lead">{c["recovery_lead"]}</p>
         <form method="POST" action="/api/v1/auth/forgot-password-form">
+            {hidden_ui_locales_field(locale)}
             <div class="form-group">
-                <label for="email">Email</label>
+                <label for="email">{c["email_label"]}</label>
                 <input type="email" id="email" name="email" required autocomplete="email" autofocus>
             </div>
-            <button type="submit">Send reset link</button>
+            <button type="submit">{c["recovery_button"]}</button>
         </form>
-        <div class="footer">Powered by Janua &bull; Secure Authentication</div>
+        <div class="footer">{c["footer"]}</div>
     """
-    return HTMLResponse(content=_recovery_page_html(body))
+    return HTMLResponse(
+        content=_recovery_page_html(
+            body, title=c["recovery_title"], lang=hosted_html_lang(locale)
+        )
+    )
 
 
 @router.post("/forgot-password-form")
@@ -2677,22 +2719,33 @@ async def forgot_password_form(
     request: Request,
     background_tasks: BackgroundTasks,
     email: str = Form(...),
+    ui_locales: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     """Browser half of /password/forgot: same dispatch, rendered as a page.
-    No redirect_base — the emailed link lands on the API-hosted reset page."""
+    No redirect_base — the emailed link lands on the API-hosted reset page.
+    The page's language (`ui_locales`) is also the reset mail's."""
     import html as html_mod
 
     from fastapi.responses import HTMLResponse
 
-    await _dispatch_password_reset(email, None, background_tasks, db)
+    locale = page_locale(ui_locales)
+    c = hosted_copy(locale)
+    await _dispatch_password_reset(
+        email, None, background_tasks, db, email_locale=hosted_locale(ui_locales)
+    )
+    retry_url = f"/api/v1/auth/forgot-password{ui_locales_query(locale)}"
     body = f"""
-        <div class="logo"><h1>&#128274; Janua</h1><p>Password recovery</p></div>
-        <div class="alert-ok">If an account exists for <strong>{html_mod.escape(email)}</strong>, a reset link is on its way. It works once and expires in 1 hour.</div>
-        <p class="lead">Didn&#39;t get it? Check spam, or <a href="/api/v1/auth/forgot-password">try again</a> in a few minutes.</p>
-        <div class="footer">Powered by Janua &bull; Secure Authentication</div>
+        <div class="logo"><h1>&#128274; Janua</h1><p>{c["recovery_tagline"]}</p></div>
+        <div class="alert-ok">{c["recovery_sent"].format(email=html_mod.escape(email))}</div>
+        <p class="lead">{c["recovery_retry"].format(retry_url=retry_url)}</p>
+        <div class="footer">{c["footer"]}</div>
     """
-    return HTMLResponse(content=_recovery_page_html(body))
+    return HTMLResponse(
+        content=_recovery_page_html(
+            body, title=c["recovery_title"], lang=hosted_html_lang(locale)
+        )
+    )
 
 
 @router.get("/reset-password")
@@ -2919,13 +2972,23 @@ async def _issue_magic_link(
     magic_link_data: MagicLinkRequest,
     background_tasks: BackgroundTasks,
     db,
-) -> User:
+    *,
+    client_id: Optional[str] = None,
+    email_locale: Optional[str] = None,
+) -> Optional[User]:
     """Find-or-create the user, mint the link, queue the email.
 
     This is the body of POST /magic-link, lifted so the hosted login page
     (POST /login-form/magic-link, 2026-09-17) issues links through the very
     same pool resolution, allow-list check and mailer. Raises HTTPException
     exactly as the endpoint does; the caller decides how to render it.
+
+    INVITE-ONLY CLIENTS (2026-10-22): when the link is for an invite-only
+    client (`client_id`, or the destination's client) and no account exists,
+    NOTHING is created, minted or sent, and this returns None. The callers
+    answer exactly as for a sent link, so the response never tells a stranger
+    whether an address is invited. `email_locale` is the language of the page
+    the person asked from; it outranks the stored profile for this one mail.
     """
     if not settings.ENABLE_MAGIC_LINKS:
         raise HTTPException(status_code=403, detail="Magic links are disabled")
@@ -2994,6 +3057,12 @@ async def _issue_magic_link(
                     "request the link from the product that owns the account"
                 ),
             ) from exc
+
+    if not user and await _invite_only_destination(
+        db, magic_link_data.redirect_url, client_id
+    ):
+        logger.info("magic_link.not_created_invite_only", client_id=client_id)
+        return None
 
     if not user:
         # Create user without password for magic link only.
@@ -3104,13 +3173,36 @@ async def _issue_magic_link(
         user.email,
         magic_token,
         safe_redirect_url,
-        locale=getattr(user, "locale", None),
+        locale=email_locale or getattr(user, "locale", None),
         formality=magic_link_data.formality,
         user_formality=getattr(user, "spanish_formality", None),
         hosted_hop=magic_link_data.hosted_hop,
     )
 
     return user
+
+
+async def _invite_only_destination(
+    db: Session, redirect_url: Optional[str], client_id: Optional[str]
+) -> bool:
+    """Is this sign-in link for an invite-only client?
+
+    The hosted form names its client. A `POST /magic-link` names a destination:
+    either a product URL (its host's registered client decides) or Janua's own
+    `/oauth/authorize` continuation, whose `client_id` query parameter does.
+    Cheap when no client is invite-only: nothing is read.
+    """
+    if client_id:
+        return is_invite_only(client_id)
+    if not settings.INVITE_ONLY_CLIENTS.strip() or not redirect_url:
+        return False
+    parsed = urlparse(redirect_url)
+    if parsed.path.rstrip("/").endswith("/oauth/authorize"):
+        named = parse_qs(parsed.query).get("client_id", [None])[0]
+        if named and is_invite_only(named):
+            return True
+    client = await _oauth_client_for_redirect(db, redirect_url)
+    return bool(client is not None and is_invite_only(client.client_id))
 
 
 async def _session_audience_for_redirect(db: Session, redirect_url: Optional[str]) -> Optional[str]:
@@ -3543,7 +3635,14 @@ def _magic_link_interstitial_is_spanish(redirect_url: Optional[str]) -> bool:
         return False
     from app.services.email_branding import CTM_HOSTS
 
-    host = (urlparse(redirect_url).hostname or "").lower()
+    parsed = urlparse(redirect_url)
+    # A destination that carries the page language says so itself: the hosted
+    # form's continuation (/oauth/authorize?...&ui_locales=es) and an operator
+    # invitation's entry URL (product-invites) both do (2026-10-22).
+    requested = parse_qs(parsed.query).get(UI_LOCALES_PARAM, [None])[0]
+    if requested is not None and hosted_locale(requested):
+        return hosted_locale(requested) == "es"
+    host = (parsed.hostname or "").lower()
     if not host:
         return False
     return any(host == h or host.endswith(f".{h}") for h in CTM_HOSTS)
@@ -3941,22 +4040,42 @@ async def _oauth_continuation_url(
     return safe_next if safe_next.startswith(("http://", "https://")) else f"{base}{safe_next}"
 
 
-def _check_inbox_page_html(*, app_name: str, email: str, password_url: Optional[str]) -> str:
+def _check_inbox_page_html(
+    *,
+    app_name: str,
+    email: str,
+    password_url: Optional[str],
+    locale: str = DEFAULT_HOSTED_LOCALE,
+    invite_only: bool = False,
+) -> str:
     import html as _html
 
+    c = hosted_copy(locale)
     switch = (
-        f'<p class="lead"><a href="{_html.escape(password_url)}">Use a password instead</a></p>'
+        f'<p class="lead"><a href="{_html.escape(password_url)}">{c["switch_to_password"]}</a></p>'
         if password_url
         else ""
     )
+    masked = _html.escape(_mask_email(email))
+    app = _html.escape(app_name)
+    if invite_only:
+        # Same words whether or not the address has access (no enumeration).
+        sent = (
+            f'{c["inbox_if_invited"]} <strong>{app}</strong>{c["inbox_if_invited_tail"]} '
+            f"<strong>{masked}</strong>."
+        )
+    else:
+        sent = (
+            f'{c["inbox_sent_to"]} <strong>{masked}</strong>.\n'
+            f'        {c["inbox_open_on_device"]} <strong>{app}</strong>.'
+        )
     return _recovery_page_html(
-        f"""<h1>&#9993;&#65039; Check your inbox</h1>
-        <p class="lead">We emailed a sign-in link to <strong>{_html.escape(_mask_email(email))}</strong>.
-        Open it on this device to continue to <strong>{_html.escape(app_name)}</strong>.</p>
-        <p class="hint">The link works once and expires in 15 minutes. Nothing there? Check your
-        spam folder, then go back and request another.</p>
+        f"""<h1>&#9993;&#65039; {c["inbox_heading"]}</h1>
+        <p class="lead">{sent}</p>
+        <p class="hint">{c["inbox_hint"]}</p>
         {switch}""",
-        title="Check your inbox - Janua",
+        title=c["inbox_title"],
+        lang=hosted_html_lang(locale),
     )
 
 
@@ -3973,6 +4092,7 @@ async def login_form_magic_link(
     auth_request_id: Optional[str] = Form(None),
     client_id: Optional[str] = Form(None),
     client_name: Optional[str] = Form(None),
+    ui_locales: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -3991,11 +4111,14 @@ async def login_form_magic_link(
     from pydantic import ValidationError
 
     safe_next = validate_redirect_url(next or "/", default_url="/")
+    locale = page_locale(ui_locales)
+    copy = hosted_copy(locale)
     hidden_fields = _oauth_context_hidden_fields_html(
         auth_request_id=auth_request_id,
         client_id=client_id,
         client_name=client_name,
         next_url=safe_next if not auth_request_id else None,
+        ui_locale=locale,
     )
     app_name = client_name or "Application"
 
@@ -4006,6 +4129,7 @@ async def login_form_magic_link(
             client_id=client_id,
             client_name=client_name,
             next_url=safe_next if not auth_request_id else None,
+            ui_locale=locale,
         )
 
     def _rerender(message: str, status_code: int) -> HTMLResponse:
@@ -4016,6 +4140,7 @@ async def login_form_magic_link(
                 method=LOGIN_METHOD_MAGIC_LINK,
                 switch_url=_password_url(),
                 error_message=message,
+                locale=locale,
             ),
             status_code=status_code,
         )
@@ -4027,7 +4152,8 @@ async def login_form_magic_link(
                 hidden_fields=hidden_fields,
                 method=LOGIN_METHOD_PASSWORD,
                 switch_url=None,
-                error_message="Sign-in links are not available right now. Please use your password.",
+                error_message=copy["magic_unavailable"],
+                locale=locale,
             ),
             status_code=400,
         )
@@ -4047,10 +4173,10 @@ async def login_form_magic_link(
         )
         return HTMLResponse(
             content=_recovery_page_html(
-                "<h1>Sign-in session expired</h1>"
-                '<p class="lead">This sign-in request is no longer valid. Go back to the '
-                "application and start signing in again.</p>",
-                title="Sign in - Janua",
+                f"<h1>{copy['session_expired_title']}</h1>"
+                f'<p class="lead">{copy["session_expired_body"]}</p>',
+                title=copy["sign_in_title"],
+                lang=hosted_html_lang(locale),
             ),
             status_code=400,
         )
@@ -4072,21 +4198,46 @@ async def login_form_magic_link(
             email=email, redirect_url=continuation, hosted_hop=True
         )
     except ValidationError:
-        return _rerender("Enter a valid email address.", 400)
+        return _rerender(copy["invalid_email"], 400)
 
+    # The page language decides the mail's language too: the person reading
+    # this form in Spanish asked for Spanish (an explicit request beats the
+    # stored profile and the deployment default — email_i18n.resolve_locale).
+    explicit_email_locale = hosted_locale(ui_locales)
     try:
-        user = await _issue_magic_link(request, magic_link_data, background_tasks, db)
+        user = await _issue_magic_link(
+            request,
+            magic_link_data,
+            background_tasks,
+            db,
+            client_id=client_id,
+            email_locale=explicit_email_locale,
+        )
     except HTTPException as exc:
-        detail = exc.detail if isinstance(exc.detail, str) else "We could not send a sign-in link."
+        if locale != DEFAULT_HOSTED_LOCALE:
+            # The API's details are English sentences for integrators; a
+            # Spanish page shows its own words instead of a mixed-language one.
+            detail = copy["magic_send_failed"]
+        else:
+            detail = exc.detail if isinstance(exc.detail, str) else copy["magic_send_failed"]
         return _rerender(detail, exc.status_code if exc.status_code in (400, 403, 429) else 400)
 
+    invite_only = is_invite_only(client_id)
     logger.info(
-        "login_form_magic_link.sent",
+        "login_form_magic_link.sent" if user is not None else "login_form_magic_link.not_invited",
         auth_request_id=auth_request_id,
         client_id=client_id,
     )
     return HTMLResponse(
         content=_check_inbox_page_html(
-            app_name=app_name, email=user.email, password_url=_password_url()
+            app_name=app_name,
+            # An invite-only client never says whether the address has access:
+            # the page is the same for both, and so is the masked address it
+            # shows (the one TYPED, which is the stored one for an existing user
+            # up to case).
+            email=user.email if user is not None else magic_link_data.email,
+            password_url=_password_url(),
+            locale=locale,
+            invite_only=invite_only,
         )
     )

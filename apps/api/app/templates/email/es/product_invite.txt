@@ -1,0 +1,14 @@
+Hola{% if first_name %} {{ first_name }}{% endif %}:
+
+Invitación a {{ app_name }}. {{ t('product_invite.txt_intro') }}
+{{ magic_url }}
+
+Este enlace funciona una sola vez y vence en {{ expires_hours }} horas. {{ t('product_invite.later') }}
+
+{{ t('product_invite.txt_security_notice') }}
+
+{{ t('common.need_help') }} {{ support_email }}
+
+---
+{{ t('signoff') }}
+{{ base_url }}

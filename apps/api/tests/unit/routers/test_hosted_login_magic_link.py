@@ -380,3 +380,105 @@ async def test_check_inbox_page_escapes_the_client_name_once(hosted_client):
     assert HOSTILE_NAME not in resp.text
     assert f"continue to <strong>{ESCAPED_NAME}</strong>" in resp.text
     assert "&amp;amp;" not in resp.text
+
+
+# ── OIDC ui_locales (2026-10-22) ───────────────────────────────────────────
+#
+# With `ui_locales=es` the hosted login (both methods), its error re-render,
+# «check your inbox» and password recovery render in Spanish (es-MX, `tú`, the
+# register the existing Spanish hosted pages use) and carry the language to the
+# next page. Without it every page is the English page it always was.
+
+HIDDEN = '<input type="hidden" name="ui_locales" value="es">'
+
+
+@pytest.mark.asyncio
+async def test_password_page_in_spanish(hosted_client):
+    resp = await hosted_client.get(
+        LOGIN_URL,
+        params={"auth_request_id": "req-1", "client_id": "c1", "client_name": "MADFAM CV", "ui_locales": "es"},
+    )
+    body = resp.text
+    assert resp.status_code == 200
+    assert '<html lang="es-MX">' in body
+    assert "<title>Iniciar sesión - Janua</title>" in body
+    assert "Entrando a <strong>MADFAM CV</strong>" in body
+    assert "Correo electrónico" in body and "Contraseña" in body
+    assert '<a href="/api/v1/auth/forgot-password?ui_locales=es">¿Olvidaste tu contraseña?</a>' in body
+    assert ">Entrar</button>" in body
+    assert HIDDEN in body
+    # The switch link keeps the language.
+    assert "Enviarme un enlace para entrar" in body and "ui_locales=es" in body
+    for english in ("Sign In", "Signing in to", "Forgot your password?", "Email me a sign-in link"):
+        assert english not in body
+
+
+@pytest.mark.asyncio
+async def test_magic_link_page_in_spanish(hosted_client):
+    resp = await hosted_client.get(
+        LOGIN_URL, params={"client_name": "MADFAM CV", "login_method": "magic_link", "ui_locales": "es-MX"}
+    )
+    body = resp.text
+    assert MAGIC_FORM_ACTION in body
+    assert "Te enviamos por correo un enlace para entrar, sin contraseña." in body
+    assert "Usar mi contraseña" in body
+    assert HIDDEN in body
+
+
+@pytest.mark.asyncio
+async def test_without_ui_locales_the_page_is_the_english_page(hosted_client):
+    resp = await hosted_client.get(LOGIN_URL, params={"client_name": "Studio"})
+    body = resp.text
+    assert '<html lang="en">' in body
+    assert "<title>Sign in - Janua</title>" in body
+    assert "Signing in to <strong>Studio</strong>" in body
+    assert '<a href="/api/v1/auth/forgot-password">Forgot your password?</a>' in body
+    assert 'name="ui_locales"' not in body
+    # An unsupported language is no preference.
+    other = await hosted_client.get(LOGIN_URL, params={"client_name": "Studio", "ui_locales": "fr-CA"})
+    assert other.text == body
+
+
+@pytest.mark.asyncio
+async def test_wrong_password_rerender_in_spanish(hosted_client):
+    resp = await hosted_client.post(
+        "/api/v1/auth/login-form",
+        data={"email": "nobody@beta-cv.example.com", "password": "x", "next": "/", "ui_locales": "es"},
+    )
+    assert resp.status_code == 401
+    assert "El correo o la contraseña no son correctos." in resp.text
+    assert '<html lang="es-MX">' in resp.text and HIDDEN in resp.text
+
+
+@pytest.mark.asyncio
+async def test_check_inbox_and_bad_email_in_spanish(hosted_client):
+    with patch("app.routers.v1.auth.send_magic_link_email_task", MagicMock()) as mailer:
+        bad = await hosted_client.post(
+            "/api/v1/auth/login-form/magic-link", data={"email": "nope", "next": "/", "ui_locales": "es"}
+        )
+        ok = await hosted_client.post(
+            "/api/v1/auth/login-form/magic-link",
+            data={"email": "ana@beta-cv.example.com", "next": "/", "client_name": "MADFAM CV", "ui_locales": "es"},
+        )
+    assert bad.status_code == 400 and "Escribe un correo electrónico válido." in bad.text
+    assert ok.status_code == 200
+    assert "Revisa tu correo" in ok.text
+    assert "Ábrelo en este dispositivo para continuar a <strong>MADFAM CV</strong>" in ok.text
+    assert '<html lang="es-MX">' in ok.text
+    # The mail follows the page's language.
+    assert mailer.call_args.kwargs["locale"] == "es"
+
+
+@pytest.mark.asyncio
+async def test_password_recovery_in_spanish(hosted_client):
+    page = await hosted_client.get("/api/v1/auth/forgot-password", params={"ui_locales": "es"})
+    assert "Recuperar contraseña" in page.text and HIDDEN in page.text
+    assert '<html lang="es-MX">' in page.text
+    sent = await hosted_client.post(
+        "/api/v1/auth/forgot-password-form",
+        data={"email": "ana@beta-cv.example.com", "ui_locales": "es"},
+    )
+    assert "Si existe una cuenta con <strong>ana@beta-cv.example.com</strong>" in sent.text
+    assert 'href="/api/v1/auth/forgot-password?ui_locales=es"' in sent.text
+    english = await hosted_client.get("/api/v1/auth/forgot-password")
+    assert "Password recovery" in english.text and 'name="ui_locales"' not in english.text

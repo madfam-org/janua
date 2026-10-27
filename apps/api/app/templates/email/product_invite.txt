@@ -1,0 +1,15 @@
+Hi{% if first_name %} {{ first_name }}{% endif %},
+
+Your invitation to {{ app_name }}. An account was opened for you; sign in with this link (no password needed):
+{{ magic_url }}
+
+This link works once and expires in {{ expires_hours }} hours. Later, sign in from the sign-in page and ask for a new link by email.
+
+If you were not expecting this invitation, you can ignore this email. Never forward
+this link: anyone holding it can sign in as you until it expires.
+
+Need help? Contact us at {{ support_email }}
+
+---
+{{ t('signoff') }}
+{{ base_url }}

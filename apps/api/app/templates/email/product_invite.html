@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 style="color: #1f2937; margin: 0 0 20px 0;">Your invitation to {{ app_name }}</h2>
+
+<p style="margin: 0 0 20px 0;">
+    Hi{% if first_name %} {{ first_name }}{% endif %},
+</p>
+
+<p style="margin: 0 0 20px 0;">
+    An account was opened for you. Use the button below to sign in. No password needed — the link signs you in directly.
+</p>
+
+<div style="text-align: center;">
+    <a href="{{ magic_link }}" class="button">Sign in to {{ app_name }}</a>
+</div>
+
+<p style="margin: 20px 0 0 0; color: #6b7280; font-size: 14px;">
+    This link works once and expires in {{ expires_hours }} hours. Later, sign in from the sign-in page and ask for a new link by email.
+</p>
+
+<div class="warning">
+    <strong>⚠️ Security Notice</strong><br>
+    If you were not expecting this invitation, you can ignore this email. Never forward the link:
+    anyone holding it can sign in as you until it expires.
+</div>
+
+<p style="margin: 20px 0 0 0; color: #6b7280; font-size: 12px;">
+    If the button doesn't work, copy this address into your browser:<br>
+    {{ magic_link }}
+</p>
+{% endblock %}
