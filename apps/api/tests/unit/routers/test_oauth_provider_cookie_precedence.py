@@ -41,16 +41,26 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import fakeredis
 import pytest
 
 from app.auth.sso_cookie import SSO_COOKIE_NAME, mint_sso_cookie_value
 from app.config import settings
 from app.core.jwt_manager import jwt_manager
+from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import UserStatus
 from app.routers.v1 import oauth_provider as oauth_provider_router
 from app.routers.v1.oauth_provider import get_user_from_cookie_or_header
 
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture(autouse=True)
+def _empty_revocation_list():
+    """The hosted-cookie and bearer reads consult the revocation list; nothing is revoked."""
+    redis = ResilientRedisClient(fakeredis.aioredis.FakeRedis(decode_responses=True))
+    with patch("app.routers.v1.oauth_provider.get_redis", AsyncMock(return_value=redis)):
+        yield
 
 
 # --------------------------------------------------------------------------
