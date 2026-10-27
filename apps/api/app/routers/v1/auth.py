@@ -64,7 +64,7 @@ from app.core.redis import ResilientRedisClient, get_redis
 from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.core.url_security import validate_redirect_url
 from app.database import AsyncSessionLocal, get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_user_for_sign_out
 from app.models.system_settings import SettingKeys
 from app.services.account_lockout_service import AccountLockoutService
 from app.services.audit_logger import AuditEventType, AuditLogger
@@ -1912,7 +1912,7 @@ async def login(credentials: SignInRequest, request: Request, db: Session = Depe
 async def logout(
     req: Request,
     response: Response,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_for_sign_out),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ):
@@ -1944,7 +1944,7 @@ async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_
 
 @router.post("/signout")
 async def sign_out(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_for_sign_out),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
     req: Request = None,

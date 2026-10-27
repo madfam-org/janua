@@ -6,6 +6,7 @@ Ensures proper module structure for Railway deployment and dependency injection
 
 from typing import Optional
 
+import structlog
 from fastapi import Depends, Header, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
@@ -16,6 +17,8 @@ from app.core.redis import ResilientRedisClient, get_redis
 from app.database import get_db
 
 from .models import OrganizationMember, User, UserStatus
+
+logger = structlog.get_logger()
 
 security = HTTPBearer()
 # Optional security scheme for endpoints that work with or without authentication
@@ -172,19 +175,51 @@ async def verify_internal_api_key(
 # ============================================================================
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db),
-    redis: ResilientRedisClient = Depends(get_redis),
+async def _authenticate_bearer(
+    credentials: HTTPAuthorizationCredentials,
+    db: AsyncSession,
+    redis: ResilientRedisClient,
+    *,
+    revocation: str = "strict",
 ) -> User:
-    """Get current authenticated user from JWT token (cached for 5 minutes)"""
+    """The user a bearer access token names, after signature, expiry and revocation.
+
+    The revocation list (sign-out, session revocation, password change,
+    `POST /oauth/revoke`; see `app.services.token_revocation`) is read with
+    one strict `EXISTS`. `revocation` says what a refusal or an outage means:
+
+    - "strict" (every endpoint by default): a revoked token is 401; when Redis
+      cannot answer this raises `RedisUnavailableError` (503 + Retry-After),
+      the fail-closed policy of 2026-10-04.
+    - "outage_ok" (endpoints that revoke sessions): a revoked token is 401,
+      but while Redis cannot answer the signature-checked token is accepted.
+    - "skip" (sign-out only): the list is not read. Signing out with a token
+      that is already revoked only revokes again, so sign-out stays
+      idempotent and keeps clearing cookies.
+    """
     from app.core.jwt_manager import jwt_manager
+    from app.core.redis_circuit_breaker import RedisUnavailableError
+    from app.services import token_revocation
 
     token = credentials.credentials
 
     # Decode token using JWT manager
     payload = jwt_manager.verify_token(token, token_type="access")
     if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    revoked = False
+    if revocation != "skip":
+        try:
+            revoked = await token_revocation.is_revoked(redis, payload, "access")
+        except RedisUnavailableError:
+            if revocation != "outage_ok":
+                raise
+            logger.warning(
+                "Revocation list unavailable; accepting a signature-checked token "
+                "for a session-revoking request"
+            )
+    if revoked:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     user_id = payload.get("sub")
@@ -225,6 +260,49 @@ async def get_current_user(
         pass  # Intentionally ignoring - caching is optional optimization, user authentication succeeded
 
     return user
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis),
+) -> User:
+    """Get current authenticated user from JWT token (cached for 5 minutes).
+
+    Refuses (401) a token on the revocation list; 503 when Redis cannot say.
+    """
+    return await _authenticate_bearer(credentials, db, redis, revocation="strict")
+
+
+async def get_current_user_for_revocation(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis),
+) -> User:
+    """`get_current_user` for endpoints that only revoke sessions.
+
+    Identical while Redis is healthy: a revoked token is refused. While Redis
+    cannot answer, the signature-checked token is accepted instead of a 503,
+    so a person can still revoke sessions during an outage (owner decision
+    2026-10-04: revocation keeps working on the session row). The most such a
+    request can do is revoke sessions, never read or change anything else.
+    """
+    return await _authenticate_bearer(credentials, db, redis, revocation="outage_ok")
+
+
+async def get_current_user_for_sign_out(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis),
+) -> User:
+    """`get_current_user` for `/auth/signout` and `/auth/logout` only.
+
+    Does not read the revocation list: sign-out ends the presenting token's own
+    session (and the browser's estate cookie), so accepting an already-revoked
+    token only revokes it again. Signature, expiry and an active user are still
+    required. This keeps sign-out idempotent and available during an outage.
+    """
+    return await _authenticate_bearer(credentials, db, redis, revocation="skip")
 
 
 async def get_current_user_optional(

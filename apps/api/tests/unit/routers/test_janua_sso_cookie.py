@@ -453,12 +453,12 @@ class TestNotABearerCredential:
         )
         assert payload["type"] == SSO_TOKEN_TYPE != "access"
 
-    def test_verify_own_access_token_refuses_it(self):
+    async def test_verify_own_access_token_refuses_it(self):
         """`/api/v1/auth/me` and every other API verify `token_type="access"`
         (via get_current_user) or go through this helper. Neither accepts the
         estate cookie's value, so it can never stand in for a bearer token."""
         value = mint_sso_cookie_value(str(uuid4()), str(uuid4()))
-        assert oauth_provider_router._verify_own_access_token(value) is None
+        assert await oauth_provider_router._verify_own_access_token(value) is None
 
     async def test_bearer_header_carrying_the_sso_value_does_not_authenticate(self):
         request = MagicMock()
@@ -771,6 +771,7 @@ class TestLogout:
         app.include_router(auth_router.router)
         app.dependency_overrides[auth_router.get_db] = lambda: db
         app.dependency_overrides[auth_router.get_current_user] = lambda: user
+        app.dependency_overrides[auth_router.get_current_user_for_sign_out] = lambda: user
 
         with (
             patch.object(auth_router.AuthService, "verify_token", AsyncMock(return_value=None)),

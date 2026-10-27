@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import get_current_user_for_revocation
 from app.routers.v1.auth import get_current_user
 from app.services.auth_service import AuthService
 
@@ -218,7 +219,9 @@ async def get_session(
 
 @router.delete("/{session_id}")
 async def revoke_session(
-    session_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    session_id: str,
+    current_user: User = Depends(get_current_user_for_revocation),
+    db: Session = Depends(get_db),
 ):
     """Revoke a specific session.
 
@@ -264,7 +267,9 @@ async def revoke_session(
 
 @router.delete("/")
 async def revoke_all_sessions(
-    request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    request: Request,
+    current_user: User = Depends(get_current_user_for_revocation),
+    db: Session = Depends(get_db),
 ):
     """Revoke all of the caller's sessions except the current one.
 

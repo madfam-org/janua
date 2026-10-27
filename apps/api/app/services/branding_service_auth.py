@@ -85,7 +85,7 @@ def _denied(code: str = "branding_service_unauthorized") -> HTTPException:
     return HTTPException(status_code=403, detail={"code": code})
 
 
-def _addressed_to_branding(token: str) -> Optional[dict]:
+async def _addressed_to_branding(token: str) -> Optional[dict]:
     """The verified payload when the token is addressed to this authority.
 
     `None` means "not a branding service token" and sends the caller down the
@@ -94,7 +94,7 @@ def _addressed_to_branding(token: str) -> Optional[dict]:
     """
     if jwt_manager.algorithm != "RS256":
         return None
-    return jwt_manager.verify_token(token, audience=BRANDING_AUDIENCE)
+    return await jwt_manager.verify_unrevoked_token(token, audience=BRANDING_AUDIENCE)
 
 
 def _principal_from_payload(payload: dict) -> BrandingServicePrincipal:
@@ -163,7 +163,7 @@ async def _service_principal(
     organization_id: str,
     db: AsyncSession,
 ) -> Optional[BrandingServicePrincipal]:
-    payload = _addressed_to_branding(credentials.credentials)
+    payload = await _addressed_to_branding(credentials.credentials)
     if payload is None:
         return None
     principal = _principal_from_payload(payload)
