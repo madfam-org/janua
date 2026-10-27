@@ -513,20 +513,20 @@ def _oauth_client(name="madfam-erp", allowed_scopes=None):
 
 class TestAuthorizeAcceptsTheEstateCookie:
     def _kwargs(self, request, prompt):
-        return dict(
-            request=request,
-            response_type="code",
-            client_id="madfam-erp",
-            redirect_uri="https://erp.example.test/auth/callback",
-            scope="openid profile",
-            state="csrf-xyz",
-            nonce=None,
-            code_challenge="abc",
-            code_challenge_method="S256",
-            prompt=prompt,
-            db=AsyncMock(),
-            redis=AsyncMock(),
-        )
+        return {
+            "request": request,
+            "response_type": "code",
+            "client_id": "madfam-erp",
+            "redirect_uri": "https://erp.example.test/auth/callback",
+            "scope": "openid profile",
+            "state": "csrf-xyz",
+            "nonce": None,
+            "code_challenge": "abc",
+            "code_challenge_method": "S256",
+            "prompt": prompt,
+            "db": AsyncMock(),
+            "redis": AsyncMock(),
+        }
 
     def _request_with_only_the_sso_cookie(self, user, session):
         request = MagicMock()
