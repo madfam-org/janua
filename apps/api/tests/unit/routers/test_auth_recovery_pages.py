@@ -193,3 +193,153 @@ class TestDispatchPasswordReset:
         assert args[1] == "known@example.test"
         assert isinstance(args[2], str) and len(args[2]) > 20  # the stored token
         assert args[3] is None  # no redirect_base: default = API-hosted page
+
+
+# ---------------------------------------------------------------------------
+# The reset pages in the email's language (ui_locales, 2026-10-27)
+# ---------------------------------------------------------------------------
+
+RESET_URL = "/api/v1/auth/reset-password"
+RESET_FORM_URL = "/api/v1/auth/reset-password-form"
+ES_HIDDEN = '<input type="hidden" name="ui_locales" value="es">'
+MATCHING = {"token": "tok-x", "new_password": "Aa1!Aa1!Aa1!", "confirm_password": "Aa1!Aa1!Aa1!"}
+MISMATCHED = {"token": "tok-x", "new_password": "Aa1!Aa1!Aa1!", "confirm_password": "Bb2@Bb2@Bb2@"}
+
+
+def _post_with_outcome(outcome, data):
+    """POST the reset form with _consume_password_reset answering `outcome`."""
+    with patch("app.routers.v1.auth._consume_password_reset", new=AsyncMock(return_value=outcome)):
+        return _client().post(RESET_FORM_URL, data=data)
+
+
+class TestResetPagesInSpanish:
+    def test_form(self):
+        resp = _client().get(RESET_URL, params={"token": "tok-abc", "ui_locales": "es-MX en"})
+        assert resp.status_code == 200
+        body = resp.text
+        assert '<html lang="es-MX">' in body
+        assert "<title>Recuperar contraseña - Janua</title>" in body
+        assert "Elige una contraseña nueva" in body
+        assert '<label for="new_password">Contraseña nueva</label>' in body
+        assert '<label for="confirm_password">Confirma la contraseña nueva</label>' in body
+        assert "Al menos 12 caracteres, con una mayúscula" in body
+        assert '<button type="submit">Guardar contraseña</button>' in body
+        assert 'name="token" value="tok-abc"' in body
+        # The language rides the POST.
+        assert body.count(ES_HIDDEN) == 1
+        assert "Choose a new password" not in body
+
+    def test_missing_token(self):
+        resp = _client().get(RESET_URL, params={"ui_locales": "es"})
+        assert resp.status_code == 400
+        assert '<html lang="es-MX">' in resp.text
+        assert "Esta página necesita el enlace del correo" in resp.text
+        assert '<a href="/api/v1/auth/forgot-password?ui_locales=es">Pídelo aquí</a>' in resp.text
+
+    def test_mismatch_rerenders_in_spanish_and_keeps_the_language(self):
+        resp = _client().post(RESET_FORM_URL, data={**MISMATCHED, "ui_locales": "es"})
+        assert resp.status_code == 400
+        assert "Las dos contraseñas no coinciden." in resp.text
+        assert 'value="tok-x"' in resp.text
+        assert ES_HIDDEN in resp.text
+
+    def test_success(self):
+        resp = _post_with_outcome(
+            (True, "Password successfully reset"), {**MATCHING, "ui_locales": "es"}
+        )
+        assert resp.status_code == 200
+        assert '<html lang="es-MX">' in resp.text
+        assert "Contraseña actualizada" in resp.text
+        assert (
+            "Tu contraseña quedó lista. Vuelve a la aplicación de donde venías y "
+            "entra con tu correo y tu nueva contraseña."
+        ) in resp.text
+        assert "Close this tab" not in resp.text
+
+    def test_expired_link(self):
+        resp = _post_with_outcome(
+            (False, "Invalid or expired reset token"), {**MATCHING, "ui_locales": "es"}
+        )
+        assert resp.status_code == 400
+        assert "Este enlace para cambiar la contraseña no es válido o ya venció" in resp.text
+        assert '<a href="/api/v1/auth/forgot-password?ui_locales=es">aquí</a>' in resp.text
+
+    def test_policy_rejection_is_translated_and_keeps_the_language(self):
+        resp = _post_with_outcome(
+            (False, "Password must contain at least one number"),
+            {**MATCHING, "ui_locales": "es"},
+        )
+        assert resp.status_code == 400
+        assert "La contraseña debe tener al menos un número." in resp.text
+        assert "Password must" not in resp.text
+        assert ES_HIDDEN in resp.text and 'value="tok-x"' in resp.text
+
+    def test_an_untranslated_policy_message_still_shows(self):
+        resp = _post_with_outcome(
+            (False, "Some future policy rule"), {**MATCHING, "ui_locales": "es"}
+        )
+        assert resp.status_code == 400
+        assert "Some future policy rule" in resp.text
+
+
+class TestResetPagesStayEnglishByDefault:
+    """No ui_locales (and an unsupported one) renders the English pages the
+    regression tests above have always pinned."""
+
+    def test_form(self):
+        for params in ({"token": "tok-abc"}, {"token": "tok-abc", "ui_locales": "fr-CA"}):
+            body = _client().get(RESET_URL, params=params).text
+            assert '<html lang="en">' in body
+            assert "<title>Password recovery - Janua</title>" in body
+            assert "<p>Choose a new password</p>" in body
+            assert '<button type="submit">Set new password</button>' in body
+            assert 'name="ui_locales"' not in body
+
+    def test_missing_token(self):
+        body = _client().get(RESET_URL).text
+        assert "This page needs the link from your reset email." in body
+        assert '<a href="/api/v1/auth/forgot-password">Request one here</a>' in body
+
+    def test_mismatch(self):
+        resp = _client().post(RESET_FORM_URL, data=MISMATCHED)
+        assert "The two passwords don&#x27;t match." in resp.text
+        assert 'name="ui_locales"' not in resp.text
+
+    def test_success(self):
+        resp = _post_with_outcome((True, "Password successfully reset"), MATCHING)
+        assert resp.status_code == 200
+        assert (
+            "Your password has been updated. Close this tab and sign in again from "
+            "the application you came from."
+        ) in resp.text
+
+    def test_expired_link(self):
+        resp = _post_with_outcome((False, "Invalid or expired reset token"), MATCHING)
+        assert resp.status_code == 400
+        assert "This reset link is invalid or has expired" in resp.text
+        assert '<a href="/api/v1/auth/forgot-password">here</a>' in resp.text
+
+    def test_policy_rejection(self):
+        resp = _post_with_outcome((False, "Password must contain at least one number"), MATCHING)
+        assert "Password must contain at least one number" in resp.text
+
+
+class TestPasswordPolicyTranslations:
+    def test_every_policy_message_has_a_spanish_line(self):
+        """A message the validator can return must not fall back to English
+        on the Spanish page. If a rule is added, add its line too."""
+        from app.auth.hosted_locale import PASSWORD_POLICY_COPY
+        from app.services.auth_service import AuthService
+
+        samples = ["Aa1!", "aa1!aa1!aa1!", "AA1!AA1!AA1!", "Aa!!Aa!!Aa!!", "Aa11Aa11Aa11"]
+        messages = {AuthService.validate_password_strength(p)[1] for p in samples}
+        assert len(messages) == 5
+        assert messages == set(PASSWORD_POLICY_COPY["es"])
+
+    def test_the_json_api_message_stays_english(self):
+        from app.services.auth_service import AuthService
+
+        assert AuthService.validate_password_strength("Aa1!") == (
+            False,
+            "Password must be at least 12 characters long",
+        )

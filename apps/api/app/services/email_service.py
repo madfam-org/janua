@@ -19,6 +19,7 @@ import redis.asyncio as redis
 import structlog
 
 from app.auth.hosted_hop import should_use_hosted_hop
+from app.auth.hosted_locale import hosted_locale, with_ui_locales
 from app.config import settings
 from app.services.email_branding import (
     default_formality_for,
@@ -282,10 +283,18 @@ class EmailService:
         # redirects to /login), so the default recovery path could never
         # complete: the one user guaranteed unable to log in is the one
         # holding a reset token.
+        #
+        # The hosted page speaks the email's language: a Spanish email links to
+        # the Spanish page (`ui_locales=es`), an English one to the unchanged
+        # English URL. A product page (`redirect_base`) keeps its own URL; its
+        # language is that product's business.
         if redirect_base:
             reset_url = f"{redirect_base}?token={reset_token}"
         else:
-            reset_url = f"{settings.BASE_URL}/api/v1/auth/reset-password?token={reset_token}"
+            reset_url = with_ui_locales(
+                f"{settings.BASE_URL}/api/v1/auth/reset-password?token={reset_token}",
+                hosted_locale(recipient_locale),
+            )
 
         # Prepare email content
         template_data = {
