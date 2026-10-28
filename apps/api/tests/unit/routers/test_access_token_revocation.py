@@ -307,4 +307,9 @@ async def test_missing_redis_client_fails_closed_not_500():
     with pytest.raises(RedisUnavailableError):
         await token_revocation.is_revoked(None, payload, "access")
     with pytest.raises(RedisUnavailableError):
-        await token_revocation.is_revoked(fakeredis.aioredis.FakeRedis(), payload, "access")
+        await token_revocation.is_revoked(object(), payload, "access")
+    # A raw client is read strictly through the breaker, not refused.
+    raw = fakeredis.aioredis.FakeRedis()
+    assert await token_revocation.is_revoked(raw, payload, "access") is False
+    await raw.set("revoked_family:f-missing-client", "1")
+    assert await token_revocation.is_revoked(raw, payload, "access") is True

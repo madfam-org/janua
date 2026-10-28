@@ -47,14 +47,34 @@ slowapi.Limiter = MockLimiter
 import fakeredis.aioredis
 
 _fake_redis_instance = None
+_fake_redis_by_loop: dict = {}
 
 
 def get_fake_redis():
-    """Get or create fake Redis instance"""
+    """Get or create the fake Redis for the running event loop.
+
+    A fakeredis client binds its queues to the loop that first used it, and
+    pytest-asyncio gives each test its own loop: one shared instance raised
+    "bound to a different event loop" on the second test that touched it.
+    Outside a loop (import time) one module-level instance is still returned.
+    """
     global _fake_redis_instance
-    if _fake_redis_instance is None:
-        _fake_redis_instance = fakeredis.aioredis.FakeRedis(decode_responses=True)
-    return _fake_redis_instance
+    import asyncio
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop is None:
+        if _fake_redis_instance is None:
+            _fake_redis_instance = fakeredis.aioredis.FakeRedis(decode_responses=True)
+        return _fake_redis_instance
+    instance = _fake_redis_by_loop.get(id(loop))
+    if instance is None or _fake_redis_by_loop.get((id(loop), "loop")) is not loop:
+        instance = fakeredis.aioredis.FakeRedis(decode_responses=True)
+        _fake_redis_by_loop[id(loop)] = instance
+        _fake_redis_by_loop[(id(loop), "loop")] = loop
+    return instance
 
 
 # Patch Redis module before app imports

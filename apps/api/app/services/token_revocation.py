@@ -89,10 +89,16 @@ async def is_revoked(
     keys = revocation_keys(payload, token_type)
     if not keys:
         return False
-    # No client (Redis never initialised, or a raw client without the strict
-    # read) cannot say "not revoked": fail closed like an outage, never 500.
-    if redis is None or not hasattr(redis, "strict_exists"):
+    # No client (Redis never initialised) cannot say "not revoked": fail
+    # closed like an outage, never 500. A raw client (what get_redis hands out
+    # before the breaker wraps it, and the test doubles) gets the same strict
+    # read through the breaker instead of an AttributeError.
+    if redis is None:
         raise RedisUnavailableError("revocation list unavailable")
+    if not hasattr(redis, "strict_exists"):
+        if not hasattr(redis, "exists"):
+            raise RedisUnavailableError("revocation list unavailable")
+        redis = ResilientRedisClient(redis)
     return await redis.strict_exists(*keys) > 0
 
 
