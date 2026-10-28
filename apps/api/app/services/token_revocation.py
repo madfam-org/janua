@@ -48,7 +48,7 @@ from typing import Any, Mapping, Optional
 import structlog
 
 from app.config import settings
-from app.core.redis_circuit_breaker import ResilientRedisClient
+from app.core.redis_circuit_breaker import RedisUnavailableError, ResilientRedisClient
 
 logger = structlog.get_logger()
 
@@ -89,6 +89,10 @@ async def is_revoked(
     keys = revocation_keys(payload, token_type)
     if not keys:
         return False
+    # No client (Redis never initialised, or a raw client without the strict
+    # read) cannot say "not revoked": fail closed like an outage, never 500.
+    if redis is None or not hasattr(redis, "strict_exists"):
+        raise RedisUnavailableError("revocation list unavailable")
     return await redis.strict_exists(*keys) > 0
 
 

@@ -297,3 +297,14 @@ class TestRedisDown:
         resp = await env.http.delete(f"{PROTECTED}{other_id}", headers=_bearer(access))
 
         assert resp.status_code == 200, resp.text
+
+
+async def test_missing_redis_client_fails_closed_not_500():
+    """No client (never initialised / raw client) is an outage, not 'not revoked'."""
+    from app.services import token_revocation
+
+    payload = {"jti": "j-missing-client", "family": "f-missing-client"}
+    with pytest.raises(RedisUnavailableError):
+        await token_revocation.is_revoked(None, payload, "access")
+    with pytest.raises(RedisUnavailableError):
+        await token_revocation.is_revoked(fakeredis.aioredis.FakeRedis(), payload, "access")

@@ -124,6 +124,12 @@ async def flow(pg, monkeypatch):
 
     app.dependency_overrides[get_db] = database
     app.dependency_overrides[get_redis] = native_cache
+    # tests/conftest.py swaps app.core.redis.get_redis for a fakeredis helper,
+    # but app.dependencies may already hold the original: override the
+    # dependency get_current_user actually declares, too.
+    from app import dependencies as auth_dependencies
+
+    app.dependency_overrides[auth_dependencies.get_redis] = native_cache
 
     def headers(user=actor, claims=None):
         token, _, _ = manager.create_access_token(str(user.id), user.email, claims)
