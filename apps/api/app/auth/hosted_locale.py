@@ -5,7 +5,9 @@ A client that knows its person's language says so on the authorize request
 preference). ``/oauth/authorize`` carries the first tag Janua can render to the
 hosted login page, and every hosted page after it (the password and sign-in
 link forms, their error re-renders, «check your inbox», password recovery)
-carries it forward in a hidden field or a query parameter.
+carries it forward in a hidden field or a query parameter. The recovery email
+carries it too: its default link opens the hosted reset page with
+``ui_locales=es`` when the email itself went out in Spanish.
 
 ENGLISH STAYS THE DEFAULT, BYTE FOR BYTE. A request without ``ui_locales`` (every
 client before MADFAM CV) renders exactly the English page it rendered before:
@@ -136,6 +138,33 @@ HOSTED_COPY: Dict[str, Dict[str, str]] = {
             "sign in with that one."
         ),
         "invite_only_other_account": "Use another account",
+        # The reset page the recovery email opens (/reset-password and the
+        # pages its form answers with).
+        "reset_tagline": "Choose a new password",
+        "reset_new_password_label": "New password",
+        "reset_confirm_label": "Confirm new password",
+        "reset_policy_hint": (
+            "At least 12 characters, with an uppercase letter, a lowercase letter, "
+            "a number, and a special character."
+        ),
+        "reset_button": "Set new password",
+        "reset_missing_token": (
+            "This page needs the link from your reset email. Open the most recent "
+            "password-reset email and use its button or URL."
+        ),
+        "reset_missing_token_retry": (
+            'Need a new link? <a href="{forgot_url}">Request one here</a>.'
+        ),
+        "reset_mismatch": "The two passwords don't match.",
+        "reset_done_tagline": "Password updated",
+        "reset_done": (
+            "Your password has been updated. Close this tab and sign in again from "
+            "the application you came from."
+        ),
+        "reset_expired": (
+            "This reset link is invalid or has expired (links work once and last 1 hour)."
+        ),
+        "reset_expired_retry": 'Request a fresh one <a href="{forgot_url}">here</a>.',
     },
     "es": {
         "sign_in_title": "Iniciar sesión - Janua",
@@ -200,8 +229,69 @@ HOSTED_COPY: Dict[str, Dict[str, str]] = {
             "El acceso es por invitación. Si te invitaron con otro correo, entra con ese."
         ),
         "invite_only_other_account": "Usar otra cuenta",
+        "reset_tagline": "Elige una contraseña nueva",
+        "reset_new_password_label": "Contraseña nueva",
+        "reset_confirm_label": "Confirma la contraseña nueva",
+        "reset_policy_hint": (
+            "Al menos 12 caracteres, con una mayúscula, una minúscula, un número "
+            "y un carácter especial."
+        ),
+        "reset_button": "Guardar contraseña",
+        "reset_missing_token": (
+            "Esta página necesita el enlace del correo para cambiar tu contraseña. "
+            "Abre el correo más reciente y usa su botón o su enlace."
+        ),
+        "reset_missing_token_retry": (
+            '¿Necesitas un enlace nuevo? <a href="{forgot_url}">Pídelo aquí</a>.'
+        ),
+        "reset_mismatch": "Las dos contraseñas no coinciden.",
+        "reset_done_tagline": "Contraseña actualizada",
+        # No client context reaches this page, so it cannot link back: it names
+        # the way back in words instead.
+        "reset_done": (
+            "Tu contraseña quedó lista. Vuelve a la aplicación de donde venías y "
+            "entra con tu correo y tu nueva contraseña."
+        ),
+        "reset_expired": (
+            "Este enlace para cambiar la contraseña no es válido o ya venció "
+            "(cada enlace funciona una sola vez y dura 1 hora)."
+        ),
+        "reset_expired_retry": 'Pide uno nuevo <a href="{forgot_url}">aquí</a>.',
     },
 }
+
+
+# The password policy speaks English at its source
+# (`AuthService.validate_password_strength`), and the JSON API returns those
+# messages verbatim to clients that may match on them. The hosted reset page
+# translates them at render time instead, keyed on the exact English message:
+# the API keeps its strings, and a message without an entry here (a policy rule
+# added later) still shows, in English, rather than disappearing.
+PASSWORD_POLICY_COPY: Dict[str, Dict[str, str]] = {
+    "es": {
+        "Password must be at least 12 characters long": (
+            "La contraseña debe tener al menos 12 caracteres."
+        ),
+        "Password must contain at least one uppercase letter": (
+            "La contraseña debe tener al menos una letra mayúscula."
+        ),
+        "Password must contain at least one lowercase letter": (
+            "La contraseña debe tener al menos una letra minúscula."
+        ),
+        "Password must contain at least one number": (
+            "La contraseña debe tener al menos un número."
+        ),
+        "Password must contain at least one special character": (
+            "La contraseña debe tener al menos un carácter especial."
+        ),
+    },
+}
+
+
+def password_policy_message(message: str, locale: Optional[str]) -> str:
+    """A password-policy message in the page's language (unchanged for English
+    and for any message without a translation)."""
+    return PASSWORD_POLICY_COPY.get(locale or DEFAULT_HOSTED_LOCALE, {}).get(message, message)
 
 
 def hosted_copy(locale: Optional[str]) -> Dict[str, str]:
@@ -225,3 +315,15 @@ def ui_locales_query(locale: Optional[str]) -> str:
     if locale == "es":
         return f"?{UI_LOCALES_PARAM}=es"
     return ""
+
+
+def with_ui_locales(url: str, locale: Optional[str]) -> str:
+    """``url`` with ``ui_locales=es`` added for a non-default page language.
+
+    For links that already carry a query (the reset email's ``?token=…``).
+    English, or no language, returns ``url`` unchanged.
+    """
+    if locale != "es":
+        return url
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}{UI_LOCALES_PARAM}=es"
