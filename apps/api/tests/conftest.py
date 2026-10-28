@@ -2,16 +2,17 @@
 Global test configuration and fixtures
 Comprehensive test infrastructure with 85%+ coverage targets
 """
+import asyncio
 import os
+from typing import AsyncGenerator
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 import pytest_asyncio
-import asyncio
-from typing import AsyncGenerator
-from unittest.mock import patch, AsyncMock, MagicMock
+import structlog
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
-import structlog
 
 
 # Mock slowapi before any app imports to prevent rate limiting in tests
@@ -206,8 +207,9 @@ class TestDataFactory:
     async def create_test_user(db: AsyncSession, **kwargs) -> dict:
         """Create a test user in database"""
         try:
-            from app.models import User, UserStatus
             import uuid
+
+            from app.models import User, UserStatus
 
             user_data = TestDataFactory.create_user_data(**kwargs)
 
@@ -410,7 +412,7 @@ class SecurityTestUtils:
 
         results = []
         for payload in sql_payloads:
-            test_params = {k: payload for k in params.keys()}
+            test_params = dict.fromkeys(params.keys(), payload)
             response = await client.get(endpoint, params=test_params)
             results.append(
                 {
@@ -430,7 +432,7 @@ class SecurityTestUtils:
 
         results = []
         for payload in xss_payloads:
-            test_data = {k: payload for k in json_data.keys()}
+            test_data = dict.fromkeys(json_data.keys(), payload)
             response = await client.post(endpoint, json=test_data)
             results.append(
                 {
@@ -496,8 +498,8 @@ def mock_activity_logging():
 def mock_database_dependency():
     """Mock database dependency globally for all tests"""
     try:
-        from app.main import app
         from app.database import get_db
+        from app.main import app
 
         # Override database dependency with mock
         async def override_get_db():
@@ -596,25 +598,6 @@ def mock_database():
     return MagicMock()
 
 
-@pytest.fixture
-def mock_redis():
-    """Mock Redis connection with proper async support"""
-    mock = AsyncMock()
-    mock.get = AsyncMock(return_value=None)
-    mock.set = AsyncMock(return_value=True)
-    mock.setex = AsyncMock(return_value=True)
-    mock.delete = AsyncMock(return_value=True)
-    mock.exists = AsyncMock(return_value=0)
-    mock.hget = AsyncMock(return_value=None)
-    mock.hset = AsyncMock(return_value=1)
-    mock.hdel = AsyncMock(return_value=1)
-    mock.expire = AsyncMock(return_value=True)
-    mock.ttl = AsyncMock(return_value=-2)
-    mock.ping = AsyncMock(return_value=True)
-    mock.close = AsyncMock()
-    return mock
-
-
 @pytest_asyncio.fixture
 async def async_db_session():
     """Mock async database session with proper async support"""
@@ -656,8 +639,8 @@ async def integration_db_session(setup_test_db) -> AsyncGenerator[AsyncSession, 
 @pytest_asyncio.fixture
 async def integration_client(integration_db_session):
     """HTTP client with real database for integration tests"""
-    from app.main import app
     from app.database import get_db
+    from app.main import app
 
     # Override get_db to use real database
     async def override_get_db():
@@ -693,9 +676,10 @@ def anyio_backend():
 @pytest.fixture
 def test_user():
     """Mock test user with realistic data"""
-    from app.models.user import User
-    from uuid import uuid4
     from datetime import datetime
+    from uuid import uuid4
+
+    from app.models.user import User
 
     user = User()
     user.id = uuid4()
@@ -722,9 +706,10 @@ def test_password():
 @pytest.fixture
 def test_user_with_mfa():
     """Mock test user with MFA enabled"""
-    from app.models.user import User
-    from uuid import uuid4
     from datetime import datetime
+    from uuid import uuid4
+
+    from app.models.user import User
 
     user = User()
     user.id = uuid4()
@@ -774,7 +759,7 @@ except ImportError:
 # Pytest auto-discovers fixtures via import; we import the modules to register them
 try:
     from tests.fixtures import (
-        users as _users_fixtures,
+        external_mocks as _external_mocks,
     )  # noqa: F401 - Pytest auto-discovers fixtures
     from tests.fixtures import (
         organizations as _organizations_fixtures,
@@ -783,7 +768,7 @@ try:
         sessions as _sessions_fixtures,
     )  # noqa: F401 - Pytest auto-discovers fixtures
     from tests.fixtures import (
-        external_mocks as _external_mocks,
+        users as _users_fixtures,
     )  # noqa: F401 - Pytest auto-discovers fixtures
 except ImportError:
     # Fixture modules may not be available in all test environments
@@ -903,7 +888,8 @@ def sample_compliance_data():
 @pytest_asyncio.fixture
 async def test_client():
     """Async HTTP client for testing FastAPI endpoints"""
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
+
     from app.main import app
 
     transport = ASGITransport(app=app)
