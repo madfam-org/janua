@@ -16,7 +16,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Re
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -61,11 +60,12 @@ from app.auth.sso_cookie import (
 )
 from app.config import settings
 from app.core.locale import locale_from_request
+from app.core.rate_limit_keys import client_ip_key
 from app.core.redis import ResilientRedisClient, get_redis
 from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.core.url_security import validate_redirect_url
 from app.database import AsyncSessionLocal, get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_user_for_sign_out
 from app.models.system_settings import SettingKeys
 from app.services.account_lockout_service import AccountLockoutService
 from app.services.audit_logger import AuditEventType, AuditLogger
@@ -92,7 +92,7 @@ from ...models import Session as UserSession
 logger = structlog.get_logger()
 
 # Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=client_ip_key)
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -1913,7 +1913,7 @@ async def login(credentials: SignInRequest, request: Request, db: Session = Depe
 async def logout(
     req: Request,
     response: Response,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_for_sign_out),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ):
@@ -1945,7 +1945,7 @@ async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_
 
 @router.post("/signout")
 async def sign_out(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_for_sign_out),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
     req: Request = None,

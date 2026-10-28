@@ -58,10 +58,10 @@ from uuid import UUID
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limit_keys import client_ip_key
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import OrganizationMember, User
@@ -83,7 +83,7 @@ logger = structlog.get_logger()
 
 # Same per-route limiter pattern as routers/v1/auth.py; the global middleware
 # budget for /api/v1/organizations still applies on top.
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=client_ip_key)
 MUTATION_RATE_LIMIT = "30/minute"
 
 #: The role whose live grant authorizes administering an app. Opaque like every

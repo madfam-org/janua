@@ -11,10 +11,17 @@ Keys (all expire on their own; nothing here is permanent state):
 
 - `blacklist:<jti>`: one token (access or refresh) is revoked.
 - `blacklist:<type>:<jti>`: the same, as `JWTManager.blacklist_token` writes it.
-- `revoked_family:<family>`: every refresh token of one rotation family is
-  revoked, including tokens minted from it later. Refresh tokens carry a
-  `family` claim that survives rotation, so this is how a single revocation
-  reaches the whole chain (RFC 7009 §2.1, RFC 6819 §5.2.2.3).
+- `revoked_family:<family>`: every token of one rotation family is revoked,
+  including tokens minted from it later. Refresh tokens carry a `family` claim
+  that survives rotation, so this is how a single revocation reaches the whole
+  chain (RFC 7009 §2.1, RFC 6819 §5.2.2.3). Session access tokens carry the
+  same claim, so revoking a session also reaches every access token it was
+  issued, not only the current one.
+
+Every access-token authentication path (`get_current_user`, the issuer's own
+session reads at `/authorize`, `/userinfo`, introspection, token exchange and
+the service-token boundaries) reads this list through `is_revoked`: one
+`EXISTS` over at most three keys per request.
 
 Reads are strict (`ResilientRedisClient.strict_exists`): when Redis cannot
 answer they raise `RedisUnavailableError`, which the API answers with 503 +
@@ -41,7 +48,7 @@ from typing import Any, Mapping, Optional
 import structlog
 
 from app.config import settings
-from app.core.redis_circuit_breaker import ResilientRedisClient
+from app.core.redis_circuit_breaker import RedisUnavailableError, ResilientRedisClient
 
 logger = structlog.get_logger()
 
@@ -65,7 +72,7 @@ def family_key(family: Any) -> Optional[str]:
 def revocation_keys(payload: Mapping[str, Any], token_type: str) -> list[str]:
     """Keys whose presence means this token is revoked."""
     keys = jti_keys(payload.get("jti"), token_type)
-    if token_type == "refresh":
+    if token_type in ("refresh", "access"):
         key = family_key(payload.get("family"))
         if key:
             keys.append(key)
@@ -82,6 +89,16 @@ async def is_revoked(
     keys = revocation_keys(payload, token_type)
     if not keys:
         return False
+    # No client (Redis never initialised) cannot say "not revoked": fail
+    # closed like an outage, never 500. A raw client (what get_redis hands out
+    # before the breaker wraps it, and the test doubles) gets the same strict
+    # read through the breaker instead of an AttributeError.
+    if redis is None:
+        raise RedisUnavailableError("revocation list unavailable")
+    if not hasattr(redis, "strict_exists"):
+        if not hasattr(redis, "exists"):
+            raise RedisUnavailableError("revocation list unavailable")
+        redis = ResilientRedisClient(redis)
     return await redis.strict_exists(*keys) > 0
 
 

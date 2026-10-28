@@ -367,7 +367,7 @@ _get_user_org_claims = get_user_org_claims
 # ============================================================================
 
 
-def _verify_own_access_token(token: str) -> Optional[dict]:
+async def _verify_own_access_token(token: str) -> Optional[dict]:
     """Verify an access token Janua itself minted, tolerating any audience it mints.
 
     `jwt_manager.verify_token` validates against the single platform audience
@@ -388,17 +388,23 @@ def _verify_own_access_token(token: str) -> Optional[dict]:
     The second pass turns off ONLY the audience check; signature, issuer,
     expiry and token type stay enforced both times, and a token with no usable
     `aud` claim is still refused, exactly as AuthService does.
+
+    A token on the revocation list (signed out, session revoked) is refused
+    like an expired one; `RedisUnavailableError` propagates (503) rather than
+    accepting a token whose revocation status is unknown.
     """
     payload = jwt_manager.verify_token(token, token_type="access")
-    if payload:
-        return payload
-
-    payload = jwt_manager.verify_token(token, token_type="access", verify_audience=False)
     if not payload:
-        return None
-    aud = payload.get("aud")
-    if not isinstance(aud, str) or not aud:
-        logger.warning("Session token carries no usable audience claim")
+        payload = jwt_manager.verify_token(token, token_type="access", verify_audience=False)
+        if not payload:
+            return None
+        aud = payload.get("aud")
+        if not isinstance(aud, str) or not aud:
+            logger.warning("Session token carries no usable audience claim")
+            return None
+
+    if await token_revocation.is_revoked(await get_redis(), payload, "access"):
+        logger.info("Session token refused: revoked")
         return None
     return payload
 
@@ -519,12 +525,14 @@ async def get_user_from_cookie_or_header(
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         try:
-            payload = _verify_own_access_token(token)
+            payload = await _verify_own_access_token(token)
             if payload and payload.get("sub"):
                 result = await db.execute(select(User).where(User.id == payload.get("sub")))
                 user = result.scalar_one_or_none()
                 if user:
                     return user
+        except RedisUnavailableError:
+            raise
         except Exception:
             pass  # Intentionally ignoring - JWT verification failure handled by trying cookie auth next
 
@@ -589,12 +597,14 @@ async def get_user_from_cookie_or_header(
     access_token = request.cookies.get("janua_access_token")
     if access_token:
         try:
-            payload = _verify_own_access_token(access_token)
+            payload = await _verify_own_access_token(access_token)
             if payload and payload.get("sub"):
                 result = await db.execute(select(User).where(User.id == payload.get("sub")))
                 hosted_user = result.scalar_one_or_none()
                 if hosted_user is not None:
                     hosted_payload = payload
+        except RedisUnavailableError:
+            raise
         except Exception:
             pass  # Intentionally ignoring - cookie JWT verification failure means user is not authenticated
 

@@ -17,20 +17,30 @@ from __future__ import annotations
 
 import time
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import fakeredis
 import jwt as pyjwt
 import pytest
 
 from app.config import settings
 from app.core.jwt_manager import jwt_manager
+from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.routers.v1.oauth_provider import (
     _verify_own_access_token,
     get_user_from_cookie_or_header,
 )
 
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture(autouse=True)
+def _empty_revocation_list():
+    """`_verify_own_access_token` reads the revocation list; nothing is revoked here."""
+    redis = ResilientRedisClient(fakeredis.aioredis.FakeRedis(decode_responses=True))
+    with patch("app.routers.v1.oauth_provider.get_redis", AsyncMock(return_value=redis)):
+        yield
 
 
 def _token(*, audience, token_type="access", issuer=None, sub=None, expired=False):
@@ -49,49 +59,53 @@ def _token(*, audience, token_type="access", issuer=None, sub=None, expired=Fals
 
 
 class TestVerifyOwnAccessToken:
-    def test_platform_audience_accepted(self):
-        payload = _verify_own_access_token(_token(audience=settings.JWT_AUDIENCE))
+    async def test_platform_audience_accepted(self):
+        payload = await _verify_own_access_token(_token(audience=settings.JWT_AUDIENCE))
         assert payload and payload["aud"] == settings.JWT_AUDIENCE
 
-    def test_product_audience_accepted(self):
+    async def test_product_audience_accepted(self):
         """The crea-map case — the whole point of B2."""
-        payload = _verify_own_access_token(_token(audience="crea-map"))
+        payload = await _verify_own_access_token(_token(audience="crea-map"))
         assert payload and payload["aud"] == "crea-map"
 
-    def test_nauta_portal_audience_accepted(self):
-        payload = _verify_own_access_token(_token(audience="nauta-portal"))
+    async def test_nauta_portal_audience_accepted(self):
+        payload = await _verify_own_access_token(_token(audience="nauta-portal"))
         assert payload and payload["aud"] == "nauta-portal"
 
-    def test_token_without_audience_rejected(self):
+    async def test_token_without_audience_rejected(self):
         """Tolerating every audience Janua mints is not the same as tolerating
         none — AuthService refuses this too."""
-        assert _verify_own_access_token(_token(audience=None)) is None
+        assert await _verify_own_access_token(_token(audience=None)) is None
 
-    def test_empty_audience_rejected(self):
-        assert _verify_own_access_token(_token(audience="")) is None
+    async def test_empty_audience_rejected(self):
+        assert await _verify_own_access_token(_token(audience="")) is None
 
-    def test_wrong_issuer_still_rejected(self):
-        assert _verify_own_access_token(_token(audience="crea-map", issuer="https://evil")) is None
+    async def test_wrong_issuer_still_rejected(self):
+        assert (
+            await _verify_own_access_token(_token(audience="crea-map", issuer="https://evil"))
+            is None
+        )
 
-    def test_expired_token_still_rejected(self):
-        assert _verify_own_access_token(_token(audience="crea-map", expired=True)) is None
+    async def test_expired_token_still_rejected(self):
+        assert await _verify_own_access_token(_token(audience="crea-map", expired=True)) is None
 
-    def test_refresh_token_still_rejected(self):
+    async def test_refresh_token_still_rejected(self):
         """Token type is enforced in both passes."""
-        assert _verify_own_access_token(_token(audience="crea-map", token_type="refresh")) is None
+        assert (
+            await _verify_own_access_token(_token(audience="crea-map", token_type="refresh"))
+            is None
+        )
 
-    def test_bad_signature_rejected(self):
+    async def test_bad_signature_rejected(self):
         good = _token(audience="crea-map")
         tampered = good[:-4] + ("aaaa" if not good.endswith("aaaa") else "bbbb")
-        assert _verify_own_access_token(tampered) is None
+        assert await _verify_own_access_token(tampered) is None
 
 
 class TestGetUserFromCookieOrHeader:
     def _db_returning(self, user):
         return SimpleNamespace(
-            execute=AsyncMock(
-                return_value=SimpleNamespace(scalar_one_or_none=lambda: user)
-            )
+            execute=AsyncMock(return_value=SimpleNamespace(scalar_one_or_none=lambda: user))
         )
 
     def _request(self, *, cookie=None, header=None):

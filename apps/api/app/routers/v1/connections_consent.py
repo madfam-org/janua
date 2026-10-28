@@ -185,7 +185,7 @@ async def exchange_for_provider_token(
         raise _refuse(400, "unsupported_token_type")
 
     # Actor: the service, with a live grant for this purpose.
-    actor = verify_delegation_service_token(actor_token, CONNECTIONS_DELEGATE_SCOPE)
+    actor = await verify_delegation_service_token(actor_token, CONNECTIONS_DELEGATE_SCOPE)
     client = await current_service_client(db, actor, CONNECTIONS_DELEGATE_SCOPE)
     consent_purpose = require_exchange_client(client, purpose)
 

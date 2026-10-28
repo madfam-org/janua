@@ -14,7 +14,8 @@ from fastapi import APIRouter, HTTPException, Request, status
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+
+from app.core.rate_limit_keys import client_ip_key
 
 logger = structlog.get_logger()
 
@@ -36,7 +37,7 @@ JWT_SECRET = os.getenv("JWT_SECRET_KEY", "beta-secret-key-change-in-production")
 JWT_ALGORITHM = "HS256"
 
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=client_ip_key)
 
 
 class BetaSignUpRequest(BaseModel):

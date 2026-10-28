@@ -187,8 +187,14 @@ class AuthService:
         email: Optional[str] = None,
         audience: Optional[str] = None,
         additional_claims: Optional[dict] = None,
+        family: Optional[str] = None,
     ) -> Tuple[str, str, datetime]:
         """Create JWT access token.
+
+        `family` is the refresh-token family of the session this token belongs
+        to. It is stamped as the `family` claim so that revoking the session
+        (`revoked_family:<family>`) also refuses access tokens minted before
+        the session's latest refresh, not only its current one.
 
         `audience` overrides the platform default `aud` claim. The OIDC path
         has always minted per-client audiences; passing it here lets the
@@ -225,6 +231,8 @@ class AuthService:
                 "aud": audience or settings.JWT_AUDIENCE,
             }
         )
+        if family:
+            payload["family"] = family
 
         if organization_id:
             payload["org"] = organization_id
@@ -573,12 +581,15 @@ class AuthService:
 
         tier_claims = await get_product_tier_claims(user, db, org_id=org_claims.get("org_id"))
 
-        # Create tokens
+        # Create tokens. The refresh-token family is chosen first so the access
+        # token can carry it (see create_access_token).
+        family = secrets.token_urlsafe(32)
         access_token, access_jti, access_expires = AuthService.create_access_token(
             user_id=str(user.id),
             tenant_id=str(user.tenant_id),
             email=user.email,
             audience=audience,
+            family=family,
             additional_claims={
                 **tier_claims,
                 "madfam_entitled_products": madfam_entitled_products,
@@ -593,7 +604,7 @@ class AuthService:
         )
 
         refresh_token, refresh_jti, family, refresh_expires = AuthService.create_refresh_token(
-            user_id=str(user.id), tenant_id=str(user.tenant_id)
+            user_id=str(user.id), tenant_id=str(user.tenant_id), family=family
         )
 
         # Create session in database
@@ -835,6 +846,7 @@ class AuthService:
             user_id=str(user.id),
             tenant_id=str(user.tenant_id),
             email=user.email,
+            family=payload.get("family"),
             additional_claims={
                 **tier_claims,
                 "madfam_entitled_products": madfam_entitled_products,
