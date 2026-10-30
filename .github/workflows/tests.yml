@@ -29,6 +29,7 @@ env:
   API_TESTS_MARKERS: 'not slow and not database'
   API_POSTGRES_TESTS_MARKERS: 'database and not slow'
 
+# Public PR verification uses hosted runners; non-PR routing is retained.
 jobs:
   api-tests:
     name: API Tests (Python)
@@ -244,7 +245,7 @@ jobs:
 
   api-diagnostics:
     name: API Diagnostics (advisory)
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
     # Advisory only, exactly as before the move: these steps report the
     # existing whole-tree backlog and never fail the run. The blocking lint of
     # changed Python files stays in api-tests.
@@ -438,12 +439,12 @@ jobs:
 
   e2e-tests:
     name: E2E Tests (Playwright)
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
     timeout-minutes: 15
 
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:15-alpine
+        image: ${{ github.event_name == 'pull_request' && 'postgres:15-alpine' || 'public.ecr.aws/docker/library/postgres:15-alpine' }}
         env:
           POSTGRES_USER: janua
           POSTGRES_PASSWORD: janua_test
@@ -457,7 +458,7 @@ jobs:
           --health-retries 5
 
       redis:
-        image: public.ecr.aws/docker/library/redis:7-alpine
+        image: ${{ github.event_name == 'pull_request' && 'redis:7-alpine' || 'public.ecr.aws/docker/library/redis:7-alpine' }}
         ports:
           - 6379:6379
         options: >-
@@ -542,7 +543,7 @@ jobs:
   coverage-gate:
     name: Coverage Quality Gate
     needs: [api-tests]
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
     steps:
       - uses: actions/checkout@v7
 

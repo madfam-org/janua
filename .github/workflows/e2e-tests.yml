@@ -18,10 +18,11 @@ env:
   NODE_VERSION: '22'
   NPM_MADFAM_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
 
+# Public PR verification uses hosted runners; non-PR routing is retained.
 jobs:
   e2e-tests:
     name: Playwright E2E Tests
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -31,7 +32,7 @@ jobs:
     # This properly exposes ports to localhost unlike docker-compose
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:15-alpine
+        image: ${{ github.event_name == 'pull_request' && 'postgres:15-alpine' || 'public.ecr.aws/docker/library/postgres:15-alpine' }}
         env:
           POSTGRES_USER: janua
           POSTGRES_PASSWORD: janua
@@ -45,7 +46,7 @@ jobs:
           --health-retries 5
 
       redis:
-        image: public.ecr.aws/docker/library/redis:7-alpine
+        image: ${{ github.event_name == 'pull_request' && 'redis:7-alpine' || 'public.ecr.aws/docker/library/redis:7-alpine' }}
         ports:
           - 6379:6379
         options: >-
