@@ -133,7 +133,11 @@ async def client(monkeypatch):
         async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False),
     )
     app.dependency_overrides[verify_internal_api_key] = lambda: True
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"X-MAP-Mail-Audit-ID": "24fdce23-7ca1-4c2e-85fd-430a7bc94cc2"},
+    ) as client:
         yield client
     app.dependency_overrides.pop(verify_internal_api_key, None)
     await engine.dispose()

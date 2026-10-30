@@ -549,9 +549,15 @@ class TestAuthorizeAcceptsTheEstateCookie:
                     ): r
                 ),
                 SimpleNamespace(scalar_one_or_none=lambda u=user: u),
+                # Authorization rechecks the same live session's assurance.
+                SimpleNamespace(scalar_one_or_none=lambda s=session: s),
             ]
         )
         with (
+            patch(
+                "app.auth.authentication_assurance.user_policy_requires_mfa",
+                AsyncMock(return_value=False),
+            ),
             patch(
                 "app.routers.v1.oauth_provider._get_oauth_client",
                 AsyncMock(return_value=_oauth_client()),

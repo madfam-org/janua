@@ -590,7 +590,10 @@ async def _notice_with_minted_token(env: Env):
     return await env.http.post(
         NOTICE_URL,
         json=notice,
-        headers={"Authorization": f"Bearer {token.json()['access_token']}"},
+        headers={
+            "Authorization": f"Bearer {token.json()['access_token']}",
+            "X-MAP-Mail-Audit-ID": str(uuid.uuid4()),
+        },
     )
 
 

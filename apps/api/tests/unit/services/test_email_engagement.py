@@ -397,8 +397,9 @@ async def test_ctm_credential_missing_falls_back_to_platform_unmeasured(
 
 
 async def test_store_failure_sends_the_message_unmodified(
-    client, sdk_sends, tracking_on, monkeypatch
+    client, sdk_sends, db, tracking_on, monkeypatch
 ):
+    # Only the optional engagement store fails; the durable send intent stays available.
     def broken():
         raise RuntimeError("db down")
 

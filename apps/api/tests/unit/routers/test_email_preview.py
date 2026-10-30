@@ -108,7 +108,8 @@ async def test_template_render_with_ctm_sender(client, ctm_key):
     assert body["subject"] == "Tu pago quedó confirmado"
     assert body["from"] == CTM_FROM
     assert "septiembre de 2026" in body["html"] and "(4 sesiones)" in body["html"]
-    assert body["text"] is None  # /send-template sends HTML only
+    assert "septiembre de 2026" in body["text"]
+    assert "(4 sesiones)" in body["text"]  # Same explicit text alternative as /send-template.
     assert body["template"] == "map/pago-confirmado"
 
 
