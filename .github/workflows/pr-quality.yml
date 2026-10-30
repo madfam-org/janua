@@ -93,6 +93,9 @@ jobs:
           path: |
             apps/*/.next
             packages/*/dist
+          # No workflow downloads this. It was ~0.24 GiB kept for the 90-day
+          # default (2026-10-26); one day is enough to fetch it by hand.
+          retention-days: 1
 
   backend-tests:
     # Disabled - consolidated into tests.yml workflow

@@ -210,7 +210,10 @@ jobs:
         with:
           name: api-coverage-report
           path: apps/api/htmlcov/
-          retention-days: 30
+          # Read by coverage-gate in this same run; Codecov keeps the history.
+          # At 30 days this one report was ~0.66 GiB of the org's artifact
+          # storage on 2026-10-26.
+          retention-days: 3
 
   mcp-schema-evidence:
     name: MCP schema evidence
@@ -538,7 +541,7 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report/
-          retention-days: 30
+          retention-days: 7
 
   coverage-gate:
     name: Coverage Quality Gate
