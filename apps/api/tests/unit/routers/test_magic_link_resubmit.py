@@ -48,7 +48,7 @@ from sqlalchemy.pool import StaticPool
 from starlette.requests import Request
 
 from app.core.redis_circuit_breaker import ResilientRedisClient
-from app.models import Base, MagicLink, User, UserStatus
+from app.models import Base, MagicLink, OAuthClient, OrganizationMember, User, UserStatus
 from app.routers.v1 import auth as auth_router
 
 pytestmark = pytest.mark.asyncio
@@ -76,7 +76,15 @@ async def db():
     )
     async with engine.begin() as conn:
         await conn.run_sync(
-            lambda c: Base.metadata.create_all(c, tables=[User.__table__, MagicLink.__table__])
+            lambda c: Base.metadata.create_all(
+                c,
+                tables=[
+                    User.__table__,
+                    MagicLink.__table__,
+                    OAuthClient.__table__,
+                    OrganizationMember.__table__,
+                ],
+            )
         )
     session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
     async with session_factory() as session:

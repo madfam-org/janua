@@ -23,11 +23,11 @@ def _user(mfa_enabled=True, mfa_secret="SECRET"):
 
 
 class TestGateDefaultOff:
-    def test_off_by_default_even_with_mfa_enabled(self, monkeypatch):
+    def test_voluntary_enrollment_is_enforced_with_flag_off(self, monkeypatch):
         # The flag defaults False; with it off, NO login path is interrupted —
         # this is the property that makes shipping enforcement lock-out-safe.
         monkeypatch.setattr(settings, "MFA_ENFORCE_ON_LOGIN", False, raising=False)
-        assert mfa_required_for(_user(mfa_enabled=True)) is False
+        assert mfa_required_for(_user(mfa_enabled=True)) is True
 
     def test_on_and_enabled_requires_mfa(self, monkeypatch):
         monkeypatch.setattr(settings, "MFA_ENFORCE_ON_LOGIN", True, raising=False)

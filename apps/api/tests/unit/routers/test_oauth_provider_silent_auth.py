@@ -28,6 +28,16 @@ from app.routers.v1.oauth_provider import (
 pytestmark = pytest.mark.asyncio
 
 
+@pytest.fixture(autouse=True)
+def optional_authentication_context(monkeypatch):
+    # These cases isolate prompt/consent behavior without a required-MFA policy.
+    # Live signed-session and mandatory MFA behavior have dedicated regressions.
+    from app.routers.v1 import oauth_provider
+
+    monkeypatch.setattr(oauth_provider, "user_requires_mfa", AsyncMock(return_value=False))
+    monkeypatch.setattr(oauth_provider, "assurance_for_request", AsyncMock(return_value={}))
+
+
 def _client(
     *,
     is_active: bool = True,
@@ -45,6 +55,7 @@ def _client(
         allowed_scopes=allowed_scopes or ["openid", "profile", "email"],
         redirect_uris=redirect_uris or ["https://selva.town/auth/callback"],
         audience=audience,
+        organization_id=None,
         last_used_at=None,
     )
 
@@ -107,20 +118,20 @@ class TestAuthorizeGetSilentAuth:
 
     @pytest.fixture
     def base_kwargs(self):
-        return dict(
-            request=MagicMock(),
-            response_type="code",
-            client_id="selva-office-prod",
-            redirect_uri="https://selva.town/auth/callback",
-            scope="openid profile",
-            state="csrf-xyz",
-            nonce=None,
-            code_challenge="abc",
-            code_challenge_method="S256",
-            prompt="none",
-            db=AsyncMock(),
-            redis=AsyncMock(),
-        )
+        return {
+            "request": MagicMock(),
+            "response_type": "code",
+            "client_id": "selva-office-prod",
+            "redirect_uri": "https://selva.town/auth/callback",
+            "scope": "openid profile",
+            "state": "csrf-xyz",
+            "nonce": None,
+            "code_challenge": "abc",
+            "code_challenge_method": "S256",
+            "prompt": "none",
+            "db": AsyncMock(),
+            "redis": AsyncMock(),
+        }
 
     async def test_no_session_emits_login_required(self, base_kwargs):
         client = _client()

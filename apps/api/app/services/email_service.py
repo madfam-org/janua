@@ -22,6 +22,7 @@ from app.auth.hosted_hop import should_use_hosted_hop
 from app.config import settings
 from app.services.email_branding import (
     default_formality_for,
+    presentation_signals,
     resolve_branding,
     timezone_for,
 )
@@ -39,6 +40,7 @@ from app.services.email_i18n import (
     subject_for,
     template_candidates,
 )
+from app.services.email_presentation import ctm_subject, render_ctm_email
 from app.services.email_sender import (
     binding_for,
     is_automated,
@@ -124,11 +126,17 @@ class EmailService:
         locale: Optional[str] = None,
         formality: Optional[str] = None,
         user: Any = None,
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
     ) -> str:
         """Send email verification email and return verification token"""
 
         recipient_locale = resolve_locale(locale, user=user, default=self._default_locale())
-        recipient_formality = resolve_formality(formality, user=user)
+        recipient_formality = resolve_formality_for_request(
+            formality,
+            user=user,
+            client_default=default_formality_for(org_id=org_id, redirect_url=branding_redirect_url),
+        )
 
         # Generate verification token
         verification_token = self._generate_verification_token()
@@ -155,12 +163,15 @@ class EmailService:
         verification_url = f"{settings.FRONTEND_URL}/auth/verify-email?token={verification_token}"
 
         # Prepare email content
+        signals = presentation_signals(org_id, branding_redirect_url)
         template_data = {
             "user_name": user_name or email.split("@")[0],
             "verification_url": verification_url,
             "verification_link": verification_url,
             "base_url": settings.BASE_URL,
+            "verification_expiry_hours": 24,
             "company_name": "Janua",
+            **resolve_branding(**signals),
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
@@ -169,7 +180,10 @@ class EmailService:
         # reaches this flow — it takes no redirect — so `timezone_for()` yields
         # the MADFAM default, CDMX.
         subject = stamp_subject(
-            subject_for("verification", recipient_locale, recipient_formality),
+            (
+                ctm_subject("verification", template_data, recipient_locale, recipient_formality)
+                or subject_for("verification", recipient_locale, recipient_formality)
+            ),
             now_for_timezone(timezone_for()),
         )
         html_content = self._render_template(
@@ -187,6 +201,7 @@ class EmailService:
             text_content=text_content,
             template="verification",
             token_link=True,
+            **signals,
         )
 
         if success:
@@ -246,6 +261,8 @@ class EmailService:
         locale: Optional[str] = None,
         formality: Optional[str] = None,
         user: Any = None,
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
     ) -> str:
         """Send password reset email for an already-issued token.
 
@@ -262,7 +279,9 @@ class EmailService:
         recipient_formality = resolve_formality_for_request(
             formality,
             user=user,
-            client_default=default_formality_for(redirect_url=redirect_base),
+            client_default=default_formality_for(
+                redirect_url=branding_redirect_url or redirect_base, org_id=org_id
+            ),
         )
 
         # Mirror to Redis for observability (audit 2026-04-23 M2: JSON).
@@ -286,14 +305,18 @@ class EmailService:
             reset_url = f"{redirect_base}?token={reset_token}"
         else:
             reset_url = f"{settings.BASE_URL}/api/v1/auth/reset-password?token={reset_token}"
+            if recipient_locale == "es":
+                reset_url += "&ui_locales=es"
 
         # Prepare email content
+        signals = presentation_signals(org_id, branding_redirect_url or redirect_base)
         template_data = {
             "user_name": user_name or email.split("@")[0],
             "reset_url": reset_url,
             "reset_link": reset_url,
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
+            **resolve_branding(**signals),
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
@@ -303,7 +326,10 @@ class EmailService:
         # ones. `redirect_base` is this flow's host signal (the product page
         # that consumes the token), so the stamp is in that product's zone.
         subject = stamp_subject(
-            subject_for("password_reset", recipient_locale, recipient_formality),
+            (
+                ctm_subject("password_reset", template_data, recipient_locale, recipient_formality)
+                or subject_for("password_reset", recipient_locale, recipient_formality)
+            ),
             now_for_timezone(timezone_for(redirect_url=redirect_base)),
         )
         html_content = self._render_template(
@@ -321,6 +347,7 @@ class EmailService:
             text_content=text_content,
             template="password_reset",
             token_link=True,
+            **signals,
         )
 
         if success:
@@ -337,23 +364,33 @@ class EmailService:
         locale: Optional[str] = None,
         formality: Optional[str] = None,
         user: Any = None,
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
     ) -> bool:
         """Send welcome email to new user"""
 
         recipient_locale = resolve_locale(locale, user=user, default=self._default_locale())
-        recipient_formality = resolve_formality(formality, user=user)
+        recipient_formality = resolve_formality_for_request(
+            formality,
+            user=user,
+            client_default=default_formality_for(org_id=org_id, redirect_url=branding_redirect_url),
+        )
 
+        signals = presentation_signals(org_id, branding_redirect_url)
         template_data = {
             "user_name": user_name or email.split("@")[0],
             "dashboard_url": f"{settings.BASE_URL}/dashboard",
             "dashboard_link": f"{settings.BASE_URL}/dashboard",
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
+            **resolve_branding(**signals),
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
         # Render email template
-        subject = subject_for("welcome", recipient_locale, recipient_formality)
+        subject = ctm_subject(
+            "welcome", template_data, recipient_locale, recipient_formality
+        ) or subject_for("welcome", recipient_locale, recipient_formality)
         html_content = self._render_template(
             "welcome.html", template_data, recipient_locale, recipient_formality
         )
@@ -368,6 +405,7 @@ class EmailService:
             html_content=html_content,
             text_content=text_content,
             template="welcome",
+            **signals,
         )
 
         if success:
@@ -414,6 +452,9 @@ class EmailService:
         resolved_locale = resolve_locale(locale, default=self._default_locale())
         resolved_formality = resolve_formality(formality)
         try:
+            ctm = render_ctm_email(self.jinja_env, template_name, data, resolved_locale, formality)
+            if ctm is not None:
+                return ctm
             template = self.jinja_env.select_template(
                 template_candidates(template_name, resolved_locale)
             )
@@ -650,7 +691,10 @@ class EmailService:
         # signal as the branding and the voice — see email_branding.timezone_for
         # — and the clock is read here, per send, never cached at import.
         subject = stamp_subject(
-            subject_for("magic_link", recipient_locale, recipient_formality),
+            (
+                ctm_subject("magic_link", template_data, recipient_locale, recipient_formality)
+                or subject_for("magic_link", recipient_locale, recipient_formality)
+            ),
             now_for_timezone(timezone_for(redirect_url=redirect_url)),
         )
         html_content = self._render_template(
@@ -691,6 +735,8 @@ class EmailService:
         role: str = "member",
         expires_at: Optional[datetime] = None,
         teams: Optional[list] = None,
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
     ) -> bool:
         """Send an organization invitation.
 
@@ -701,6 +747,7 @@ class EmailService:
         renders the maintained templates and puts them on the same transport
         as every other transactional message.
         """
+        signals = presentation_signals(org_id, branding_redirect_url)
         template_data = {
             "inviter_name": inviter_name,
             "organization_name": organization_name,
@@ -714,10 +761,14 @@ class EmailService:
             "teams": teams or [],
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
+            **resolve_branding(**signals),
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
-        subject = f"{inviter_name} invited you to join {organization_name} on Janua"
+        subject = (
+            ctm_subject("invitation", template_data)
+            or f"{inviter_name} invited you to join {organization_name} on Janua"
+        )
         html_content = self._render_template("invitation.html", template_data)
         text_content = self._render_template("invitation.txt", template_data)
 
@@ -728,6 +779,7 @@ class EmailService:
             text_content=text_content,
             template="invitation",
             token_link=True,
+            **signals,
         )
         if sent:
             logger.info("Invitation email sent", email=_redact_email(email))
@@ -745,6 +797,7 @@ class EmailService:
         template: str | None = None,
         token_link: bool = False,
         message_class: str | None = None,
+        org_id: str | None = None,
     ) -> bool:
         """Send through Resend's HTTPS API.
 
@@ -759,7 +812,9 @@ class EmailService:
         is not a tenant's branded mail leaves as `MADFAM <noreply@madfam.io>`
         with `Reply-To: support@madfam.io`; welcome mail keeps `hola@`.
         """
-        name, address, reply_to = sender_for(redirect_url=redirect_url, message_class=message_class)
+        name, address, reply_to = sender_for(
+            redirect_url=redirect_url, org_id=org_id, message_class=message_class
+        )
 
         # WHICH ACCOUNT CARRIES IT. `sender_for` has already decided the From
         # line, and since 2026-09-07 that decision includes whether the
@@ -772,7 +827,7 @@ class EmailService:
         # that has never verified that domain — a hard Resend rejection on a
         # magic link.
         api_key = settings.RESEND_API_KEY
-        binding = binding_for(redirect_url=redirect_url)
+        binding = binding_for(redirect_url=redirect_url, org_id=org_id)
         if binding.is_on_tenant_account and address == binding.from_address:
             try:
                 tenant_key = await resolve_credential(binding)
@@ -866,6 +921,7 @@ class EmailService:
         template: str | None = None,
         token_link: bool = False,
         message_class: str | None = None,
+        org_id: str | None = None,
     ) -> bool:
         """Send an email via the configured provider.
 
@@ -891,6 +947,7 @@ class EmailService:
                     template=template,
                     token_link=token_link,
                     message_class=message_class,
+                    **({"org_id": org_id} if org_id is not None else {}),
                 )
 
             # Check if email configuration is available
@@ -909,7 +966,7 @@ class EmailService:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
             smtp_name, smtp_address, smtp_reply_to = sender_for(
-                redirect_url=redirect_url, message_class=message_class
+                redirect_url=redirect_url, org_id=org_id, message_class=message_class
             )
             msg["From"] = formataddr((smtp_name, smtp_address))
             msg["To"] = to_email
@@ -965,6 +1022,8 @@ async def send_password_reset_email_task(
     redirect_base: Optional[str] = None,
     locale: Optional[str] = None,
     formality: Optional[str] = None,
+    org_id: Optional[Any] = None,
+    branding_redirect_url: Optional[str] = None,
 ) -> None:
     """Background-task entrypoint for the forgot-password flow.
 
@@ -985,6 +1044,8 @@ async def send_password_reset_email_task(
             redirect_base=redirect_base,
             locale=locale,
             formality=formality,
+            org_id=org_id,
+            branding_redirect_url=branding_redirect_url,
         )
         if not sent:
             logger.warning(
@@ -1052,6 +1113,8 @@ async def send_product_invite_email_task(
     locale: Optional[str] = None,
     formality: Optional[str] = None,
     first_name: Optional[str] = None,
+    org_id: Optional[Any] = None,
+    branding_redirect_url: Optional[str] = None,
 ) -> None:
     """Background-task entrypoint for an operator invitation (product-invites).
 
@@ -1061,17 +1124,24 @@ async def send_product_invite_email_task(
     a product URL; the callback forwards to the invitation's entry route,
     which sends the browser to the product's front door.
 
-    The frame is MADFAM's (no tenant host is involved), the From line is the
-    platform system sender (R101 class `system`, as for every token link), and
-    the language and register are the operator's: the invitation endpoint
+    An optional trusted client organization selects its presentation and the
+    existing sender-binding policy; absent context keeps the MADFAM frame and
+    platform system sender (R101 class `system`, as for every token link). The
+    language and register respect the operator's explicit choices: the endpoint
     passes the `locale` and `formality` it was called with. Never logs the
     address unredacted.
     """
     try:
         service = EmailService()
         recipient_locale = resolve_locale(locale, default=service._default_locale())
-        recipient_formality = resolve_formality(formality)
-        magic_url = f"{settings.public_base_url}/api/v1/auth/magic-link/callback?token={magic_token}"
+        recipient_formality = resolve_formality_for_request(
+            formality,
+            client_default=default_formality_for(org_id=org_id, redirect_url=branding_redirect_url),
+        )
+        signals = presentation_signals(org_id, branding_redirect_url)
+        magic_url = (
+            f"{settings.public_base_url}/api/v1/auth/magic-link/callback?token={magic_token}"
+        )
         template_data = {
             "app_name": app_name,
             "first_name": first_name,
@@ -1081,10 +1151,13 @@ async def send_product_invite_email_task(
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
-            **resolve_branding(redirect_url=None),
+            **resolve_branding(**signals),
         }
         subject = stamp_subject(
-            subject_for("product_invite", recipient_locale, recipient_formality, app_name=app_name),
+            ctm_subject("product_invite", template_data, recipient_locale, recipient_formality)
+            or subject_for(
+                "product_invite", recipient_locale, recipient_formality, app_name=app_name
+            ),
             now_for_timezone(timezone_for()),
         )
         sent = await service._send_email(
@@ -1098,6 +1171,7 @@ async def send_product_invite_email_task(
             ),
             template="product_invite",
             token_link=True,
+            **signals,
         )
         if sent:
             logger.info("Product invitation email sent", email=_redact_email(email))
@@ -1116,6 +1190,8 @@ async def send_verification_email_task(
     user_name: Optional[str] = None,
     locale: Optional[str] = None,
     formality: Optional[str] = None,
+    org_id: Optional[Any] = None,
+    branding_redirect_url: Optional[str] = None,
 ) -> None:
     """Background-task entrypoint for email verification.
 
@@ -1127,8 +1203,12 @@ async def send_verification_email_task(
     try:
         service = EmailService()
         recipient_locale = resolve_locale(locale, default=service._default_locale())
-        recipient_formality = resolve_formality(formality)
+        recipient_formality = resolve_formality_for_request(
+            formality,
+            client_default=default_formality_for(org_id=org_id, redirect_url=branding_redirect_url),
+        )
         verification_url = f"{settings.FRONTEND_URL}/auth/verify-email?token={verification_token}"
+        signals = presentation_signals(org_id, branding_redirect_url)
         template_data = {
             "user_name": user_name or email.split("@")[0],
             "verification_url": verification_url,
@@ -1137,6 +1217,8 @@ async def send_verification_email_task(
             # receives shipped with an empty href.
             "verification_link": verification_url,
             "base_url": settings.BASE_URL,
+            "verification_expiry_hours": 48,
+            **resolve_branding(**signals),
             "company_name": "Janua",
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
@@ -1145,7 +1227,12 @@ async def send_verification_email_task(
             # Stamped like the method above — this task renders the same
             # message on the same pipeline and must not diverge from it.
             subject=stamp_subject(
-                subject_for("verification", recipient_locale, recipient_formality),
+                (
+                    ctm_subject(
+                        "verification", template_data, recipient_locale, recipient_formality
+                    )
+                    or subject_for("verification", recipient_locale, recipient_formality)
+                ),
                 now_for_timezone(timezone_for()),
             ),
             html_content=service._render_template(
@@ -1156,6 +1243,7 @@ async def send_verification_email_task(
             ),
             template="verification",
             token_link=True,
+            **signals,
         )
         if not sent:
             logger.warning("Verification email NOT sent", email=_redact_email(email))

@@ -44,7 +44,7 @@ def _mint_challenge(user_id: str) -> str:
 
 
 @pytest_asyncio.fixture
-async def mfa_form_client():
+async def mfa_form_client(monkeypatch):
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
         poolclass=StaticPool,
@@ -65,9 +65,26 @@ async def mfa_form_client():
 
     fake_redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
 
+    async def strict_set(key, value, ex):
+        return await fake_redis.set(key, value, ex=ex)
+
+    async def strict_set_nx(key, value, ex):
+        return bool(await fake_redis.set(key, value, ex=ex, nx=True))
+
+    fake_redis.strict_set = strict_set
+    fake_redis.strict_set_nx = strict_set_nx
+    fake_redis.strict_get = fake_redis.get
+    fake_redis.strict_exists = fake_redis.exists
+    fake_redis.strict_delete = fake_redis.delete
+
     async def _fake_get_redis():
         return fake_redis
 
+    import app.auth.hosted_security as hosted_security
+    from app.routers.v1 import auth as auth_router
+
+    monkeypatch.setattr(hosted_security, "get_redis", _fake_get_redis)
+    app.dependency_overrides[auth_router.get_redis] = _fake_get_redis
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_redis] = _fake_get_redis
     _orig_get_redis = auth_service_module.get_redis
@@ -182,5 +199,5 @@ async def test_password_form_challenges_enrolled_user_with_flag_off(mfa_form_cli
     )
 
     assert resp.status_code != 302
-    assert "Verification code" in resp.text
+    assert "Confirma tu segundo factor" in resp.text
     assert "janua_access_token=" not in " ".join(resp.headers.get_list("set-cookie"))

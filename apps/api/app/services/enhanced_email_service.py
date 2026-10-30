@@ -19,7 +19,9 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Content, Email, Mail, To
 
 from app.config import settings
+from app.services.email_branding import resolve_branding
 from app.services.email_i18n import build_email_environment
+from app.services.email_presentation import ctm_subject, render_ctm_email
 
 logger = structlog.get_logger()
 
@@ -387,12 +389,21 @@ class EnhancedEmailService:
         recovery_code: str,
         recovery_url: str,
         request_info: Dict[str, Any],
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
+        locale: Optional[str] = None,
+        formality: Optional[str] = None,
+        recovery_expiry_minutes: Optional[int] = None,
     ) -> EmailDeliveryStatus:
         """Send MFA recovery email"""
 
         context = {
+            **resolve_branding(org_id=org_id, redirect_url=branding_redirect_url),
+            "locale": locale,
+            "formality": formality,
             "user_name": user_name,
             "recovery_code": recovery_code,
+            "recovery_expiry_minutes": recovery_expiry_minutes,
             "recovery_url": recovery_url,
             "request_time": request_info.get("timestamp", datetime.utcnow().isoformat()),
             "ip_address": request_info.get("ip_address", "Unknown"),
@@ -403,12 +414,17 @@ class EnhancedEmailService:
         html_template = self.jinja_env.get_template("mfa_recovery.html")
         text_template = self.jinja_env.get_template("mfa_recovery.txt")
 
-        html_content = html_template.render(**context)
-        text_content = text_template.render(**context)
+        html_content = render_ctm_email(self.jinja_env, "mfa_recovery.html", context)
+        text_content = render_ctm_email(self.jinja_env, "mfa_recovery.txt", context)
+        if html_content is None:
+            html_content = html_template.render(**context)
+        if text_content is None:
+            text_content = text_template.render(**context)
 
         return await self.send_email_with_failover(
             to_email=to_email,
-            subject="Account Recovery - Two-Factor Authentication",
+            subject=ctm_subject("mfa_recovery", context)
+            or "Account Recovery - Two-Factor Authentication",
             html_content=html_content,
             text_content=text_content,
             priority=EmailPriority.HIGH,

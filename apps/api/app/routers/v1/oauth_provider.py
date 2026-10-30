@@ -32,6 +32,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.authentication_assurance import (
+    assurance_for_request,
+    has_mfa_assurance,
+    session_assurance,
+    user_requires_mfa,
+)
 from app.auth.authorize_resume import authorize_query
 from app.auth.hosted_locale import UI_LOCALES_PARAM, hosted_locale, page_locale
 from app.auth.invite_only_page import render_invite_only_refusal
@@ -524,6 +530,7 @@ async def get_user_from_cookie_or_header(
                 result = await db.execute(select(User).where(User.id == payload.get("sub")))
                 user = result.scalar_one_or_none()
                 if user:
+                    request.state.authentication_assurance = payload
                     return user
         except Exception:
             pass  # Intentionally ignoring - JWT verification failure handled by trying cookie auth next
@@ -557,10 +564,9 @@ async def get_user_from_cookie_or_header(
             if tab_sid in held:
                 tab_user, _tab_session = await resolve_session_by_id(tab_sid, db)
                 if tab_user is not None:
+                    request.state.authentication_assurance = session_assurance(_tab_session)
                     return tab_user
-                logger.info(
-                    "X-Janua-Session names a held sid whose row is not live; ignoring"
-                )
+                logger.info("X-Janua-Session names a held sid whose row is not live; ignoring")
             else:
                 # A sid not in the signed held-set is refused deliberately: the
                 # header can never front an account this browser was not granted.
@@ -599,8 +605,10 @@ async def get_user_from_cookie_or_header(
             pass  # Intentionally ignoring - cookie JWT verification failure means user is not authenticated
 
     if estate_user is None:
+        request.state.authentication_assurance = hosted_payload or {}
         return hosted_user
     if hosted_user is None or str(hosted_user.id) == str(estate_user.id):
+        request.state.authentication_assurance = session_assurance(estate_session)
         return estate_user
 
     # Two valid cookies, two different people. Prefer the newer session.
@@ -616,7 +624,9 @@ async def get_user_from_cookie_or_header(
 
     estate_started = _session_started_at(estate_session)
     hosted_wins = (
-        hosted_started is not None and estate_started is not None and hosted_started > estate_started
+        hosted_started is not None
+        and estate_started is not None
+        and hosted_started > estate_started
     )
     logger.info(
         "Session cookies name different users; preferring the newer session",
@@ -625,6 +635,9 @@ async def get_user_from_cookie_or_header(
         estate_session_started=estate_started.isoformat() if estate_started else None,
         hosted_session_started=hosted_started.isoformat() if hosted_started else None,
         winner="janua_access_token" if hosted_wins else SSO_COOKIE_NAME,
+    )
+    request.state.authentication_assurance = (
+        hosted_payload if hosted_wins else session_assurance(estate_session)
     )
     return hosted_user if hosted_wins else estate_user
 
@@ -796,6 +809,7 @@ def _generate_id_token(
     client_id: str,
     nonce: Optional[str] = None,
     access_token: Optional[str] = None,
+    authentication_assurance: Optional[dict] = None,
 ) -> str:
     """Generate an OpenID Connect ID Token."""
     now = datetime.now(timezone.utc)
@@ -815,11 +829,12 @@ def _generate_id_token(
         "aud": client_id,
         "exp": int((now + timedelta(hours=1)).timestamp()),
         "iat": int(now.timestamp()),
-        "auth_time": int(now.timestamp()),
         "email": user.email,
         "email_verified": user.email_verified if hasattr(user, "email_verified") else True,
         "name": user.name if hasattr(user, "name") else None,
     }
+
+    claims.update(authentication_assurance or {})
 
     # The person's Spanish register ("tu" | "usted"), only once they have
     # answered; absent otherwise, so an unanswered person's ID token is unchanged.
@@ -1261,9 +1276,7 @@ def _is_first_party_preconsented(client: OAuthClient) -> bool:
     return _is_silent_auth_allowed(client)
 
 
-async def _resolve_held_accounts(
-    held_sids: list[str], db: AsyncSession
-) -> list[tuple[str, Any]]:
+async def _resolve_held_accounts(held_sids: list[str], db: AsyncSession) -> list[tuple[str, Any]]:
     """Resolve each held `sid` to `(sid, user)`: live sessions only, one per person.
 
     A `sid` whose row is revoked, expired, or whose user is not active is
@@ -1642,6 +1655,7 @@ def _login_redirect_for_resource(
 
 async def _authorize_protected_resource(
     *,
+    request: Request,
     current_user: Optional[User],
     response_type: str,
     client_id: str,
@@ -1762,11 +1776,6 @@ async def _authorize_protected_resource(
             return refuse("login_required", "no active Janua session")
         return await send_to_login()
 
-    # Consent is asked on every request for a resource, so a silent request
-    # can never complete.
-    if silent:
-        return refuse("consent_required", "consent is required for this resource")
-
     # Same identity gates as the default path: verified email (after the
     # grace period) and, when enforced, a second factor.
     if settings.REQUIRE_EMAIL_VERIFICATION and not getattr(current_user, "email_verified", False):
@@ -1779,10 +1788,29 @@ async def _authorize_protected_resource(
                     detail="Email verification required. Please verify your email before authorizing third-party applications.",
                 )
 
-    from app.auth.mfa_enforcement import mfa_required_for
+    from app.auth.tenant_login_context import require_client_membership
 
-    if mfa_required_for(current_user):
+    if client.db_client is not None:
+        await require_client_membership(db, current_user, client.db_client)
+    try:
+        authentication_assurance = await assurance_for_request(request, db, current_user)
+    except HTTPException as exc:
+        if exc.status_code != 401:
+            raise
+        if silent:
+            return refuse("interaction_required", "authentication must be renewed")
+        return await send_to_login()
+    organization_id = getattr(client.db_client, "organization_id", None)
+    if await user_requires_mfa(db, current_user, organization_id) and not has_mfa_assurance(
+        authentication_assurance
+    ):
+        if silent:
+            return refuse("interaction_required", "multi-factor authentication is required")
         return await send_to_login(mfa_required=True)
+
+    # A silent request cannot bypass either MFA or the resource's consent.
+    if silent:
+        return refuse("consent_required", "consent is required for this resource")
 
     # 3. Consent, in Spanish, every time.
     csrf_token = await _generate_csrf_token(str(current_user.id), redis)
@@ -1798,6 +1826,7 @@ async def _authorize_protected_resource(
         "code_challenge_method": "S256",
         "resource": resource.resource,
         "user_id": str(current_user.id),
+        "authentication_assurance": authentication_assurance,
     }
     await redis.strict_set(
         f"oauth:auth_request:{auth_request_id}",
@@ -1827,6 +1856,7 @@ async def _authorize_protected_resource(
 
 async def _complete_protected_resource_consent(
     *,
+    request: Request,
     current_user: User,
     auth_request: dict,
     action: str,
@@ -1848,9 +1878,7 @@ async def _complete_protected_resource_consent(
     # rendered, but the registry or the client's document may have changed.
     client, refusal = await _resolve_resource_client(client_id, resource, db)
     if client is None:
-        logger.warning(
-            "oauth.resource_consent.refused", error="invalid_client", reason=refusal
-        )
+        logger.warning("oauth.resource_consent.refused", error="invalid_client", reason=refusal)
         return _authorization_error_page("invalid_client", "the client could not be verified")
     if not redirect_uri_matches(redirect_uri, client.redirect_uris) or _resource_policy_error(
         resource, client, redirect_uri
@@ -1874,10 +1902,28 @@ async def _complete_protected_resource_consent(
             client_validated=True,
         )
 
+    from app.auth.authentication_assurance import validate_live_assurance
+    from app.auth.tenant_login_context import require_client_membership
+
+    if client.db_client is not None:
+        await require_client_membership(db, current_user, client.db_client)
+    authentication_assurance = await assurance_for_request(request, db, current_user)
+    previous_assurance = await validate_live_assurance(
+        db, current_user, auth_request.get("authentication_assurance", {})
+    )
+    if previous_assurance.get("sid") != authentication_assurance.get("sid"):
+        raise HTTPException(428, "Authentication changed; start the connection again")
+    organization_id = getattr(client.db_client, "organization_id", None)
+    if await user_requires_mfa(db, current_user, organization_id) and not has_mfa_assurance(
+        authentication_assurance
+    ):
+        raise HTTPException(428, "Multi-factor authentication required")
+
     auth_code = secrets.token_urlsafe(32)
     code_data = {
         "client_id": client_id,
         "user_id": str(current_user.id),
+        "authentication_assurance": authentication_assurance,
         "redirect_uri": redirect_uri,
         "scope": auth_request.get("scope") or "",
         "resource": resource.resource,
@@ -2029,6 +2075,7 @@ async def authorize_get(
         if isinstance(request, Request) and "scope" not in request.query_params:
             scope_param = None  # omitted: every scope of the resource
         return await _authorize_protected_resource(
+            request=request,
             current_user=current_user,
             response_type=response_type,
             client_id=client_id,
@@ -2149,9 +2196,7 @@ async def authorize_get(
         if force_login:
             logger.info(
                 "prompt forcing interactive login despite a session",
-                prompt_value=(
-                    "select_account" if "select_account" in prompt_values else "login"
-                ),
+                prompt_value=("select_account" if "select_account" in prompt_values else "login"),
                 client_id=client_id,
             )
         # OIDC prompt=none: must NOT prompt — return error and let the caller
@@ -2308,17 +2353,10 @@ async def authorize_get(
                     detail="Email verification required. Please verify your email before authorizing third-party applications.",
                 )
 
-    # SECURITY (2026-08-23): enforce MFA at /authorize. The docstring long claimed
-    # "MFA required → respect it; never bypass" but no check existed. Even with the
-    # login form now gating MFA, a PRE-EXISTING non-MFA session cookie could sail
-    # through here, so /authorize refuses to issue a code for an MFA-enforced user
-    # and sends them back through login to complete the second factor. Gated behind
-    # MFA_ENFORCE_ON_LOGIN (default OFF): inert until the challenge UI ships; when
-    # off, behavior is unchanged. Mirrors the email-verification handling above:
-    # silent auth → login_required error redirect; interactive → back to login.
-    from app.auth.mfa_enforcement import mfa_required_for
-
-    if mfa_required_for(current_user):
+    authentication_assurance = await assurance_for_request(request, db, current_user)
+    if await user_requires_mfa(db, current_user, client.organization_id) and not has_mfa_assurance(
+        authentication_assurance
+    ):
         if silent_auth:
             return _redirect_with_oauth_error(
                 redirect_uri,
@@ -2327,10 +2365,43 @@ async def authorize_get(
                 state=state,
                 client_validated=True,
             )
-        login_params = urlencode(
-            {"client_id": client_id, "client_name": client.name, "mfa_required": "1"}
+        pre_login_id = secrets.token_urlsafe(24)
+        pending = {
+            "response_type": response_type,
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "scope": scope,
+            "state": state,
+            "nonce": nonce,
+            "code_challenge": code_challenge,
+            "code_challenge_method": code_challenge_method,
+            "ui_locales": ui_locales,
+        }
+        await redis.strict_set("oauth:pre_login:" + pre_login_id, json.dumps(pending), ex=600)
+        auth_time = authentication_assurance.get("auth_time")
+        if isinstance(auth_time, int) and 0 <= time.time() - auth_time <= 300:
+            from app.auth.hosted_security import start_factor_flow
+
+            return await start_factor_flow(
+                request,
+                db,
+                current_user,
+                methods=authentication_assurance.get("amr", []),
+                authenticated_at=auth_time,
+                auth_request_id=pre_login_id,
+                client_id=client_id,
+            )
+        return RedirectResponse(
+            "/api/v1/auth/login?"
+            + urlencode(
+                {
+                    "client_id": client_id,
+                    "auth_request_id": pre_login_id,
+                    "ui_locales": ui_locales or "es",
+                }
+            ),
+            302,
         )
-        return RedirectResponse(url=f"/api/v1/auth/login?{login_params}", status_code=302)
 
     # Check if user has already consented to all requested scopes
     requested_scopes = ConsentService.parse_scopes(scope)
@@ -2564,6 +2635,7 @@ async def authorize_get(
     code_data = {
         "client_id": client_id,
         "user_id": str(current_user.id),
+        "authentication_assurance": authentication_assurance,
         "redirect_uri": redirect_uri,
         "scope": scope,
         "nonce": nonce,
@@ -2639,6 +2711,7 @@ async def handle_consent(
         # (no row), its code is bound to the resource, and nothing is stored
         # as remembered consent.
         return await _complete_protected_resource_consent(
+            request=request,
             current_user=current_user,
             auth_request=auth_request,
             action=action,
@@ -2689,11 +2762,18 @@ async def handle_consent(
             detail="Failed to process consent. Please try again.",
         )
 
+    authentication_assurance = await assurance_for_request(request, db, current_user)
+    if await user_requires_mfa(db, current_user, client.organization_id) and not has_mfa_assurance(
+        authentication_assurance
+    ):
+        raise HTTPException(428, "Multi-factor authentication required")
+
     # Generate authorization code
     auth_code = secrets.token_urlsafe(32)
     code_data = {
         "client_id": client_id,
         "user_id": str(current_user.id),
+        "authentication_assurance": authentication_assurance,
         "redirect_uri": redirect_uri,
         "scope": scope,
         "nonce": auth_request.get("nonce"),
@@ -2823,11 +2903,14 @@ async def authorize_post(
                     detail="Email verification required. Please verify your email before authorizing third-party applications.",
                 )
 
+    authentication_assurance = await assurance_for_request(request, db, current_user)
+
     # Generate authorization code and store in Redis
     auth_code = secrets.token_urlsafe(32)
     code_data = {
         "client_id": client_id,
         "user_id": str(current_user.id),
+        "authentication_assurance": authentication_assurance,
         "redirect_uri": redirect_uri,
         "scope": scope,
         "nonce": nonce,
@@ -3127,12 +3210,14 @@ def _resource_token_response(
     access_scopes: list[str],
     refresh_token: Optional[str],
     grant_type: str,
+    authentication_assurance: Optional[dict] = None,
 ) -> JSONResponse:
     access = resource_tokens.mint_access_token(
         resource=resource,
         subject=subject,
         client_id=client.client_id,
         scopes=access_scopes,
+        authentication_assurance=authentication_assurance,
     )
     response_scope = access_scopes + ([OFFLINE_ACCESS_SCOPE] if refresh_token else [])
     body: dict[str, Any] = {
@@ -3221,6 +3306,25 @@ async def _exchange_resource_code(
     if user is None:
         return _oauth_token_error("invalid_grant", "the account is not active")
 
+    from app.auth.authentication_assurance import validate_live_assurance
+    from app.auth.tenant_login_context import require_client_membership
+
+    try:
+        if client.db_client is not None:
+            await require_client_membership(db, user, client.db_client)
+        authentication_assurance = await validate_live_assurance(
+            db, user, code_data.get("authentication_assurance", {})
+        )
+    except HTTPException as exc:
+        if exc.status_code not in (401, 403):
+            raise
+        return _oauth_token_error("invalid_grant", "the authentication is no longer active")
+    organization_id = getattr(client.db_client, "organization_id", None)
+    if await user_requires_mfa(db, user, organization_id) and not has_mfa_assurance(
+        authentication_assurance
+    ):
+        return _oauth_token_error("invalid_grant", "multi-factor authentication is required")
+
     granted = (code_data.get("scope") or "").split()
     access_scopes = [scope for scope in granted if scope in resource.scope_names]
     if not access_scopes:
@@ -3233,6 +3337,7 @@ async def _exchange_resource_code(
             subject=str(user.id),
             client_id=client.client_id,
             scope=" ".join(access_scopes + [OFFLINE_ACCESS_SCOPE]),
+            authentication_assurance=authentication_assurance,
         )
 
     if client.db_client is not None:
@@ -3249,6 +3354,7 @@ async def _exchange_resource_code(
         access_scopes=access_scopes,
         refresh_token=refresh_token,
         grant_type="authorization_code",
+        authentication_assurance=authentication_assurance,
     )
 
 
@@ -3306,6 +3412,23 @@ async def _refresh_resource_token(
     if user is None:
         return _oauth_token_error("invalid_grant", "the account is not active")
 
+    from app.auth.authentication_assurance import validate_live_assurance
+    from app.auth.tenant_login_context import require_client_membership
+
+    try:
+        if client.db_client is not None:
+            await require_client_membership(db, user, client.db_client)
+        authentication_assurance = await validate_live_assurance(db, user, claims)
+    except HTTPException as exc:
+        if exc.status_code not in (401, 403):
+            raise
+        return _oauth_token_error("invalid_grant", "the authentication is no longer active")
+    organization_id = getattr(client.db_client, "organization_id", None)
+    if await user_requires_mfa(db, user, organization_id) and not has_mfa_assurance(
+        authentication_assurance
+    ):
+        return _oauth_token_error("invalid_grant", "multi-factor authentication is required")
+
     # Single use. The first redemption wins the SET NX; any later one is reuse
     # of a rotated token, so the whole family is revoked.
     first_use = await redis.strict_set_nx(
@@ -3337,6 +3460,7 @@ async def _refresh_resource_token(
         scope=claims["scope"],
         family=claims["family"],
         family_iat=claims["family_iat"],
+        authentication_assurance=authentication_assurance,
     )
     return _resource_token_response(
         resource=resource,
@@ -3345,6 +3469,7 @@ async def _refresh_resource_token(
         access_scopes=access_scopes,
         refresh_token=new_refresh_token,
         grant_type="refresh_token",
+        authentication_assurance=authentication_assurance,
     )
 
 
@@ -3656,6 +3781,18 @@ async def _handle_authorization_code_grant(
     # or whose invitation was revoked since — gets no token.
     await _require_invited_access(user, client, db)
 
+    from app.auth.authentication_assurance import validate_live_assurance
+    from app.auth.tenant_login_context import require_client_membership
+
+    await require_client_membership(db, user, client)
+    authentication_assurance = await validate_live_assurance(
+        db, user, code_data.get("authentication_assurance", {})
+    )
+    if await user_requires_mfa(
+        db, user, getattr(client, "organization_id", None)
+    ) and not has_mfa_assurance(authentication_assurance):
+        raise HTTPException(400, "invalid_grant: multi-factor authentication required")
+
     # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status)
     entitlements = await _get_user_entitlements(user, db)
 
@@ -3677,9 +3814,7 @@ async def _handle_authorization_code_grant(
     # unmerged `roles` key would silently clobber the legacy claim by ordering
     # alone. The shared helper also pops the resolver's private transport key,
     # so it can never reach a token.
-    org_claims = merge_app_roles_into_claims(
-        org_claims, existing_roles=entitlements["roles"]
-    )
+    org_claims = merge_app_roles_into_claims(org_claims, existing_roles=entitlements["roles"])
 
     # `{product}_tier` claims (G1-1): the token's own org's product tiers merged
     # with the user's active per-user grants. Products authorize on these, not
@@ -3704,6 +3839,7 @@ async def _handle_authorization_code_grant(
         email=user.email,
         additional_claims={
             **tier_claims,
+            **authentication_assurance,
             "client_id": client.client_id,
             "aud": client_audience,
             "scope": scope,
@@ -3740,6 +3876,7 @@ async def _handle_authorization_code_grant(
     refresh_token, _, _, _ = jwt_manager.create_refresh_token(
         user_id=str(user.id),
         additional_claims={
+            **authentication_assurance,
             "client_id": client.client_id,
             "aud": client_audience,
             "scope": scope,
@@ -3754,6 +3891,7 @@ async def _handle_authorization_code_grant(
             client_id=client.client_id,
             nonce=code_data.get("nonce"),
             access_token=access_token,
+            authentication_assurance=authentication_assurance,
         )
 
     # Update client last_used_at
@@ -3839,6 +3977,16 @@ async def _handle_refresh_token_grant(
     # or whose invitation was revoked since — gets no token.
     await _require_invited_access(user, client, db)
 
+    from app.auth.authentication_assurance import validate_live_assurance
+    from app.auth.tenant_login_context import require_client_membership
+
+    await require_client_membership(db, user, client)
+    authentication_assurance = await validate_live_assurance(db, user, payload)
+    if await user_requires_mfa(
+        db, user, getattr(client, "organization_id", None)
+    ) and not has_mfa_assurance(authentication_assurance):
+        raise HTTPException(400, "invalid_grant: multi-factor authentication required")
+
     # Fetch user entitlements for Galaxy ecosystem (tier, roles, sub_status)
     entitlements = await _get_user_entitlements(user, db)
 
@@ -3858,9 +4006,7 @@ async def _handle_refresh_token_grant(
     # unmerged `roles` key would silently clobber the legacy claim by ordering
     # alone. The shared helper also pops the resolver's private transport key,
     # so it can never reach a token.
-    org_claims = merge_app_roles_into_claims(
-        org_claims, existing_roles=entitlements["roles"]
-    )
+    org_claims = merge_app_roles_into_claims(org_claims, existing_roles=entitlements["roles"])
 
     # `{product}_tier` claims (G1-1): the token's own org's product tiers merged
     # with the user's active per-user grants. Products authorize on these, not
@@ -3890,6 +4036,7 @@ async def _handle_refresh_token_grant(
         email=user.email,
         additional_claims={
             **tier_claims,
+            **authentication_assurance,
             "client_id": client.client_id,
             "aud": client_audience,
             "scope": scope,
@@ -3928,6 +4075,7 @@ async def _handle_refresh_token_grant(
         user_id=str(user.id),
         family=payload.get("family"),
         additional_claims={
+            **authentication_assurance,
             "client_id": client.client_id,
             "aud": client_audience,
             "scope": scope,
@@ -4418,9 +4566,7 @@ async def oidc_end_session(
     `request` is declared last and optional so FastAPI still injects it on the
     real route while the existing keyword-only callers keep working unchanged.
     """
-    return await _perform_oidc_end_session(
-        client_id, post_logout_redirect_uri, state, db, request
-    )
+    return await _perform_oidc_end_session(client_id, post_logout_redirect_uri, state, db, request)
 
 
 @logout_router.post("/logout")
@@ -4443,6 +4589,4 @@ async def oidc_end_session_post(
     share `_perform_oidc_end_session` so the two verbs cannot diverge on any
     security check.
     """
-    return await _perform_oidc_end_session(
-        client_id, post_logout_redirect_uri, state, db, request
-    )
+    return await _perform_oidc_end_session(client_id, post_logout_redirect_uri, state, db, request)

@@ -3,6 +3,7 @@ Multi-Factor Authentication (MFA/TOTP) endpoints
 """
 
 import base64
+import hashlib
 import io
 import secrets
 import string
@@ -68,9 +69,7 @@ class MFADisableRequest(BaseModel):
     """MFA disable request"""
 
     password: str  # Require password for security
-    code: Optional[str] = Field(
-        None, min_length=6, max_length=6
-    )  # Current TOTP code or backup code
+    code: str = Field(..., min_length=6, max_length=9)  # Current TOTP code or backup code
 
 
 class MFAStatusResponse(BaseModel):
@@ -170,14 +169,31 @@ def consume_backup_code(user: "User", code: str) -> bool:
             continue
         if _entry_matches_code(entry, code):
             # Normalize the entry to the current dict shape and mark consumed.
-            user.mfa_backup_codes[i] = {
+            updated = list(entries)
+            updated[i] = {
                 **(entry if isinstance(entry, dict) else {}),
                 "used": True,
                 "used_at": datetime.utcnow().isoformat(),
             }
             # Drop any lingering plaintext from a legacy entry now that it's spent.
-            user.mfa_backup_codes[i].pop("code", None)
+            updated[i].pop("code", None)
+            user.mfa_backup_codes = updated
             return True
+    return False
+
+
+async def consume_totp(user, secret: str, code: str, redis) -> bool:
+    """Accept a TOTP time step once across all workers and continuations."""
+    import time
+
+    totp = pyotp.TOTP(secret)
+    current_step = int(time.time()) // totp.interval
+    for step in range(current_step - 1, current_step + 2):
+        if secrets.compare_digest(totp.generate_otp(step), str(code)):
+            factor = hashlib.sha256(secret.encode()).hexdigest()
+            return await redis.strict_set_nx(
+                f"auth:mfa:totp:{user.id}:{factor}:{step}", "1", ex=totp.interval * 4
+            )
     return False
 
 
@@ -332,6 +348,20 @@ async def disable_mfa(
     db: Session = Depends(get_db),
 ):
     """Disable MFA for current user"""
+    from app.auth.authentication_assurance import user_policy_requires_mfa
+
+    # Same serialization order as policy writes: actor first, then current
+    # membership/policy. Refresh the identity map after waiting for the lock.
+    locked = await db.execute(
+        select(User)
+        .where(User.id == current_user.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    current_user = locked.scalar_one()
+
+    if await user_policy_requires_mfa(db, current_user):
+        raise HTTPException(403, "Tu organización o función requiere el segundo factor")
     # Check if MFA is enabled
     if not current_user.mfa_enabled:
         raise HTTPException(status_code=400, detail="MFA is not enabled")
@@ -343,8 +373,11 @@ async def disable_mfa(
     # Verify TOTP code or backup code if provided
     if request.code:
         # Try TOTP first
-        totp = pyotp.TOTP(current_user.mfa_secret)
-        totp_valid = totp.verify(request.code, valid_window=1)
+        from app.core.redis import get_redis
+
+        totp_valid = await consume_totp(
+            current_user, current_user.mfa_secret, request.code, await get_redis()
+        )
 
         if not totp_valid:
             # Try backup code — hashed compare + single-use enforced via the one
@@ -352,6 +385,12 @@ async def disable_mfa(
             # so a spent backup code could still disable MFA — 2026-08-23 fix).
             if not consume_backup_code(current_user, request.code):
                 raise HTTPException(status_code=400, detail="Invalid verification code")
+
+    # Removing the factor invalidates every prior assurance-bearing session.
+    # Revoke strictly before the factor change, in the same database commit.
+    await AuthService.invalidate_user_sessions(
+        db, current_user.id, reason="mfa_disabled", strict=True, commit=False
+    )
 
     # Disable MFA
     current_user.mfa_enabled = False
@@ -515,7 +554,12 @@ async def initiate_mfa_recovery(email: str, db: Session = Depends(get_db)):
     )
 
     await email_service.send_mfa_recovery_email(
-        to_email=user.email, user_name=user.full_name or user.email, backup_codes=backup_codes
+        to_email=user.email,
+        user_name=user.full_name or user.email,
+        backup_codes=backup_codes,
+        org_id=getattr(user, "tenant_id", None),
+        locale=getattr(user, "locale", None),
+        formality=getattr(user, "spanish_formality", None),
     )
 
     # Log recovery attempt
@@ -597,7 +641,14 @@ async def verify_mfa_challenge(
     # Get the user
     user_id = payload.get("sub")
     result = await db.execute(
-        select(User).where(User.id == UUID(user_id), User.status == UserStatus.ACTIVE)
+        select(User)
+        .where(
+            User.id == UUID(user_id),
+            User.status == UserStatus.ACTIVE,
+            User.is_active.is_(True),
+        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     user = result.scalar_one_or_none()
 
@@ -608,11 +659,14 @@ async def verify_mfa_challenge(
     # challenge token cannot be used for unbounded guessing.
     is_locked, _ = AccountLockoutService.is_account_locked(user)
     if is_locked:
-        raise HTTPException(status_code=401, detail="Too many failed attempts. Sign in again later.")
+        raise HTTPException(
+            status_code=401, detail="Too many failed attempts. Sign in again later."
+        )
 
-    # Verify TOTP code
-    totp = pyotp.TOTP(user.mfa_secret)
-    code_valid = totp.verify(request_data.code, valid_window=1)
+    from app.core.redis import get_redis
+
+    redis = await get_redis()
+    code_valid = await consume_totp(user, user.mfa_secret, request_data.code, redis)
 
     # If TOTP failed, try backup codes — hashed compare + single-use via the one
     # shared helper (2026-08-23 fix; was an inline plaintext loop).
@@ -635,11 +689,24 @@ async def verify_mfa_challenge(
             )
         raise HTTPException(status_code=401, detail="Invalid MFA code")
 
+    from app.core.redis import get_redis
+
+    redis = await get_redis()
+    used_key = "auth:mfa:used:" + hashlib.sha256(request_data.mfa_token.encode()).hexdigest()
+    if not await redis.strict_set_nx(used_key, "1", ex=300):
+        raise HTTPException(401, "MFA challenge was already used")
     await AccountLockoutService.reset_failed_attempts(db, user)
 
     # MFA verified — issue real session tokens
     access_token, refresh_token, session = await AuthService.create_session(
-        db, user, ip_address=request.client.host, user_agent=request.headers.get("user-agent")
+        db,
+        user,
+        ip_address=request.client.host,
+        user_agent=request.headers.get("user-agent"),
+        audience=payload.get("audience"),
+        authentication_methods=[*payload.get("amr", ["pwd"]), "otp"],
+        authenticated_at=datetime.utcfromtimestamp(payload.get("auth_time", payload["iat"])),
+        mfa_verified_at=datetime.utcnow(),
     )
 
     # Log successful MFA sign-in

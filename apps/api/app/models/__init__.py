@@ -263,6 +263,9 @@ class Session(Base):
     revoked_at = Column(DateTime)  # When session was revoked
     revoked_reason = Column(String(255))  # Reason for revocation
     is_trusted_device = Column(Boolean, default=False)  # If this session is from a trusted device
+    authentication_methods = Column(JSONB, nullable=False, default=list)
+    authenticated_at = Column(DateTime, nullable=True)
+    mfa_verified_at = Column(DateTime, nullable=True)
     expires_at = Column(DateTime, nullable=False)
     last_activity = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -1123,3 +1126,7 @@ User.privacy_settings = relationship(
 
 from app.models.email_dispatch import PaymentMailDispatch  # noqa: E402,F401
 from app.models.email_event import EmailEvent, EmailTrackingLink  # noqa: E402,F401
+from app.models.organization_authentication_policy import (  # noqa: E402,F401
+    OrganizationAuthenticationPolicy,
+    OrganizationAuthenticationPolicyChange,
+)

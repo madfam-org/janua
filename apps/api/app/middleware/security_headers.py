@@ -1,4 +1,5 @@
 """Security Headers Middleware for Janua API"""
+
 from typing import Callable
 
 import structlog
@@ -32,13 +33,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if response.headers.get("Referrer-Policy") != "no-referrer":
+            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         # Strict Transport Security (HSTS) - only on HTTPS
         if request.url.scheme == "https" or self.strict:
-            response.headers[
-                "Strict-Transport-Security"
-            ] = "max-age=31536000; includeSubDomains; preload"
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains; preload"
+            )
 
         # Content Security Policy
         csp_directives = [
@@ -114,7 +116,26 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             csp_directives[1] = "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:"
             csp_directives[2] = "style-src 'self' 'unsafe-inline' https:"
 
-        response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
+        route_csp = response.headers.get("Content-Security-Policy", "")
+        # Lazy import avoids coupling middleware initialization to auth routers.
+        # Only this exact server-owned policy opts in; a similar header shape,
+        # a request header, or a future custom policy does not grant preservation.
+        from app.auth.hosted_security import SECURITY_CSP
+
+        if route_csp == SECURITY_CSP:
+            # Hosted factor pages permit only their exact issuer-owned CSS.
+            # Keep that stronger response policy instead of Swagger's inline
+            # script/style allowances. Form submissions must still follow the
+            # centrally trusted OAuth redirect chain; self-only breaks a valid
+            # factor POST -> issuer authorization -> registered product return.
+            form_action = next(d for d in csp_directives if d.startswith("form-action "))
+            response.headers["Content-Security-Policy"] = "; ".join(
+                form_action if d.strip().startswith("form-action ") else d.strip()
+                for d in route_csp.split(";")
+                if d.strip()
+            )
+        else:
+            response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
 
         # Permissions Policy (formerly Feature Policy)
         response.headers["Permissions-Policy"] = (

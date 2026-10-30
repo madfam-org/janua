@@ -287,6 +287,7 @@ async def invite_to_product(
         locale=body.locale,
         formality=body.formality,
         first_name=body.first_name,
+        org_id=client.organization_id,
     )
     logger.info(
         "product_invite.queued",

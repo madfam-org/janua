@@ -131,6 +131,7 @@ class InviteMemberHandler(CommandHandler[InviteMemberCommand, InviteMemberResult
                 invitation_url=invitation_url,
                 expires_at=saved_invitation.expires_at,
                 teams=None,
+                org_id=command.organization_id,
             )
         except Exception as e:
             # Log email error but don't fail the invitation
