@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.mfa_enforcement import mfa_challenge_signing_key, opaque_auth_reference
+from app.auth.mfa_enforcement import challenge_replay_key, mfa_challenge_signing_key
 from app.config import settings
 from app.database import get_db
 from app.routers.v1.auth import SignInResponse, TokenResponse, UserResponse, get_current_user
@@ -189,9 +189,9 @@ async def consume_totp(user, secret: str, code: str, redis) -> bool:
     current_step = int(time.time()) // totp.interval
     for step in range(current_step - 1, current_step + 2):
         if secrets.compare_digest(totp.generate_otp(step), str(code)):
-            factor = opaque_auth_reference(secret, purpose="totp-factor")
+            # One valid time step per identity, across every factor/continuation.
             return await redis.strict_set_nx(
-                f"auth:mfa:totp:{user.id}:{factor}:{step}", "1", ex=totp.interval * 4
+                f"auth:mfa:totp:{user.id}:{step}", "1", ex=totp.interval * 4
             )
     return False
 
@@ -636,6 +636,9 @@ async def verify_mfa_challenge(
     # Verify this is an MFA challenge token, not a session token
     if payload.get("type") != "mfa_challenge":
         raise HTTPException(status_code=401, detail="Invalid token type")
+    used_key = challenge_replay_key(payload)
+    if used_key is None:
+        raise HTTPException(status_code=401, detail="Invalid MFA challenge token")
 
     # Get the user
     user_id = payload.get("sub")
@@ -691,9 +694,6 @@ async def verify_mfa_challenge(
     from app.core.redis import get_redis
 
     redis = await get_redis()
-    used_key = "auth:mfa:used:" + opaque_auth_reference(
-        request_data.mfa_token, purpose="mfa-challenge-use"
-    )
     if not await redis.strict_set_nx(used_key, "1", ex=300):
         raise HTTPException(401, "MFA challenge was already used")
     await AccountLockoutService.reset_failed_attempts(db, user)

@@ -40,7 +40,7 @@ from app.auth.login_method import (
     magic_link_login_available,
 )
 from app.auth.magic_link_limits import enforce_magic_link_limits
-from app.auth.mfa_enforcement import mfa_challenge_signing_key, opaque_auth_reference
+from app.auth.mfa_enforcement import challenge_replay_key, mfa_challenge_signing_key
 from app.auth.sessions_cookie import (
     SESSIONS_COOKIE_NAME,
     append_sid,
@@ -1850,6 +1850,9 @@ async def login_form_mfa(
 
     if payload.get("type") != "mfa_challenge":
         return _reject("Invalid verification session. Please sign in again.")
+    used_key = challenge_replay_key(payload)
+    if used_key is None:
+        return _reject("Invalid verification session. Please sign in again.")
 
     result = await db.execute(
         select(User)
@@ -1895,7 +1898,6 @@ async def login_form_mfa(
         # if the original is close to expiry.
         return _reject("Invalid verification code. Please try again.", remint_for=user)
 
-    used_key = "auth:mfa:used:" + opaque_auth_reference(mfa_token, purpose="mfa-challenge-use")
     if not await redis.strict_set_nx(used_key, "1", ex=300):
         return _reject("Esta verificación ya se utilizó. Vuelve a iniciar sesión.")
     await AccountLockoutService.reset_failed_attempts(db, user)

@@ -9,6 +9,7 @@ re-renders the challenge screen (401) with a fresh challenge token.
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from datetime import datetime, timedelta
 
@@ -33,6 +34,7 @@ TEST_SECRET = pyotp.random_base32()
 def _mint_challenge(user_id: str) -> str:
     payload = {
         "sub": str(user_id),
+        "jti": secrets.token_urlsafe(24),
         "type": "mfa_challenge",
         "exp": datetime.utcnow() + timedelta(minutes=5),
         "iat": datetime.utcnow(),

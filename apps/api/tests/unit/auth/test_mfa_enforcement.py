@@ -112,14 +112,18 @@ class TestChallengeSigningKey:
             )
 
 
-def test_opaque_auth_references_are_purpose_and_key_bound(monkeypatch):
-    from app.auth.mfa_enforcement import opaque_auth_reference
-    from app.config import settings
+def test_challenge_replay_identity_is_random_bounded_and_not_a_credential():
+    from types import SimpleNamespace
 
-    monkeypatch.setattr(settings, "JWT_SECRET_KEY", "synthetic-reference-key-one")
-    first = opaque_auth_reference("synthetic-random-capability", purpose="mfa-challenge-use")
-    assert first == opaque_auth_reference("synthetic-random-capability", purpose="mfa-challenge-use")
-    assert len(first) == 64 and "synthetic" not in first
-    assert first != opaque_auth_reference("synthetic-random-capability", purpose="totp-factor")
-    monkeypatch.setattr(settings, "JWT_SECRET_KEY", "synthetic-reference-key-two")
-    assert first != opaque_auth_reference("synthetic-random-capability", purpose="mfa-challenge-use")
+    import jwt
+
+    from app.auth.mfa_enforcement import challenge_replay_key, mint_mfa_challenge_token
+
+    user = SimpleNamespace(id="synthetic-subject")
+    first, second = [jwt.decode(mint_mfa_challenge_token(user), options={"verify_signature": False}) for _ in range(2)]
+    assert first["jti"] != second["jti"]
+    assert challenge_replay_key(first) == "auth:mfa:used:" + first["jti"]
+    assert "synthetic-subject" not in challenge_replay_key(first)
+    for invalid in [None, "short", "x" * 129, "line\ncontrol", 123]:
+        assert challenge_replay_key({"jti": invalid}) is None
+    assert challenge_replay_key({}) is None

@@ -147,3 +147,13 @@ Production and training login provenance uses the active native registration's
 exact MAP redirect host. A platform-pool registration may have no organization;
 that does not invent a tenant identity pool. The mail organization is resolved
 from Janua's server-owned sender binding after the destination is verified.
+
+## Authentication replay metadata
+
+MFA replay keys use the signature-verified random `jti` already minted by Janua,
+not a password/token fingerprint ([RFC 7519 section 4.1.7](https://datatracker.ietf.org/doc/html/rfc7519#section-4.1.7)).
+Missing or malformed IDs fail closed before account/factor lookup; an in-flight
+legacy challenge without an ID must restart sign-in (challenge TTL is 5 minutes).
+TOTP time steps are accepted once per identity across all continuations. OAuth
+logs no longer contain credential-derived references. Password verification
+continues to use bcrypt; no alert suppression or fast password hash is added.

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -47,17 +48,17 @@ def mfa_challenge_signing_key() -> str:
     raise RuntimeError("No signing key is configured for MFA challenge tokens")
 
 
-def opaque_auth_reference(value: str, *, purpose: str) -> str:
-    """Blind a replay/log key with a purpose-separated server secret.
+def challenge_replay_key(claims: dict) -> str | None:
+    """Index a signature-verified challenge by its random JWT ID, never its token.
 
-    This is an identifier for a random bearer capability/TOTP factor, never a
-    password verifier. Password checking continues to use AuthService's bcrypt.
-    Both MFA entry routes use the same purpose so replay protection is shared.
+    The issuer generates 192 random bits. A missing/malformed ID is refused,
+    including legacy challenges: restart sign-in instead of weakening one-use.
+    See RFC 7519 section 4.1.7; the caller must verify the signature first.
     """
-    key = hmac.digest(
-        mfa_challenge_signing_key().encode("utf-8"), b"janua.opaque-reference.v1", "sha256"
-    )
-    return hmac.digest(key, purpose.encode("utf-8") + b"\0" + value.encode("utf-8"), "sha256").hex()
+    identity = claims.get("jti")
+    if not isinstance(identity, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", identity):
+        return None
+    return "auth:mfa:used:" + identity
 
 
 def mfa_required_for(user) -> bool:

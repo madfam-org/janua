@@ -29,7 +29,7 @@ async def test_map_rejects_missing_or_malformed_attempt_before_transport(
                 "/api/v1/internal/email/" + endpoint, json=body, headers=headers
             )
         assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "map_mail_audit_id_required"
+        assert response.json()["error"]["message"]["code"] == "map_mail_audit_id_required"
         provider.assert_not_called()
     finally:
         app.dependency_overrides.pop(verify_internal_api_key, None)

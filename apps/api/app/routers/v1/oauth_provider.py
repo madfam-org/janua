@@ -42,7 +42,6 @@ from app.auth.authorize_resume import authorize_query
 from app.auth.hosted_locale import UI_LOCALES_PARAM, hosted_locale, page_locale
 from app.auth.invite_only_page import render_invite_only_refusal
 from app.auth.login_method import normalize_login_method
-from app.auth.mfa_enforcement import opaque_auth_reference
 from app.auth.resource_consent_page import render_resource_consent_page
 from app.auth.sessions_cookie import (
     SESSIONS_COOKIE_NAME,
@@ -723,15 +722,6 @@ AUTH_CODE_PREFIX = "oauth:code:"
 AUTH_CODE_TTL = 600  # 10 minutes
 
 
-def _auth_code_ref(code: str) -> str:
-    """Log-safe reference to an authorization code (never the code itself).
-
-    The code is a bearer credential until redeemed; logs carry a short
-    server-keyed reference so store and lookup lines can still be correlated.
-    """
-    return opaque_auth_reference(code, purpose="oauth-code-log")[:12]
-
-
 async def _store_auth_code(code: str, data: dict, redis: ResilientRedisClient):
     """Store authorization code in Redis with TTL.
 
@@ -740,10 +730,9 @@ async def _store_auth_code(code: str, data: dict, redis: ResilientRedisClient):
     where the token endpoint on the other pod cannot find it.
     """
     key = f"{AUTH_CODE_PREFIX}{code}"
-    ref = _auth_code_ref(code)
-    logger.info("Storing auth code in Redis", code_ref=ref, client_id=data.get("client_id"))
+    logger.info("Storing auth code in Redis", client_id=data.get("client_id"))
     await redis.strict_set(key, json.dumps(data), ex=AUTH_CODE_TTL)
-    logger.info("Auth code stored successfully", code_ref=ref)
+    logger.info("Auth code stored successfully")
 
 
 async def _get_auth_code(code: str, redis: ResilientRedisClient) -> dict | None:
@@ -753,13 +742,12 @@ async def _get_auth_code(code: str, redis: ResilientRedisClient) -> dict | None:
     already redeemed — replay of a single-use code.
     """
     key = f"{AUTH_CODE_PREFIX}{code}"
-    ref = _auth_code_ref(code)
-    logger.info("Retrieving auth code from Redis", code_ref=ref)
+    logger.info("Retrieving auth code from Redis")
     data = await redis.strict_get(key)
     if data:
-        logger.info("Auth code found in Redis", code_ref=ref)
+        logger.info("Auth code found in Redis")
         return json.loads(data)
-    logger.warning("Auth code NOT found in Redis", code_ref=ref)
+    logger.warning("Auth code NOT found in Redis")
     return None
 
 

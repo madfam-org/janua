@@ -19,6 +19,7 @@ Two things are guarded here:
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from datetime import datetime, timedelta
 
@@ -46,6 +47,7 @@ def _mint_challenge(user_id: str, *, expired: bool = False, wrong_type: bool = F
     exp = datetime.utcnow() + (timedelta(minutes=-1) if expired else timedelta(minutes=5))
     payload = {
         "sub": str(user_id),
+        "jti": secrets.token_urlsafe(24),
         "type": "session" if wrong_type else "mfa_challenge",
         "exp": exp,
         "iat": datetime.utcnow(),

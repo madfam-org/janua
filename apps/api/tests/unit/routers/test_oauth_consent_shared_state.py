@@ -378,7 +378,9 @@ class TestAuthCodeLogging:
             await _get_auth_code(code, pod)
         rendered = repr(log.mock_calls)
         assert code not in rendered
-        assert "code_ref" in rendered
+        assert "code_ref" not in rendered
+        assert "Auth code stored successfully" in rendered
+        assert "Auth code NOT found" in rendered
 
 
 @pytest.fixture(autouse=True)
