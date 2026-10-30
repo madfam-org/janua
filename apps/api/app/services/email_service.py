@@ -20,6 +20,7 @@ import structlog
 
 from app.auth.hosted_hop import should_use_hosted_hop
 from app.auth.hosted_locale import hosted_locale, with_ui_locales
+from app.auth.map_mail_hold import map_auth_mail_held
 from app.config import settings
 from app.services.email_branding import (
     default_formality_for,
@@ -138,6 +139,8 @@ class EmailService:
         branding_redirect_url: Optional[str] = None,
     ) -> str:
         """Send email verification email and return verification token"""
+        if map_auth_mail_held(template="verification", redirect_url=branding_redirect_url):
+            raise ValueError("MAP non-magic auth mail held")
 
         recipient_locale = resolve_locale(locale, user=user, default=self._default_locale())
         recipient_formality = resolve_formality_for_request(
@@ -279,6 +282,10 @@ class EmailService:
         generated its own token here, so the emailed link could never match
         the stored one.
         """
+        if map_auth_mail_held(
+            template="password_reset", redirect_url=branding_redirect_url or redirect_base
+        ):
+            raise ValueError("MAP non-magic auth mail held")
 
         recipient_locale = resolve_locale(locale, user=user, default=self._default_locale())
         # Same requester-voice chain as the magic link: this flow also carries a
@@ -382,6 +389,8 @@ class EmailService:
         branding_redirect_url: Optional[str] = None,
     ) -> bool:
         """Send welcome email to new user"""
+        if map_auth_mail_held(template="welcome", redirect_url=branding_redirect_url):
+            raise ValueError("MAP non-magic auth mail held")
 
         recipient_locale = resolve_locale(locale, user=user, default=self._default_locale())
         recipient_formality = resolve_formality_for_request(
@@ -764,6 +773,9 @@ class EmailService:
         renders the maintained templates and puts them on the same transport
         as every other transactional message.
         """
+        if map_auth_mail_held(template="invitation", redirect_url=branding_redirect_url):
+            raise ValueError("MAP non-magic auth mail held")
+
         signals = presentation_signals(org_id, branding_redirect_url)
         template_data = {
             "inviter_name": inviter_name,
@@ -961,6 +973,9 @@ class EmailService:
         `message_class` (R101) defaults to the class of `template`, so every
         mailer here is classified by the template it already names.
         """
+        if map_auth_mail_held(template=template, redirect_url=redirect_url, org_id=org_id):
+            logger.info("map_auth_mail.held", message_kind=template or "auth")
+            return False
         message_class = message_class or message_class_for_template(template)
 
         try:
@@ -1186,6 +1201,10 @@ async def send_product_invite_email_task(
     passes the `locale` and `formality` it was called with. Never logs the
     address unredacted.
     """
+    if map_auth_mail_held(template="invitation", redirect_url=branding_redirect_url):
+        logger.info("map_auth_mail.held", message_kind="invitation")
+        return
+
     try:
         service = EmailService()
         recipient_locale = resolve_locale(locale, default=service._default_locale())
@@ -1255,6 +1274,10 @@ async def send_verification_email_task(
     the `email_verifications` table — so the token that got mailed and the token
     that could be verified were never the same value.
     """
+    if map_auth_mail_held(template="verification", redirect_url=branding_redirect_url):
+        logger.info("map_auth_mail.held", message_kind="verification")
+        return
+
     try:
         service = EmailService()
         recipient_locale = resolve_locale(locale, default=service._default_locale())

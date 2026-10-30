@@ -2449,6 +2449,17 @@ async def _dispatch_password_reset(
     selected_client, _ = await login_client_context(
         db, redis, auth_request_id=auth_request_id, client_id=client_id, return_url=return_url
     )
+    from app.auth.map_mail_hold import is_map_login_client
+
+    if selected_client is not None and is_map_login_client(selected_client):
+        return
+    allowed_reset_pages = {
+        value.strip()
+        for value in (settings.PASSWORD_RESET_REDIRECT_ORIGINS or "").split(",")
+        if value.strip()
+    }
+    if redirect_base_raw in allowed_reset_pages and is_map_destination(redirect_base_raw):
+        return
     if selected_client is not None:
         try:
             user = await login_user(db, email, selected_client, active_only=True)
@@ -3194,30 +3205,15 @@ async def _issue_magic_link(
     # supplies the preferred pool; when it cannot decide, the resolver raises
     # and this handler answers 400 rather than signing anyone into an arbitrary
     # tenant. That 400 is REACHABLE in production — it was not, before 013.
-    # SECURITY: Validate the redirect URL to prevent open redirect attacks.
-    # A supplied-but-disallowed destination is a 400 HERE, not a silent None:
-    # the emailed link is built ON the destination host, so nulling it would
-    # mail a link that signs the user in and then dead-ends — a failure the
-    # requesting product cannot see and the recipient cannot fix. (Found live
-    # 2026-08-15: the rehearsal host was missing from CORS_ORIGINS and the
-    # first client-ceremony walkthrough ended on the recovery page.)
-    safe_redirect_url = None
-    if magic_link_data.redirect_url:
-        safe_redirect_url = validate_redirect_url(magic_link_data.redirect_url, default_url=None)
-        if safe_redirect_url is None:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "redirect_url host is not on the allowed list; "
-                    "add it to CORS_ORIGINS before requesting links for it"
-                ),
-            )
-
+    safe_redirect_url = magic_link_data.redirect_url
     # The audit store is checked BEFORE account lookup. An outage must not
     # distinguish an existing identity from an unknown invite-only address.
     mail_audit_id = None
     map_client = await _map_mail_client(db, safe_redirect_url, client_id)
     if map_client is not None:
+        safe_redirect_url = validate_redirect_url(magic_link_data.redirect_url, default_url=None)
+        if safe_redirect_url is None:
+            raise HTTPException(status_code=400, detail="MAP login redirect is not allowed")
         correlation = (
             uuid_metadata(getattr(request.state, "mail_correlation_id", None)) or uuid.uuid4()
         )
@@ -3324,6 +3320,28 @@ async def _issue_magic_link(
                 raise HTTPException(
                     status_code=400,
                     detail="An account with this email exists but is not active",
+                )
+
+    if mail_audit_id is None:
+        # SECURITY: Validate the redirect URL to prevent open redirect attacks.
+        # A supplied-but-disallowed destination is a 400 HERE, not a silent None:
+        # the emailed link is built ON the destination host, so nulling it would
+        # mail a link that signs the user in and then dead-ends — a failure the
+        # requesting product cannot see and the recipient cannot fix. (Found live
+        # 2026-08-15: the rehearsal host was missing from CORS_ORIGINS and the
+        # first client-ceremony walkthrough ended on the recovery page.)
+        safe_redirect_url = None
+        if magic_link_data.redirect_url:
+            safe_redirect_url = validate_redirect_url(
+                magic_link_data.redirect_url, default_url=None
+            )
+            if safe_redirect_url is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "redirect_url host is not on the allowed list; "
+                        "add it to CORS_ORIGINS before requesting links for it"
+                    ),
                 )
 
     # Create magic link token

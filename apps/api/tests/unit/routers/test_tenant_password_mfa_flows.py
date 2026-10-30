@@ -54,7 +54,7 @@ async def env(monkeypatch):
     from app.core import redis as core_redis
     from app.core.database import get_db as core_get_db
     from app.main import app
-    from app.routers.v1 import auth
+    from app.routers.v1 import auth, oauth_provider
 
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
     async with engine.begin() as connection:
@@ -73,7 +73,7 @@ async def env(monkeypatch):
             yield db
 
     get_memory_redis = AsyncMock(return_value=redis)
-    for module in (core_redis, auth, hosted, service):
+    for module in (core_redis, auth, hosted, service, oauth_provider):
         monkeypatch.setattr(module, "get_redis", get_memory_redis)
     monkeypatch.setattr(auth, "send_password_reset_email_task", AsyncMock())
     previous = dict(app.dependency_overrides)
@@ -153,9 +153,11 @@ async def _require(env, requirement="organization"):
             from app.models.app_role import OrganizationMemberAppRole
 
             member = (await db.execute(select(OrganizationMember))).scalar_one()
-            db.add(OrganizationMemberAppRole(
-                organization_member_id=member.id, app="crea-map", role="mfa-required"
-            ))
+            db.add(
+                OrganizationMemberAppRole(
+                    organization_member_id=member.id, app="crea-map", role="mfa-required"
+                )
+            )
             await db.commit()
             return
         db.add(
@@ -256,7 +258,9 @@ async def test_scoped_recovery_targets_passwordless_same_subject(env, monkeypatc
 
 
 @pytest.mark.parametrize("requirement", ["organization", "technical-role"])
-async def test_required_unenrolled_has_no_session_until_factor_and_flow_is_one_use(env, requirement):
+async def test_required_unenrolled_has_no_session_until_factor_and_flow_is_one_use(
+    env, requirement
+):
     await _require(env, requirement)
     flow, data, response = await _flow(env)
     assert "style-src 'sha256-" in response.headers["content-security-policy"]
@@ -419,7 +423,9 @@ async def _oauth_code(env, monkeypatch):
 
 
 @pytest.mark.parametrize("requirement", ["organization", "technical-role"])
-async def test_mfa_oauth_does_not_loop_and_code_refresh_keep_same_session_proof(env, monkeypatch, requirement):
+async def test_mfa_oauth_does_not_loop_and_code_refresh_keep_same_session_proof(
+    env, monkeypatch, requirement
+):
     from app.routers.v1 import oauth_provider
 
     await _require(env, requirement)
@@ -459,7 +465,9 @@ async def test_mfa_oauth_does_not_loop_and_code_refresh_keep_same_session_proof(
 
 
 @pytest.mark.parametrize("requirement", ["organization", "technical-role"])
-async def test_policy_change_between_authorize_and_token_refuses_weak_code(env, monkeypatch, requirement):
+async def test_policy_change_between_authorize_and_token_refuses_weak_code(
+    env, monkeypatch, requirement
+):
     from app.routers.v1 import oauth_provider
 
     assert (await _login(env)).status_code == 302
@@ -486,7 +494,7 @@ async def test_scoped_reset_page_and_policy_errors_are_spanish(env):
         "/api/v1/auth/reset-password", params={"token": "synthetic-token", "ui_locales": "es"}
     )
     assert response.status_code == 200
-    assert "Elige tu contraseña" in response.text and "Guardar contraseña" in response.text
+    assert "Elige una contraseña nueva" in response.text and "Guardar contraseña" in response.text
     response = await env.http.post(
         "/api/v1/auth/reset-password-form",
         data={
@@ -602,94 +610,113 @@ async def test_account_disabled_while_factor_is_pending_is_refused(env):
         assert not (await db.execute(select(UserSession))).scalars().all()
 
 
-@pytest.mark.parametrize('channel', ['hosted', 'json'])
+@pytest.mark.parametrize("channel", ["hosted", "json"])
 async def test_technical_role_magic_link_never_mints_a_session_without_factor(env, channel):
     from app.models import MagicLink
 
-    await _require(env, 'technical-role')
-    token = 'synthetic-magic-token-never-emailed'
+    await _require(env, "technical-role")
+    token = "synthetic-magic-token-never-emailed"
     async with env.factory() as db:
-        db.add(MagicLink(user_id=env.user.id, email=env.user.email, token=token,
-                         redirect_url='https://map.test/api/auth/callback',
-                         expires_at=datetime.utcnow() + timedelta(minutes=15)))
+        db.add(
+            MagicLink(
+                user_id=env.user.id,
+                email=env.user.email,
+                token=token,
+                redirect_url="https://map.test/api/auth/callback",
+                expires_at=datetime.utcnow() + timedelta(minutes=15),
+            )
+        )
         await db.commit()
-    if channel == 'json':
-        response = await env.http.post('/api/v1/auth/magic-link/verify', json={'token': token})
+    if channel == "json":
+        response = await env.http.post("/api/v1/auth/magic-link/verify", json={"token": token})
         assert response.status_code == 200
-        assert response.json()['mfa_required'] is True
-        assert response.json()['tokens'] is None
+        assert response.json()["mfa_required"] is True
+        assert response.json()["tokens"] is None
     else:
-        await env.http.get('/api/v1/auth/magic-link/callback', params={'token': token})
-        response = await env.http.post('/api/v1/auth/magic-link/callback', data={'token': token})
+        await env.http.get("/api/v1/auth/magic-link/callback", params={"token": token})
+        response = await env.http.post("/api/v1/auth/magic-link/callback", data={"token": token})
         assert response.status_code == 200
         match = re.search(r'name="flow_id" value="([^"]+)"', response.text)
         assert match
         flow_id = match.group(1)
-        data = json.loads(await env.redis.strict_get('auth:factor:' + flow_id))
-        assert data['methods'] == ['email']
+        data = json.loads(await env.redis.strict_get("auth:factor:" + flow_id))
+        assert data["methods"] == ["email"]
     async with env.factory() as db:
         assert not (await db.execute(select(UserSession))).scalars().all()
-    if channel == 'hosted':
-        result = await env.http.post('/api/v1/auth/factor/complete', data={
-            'flow_id': flow_id, 'code': pyotp.TOTP(data['setup_secret']).now()
-        })
+    if channel == "hosted":
+        result = await env.http.post(
+            "/api/v1/auth/factor/complete",
+            data={"flow_id": flow_id, "code": pyotp.TOTP(data["setup_secret"]).now()},
+        )
         assert result.status_code == 200
         async with env.factory() as db:
             session = (await db.execute(select(UserSession))).scalar_one()
-            assert session.authentication_methods == ['email', 'otp']
+            assert session.authentication_methods == ["email", "otp"]
             assert has_mfa_assurance(session_assurance(session))
 
 
 async def test_technical_role_cannot_disable_factor_under_optional_team_policy(env):
     from app.routers.v1.mfa import MFADisableRequest, disable_mfa
-    await _require(env, 'technical-role')
+
+    await _require(env, "technical-role")
     async with env.factory() as db:
         user = await db.get(User, env.user.id)
         with pytest.raises(HTTPException) as error:
-            await disable_mfa(MFADisableRequest(password=PASSWORD, code='123456'),
-                              current_user=user, db=db)
+            await disable_mfa(
+                MFADisableRequest(password=PASSWORD, code="123456"), current_user=user, db=db
+            )
         assert error.value.status_code == 403
 
 
-@pytest.mark.parametrize('change', ['revoked', 'inactive', 'other-app', 'other-org'])
+@pytest.mark.parametrize("change", ["revoked", "inactive", "other-app", "other-org"])
 async def test_role_requirement_is_live_and_scoped(env, change):
     from app.models.app_role import OrganizationMemberAppRole
     from app.services.organization_authentication_policy import member_requires_mfa
-    await _require(env, 'technical-role')
+
+    await _require(env, "technical-role")
     async with env.factory() as db:
         assert await member_requires_mfa(db, env.user.id, env.org_id)
         grant = (await db.execute(select(OrganizationMemberAppRole))).scalar_one()
-        if change == 'revoked':
+        if change == "revoked":
             grant.revoked_at = datetime.utcnow()
-        if change == 'other-app':
-            grant.app = 'another-app'
-        if change == 'inactive':
+        if change == "other-app":
+            grant.app = "another-app"
+        if change == "inactive":
             member = (await db.execute(select(OrganizationMember))).scalar_one()
-            member.status = 'inactive'
+            member.status = "inactive"
         await db.commit()
-        org_id = uuid.uuid4() if change == 'other-org' else env.org_id
+        org_id = uuid.uuid4() if change == "other-org" else env.org_id
         assert not await member_requires_mfa(db, env.user.id, org_id)
 
 
 async def test_technical_role_blocks_weak_sso_authorization(env, monkeypatch):
     from app.routers.v1 import oauth_provider
+
     assert (await _login(env)).status_code == 302
-    await _require(env, 'technical-role')
-    monkeypatch.setattr(oauth_provider.ConsentService, 'has_consent', AsyncMock(return_value=True))
-    response = await env.http.get('/api/v1/oauth/authorize', params={
-        'response_type':'code', 'client_id':'synthetic-map',
-        'redirect_uri':'https://map.test/api/auth/callback', 'scope':'openid',
-        'state':'synthetic-state', 'code_challenge':'synthetic-challenge',
-        'code_challenge_method':'S256', 'prompt':'none',
-    })
+    await _require(env, "technical-role")
+    monkeypatch.setattr(oauth_provider.ConsentService, "has_consent", AsyncMock(return_value=True))
+    response = await env.http.get(
+        "/api/v1/oauth/authorize",
+        params={
+            "response_type": "code",
+            "client_id": "synthetic-map",
+            "redirect_uri": "https://map.test/api/auth/callback",
+            "scope": "openid",
+            "state": "synthetic-state",
+            "code_challenge": "synthetic-challenge",
+            "code_challenge_method": "S256",
+            "prompt": "none",
+        },
+    )
     assert response.status_code == 302
-    assert 'interaction_required' in response.headers['location']
-    assert 'code=' not in response.headers['location']
+    assert "interaction_required" in response.headers["location"]
+    assert "code=" not in response.headers["location"]
 
 
 async def test_unreadable_role_requirement_is_not_optional(monkeypatch):
     from app.services import organization_authentication_policy as policy
-    monkeypatch.setattr(policy, 'organization_requires_mfa', AsyncMock(return_value=False))
-    db = SimpleNamespace(execute=AsyncMock(side_effect=RuntimeError('synthetic read failure')))
+
+    monkeypatch.setattr(policy, "organization_requires_mfa", AsyncMock(return_value=False))
+    db = SimpleNamespace(execute=AsyncMock(side_effect=RuntimeError("synthetic read failure")))
     with pytest.raises(RuntimeError):
         await policy.member_requires_mfa(db, uuid.uuid4(), uuid.uuid4())

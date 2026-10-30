@@ -14,7 +14,7 @@ BEGIN
   END IF;
 END $$;
 CREATE TABLE IF NOT EXISTS email_send_audits (
-  id UUID PRIMARY KEY,
+  id UUID CONSTRAINT pk_email_send_audits PRIMARY KEY,
   magic_link_id UUID REFERENCES magic_links(id) ON DELETE RESTRICT,
   source_app VARCHAR(64) NOT NULL,
   message_kind VARCHAR(32) NOT NULL,

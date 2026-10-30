@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 import redis.asyncio as redis
 import structlog
 
+from app.auth.map_mail_hold import map_auth_mail_held
 from app.config import settings
 from app.services.email_branding import presentation_signals, resolve_branding
 from app.services.email_engagement import bind_email_id, prepare_engagement
@@ -983,6 +984,15 @@ class ResendEmailService:
     ) -> EmailDeliveryStatus:
         """Send MFA recovery email with backup codes"""
 
+        if map_auth_mail_held(
+            template="mfa_recovery", redirect_url=branding_redirect_url, org_id=org_id
+        ):
+            return EmailDeliveryStatus(
+                message_id="",
+                status="disabled",
+                timestamp=datetime.utcnow(),
+                error_message="MAP non-magic auth mail held",
+            )
         signals = presentation_signals(org_id, branding_redirect_url)
         context = {
             "user_name": user_name,

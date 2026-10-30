@@ -70,3 +70,17 @@ The new audit contains no address, message body, subject, redirect URL, login to
 or provider credential. Existing MagicLink storage remains the identity authority;
 diagnostics on audited paths use audit UUIDs and bounded error classes only.
 Validation uses synthetic fixtures, SQLite and denied outbound networking.
+
+## Non-magic auth hold
+
+A native active login client registered to a MAP host, or an exact configured
+MAP password-reset destination, cannot dispatch self-service reset mail. MAP
+branding destinations are also held at the auth mail transport and recovery
+helpers; no feature toggle releases this rule. Magic login remains the exception.
+The MAP UI removes recovery/create-password email navigation while this hold is
+in force; entering an existing password or a second factor needs no email.
+
+Organization membership alone is not provenance. A generic Janua reset/recovery
+with no verified MAP context remains Janua's own flow, including a shared CTM
+identity recovering for another product. Claimed caller headers never establish
+an authorized human send. The isolated tests cover both sides of this boundary.

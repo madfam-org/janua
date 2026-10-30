@@ -182,10 +182,14 @@ def _client(client_id=CLIENT_ID, name="MADFAM CV"):
 
 async def _authorize(user, client, *, prompt=None, ui_locales=None, entitlements=()):
     with (
-        patch.object(oauth_provider, "get_user_from_cookie_or_header", AsyncMock(return_value=user)),
+        patch.object(
+            oauth_provider, "get_user_from_cookie_or_header", AsyncMock(return_value=user)
+        ),
         patch.object(oauth_provider, "_get_oauth_client", AsyncMock(return_value=client)),
         patch.object(oauth_provider, "_validate_redirect_uri", MagicMock(return_value=True)),
         patch.object(oauth_provider, "_is_silent_auth_allowed", MagicMock(return_value=True)),
+        # This fixture isolates invitation policy; MFA has its own real DB matrix.
+        patch.object(oauth_provider, "user_requires_mfa", AsyncMock(return_value=False)),
         patch(
             "app.services.entitlements_service.get_user_entitlements",
             AsyncMock(return_value=list(entitlements)),
@@ -269,15 +273,26 @@ async def test_open_clients_are_untouched(invite_only):
 async def test_authorize_carries_ui_locales_to_the_login_page(invite_only):
     redis = AsyncMock()
     with (
-        patch.object(oauth_provider, "get_user_from_cookie_or_header", AsyncMock(return_value=None)),
+        patch.object(
+            oauth_provider, "get_user_from_cookie_or_header", AsyncMock(return_value=None)
+        ),
         patch.object(oauth_provider, "_get_oauth_client", AsyncMock(return_value=_client())),
         patch.object(oauth_provider, "_validate_redirect_uri", MagicMock(return_value=True)),
     ):
         resp = await oauth_provider.authorize_get(
-            request=MagicMock(), response_type="code", client_id=CLIENT_ID,
-            redirect_uri="https://cv.example.com/api/auth/callback/janua", scope="openid",
-            state="s", nonce=None, code_challenge="abc", code_challenge_method="S256",
-            prompt=None, login_method="magic_link", ui_locales="es-MX en", db=AsyncMock(),
+            request=MagicMock(),
+            response_type="code",
+            client_id=CLIENT_ID,
+            redirect_uri="https://cv.example.com/api/auth/callback/janua",
+            scope="openid",
+            state="s",
+            nonce=None,
+            code_challenge="abc",
+            code_challenge_method="S256",
+            prompt=None,
+            login_method="magic_link",
+            ui_locales="es-MX en",
+            db=AsyncMock(),
             redis=redis,
         )
     query = parse_qs(urlparse(resp.headers["location"]).query)
@@ -316,13 +331,20 @@ async def test_token_grants_refuse_an_uninvited_person(invite_only):
 async def _pre_login(redis, request_id="req-1", client_id=CLIENT_ID, ui_locales="es"):
     await redis.set(
         f"oauth:pre_login:{request_id}",
-        json.dumps({
-            "response_type": "code", "client_id": client_id,
-            "redirect_uri": f"https://{client_id}.example.com/api/auth/callback/janua",
-            "scope": "openid", "state": "s", "nonce": None, "code_challenge": "abc",
-            "code_challenge_method": "S256", "login_method": "magic_link",
-            "ui_locales": ui_locales,
-        }),
+        json.dumps(
+            {
+                "response_type": "code",
+                "client_id": client_id,
+                "redirect_uri": f"https://{client_id}.example.com/api/auth/callback/janua",
+                "scope": "openid",
+                "state": "s",
+                "nonce": None,
+                "code_challenge": "abc",
+                "code_challenge_method": "S256",
+                "login_method": "magic_link",
+                "ui_locales": ui_locales,
+            }
+        ),
     )
 
 
@@ -333,8 +355,13 @@ async def test_hosted_form_does_not_create_a_stranger_and_says_the_same_thing(en
     with patch("app.routers.v1.auth.send_magic_link_email_task", mailer):
         resp = await env.http.post(
             MAGIC_FORM_URL,
-            data={"email": STRANGER, "auth_request_id": "req-1", "client_id": CLIENT_ID,
-                  "client_name": "MADFAM CV", "ui_locales": "es"},
+            data={
+                "email": STRANGER,
+                "auth_request_id": "req-1",
+                "client_id": CLIENT_ID,
+                "client_name": "MADFAM CV",
+                "ui_locales": "es",
+            },
         )
     assert resp.status_code == 200, resp.text
     assert "Si esta dirección tiene invitación a <strong>MADFAM CV</strong>" in resp.text
@@ -350,8 +377,13 @@ async def test_hosted_form_does_not_create_a_stranger_and_says_the_same_thing(en
     with patch("app.routers.v1.auth.send_magic_link_email_task", mailer):
         resp = await env.http.post(
             MAGIC_FORM_URL,
-            data={"email": INVITEE, "auth_request_id": "req-1", "client_id": CLIENT_ID,
-                  "client_name": "MADFAM CV", "ui_locales": "es"},
+            data={
+                "email": INVITEE,
+                "auth_request_id": "req-1",
+                "client_id": CLIENT_ID,
+                "client_name": "MADFAM CV",
+                "ui_locales": "es",
+            },
         )
     assert "Si esta dirección tiene invitación a <strong>MADFAM CV</strong>" in resp.text
     mailer.assert_called_once()
@@ -367,8 +399,12 @@ async def test_open_client_still_creates_on_first_contact(env):
     with patch("app.routers.v1.auth.send_magic_link_email_task", mailer):
         resp = await env.http.post(
             MAGIC_FORM_URL,
-            data={"email": STRANGER, "auth_request_id": "req-1", "client_id": OPEN_CLIENT_ID,
-                  "client_name": "Open App"},
+            data={
+                "email": STRANGER,
+                "auth_request_id": "req-1",
+                "client_id": OPEN_CLIENT_ID,
+                "client_name": "Open App",
+            },
         )
     assert resp.status_code == 200
     assert "Check your inbox" in resp.text and "We emailed a sign-in link to" in resp.text
@@ -398,8 +434,12 @@ async def test_invite_creates_grants_and_mails_one_link(env):
     with patch("app.routers.v1.internal_product_invites.send_product_invite_email_task", mailer):
         resp = await env.http.post(
             INVITE_URL,
-            json={"email": "Invitee@Beta-CV.example.com", "client_id": CLIENT_ID,
-                  "first_name": "Ana", "formality": "tu"},
+            json={
+                "email": "Invitee@Beta-CV.example.com",
+                "client_id": CLIENT_ID,
+                "first_name": "Ana",
+                "formality": "tu",
+            },
             headers=AUTH,
         )
     assert resp.status_code == 201, resp.text
@@ -429,7 +469,9 @@ async def test_invite_creates_grants_and_mails_one_link(env):
 
     # Re-inviting is the resend: same person, same grant, a fresh link.
     with patch("app.routers.v1.internal_product_invites.send_product_invite_email_task", mailer):
-        again = await env.http.post(INVITE_URL, json={"email": INVITEE, "client_id": CLIENT_ID}, headers=AUTH)
+        again = await env.http.post(
+            INVITE_URL, json={"email": INVITEE, "client_id": CLIENT_ID}, headers=AUTH
+        )
     assert again.status_code == 201
     assert again.json()["user_created"] is False and again.json()["entitlement_granted"] is False
     assert len(await _rows(env.sessions, MagicLink)) == 2
@@ -438,7 +480,9 @@ async def test_invite_creates_grants_and_mails_one_link(env):
 
 @pytest.mark.asyncio
 async def test_invite_refuses_open_clients_and_needs_the_key(env):
-    resp = await env.http.post(INVITE_URL, json={"email": INVITEE, "client_id": OPEN_CLIENT_ID}, headers=AUTH)
+    resp = await env.http.post(
+        INVITE_URL, json={"email": INVITEE, "client_id": OPEN_CLIENT_ID}, headers=AUTH
+    )
     assert resp.status_code == 409
     resp = await env.http.post(INVITE_URL, json={"email": INVITEE, "client_id": CLIENT_ID})
     assert resp.status_code in (401, 403, 422)  # missing X-Internal-API-Key
@@ -450,25 +494,37 @@ async def test_invite_refuses_a_suspended_account(env):
     async with env.sessions() as session:
         session.add(User(email=INVITEE, status=UserStatus.SUSPENDED, user_metadata={}))
         await session.commit()
-    resp = await env.http.post(INVITE_URL, json={"email": INVITEE, "client_id": CLIENT_ID}, headers=AUTH)
+    resp = await env.http.post(
+        INVITE_URL, json={"email": INVITEE, "client_id": CLIENT_ID}, headers=AUTH
+    )
     assert resp.status_code == 409
     assert await _rows(env.sessions, UserEntitlement) == []
 
 
 @pytest.mark.asyncio
 async def test_revoke_cancels_the_grant_and_spends_unused_links(env):
-    with patch("app.routers.v1.internal_product_invites.send_product_invite_email_task", MagicMock()):
-        await env.http.post(INVITE_URL, json={"email": INVITEE, "client_id": CLIENT_ID}, headers=AUTH)
-    resp = await env.http.post(REVOKE_URL, json={"email": INVITEE, "client_id": CLIENT_ID}, headers=AUTH)
+    with patch(
+        "app.routers.v1.internal_product_invites.send_product_invite_email_task", MagicMock()
+    ):
+        await env.http.post(
+            INVITE_URL, json={"email": INVITEE, "client_id": CLIENT_ID}, headers=AUTH
+        )
+    resp = await env.http.post(
+        REVOKE_URL, json={"email": INVITEE, "client_id": CLIENT_ID}, headers=AUTH
+    )
     assert resp.status_code == 200, resp.text
     assert resp.json()["changed"] is True and resp.json()["links_spent"] == 1
     [grant] = await _rows(env.sessions, UserEntitlement)
     assert grant.expires_at is not None and grant.expires_at <= datetime.utcnow()
     [link] = await _rows(env.sessions, MagicLink)
     assert link.used_at is not None
-    again = await env.http.post(REVOKE_URL, json={"email": INVITEE, "client_id": CLIENT_ID}, headers=AUTH)
+    again = await env.http.post(
+        REVOKE_URL, json={"email": INVITEE, "client_id": CLIENT_ID}, headers=AUTH
+    )
     assert again.json()["changed"] is False and again.json()["links_spent"] == 0
-    unknown = await env.http.post(REVOKE_URL, json={"email": STRANGER, "client_id": CLIENT_ID}, headers=AUTH)
+    unknown = await env.http.post(
+        REVOKE_URL, json={"email": STRANGER, "client_id": CLIENT_ID}, headers=AUTH
+    )
     assert unknown.status_code == 404
 
 
