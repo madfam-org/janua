@@ -1,11 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: janua-api
+  name: janua-api-staging
   namespace: janua-staging
   labels:
-    app: janua-api
-    app.kubernetes.io/name: janua-api
+    app: janua-api-staging
+    app.kubernetes.io/name: janua-api-staging
     app.kubernetes.io/component: api
     app.kubernetes.io/part-of: janua-staging
   annotations:
@@ -15,7 +15,7 @@ spec:
   revisionHistoryLimit: 3
   selector:
     matchLabels:
-      app: janua-api
+      app: janua-api-staging
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -24,10 +24,10 @@ spec:
   template:
     metadata:
       labels:
-        app: janua-api
-        app.kubernetes.io/name: janua-api
+        app: janua-api-staging
+        app.kubernetes.io/name: janua-api-staging
         app.kubernetes.io/part-of: janua-staging
-        enclii.dev/service: janua-api
+        enclii.dev/service: janua-api-staging
       annotations:
         prometheus.io/scrape: 'true'
         prometheus.io/port: '9464'
