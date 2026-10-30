@@ -1737,6 +1737,7 @@ class TestResourceAuthenticationAssurance:
         from app.models import Session
 
         headers, row, _ = await assured_resource_session(env)
+        page = code = verifier = connected = None
         if boundary == "consent":
             _, challenge = pkce()
             page = await env.http.get(
@@ -1750,6 +1751,7 @@ class TestResourceAuthenticationAssurance:
             await db.execute(update(Session).where(Session.id == row.id).values(revoked=True))
             await db.commit()
         if boundary == "consent":
+            assert page is not None
             request_id, csrf = form_fields(page.text)
             result = await env.http.post(
                 "/api/v1/oauth/consent",
@@ -1761,12 +1763,13 @@ class TestResourceAuthenticationAssurance:
                 },
             )
             assert result.status_code == 401
+        elif boundary == "code":
+            assert code is not None and verifier is not None
+            result = await exchange(env, code, verifier)
+            assert_oauth_error(result, "invalid_grant")
         else:
-            result = (
-                await exchange(env, code, verifier)
-                if boundary == "code"
-                else await refresh(env, connected["refresh_token"])
-            )
+            assert boundary == "refresh" and connected is not None
+            result = await refresh(env, connected["refresh_token"])
             assert_oauth_error(result, "invalid_grant")
 
     async def test_another_session_of_same_person_cannot_answer_original_consent(self, env):

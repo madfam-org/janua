@@ -85,7 +85,7 @@ def test_native_operator_sql_matches_alembic_and_retains_receipts(databases):
     ok(_alembic(["upgrade", HEAD], head))
     ok(
         _psql(
-            "GRANT CREATE,USAGE ON SCHEMA public TO enclii; GRANT SELECT,UPDATE ON alembic_version TO enclii; GRANT REFERENCES ON magic_links TO enclii; ALTER TABLE email_events OWNER TO enclii; ALTER TABLE payment_mail_dispatches OWNER TO enclii",
+            "GRANT CREATE,USAGE ON SCHEMA public TO enclii; GRANT SELECT,UPDATE ON alembic_version TO enclii; GRANT REFERENCES ON magic_links,password_resets TO enclii; ALTER TABLE email_events OWNER TO enclii; ALTER TABLE payment_mail_dispatches OWNER TO enclii",
             hand,
         )
     )

@@ -110,3 +110,16 @@ class TestChallengeSigningKey:
                 algorithms=["HS256"],
                 options={"verify_iss": False},
             )
+
+
+def test_opaque_auth_references_are_purpose_and_key_bound(monkeypatch):
+    from app.auth.mfa_enforcement import opaque_auth_reference
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "JWT_SECRET_KEY", "synthetic-reference-key-one")
+    first = opaque_auth_reference("synthetic-random-capability", purpose="mfa-challenge-use")
+    assert first == opaque_auth_reference("synthetic-random-capability", purpose="mfa-challenge-use")
+    assert len(first) == 64 and "synthetic" not in first
+    assert first != opaque_auth_reference("synthetic-random-capability", purpose="totp-factor")
+    monkeypatch.setattr(settings, "JWT_SECRET_KEY", "synthetic-reference-key-two")
+    assert first != opaque_auth_reference("synthetic-random-capability", purpose="mfa-challenge-use")

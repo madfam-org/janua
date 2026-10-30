@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlparse
 
+from fastapi import HTTPException
 from sqlalchemy import update
 
 from app.models.email_send_audit import EmailSendAudit
@@ -41,6 +42,14 @@ def uuid_metadata(value: object) -> uuid.UUID | None:
         return uuid.UUID(str(value)) if value else None
     except (ValueError, TypeError, AttributeError):
         return None
+
+
+def require_map_attempt(source_app: str, value: object) -> uuid.UUID | None:
+    """A MAP attempt join is mandatory metadata, never human authorization."""
+    identity = uuid_metadata(value)
+    if source_app == "crea-map" and identity is None:
+        raise HTTPException(422, detail={"code": "map_mail_audit_id_required"})
+    return identity
 
 
 def is_map_destination(redirect_url: str | None) -> bool:
@@ -110,8 +119,14 @@ async def add_intent(
     return identity
 
 
-async def attach_issuance(db, audit_id, magic_link_id=None, *, not_issued=False):
-    values = {"state": "not_issued"} if not_issued else {"magic_link_id": magic_link_id}
+async def attach_issuance(
+    db, audit_id, magic_link_id=None, *, password_reset_id=None, not_issued=False
+):
+    values = (
+        {"state": "not_issued"} if not_issued
+        else {"password_reset_id": password_reset_id} if password_reset_id is not None
+        else {"magic_link_id": magic_link_id}
+    )
     changed = await db.execute(
         update(EmailSendAudit)
         .where(EmailSendAudit.id == audit_id, EmailSendAudit.state == "pending")
@@ -156,8 +171,10 @@ async def send_scope(audit_id):
             if changed.rowcount != 1:
                 raise ValueError("Mail audit is not pending")
             row = await db.get(EmailSendAudit, identity)
-            if row.message_kind == "magic_login" and row.magic_link_id is None:
-                raise ValueError("Login mail has no durable issuance")
+            if (row.message_kind == "magic_login" and row.magic_link_id is None) or (
+                row.message_kind == "password_recovery" and row.password_reset_id is None
+            ):
+                raise ValueError("Auth mail has no durable issuance")
             audit = SendAudit(
                 row.id,
                 row.source_app,
@@ -235,6 +252,7 @@ async def audited_internal_send(
 ):
     if source_app != "crea-map":
         return await enviar()
+    upstream_audit_id = require_map_attempt(source_app, upstream_audit_id)
     kind = (
         message_kind
         if message_kind

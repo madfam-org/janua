@@ -26,6 +26,9 @@ class EmailSendAudit(Base):
     )
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
     magic_link_id = Column(GUID(), ForeignKey("magic_links.id", ondelete="RESTRICT"), nullable=True)
+    password_reset_id = Column(
+        GUID(), ForeignKey("password_resets.id", ondelete="RESTRICT"), nullable=True
+    )
     source_app = Column(String(64), nullable=False)
     message_kind = Column(String(32), nullable=False)
     trigger_kind = Column(String(32), nullable=False)

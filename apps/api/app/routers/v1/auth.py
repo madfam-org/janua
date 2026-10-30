@@ -40,7 +40,7 @@ from app.auth.login_method import (
     magic_link_login_available,
 )
 from app.auth.magic_link_limits import enforce_magic_link_limits
-from app.auth.mfa_enforcement import mfa_challenge_signing_key
+from app.auth.mfa_enforcement import mfa_challenge_signing_key, opaque_auth_reference
 from app.auth.sessions_cookie import (
     SESSIONS_COOKIE_NAME,
     append_sid,
@@ -1895,7 +1895,7 @@ async def login_form_mfa(
         # if the original is close to expiry.
         return _reject("Invalid verification code. Please try again.", remint_for=user)
 
-    used_key = "auth:mfa:used:" + hashlib.sha256(mfa_token.encode()).hexdigest()
+    used_key = "auth:mfa:used:" + opaque_auth_reference(mfa_token, purpose="mfa-challenge-use")
     if not await redis.strict_set_nx(used_key, "1", ex=300):
         return _reject("Esta verificación ya se utilizó. Vuelve a iniciar sesión.")
     await AccountLockoutService.reset_failed_attempts(db, user)
@@ -2426,47 +2426,83 @@ async def _dispatch_password_reset(
     client_id: Optional[str] = None,
     auth_request_id: Optional[str] = None,
     return_url: Optional[str] = None,
-) -> None:
-    """Create a reset token and queue the email — shared by the JSON endpoint
-    and the hosted forgot-password form. Does nothing when no ACTIVE user
-    matches: enumeration safety is both callers' contract, so absence must be
-    indistinguishable from success at every transport."""
-    # Untenanted / staff pool (see /signin note); enumeration-safe either way.
-    # Same silent-miss as the magic-link handler had: a user the internal
-    # provisioning API created WITH a tenant_id is invisible here, so recovery
-    # quietly did nothing for them. Fall back to the across-pools bridge. Since
-    # migration 013 landed in production (2026-09-06, see
-    # apps/api/alembic/PROD_ALEMBIC_STATE.json) that bridge is a RESOLUTION and
-    # no longer an exact lookup: an address may sit in the platform pool and in
-    # several tenant pools at once. No redirect_url is available here to name a
-    # preferred pool, so genuine ambiguity simply declines to send — which is
-    # also the enumeration-safe answer this function already gives for "no
-    # match". It is silent to the caller BY DESIGN, which is exactly why it has
-    # to be loud in the logs; see the handler below.
+    mail_correlation_id=None,
+):
+    """Issue a user-requested reset; verified MAP mail has a durable exact receipt.
+
+    Account absence stays neutral. A MAP audit outage fails before any account
+    lookup, and native client identity pools never inherit a mail organization.
+    """
+    from app.auth.map_mail_hold import is_map_login_client
     from app.auth.tenant_login_context import login_client_context, login_user
 
     redis = await get_redis() if (client_id or auth_request_id) else None
-    selected_client, _ = await login_client_context(
+    selected_client, context = await login_client_context(
         db, redis, auth_request_id=auth_request_id, client_id=client_id, return_url=return_url
     )
-    from app.auth.map_mail_hold import is_map_login_client
-
-    if selected_client is not None and is_map_login_client(selected_client):
-        return
-    allowed_reset_pages = {
+    allowed = {
         value.strip()
         for value in (settings.PASSWORD_RESET_REDIRECT_ORIGINS or "").split(",")
         if value.strip()
     }
-    if redirect_base_raw in allowed_reset_pages and is_map_destination(redirect_base_raw):
-        return
+    redirect_base = redirect_base_raw if redirect_base_raw in allowed else None
+    # Client/transaction destinations were validated against native registration.
+    # A standalone product reset page also needs its explicit configured allowlist.
+    requested_destination = context.get("redirect_uri") or return_url
+    map_destination = requested_destination if is_map_destination(requested_destination) else None
+    if redirect_base and is_map_destination(redirect_base):
+        if selected_client is None:
+            selected_client = await _map_mail_client(db, redirect_base, None)
+        else:
+            registered = selected_client.redirect_uris or []
+            if isinstance(registered, str):
+                registered = json.loads(registered)
+            target = urlparse(redirect_base)
+            if not any(isinstance(uri, str) and (
+                urlparse(uri).scheme, urlparse(uri).netloc
+            ) == (target.scheme, target.netloc) for uri in registered):
+                raise HTTPException(400, "Recovery destination does not match native client")
+        map_destination = redirect_base
+    map_client = selected_client if (
+        is_map_login_client(selected_client)
+        and (map_destination is not None or not requested_destination)
+    ) else None
+    mail_audit_id, mail_org = None, None
+    if map_client is not None:
+        mail_org = _map_mail_organization(map_client, map_destination)
+        if map_destination is None:
+            uris = map_client.redirect_uris or []
+            if isinstance(uris, str):
+                uris = json.loads(uris)
+            map_destination = next(uri for uri in uris if isinstance(uri, str) and is_map_destination(uri))
+        try:
+            mail_audit_id = await add_intent(
+                db,
+                audit_id=uuid_metadata(mail_correlation_id) or uuid.uuid4(),
+                source_app="crea-map",
+                message_kind="password_recovery",
+                trigger_kind="map_password_recovery_request",
+                provenance="registered_map_recovery",
+                org_id=mail_org,
+            )
+            await db.commit()
+        except Exception as error:
+            await db.rollback()
+            raise HTTPException(503, "Recovery mail audit unavailable") from error
+
+    async def not_issued():
+        if mail_audit_id is not None:
+            await attach_issuance(db, mail_audit_id, not_issued=True)
+            await db.commit()
+        return mail_audit_id
+
     if selected_client is not None:
         try:
             user = await login_user(db, email, selected_client, active_only=True)
         except HTTPException as exc:
             if exc.status_code != 403:
                 raise
-            return
+            return await not_issued()
     else:
         user = await get_user_by_email(db, email, tenant_id=None, active_only=True)
         if not user:
@@ -2474,18 +2510,28 @@ async def _dispatch_password_reset(
                 user = await resolve_user_by_email_across_pools(db, email, active_only=True)
             except AmbiguousEmailAcrossPools as exc:
                 log_ambiguous_email(exc, entry_point="password_reset")
-                return
+                return await not_issued()
     if not (user and settings.EMAIL_ENABLED):
-        return
+        return await not_issued()
 
     reset_token = secrets.token_urlsafe(32)
     reset = PasswordReset(
         user_id=user.id, token=reset_token, expires_at=datetime.utcnow() + timedelta(hours=1)
     )
     db.add(reset)
-    await db.commit()
+    try:
+        if mail_audit_id is not None:
+            await db.flush()
+            await attach_issuance(db, mail_audit_id, password_reset_id=reset.id)
+        await db.commit()
+    except Exception as error:
+        await db.rollback()
+        if mail_audit_id is not None:
+            raise HTTPException(503, "Recovery mail issuance audit unavailable") from error
+        raise
 
     if selected_client is not None:
+        redis = redis or await get_redis()
         await redis.strict_set(
             "auth:reset-context:" + hashlib.sha256(reset_token.encode()).hexdigest(),
             json.dumps(
@@ -2499,25 +2545,10 @@ async def _dispatch_password_reset(
             ex=3600,
         )
 
-    # Only a pre-registered product page may receive the token.
-    redirect_base = None
-    if redirect_base_raw:
-        allowed = {
-            origin.strip()
-            for origin in (settings.PASSWORD_RESET_REDIRECT_ORIGINS or "").split(",")
-            if origin.strip()
-        }
-        if redirect_base_raw in allowed:
-            redirect_base = redirect_base_raw
-
-    # Send email in background via the REAL mailer, with THE token that
-    # /password/reset validates. The previous dispatch pointed at a
-    # placebo EmailService (app.services.email logs and returns True —
-    # nothing was ever sent) and even misnamed its method
-    # (send_password_reset_email vs the placebo's send_password_reset),
-    # while the SMTP-capable service generated a DIFFERENT token for the
-    # URL than the one stored in password_resets. Recovery could never
-    # complete by construction.
+    extra = (
+        {"mail_audit_id": str(mail_audit_id), "branding_redirect_url": map_destination}
+        if mail_audit_id is not None else {}
+    )
     background_tasks.add_task(
         send_password_reset_email_task,
         user.email,
@@ -2525,13 +2556,13 @@ async def _dispatch_password_reset(
         redirect_base,
         locale=email_locale or getattr(user, "locale", None),
         formality=getattr(user, "spanish_formality", None),
-        org_id=(
+        org_id=mail_org or (
             getattr(selected_client, "organization_id", None)
-            if selected_client
-            else getattr(user, "tenant_id", None)
+            if selected_client else getattr(user, "tenant_id", None)
         ),
+        **extra,
     )
-
+    return mail_audit_id
 
 async def _consume_password_reset(token: str, new_password: str, db) -> tuple[bool, str]:
     """Validate a reset token, sign the user out everywhere and set the new
@@ -2625,9 +2656,12 @@ async def forgot_password(
     request: Request,
     forgot_data: ForgotPasswordRequest,
     background_tasks: BackgroundTasks,
+    response: Response,
     db: Session = Depends(get_db),
 ):
-    """Request password reset email"""
+    """Request a reset; the neutral UUID never proves account existence."""
+    correlation = uuid.uuid4()
+    response.headers[CORRELATION_HEADER] = str(correlation)
     await _dispatch_password_reset(
         forgot_data.email,
         forgot_data.redirect_base,
@@ -2636,6 +2670,7 @@ async def forgot_password(
         client_id=forgot_data.client_id,
         auth_request_id=forgot_data.auth_request_id,
         return_url=forgot_data.return_url,
+        mail_correlation_id=correlation,
     )
     # Don't reveal if user exists
     return {"message": "If the email exists, a password reset link has been sent"}
@@ -2850,6 +2885,7 @@ async def forgot_password_form(
 
     locale = page_locale(ui_locales)
     c = hosted_copy(locale)
+    correlation = uuid.uuid4()
     await _dispatch_password_reset(
         email,
         None,
@@ -2859,16 +2895,22 @@ async def forgot_password_form(
         client_id=client_id or None,
         auth_request_id=auth_request_id or None,
         return_url=return_url or None,
+        mail_correlation_id=correlation,
     )
-    retry_url = f"/api/v1/auth/forgot-password{ui_locales_query(locale)}"
+    retry_params = {"ui_locales": locale}
+    retry_params.update({k: v for k, v in {
+        "client_id": client_id, "auth_request_id": auth_request_id, "return_url": return_url,
+    }.items() if v})
+    retry_url = "/api/v1/auth/forgot-password?" + urlencode(retry_params)
     body = f"""
         <div class="logo"><h1>&#128274; Janua</h1><p>{c["recovery_tagline"]}</p></div>
         <div class="alert-ok">{c["recovery_sent"].format(email=html_mod.escape(email))}</div>
-        <p class="lead">{c["recovery_retry"].format(retry_url=retry_url)}</p>
+        <p class="lead">{c["recovery_retry"].format(retry_url=html_mod.escape(retry_url, quote=True))}</p>
         <div class="footer">{c["footer"]}</div>
     """
     return HTMLResponse(
-        content=_recovery_page_html(body, title=c["recovery_title"], lang=hosted_html_lang(locale))
+        content=_recovery_page_html(body, title=c["recovery_title"], lang=hosted_html_lang(locale)),
+        headers={CORRELATION_HEADER: str(correlation), "cache-control": "no-store"},
     )
 
 
@@ -3453,6 +3495,8 @@ def _map_mail_organization(client, redirect_url):
     from app.services.email_branding import CTM_ORG_ID
     from app.services.email_sender import binding_for
 
+    if client is not None and getattr(client, "organization_id", None) is not None and str(client.organization_id) != str(CTM_ORG_ID):
+        raise HTTPException(503, "MAP mail organization binding unavailable")
     target = redirect_url if is_map_destination(redirect_url) else None
     if target is None:
         uris = getattr(client, "redirect_uris", None) or []

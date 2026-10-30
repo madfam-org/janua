@@ -1,7 +1,7 @@
-"""Only verified MAP provenance holds auth mail; shared organization is insufficient."""
+"""MAP allows traced recovery and magic login; shared organization is insufficient."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -24,31 +24,9 @@ def test_scope_is_map_destination_or_native_client_and_magic_is_exception():
     assert not is_map_login_client(SimpleNamespace(is_active=True, redirect_uris=[ERP]))
 
 
-@pytest.mark.parametrize("source", ["registered-client", "registered-reset-page"])
-async def test_map_reset_is_held_before_lookup_token_or_background_mail(monkeypatch, source):
-    selected = (
-        SimpleNamespace(is_active=True, redirect_uris=[MAP])
-        if source == "registered-client"
-        else None
-    )
-    monkeypatch.setattr(
-        "app.auth.tenant_login_context.login_client_context", AsyncMock(return_value=(selected, {}))
-    )
-    monkeypatch.setattr(auth, "get_redis", AsyncMock())
-    lookup = AsyncMock()
-    monkeypatch.setattr(auth, "get_user_by_email", lookup)
-    monkeypatch.setattr(auth.settings, "PASSWORD_RESET_REDIRECT_ORIGINS", MAP)
-    tasks, db = MagicMock(), AsyncMock()
-    await auth._dispatch_password_reset(
-        "synthetic@example.com",
-        MAP if source == "registered-reset-page" else None,
-        tasks,
-        db,
-        client_id="synthetic" if selected else None,
-    )
-    lookup.assert_not_awaited()
-    tasks.add_task.assert_not_called()
-    db.add.assert_not_called()
+@pytest.mark.parametrize("template", ["welcome", "email_verification", "mfa_recovery"])
+def test_non_recovery_templates_remain_held(template):
+    assert map_auth_mail_held(template=template, redirect_url=MAP)
 
 
 async def test_auth_transport_holds_map_nonmagic_but_keeps_same_org_other_product(monkeypatch):

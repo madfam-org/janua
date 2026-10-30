@@ -1,7 +1,7 @@
 # MAP email traceability
 
 This is audit metadata, never a queue or permission to send. MAP's outgoing-click
-hold remains in force. Magic-link login is its sole automatic-mail exception.
+hold remains in force. Magic-link login and user-initiated password recovery are the auth exceptions.
 Do not send real emails or hosted-auth synthetics to validate this change.
 
 Apply reviewed operator SQL `docs/ops/sql/021_map_email_traceability.sql` after
@@ -33,6 +33,15 @@ Janua creates an intent for each actual message and retains that upstream ID.
 The header is diagnostic metadata, not service identity, human identity or an
 outgoing-click authorization. These calls are labelled
 `authenticated_internal_claim`; only the MAP audit proves the actual human click.
+For `source_app=crea-map`, raw/template send endpoints reject a missing or
+malformed `X-MAP-Mail-Audit-ID` before creating an intent or calling a provider.
+Native MAP payment mail also requires the UUID before every new provider attempt,
+including a due retry of a legacy pending command. Accepted receipt and backoff
+reads that do not contact the provider remain readable without the header. The
+first valid attempt ID is retained; later clicks never rewrite a prior receipt.
+This is a mandatory audit join, not proof of human permission: MAP must still
+verify the real outgoing click and durably record its actor/action before sending.
+Magic login has server-derived canonical provenance and is unaffected.
 Other source applications keep their current transport behavior.
 
 Native payment mail retains its existing authenticated, organization-bound
@@ -57,8 +66,8 @@ it adds:
 
 - `mail_audit_id`: Janua intent UUID; for native payment mail, its receipt UUID.
 - `map_audit_id`: valid upstream MAP attempt UUID, when supplied.
-- `message_kind`: `magic_login`, `payment`, or the internal mail classification.
-- `trigger_kind`: `map_login_request`, `payment_command`, or `internal_api`.
+- `message_kind`: `magic_login`, `password_recovery`, `payment`, or the internal mail classification.
+- `trigger_kind`: `map_login_request`, `map_password_recovery_request`, `payment_command`, or `internal_api`.
 - `command_id`: native payment command UUID, where applicable.
 
 Optional metadata is omitted for legacy/unmatched events. Accepted provider mail
@@ -71,19 +80,31 @@ or provider credential. Existing MagicLink storage remains the identity authorit
 diagnostics on audited paths use audit UUIDs and bounded error classes only.
 Validation uses synthetic fixtures, SQLite and denied outbound networking.
 
-## Non-magic auth hold
+## User-initiated password recovery
 
-A native active login client registered to a MAP host, or an exact configured
-MAP password-reset destination, cannot dispatch self-service reset mail. MAP
-branding destinations are also held at the auth mail transport and recovery
-helpers; no feature toggle releases this rule. Magic login remains the exception.
-The MAP UI removes recovery/create-password email navigation while this hold is
-in force; entering an existing password or a second factor needs no email.
+Password recovery is allowed for MAP alongside magic login. Use the registered
+native client and a validated return origin, for example the hosted path
+`/api/v1/auth/forgot-password?client_id=<native-client>&return_url=<encoded-MAP-origin-and-/api/auth/login>&ui_locales=es`.
+The native registration must be active; the return origin must be HTTPS and match
+a registered redirect origin. A live `auth_request_id` can bind the exact OAuth
+transaction instead. Wrong or expired context fails closed, never falls back to
+a generic identity pool. Form, retry and reset completion preserve that context.
 
-Organization membership alone is not provenance. A generic Janua reset/recovery
-with no verified MAP context remains Janua's own flow, including a shared CTM
-identity recovering for another product. Claimed caller headers never establish
-an authorized human send. The isolated tests cover both sides of this boundary.
+Janua commits a neutral intent before identity lookup and links the exact private
+`password_resets.id` before scheduling the task. Unknown/inactive/ambiguous users
+produce `not_issued`; account absence cannot be inferred from the neutral 2xx
+`X-Janua-Mail-Correlation-ID` or unchanged response body. The message is classified
+`password_recovery` / `map_password_recovery_request` /
+`registered_map_recovery`, then joins the exact provider receipt and verified
+webhook events like magic login. A missing/unwritable audit fails before provider
+I/O. Neither password-reset IDs nor tokens appear in the audit DTO or logs.
+
+Public recovery creates its own canonical Janua intent. It needs neither a MAP
+logged-in actor nor the business-send `X-MAP-Mail-Audit-ID`. A password-reset
+transport with a MAP destination and no live audited issuance still fails closed.
+Welcome, account creation, email verification and scheduler mail are not auth
+exceptions and cannot inherit this context. Generic Janua/other-product recovery
+is unchanged; shared CTM organization membership alone is never MAP provenance.
 
 ## Read metadata without SQL
 

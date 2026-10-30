@@ -38,6 +38,8 @@ from unittest.mock import patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+pytestmark = pytest.mark.usefixtures("mail_audit_store")
+
 import app.services.resend_email_service as resend_module
 from app.dependencies import verify_internal_api_key
 from app.main import app
@@ -88,7 +90,11 @@ def _visible_body(html: str) -> str:
 def client():
     app.dependency_overrides[verify_internal_api_key] = lambda: True
     transport = ASGITransport(app=app)
-    yield AsyncClient(transport=transport, base_url="http://test")
+    yield AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-MAP-Mail-Audit-ID": "24fdce23-7ca1-4c2e-85fd-430a7bc94cc2"},
+    )
     app.dependency_overrides.pop(verify_internal_api_key, None)
 
 

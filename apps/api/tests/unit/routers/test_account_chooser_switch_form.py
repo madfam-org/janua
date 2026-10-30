@@ -75,6 +75,7 @@ def _client():
         allowed_scopes=["openid", "profile", "email"],
         redirect_uris=[REDIRECT_URI],
         audience=None,
+        organization_id=None,
         last_used_at=None,
     )
 
@@ -482,3 +483,12 @@ async def test_explicit_older_account_beats_newer_hosted_cookie(monkeypatch, coo
 
     with patch("app.routers.v1.oauth_provider.get_user_from_cookie_or_header", side_effect=observe):
         await _http(estate, cookies, run, db=db, base_url="https://auth.janua.dev")
+
+
+@pytest.fixture(autouse=True)
+def optional_organization_policy(monkeypatch):
+    # This suite isolates platform cookie/consent behavior. Organization-policy
+    # and enforced-factor transitions have their real-SQL acceptance suite.
+    monkeypatch.setattr(
+        "app.auth.authentication_assurance.user_policy_requires_mfa", AsyncMock(return_value=False)
+    )

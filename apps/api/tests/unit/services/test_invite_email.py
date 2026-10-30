@@ -48,7 +48,7 @@ def _service(sent=True):
 async def _send(service):
     return await service._send_invitation_email(
         _invitation(),
-        SimpleNamespace(name="Acme Corp"),
+        SimpleNamespace(id=_invitation().organization_id, name="Acme Corp"),
         SimpleNamespace(name="Ada Lovelace", email="ada@example.com"),
     )
 

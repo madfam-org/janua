@@ -720,3 +720,89 @@ async def test_unreadable_role_requirement_is_not_optional(monkeypatch):
     db = SimpleNamespace(execute=AsyncMock(side_effect=RuntimeError("synthetic read failure")))
     with pytest.raises(RuntimeError):
         await policy.member_requires_mfa(db, uuid.uuid4(), uuid.uuid4())
+
+
+async def _registered_map_platform(env):
+    async with env.factory() as db:
+        client = (await db.execute(select(OAuthClient))).scalar_one()
+        client.organization_id = None
+        client.redirect_uris = [
+            "https://map.creatumundo.mx/api/auth/callback",
+            "https://ensayo-map.madfam.io/api/auth/callback",
+        ]
+        user = await db.get(User, env.user.id)
+        user.tenant_id = None
+        user.password_hash = None
+        await db.commit()
+
+
+@pytest.mark.parametrize("origin", ["https://map.creatumundo.mx", "https://ensayo-map.madfam.io"])
+async def test_map_recovery_uses_neutral_intents_and_exact_reset_without_changing_native_pool(env, monkeypatch, origin):
+    from app.models.email_send_audit import EmailSendAudit
+    from app.routers.v1 import auth
+    from app.services.email_send_audit import CORRELATION_HEADER
+
+    await _registered_map_platform(env)
+    monkeypatch.setattr(auth.settings, "EMAIL_ENABLED", True)
+    bodies = []
+    for email in [env.user.email, "unknown@example.com"]:
+        response = await env.http.post("/api/v1/auth/password/forgot", json={
+            "email": email, "client_id": "synthetic-map", "return_url": origin + "/api/auth/login",
+        })
+        assert response.status_code == 200, response.text
+        bodies.append(response.json())
+        identity = uuid.UUID(response.headers[CORRELATION_HEADER])
+        async with env.factory() as db:
+            audit = await db.get(EmailSendAudit, identity)
+            assert audit.message_kind == "password_recovery"
+            assert audit.provenance == "registered_map_recovery"
+            if email == env.user.email:
+                reset = await db.get(PasswordReset, audit.password_reset_id)
+                assert reset.user_id == env.user.id
+                assert env.mail.call_args.kwargs["mail_audit_id"] == str(identity)
+            else:
+                assert audit.state == "not_issued" and audit.password_reset_id is None
+            client = (await db.execute(select(OAuthClient))).scalar_one()
+            assert client.organization_id is None
+    assert bodies[0] == bodies[1]
+    env.mail.assert_awaited_once()
+
+
+async def test_hosted_map_recovery_navigation_and_retry_remain_bound(env, monkeypatch):
+    import html
+
+    from app.routers.v1 import auth
+
+    await _registered_map_platform(env)
+    monkeypatch.setattr(auth.settings, "EMAIL_ENABLED", True)
+    page = await env.http.get("/api/v1/auth/login", params={
+        "client_id": "synthetic-map", "login_method": "password", "ui_locales": "es",
+    })
+    match = re.search(r'href="([^"]*forgot-password[^"]*)"', page.text)
+    assert match, page.text
+    form = await env.http.get(html.unescape(match.group(1)))
+    hidden = {k: html.unescape(v) for k, v in re.findall(r'name="([^"]+)" value="([^"]*)"', form.text)}
+    hidden["email"] = env.user.email
+    response = await env.http.post("/api/v1/auth/forgot-password-form", data=hidden)
+    assert response.status_code == 200, response.text
+    assert "client_id=synthetic-map" in response.text
+    env.mail.assert_awaited_once()
+    assert env.mail.call_args.kwargs["mail_audit_id"]
+
+
+@pytest.mark.parametrize("email", ["member@example.com", "unknown@example.com"])
+async def test_map_recovery_audit_outage_fails_before_identity_lookup(env, monkeypatch, email):
+    from app.auth import tenant_login_context
+    from app.routers.v1 import auth
+
+    await _registered_map_platform(env)
+    lookup = AsyncMock()
+    monkeypatch.setattr(tenant_login_context, "login_user", lookup)
+    monkeypatch.setattr(auth, "add_intent", AsyncMock(side_effect=RuntimeError("synthetic refusal")))
+    response = await env.http.post("/api/v1/auth/password/forgot", json={
+        "email": email, "client_id": "synthetic-map",
+        "return_url": "https://map.creatumundo.mx/api/auth/login",
+    })
+    assert response.status_code == 503
+    lookup.assert_not_awaited()
+    env.mail.assert_not_awaited()

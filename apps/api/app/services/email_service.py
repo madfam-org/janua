@@ -371,12 +371,16 @@ class EmailService:
             **signals,
         )
 
-        if success:
+        audit = current_audit()
+        if audit is not None:
+            logger.info("password_recovery.dispatch_completed", audit_id=str(audit.id), sent=success)
+        elif success:
             logger.info("Password reset email sent", email=_redact_email(email))
-            return reset_token
         else:
             logger.error("Failed to send password reset email", email=_redact_email(email))
-            raise Exception("Failed to send password reset email")
+        if success:
+            return reset_token
+        raise Exception("Failed to send password reset email")
 
     async def send_welcome_email(
         self,
@@ -848,7 +852,7 @@ class EmailService:
         with `Reply-To: support@madfam.io`; welcome mail keeps `hola@`.
         """
         audit = current_audit()
-        if audit is not None and audit.provenance == "registered_map_login":
+        if audit is not None and audit.provenance in {"registered_map_login", "registered_map_recovery"}:
             org_id = audit.org_id
         name, address, reply_to = sender_for(
             redirect_url=redirect_url, org_id=org_id, message_class=message_class
@@ -1087,36 +1091,35 @@ async def send_password_reset_email_task(
     formality: Optional[str] = None,
     org_id: Optional[Any] = None,
     branding_redirect_url: Optional[str] = None,
+    mail_audit_id: Optional[str] = None,
 ) -> None:
-    """Background-task entrypoint for the forgot-password flow.
-
-    Instantiates the real mailer per-call (BackgroundTasks gives no DI) and
-    never raises — a mail failure must not surface into the request path.
-    Without SMTP_HOST configured, _send_email already degrades to a logged
-    no-op; the warning below makes that state visible instead of silent.
-
-    `locale` is read off the User row by the router: a background task has no
-    DB session of its own, so the recipient's stored language has to be
-    resolved while the request still holds one.
-    """
-    try:
+    """Send an issued reset; MAP requires the durable issuance/audit scope."""
+    async def enviar():
         service = EmailService()
-        sent = await service.send_password_reset_email(
-            email,
-            reset_token,
-            redirect_base=redirect_base,
-            locale=locale,
-            formality=formality,
-            org_id=org_id,
-            branding_redirect_url=branding_redirect_url,
+        return await service.send_password_reset_email(
+            email, reset_token, redirect_base=redirect_base, locale=locale,
+            formality=formality, org_id=org_id, branding_redirect_url=branding_redirect_url,
         )
+
+    try:
+        if mail_audit_id is not None:
+            async with send_scope(mail_audit_id):
+                sent = await enviar()
+        else:
+            sent = await enviar()
         if not sent:
-            logger.warning(
-                "Password reset email NOT sent (mailer unconfigured or send failed) — "
-                "the user will never receive the link"
+            if mail_audit_id is not None:
+                logger.warning("password_recovery.not_accepted", audit_id=mail_audit_id)
+            else:
+                logger.warning("Password reset email NOT sent")
+    except Exception as error:
+        if mail_audit_id is not None:
+            logger.error(
+                "password_recovery.dispatch_failed", audit_id=mail_audit_id,
+                error_type=type(error).__name__,
             )
-    except Exception:
-        logger.exception("Password reset email task failed")
+        else:
+            logger.exception("Password reset email task failed")
 
 
 async def send_magic_link_email_task(

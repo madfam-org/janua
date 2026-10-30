@@ -16,6 +16,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS email_send_audits (
   id UUID CONSTRAINT pk_email_send_audits PRIMARY KEY,
   magic_link_id UUID REFERENCES magic_links(id) ON DELETE RESTRICT,
+  password_reset_id UUID REFERENCES password_resets(id) ON DELETE RESTRICT,
   source_app VARCHAR(64) NOT NULL,
   message_kind VARCHAR(32) NOT NULL,
   trigger_kind VARCHAR(32) NOT NULL,
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS email_send_audits (
   CONSTRAINT ck_email_send_audit_state CHECK (state IN ('pending','sending','accepted','rejected','unknown','not_issued')),
   CONSTRAINT ck_email_send_audit_receipt CHECK (state != 'accepted' OR (provider_message_id IS NOT NULL AND length(trim(provider_message_id)) > 0 AND accepted_at IS NOT NULL))
 );
+ALTER TABLE email_send_audits ADD COLUMN IF NOT EXISTS password_reset_id UUID REFERENCES password_resets(id) ON DELETE RESTRICT;
 CREATE INDEX IF NOT EXISTS ix_email_send_audit_source_created ON email_send_audits(source_app, created_at);
 CREATE INDEX IF NOT EXISTS ix_email_send_audit_upstream ON email_send_audits(upstream_audit_id);
 CREATE INDEX IF NOT EXISTS ix_email_send_audit_provider ON email_send_audits(provider_message_id);

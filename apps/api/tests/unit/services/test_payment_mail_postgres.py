@@ -24,17 +24,17 @@ from app.services.payment_mail_auth import MAIL_AUDIENCE, PAYMENT_MAIL_SCOPE, Pa
 pytestmark = [pytest.mark.asyncio, pytest.mark.database]
 
 
-def migration():
-    path = Path(__file__).resolve().parents[3] / "alembic/versions/017_payment_mail_dispatch.py"
+def migration(revision="017_payment_mail_dispatch"):
+    path = Path(__file__).resolve().parents[3] / f"alembic/versions/{revision}.py"
     spec = importlib.util.spec_from_file_location("mail_migration", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-def migrate(conn, action):
+def migrate(conn, action, revision="017_payment_mail_dispatch"):
     with Operations.context(MigrationContext.configure(conn)):
-        getattr(migration(), action)()
+        getattr(migration(revision), action)()
 
 
 @pytest_asyncio.fixture
@@ -73,6 +73,9 @@ async def pg(monkeypatch):
             await conn.run_sync(migrate, "downgrade")
             await conn.run_sync(migrate, "upgrade")
             await conn.run_sync(migrate, "upgrade")
+            # The current ORM includes additive021 receipt metadata; retain the
+            # real017 trigger proof while bringing its fixture to current head.
+            await conn.run_sync(migrate, "upgrade", "021_map_email_traceability")
         org_id, owner_id, client_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
         async with factory.begin() as db:
             db.add(Organization(id=org_id, name="Synthetic Org", slug="fixture-mail"))
@@ -117,7 +120,9 @@ async def pg(monkeypatch):
 
 async def dispatch(pg):
     async with pg[0]() as db:
-        return await mail.dispatch_payment_notice(db, pg[1], pg[2])
+        return await mail.dispatch_payment_notice(
+            db, pg[1], pg[2], map_audit_id="9b69de3b-b97e-4efa-8847-39ce0b01515a"
+        )
 
 
 async def test_concurrent_claims_send_once_and_replay_same_receipt(pg):
@@ -195,7 +200,7 @@ async def test_org_mismatch_refused_by_database_even_without_handler(pg):
     with pytest.raises(DBAPIError, match="organization mismatch"):
         async with pg[0].begin() as db:
             await db.execute(
-                text("""INSERT INTO payment_mail_dispatches
+                text("""INSERT INTO payment_mail_dispatches (id, organization_id, client_id, command_id, request_hash, envelope_hash, binding_hash, credential_fingerprint, state, attempts, attempt_id, first_attempt_at, lease_until, next_attempt_at, accepted_at, provider_message_id, issue, created_at, updated_at)
                 SELECT gen_random_uuid(), :org_id, client_id, gen_random_uuid(),
                 request_hash, envelope_hash, binding_hash, credential_fingerprint,
                 state, attempts, attempt_id, first_attempt_at, lease_until, next_attempt_at,
@@ -275,7 +280,9 @@ async def test_rolled_back_claim_never_calls_provider(pg):
 
         event.listen(db.sync_session, "before_commit", fail_claim)
         with pytest.raises(RuntimeError, match="synthetic commit failure"):
-            await mail.dispatch_payment_notice(db, pg[1], pg[2])
+            await mail.dispatch_payment_notice(
+                db, pg[1], pg[2], map_audit_id="9b69de3b-b97e-4efa-8847-39ce0b01515a"
+            )
     pg[4].assert_not_called()
     async with pg[0]() as db:
         assert (await db.execute(select(PaymentMailDispatch))).scalar_one_or_none() is None
@@ -302,7 +309,9 @@ async def test_lost_receipt_commit_recovers_with_same_provider_key(pg):
 
         event.listen(db.sync_session, "before_commit", fail_receipt)
         with pytest.raises(RuntimeError, match="synthetic receipt commit failure"):
-            await mail.dispatch_payment_notice(db, pg[1], pg[2])
+            await mail.dispatch_payment_notice(
+                db, pg[1], pg[2], map_audit_id="9b69de3b-b97e-4efa-8847-39ce0b01515a"
+            )
     async with pg[0].begin() as db:
         row = (await db.execute(select(PaymentMailDispatch))).scalar_one()
         assert row.state == "sending" and row.provider_message_id is None
@@ -319,7 +328,7 @@ async def test_sql_cannot_insert_a_preaccepted_receipt(pg):
     with pytest.raises(DBAPIError, match="first sending claim"):
         async with pg[0].begin() as db:
             await db.execute(
-                text("""INSERT INTO payment_mail_dispatches
+                text("""INSERT INTO payment_mail_dispatches (id, organization_id, client_id, command_id, request_hash, envelope_hash, binding_hash, credential_fingerprint, state, attempts, attempt_id, first_attempt_at, lease_until, next_attempt_at, accepted_at, provider_message_id, issue, created_at, updated_at)
                 SELECT gen_random_uuid(), organization_id, client_id, gen_random_uuid(),
                 request_hash, envelope_hash, binding_hash, credential_fingerprint,
                 state, attempts, attempt_id, first_attempt_at, lease_until, next_attempt_at,

@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+pytestmark = pytest.mark.usefixtures("mail_audit_store")
+
 import app.services.resend_email_service as resend_module
 from app.config import settings
 from app.database import get_db
@@ -25,7 +27,10 @@ from app.services.email_branding import CTM_ORG_ID
 PREVIEW = "/api/v1/internal/email/preview"
 TEMPLATES = "/api/v1/internal/email/preview/templates"
 INTERNAL_KEY = "test-internal-api-key-email-preview"
-AUTH = {"X-Internal-API-Key": INTERNAL_KEY}
+AUTH = {
+    "X-Internal-API-Key": INTERNAL_KEY,
+    "X-MAP-Mail-Audit-ID": "24fdce23-7ca1-4c2e-85fd-430a7bc94cc2",
+}
 CTM_CREDENTIAL_ENV = "CTM_RESEND_API_KEY"
 CTM_FROM = "Crea Tu Mundo <hola@creatumundo.mx>"
 MADFAM_FROM = "MADFAM <hola@madfam.io>"

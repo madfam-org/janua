@@ -30,7 +30,11 @@ from app.services.email_i18n import (
 )
 from app.services.email_presentation import payment_session_detail as _sesiones_detalle
 from app.services.email_presentation import render_map_payment
-from app.services.email_send_audit import UPSTREAM_HEADER, audited_internal_send
+from app.services.email_send_audit import (
+    UPSTREAM_HEADER,
+    audited_internal_send,
+    require_map_attempt,
+)
 from app.services.email_sender import message_class_for_internal_send
 from app.services.email_tags import build_tags
 from app.services.email_usage import QUOTA_ERROR_TYPES
@@ -649,6 +653,7 @@ async def send_email(
     Send a custom email via Resend.
     Used for emails that don't fit a predefined template.
     """
+    require_map_attempt(request.source_app, map_audit_id)
     try:
         resend_service = ResendService()
 
@@ -718,6 +723,7 @@ async def send_template_email(
     Send an email using a predefined template.
     Templates are rendered server-side with provided variables.
     """
+    require_map_attempt(request.source_app, map_audit_id)
     # The register before the person tier: request > the template's/product's
     # voice. The recipient's stored choice is consulted per recipient below.
     base_formality = resolve_template_formality(

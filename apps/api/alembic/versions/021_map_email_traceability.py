@@ -26,6 +26,10 @@ def upgrade():
                 sa.ForeignKey("magic_links.id", ondelete="RESTRICT"),
                 nullable=True,
             ),
+            sa.Column(
+                "password_reset_id", sa.Uuid(),
+                sa.ForeignKey("password_resets.id", ondelete="RESTRICT"), nullable=True,
+            ),
             sa.Column("source_app", sa.String(64), nullable=False),
             sa.Column("message_kind", sa.String(32), nullable=False),
             sa.Column("trigger_kind", sa.String(32), nullable=False),
@@ -53,6 +57,14 @@ def upgrade():
         op.create_index(
             "ix_email_send_audit_provider", "email_send_audits", ["provider_message_id"]
         )
+    audit_columns = {column["name"] for column in sa.inspect(bind).get_columns("email_send_audits")}
+    if "password_reset_id" not in audit_columns:
+        op.add_column("email_send_audits", sa.Column("password_reset_id", sa.Uuid(), nullable=True))
+        if bind.dialect.name == "postgresql":
+            op.create_foreign_key(
+                "fk_email_send_audit_password_reset", "email_send_audits", "password_resets",
+                ["password_reset_id"], ["id"], ondelete="RESTRICT",
+            )
     if "payment_mail_dispatches" in sa.inspect(bind).get_table_names():
         dispatch_columns = {
             column["name"] for column in sa.inspect(bind).get_columns("payment_mail_dispatches")

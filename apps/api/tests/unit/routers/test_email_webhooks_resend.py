@@ -469,6 +469,8 @@ def test_the_table_has_no_column_that_could_hold_pii():
         # Neither can hold PII; the request's IP and user agent are never stored.
         "source",
         "possible_prefetch",
+        #021: opaque intent/command joins and fixed mail classifications only.
+        "mail_audit_id", "map_audit_id", "message_kind", "trigger_kind", "command_id",
     }
 
 

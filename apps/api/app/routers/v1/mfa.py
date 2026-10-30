@@ -3,7 +3,6 @@ Multi-Factor Authentication (MFA/TOTP) endpoints
 """
 
 import base64
-import hashlib
 import io
 import secrets
 import string
@@ -20,7 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.mfa_enforcement import mfa_challenge_signing_key
+from app.auth.mfa_enforcement import mfa_challenge_signing_key, opaque_auth_reference
 from app.config import settings
 from app.database import get_db
 from app.routers.v1.auth import SignInResponse, TokenResponse, UserResponse, get_current_user
@@ -190,7 +189,7 @@ async def consume_totp(user, secret: str, code: str, redis) -> bool:
     current_step = int(time.time()) // totp.interval
     for step in range(current_step - 1, current_step + 2):
         if secrets.compare_digest(totp.generate_otp(step), str(code)):
-            factor = hashlib.sha256(secret.encode()).hexdigest()
+            factor = opaque_auth_reference(secret, purpose="totp-factor")
             return await redis.strict_set_nx(
                 f"auth:mfa:totp:{user.id}:{factor}:{step}", "1", ex=totp.interval * 4
             )
@@ -692,7 +691,9 @@ async def verify_mfa_challenge(
     from app.core.redis import get_redis
 
     redis = await get_redis()
-    used_key = "auth:mfa:used:" + hashlib.sha256(request_data.mfa_token.encode()).hexdigest()
+    used_key = "auth:mfa:used:" + opaque_auth_reference(
+        request_data.mfa_token, purpose="mfa-challenge-use"
+    )
     if not await redis.strict_set_nx(used_key, "1", ex=300):
         raise HTTPException(401, "MFA challenge was already used")
     await AccountLockoutService.reset_failed_attempts(db, user)

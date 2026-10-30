@@ -2,6 +2,7 @@
 Global test configuration and fixtures
 Comprehensive test infrastructure with 85%+ coverage targets
 """
+
 import asyncio
 import os
 from typing import AsyncGenerator
@@ -929,3 +930,20 @@ __all__ = [
     "SecurityTestUtils",
     "test_config",
 ]
+
+
+@pytest.fixture
+async def mail_audit_store(monkeypatch):
+    """Isolated durable metadata for tests that exercise real MAP send routes."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import StaticPool
+
+    from app.models import Base
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setattr("app.database.AsyncSessionLocal", factory)
+    yield factory
+    await engine.dispose()

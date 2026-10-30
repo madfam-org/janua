@@ -99,7 +99,9 @@ async def test_unavailable_audit_store_blocks_map_before_provider(monkeypatch):
     )
     provider = AsyncMock()
     with pytest.raises(RuntimeError, match="synthetic database refusal"):
-        await audit.audited_internal_send(provider, source_app="crea-map")
+        await audit.audited_internal_send(
+            provider, source_app="crea-map", upstream_audit_id=str(uuid.uuid4())
+        )
     provider.assert_not_awaited()
     # Other products keep their existing transport contract.
     await audit.audited_internal_send(provider, source_app="another-product")
@@ -295,3 +297,64 @@ async def test_verified_webhook_before_http_receipt_is_idempotent(store):
         with pytest.raises(ValueError, match="acceptance could not be persisted"):
             await audit.accepted_receipt("different-provider-id")
     assert (await row_for(store, identity)).provider_message_id == "provider-webhook-first"
+
+
+@pytest.mark.parametrize("upstream", [None, "", "not-a-uuid"])
+async def test_map_attempt_uuid_is_required_before_any_provider_or_intent(monkeypatch, upstream):
+    from fastapi import HTTPException
+
+    intent = AsyncMock()
+    monkeypatch.setattr(audit, "new_internal_intent", intent)
+    provider = AsyncMock()
+    with pytest.raises(HTTPException) as error:
+        await audit.audited_internal_send(
+            provider, source_app="crea-map", upstream_audit_id=upstream
+        )
+    assert error.value.status_code == 422
+    intent.assert_not_awaited()
+    provider.assert_not_awaited()
+    await audit.audited_internal_send(
+        provider, source_app="another-product", upstream_audit_id=upstream
+    )
+    provider.assert_awaited_once()
+
+
+async def test_map_password_recovery_requires_exact_issuance_and_provider_receipt(store, monkeypatch, caplog):
+    from app.models import PasswordReset, User
+    from app.services import email_service
+    from app.services.email_branding import CTM_ORG_ID
+
+    identity = await audit.new_internal_intent(source_app="crea-map", message_kind="password_recovery")
+    with pytest.raises(ValueError, match="no durable issuance"):
+        async with audit.send_scope(identity):
+            pytest.fail("a request intent cannot authorize an unissued reset")
+    user_id, reset_id = uuid.uuid4(), uuid.uuid4()
+    async with store() as db:
+        db.add(User(id=user_id, email="synthetic-reset@example.com"))
+        await db.flush()
+        db.add(PasswordReset(id=reset_id, user_id=user_id, token="synthetic-private-reset", expires_at=datetime.utcnow()))
+        row = await db.get(EmailSendAudit, identity)
+        row.org_id = str(CTM_ORG_ID)
+        row.provenance = "registered_map_recovery"
+        row.trigger_kind = "map_password_recovery_request"
+        await db.flush()
+        await audit.attach_issuance(db, identity, password_reset_id=reset_id)
+        await db.commit()
+
+    async def provider(*_args, **_kwargs):
+        assert audit.current_audit().id == identity
+        await audit.accepted_receipt("provider-reset-synthetic")
+        return True
+
+    monkeypatch.setattr(email_service.settings, "EMAIL_PROVIDER", "resend")
+    monkeypatch.setattr(email_service.settings, "RESEND_API_KEY", "synthetic-not-a-live-key")
+    monkeypatch.setattr(email_service.EmailService, "_send_via_resend", provider)
+    await email_service.send_password_reset_email_task(
+        "synthetic-reset@example.com", "synthetic-private-reset", org_id=CTM_ORG_ID,
+        branding_redirect_url="https://map.creatumundo.mx/api/auth/login", mail_audit_id=str(identity),
+    )
+    row = await row_for(store, identity)
+    assert row.state == "accepted" and row.provider_message_id == "provider-reset-synthetic"
+    assert audit.current_audit() is None
+    assert "synthetic-reset@example.com" not in caplog.text
+    assert "synthetic-private-reset" not in caplog.text

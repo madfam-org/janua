@@ -61,6 +61,12 @@ class Endpoint:
 # ---------------------------------------------------------------------------
 PILOT_SCOPE: tuple[Endpoint, ...] = (
     Endpoint(
+        method="GET",
+        path=f"{INTERNAL_PREFIX}/email/audit",
+        tool_name="janua_email_audit",
+        summary="Read bounded exact-org/source mail intent and verified event metadata; no recipients or content.",
+    ),
+    Endpoint(
         method="POST",
         path=f"{INTERNAL_PREFIX}/email/send",
         tool_name="janua_email_send",

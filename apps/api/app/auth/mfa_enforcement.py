@@ -47,6 +47,19 @@ def mfa_challenge_signing_key() -> str:
     raise RuntimeError("No signing key is configured for MFA challenge tokens")
 
 
+def opaque_auth_reference(value: str, *, purpose: str) -> str:
+    """Blind a replay/log key with a purpose-separated server secret.
+
+    This is an identifier for a random bearer capability/TOTP factor, never a
+    password verifier. Password checking continues to use AuthService's bcrypt.
+    Both MFA entry routes use the same purpose so replay protection is shared.
+    """
+    key = hmac.digest(
+        mfa_challenge_signing_key().encode("utf-8"), b"janua.opaque-reference.v1", "sha256"
+    )
+    return hmac.digest(key, purpose.encode("utf-8") + b"\0" + value.encode("utf-8"), "sha256").hex()
+
+
 def mfa_required_for(user) -> bool:
     """Legacy synchronous enrollment predicate; organization policy is asynchronous."""
     # Voluntary enrollment is always enforced, including magic-link and SSO entry.

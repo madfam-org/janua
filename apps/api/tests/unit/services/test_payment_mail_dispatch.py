@@ -72,10 +72,12 @@ async def mail_env(monkeypatch):
     await engine.dispose()
 
 
-async def dispatch(env, intent=None):
+async def dispatch(env, intent=None, *, map_audit_id="35b87f94-1b96-45e2-b7de-f78002e5fab7"):
     factory, principal, original, *_ = env
     async with factory() as db:
-        return await mail.dispatch_payment_notice(db, principal, intent or original)
+        return await mail.dispatch_payment_notice(
+            db, principal, intent or original, map_audit_id=map_audit_id
+        )
 
 
 async def stored(env):
@@ -254,7 +256,7 @@ async def http(mail_env):
 async def test_real_signed_machine_token_and_strict_body(mail_env, http, signer):
     token = signer(mail_env[1].org_id)
     body = mail_env[2].model_dump(mode="json")
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {"Authorization": f"Bearer {token}", "X-MAP-Mail-Audit-ID": str(uuid.uuid4())}
     result = await http.post("/api/v1/email/payment-notices", json=body, headers=headers)
     assert result.status_code == 200 and result.json()["delivery_status"] == "accepted"
     body["org_id"] = str(uuid.uuid4())
@@ -354,3 +356,25 @@ async def test_symmetric_runtime_fallback_is_refused(mail_env, http, signer, mon
     )
     assert result.status_code == 403
     mail_env[4].assert_not_called()
+
+
+@pytest.mark.parametrize("upstream", [None, "", "not-a-uuid"])
+async def test_missing_map_attempt_blocks_new_and_due_retry_before_provider(mail_env, upstream):
+    with pytest.raises(HTTPException) as error:
+        await dispatch(mail_env, map_audit_id=upstream)
+    assert error.value.status_code == 422
+    mail_env[3].assert_not_awaited()
+    mail_env[4].assert_not_called()
+    mail_env[4].side_effect = TimeoutError()
+    await dispatch(mail_env)
+    await make_due(mail_env)
+    with pytest.raises(HTTPException) as error:
+        await dispatch(mail_env, map_audit_id=upstream)
+    assert error.value.status_code == 422
+    assert mail_env[4].call_count == 1
+
+
+async def test_accepted_replay_without_attempt_is_receipt_read_only(mail_env):
+    accepted = await dispatch(mail_env)
+    assert await dispatch(mail_env, map_audit_id=None) == accepted
+    assert mail_env[4].call_count == mail_env[3].call_count == 1

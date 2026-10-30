@@ -122,6 +122,33 @@ jobs:
           fi
           echo "Mock paths validation passed"
 
+      # Export reproducible schema evidence without changing what drift tests read.
+      # Useful when an operator's local workload guard cannot import the app.
+      - name: Render MCP OpenAPI evidence
+        working-directory: ./apps/api
+        env:
+          ENVIRONMENT: test
+          SECRET_KEY: test-secret-key-do-not-use-in-production
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python - <<'PYCODE'
+          import os, pathlib, subprocess, sys
+          snapshot = pathlib.Path("app/mcp/openapi_snapshot.json")
+          original = snapshot.read_bytes()
+          try:
+              subprocess.run([sys.executable, "scripts/mcp_generate_openapi.py"], check=True)
+              pathlib.Path(os.environ["RUNNER_TEMP"], "janua-mcp-openapi.json").write_bytes(snapshot.read_bytes())
+          finally:
+              snapshot.write_bytes(original)
+          PYCODE
+
+      - name: Upload MCP OpenAPI evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: janua-mcp-openapi-evidence
+          path: ${{ runner.temp }}/janua-mcp-openapi.json
+          retention-days: 3
+
       - name: Run tests with coverage
         working-directory: ./apps/api
         env:

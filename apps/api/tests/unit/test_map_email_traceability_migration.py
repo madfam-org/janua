@@ -17,6 +17,7 @@ def test_migration_is_additive_reentrant_and_retains_evidence():
     with engine.begin() as connection:
         metadata = sa.MetaData()
         sa.Table("magic_links", metadata, sa.Column("id", sa.Uuid(), primary_key=True))
+        sa.Table("password_resets", metadata, sa.Column("id", sa.Uuid(), primary_key=True))
         sa.Table("email_events", metadata, sa.Column("id", sa.Integer(), primary_key=True))
         sa.Table("payment_mail_dispatches", metadata, sa.Column("id", sa.Uuid(), primary_key=True))
         metadata.create_all(connection)
