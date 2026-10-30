@@ -26,6 +26,7 @@ from app.services.email_i18n import (
     template_candidates,
 )
 from app.services.email_presentation import ctm_subject, render_ctm_email
+from app.services.email_send_audit import accepted_receipt, current_audit, merge_audit_tags
 from app.services.email_sender import (
     MESSAGE_CLASS_CONVERSATION,
     MESSAGE_CLASS_SECURITY,
@@ -317,6 +318,13 @@ class ResendEmailService:
         try:
             # Development mode: console logging
             if not settings.RESEND_API_KEY or settings.ENVIRONMENT == "development":
+                if current_audit() is not None:
+                    return EmailDeliveryStatus(
+                        message_id=message_id,
+                        status="failed",
+                        timestamp=datetime.utcnow(),
+                        error_message="Audited provider unavailable",
+                    )
                 return await self._send_with_console(
                     to_email, subject, html_content, text_content, message_id, metadata
                 )
@@ -426,7 +434,9 @@ class ResendEmailService:
 
             # All adapters share the lock, including platform sends and service
             # construction. No request can inherit another tenant's SDK key.
+            params["tags"] = merge_audit_tags(params["tags"])
             response = send_on_account(params, api_key_override or settings.RESEND_API_KEY)
+            await accepted_receipt(response.get("id"))
 
             # Resend returns {"id": "..."} on success
             delivery_status = EmailDeliveryStatus(

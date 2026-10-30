@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models import AuditLog, PaymentMailDispatch
+from app.services.email_send_audit import uuid_metadata
 from app.services.payment_mail_auth import PaymentMailPrincipal, current_mail_client
 from app.services.resend_transport import send_on_account
 
@@ -167,6 +168,7 @@ async def _envelope(principal, intent):
         "tags": [
             {"name": "source_app", "value": "crea-map"},
             {"name": "source_type", "value": "payment"},
+            {"name": "payment_command_id", "value": str(intent.command_id)},
             {"name": "template", "value": TEMPLATE.replace("/", "_")},
             # Scopes webhook events to the tenant (app/services/email_events.py).
             # Part of the envelope hash: a retry of a pre-tag attempt is a
@@ -186,7 +188,11 @@ async def _envelope(principal, intent):
 
 
 async def dispatch_payment_notice(
-    db: AsyncSession, principal: PaymentMailPrincipal, intent: PaymentNoticeIntent
+    db: AsyncSession,
+    principal: PaymentMailPrincipal,
+    intent: PaymentNoticeIntent,
+    *,
+    map_audit_id: str | None = None,
 ):
     digest = _hash(intent.model_dump(mode="json"))
     # Exact accepted replay must work during a provider/credential outage.
@@ -220,6 +226,7 @@ async def dispatch_payment_notice(
                 envelope_hash=envelope_hash,
                 binding_hash=binding_hash,
                 credential_fingerprint=credential_fingerprint,
+                map_audit_id=str(identity) if (identity := uuid_metadata(map_audit_id)) else None,
                 attempts=0,
                 state="pending",
                 issue="",

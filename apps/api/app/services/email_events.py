@@ -37,7 +37,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.models.email_dispatch import PaymentMailDispatch
 from app.models.email_event import EmailEvent
+from app.models.email_send_audit import EmailSendAudit
+from app.services.email_send_audit import uuid_metadata
 from app.services.email_tags import tag_value
 
 PROVIDER = "resend"
@@ -187,6 +190,11 @@ class ParsedEvent:
     bounce_type: Optional[str] = None
     bounce_subtype: Optional[str] = None
     click_link: Optional[str] = None
+    mail_audit_id: Optional[str] = None
+    map_audit_id: Optional[str] = None
+    message_kind: Optional[str] = None
+    trigger_kind: Optional[str] = None
+    command_id: Optional[str] = None
 
 
 class MalformedEvent(Exception):
@@ -233,6 +241,14 @@ def parse_event(payload: object) -> Optional[ParsedEvent]:
         occurred_at=occurred,
         source_app=tag_value(tags, "source_app"),
         org_id=tag_value(tags, "org_id"),
+        command_id=(
+            str(command)
+            if (command := uuid_metadata(tag_value(tags, "payment_command_id")))
+            else None
+        ),
+        mail_audit_id=(
+            str(identity) if (identity := uuid_metadata(tag_value(tags, "mail_audit_id"))) else None
+        ),
         bounce_type=bounce_type,
         bounce_subtype=bounce_subtype,
         click_link=(
@@ -272,6 +288,60 @@ async def record_event(
         "source": source,
         "possible_prefetch": possible_prefetch,
     }
+    # A signed webhook is necessary, but arbitrary tag strings are not proof
+    # of our intent. Join the durable canonical row and require app/org/receipt
+    # agreement before exposing correlation or classification to consumers.
+    if event.mail_audit_id is not None:
+        audit = await db.get(EmailSendAudit, uuid_metadata(event.mail_audit_id))
+        if (
+            audit is not None
+            and audit.attempted_at is not None
+            and audit.state != "pending"
+            and audit.source_app == event.source_app
+            and audit.org_id == event.org_id
+            and (audit.provider_message_id is None or audit.provider_message_id == event.email_id)
+        ):
+            values.update(
+                mail_audit_id=str(audit.id),
+                map_audit_id=str(audit.upstream_audit_id) if audit.upstream_audit_id else None,
+                message_kind=audit.message_kind,
+                trigger_kind=audit.trigger_kind,
+            )
+            if (
+                event.event_type in {"email.sent", "email.delivered"}
+                and audit.provider_message_id is None
+            ):
+                audit.provider_message_id = event.email_id
+                audit.accepted_at = event.occurred_at
+                audit.state = "accepted"
+    if event.command_id is not None and event.source_app == "crea-map" and event.org_id:
+        organization = uuid_metadata(event.org_id)
+        if organization is not None:
+            result = await db.execute(
+                select(PaymentMailDispatch)
+                .where(
+                    PaymentMailDispatch.command_id == uuid_metadata(event.command_id),
+                    PaymentMailDispatch.organization_id == organization,
+                )
+                .limit(2)
+            )
+            candidates = list(result.scalars().all())
+            dispatch = candidates[0] if len(candidates) == 1 else None
+            if (
+                dispatch is not None
+                and dispatch.attempts > 0
+                and (
+                    dispatch.provider_message_id is None
+                    or dispatch.provider_message_id == event.email_id
+                )
+            ):
+                values.update(
+                    mail_audit_id=str(dispatch.id),
+                    map_audit_id=dispatch.map_audit_id,
+                    message_kind="payment",
+                    trigger_kind="payment_command",
+                    command_id=event.command_id,
+                )
     dialect = db.bind.dialect.name if db.bind is not None else ""
     if dialect == "postgresql":
         from sqlalchemy.dialects.postgresql import insert as dialect_insert
@@ -325,8 +395,17 @@ def feed_item(row: EmailEvent) -> dict[str, Any]:
         "type": row.event_type.removeprefix("email."),
         "occurred_at": row.occurred_at.replace(tzinfo=timezone.utc),
     }
-    for key in ("bounce_type", "bounce_subtype", "click_link"):
-        value = getattr(row, key)
+    for key in (
+        "bounce_type",
+        "bounce_subtype",
+        "click_link",
+        "mail_audit_id",
+        "map_audit_id",
+        "message_kind",
+        "trigger_kind",
+        "command_id",
+    ):
+        value = getattr(row, key, None)
         if value:
             item[key] = value
     # First-party rows (Janua's own tracking host) say so; webhook rows are

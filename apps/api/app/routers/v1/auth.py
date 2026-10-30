@@ -7,6 +7,7 @@ import hmac
 import json
 import re
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 from urllib.parse import parse_qs, urlencode, urlparse
@@ -70,6 +71,13 @@ from app.services.account_lockout_service import AccountLockoutService
 from app.services.audit_logger import AuditEventType, AuditLogger
 from app.services.auth_service import AuthService
 from app.services.email_i18n import normalize_formality
+from app.services.email_send_audit import (
+    CORRELATION_HEADER,
+    add_intent,
+    attach_issuance,
+    is_map_destination,
+    uuid_metadata,
+)
 from app.services.email_service import (
     send_magic_link_email_task,
     send_password_reset_email_task,
@@ -2798,9 +2806,9 @@ async def forgot_password_page(
         <p class="lead">{c["recovery_lead"]}</p>
         <form method="POST" action="/api/v1/auth/forgot-password-form">
             {hidden_ui_locales_field(locale)}
-            <input type="hidden" name="client_id" value="{__import__('html').escape(client_id or '', quote=True)}">
-            <input type="hidden" name="auth_request_id" value="{__import__('html').escape(auth_request_id or '', quote=True)}">
-            <input type="hidden" name="return_url" value="{__import__('html').escape(return_url or '', quote=True)}">
+            <input type="hidden" name="client_id" value="{__import__("html").escape(client_id or "", quote=True)}">
+            <input type="hidden" name="auth_request_id" value="{__import__("html").escape(auth_request_id or "", quote=True)}">
+            <input type="hidden" name="return_url" value="{__import__("html").escape(return_url or "", quote=True)}">
             <div class="form-group">
                 <label for="email">{c["email_label"]}</label>
                 <input type="email" id="email" name="email" required autocomplete="email" autofocus>
@@ -3114,8 +3122,15 @@ async def send_magic_link(
     magic_link_data: MagicLinkRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    response: Response = None,
 ):
-    """Send magic link for passwordless signin"""
+    """Send magic link for passwordless signin; response never enumerates accounts."""
+    correlation = uuid.uuid4()
+    request.state.mail_correlation_id = correlation
+    # Always present on the neutral 2xx response, including unknown/invite-only
+    # users. Presence is never a signal that an account or a send exists.
+    if response is not None:
+        response.headers[CORRELATION_HEADER] = str(correlation)
     await _issue_magic_link(request, magic_link_data, background_tasks, db)
     return {"message": "Magic link sent to email"}
 
@@ -3175,6 +3190,48 @@ async def _issue_magic_link(
     # supplies the preferred pool; when it cannot decide, the resolver raises
     # and this handler answers 400 rather than signing anyone into an arbitrary
     # tenant. That 400 is REACHABLE in production — it was not, before 013.
+    # SECURITY: Validate the redirect URL to prevent open redirect attacks.
+    # A supplied-but-disallowed destination is a 400 HERE, not a silent None:
+    # the emailed link is built ON the destination host, so nulling it would
+    # mail a link that signs the user in and then dead-ends — a failure the
+    # requesting product cannot see and the recipient cannot fix. (Found live
+    # 2026-08-15: the rehearsal host was missing from CORS_ORIGINS and the
+    # first client-ceremony walkthrough ended on the recovery page.)
+    safe_redirect_url = None
+    if magic_link_data.redirect_url:
+        safe_redirect_url = validate_redirect_url(magic_link_data.redirect_url, default_url=None)
+        if safe_redirect_url is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "redirect_url host is not on the allowed list; "
+                    "add it to CORS_ORIGINS before requesting links for it"
+                ),
+            )
+
+    # The audit store is checked BEFORE account lookup. An outage must not
+    # distinguish an existing identity from an unknown invite-only address.
+    mail_audit_id = None
+    map_client = await _map_mail_client(db, safe_redirect_url, client_id)
+    if map_client is not None:
+        correlation = (
+            uuid_metadata(getattr(request.state, "mail_correlation_id", None)) or uuid.uuid4()
+        )
+        try:
+            mail_audit_id = await add_intent(
+                db,
+                audit_id=correlation,
+                source_app="crea-map",
+                message_kind="magic_login",
+                trigger_kind="map_login_request",
+                provenance="registered_map_login",
+                org_id=str(map_client.organization_id),
+            )
+            await db.commit()
+        except Exception as error:
+            await db.rollback()
+            raise HTTPException(status_code=503, detail="Login mail audit unavailable") from error
+
     user = await get_user_by_email(db, magic_link_data.email, tenant_id=None, active_only=True)
 
     if not user:
@@ -3206,6 +3263,9 @@ async def _issue_magic_link(
             ) from exc
 
     if not user and await _invite_only_destination(db, magic_link_data.redirect_url, client_id):
+        if mail_audit_id is not None:
+            await attach_issuance(db, mail_audit_id, not_issued=True)
+            await db.commit()
         logger.info("magic_link.not_created_invite_only", client_id=client_id)
         return None
 
@@ -3262,28 +3322,10 @@ async def _issue_magic_link(
                     detail="An account with this email exists but is not active",
                 )
 
-    # SECURITY: Validate the redirect URL to prevent open redirect attacks.
-    # A supplied-but-disallowed destination is a 400 HERE, not a silent None:
-    # the emailed link is built ON the destination host, so nulling it would
-    # mail a link that signs the user in and then dead-ends — a failure the
-    # requesting product cannot see and the recipient cannot fix. (Found live
-    # 2026-08-15: the rehearsal host was missing from CORS_ORIGINS and the
-    # first client-ceremony walkthrough ended on the recovery page.)
-    safe_redirect_url = None
-    if magic_link_data.redirect_url:
-        safe_redirect_url = validate_redirect_url(magic_link_data.redirect_url, default_url=None)
-        if safe_redirect_url is None:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "redirect_url host is not on the allowed list; "
-                    "add it to CORS_ORIGINS before requesting links for it"
-                ),
-            )
-
     # Create magic link token
     magic_token = secrets.token_urlsafe(32)
     magic_link = MagicLink(
+        id=uuid.uuid4(),
         user_id=user.id,
         # The model declares email NOT NULL and this constructor never set it,
         # so the moment migration backlog 003-011 landed in production
@@ -3300,7 +3342,18 @@ async def _issue_magic_link(
         expires_at=datetime.utcnow() + timedelta(minutes=15),
     )
     db.add(magic_link)
-    await db.commit()
+    try:
+        if mail_audit_id is not None:
+            await db.flush()
+            await attach_issuance(db, mail_audit_id, magic_link.id)
+        await db.commit()
+    except Exception as error:
+        await db.rollback()
+        if mail_audit_id is not None:
+            raise HTTPException(
+                status_code=503, detail="Login mail issuance audit unavailable"
+            ) from error
+        raise
 
     # Send email in background.
     #
@@ -3320,9 +3373,51 @@ async def _issue_magic_link(
         formality=magic_link_data.formality,
         user_formality=getattr(user, "spanish_formality", None),
         hosted_hop=magic_link_data.hosted_hop,
+        **({"mail_audit_id": str(mail_audit_id)} if mail_audit_id is not None else {}),
     )
 
     return user
+
+
+async def _map_mail_client(db, redirect_url, client_id):
+    """Derive MAP origin from registered active redirects, never caller tags."""
+    from app.models import OAuthClient
+    from app.services.email_branding import CTM_ORG_ID
+
+    direct_map = is_map_destination(redirect_url)
+    client = await _oauth_client_for_redirect(db, redirect_url) if direct_map else None
+    if not direct_map and redirect_url:
+        target = urlparse(redirect_url)
+        named = parse_qs(target.query).get("client_id", [None])[0]
+        issuer_host = urlparse(settings.public_base_url).hostname
+        if (
+            target.hostname == issuer_host
+            and target.path.rstrip("/") == "/api/v1/oauth/authorize"
+            and named
+        ):
+            if client_id is not None and named != client_id:
+                raise HTTPException(status_code=400, detail="Login destination client mismatch")
+            result = await db.execute(
+                select(OAuthClient).where(
+                    OAuthClient.client_id == named, OAuthClient.is_active.is_(True)
+                )
+            )
+            candidate = result.scalar_one_or_none()
+            uris = getattr(candidate, "redirect_uris", None) or []
+            if isinstance(uris, str):
+                try:
+                    uris = json.loads(uris)
+                except (ValueError, TypeError):
+                    uris = []
+            if isinstance(uris, list) and any(
+                isinstance(uri, str) and is_map_destination(uri) for uri in uris
+            ):
+                client = candidate
+    if direct_map or client is not None:
+        if client is None or str(getattr(client, "organization_id", "")) != str(CTM_ORG_ID):
+            raise HTTPException(status_code=503, detail="MAP login destination binding unavailable")
+        return client
+    return None
 
 
 async def _invite_only_destination(
@@ -4218,13 +4313,13 @@ def _check_inbox_page_html(
     if invite_only:
         # Same words whether or not the address has access (no enumeration).
         sent = (
-            f'{c["inbox_if_invited"]} <strong>{app}</strong>{c["inbox_if_invited_tail"]} '
+            f"{c['inbox_if_invited']} <strong>{app}</strong>{c['inbox_if_invited_tail']} "
             f"<strong>{masked}</strong>."
         )
     else:
         sent = (
-            f'{c["inbox_sent_to"]} <strong>{masked}</strong>.\n'
-            f'        {c["inbox_open_on_device"]} <strong>{app}</strong>.'
+            f"{c['inbox_sent_to']} <strong>{masked}</strong>.\n"
+            f"        {c['inbox_open_on_device']} <strong>{app}</strong>."
         )
     return _recovery_page_html(
         f"""<h1>&#9993;&#65039; {c["inbox_heading"]}</h1>

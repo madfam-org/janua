@@ -1126,6 +1126,7 @@ User.privacy_settings = relationship(
 
 from app.models.email_dispatch import PaymentMailDispatch  # noqa: E402,F401
 from app.models.email_event import EmailEvent, EmailTrackingLink  # noqa: E402,F401
+from app.models.email_send_audit import EmailSendAudit  # noqa: E402,F401
 from app.models.organization_authentication_policy import (  # noqa: E402,F401
     OrganizationAuthenticationPolicy,
     OrganizationAuthenticationPolicyChange,

@@ -41,6 +41,13 @@ from app.services.email_i18n import (
     template_candidates,
 )
 from app.services.email_presentation import ctm_subject, render_ctm_email
+from app.services.email_send_audit import (
+    accepted_receipt,
+    current_audit,
+    merge_audit_tags,
+    rejected_receipt,
+    send_scope,
+)
 from app.services.email_sender import (
     binding_for,
     is_automated,
@@ -720,7 +727,10 @@ class EmailService:
             template="magic_link",
             token_link=True,
         )
-        if sent:
+        audit = current_audit()
+        if audit is not None:
+            logger.info("magic_login.dispatch_completed", audit_id=str(audit.id), sent=sent)
+        elif sent:
             logger.info("Magic link email sent", email=_redact_email(email))
         else:
             logger.error("Failed to send magic link email", email=_redact_email(email))
@@ -892,6 +902,7 @@ class EmailService:
         if wire_text:
             payload["text"] = wire_text
 
+        payload["tags"] = merge_audit_tags(payload["tags"])
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 "https://api.resend.com/emails",
@@ -900,6 +911,9 @@ class EmailService:
             )
 
         if response.status_code >= 400:
+            if current_audit() is not None:
+                await rejected_receipt()
+                return False
             # Body may name a misconfiguration (unverified domain, bad key);
             # it carries no recipient content, so it is safe to log.
             logger.error(
@@ -909,6 +923,12 @@ class EmailService:
                 detail=response.text[:300],
             )
             return False
+        if current_audit() is not None:
+            try:
+                receipt = response.json()
+            except (ValueError, TypeError):
+                receipt = {}
+            await accepted_receipt(receipt.get("id"))
         return True
 
     async def _send_email(
@@ -937,6 +957,11 @@ class EmailService:
         message_class = message_class or message_class_for_template(template)
 
         try:
+            if current_audit() is not None and not (
+                settings.EMAIL_PROVIDER == "resend" and settings.RESEND_API_KEY
+            ):
+                await rejected_receipt()
+                return False
             if settings.EMAIL_PROVIDER == "resend" and settings.RESEND_API_KEY:
                 return await self._send_via_resend(
                     to_email,
@@ -1004,9 +1029,16 @@ class EmailService:
             return True
 
         except Exception as e:
-            logger.error(
-                "Failed to send email", to=_redact_email(to_email), error_type=type(e).__name__
-            )
+            if current_audit() is not None:
+                logger.error(
+                    "mail_audit.transport_failed",
+                    audit_id=str(current_audit().id),
+                    error_type=type(e).__name__,
+                )
+            else:
+                logger.error(
+                    "Failed to send email", to=_redact_email(to_email), error_type=type(e).__name__
+                )
             return False
 
 
@@ -1064,6 +1096,7 @@ async def send_magic_link_email_task(
     formality: Optional[str] = None,
     user_formality: Optional[str] = None,
     hosted_hop: Optional[bool] = None,
+    mail_audit_id: Optional[str] = None,
 ) -> None:
     """Background-task entrypoint for the magic-link flow.
 
@@ -1084,9 +1117,10 @@ async def send_magic_link_email_task(
     duck-typed `user` shape the resolver reads, rather than widening the
     resolver to take loose scalars.
     """
-    try:
+
+    async def enviar():
         service = EmailService()
-        sent = await service.send_magic_link_email(
+        return await service.send_magic_link_email(
             email,
             magic_token,
             redirect_url,
@@ -1095,13 +1129,27 @@ async def send_magic_link_email_task(
             user=SimpleNamespace(spanish_formality=user_formality) if user_formality else None,
             hosted_hop=hosted_hop,
         )
+
+    try:
+        if mail_audit_id is not None:
+            async with send_scope(mail_audit_id):
+                sent = await enviar()
+        else:
+            sent = await enviar()
         if not sent:
-            logger.warning(
-                "Magic link email NOT sent — the recipient will never receive a sign-in link",
-                email=_redact_email(email),
+            if mail_audit_id is not None:
+                logger.warning("magic_login.not_accepted", audit_id=mail_audit_id)
+            else:
+                logger.warning("Magic link email NOT sent", email=_redact_email(email))
+    except Exception as error:
+        if mail_audit_id is not None:
+            logger.error(
+                "magic_login.dispatch_failed",
+                audit_id=mail_audit_id,
+                error_type=type(error).__name__,
             )
-    except Exception:
-        logger.exception("Magic link email task failed")
+        else:
+            logger.exception("Magic link email task failed")
 
 
 async def send_product_invite_email_task(

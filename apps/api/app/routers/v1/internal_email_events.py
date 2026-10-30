@@ -69,6 +69,11 @@ class EmailEventItem(BaseModel):
     click_link: Optional[str] = None
     source: Optional[str] = None
     possible_prefetch: Optional[bool] = None
+    mail_audit_id: Optional[str] = None
+    map_audit_id: Optional[str] = None
+    message_kind: Optional[str] = None
+    trigger_kind: Optional[str] = None
+    command_id: Optional[str] = None
 
 
 class EmailEventsPage(BaseModel):

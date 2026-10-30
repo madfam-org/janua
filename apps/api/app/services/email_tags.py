@@ -31,7 +31,19 @@ MAX_TAG_LENGTH = 256
 #: The source_app of mail Janua originates itself (sign-in, reset, verify...).
 JANUA_SOURCE_APP = "janua"
 
-RESERVED_TAG_NAMES = frozenset({"source_app", "source_type", "org_id", "template"})
+RESERVED_TAG_NAMES = frozenset(
+    {
+        "source_app",
+        "source_type",
+        "org_id",
+        "template",
+        "mail_audit_id",
+        "map_audit_id",
+        "message_kind",
+        "trigger_kind",
+        "payment_command_id",
+    }
+)
 
 
 def sanitize_tag_value(value: object) -> str:

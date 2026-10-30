@@ -13,7 +13,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 
 from app.config import settings
@@ -30,6 +30,7 @@ from app.services.email_i18n import (
 )
 from app.services.email_presentation import payment_session_detail as _sesiones_detalle
 from app.services.email_presentation import render_map_payment
+from app.services.email_send_audit import UPSTREAM_HEADER, audited_internal_send
 from app.services.email_sender import message_class_for_internal_send
 from app.services.email_tags import build_tags
 from app.services.email_usage import QUOTA_ERROR_TYPES
@@ -639,7 +640,11 @@ def _first_message_bcc(to: List[str], bcc: Optional[List[str]]) -> Optional[List
 
 
 @router.post("/send", response_model=EmailResponse)
-async def send_email(request: SendEmailRequest, _: bool = Depends(verify_internal_api_key)):
+async def send_email(
+    request: SendEmailRequest,
+    _: bool = Depends(verify_internal_api_key),
+    map_audit_id: Optional[str] = Header(None, alias=UPSTREAM_HEADER),
+):
     """
     Send a custom email via Resend.
     Used for emails that don't fit a predefined template.
@@ -666,25 +671,31 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
         # Send to each recipient (service expects single email address)
         results = []
         for recipient in request.to:
-            result = await resend_service.send_email(
-                to_email=recipient,
-                subject=request.subject,
-                html_content=request.html or "",
-                text_content=request.text,
-                reply_to=request.reply_to,
-                cc=request.cc,
-                bcc=request.bcc,
-                tags=tag_list,
-                from_email=request.from_email,
-                from_name=request.from_name,
-                redirect_url=request.redirect_url,
+            result = await audited_internal_send(
+                lambda recipient=recipient: resend_service.send_email(
+                    to_email=recipient,
+                    subject=request.subject,
+                    html_content=request.html or "",
+                    text_content=request.text,
+                    reply_to=request.reply_to,
+                    cc=request.cc,
+                    bcc=request.bcc,
+                    tags=tag_list,
+                    from_email=request.from_email,
+                    from_name=request.from_name,
+                    redirect_url=request.redirect_url,
+                    org_id=request.org_id,
+                    attachments=resend_attachments,
+                    token_link=request.contains_token_link,
+                    track_engagement=request.track_engagement,
+                    # R101: token mail leaves from the system sender with a
+                    # Reply-To when no tenant's branded sender applies.
+                    message_class=message_class_for_internal_send(request.contains_token_link),
+                ),
+                source_app=request.source_app,
                 org_id=request.org_id,
-                attachments=resend_attachments,
-                token_link=request.contains_token_link,
-                track_engagement=request.track_engagement,
-                # R101: token mail leaves from the system sender with a
-                # Reply-To when no tenant's branded sender applies.
-                message_class=message_class_for_internal_send(request.contains_token_link),
+                message_kind=request.source_type or "notification",
+                upstream_audit_id=map_audit_id,
             )
             results.append(result)
 
@@ -699,7 +710,9 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
 
 @router.post("/send-template", response_model=EmailResponse)
 async def send_template_email(
-    request: SendTemplateEmailRequest, _: bool = Depends(verify_internal_api_key)
+    request: SendTemplateEmailRequest,
+    _: bool = Depends(verify_internal_api_key),
+    map_audit_id: Optional[str] = Header(None, alias=UPSTREAM_HEADER),
 ):
     """
     Send an email using a predefined template.
@@ -810,21 +823,27 @@ async def send_template_email(
         results = []
         for index, recipient in enumerate(request.to):
             message = per_recipient[recipient]
-            result = await resend_service.send_email(
-                to_email=recipient,
-                subject=message.subject,
-                html_content=message.html,
-                text_content=message.text,
-                tags=tag_list,
-                reply_to=request.reply_to,
-                bcc=first_message_bcc if index == 0 else None,
-                from_email=from_email,
-                from_name=from_name,
-                redirect_url=request.redirect_url,
+            result = await audited_internal_send(
+                lambda recipient=recipient, message=message, index=index: resend_service.send_email(
+                    to_email=recipient,
+                    subject=message.subject,
+                    html_content=message.html,
+                    text_content=message.text,
+                    tags=tag_list,
+                    reply_to=request.reply_to,
+                    bcc=first_message_bcc if index == 0 else None,
+                    from_email=from_email,
+                    from_name=from_name,
+                    redirect_url=request.redirect_url,
+                    org_id=request.org_id,
+                    attachments=resend_attachments,
+                    token_link=rendered.token_link,
+                    message_class=message_class_for_internal_send(rendered.token_link),
+                ),
+                source_app=request.source_app,
                 org_id=request.org_id,
-                attachments=resend_attachments,
-                token_link=rendered.token_link,
-                message_class=message_class_for_internal_send(rendered.token_link),
+                message_kind=request.source_type or "notification",
+                upstream_audit_id=map_audit_id,
             )
             results.append(result)
 

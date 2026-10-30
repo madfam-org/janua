@@ -56,6 +56,7 @@ class EmailEvent(Base):
         UniqueConstraint("svix_id", name="uq_email_events_svix_id"),
         Index("ix_email_events_email_id", "email_id"),
         Index("ix_email_events_source_app_id", "source_app", "id"),
+        Index("ix_email_events_mail_audit", "mail_audit_id"),
     )
 
     id = Column(CURSOR_TYPE, primary_key=True, autoincrement=True)
@@ -72,6 +73,11 @@ class EmailEvent(Base):
     click_link = Column(String(2048), nullable=True)
     received_at = Column(DateTime(), nullable=False, default=datetime.utcnow)
     #: `webhook` (Resend) or `first_party` (Janua's own tracking host).
+    mail_audit_id = Column(String(36), nullable=True)
+    map_audit_id = Column(String(36), nullable=True)
+    message_kind = Column(String(32), nullable=True)
+    trigger_kind = Column(String(32), nullable=True)
+    command_id = Column(String(36), nullable=True)
     source = Column(String(16), nullable=False, default="webhook", server_default="webhook")
     #: First-party only: the hit looked like a prefetch or a link scanner.
     possible_prefetch = Column(Boolean(), nullable=True)
