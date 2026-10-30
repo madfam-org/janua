@@ -16,10 +16,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Public PR verification uses hosted runners; non-PR routing is retained.
 jobs:
   networkpolicy-port-lint:
     name: NetworkPolicy port consistency
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
     timeout-minutes: 3
     # Prevents the 2026-05-04 status.enclii.dev outage class:
     # NetworkPolicy `ports:` clauses that don't intersect the selected pods'
@@ -39,7 +40,7 @@ jobs:
   # Lint and typecheck all packages
   lint:
     name: Lint & Typecheck
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
     steps:
       - uses: actions/checkout@v7
 
@@ -64,7 +65,7 @@ jobs:
 
   cli-test:
     name: CLI Tests (@janua/cli)
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
     steps:
       - uses: actions/checkout@v7
 
@@ -93,7 +94,7 @@ jobs:
   # Build all packages
   build:
     name: Build
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
     needs: lint
     steps:
       - uses: actions/checkout@v7
