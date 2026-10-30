@@ -806,3 +806,17 @@ async def test_map_recovery_audit_outage_fails_before_identity_lookup(env, monke
     assert response.status_code == 503
     lookup.assert_not_awaited()
     env.mail.assert_not_awaited()
+
+
+@pytest.mark.parametrize("unsafe", [
+    "https://map.creatumundo.mx/\\outside",
+    "https://map.creatumundo.mx/\napi/auth/login",
+    "https://map.creatumundo.mx/\tapi/auth/login",
+])
+async def test_registered_map_recovery_refuses_controls_or_backslash_before_mail(env, unsafe):
+    await _registered_map_platform(env)
+    response = await env.http.post("/api/v1/auth/password/forgot", json={
+        "email": env.user.email, "client_id": "synthetic-map", "return_url": unsafe,
+    })
+    assert response.status_code == 400
+    env.mail.assert_not_awaited()

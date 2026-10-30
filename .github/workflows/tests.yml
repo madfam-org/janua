@@ -122,33 +122,6 @@ jobs:
           fi
           echo "Mock paths validation passed"
 
-      # Export reproducible schema evidence without changing what drift tests read.
-      # Useful when an operator's local workload guard cannot import the app.
-      - name: Render MCP OpenAPI evidence
-        working-directory: ./apps/api
-        env:
-          ENVIRONMENT: test
-          SECRET_KEY: test-secret-key-do-not-use-in-production
-          REDIS_URL: redis://localhost:6379/0
-        run: |
-          python - <<'PYCODE'
-          import os, pathlib, subprocess, sys
-          snapshot = pathlib.Path("app/mcp/openapi_snapshot.json")
-          original = snapshot.read_bytes()
-          try:
-              subprocess.run([sys.executable, "scripts/mcp_generate_openapi.py"], check=True)
-              pathlib.Path(os.environ["RUNNER_TEMP"], "janua-mcp-openapi.json").write_bytes(snapshot.read_bytes())
-          finally:
-              snapshot.write_bytes(original)
-          PYCODE
-
-      - name: Upload MCP OpenAPI evidence
-        uses: actions/upload-artifact@v7
-        with:
-          name: janua-mcp-openapi-evidence
-          path: ${{ runner.temp }}/janua-mcp-openapi.json
-          retention-days: 3
-
       - name: Run tests with coverage
         working-directory: ./apps/api
         env:
@@ -230,6 +203,37 @@ jobs:
           name: api-coverage-report
           path: apps/api/htmlcov/
           retention-days: 30
+
+  mcp-schema-evidence:
+    name: MCP schema evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Metadata only; required API drift tests independently read the committed file.
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: apps/api/requirements.txt
+      - name: Install runtime dependencies
+        working-directory: ./apps/api
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxmlsec1-dev pkg-config
+          pip install -r requirements.txt
+      - name: Render schema evidence
+        working-directory: ./apps/api
+        env:
+          ENVIRONMENT: test
+          SECRET_KEY: test-secret-key-do-not-use-in-production
+          REDIS_URL: redis://localhost:6379/0
+        run: python scripts/mcp_generate_openapi.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: janua-mcp-openapi-evidence
+          path: apps/api/app/mcp/openapi_snapshot.json
+          retention-days: 3
 
   api-diagnostics:
     name: API Diagnostics (advisory)

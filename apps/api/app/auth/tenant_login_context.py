@@ -59,6 +59,8 @@ async def login_client_context(db, redis, *, auth_request_id=None, client_id=Non
     ):
         raise HTTPException(400, "Invalid authentication redirect")
     if return_url:
+        if "\\" in return_url or any(ord(char) < 32 or ord(char) == 127 for char in return_url):
+            raise HTTPException(400, "Invalid return URL")
         target = urlsplit(return_url)
         if target.scheme != "https" or target.username or target.password or target.fragment:
             raise HTTPException(400, "Invalid return URL")
