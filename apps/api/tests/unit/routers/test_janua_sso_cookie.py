@@ -280,6 +280,7 @@ class TestEmittingPaths:
 class TestFailedExchangeSetsNothing:
     async def test_mfa_interrupt_emits_no_sso_cookie(self):
         user = _user()
+        user.mfa_enabled, user.mfa_secret = True, "synthetic-factor"
         db = _magic_db(_magic_link(None), user)
         response = Response()
         with (
@@ -507,6 +508,7 @@ def _oauth_client(name="madfam-erp", allowed_scopes=None):
         allowed_scopes=allowed_scopes or ["openid", "profile", "email"],
         redirect_uris=["https://erp.example.test/auth/callback"],
         audience=None,
+        organization_id=None,
         last_used_at=None,
     )
 
@@ -547,9 +549,15 @@ class TestAuthorizeAcceptsTheEstateCookie:
                     ): r
                 ),
                 SimpleNamespace(scalar_one_or_none=lambda u=user: u),
+                # Authorization rechecks the same live session's assurance.
+                SimpleNamespace(scalar_one_or_none=lambda s=session: s),
             ]
         )
         with (
+            patch(
+                "app.auth.authentication_assurance.user_policy_requires_mfa",
+                AsyncMock(return_value=False),
+            ),
             patch(
                 "app.routers.v1.oauth_provider._get_oauth_client",
                 AsyncMock(return_value=_oauth_client()),
@@ -884,3 +892,13 @@ class TestLogout:
         oauth_provider_router._clear_janua_session_cookies(resp)
         names = {c.split("=", 1)[0] for c in _cookie_headers(resp)}
         assert SSO_COOKIE_NAME in names
+
+
+@pytest.fixture(autouse=True)
+def optional_organization_policy(monkeypatch):
+    # This suite isolates platform cookie/consent behavior. Organization-policy
+    # and enforced-factor transitions have their real-SQL acceptance suite.
+    monkeypatch.setattr(
+        "app.auth.authentication_assurance.user_policy_requires_mfa", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(auth_router, "_oauth_client_for_redirect", AsyncMock(return_value=None))

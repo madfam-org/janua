@@ -406,9 +406,10 @@ class TestRenderedFrame:
         html = self._render(locale="es", branding_url=CTM_REDIRECT)
         header_seg = html.split('class="content"')[0]
         assert 'alt="MADFAM"' not in header_seg
-        # The CTM header carries the Crea mark (hotlinked, alt = the brand name).
+        # The mark is decorative beside a visible wordmark; images off retains
+        # the identity without announcing the same name twice to a screen reader.
         assert "crea-tu-mundo-oro.png" in header_seg
-        assert 'alt="Crea Tu Mundo"' in header_seg
+        assert ">Crea Tu Mundo</td>" in header_seg
 
     def test_ctm_footer_carries_madfam_mark(self):
         """The CTM footer credits MADFAM WITH the MADFAM mark, in the footer

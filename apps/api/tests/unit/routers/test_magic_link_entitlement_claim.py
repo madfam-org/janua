@@ -261,11 +261,15 @@ async def test_refresh_tokens_restamps_entitlement_claim():
         refresh_token_jti="old-refresh-jti",
         last_activity_at=None,
         expires_at=None,
+        authentication_methods=[],
+        authenticated_at=None,
+        mfa_verified_at=None,
     )
 
     db = AsyncMock()
     exec_result = MagicMock()
     exec_result.scalar_one_or_none = MagicMock(return_value=session)
+    exec_result.scalars.return_value.all.return_value = []
     db.execute = AsyncMock(return_value=exec_result)
     db.get = AsyncMock(return_value=user)
     db.commit = AsyncMock()
@@ -273,6 +277,10 @@ async def test_refresh_tokens_restamps_entitlement_claim():
     redis = AsyncMock()
 
     with (
+        patch(
+            "app.services.organization_authentication_policy.member_requires_mfa",
+            AsyncMock(return_value=False),
+        ),
         patch.object(
             AuthService,
             "verify_token",

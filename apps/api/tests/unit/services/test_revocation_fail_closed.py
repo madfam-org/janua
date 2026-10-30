@@ -158,6 +158,12 @@ def _refresh_patches():
             AsyncMock(return_value={}),
         ),
         patch("app.services.service_principal.service_principal_claims", return_value={}),
+        # Revocation scenarios use an optional organization policy; mandatory
+        # MFA is exercised against real memberships in its acceptance matrix.
+        patch(
+            "app.services.organization_authentication_policy.member_requires_mfa",
+            AsyncMock(return_value=False),
+        ),
     )
 
 
@@ -196,7 +202,7 @@ class TestRefreshTokens:
         token, jti, _, session = _refresh_token()
         db = _db_with_session(session)
         p = _refresh_patches()
-        with _auth_redis(client), p[0], p[1], p[2]:
+        with _auth_redis(client), p[0], p[1], p[2], p[3]:
             result = await AuthService.refresh_tokens(db, token)
         assert result is not None
         assert session.refresh_token_jti != jti  # rotated
@@ -207,7 +213,7 @@ class TestRefreshTokens:
         _, client = _redis()
         token, _, _, session = _refresh_token()
         p = _refresh_patches()
-        with _auth_redis(client), p[0], p[1], p[2]:
+        with _auth_redis(client), p[0], p[1], p[2], p[3]:
             assert await AuthService.refresh_tokens(_db_with_session(session), token) is not None
             replay_db = _db_with_session(session)
             assert await AuthService.refresh_tokens(replay_db, token) is None
@@ -231,7 +237,7 @@ class TestRefreshTokens:
         server, client = _redis()
         token, _, _, session = _refresh_token()
         p = _refresh_patches()
-        with _auth_redis(client), p[0], p[1], p[2]:
+        with _auth_redis(client), p[0], p[1], p[2], p[3]:
             assert await AuthService.refresh_tokens(_db_with_session(session), token) is not None
             server.connected = False
             with pytest.raises(RedisUnavailableError):

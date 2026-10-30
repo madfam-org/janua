@@ -10,7 +10,8 @@ The rule, and nothing else
 --------------------------
 An ACTIVE member of an organization who holds a LIVE ``<app>:admin`` grant in
 THAT organization may list, grant and revoke roles OF THAT APP ONLY
-(``<app>:<any role>``) for ACTIVE members of THAT SAME organization.
+for ACTIVE members of THAT SAME organization. Reserved security-policy roles
+are managed only by the trusted product authority lifecycle, not delegation.
 
 Every property the internal router's docstring states is kept:
 
@@ -26,8 +27,8 @@ Every property the internal router's docstring states is kept:
    probe who belongs to which organization. An ``email`` is resolved only among
    the organization's active members, never against the global user table.
 3. NO DELETE ENDPOINT. Revocation stamps ``revoked_at``; a re-grant is a NEW row.
-4. ``app`` and ``role`` stay OPAQUE and are shape-validated only
-   (``schemas/app_role.py``).
+4. ``app`` and ``role`` are shape-validated (``schemas/app_role.py``), with
+   ``RESERVED_APP_ROLES`` excluded from delegated grants and revocations.
 5. AUDIT names the person. ``granted_by`` / ``revoked_by`` hold the CALLER's user
    id (never ``INTERNAL_API_KEY_PRINCIPAL``), and each write is logged through
    ``AuditLogger`` with the caller as ``identity_id``.
@@ -89,6 +90,19 @@ MUTATION_RATE_LIMIT = "30/minute"
 #: The role whose live grant authorizes administering an app. Opaque like every
 #: other role name, except that THIS router gives it meaning within janua.
 APP_ADMIN_ROLE = "admin"
+
+# Security-policy authority is synchronized from the product's actual Direction
+# lifecycle. Ordinary app administration must not mint or retire that authority.
+RESERVED_APP_ROLES = {("crea-map", "security-policy-admin"), ("crea-map", "mfa-required")}
+
+
+def _refuse_reserved_role(app: str, role: str) -> None:
+    if (app, role) in RESERVED_APP_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This security role requires the trusted authority lifecycle",
+        )
+
 
 SELF_ADMIN_CHANGE_DETAIL = (
     "You cannot change your own admin role for this app; another admin of the app must do it"
@@ -390,8 +404,10 @@ async def grant_app_role(
     await _require_app_admin(db, org_id, current_user, app)
 
     if body.user_id is not None:
+        _refuse_reserved_role(app, body.role)
         target = await _active_membership(db, org_id, body.user_id)
     else:
+        _refuse_reserved_role(app, body.role)
         target = await _resolve_target_by_email(db, org_id, body.email or "")
 
     if target.user_id == current_user.id and body.role == APP_ADMIN_ROLE:
@@ -492,6 +508,7 @@ async def revoke_app_role(
     await _require_app_admin(db, org_id, current_user, app)
 
     target = await _active_membership(db, org_id, body.user_id)
+    _refuse_reserved_role(app, body.role)
     if target.user_id == current_user.id and body.role == APP_ADMIN_ROLE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=SELF_ADMIN_CHANGE_DETAIL)
 

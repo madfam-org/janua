@@ -2,7 +2,7 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, Optional, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import jwt
 import structlog
@@ -57,6 +57,9 @@ class AuthService:
         """Validate password meets security requirements"""
         if len(password) < 12:  # Increased from 8 for better security
             return False, "Password must be at least 12 characters long"
+
+        if len(password.encode("utf-8")) > 72:
+            return False, "Password must not exceed 72 UTF-8 bytes"
 
         if not any(c.isupper() for c in password):
             return False, "Password must contain at least one uppercase letter"
@@ -254,7 +257,9 @@ class AuthService:
                     "RS256 algorithm configured but no private key available. "
                     "Set JWT_PRIVATE_KEY or JWT_PRIVATE_KEY_PATH in production."
                 )
-            logger.warning("RS256 requested but no private key — falling back to HS256 (development only)")
+            logger.warning(
+                "RS256 requested but no private key — falling back to HS256 (development only)"
+            )
             algorithm = "HS256"
 
         # Always use HS256 in test environment
@@ -268,7 +273,11 @@ class AuthService:
 
     @staticmethod
     def create_refresh_token(
-        user_id: str, tenant_id: str, family: Optional[str] = None
+        user_id: str,
+        tenant_id: str,
+        family: Optional[str] = None,
+        authentication_assurance: Optional[dict] = None,
+        audience: Optional[str] = None,
     ) -> Tuple[str, str, str, datetime]:
         """Create JWT refresh token with rotation family"""
         jti = secrets.token_urlsafe(32)
@@ -276,6 +285,8 @@ class AuthService:
         expires_at = datetime.utcnow() + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS)
 
         payload = {
+            **(authentication_assurance or {}),
+            "session_audience": audience,
             "sub": user_id,
             "tid": tenant_id,
             "jti": jti,
@@ -301,7 +312,9 @@ class AuthService:
                     "RS256 algorithm configured but no private key available. "
                     "Set JWT_PRIVATE_KEY or JWT_PRIVATE_KEY_PATH in production."
                 )
-            logger.warning("RS256 requested but no private key — falling back to HS256 (development only)")
+            logger.warning(
+                "RS256 requested but no private key — falling back to HS256 (development only)"
+            )
             algorithm = "HS256"
 
         # Always use HS256 in test environment
@@ -461,6 +474,9 @@ class AuthService:
         invalidate_existing: bool = False,
         enforce_session_limit: bool = True,
         audience: Optional[str] = None,
+        authentication_methods: Optional[list[str]] = None,
+        authenticated_at: Optional[datetime] = None,
+        mfa_verified_at: Optional[datetime] = None,
     ) -> Tuple[str, str, Session]:
         """Create a new session with tokens.
 
@@ -581,8 +597,15 @@ class AuthService:
 
         tier_claims = await get_product_tier_claims(user, db, org_id=org_claims.get("org_id"))
 
-        # Create tokens. The refresh-token family is chosen first so the access
-        # token can carry it (see create_access_token).
+        from app.auth.authentication_assurance import assurance_claims
+
+        session_id = uuid4()
+        evidence = assurance_claims(
+            authentication_methods, authenticated_at, mfa_verified_at, session_id
+        )
+
+        # Create tokens
+        # Bind access and refresh to the same revocable token family.
         family = secrets.token_urlsafe(32)
         access_token, access_jti, access_expires = AuthService.create_access_token(
             user_id=str(user.id),
@@ -592,6 +615,7 @@ class AuthService:
             family=family,
             additional_claims={
                 **tier_claims,
+                **evidence,
                 "madfam_entitled_products": madfam_entitled_products,
                 **org_claims,
                 # `is_service_account: true` only for technical logins; absent
@@ -604,11 +628,19 @@ class AuthService:
         )
 
         refresh_token, refresh_jti, family, refresh_expires = AuthService.create_refresh_token(
-            user_id=str(user.id), tenant_id=str(user.tenant_id), family=family
+            user_id=str(user.id),
+            tenant_id=str(user.tenant_id),
+            authentication_assurance=evidence,
+            audience=audience,
+            family=family,
         )
 
         # Create session in database
         session = Session(
+            id=session_id,
+            authentication_methods=list(authentication_methods or []),
+            authenticated_at=authenticated_at,
+            mfa_verified_at=mfa_verified_at,
             user_id=user.id,
             token=access_token,
             refresh_token=refresh_token,
@@ -799,6 +831,16 @@ class AuthService:
         if not user or not user.is_active:
             return None
 
+        from app.auth.authentication_assurance import (
+            has_mfa_assurance,
+            session_assurance,
+            user_requires_mfa,
+        )
+
+        evidence = session_assurance(session)
+        if await user_requires_mfa(db, user) and not has_mfa_assurance(evidence):
+            return None
+
         # Re-resolve the MADFAM ecosystem entitlement claim on refresh so a
         # refreshed session token keeps `madfam_entitled_products` (and picks
         # up any grant/revoke since the session was minted) — mirroring the
@@ -846,9 +888,11 @@ class AuthService:
             user_id=str(user.id),
             tenant_id=str(user.tenant_id),
             email=user.email,
+            audience=payload.get("session_audience"),
             family=payload.get("family"),
             additional_claims={
                 **tier_claims,
+                **evidence,
                 "madfam_entitled_products": madfam_entitled_products,
                 **org_claims,
                 **service_principal_claims(user),
@@ -860,6 +904,8 @@ class AuthService:
             user_id=str(user.id),
             tenant_id=str(user.tenant_id),
             family=payload.get("family"),  # Keep same family for rotation tracking
+            authentication_assurance=evidence,
+            audience=payload.get("session_audience"),
         )
 
         # Update session

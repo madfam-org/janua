@@ -20,9 +20,11 @@ import structlog
 
 from app.auth.hosted_hop import should_use_hosted_hop
 from app.auth.hosted_locale import hosted_locale, with_ui_locales
+from app.auth.map_mail_hold import map_auth_mail_held
 from app.config import settings
 from app.services.email_branding import (
     default_formality_for,
+    presentation_signals,
     resolve_branding,
     timezone_for,
 )
@@ -39,6 +41,14 @@ from app.services.email_i18n import (
     stamp_subject,
     subject_for,
     template_candidates,
+)
+from app.services.email_presentation import ctm_subject, render_ctm_email
+from app.services.email_send_audit import (
+    accepted_receipt,
+    current_audit,
+    merge_audit_tags,
+    rejected_receipt,
+    send_scope,
 )
 from app.services.email_sender import (
     binding_for,
@@ -125,11 +135,19 @@ class EmailService:
         locale: Optional[str] = None,
         formality: Optional[str] = None,
         user: Any = None,
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
     ) -> str:
         """Send email verification email and return verification token"""
+        if map_auth_mail_held(template="verification", redirect_url=branding_redirect_url):
+            raise ValueError("MAP non-magic auth mail held")
 
         recipient_locale = resolve_locale(locale, user=user, default=self._default_locale())
-        recipient_formality = resolve_formality(formality, user=user)
+        recipient_formality = resolve_formality_for_request(
+            formality,
+            user=user,
+            client_default=default_formality_for(org_id=org_id, redirect_url=branding_redirect_url),
+        )
 
         # Generate verification token
         verification_token = self._generate_verification_token()
@@ -156,12 +174,15 @@ class EmailService:
         verification_url = f"{settings.FRONTEND_URL}/auth/verify-email?token={verification_token}"
 
         # Prepare email content
+        signals = presentation_signals(org_id, branding_redirect_url)
         template_data = {
             "user_name": user_name or email.split("@")[0],
             "verification_url": verification_url,
             "verification_link": verification_url,
             "base_url": settings.BASE_URL,
+            "verification_expiry_hours": 24,
             "company_name": "Janua",
+            **resolve_branding(**signals),
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
@@ -170,7 +191,10 @@ class EmailService:
         # reaches this flow — it takes no redirect — so `timezone_for()` yields
         # the MADFAM default, CDMX.
         subject = stamp_subject(
-            subject_for("verification", recipient_locale, recipient_formality),
+            (
+                ctm_subject("verification", template_data, recipient_locale, recipient_formality)
+                or subject_for("verification", recipient_locale, recipient_formality)
+            ),
             now_for_timezone(timezone_for()),
         )
         html_content = self._render_template(
@@ -188,6 +212,7 @@ class EmailService:
             text_content=text_content,
             template="verification",
             token_link=True,
+            **signals,
         )
 
         if success:
@@ -247,6 +272,8 @@ class EmailService:
         locale: Optional[str] = None,
         formality: Optional[str] = None,
         user: Any = None,
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
     ) -> str:
         """Send password reset email for an already-issued token.
 
@@ -255,6 +282,10 @@ class EmailService:
         generated its own token here, so the emailed link could never match
         the stored one.
         """
+        if map_auth_mail_held(
+            template="password_reset", redirect_url=branding_redirect_url or redirect_base
+        ):
+            raise ValueError("MAP non-magic auth mail held")
 
         recipient_locale = resolve_locale(locale, user=user, default=self._default_locale())
         # Same requester-voice chain as the magic link: this flow also carries a
@@ -263,7 +294,9 @@ class EmailService:
         recipient_formality = resolve_formality_for_request(
             formality,
             user=user,
-            client_default=default_formality_for(redirect_url=redirect_base),
+            client_default=default_formality_for(
+                redirect_url=branding_redirect_url or redirect_base, org_id=org_id
+            ),
         )
 
         # Mirror to Redis for observability (audit 2026-04-23 M2: JSON).
@@ -297,12 +330,14 @@ class EmailService:
             )
 
         # Prepare email content
+        signals = presentation_signals(org_id, branding_redirect_url or redirect_base)
         template_data = {
             "user_name": user_name or email.split("@")[0],
             "reset_url": reset_url,
             "reset_link": reset_url,
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
+            **resolve_branding(**signals),
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
@@ -312,7 +347,10 @@ class EmailService:
         # ones. `redirect_base` is this flow's host signal (the product page
         # that consumes the token), so the stamp is in that product's zone.
         subject = stamp_subject(
-            subject_for("password_reset", recipient_locale, recipient_formality),
+            (
+                ctm_subject("password_reset", template_data, recipient_locale, recipient_formality)
+                or subject_for("password_reset", recipient_locale, recipient_formality)
+            ),
             now_for_timezone(timezone_for(redirect_url=redirect_base)),
         )
         html_content = self._render_template(
@@ -330,14 +368,19 @@ class EmailService:
             text_content=text_content,
             template="password_reset",
             token_link=True,
+            **signals,
         )
 
-        if success:
+        audit = current_audit()
+        if audit is not None:
+            logger.info("password_recovery.dispatch_completed", audit_id=str(audit.id), sent=success)
+        elif success:
             logger.info("Password reset email sent", email=_redact_email(email))
-            return reset_token
         else:
             logger.error("Failed to send password reset email", email=_redact_email(email))
-            raise Exception("Failed to send password reset email")
+        if success:
+            return reset_token
+        raise Exception("Failed to send password reset email")
 
     async def send_welcome_email(
         self,
@@ -346,23 +389,35 @@ class EmailService:
         locale: Optional[str] = None,
         formality: Optional[str] = None,
         user: Any = None,
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
     ) -> bool:
         """Send welcome email to new user"""
+        if map_auth_mail_held(template="welcome", redirect_url=branding_redirect_url):
+            raise ValueError("MAP non-magic auth mail held")
 
         recipient_locale = resolve_locale(locale, user=user, default=self._default_locale())
-        recipient_formality = resolve_formality(formality, user=user)
+        recipient_formality = resolve_formality_for_request(
+            formality,
+            user=user,
+            client_default=default_formality_for(org_id=org_id, redirect_url=branding_redirect_url),
+        )
 
+        signals = presentation_signals(org_id, branding_redirect_url)
         template_data = {
             "user_name": user_name or email.split("@")[0],
             "dashboard_url": f"{settings.BASE_URL}/dashboard",
             "dashboard_link": f"{settings.BASE_URL}/dashboard",
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
+            **resolve_branding(**signals),
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
         # Render email template
-        subject = subject_for("welcome", recipient_locale, recipient_formality)
+        subject = ctm_subject(
+            "welcome", template_data, recipient_locale, recipient_formality
+        ) or subject_for("welcome", recipient_locale, recipient_formality)
         html_content = self._render_template(
             "welcome.html", template_data, recipient_locale, recipient_formality
         )
@@ -377,6 +432,7 @@ class EmailService:
             html_content=html_content,
             text_content=text_content,
             template="welcome",
+            **signals,
         )
 
         if success:
@@ -423,6 +479,9 @@ class EmailService:
         resolved_locale = resolve_locale(locale, default=self._default_locale())
         resolved_formality = resolve_formality(formality)
         try:
+            ctm = render_ctm_email(self.jinja_env, template_name, data, resolved_locale, formality)
+            if ctm is not None:
+                return ctm
             template = self.jinja_env.select_template(
                 template_candidates(template_name, resolved_locale)
             )
@@ -609,11 +668,17 @@ class EmailService:
         still carries the Crea header, still reads «tu», is still stamped in
         CDMX and still comes FROM Crea Tu Mundo; only `magic_url` differs.
         """
+        audit = current_audit()
+        mail_org = (
+            {"org_id": audit.org_id}
+            if audit is not None and audit.provenance == "registered_map_login"
+            else {}
+        )
         recipient_locale = resolve_locale(locale, user=user, default=self._default_locale())
         recipient_formality = resolve_formality_for_request(
             formality,
             user=user,
-            client_default=default_formality_for(redirect_url=redirect_url),
+            client_default=default_formality_for(redirect_url=redirect_url, **mail_org),
         )
         use_hop = should_use_hosted_hop(redirect_url, requested=hosted_hop)
         if redirect_url and not use_hop:
@@ -649,7 +714,7 @@ class EmailService:
             # TO. Defaults to MADFAM, so an unknown or absent host renders
             # exactly today's frame. The From line is unaffected: `resolve_sender`
             # below still returns MADFAM. See app/services/email_branding.py.
-            **resolve_branding(redirect_url=redirect_url),
+            **resolve_branding(redirect_url=redirect_url, **mail_org),
         }
 
         # Stamped with the SEND MOMENT in the requester's operating timezone.
@@ -659,8 +724,11 @@ class EmailService:
         # signal as the branding and the voice — see email_branding.timezone_for
         # — and the clock is read here, per send, never cached at import.
         subject = stamp_subject(
-            subject_for("magic_link", recipient_locale, recipient_formality),
-            now_for_timezone(timezone_for(redirect_url=redirect_url)),
+            (
+                ctm_subject("magic_link", template_data, recipient_locale, recipient_formality)
+                or subject_for("magic_link", recipient_locale, recipient_formality)
+            ),
+            now_for_timezone(timezone_for(redirect_url=redirect_url, **mail_org)),
         )
         html_content = self._render_template(
             "magic_link.html", template_data, recipient_locale, recipient_formality
@@ -685,7 +753,10 @@ class EmailService:
             template="magic_link",
             token_link=True,
         )
-        if sent:
+        audit = current_audit()
+        if audit is not None:
+            logger.info("magic_login.dispatch_completed", audit_id=str(audit.id), sent=sent)
+        elif sent:
             logger.info("Magic link email sent", email=_redact_email(email))
         else:
             logger.error("Failed to send magic link email", email=_redact_email(email))
@@ -700,6 +771,8 @@ class EmailService:
         role: str = "member",
         expires_at: Optional[datetime] = None,
         teams: Optional[list] = None,
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
     ) -> bool:
         """Send an organization invitation.
 
@@ -710,6 +783,10 @@ class EmailService:
         renders the maintained templates and puts them on the same transport
         as every other transactional message.
         """
+        if map_auth_mail_held(template="invitation", redirect_url=branding_redirect_url):
+            raise ValueError("MAP non-magic auth mail held")
+
+        signals = presentation_signals(org_id, branding_redirect_url)
         template_data = {
             "inviter_name": inviter_name,
             "organization_name": organization_name,
@@ -723,10 +800,14 @@ class EmailService:
             "teams": teams or [],
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
+            **resolve_branding(**signals),
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
-        subject = f"{inviter_name} invited you to join {organization_name} on Janua"
+        subject = (
+            ctm_subject("invitation", template_data)
+            or f"{inviter_name} invited you to join {organization_name} on Janua"
+        )
         html_content = self._render_template("invitation.html", template_data)
         text_content = self._render_template("invitation.txt", template_data)
 
@@ -737,6 +818,7 @@ class EmailService:
             text_content=text_content,
             template="invitation",
             token_link=True,
+            **signals,
         )
         if sent:
             logger.info("Invitation email sent", email=_redact_email(email))
@@ -754,6 +836,7 @@ class EmailService:
         template: str | None = None,
         token_link: bool = False,
         message_class: str | None = None,
+        org_id: str | None = None,
     ) -> bool:
         """Send through Resend's HTTPS API.
 
@@ -768,7 +851,12 @@ class EmailService:
         is not a tenant's branded mail leaves as `MADFAM <noreply@madfam.io>`
         with `Reply-To: support@madfam.io`; welcome mail keeps `hola@`.
         """
-        name, address, reply_to = sender_for(redirect_url=redirect_url, message_class=message_class)
+        audit = current_audit()
+        if audit is not None and audit.provenance in {"registered_map_login", "registered_map_recovery"}:
+            org_id = audit.org_id
+        name, address, reply_to = sender_for(
+            redirect_url=redirect_url, org_id=org_id, message_class=message_class
+        )
 
         # WHICH ACCOUNT CARRIES IT. `sender_for` has already decided the From
         # line, and since 2026-09-07 that decision includes whether the
@@ -781,7 +869,7 @@ class EmailService:
         # that has never verified that domain — a hard Resend rejection on a
         # magic link.
         api_key = settings.RESEND_API_KEY
-        binding = binding_for(redirect_url=redirect_url)
+        binding = binding_for(redirect_url=redirect_url, org_id=org_id)
         if binding.is_on_tenant_account and address == binding.from_address:
             try:
                 tenant_key = await resolve_credential(binding)
@@ -846,6 +934,7 @@ class EmailService:
         if wire_text:
             payload["text"] = wire_text
 
+        payload["tags"] = merge_audit_tags(payload["tags"])
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 "https://api.resend.com/emails",
@@ -854,6 +943,9 @@ class EmailService:
             )
 
         if response.status_code >= 400:
+            if current_audit() is not None:
+                await rejected_receipt()
+                return False
             # Body may name a misconfiguration (unverified domain, bad key);
             # it carries no recipient content, so it is safe to log.
             logger.error(
@@ -863,6 +955,12 @@ class EmailService:
                 detail=response.text[:300],
             )
             return False
+        if current_audit() is not None:
+            try:
+                receipt = response.json()
+            except (ValueError, TypeError):
+                receipt = {}
+            await accepted_receipt(receipt.get("id"))
         return True
 
     async def _send_email(
@@ -875,6 +973,7 @@ class EmailService:
         template: str | None = None,
         token_link: bool = False,
         message_class: str | None = None,
+        org_id: str | None = None,
     ) -> bool:
         """Send an email via the configured provider.
 
@@ -887,9 +986,17 @@ class EmailService:
         `message_class` (R101) defaults to the class of `template`, so every
         mailer here is classified by the template it already names.
         """
+        if map_auth_mail_held(template=template, redirect_url=redirect_url, org_id=org_id):
+            logger.info("map_auth_mail.held", message_kind=template or "auth")
+            return False
         message_class = message_class or message_class_for_template(template)
 
         try:
+            if current_audit() is not None and not (
+                settings.EMAIL_PROVIDER == "resend" and settings.RESEND_API_KEY
+            ):
+                await rejected_receipt()
+                return False
             if settings.EMAIL_PROVIDER == "resend" and settings.RESEND_API_KEY:
                 return await self._send_via_resend(
                     to_email,
@@ -900,6 +1007,7 @@ class EmailService:
                     template=template,
                     token_link=token_link,
                     message_class=message_class,
+                    **({"org_id": org_id} if org_id is not None else {}),
                 )
 
             # Check if email configuration is available
@@ -918,7 +1026,7 @@ class EmailService:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
             smtp_name, smtp_address, smtp_reply_to = sender_for(
-                redirect_url=redirect_url, message_class=message_class
+                redirect_url=redirect_url, org_id=org_id, message_class=message_class
             )
             msg["From"] = formataddr((smtp_name, smtp_address))
             msg["To"] = to_email
@@ -956,9 +1064,16 @@ class EmailService:
             return True
 
         except Exception as e:
-            logger.error(
-                "Failed to send email", to=_redact_email(to_email), error_type=type(e).__name__
-            )
+            if current_audit() is not None:
+                logger.error(
+                    "mail_audit.transport_failed",
+                    audit_id=str(current_audit().id),
+                    error_type=type(e).__name__,
+                )
+            else:
+                logger.error(
+                    "Failed to send email", to=_redact_email(to_email), error_type=type(e).__name__
+                )
             return False
 
 
@@ -974,34 +1089,37 @@ async def send_password_reset_email_task(
     redirect_base: Optional[str] = None,
     locale: Optional[str] = None,
     formality: Optional[str] = None,
+    org_id: Optional[Any] = None,
+    branding_redirect_url: Optional[str] = None,
+    mail_audit_id: Optional[str] = None,
 ) -> None:
-    """Background-task entrypoint for the forgot-password flow.
-
-    Instantiates the real mailer per-call (BackgroundTasks gives no DI) and
-    never raises — a mail failure must not surface into the request path.
-    Without SMTP_HOST configured, _send_email already degrades to a logged
-    no-op; the warning below makes that state visible instead of silent.
-
-    `locale` is read off the User row by the router: a background task has no
-    DB session of its own, so the recipient's stored language has to be
-    resolved while the request still holds one.
-    """
-    try:
+    """Send an issued reset; MAP requires the durable issuance/audit scope."""
+    async def enviar():
         service = EmailService()
-        sent = await service.send_password_reset_email(
-            email,
-            reset_token,
-            redirect_base=redirect_base,
-            locale=locale,
-            formality=formality,
+        return await service.send_password_reset_email(
+            email, reset_token, redirect_base=redirect_base, locale=locale,
+            formality=formality, org_id=org_id, branding_redirect_url=branding_redirect_url,
         )
+
+    try:
+        if mail_audit_id is not None:
+            async with send_scope(mail_audit_id):
+                sent = await enviar()
+        else:
+            sent = await enviar()
         if not sent:
-            logger.warning(
-                "Password reset email NOT sent (mailer unconfigured or send failed) — "
-                "the user will never receive the link"
+            if mail_audit_id is not None:
+                logger.warning("password_recovery.not_accepted", audit_id=mail_audit_id)
+            else:
+                logger.warning("Password reset email NOT sent")
+    except Exception as error:
+        if mail_audit_id is not None:
+            logger.error(
+                "password_recovery.dispatch_failed", audit_id=mail_audit_id,
+                error_type=type(error).__name__,
             )
-    except Exception:
-        logger.exception("Password reset email task failed")
+        else:
+            logger.exception("Password reset email task failed")
 
 
 async def send_magic_link_email_task(
@@ -1012,6 +1130,7 @@ async def send_magic_link_email_task(
     formality: Optional[str] = None,
     user_formality: Optional[str] = None,
     hosted_hop: Optional[bool] = None,
+    mail_audit_id: Optional[str] = None,
 ) -> None:
     """Background-task entrypoint for the magic-link flow.
 
@@ -1032,9 +1151,10 @@ async def send_magic_link_email_task(
     duck-typed `user` shape the resolver reads, rather than widening the
     resolver to take loose scalars.
     """
-    try:
+
+    async def enviar():
         service = EmailService()
-        sent = await service.send_magic_link_email(
+        return await service.send_magic_link_email(
             email,
             magic_token,
             redirect_url,
@@ -1043,13 +1163,27 @@ async def send_magic_link_email_task(
             user=SimpleNamespace(spanish_formality=user_formality) if user_formality else None,
             hosted_hop=hosted_hop,
         )
+
+    try:
+        if mail_audit_id is not None:
+            async with send_scope(mail_audit_id):
+                sent = await enviar()
+        else:
+            sent = await enviar()
         if not sent:
-            logger.warning(
-                "Magic link email NOT sent — the recipient will never receive a sign-in link",
-                email=_redact_email(email),
+            if mail_audit_id is not None:
+                logger.warning("magic_login.not_accepted", audit_id=mail_audit_id)
+            else:
+                logger.warning("Magic link email NOT sent", email=_redact_email(email))
+    except Exception as error:
+        if mail_audit_id is not None:
+            logger.error(
+                "magic_login.dispatch_failed",
+                audit_id=mail_audit_id,
+                error_type=type(error).__name__,
             )
-    except Exception:
-        logger.exception("Magic link email task failed")
+        else:
+            logger.exception("Magic link email task failed")
 
 
 async def send_product_invite_email_task(
@@ -1061,6 +1195,8 @@ async def send_product_invite_email_task(
     locale: Optional[str] = None,
     formality: Optional[str] = None,
     first_name: Optional[str] = None,
+    org_id: Optional[Any] = None,
+    branding_redirect_url: Optional[str] = None,
 ) -> None:
     """Background-task entrypoint for an operator invitation (product-invites).
 
@@ -1070,17 +1206,28 @@ async def send_product_invite_email_task(
     a product URL; the callback forwards to the invitation's entry route,
     which sends the browser to the product's front door.
 
-    The frame is MADFAM's (no tenant host is involved), the From line is the
-    platform system sender (R101 class `system`, as for every token link), and
-    the language and register are the operator's: the invitation endpoint
+    An optional trusted client organization selects its presentation and the
+    existing sender-binding policy; absent context keeps the MADFAM frame and
+    platform system sender (R101 class `system`, as for every token link). The
+    language and register respect the operator's explicit choices: the endpoint
     passes the `locale` and `formality` it was called with. Never logs the
     address unredacted.
     """
+    if map_auth_mail_held(template="invitation", redirect_url=branding_redirect_url):
+        logger.info("map_auth_mail.held", message_kind="invitation")
+        return
+
     try:
         service = EmailService()
         recipient_locale = resolve_locale(locale, default=service._default_locale())
-        recipient_formality = resolve_formality(formality)
-        magic_url = f"{settings.public_base_url}/api/v1/auth/magic-link/callback?token={magic_token}"
+        recipient_formality = resolve_formality_for_request(
+            formality,
+            client_default=default_formality_for(org_id=org_id, redirect_url=branding_redirect_url),
+        )
+        signals = presentation_signals(org_id, branding_redirect_url)
+        magic_url = (
+            f"{settings.public_base_url}/api/v1/auth/magic-link/callback?token={magic_token}"
+        )
         template_data = {
             "app_name": app_name,
             "first_name": first_name,
@@ -1090,10 +1237,13 @@ async def send_product_invite_email_task(
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
-            **resolve_branding(redirect_url=None),
+            **resolve_branding(**signals),
         }
         subject = stamp_subject(
-            subject_for("product_invite", recipient_locale, recipient_formality, app_name=app_name),
+            ctm_subject("product_invite", template_data, recipient_locale, recipient_formality)
+            or subject_for(
+                "product_invite", recipient_locale, recipient_formality, app_name=app_name
+            ),
             now_for_timezone(timezone_for()),
         )
         sent = await service._send_email(
@@ -1107,6 +1257,7 @@ async def send_product_invite_email_task(
             ),
             template="product_invite",
             token_link=True,
+            **signals,
         )
         if sent:
             logger.info("Product invitation email sent", email=_redact_email(email))
@@ -1125,6 +1276,8 @@ async def send_verification_email_task(
     user_name: Optional[str] = None,
     locale: Optional[str] = None,
     formality: Optional[str] = None,
+    org_id: Optional[Any] = None,
+    branding_redirect_url: Optional[str] = None,
 ) -> None:
     """Background-task entrypoint for email verification.
 
@@ -1133,11 +1286,19 @@ async def send_verification_email_task(
     the `email_verifications` table — so the token that got mailed and the token
     that could be verified were never the same value.
     """
+    if map_auth_mail_held(template="verification", redirect_url=branding_redirect_url):
+        logger.info("map_auth_mail.held", message_kind="verification")
+        return
+
     try:
         service = EmailService()
         recipient_locale = resolve_locale(locale, default=service._default_locale())
-        recipient_formality = resolve_formality(formality)
+        recipient_formality = resolve_formality_for_request(
+            formality,
+            client_default=default_formality_for(org_id=org_id, redirect_url=branding_redirect_url),
+        )
         verification_url = f"{settings.FRONTEND_URL}/auth/verify-email?token={verification_token}"
+        signals = presentation_signals(org_id, branding_redirect_url)
         template_data = {
             "user_name": user_name or email.split("@")[0],
             "verification_url": verification_url,
@@ -1146,6 +1307,8 @@ async def send_verification_email_task(
             # receives shipped with an empty href.
             "verification_link": verification_url,
             "base_url": settings.BASE_URL,
+            "verification_expiry_hours": 48,
+            **resolve_branding(**signals),
             "company_name": "Janua",
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
@@ -1154,7 +1317,12 @@ async def send_verification_email_task(
             # Stamped like the method above — this task renders the same
             # message on the same pipeline and must not diverge from it.
             subject=stamp_subject(
-                subject_for("verification", recipient_locale, recipient_formality),
+                (
+                    ctm_subject(
+                        "verification", template_data, recipient_locale, recipient_formality
+                    )
+                    or subject_for("verification", recipient_locale, recipient_formality)
+                ),
                 now_for_timezone(timezone_for()),
             ),
             html_content=service._render_template(
@@ -1165,6 +1333,7 @@ async def send_verification_email_task(
             ),
             template="verification",
             token_link=True,
+            **signals,
         )
         if not sent:
             logger.warning("Verification email NOT sent", email=_redact_email(email))

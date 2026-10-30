@@ -1,28 +1,16 @@
-"""Shared MFA-enforcement gate for the login paths.
+"""Shared MFA challenge signing and enrollment detection.
 
-2026-08-23 security fix. The completeness audit found MFA was enforced on exactly
-ONE path (the JSON `/signin` endpoint) while the OAuth browser login, the OAuth
-`/authorize` flow, and magic-link login all issued full sessions WITHOUT checking
-`mfa_enabled` — so a user who "enabled 2FA" was unprotected on every path a real
-product uses through Janua. This module centralizes the decision so every login
-path enforces MFA identically, and gates it behind a DEFAULT-OFF flag so shipping
-the enforcement cannot lock anyone out before the MFA-challenge UI is live.
-
-Usage in a login path, immediately before it would create a session:
-
-    if mfa_required_for(user):
-        return mfa_challenge_response(user)   # JSON callers
-        # or: redirect back to the login UI with ?mfa_required=1 (browser flow)
-
-The challenge token this mints is consumed by POST /api/v1/mfa/challenge/verify,
-which already exists and issues the real session once the second factor checks.
+Voluntary enrollment is enforced on every login method. Organization policy
+and live session assurance are resolved by authentication_assurance.py.
 """
 
 from __future__ import annotations
 
 import hashlib
 import hmac
-from datetime import datetime, timedelta
+import re
+import secrets
+from datetime import datetime, timedelta, timezone
 
 import jwt as pyjwt
 
@@ -60,31 +48,35 @@ def mfa_challenge_signing_key() -> str:
     raise RuntimeError("No signing key is configured for MFA challenge tokens")
 
 
-def mfa_required_for(user) -> bool:
-    """True iff this login should be interrupted for a second factor.
+def challenge_replay_key(claims: dict) -> str | None:
+    """Index a signature-verified challenge by its random JWT ID, never its token.
 
-    Requires BOTH the global enforcement flag (default OFF — see
-    settings.MFA_ENFORCE_ON_LOGIN) and the user actually having MFA configured.
-    When the flag is off, this always returns False and every login path behaves
-    exactly as it did before this change. A per-org "require MFA" policy can be
-    layered on top later (it would make this return True even for a user who has
-    not yet enrolled — a separate, enrollment-forcing flow).
+    The issuer generates 192 random bits. A missing/malformed ID is refused,
+    including legacy challenges: restart sign-in instead of weakening one-use.
+    See RFC 7519 section 4.1.7; the caller must verify the signature first.
     """
-    if not getattr(settings, "MFA_ENFORCE_ON_LOGIN", False):
-        return False
-    return bool(getattr(user, "mfa_enabled", False) and getattr(user, "mfa_secret", None))
+    identity = claims.get("jti")
+    if not isinstance(identity, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", identity):
+        return None
+    return "auth:mfa:used:" + identity
+
+
+def mfa_required_for(user) -> bool:
+    """Legacy synchronous enrollment predicate; organization policy is asynchronous."""
+    # Voluntary enrollment is always enforced, including magic-link and SSO entry.
+    return mfa_enrolled(user)
 
 
 def mfa_enrolled(user) -> bool:
     """True when the user has MFA configured (enabled with a secret).
 
-    Paths that already have a second-factor step (JSON /signin and the hosted
-    password form) challenge enrolled users regardless of MFA_ENFORCE_ON_LOGIN.
+    All primary-factor paths challenge enrolled users regardless of the legacy
+    MFA_ENFORCE_ON_LOGIN flag.
     """
     return bool(getattr(user, "mfa_enabled", False) and getattr(user, "mfa_secret", None))
 
 
-def mint_mfa_challenge_token(user) -> str:
+def mint_mfa_challenge_token(user, *, methods=None, audience=None, authenticated_at=None) -> str:
     """Mint a short-lived challenge token (NOT a session token).
 
     Identical shape to the one the JSON /signin path already issues, so
@@ -94,6 +86,14 @@ def mint_mfa_challenge_token(user) -> str:
     payload = {
         "sub": str(user.id),
         "type": MFA_CHALLENGE_TYPE,
+        "jti": secrets.token_urlsafe(24),
+        "amr": list(methods or ["pwd"]),
+        "auth_time": (
+            authenticated_at
+            if authenticated_at is not None
+            else int(datetime.now(timezone.utc).timestamp())
+        ),
+        "audience": audience,
         "exp": datetime.utcnow() + timedelta(minutes=_CHALLENGE_TTL_MINUTES),
         "iat": datetime.utcnow(),
         "iss": settings.JWT_ISSUER,

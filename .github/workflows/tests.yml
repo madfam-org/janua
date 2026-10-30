@@ -12,6 +12,11 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Superseded PR proofs stop; non-PR run IDs are unique, preserving every main run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   NODE_VERSION: '22'
   NPM_MADFAM_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
@@ -27,7 +32,7 @@ env:
 jobs:
   api-tests:
     name: API Tests (Python)
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
     timeout-minutes: 25
 
     # No PostgreSQL service: the tests that need one run in api-postgres-tests.
@@ -204,6 +209,37 @@ jobs:
           path: apps/api/htmlcov/
           retention-days: 30
 
+  mcp-schema-evidence:
+    name: MCP schema evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Metadata only; required API drift tests independently read the committed file.
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: apps/api/requirements.txt
+      - name: Install runtime dependencies
+        working-directory: ./apps/api
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxmlsec1-dev pkg-config
+          pip install -r requirements.txt
+      - name: Render schema evidence
+        working-directory: ./apps/api
+        env:
+          ENVIRONMENT: test
+          SECRET_KEY: test-secret-key-do-not-use-in-production
+          REDIS_URL: redis://localhost:6379/0
+        run: python scripts/mcp_generate_openapi.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: janua-mcp-openapi-evidence
+          path: apps/api/app/mcp/openapi_snapshot.json
+          retention-days: 3
+
   api-diagnostics:
     name: API Diagnostics (advisory)
     runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
@@ -248,7 +284,7 @@ jobs:
 
   api-postgres-tests:
     name: API Tests (PostgreSQL)
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
     # Same cap as api-tests, where these tests ran before.
     timeout-minutes: 25
 
@@ -435,6 +471,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+          cache-dependency-path: apps/api/requirements*.txt
 
       - name: Install Python dependencies
         working-directory: ./apps/api
@@ -451,6 +488,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

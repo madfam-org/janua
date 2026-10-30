@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@janua/ui'
 import { Button } from '@janua/ui'
 import { Input } from '@janua/ui'
@@ -43,6 +44,7 @@ import {
   EyeOff,
 } from 'lucide-react'
 import { januaClient } from '@/lib/janua-client'
+import { clearAuthCookie } from '@/lib/auth-storage'
 import {
   updateProfile,
   changePassword,
@@ -193,6 +195,7 @@ function getDisplayName(profile: UserProfile): string {
 // ---------------------------------------------------------------------------
 
 export default function ProfilePage() {
+  const router = useRouter()
   // Profile state
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -227,11 +230,13 @@ export default function ProfilePage() {
 
   // MFA state
   const [mfaSetup, setMfaSetup] = useState<MfaSetupResponse | null>(null)
-  const [mfaStep, setMfaStep] = useState<'idle' | 'qr' | 'verify' | 'backup'>('idle')
+  const [mfaStep, setMfaStep] = useState<'idle' | 'qr' | 'verify' | 'backup' | 'disable'>('idle')
   const [mfaCode, setMfaCode] = useState('')
   const [backupCodes, setBackupCodes] = useState<string[]>([])
   const [mfaLoading, setMfaLoading] = useState(false)
   const [mfaError, setMfaError] = useState<string | null>(null)
+  const [disableMfaPassword, setDisableMfaPassword] = useState('')
+  const [disableMfaCode, setDisableMfaCode] = useState('')
 
   // Passkey state
   const [passkeys, setPasskeys] = useState<Passkey[]>([])
@@ -485,26 +490,34 @@ export default function ProfilePage() {
   }
 
   const handleDisableMfa = async () => {
-    if (!confirm('Are you sure you want to disable multi-factor authentication? This will make your account less secure.')) {
+    if (!disableMfaPassword || !disableMfaCode.trim() || mfaLoading) {
       return
     }
 
     setMfaLoading(true)
     setMfaError(null)
     try {
-      await disableMfa({ password: '', code: '' })
+      await disableMfa({ password: disableMfaPassword, code: disableMfaCode.trim() })
 
       setProfile((prev) => (prev ? { ...prev, mfa_enabled: false } : prev))
       setMfaStep('idle')
       setMfaSetup(null)
       setMfaCode('')
       setBackupCodes([])
-      showNotification('success', 'MFA disabled')
-    } catch (err) {
-      setMfaError(
-        err instanceof Error ? err.message : 'Failed to disable MFA',
-      )
+      setDisableMfaPassword('')
+      setDisableMfaCode('')
+      // The API revokes every session, including this one. Retire the SDK's
+      // cached credentials and middleware cookie before returning to sign-in.
+      try {
+        await januaClient.signOut()
+      } catch { /* Revocation succeeded; sign-in remains necessary. */ }
+      clearAuthCookie()
+      router.replace('/login?reason=mfa_disabled')
+    } catch {
+      setMfaError('Could not disable MFA. Check your password and verification code. Your organization may require MFA.')
     } finally {
+      setDisableMfaPassword('')
+      setDisableMfaCode('')
       setMfaLoading(false)
     }
   }
@@ -515,6 +528,8 @@ export default function ProfilePage() {
     setMfaCode('')
     setMfaError(null)
     setBackupCodes([])
+    setDisableMfaPassword('')
+    setDisableMfaCode('')
   }
 
   const handleDownloadBackupCodes = () => {
@@ -1099,7 +1114,7 @@ export default function ProfilePage() {
                       variant={profile.mfa_enabled ? 'destructive' : 'default'}
                       size="sm"
                       onClick={
-                        profile.mfa_enabled ? handleDisableMfa : handleEnableMfa
+                        profile.mfa_enabled ? () => { setMfaError(null); setMfaStep('disable') } : handleEnableMfa
                       }
                       disabled={mfaLoading}
                     >
@@ -1116,10 +1131,38 @@ export default function ProfilePage() {
                 </div>
 
                 {mfaError && (
-                  <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+                  <div role="alert" className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
                     <AlertCircle className="size-4 shrink-0" />
                     {mfaError}
                   </div>
+                )}
+
+                {mfaStep === 'disable' && (
+                  <form
+                    aria-label="Disable multi-factor authentication"
+                    className="space-y-4 rounded-lg border bg-muted/30 p-6"
+                    onSubmit={(event) => { event.preventDefault(); void handleDisableMfa() }}
+                  >
+                    <p>Enter your password and a current authenticator or unused backup code. Disabling MFA signs you out of every session.</p>
+                    <div className="space-y-2">
+                      <Label htmlFor="disable-mfa-password">Current password</Label>
+                      <Input id="disable-mfa-password" type="password" autoComplete="current-password" required
+                        value={disableMfaPassword} disabled={mfaLoading}
+                        onChange={(event) => setDisableMfaPassword(event.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="disable-mfa-code">Authenticator or backup code</Label>
+                      <Input id="disable-mfa-code" type="password" autoComplete="one-time-code" required
+                        value={disableMfaCode} disabled={mfaLoading}
+                        onChange={(event) => setDisableMfaCode(event.target.value)} />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="submit" variant="destructive" disabled={mfaLoading || !disableMfaPassword || !disableMfaCode.trim()}>
+                        {mfaLoading ? 'Disabling MFA...' : 'Disable MFA and sign out'}
+                      </Button>
+                      <Button type="button" variant="outline" onClick={handleCancelMfaSetup} disabled={mfaLoading}>Cancel</Button>
+                    </div>
+                  </form>
                 )}
 
                 {/* MFA Setup Wizard: QR Code step */}

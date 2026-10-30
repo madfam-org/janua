@@ -196,20 +196,14 @@ class TestDisagreement:
         operator = _user(email="admin@example.test")
         estate_session = _session_row(map_user.id, created_at=estate_started)
         hosted_jti = str(uuid4())
-        hosted_session = _session_row(
-            operator.id, created_at=hosted_started, jti=hosted_jti
-        )
+        hosted_session = _session_row(operator.id, created_at=hosted_started, jti=hosted_jti)
         request = _request(
             {
-                SSO_COOKIE_NAME: mint_sso_cookie_value(
-                    str(map_user.id), str(estate_session.id)
-                ),
+                SSO_COOKIE_NAME: mint_sso_cookie_value(str(map_user.id), str(estate_session.id)),
                 "janua_access_token": _hosted_cookie(operator, jti=hosted_jti),
             }
         )
-        db = _db(
-            sessions=[estate_session, hosted_session], users=[map_user, operator]
-        )
+        db = _db(sessions=[estate_session, hosted_session], users=[map_user, operator])
         return map_user, operator, request, db
 
     async def test_fresh_estate_session_beats_stale_hosted_cookie(self):
@@ -235,9 +229,7 @@ class TestDisagreement:
 
     async def test_a_tie_goes_to_the_estate_session(self):
         now = datetime.utcnow()
-        map_user, _operator, request, db = self._both(
-            estate_started=now, hosted_started=now
-        )
+        map_user, _operator, request, db = self._both(estate_started=now, hosted_started=now)
         assert await get_user_from_cookie_or_header(request, db) is map_user
 
     async def test_undatable_hosted_session_loses(self):
@@ -354,9 +346,7 @@ class TestBearerStaysFirst:
         estate_session = _session_row(estate_user.id)
         request = _request(
             {
-                SSO_COOKIE_NAME: mint_sso_cookie_value(
-                    str(estate_user.id), str(estate_session.id)
-                ),
+                SSO_COOKIE_NAME: mint_sso_cookie_value(str(estate_user.id), str(estate_session.id)),
                 "janua_access_token": _hosted_cookie(_user(email="admin@example.test")),
             },
             headers={"Authorization": f"Bearer {_hosted_cookie(api_user)}"},
@@ -379,6 +369,7 @@ def _oauth_client(name="madfam-erp"):
         allowed_scopes=["openid", "profile", "email", "madfam:silent_auth"],
         redirect_uris=["https://erp.example.test/auth/callback"],
         audience=None,
+        organization_id=None,
         last_used_at=None,
     )
 
@@ -386,6 +377,14 @@ def _oauth_client(name="madfam-erp"):
 class TestAuthorizeHonoursThePrecedence:
     """End to end at the endpoint, because a helper that is right and an endpoint
     that is wrong is exactly the shape of the bug this lane fixes."""
+
+    @pytest.fixture(autouse=True)
+    def optional_authentication_policy(self, monkeypatch):
+        # These sessions test identity precedence, not organization policy. Keep
+        # real selected-session evidence resolution while declaring no MFA gate.
+        monkeypatch.setattr(
+            oauth_provider_router, "user_requires_mfa", AsyncMock(return_value=False)
+        )
 
     async def _authorize(self, prompt):
         now = datetime.utcnow()
@@ -398,9 +397,7 @@ class TestAuthorizeHonoursThePrecedence:
         )
         request = _request(
             {
-                SSO_COOKIE_NAME: mint_sso_cookie_value(
-                    str(map_user.id), str(estate_session.id)
-                ),
+                SSO_COOKIE_NAME: mint_sso_cookie_value(str(map_user.id), str(estate_session.id)),
                 "janua_access_token": _hosted_cookie(operator, jti=hosted_jti),
             }
         )

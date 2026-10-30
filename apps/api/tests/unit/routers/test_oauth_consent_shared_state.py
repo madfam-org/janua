@@ -75,6 +75,7 @@ def _third_party_client():
         allowed_scopes=["openid", "email", "profile", "offline_access"],
         redirect_uris=[REDIRECT_URI],
         audience=None,
+        organization_id=None,
         last_used_at=None,
     )
 
@@ -377,4 +378,15 @@ class TestAuthCodeLogging:
             await _get_auth_code(code, pod)
         rendered = repr(log.mock_calls)
         assert code not in rendered
-        assert "code_ref" in rendered
+        assert "code_ref" not in rendered
+        assert "Auth code stored successfully" in rendered
+        assert "Auth code NOT found" in rendered
+
+
+@pytest.fixture(autouse=True)
+def optional_organization_policy(monkeypatch):
+    # This suite isolates platform cookie/consent behavior. Organization-policy
+    # and enforced-factor transitions have their real-SQL acceptance suite.
+    monkeypatch.setattr(
+        "app.auth.authentication_assurance.user_policy_requires_mfa", AsyncMock(return_value=False)
+    )

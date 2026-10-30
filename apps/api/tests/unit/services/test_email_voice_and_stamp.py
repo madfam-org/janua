@@ -287,10 +287,10 @@ class TestRenderedMagicLink:
     @pytest.mark.asyncio
     async def test_crea_map_reader_is_addressed_as_tu(self):
         msg = await sent_message(CREA_REDIRECT)
-        assert msg["subject"] == "Tu enlace de acceso | 2026-09-06 16:23:11"
+        assert msg["subject"] == "Entrar a Crea Tu Mundo | 2026-09-06 16:23:11"
         for body in (msg["html_content"], msg["text_content"]):
-            assert "Inicia sesión en tu portal" in body
-            assert "Inicie sesión en su portal" not in body
+            assert "entrar a tu espacio de acceso" in body
+            assert "entrar a su espacio de acceso" not in body
             # The security notice is the longest register-sensitive paragraph;
             # a half-translated catalog shows up here first.
             assert "no solicitaste" in body
@@ -315,22 +315,22 @@ class TestRenderedMagicLink:
     async def test_explicit_request_register_overrides_the_product(self):
         """A CTM host asked for `usted` gets `usted`, subject and body."""
         msg = await sent_message(CREA_REDIRECT, formality=FORMALITY_USTED)
-        assert msg["subject"] == "Su enlace de acceso | 2026-09-06 16:23:11"
-        assert "Inicie sesión en su portal" in msg["text_content"]
+        assert msg["subject"] == "Entrar a Crea Tu Mundo | 2026-09-06 16:23:11"
+        assert "entrar a su espacio de acceso" in msg["text_content"]
 
     @pytest.mark.asyncio
     async def test_reader_preference_overrides_the_product(self):
         msg = await sent_message(
             CREA_REDIRECT, user=SimpleNamespace(spanish_formality=FORMALITY_USTED)
         )
-        assert msg["subject"].startswith("Su enlace de acceso")
-        assert "Inicie sesión en su portal" in msg["text_content"]
+        assert msg["subject"].startswith("Entrar a Crea Tu Mundo")
+        assert "entrar a su espacio de acceso" in msg["text_content"]
 
     @pytest.mark.asyncio
     async def test_english_body_is_untouched_by_the_register_work(self):
         """`formality` applies to Spanish only; English must not move."""
         msg = await sent_message(CREA_REDIRECT, locale="en")
-        assert msg["subject"] == "Your sign-in link | 2026-09-06 16:23:11"
+        assert msg["subject"] == "Sign in to Crea Tu Mundo | 2026-09-06 16:23:11"
         assert "tu portal" not in msg["text_content"]
         assert "su portal" not in msg["text_content"]
 
@@ -354,7 +354,7 @@ class TestRenderedMagicLink:
         """
         msg = await sent_message(CREA_REDIRECT)
         head, _, _ = msg["subject"].rpartition(SUBJECT_STAMP_SEPARATOR)
-        assert head == subject_for("magic_link", "es", FORMALITY_TU)
+        assert head == "Entrar a Crea Tu Mundo"
 
     @pytest.mark.asyncio
     async def test_branding_still_follows_the_same_host(self):
@@ -375,9 +375,14 @@ class TestOtherResendableMessages:
         assert STAMP_RE.search(transport.await_args.kwargs["subject"])
 
     @pytest.mark.asyncio
-    async def test_password_reset_voice_follows_the_redirect_base(self):
+    async def test_password_reset_voice_follows_the_redirect_base(self, monkeypatch):
         """`redirect_base` is this flow's host signal, so CTM gets `tú`."""
         service = EmailService()
+        # Presentation-only seam: the exact issuance/receipt path is covered by
+        # test_email_send_audit; no provider is invoked here.
+        monkeypatch.setattr("app.auth.map_mail_hold.current_audit", lambda: SimpleNamespace(
+            source_app="crea-map", message_kind="password_recovery", provenance="registered_map_recovery"
+        ))
         with patch.object(service, "_send_email", new=AsyncMock(return_value=True)) as transport:
             await service.send_password_reset_email(
                 "reader@example.test",
@@ -385,7 +390,7 @@ class TestOtherResendableMessages:
                 redirect_base="https://crea-map.madfam.io/reset",
             )
         subject = transport.await_args.kwargs["subject"]
-        assert subject.startswith("Restablece tu contraseña")
+        assert subject.startswith("Restablecer la contraseña")
 
     @pytest.mark.asyncio
     async def test_verification_subject_is_stamped(self):

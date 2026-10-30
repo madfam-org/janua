@@ -24,12 +24,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import urlsplit
 
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 import app.services.resend_email_service as resend_module
 from app.config import settings
 from app.dependencies import verify_internal_api_key
 from app.main import app
+from app.models.email_send_audit import EmailSendAudit
 from app.services import (
     email_sender,
     email_service,
@@ -119,11 +123,24 @@ def http_sends(monkeypatch) -> List[Dict[str, Any]]:
         yield captured
 
 
-@pytest.fixture()
-def client():
+@pytest_asyncio.fixture()
+async def client(monkeypatch):
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
+    async with engine.begin() as connection:
+        await connection.run_sync(EmailSendAudit.__table__.create)
+    monkeypatch.setattr(
+        "app.database.AsyncSessionLocal",
+        async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False),
+    )
     app.dependency_overrides[verify_internal_api_key] = lambda: True
-    yield AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"X-MAP-Mail-Audit-ID": "24fdce23-7ca1-4c2e-85fd-430a7bc94cc2"},
+    ) as client:
+        yield client
     app.dependency_overrides.pop(verify_internal_api_key, None)
+    await engine.dispose()
 
 
 # --------------------------------------------------------------------------

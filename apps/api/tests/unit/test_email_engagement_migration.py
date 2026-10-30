@@ -115,13 +115,15 @@ def databases():
         base,
         autocommit=True,
     )
-    names = {kind: f"janua_engagement_{kind}_{uuid.uuid4().hex[:8]}" for kind in ("head", "hand")}
+    names = {kind: f"janua_engagement_{kind}_{uuid.uuid4().hex[:8]}" for kind in ("head", "hand", "runtime")}
     for name in names.values():
         created = _psql(f'CREATE DATABASE "{name}"', base, autocommit=True)
         assert created.returncode == 0, created.stderr
     urls = {kind: _with_database(base, name) for kind, name in names.items()}
     try:
         _ok(_alembic(["upgrade", HEAD], urls["head"]))
+        # Keep019 SQL parity/downgrade evidence isolated from current ORM fields.
+        _ok(_alembic(["upgrade", "head"], urls["runtime"]))
         yield urls
     finally:
         for name in names.values():
@@ -208,7 +210,7 @@ async def test_insert_paths_and_token_binding_on_postgresql(databases, monkeypat
     )
     from app.services.sender_binding import CTM_BINDING
 
-    url = databases["head"]
+    url = databases["runtime"]
     engine = create_async_engine(url.replace("postgresql://", "postgresql+asyncpg://"))
     try:
         factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

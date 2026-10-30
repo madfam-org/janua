@@ -9,6 +9,11 @@ on:
     branches: [main, develop]
   workflow_dispatch:  # Allow manual trigger
 
+# Superseded PR proofs stop; non-PR run IDs are unique, preserving every main run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   NODE_VERSION: '22'
   NPM_MADFAM_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
@@ -61,6 +66,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -73,6 +79,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+          cache-dependency-path: apps/api/requirements*.txt
 
       - name: Install system dependencies for xmlsec
         run: |

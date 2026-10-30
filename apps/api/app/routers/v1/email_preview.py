@@ -31,12 +31,15 @@ THE CONTRACT (sending apps code against this; keep it exact). Same
 
 WHAT A PREVIEW IS. Exactly the subject, From header and bodies the real send
 would hand to Resend for the same input, produced by the SAME functions:
-`render_registered_template` (the /send-template renderer) and
+`render_registered_template` (the /send-template renderer), the shared CTM
+transactional renderer for the declared auth presentation previews, and
 `resolve_message_envelope` (the send path's sender, account and
 tracked-domain token-link resolution). So when a real send would go out
 text-only (EMAIL_TRACKED_SENDER_DOMAINS + a token link), the preview has
 `html: null` too. For "raw", Janua applies NO layout, branding or wrapping on
 /send: the bodies come back as given, except for that token-link rule.
+Auth presentation preview IDs do not grant /send-template capability; their
+tokens and deadlines still belong to the existing auth issuer and workflow.
 
 WHAT A PREVIEW NEVER DOES: send, call Resend, open a database session, write
 an audit/log row, or emit the send path's operational log lines.
@@ -52,11 +55,14 @@ from app.dependencies import verify_internal_api_key
 from app.routers.v1.email import (
     EMAIL_TEMPLATES,
     MissingTemplateVariablesError,
+    RenderedTemplate,
     UnknownTemplateError,
     UnresolvedTemplateVariablesError,
     render_registered_template,
     resolve_template_formality,
 )
+from app.services.email_branding import resolve_branding
+from app.services.email_presentation import AUTH_PREVIEW_TEMPLATES, render_auth_preview
 from app.services.email_sender import message_class_for_internal_send
 from app.services.resend_email_service import resolve_message_envelope
 
@@ -146,9 +152,38 @@ async def preview_email(
                 redirect_url=request.redirect_url,
                 org_id=request.org_id,
             )
-            rendered = await render_registered_template(
-                request.template, request.context, formality
+            auth_preview = request.template in AUTH_PREVIEW_TEMPLATES and (
+                request.template not in EMAIL_TEMPLATES
+                or resolve_branding(org_id=request.org_id, redirect_url=request.redirect_url).get(
+                    "presentation_family"
+                )
+                == "ctm"
             )
+            if auth_preview:
+                try:
+                    parts = render_auth_preview(
+                        request.template,
+                        request.context,
+                        request.org_id,
+                        request.redirect_url,
+                        formality,
+                    )
+                except ValueError as exc:
+                    raise MissingTemplateVariablesError(str(exc).split(",")) from exc
+                rendered = RenderedTemplate(
+                    template_id=request.template,
+                    subject=parts["subject"],
+                    html=parts["html"],
+                    text=parts["text"],
+                    default_from_email=None,
+                    default_from_name=None,
+                    token_link=True,
+                    formality=formality,
+                )
+            else:
+                rendered = await render_registered_template(
+                    request.template, request.context, formality
+                )
         except UnknownTemplateError:
             return JSONResponse(status_code=404, content={"detail": "Unknown template"})
         except UnresolvedTemplateVariablesError as exc:
@@ -205,7 +240,8 @@ async def preview_email(
 
 @router.get("/preview/templates", response_model=List[PreviewTemplateInfo])
 async def list_preview_templates(_: bool = Depends(verify_internal_api_key)) -> Any:
-    """Every Janua-owned template previewable (and sendable via /send-template)."""
+    """Template previews, including auth presentations with no sending grant."""
+    templates = {**EMAIL_TEMPLATES, **AUTH_PREVIEW_TEMPLATES}
     return [
         PreviewTemplateInfo(
             id=template_id,
@@ -215,5 +251,5 @@ async def list_preview_templates(_: bool = Depends(verify_internal_api_key)) -> 
             optional_variables=list(info.get("optional", [])),
             token_link=bool(info.get("token_link")),
         )
-        for template_id, info in EMAIL_TEMPLATES.items()
+        for template_id, info in templates.items()
     ]

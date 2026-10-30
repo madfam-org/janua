@@ -96,6 +96,7 @@ async def env():
     get = AsyncMock(return_value=redis)
     with (
         patch("app.core.redis.get_redis", get),
+        patch("app.routers.v1.auth.get_redis", get),
         patch("app.services.auth_service.get_redis", get),
     ):
         transport = ASGITransport(app=app)

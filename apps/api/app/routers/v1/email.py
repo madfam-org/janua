@@ -13,7 +13,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 
 from app.config import settings
@@ -27,6 +27,13 @@ from app.services.email_i18n import (
     FORMALITY_USTED,
     normalize_formality,
     resolve_formality_for_request,
+)
+from app.services.email_presentation import payment_session_detail as _sesiones_detalle
+from app.services.email_presentation import render_map_payment
+from app.services.email_send_audit import (
+    UPSTREAM_HEADER,
+    audited_internal_send,
+    require_map_attempt,
 )
 from app.services.email_sender import message_class_for_internal_send
 from app.services.email_tags import build_tags
@@ -472,6 +479,7 @@ EMAIL_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "required": ["periodo"],
         "optional": ["sesiones"],
         "subject": "Tu pago quedó confirmado",
+        "escape_html": True,
     },
     # Operator alert (a MADFAM service → MADFAM's operators), Spanish. Generic on
     # purpose: a probe or worker says what broke or recovered, where, and when.
@@ -527,6 +535,7 @@ TEMPLATE_FILENAMES: Dict[str, str] = {
 # listed here is sent multipart (HTML + text): better deliverability at strict
 # consumer mailboxes (Hotmail/Outlook.com) and readable in text-only clients.
 TEXT_TEMPLATE_FILENAMES: Dict[str, str] = {
+    "map/pago-confirmado": "map_pago-confirmado.txt",
     "billing/cfdi": "billing_cfdi.txt",
     "billing/aviso-de-cobro": "billing_aviso-de-cobro.txt",
     "ops/alert": "ops_alert.txt",
@@ -635,11 +644,16 @@ def _first_message_bcc(to: List[str], bcc: Optional[List[str]]) -> Optional[List
 
 
 @router.post("/send", response_model=EmailResponse)
-async def send_email(request: SendEmailRequest, _: bool = Depends(verify_internal_api_key)):
+async def send_email(
+    request: SendEmailRequest,
+    _: bool = Depends(verify_internal_api_key),
+    map_audit_id: Optional[str] = Header(None, alias=UPSTREAM_HEADER),
+):
     """
     Send a custom email via Resend.
     Used for emails that don't fit a predefined template.
     """
+    require_map_attempt(request.source_app, map_audit_id)
     try:
         resend_service = ResendService()
 
@@ -662,25 +676,31 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
         # Send to each recipient (service expects single email address)
         results = []
         for recipient in request.to:
-            result = await resend_service.send_email(
-                to_email=recipient,
-                subject=request.subject,
-                html_content=request.html or "",
-                text_content=request.text,
-                reply_to=request.reply_to,
-                cc=request.cc,
-                bcc=request.bcc,
-                tags=tag_list,
-                from_email=request.from_email,
-                from_name=request.from_name,
-                redirect_url=request.redirect_url,
+            result = await audited_internal_send(
+                lambda recipient=recipient: resend_service.send_email(
+                    to_email=recipient,
+                    subject=request.subject,
+                    html_content=request.html or "",
+                    text_content=request.text,
+                    reply_to=request.reply_to,
+                    cc=request.cc,
+                    bcc=request.bcc,
+                    tags=tag_list,
+                    from_email=request.from_email,
+                    from_name=request.from_name,
+                    redirect_url=request.redirect_url,
+                    org_id=request.org_id,
+                    attachments=resend_attachments,
+                    token_link=request.contains_token_link,
+                    track_engagement=request.track_engagement,
+                    # R101: token mail leaves from the system sender with a
+                    # Reply-To when no tenant's branded sender applies.
+                    message_class=message_class_for_internal_send(request.contains_token_link),
+                ),
+                source_app=request.source_app,
                 org_id=request.org_id,
-                attachments=resend_attachments,
-                token_link=request.contains_token_link,
-                track_engagement=request.track_engagement,
-                # R101: token mail leaves from the system sender with a
-                # Reply-To when no tenant's branded sender applies.
-                message_class=message_class_for_internal_send(request.contains_token_link),
+                message_kind=request.source_type or "notification",
+                upstream_audit_id=map_audit_id,
             )
             results.append(result)
 
@@ -695,12 +715,15 @@ async def send_email(request: SendEmailRequest, _: bool = Depends(verify_interna
 
 @router.post("/send-template", response_model=EmailResponse)
 async def send_template_email(
-    request: SendTemplateEmailRequest, _: bool = Depends(verify_internal_api_key)
+    request: SendTemplateEmailRequest,
+    _: bool = Depends(verify_internal_api_key),
+    map_audit_id: Optional[str] = Header(None, alias=UPSTREAM_HEADER),
 ):
     """
     Send an email using a predefined template.
     Templates are rendered server-side with provided variables.
     """
+    require_map_attempt(request.source_app, map_audit_id)
     # The register before the person tier: request > the template's/product's
     # voice. The recipient's stored choice is consulted per recipient below.
     base_formality = resolve_template_formality(
@@ -806,21 +829,27 @@ async def send_template_email(
         results = []
         for index, recipient in enumerate(request.to):
             message = per_recipient[recipient]
-            result = await resend_service.send_email(
-                to_email=recipient,
-                subject=message.subject,
-                html_content=message.html,
-                text_content=message.text,
-                tags=tag_list,
-                reply_to=request.reply_to,
-                bcc=first_message_bcc if index == 0 else None,
-                from_email=from_email,
-                from_name=from_name,
-                redirect_url=request.redirect_url,
+            result = await audited_internal_send(
+                lambda recipient=recipient, message=message, index=index: resend_service.send_email(
+                    to_email=recipient,
+                    subject=message.subject,
+                    html_content=message.html,
+                    text_content=message.text,
+                    tags=tag_list,
+                    reply_to=request.reply_to,
+                    bcc=first_message_bcc if index == 0 else None,
+                    from_email=from_email,
+                    from_name=from_name,
+                    redirect_url=request.redirect_url,
+                    org_id=request.org_id,
+                    attachments=resend_attachments,
+                    token_link=rendered.token_link,
+                    message_class=message_class_for_internal_send(rendered.token_link),
+                ),
+                source_app=request.source_app,
                 org_id=request.org_id,
-                attachments=resend_attachments,
-                token_link=rendered.token_link,
-                message_class=message_class_for_internal_send(rendered.token_link),
+                message_kind=request.source_type or "notification",
+                upstream_audit_id=map_audit_id,
             )
             results.append(result)
 
@@ -936,39 +965,13 @@ _CTM_FRAME_SLOTS: Dict[str, str] = {
         "footer_logo_url",
         "platform_name",
         "platform_url",
+        "body_ink",
+        "secondary_ink",
+        "paper_bg",
+        "action_bg",
+        "action_ink",
     )
 }
-
-
-def _sesiones_detalle(sesiones: Any) -> str:
-    """The Spanish session-count parenthetical for map/pago-confirmado, or "".
-
-    The renderer does naive ``{{key}}`` substitution and CANNOT do Jinja
-    conditionals or singular/plural, so the whole optional phrase is composed
-    here and exposed to the template as a single always-present ``{{sesiones_detalle}}``
-    slot. This is what keeps the count OPTIONAL without ever leaking a literal
-    ``{{sesiones}}`` into a family-facing message when the caller omits it.
-
-    Deliberately money-light: this renders only a non-fiscal session COUNT — no
-    amount, rate, or total (those live in HCM / the CFDI cockpit, never here).
-
-        absent / blank / <= 0  -> ""              (nothing shown)
-        1                      -> " (1 sesión)"
-        n > 1                  -> " (n sesiones)"
-
-    A non-integer value is ignored rather than rendered raw, so a malformed
-    caller can never inject arbitrary text into the body through this slot.
-    """
-    if sesiones is None:
-        return ""
-    try:
-        count = int(sesiones)
-    except (TypeError, ValueError):
-        return ""
-    if count <= 0:
-        return ""
-    palabra = "sesión" if count == 1 else "sesiones"
-    return f" ({count} {palabra})"
 
 
 def _derive_template_variables(
@@ -1207,6 +1210,9 @@ async def render_template(
     """
     from pathlib import Path
 
+    if template_id == "map/pago-confirmado":
+        return render_map_payment(variables)["html"]
+
     # Compose any template-derived slots (e.g. the map/pago-confirmado session
     # parenthetical) before substitution, without mutating the caller's dict.
     caller = variables
@@ -1243,6 +1249,8 @@ async def render_text_template(
     template_id: str, variables: Dict[str, Any], formality: Optional[str] = None
 ) -> Optional[str]:
     """The plain-text part for templates that have one, else None. Never escaped."""
+    if template_id == "map/pago-confirmado":
+        return render_map_payment(variables)["text"]
     source = _read_text_template_source(template_id, formality)
     if source is None:
         return None

@@ -39,6 +39,14 @@ MOD = "app.routers.v1.oauth_provider"
 REDIRECT = "https://app.example/cb"
 
 
+@pytest.fixture(autouse=True)
+def optional_authentication_context(monkeypatch):
+    # Scope tests deliberately use policy-free legacy sessions. Real required
+    # policy, session binding and MFA proof are covered in separate auth tests.
+    monkeypatch.setattr(op, "user_requires_mfa", AsyncMock(return_value=False))
+    monkeypatch.setattr(op, "assurance_for_request", AsyncMock(return_value={}))
+
+
 def _client(
     *,
     allowed_scopes=None,

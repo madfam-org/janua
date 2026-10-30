@@ -16,6 +16,17 @@ redirect and should not become the source of truth again.
 
 ## Required operating doctrine
 
+- CTM communications work: never execute or attempt real email sends, resends,
+  provider tests, or hosted-auth synthetics. Validate templates only with local
+  synthetic fixtures and outbound networking blocked. Presentation changes do
+  not release billing holds or enable/enforce MFA; Dirección controls activation.
+- Recovery boundary: legacy `POST /api/v1/mfa/initiate-recovery` only looks in
+  the platform identity pool. It creates an unused one-hour token, then passes
+  backup-code data to a mailer that has no temporary recovery link/code. The
+  presentation now offers an honest help notice and never emits that list.
+  CTM's hosted security flow does not use this endpoint: it accepts TOTP or an
+  existing one-use backup code and displays newly generated codes once in the
+  authenticated session. Email alone is not a replacement for the second factor.
 - Read this file before making repo changes.
 - Prefer existing repo conventions, scripts, and docs over introducing new
   patterns.

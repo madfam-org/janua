@@ -95,6 +95,7 @@ async def hosted_client(mail_enabled):
 
 # ── the vocabulary ─────────────────────────────────────────────────────────
 
+
 class TestLoginMethodPrecedence:
     def test_normalises_and_never_rejects(self):
         assert normalize_login_method("magic_link") == "magic_link"
@@ -119,9 +120,12 @@ class TestLoginMethodPrecedence:
 
 # ── the page ───────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_default_page_is_password_with_a_link_to_magic(hosted_client):
-    resp = await hosted_client.get(LOGIN_URL, params={"auth_request_id": "req-1", "client_id": "c1", "client_name": "Studio"})
+    resp = await hosted_client.get(
+        LOGIN_URL, params={"auth_request_id": "req-1", "client_id": "c1", "client_name": "Studio"}
+    )
     assert resp.status_code == 200
     body = resp.text
     assert PASSWORD_FORM_ACTION in body
@@ -138,7 +142,12 @@ async def test_default_page_is_password_with_a_link_to_magic(hosted_client):
 async def test_login_method_magic_link_renders_email_first(hosted_client):
     resp = await hosted_client.get(
         LOGIN_URL,
-        params={"auth_request_id": "req-1", "client_id": "c1", "client_name": "Studio", "login_method": "magic_link"},
+        params={
+            "auth_request_id": "req-1",
+            "client_id": "c1",
+            "client_name": "Studio",
+            "login_method": "magic_link",
+        },
     )
     assert resp.status_code == 200
     body = resp.text
@@ -178,6 +187,7 @@ async def test_unknown_method_is_ignored(hosted_client):
 
 # ── /authorize carries the hint ────────────────────────────────────────────
 
+
 def _client_stub():
     return SimpleNamespace(
         client_id="jnc_studio",
@@ -195,8 +205,14 @@ def _client_stub():
 async def test_authorize_stores_and_forwards_login_method():
     redis = AsyncMock()
     with (
-        patch("app.routers.v1.oauth_provider.get_user_from_cookie_or_header", AsyncMock(return_value=None)),
-        patch("app.routers.v1.oauth_provider._get_oauth_client", AsyncMock(return_value=_client_stub())),
+        patch(
+            "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.routers.v1.oauth_provider._get_oauth_client",
+            AsyncMock(return_value=_client_stub()),
+        ),
         patch("app.routers.v1.oauth_provider._validate_redirect_uri", MagicMock(return_value=True)),
     ):
         resp = await authorize_get(
@@ -234,15 +250,30 @@ async def test_authorize_stores_and_forwards_login_method():
 async def test_authorize_without_hint_leaves_login_url_unchanged():
     redis = AsyncMock()
     with (
-        patch("app.routers.v1.oauth_provider.get_user_from_cookie_or_header", AsyncMock(return_value=None)),
-        patch("app.routers.v1.oauth_provider._get_oauth_client", AsyncMock(return_value=_client_stub())),
+        patch(
+            "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.routers.v1.oauth_provider._get_oauth_client",
+            AsyncMock(return_value=_client_stub()),
+        ),
         patch("app.routers.v1.oauth_provider._validate_redirect_uri", MagicMock(return_value=True)),
     ):
         resp = await authorize_get(
-            request=MagicMock(), response_type="code", client_id="jnc_studio",
-            redirect_uri="https://app.yantra4d.com", scope="openid", state="s", nonce=None,
-            code_challenge="abc", code_challenge_method="S256", prompt=None, login_method="bogus",
-            db=AsyncMock(), redis=redis,
+            request=MagicMock(),
+            response_type="code",
+            client_id="jnc_studio",
+            redirect_uri="https://app.yantra4d.com",
+            scope="openid",
+            state="s",
+            nonce=None,
+            code_challenge="abc",
+            code_challenge_method="S256",
+            prompt=None,
+            login_method="bogus",
+            db=AsyncMock(),
+            redis=redis,
         )
     assert "login_method" not in resp.headers["location"]
     assert json.loads(redis.strict_set.await_args.args[1])["login_method"] is None
@@ -250,24 +281,37 @@ async def test_authorize_without_hint_leaves_login_url_unchanged():
 
 # ── the hosted form issues a link that resumes the authorize request ──────
 
+
 @pytest.mark.asyncio
 async def test_form_issues_link_whose_destination_resumes_the_authorize_request(hosted_client):
     redis = hosted_client.__dict__["_redis"]
     await redis.set(
         "oauth:pre_login:req-1",
-        json.dumps({
-            "response_type": "code", "client_id": "jnc_studio",
-            "redirect_uri": "https://app.yantra4d.com", "scope": "openid profile email",
-            "state": "csrf-1", "nonce": None, "code_challenge": "abc",
-            "code_challenge_method": "S256", "login_method": "magic_link",
-        }),
+        json.dumps(
+            {
+                "response_type": "code",
+                "client_id": "jnc_studio",
+                "redirect_uri": "https://app.yantra4d.com",
+                "scope": "openid profile email",
+                "state": "csrf-1",
+                "nonce": None,
+                "code_challenge": "abc",
+                "code_challenge_method": "S256",
+                "login_method": "magic_link",
+            }
+        ),
     )
     mailer = MagicMock()
     with patch("app.routers.v1.auth.send_magic_link_email_task", mailer):
         resp = await hosted_client.post(
             MAGIC_FORM_URL,
             # A deliverable-looking domain: the validator rejects reserved names such as .test
-            data={"email": "Aldo@Studio-Test.io", "auth_request_id": "req-1", "client_id": "jnc_studio", "client_name": "Studio"},
+            data={
+                "email": "Aldo@Studio-Test.io",
+                "auth_request_id": "req-1",
+                "client_id": "jnc_studio",
+                "client_name": "Studio",
+            },
         )
     assert resp.status_code == 200, resp.text
     assert "Check your inbox" in resp.text
@@ -311,7 +355,9 @@ async def test_form_issues_link_whose_destination_resumes_the_authorize_request(
 @pytest.mark.asyncio
 async def test_form_with_expired_context_says_so(hosted_client):
     with patch("app.routers.v1.auth.send_magic_link_email_task", MagicMock()) as mailer:
-        resp = await hosted_client.post(MAGIC_FORM_URL, data={"email": "a@studio-test.io", "auth_request_id": "gone"})
+        resp = await hosted_client.post(
+            MAGIC_FORM_URL, data={"email": "a@studio-test.io", "auth_request_id": "gone"}
+        )
     assert resp.status_code == 400
     assert "Sign-in session expired" in resp.text
     mailer.assert_not_called()
@@ -396,7 +442,12 @@ HIDDEN = '<input type="hidden" name="ui_locales" value="es">'
 async def test_password_page_in_spanish(hosted_client):
     resp = await hosted_client.get(
         LOGIN_URL,
-        params={"auth_request_id": "req-1", "client_id": "c1", "client_name": "MADFAM CV", "ui_locales": "es"},
+        params={
+            "auth_request_id": "req-1",
+            "client_id": "c1",
+            "client_name": "MADFAM CV",
+            "ui_locales": "es",
+        },
     )
     body = resp.text
     assert resp.status_code == 200
@@ -404,7 +455,10 @@ async def test_password_page_in_spanish(hosted_client):
     assert "<title>Iniciar sesión - Janua</title>" in body
     assert "Entrando a <strong>MADFAM CV</strong>" in body
     assert "Correo electrónico" in body and "Contraseña" in body
-    assert '<a href="/api/v1/auth/forgot-password?ui_locales=es">¿Olvidaste tu contraseña?</a>' in body
+    assert (
+        '<a href="/api/v1/auth/forgot-password?ui_locales=es&amp;client_id=c1&amp;auth_request_id=req-1">Crear o recuperar mi contraseña</a>'
+        in body
+    )
     assert ">Entrar</button>" in body
     assert HIDDEN in body
     # The switch link keeps the language.
@@ -416,7 +470,8 @@ async def test_password_page_in_spanish(hosted_client):
 @pytest.mark.asyncio
 async def test_magic_link_page_in_spanish(hosted_client):
     resp = await hosted_client.get(
-        LOGIN_URL, params={"client_name": "MADFAM CV", "login_method": "magic_link", "ui_locales": "es-MX"}
+        LOGIN_URL,
+        params={"client_name": "MADFAM CV", "login_method": "magic_link", "ui_locales": "es-MX"},
     )
     body = resp.text
     assert MAGIC_FORM_ACTION in body
@@ -435,7 +490,9 @@ async def test_without_ui_locales_the_page_is_the_english_page(hosted_client):
     assert '<a href="/api/v1/auth/forgot-password">Forgot your password?</a>' in body
     assert 'name="ui_locales"' not in body
     # An unsupported language is no preference.
-    other = await hosted_client.get(LOGIN_URL, params={"client_name": "Studio", "ui_locales": "fr-CA"})
+    other = await hosted_client.get(
+        LOGIN_URL, params={"client_name": "Studio", "ui_locales": "fr-CA"}
+    )
     assert other.text == body
 
 
@@ -443,7 +500,12 @@ async def test_without_ui_locales_the_page_is_the_english_page(hosted_client):
 async def test_wrong_password_rerender_in_spanish(hosted_client):
     resp = await hosted_client.post(
         "/api/v1/auth/login-form",
-        data={"email": "nobody@beta-cv.example.com", "password": "x", "next": "/", "ui_locales": "es"},
+        data={
+            "email": "nobody@beta-cv.example.com",
+            "password": "x",
+            "next": "/",
+            "ui_locales": "es",
+        },
     )
     assert resp.status_code == 401
     assert "El correo o la contraseña no son correctos." in resp.text
@@ -454,11 +516,17 @@ async def test_wrong_password_rerender_in_spanish(hosted_client):
 async def test_check_inbox_and_bad_email_in_spanish(hosted_client):
     with patch("app.routers.v1.auth.send_magic_link_email_task", MagicMock()) as mailer:
         bad = await hosted_client.post(
-            "/api/v1/auth/login-form/magic-link", data={"email": "nope", "next": "/", "ui_locales": "es"}
+            "/api/v1/auth/login-form/magic-link",
+            data={"email": "nope", "next": "/", "ui_locales": "es"},
         )
         ok = await hosted_client.post(
             "/api/v1/auth/login-form/magic-link",
-            data={"email": "ana@beta-cv.example.com", "next": "/", "client_name": "MADFAM CV", "ui_locales": "es"},
+            data={
+                "email": "ana@beta-cv.example.com",
+                "next": "/",
+                "client_name": "MADFAM CV",
+                "ui_locales": "es",
+            },
         )
     assert bad.status_code == 400 and "Escribe un correo electrónico válido." in bad.text
     assert ok.status_code == 200

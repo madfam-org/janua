@@ -332,6 +332,7 @@ class InvitationService:
                 organization_name=organization.name or "your organization",
                 inviter_name=getattr(inviter, "name", None) or inviter.email,
                 role=invitation.role or "member", expires_at=invitation.expires_at,
+                org_id=organization.id,
             )
         except Exception as exc:
             logger.warning("Invitation transport unconfirmed", invitation_id=str(invitation.id),

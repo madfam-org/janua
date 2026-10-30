@@ -94,6 +94,7 @@ async def db(monkeypatch):
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     monkeypatch.setattr(email_engagement, "session_factory", factory)
+    monkeypatch.setattr("app.database.AsyncSessionLocal", factory)
     yield factory
     await engine.dispose()
 
@@ -307,7 +308,7 @@ def sdk_sends(monkeypatch) -> List[Dict[str, Any]]:
 @pytest.fixture()
 def client():
     app.dependency_overrides[verify_internal_api_key] = lambda: True
-    yield AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+    yield AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"X-MAP-Mail-Audit-ID": "6ad341a3-b76b-4f0e-808a-583901b4c531"})
     app.dependency_overrides.pop(verify_internal_api_key, None)
 
 
@@ -396,8 +397,9 @@ async def test_ctm_credential_missing_falls_back_to_platform_unmeasured(
 
 
 async def test_store_failure_sends_the_message_unmodified(
-    client, sdk_sends, tracking_on, monkeypatch
+    client, sdk_sends, db, tracking_on, monkeypatch
 ):
+    # Only the optional engagement store fails; the durable send intent stays available.
     def broken():
         raise RuntimeError("db down")
 

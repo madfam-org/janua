@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="{{ locale }}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>{{ heading }}</title></head>
+<body bgcolor="{{ paper_bg }}" style="margin:0;padding:0;width:100%;background-color:{{ paper_bg }};color:{{ body_ink }};font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:1.5;-webkit-text-size-adjust:100%;">
+<div data-preheader="true" aria-hidden="true" style="display:none;max-height:0;max-width:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;">{{ preheader }}</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="{{ paper_bg }}" style="width:100%;table-layout:fixed;background-color:{{ paper_bg }};"><tr><td align="center" style="padding:24px 8px;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#ffffff" style="width:100%;max-width:600px;table-layout:fixed;background-color:#ffffff;word-break:break-word;overflow-wrap:anywhere;">
+<tr><td bgcolor="{{ header_bg }}" style="padding:20px;background-color:{{ header_bg }};color:{{ header_fg }};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;table-layout:fixed;"><tr><td width="60" valign="middle" style="width:60px;"><img src="{{ header_logo_url }}" width="48" height="48" alt="" style="display:block;border:0;width:48px;height:48px;"></td><td valign="middle" style="color:{{ header_fg }};font-size:22px;line-height:1.27273;font-weight:bold;">{{ header_name }}</td></tr></table>
+</td></tr>
+<tr><td style="padding:28px 20px;color:{{ body_ink }};font-size:16px;line-height:1.5;">
+<div class="content">
+<h1 style="margin:0 0 20px;font-size:24px;line-height:1.25;font-weight:bold;color:{{ body_ink }};">{{ heading }}</h1>
+<p style="margin:0 0 16px;color:{{ body_ink }};font-size:16px;line-height:1.5;">{{ labels.hello }}{% if user_name %} {{ user_name }}{% endif %}:</p>
+<p style="margin:0 0 20px;color:{{ body_ink }};font-size:16px;line-height:1.5;">{{ intro }}</p>
+{% if kind in ['invitation', 'product_invite'] %}
+{% if inviter_name %}<p style="margin:0 0 8px;font-size:16px;line-height:1.5;"><strong>{{ labels.inviter }}:</strong> {{ inviter_name }}</p>{% endif %}
+{% if organization_name %}<p style="margin:0 0 8px;font-size:16px;line-height:1.5;"><strong>{{ labels.organization }}:</strong> {{ organization_name }}</p>{% endif %}
+{% if role %}<p style="margin:0 0 20px;font-size:16px;line-height:1.5;"><strong>{{ labels.role }}:</strong> {{ role }}</p>{% endif %}
+{% endif %}
+{% if temporary_code %}
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#fdf6e3" style="table-layout:fixed;background-color:#fdf6e3;margin:0 0 20px;"><tr><td style="padding:16px;color:{{ body_ink }};">
+<p style="margin:0 0 8px;font-size:16px;line-height:1.5;">{{ labels.code }}</p><p style="margin:0 0 8px;font-family:monospace;font-size:24px;line-height:1.33334;word-break:break-all;">{{ temporary_code }}</p><p style="margin:0;color:{{ secondary_ink }};font-size:14px;line-height:1.5;">{{ code_expiry_copy }}</p>
+</td></tr></table>
+{% endif %}
+{% if action_url %}
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="max-width:100%;margin:0 0 16px;"><tr><td bgcolor="{{ action_bg }}" style="background-color:{{ action_bg }};border-radius:8px;mso-padding-alt:12px 24px;"><a href="{{ action_url }}" style="display:inline-block;box-sizing:border-box;max-width:100%;padding:12px 24px;min-height:48px;font-size:16px;line-height:1.5;font-weight:bold;color:{{ action_ink }};background-color:{{ action_bg }};text-align:center;text-decoration:underline;border-radius:8px;word-break:break-word;">{{ action_label }}</a></td></tr></table>
+{% elif kind == 'mfa_recovery' %}<p style="margin:0 0 20px;font-size:16px;line-height:1.5;">{{ labels.no_link }}</p>{% endif %}
+{% if expiry_copy %}<p style="margin:0 0 20px;color:{{ secondary_ink }};font-size:16px;line-height:1.5;">{{ expiry_copy }}</p>{% endif %}
+{% if kind != 'welcome' %}<h2 style="margin:28px 0 8px;font-size:18px;line-height:1.44445;color:{{ body_ink }};">{{ labels.security }}</h2><p style="margin:0 0 20px;font-size:16px;line-height:1.5;color:{{ body_ink }};">{{ security_copy }}</p>{% endif %}
+{% if action_url %}<p style="margin:0 0 8px;color:{{ secondary_ink }};font-size:14px;line-height:1.5;">{{ labels.fallback }}</p><p style="margin:0 0 20px;color:{{ secondary_ink }};font-size:14px;line-height:1.5;word-break:break-all;overflow-wrap:anywhere;">{{ action_url }}</p>{% endif %}
+{% if request_time or request_ip or ip_address or request_browser or user_agent %}
+<h2 style="margin:28px 0 8px;font-size:18px;line-height:1.44445;color:{{ body_ink }};">{{ labels.request }}</h2>
+{% if request_time %}<p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:{{ secondary_ink }};">{{ labels.time }}: {{ request_time }}</p>{% endif %}
+{% if request_ip or ip_address %}<p style="margin:0 0 8px;font-size:14px;line-height:1.5;color:{{ secondary_ink }};">{{ labels.ip }}: {{ request_ip or ip_address }}</p>{% endif %}
+{% if request_browser or user_agent %}<p style="margin:0 0 20px;font-size:14px;line-height:1.5;color:{{ secondary_ink }};">{{ labels.browser }}: {{ request_browser or user_agent }}</p>{% endif %}
+{% endif %}
+<p style="margin:24px 0 0;font-size:16px;line-height:1.5;color:{{ body_ink }};">{{ labels.help }}</p>
+</div>
+</td></tr>
+<tr><td bgcolor="#fdf6e3" style="padding:20px;background-color:#fdf6e3;color:{{ secondary_ink }};font-size:14px;line-height:1.5;">
+<div class="footer">
+<p style="margin:0;font-size:14px;line-height:1.5;color:{{ secondary_ink }};"><img src="{{ footer_logo_url }}" width="28" height="28" alt="" style="display:inline-block;vertical-align:middle;border:0;margin-right:6px;">{{ labels.powered }} <a href="{{ platform_url }}" style="color:#2d2f86;text-decoration:underline;">{{ platform_name }}</a></p>
+</div>
+</td></tr></table>
+</td></tr></table></body></html>

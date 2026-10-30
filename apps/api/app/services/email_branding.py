@@ -111,6 +111,13 @@ MADFAM_BRANDING: Dict[str, str] = {
 CTM_ORG_ID = "e6cbd51d-8329-4c4e-8c74-aba643ab4575"
 
 CTM_BRANDING: Dict[str, str] = {
+    # Render-only family selector; never used by sender or account resolution.
+    "presentation_family": "ctm",
+    "body_ink": "#1c1b18",
+    "secondary_ink": "#454773",
+    "paper_bg": "#faf8f3",
+    "action_bg": "#ed7954",
+    "action_ink": "#1b1c2e",
     "header_name": "Crea Tu Mundo",
     # The brand blue, flat (no gradient) — reads as the brand, not as a
     # second MADFAM. `header_fg` is the warm-cream text on that blue ground.
@@ -158,6 +165,22 @@ def _host_matches(host: str, pattern: str) -> bool:
     host = host.lower().strip()
     pattern = pattern.lower().strip()
     return host == pattern or host.endswith("." + pattern)
+
+
+def presentation_signals(
+    org_id: Optional[Any] = None, redirect_url: Optional[str] = None
+) -> Dict[str, str]:
+    """The same trusted optional context for body and existing sender policy.
+
+    Omit absent values so legacy callers retain their prior transport arguments.
+    This resolves no identity from a recipient address and makes no policy choice.
+    """
+    signals = {}
+    if org_id is not None:
+        signals["org_id"] = str(org_id)
+    if redirect_url:
+        signals["redirect_url"] = redirect_url
+    return signals
 
 
 def _tenant_for_host(host: Optional[str]) -> Optional[str]:

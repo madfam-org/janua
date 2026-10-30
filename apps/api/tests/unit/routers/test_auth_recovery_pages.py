@@ -208,7 +208,10 @@ MISMATCHED = {"token": "tok-x", "new_password": "Aa1!Aa1!Aa1!", "confirm_passwor
 
 def _post_with_outcome(outcome, data):
     """POST the reset form with _consume_password_reset answering `outcome`."""
-    with patch("app.routers.v1.auth._consume_password_reset", new=AsyncMock(return_value=outcome)):
+    with (
+        patch("app.routers.v1.auth._consume_password_reset", new=AsyncMock(return_value=outcome)),
+        patch("app.routers.v1.auth.get_redis", new=AsyncMock(return_value=MagicMock(strict_get=AsyncMock(return_value=None)))),
+    ):
         return _client().post(RESET_FORM_URL, data=data)
 
 

@@ -50,6 +50,7 @@ class PaymentMailDispatch(Base):
     lease_until = Column(DateTime(), nullable=True)
     next_attempt_at = Column(DateTime(), nullable=True)
     provider_message_id = Column(String(255), nullable=True)
+    map_audit_id = Column(String(36), nullable=True)
     accepted_at = Column(DateTime(), nullable=True)
     issue = Column(String(64), nullable=False, default="")
     created_at = Column(DateTime(), nullable=False, default=datetime.utcnow)

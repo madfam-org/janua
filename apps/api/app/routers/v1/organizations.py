@@ -701,6 +701,7 @@ async def invite_member(
             invitation_url=invitation_url,
             expires_at=invitation.expires_at,
             teams=None,  # Teams feature not yet implemented in invitation model
+            org_id=org.id,
         )
     except Exception as e:
         # Log email error but don't fail the invitation
@@ -824,9 +825,11 @@ async def list_invitations(
                 role=inv.role.value,
                 permissions=inv.permissions or [],
                 invited_by=str(inv.invited_by),
-                inviter_name=inviter.display_name or f"{inviter.first_name} {inviter.last_name}"
-                if inviter
-                else None,
+                inviter_name=(
+                    inviter.display_name or f"{inviter.first_name} {inviter.last_name}"
+                    if inviter
+                    else None
+                ),
                 status=inv.status,
                 created_at=inv.created_at,
                 expires_at=inv.expires_at,

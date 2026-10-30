@@ -153,7 +153,10 @@ async def signup(
                     f"{settings.BASE_URL}/auth/verify-email?token=temp-token-{user.id}"
                 )
                 await email_service.send_verification_email(
-                    to_email=user.email, user_name=user.name, verification_url=verification_url
+                    to_email=user.email,
+                    user_name=user.name,
+                    verification_url=verification_url,
+                    org_id=getattr(user, "tenant_id", None),
                 )
                 logger.info("Verification email sent", email=_redact_email(user.email))
             except Exception as e:
@@ -432,7 +435,9 @@ async def verify_email(request: VerifyEmailRequest, db=Depends(get_db), redis=De
         try:
             email_service = get_email_service(redis)
             await email_service.send_welcome_email(
-                to_email=token_info["email"], user_name=token_info.get("user_name")
+                to_email=token_info["email"],
+                user_name=token_info.get("user_name"),
+                org_id=getattr(user, "tenant_id", None) if user else None,
             )
         except Exception as e:
             logger.error("Failed to send welcome email", error_type=type(e).__name__)

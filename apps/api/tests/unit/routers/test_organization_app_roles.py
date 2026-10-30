@@ -558,3 +558,39 @@ async def test_a_delegated_grant_reaches_the_claims_resolver(env, world):
         ).scalar_one()
         claims = await get_user_org_claims(user, session)
     assert claims.get(APP_ROLES_KEY) == ["creator-census:viewer"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["grant", "revoke"])
+@pytest.mark.parametrize("role", ["security-policy-admin", "mfa-required"])
+async def test_app_admin_cannot_change_reserved_security_policy_authority(env, operation, role):
+    org_id = await _org(env.sf, "reserved-security")
+    admin = await _user(env.sf, "app-admin@example.invalid")
+    target = await _user(env.sf, "direction@example.invalid")
+    admin_member = await _member(env.sf, org_id, admin)
+    target_member = await _member(env.sf, org_id, target)
+    await _grant(env.sf, admin_member, "crea-map", "admin")
+    if operation == "revoke":
+        await _grant(env.sf, target_member, "crea-map", role)
+    env.as_user(admin)
+    response = await env.client.post(
+        _url(org_id, f"/crea-map/{operation}"),
+        json={"user_id": target, "role": role},
+    )
+    assert response.status_code == 403
+    async with env.sf() as db:
+        grants = (
+            (
+                await db.execute(
+                    select(OrganizationMemberAppRole).where(
+                        OrganizationMemberAppRole.organization_member_id
+                        == uuid.UUID(target_member),
+                        OrganizationMemberAppRole.role == role,
+                        OrganizationMemberAppRole.revoked_at.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(grants) == (1 if operation == "revoke" else 0)

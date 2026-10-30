@@ -19,6 +19,7 @@ Two things are guarded here:
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from datetime import datetime, timedelta
 
@@ -46,6 +47,7 @@ def _mint_challenge(user_id: str, *, expired: bool = False, wrong_type: bool = F
     exp = datetime.utcnow() + (timedelta(minutes=-1) if expired else timedelta(minutes=5))
     payload = {
         "sub": str(user_id),
+        "jti": secrets.token_urlsafe(24),
         "type": "session" if wrong_type else "mfa_challenge",
         "exp": exp,
         "iat": datetime.utcnow(),
@@ -57,7 +59,7 @@ def _mint_challenge(user_id: str, *, expired: bool = False, wrong_type: bool = F
 
 
 @pytest_asyncio.fixture
-async def mfa_client():
+async def mfa_client(monkeypatch):
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
         poolclass=StaticPool,
@@ -82,9 +84,15 @@ async def mfa_client():
 
     fake_redis = fakeredis.aioredis.FakeRedis(decode_responses=True)
 
+    async def strict_set_nx(key, value, ex):
+        return bool(await fake_redis.set(key, value, ex=ex, nx=True))
+
+    fake_redis.strict_set_nx = strict_set_nx
+
     async def _fake_get_redis():
         return fake_redis
 
+    monkeypatch.setattr("app.core.redis.get_redis", _fake_get_redis)
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_redis] = _fake_get_redis
     _orig_get_redis = auth_service_module.get_redis
@@ -268,3 +276,54 @@ async def test_challenge_signed_with_dev_default_is_rejected_without_jwt_secret(
     )
 
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_successful_challenge_cannot_be_spent_again_with_same_live_totp(mfa_client):
+    token = _mint_challenge(mfa_client.__dict__["_seeded_user_id"])
+    payload = {"mfa_token": token, "code": pyotp.TOTP(TEST_SECRET).now()}
+    first = await mfa_client.post(CHALLENGE_URL, json=payload)
+    assert first.status_code == 200
+    second = await mfa_client.post(CHALLENGE_URL, json=payload)
+    assert second.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_totp_time_step_cannot_complete_two_distinct_challenges(mfa_client):
+    from types import SimpleNamespace
+
+    from app.auth.mfa_enforcement import mint_mfa_challenge_token
+
+    user = SimpleNamespace(id=mfa_client.__dict__["_seeded_user_id"])
+    first_token, second_token = mint_mfa_challenge_token(user), mint_mfa_challenge_token(user)
+    assert first_token != second_token
+    code = pyotp.TOTP(TEST_SECRET).now()
+    assert (
+        await mfa_client.post(CHALLENGE_URL, json={"mfa_token": first_token, "code": code})
+    ).status_code == 200
+    assert (
+        await mfa_client.post(CHALLENGE_URL, json={"mfa_token": second_token, "code": code})
+    ).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_disabled_account_cannot_complete_a_pending_json_mfa_challenge(mfa_client):
+    """Deactivation after primary authentication must invalidate pending MFA."""
+    from sqlalchemy import select
+
+    user_id = mfa_client.__dict__["_seeded_user_id"]
+    token = _mint_challenge(user_id)
+    factory = mfa_client.__dict__["_session_factory"]
+    async with factory() as session:
+        user = (
+            await session.execute(select(User).where(User.id == uuid.UUID(user_id)))
+        ).scalar_one()
+        user.is_active = False
+        await session.commit()
+
+    response = await mfa_client.post(
+        CHALLENGE_URL, json={"mfa_token": token, "code": pyotp.TOTP(TEST_SECRET).now()}
+    )
+
+    assert response.status_code == 401
+    assert "tokens" not in response.json()

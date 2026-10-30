@@ -38,6 +38,8 @@ from unittest.mock import patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+pytestmark = pytest.mark.usefixtures("mail_audit_store")
+
 import app.services.resend_email_service as resend_module
 from app.dependencies import verify_internal_api_key
 from app.main import app
@@ -88,7 +90,11 @@ def _visible_body(html: str) -> str:
 def client():
     app.dependency_overrides[verify_internal_api_key] = lambda: True
     transport = ASGITransport(app=app)
-    yield AsyncClient(transport=transport, base_url="http://test")
+    yield AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-MAP-Mail-Audit-ID": "24fdce23-7ca1-4c2e-85fd-430a7bc94cc2"},
+    )
     app.dependency_overrides.pop(verify_internal_api_key, None)
 
 
@@ -177,7 +183,7 @@ async def test_renders_with_periodo_only():
     body = _visible_body(html)
 
     assert "septiembre de 2026" in body
-    assert 'lang="es"' in html
+    assert 'lang="es-MX"' in html
     assert "Gracias por tu labor" in body
     # The backing file resolved (not the generic fallback).
     assert "{{periodo}}" not in html
@@ -352,12 +358,12 @@ async def test_renders_in_the_crea_frame_from_ctm_branding():
     header = html.split("Tu pago quedó confirmado</h1>")[0]
     assert CTM_BRANDING["header_bg"] == "#2d2f86"
     assert f'bgcolor="{CTM_BRANDING["header_bg"]}"' in header
-    assert f"background-color: {CTM_BRANDING['header_bg']}" in header
-    assert f"color: {CTM_BRANDING['header_fg']}" in header
+    assert f"background-color:{CTM_BRANDING['header_bg']}" in header
+    assert f"color:{CTM_BRANDING['header_fg']}" in header
     assert CTM_BRANDING["header_fg"] == "#fdf6e3"
     assert (
-        f'<img src="{CTM_BRANDING["header_logo_url"]}" width="60" height="60" '
-        f'alt="{CTM_BRANDING["header_name"]}"' in header
+        f'<img src="{CTM_BRANDING["header_logo_url"]}" width="48" height="48" '
+        'alt=""' in header
     )
     footer = html.split("con gusto te apoyamos.")[1]
     assert CTM_BRANDING["footer_logo_url"] in footer
@@ -384,7 +390,7 @@ async def test_crea_frame_keeps_every_variable_and_all_copy():
         "Este correo fue enviado por <strong>Crea Tu Mundo</strong>",
         "Sitio web",
         "© Crea Tu Mundo. Todos los derechos reservados.",
-        ">Crea Tu Mundo</a>",
+        "Sitio web de Crea Tu Mundo</a>",
     ):
         assert text in body, text
     assert not _SLOT.search(html), _SLOT.findall(html)
@@ -413,8 +419,8 @@ async def test_crea_frame_links_go_to_the_www_site():
     html = await _render_full()
     hrefs = _HREF.findall(html)
     site = "https://www.creatumundo.mx"
-    # The header logo, the header name and the footer «Sitio web».
-    assert hrefs.count(site) == 3, hrefs
+    # Decorative header logo/name stay unlinked; the footer has one clear site action.
+    assert hrefs.count(site) == 1, hrefs
     # Every other link is the platform credit; nothing else is linked.
     assert set(hrefs) == {site, CTM_BRANDING["platform_url"]}, hrefs
 

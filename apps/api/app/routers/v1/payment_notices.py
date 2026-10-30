@@ -1,9 +1,10 @@
 """Org-bound machine-only payment notices, independent of legacy internal keys."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.services.email_send_audit import UPSTREAM_HEADER
 from app.services.payment_mail_auth import PaymentMailPrincipal, payment_mail_principal
 from app.services.payment_mail_dispatch import (
     PaymentNoticeIntent,
@@ -19,6 +20,7 @@ async def payment_notice(
     intent: PaymentNoticeIntent,
     principal: PaymentMailPrincipal = Depends(payment_mail_principal),
     db: AsyncSession = Depends(get_db),
+    map_audit_id: str | None = Header(None, alias=UPSTREAM_HEADER),
 ):
     """Submit/replay a stable command; accepted is provider acceptance, not delivery."""
-    return await dispatch_payment_notice(db, principal, intent)
+    return await dispatch_payment_notice(db, principal, intent, map_audit_id=map_audit_id)

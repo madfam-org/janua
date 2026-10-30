@@ -1,19 +1,26 @@
+{% if not recovery_code and not recovery_url %}
+JANUA - Account Recovery Request
+
+A request to recover account access was received. This message contains no recovery link or temporary code.
+
+Reply to this email to request help. Do not forward recovery links or codes. If you did not request recovery, contact the support channel you already use.
+{% else %}
 JANUA - Account Recovery Request
 
 Hello {{ user_name or "there" }},
 
 We received a request to recover your account because you've lost access to your two-factor authentication device.
 
-RECOVERY CODE: {{ recovery_code }}
+{% if recovery_code %}RECOVERY CODE: {{ recovery_code }}
 
-This code expires in 30 minutes for your security.
+This code expires in 30 minutes for your security.{% endif %}
 
-You can also use this link to recover your account:
-{{ recovery_url }}
+{% if recovery_url %}You can also use this link to recover your account:
+{{ recovery_url }}{% endif %}
 
 IMPORTANT SECURITY INFORMATION:
-- This recovery code can only be used once
-- It expires in 30 minutes for your security
+{% if recovery_code %}- This recovery code can only be used once
+- It expires in 30 minutes for your security{% endif %}
 - After recovery, you'll need to set up two-factor authentication again
 - If you didn't request this, secure your account immediately
 
@@ -30,3 +37,4 @@ Need help? Contact our support team at {{ support_email }}
 ---
 This email was sent by Janua - Secure Identity Management
 If you didn't request this email, please ignore it or contact support.
+{% endif %}

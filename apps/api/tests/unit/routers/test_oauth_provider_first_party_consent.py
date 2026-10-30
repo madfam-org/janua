@@ -29,6 +29,16 @@ from app.routers.v1.oauth_provider import (
 pytestmark = pytest.mark.asyncio
 
 
+@pytest.fixture(autouse=True)
+def optional_authentication_context(monkeypatch):
+    # This module isolates consent classification. Required-policy and actual
+    # session evidence are exercised by the signed/session-backed MFA tests.
+    from app.routers.v1 import oauth_provider
+
+    monkeypatch.setattr(oauth_provider, "user_requires_mfa", AsyncMock(return_value=False))
+    monkeypatch.setattr(oauth_provider, "assurance_for_request", AsyncMock(return_value={}))
+
+
 def _client(
     *,
     name="selva-office-prod",
@@ -44,6 +54,7 @@ def _client(
         allowed_scopes=allowed_scopes or ["openid", "profile", "email"],
         redirect_uris=["https://app.example/cb"],
         audience=None,
+        organization_id=None,
         last_used_at=None,
     )
 
@@ -92,20 +103,20 @@ class TestInteractiveConsentScreen:
     """The interactive path: first party skips the screen, third party sees it."""
 
     def _kwargs(self, client_id="a-client"):
-        return dict(
-            request=MagicMock(),
-            response_type="code",
-            client_id=client_id,
-            redirect_uri="https://app.example/cb",
-            scope="openid profile",
-            state="st",
-            nonce=None,
-            code_challenge="abc",
-            code_challenge_method="S256",
-            prompt=None,
-            db=AsyncMock(),
-            redis=AsyncMock(),
-        )
+        return {
+            "request": MagicMock(),
+            "response_type": "code",
+            "client_id": client_id,
+            "redirect_uri": "https://app.example/cb",
+            "scope": "openid profile",
+            "state": "st",
+            "nonce": None,
+            "code_challenge": "abc",
+            "code_challenge_method": "S256",
+            "prompt": None,
+            "db": AsyncMock(),
+            "redis": AsyncMock(),
+        }
 
     async def _run(self, client):
         user = SimpleNamespace(
@@ -132,7 +143,9 @@ class TestInteractiveConsentScreen:
                 AsyncMock(return_value=False),
             ),
             patch("app.routers.v1.oauth_provider._store_auth_code", AsyncMock()),
-            patch("app.routers.v1.oauth_provider._generate_csrf_token", AsyncMock(return_value="c")),
+            patch(
+                "app.routers.v1.oauth_provider._generate_csrf_token", AsyncMock(return_value="c")
+            ),
             patch(
                 "app.routers.v1.oauth_provider.settings",
                 MagicMock(REQUIRE_EMAIL_VERIFICATION=False),
@@ -165,20 +178,20 @@ class TestSilentAuthNoLongerBlockedByConsent:
         user = SimpleNamespace(
             id=uuid4(), email="dir@crea.example", email_verified=True, created_at=None
         )
-        kwargs = dict(
-            request=MagicMock(),
-            response_type="code",
-            client_id="a-client",
-            redirect_uri="https://app.example/cb",
-            scope="openid profile",
-            state="st",
-            nonce=None,
-            code_challenge="abc",
-            code_challenge_method="S256",
-            prompt="none",
-            db=AsyncMock(),
-            redis=AsyncMock(),
-        )
+        kwargs = {
+            "request": MagicMock(),
+            "response_type": "code",
+            "client_id": "a-client",
+            "redirect_uri": "https://app.example/cb",
+            "scope": "openid profile",
+            "state": "st",
+            "nonce": None,
+            "code_challenge": "abc",
+            "code_challenge_method": "S256",
+            "prompt": "none",
+            "db": AsyncMock(),
+            "redis": AsyncMock(),
+        }
         with (
             patch(
                 "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
@@ -214,20 +227,20 @@ class TestSilentAuthNoLongerBlockedByConsent:
         """A third party never reaches the consent question on prompt=none —
         it is stopped earlier by the silent-auth client gate."""
         client = _client(name="some-vendor-app")
-        kwargs = dict(
-            request=MagicMock(),
-            response_type="code",
-            client_id="a-client",
-            redirect_uri="https://app.example/cb",
-            scope="openid",
-            state="st",
-            nonce=None,
-            code_challenge="abc",
-            code_challenge_method="S256",
-            prompt="none",
-            db=AsyncMock(),
-            redis=AsyncMock(),
-        )
+        kwargs = {
+            "request": MagicMock(),
+            "response_type": "code",
+            "client_id": "a-client",
+            "redirect_uri": "https://app.example/cb",
+            "scope": "openid",
+            "state": "st",
+            "nonce": None,
+            "code_challenge": "abc",
+            "code_challenge_method": "S256",
+            "prompt": "none",
+            "db": AsyncMock(),
+            "redis": AsyncMock(),
+        }
         with (
             patch(
                 "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",

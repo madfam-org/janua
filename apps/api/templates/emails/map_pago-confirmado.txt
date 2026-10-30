@@ -1,0 +1,13 @@
+Crea Tu Mundo
+Tu pago quedó confirmado
+
+Hola,
+
+Tu pago por el trabajo entregado de {{periodo}}{{sesiones_detalle}} quedó confirmado.
+
+Gracias por tu labor. Tu trabajo hace posible lo que hacemos.
+
+Si tienes alguna duda sobre tu pago, responde a este correo y con gusto te apoyamos.
+
+Con tecnología de {{platform_name}}
+{{platform_url}}

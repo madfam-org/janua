@@ -131,7 +131,8 @@ class TestCtmFrame:
         html = self._ctm()
         footer = html.partition('<div class="footer">')[2]
         assert "Con tecnología de" in footer
-        assert '<a href="https://madfam.io">MADFAM</a>' in footer
+        assert 'href="https://madfam.io"' in footer
+        assert ">MADFAM</a>" in footer
         assert CTM_BRANDING["footer_logo_url"] in footer
 
     def test_ctm_frame_is_the_brand_blue(self):

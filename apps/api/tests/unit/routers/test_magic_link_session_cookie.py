@@ -29,6 +29,12 @@ from app.routers.v1 import auth as auth_router
 pytestmark = pytest.mark.asyncio
 
 
+@pytest.fixture(autouse=True)
+def no_bound_client(monkeypatch):
+    # Cookie transport fixtures have no registered product identity pool.
+    monkeypatch.setattr(auth_router, "_oauth_client_for_redirect", AsyncMock(return_value=None))
+
+
 def _user():
     return SimpleNamespace(
         id=uuid4(),
@@ -95,7 +101,9 @@ class TestVerifyMagicLinkPost:
                 auth_router, "_session_audience_for_redirect", AsyncMock(return_value="crea-map")
             ),
             patch.object(auth_router, "log_activity", AsyncMock()),
-            patch("app.auth.mfa_enforcement.mfa_required_for", MagicMock(return_value=False)),
+            patch(
+                "app.auth.authentication_assurance.user_requires_mfa", AsyncMock(return_value=False)
+            ),
         ):
             body = await auth_router.verify_magic_link(
                 SimpleNamespace(token="magic-token"), _req(), response, db
@@ -123,7 +131,9 @@ class TestVerifyMagicLinkPost:
         response = Response()
         with (
             patch.object(auth_router, "log_activity", AsyncMock()),
-            patch("app.auth.mfa_enforcement.mfa_required_for", MagicMock(return_value=True)),
+            patch(
+                "app.auth.authentication_assurance.user_requires_mfa", AsyncMock(return_value=True)
+            ),
             patch(
                 "app.auth.mfa_enforcement.mint_mfa_challenge_token",
                 MagicMock(return_value="mfa-tok"),
@@ -155,7 +165,9 @@ class TestMagicLinkCallbackGet:
                 "validate_redirect_url",
                 MagicMock(return_value="https://crea-map.madfam.io/acceso/verificar"),
             ),
-            patch("app.auth.mfa_enforcement.mfa_required_for", MagicMock(return_value=False)),
+            patch(
+                "app.auth.authentication_assurance.user_requires_mfa", AsyncMock(return_value=False)
+            ),
         ):
             resp = await auth_router.magic_link_callback(token="magic-token", req=_req(), db=db)
 
@@ -186,7 +198,9 @@ class TestMagicLinkCallbackGet:
             ),
             patch.object(auth_router, "log_activity", AsyncMock()),
             patch.object(auth_router, "validate_redirect_url", MagicMock(return_value=None)),
-            patch("app.auth.mfa_enforcement.mfa_required_for", MagicMock(return_value=False)),
+            patch(
+                "app.auth.authentication_assurance.user_requires_mfa", AsyncMock(return_value=False)
+            ),
         ):
             resp = await auth_router.magic_link_callback(token="magic-token", req=_req(), db=db)
         assert resp.status_code == 400

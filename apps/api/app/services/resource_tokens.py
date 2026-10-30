@@ -41,6 +41,12 @@ from app.core.protected_resources import OFFLINE_ACCESS_SCOPE, ProtectedResource
 ACCESS_TOKEN_JWT_TYPE = "at+jwt"
 REFRESH_TOKEN_TYPE = "resource_refresh"
 USED_REFRESH_KEY_PREFIX = "oauth:resource_rt_used:"
+_ASSURANCE_CLAIMS = ("amr", "auth_time", "mfa_time", "sid")
+
+
+def _authentication_evidence(claims: Optional[dict]) -> dict:
+    """Only session proof may travel with a resource grant, never token authority."""
+    return {key: claims[key] for key in _ASSURANCE_CLAIMS if claims and key in claims}
 
 
 @dataclass(frozen=True)
@@ -57,6 +63,7 @@ def mint_access_token(
     client_id: str,
     scopes: Sequence[str],
     now: Optional[int] = None,
+    authentication_assurance: Optional[dict] = None,
 ) -> MintedAccessToken:
     issued_at = int(now if now is not None else time.time())
     jti = secrets.token_urlsafe(24)
@@ -70,6 +77,7 @@ def mint_access_token(
         "jti": jti,
         "client_id": client_id,
         "scope": " ".join(scope for scope in scopes if scope != OFFLINE_ACCESS_SCOPE),
+        **_authentication_evidence(authentication_assurance),
     }
     return MintedAccessToken(
         token=jwt_manager.encode_token(claims, typ=ACCESS_TOKEN_JWT_TYPE),
@@ -94,6 +102,7 @@ def mint_refresh_token(
     family: Optional[str] = None,
     family_iat: Optional[int] = None,
     now: Optional[int] = None,
+    authentication_assurance: Optional[dict] = None,
 ) -> str:
     issued_at = int(now if now is not None else time.time())
     family_started = int(family_iat if family_iat is not None else issued_at)
@@ -111,6 +120,7 @@ def mint_refresh_token(
         "scope": scope,
         "family": family or secrets.token_urlsafe(16),
         "family_iat": family_started,
+        **_authentication_evidence(authentication_assurance),
     }
     return jwt_manager.encode_token(claims)
 

@@ -16,9 +16,18 @@ from typing import Any, Dict, List, Optional
 import redis.asyncio as redis
 import structlog
 
+from app.auth.map_mail_hold import map_auth_mail_held
 from app.config import settings
+from app.services.email_branding import presentation_signals, resolve_branding
 from app.services.email_engagement import bind_email_id, prepare_engagement
-from app.services.email_i18n import append_automated_notice, build_email_environment
+from app.services.email_i18n import (
+    append_automated_notice,
+    build_email_environment,
+    resolve_locale,
+    template_candidates,
+)
+from app.services.email_presentation import ctm_subject, render_ctm_email
+from app.services.email_send_audit import accepted_receipt, current_audit, merge_audit_tags
 from app.services.email_sender import (
     MESSAGE_CLASS_CONVERSATION,
     MESSAGE_CLASS_SECURITY,
@@ -310,6 +319,13 @@ class ResendEmailService:
         try:
             # Development mode: console logging
             if not settings.RESEND_API_KEY or settings.ENVIRONMENT == "development":
+                if current_audit() is not None:
+                    return EmailDeliveryStatus(
+                        message_id=message_id,
+                        status="failed",
+                        timestamp=datetime.utcnow(),
+                        error_message="Audited provider unavailable",
+                    )
                 return await self._send_with_console(
                     to_email, subject, html_content, text_content, message_id, metadata
                 )
@@ -419,7 +435,9 @@ class ResendEmailService:
 
             # All adapters share the lock, including platform sends and service
             # construction. No request can inherit another tenant's SDK key.
+            params["tags"] = merge_audit_tags(params["tags"])
             response = send_on_account(params, api_key_override or settings.RESEND_API_KEY)
+            await accepted_receipt(response.get("id"))
 
             # Resend returns {"id": "..."} on success
             delivery_status = EmailDeliveryStatus(
@@ -561,7 +579,22 @@ class ResendEmailService:
         the sign-off for plain text. A caller's own `automated_notice` wins.
         """
         try:
-            template = self.jinja_env.get_template(template_name)
+            ctm = render_ctm_email(self.jinja_env, template_name, context)
+            if ctm is not None:
+                return ctm
+            if context.get("locale"):
+                language = resolve_locale(context["locale"])
+                template = self.jinja_env.select_template(
+                    template_candidates(template_name, language)
+                )
+                context = {
+                    **context,
+                    "locale": (
+                        language if (template.name or "").startswith(f"{language}/") else "en"
+                    ),
+                }
+            else:
+                template = self.jinja_env.get_template(template_name)
             context = {
                 "automated_notice": is_automated(message_class_for_template(template_name)),
                 **context,
@@ -583,15 +616,26 @@ class ResendEmailService:
     # ===== Transactional Email Methods =====
 
     async def send_verification_email(
-        self, to_email: str, user_name: Optional[str], verification_url: str
+        self,
+        to_email: str,
+        user_name: Optional[str],
+        verification_url: str,
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
+        locale: Optional[str] = None,
+        formality: Optional[str] = None,
     ) -> EmailDeliveryStatus:
         """Send email verification email"""
 
+        signals = presentation_signals(org_id, branding_redirect_url)
         context = {
             "user_name": user_name or to_email.split("@")[0],
             "verification_url": verification_url,
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
+            **resolve_branding(**signals),
+            "locale": locale,
+            "formality": formality,
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
@@ -601,7 +645,8 @@ class ResendEmailService:
         return await self.send_email(
             message_class=MESSAGE_CLASS_SYSTEM,
             to_email=to_email,
-            subject="Verify your Janua account",
+            **signals,
+            subject=ctm_subject("verification", context) or "Verify your Janua account",
             token_link=True,
             html_content=html_content,
             text_content=text_content,
@@ -611,15 +656,26 @@ class ResendEmailService:
         )
 
     async def send_password_reset_email(
-        self, to_email: str, user_name: Optional[str], reset_url: str
+        self,
+        to_email: str,
+        user_name: Optional[str],
+        reset_url: str,
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
+        locale: Optional[str] = None,
+        formality: Optional[str] = None,
     ) -> EmailDeliveryStatus:
         """Send password reset email"""
 
+        signals = presentation_signals(org_id, branding_redirect_url)
         context = {
             "user_name": user_name or to_email.split("@")[0],
             "reset_url": reset_url,
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
+            **resolve_branding(**signals),
+            "locale": locale,
+            "formality": formality,
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
@@ -629,7 +685,8 @@ class ResendEmailService:
         return await self.send_email(
             message_class=MESSAGE_CLASS_SYSTEM,
             to_email=to_email,
-            subject="Reset your Janua password",
+            **signals,
+            subject=ctm_subject("password_reset", context) or "Reset your Janua password",
             token_link=True,
             html_content=html_content,
             text_content=text_content,
@@ -639,15 +696,25 @@ class ResendEmailService:
         )
 
     async def send_welcome_email(
-        self, to_email: str, user_name: Optional[str]
+        self,
+        to_email: str,
+        user_name: Optional[str],
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
+        locale: Optional[str] = None,
+        formality: Optional[str] = None,
     ) -> EmailDeliveryStatus:
         """Send welcome email to new user"""
 
+        signals = presentation_signals(org_id, branding_redirect_url)
         context = {
             "user_name": user_name or to_email.split("@")[0],
             "dashboard_url": f"{settings.BASE_URL}/dashboard",
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
+            **resolve_branding(**signals),
+            "locale": locale,
+            "formality": formality,
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
@@ -657,7 +724,8 @@ class ResendEmailService:
         return await self.send_email(
             message_class=MESSAGE_CLASS_CONVERSATION,
             to_email=to_email,
-            subject="Welcome to Janua!",
+            **signals,
+            subject=ctm_subject("welcome", context) or "Welcome to Janua!",
             html_content=html_content,
             text_content=text_content,
             priority=EmailPriority.NORMAL,
@@ -676,9 +744,14 @@ class ResendEmailService:
         invitation_url: str,
         expires_at: datetime,
         teams: Optional[List[str]] = None,
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
+        locale: Optional[str] = None,
+        formality: Optional[str] = None,
     ) -> EmailDeliveryStatus:
         """Send organization invitation email"""
 
+        signals = presentation_signals(org_id, branding_redirect_url)
         context = {
             "inviter_name": inviter_name,
             "organization_name": organization_name,
@@ -688,6 +761,9 @@ class ResendEmailService:
             "teams": teams or [],
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
+            **resolve_branding(**signals),
+            "locale": locale,
+            "formality": formality,
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
@@ -697,7 +773,9 @@ class ResendEmailService:
         return await self.send_email(
             message_class=MESSAGE_CLASS_SYSTEM,
             to_email=to_email,
-            subject=f"{inviter_name} invited you to join {organization_name} on Janua",
+            **signals,
+            subject=ctm_subject("invitation", context)
+            or f"{inviter_name} invited you to join {organization_name} on Janua",
             token_link=True,
             html_content=html_content,
             text_content=text_content,
@@ -899,14 +977,31 @@ class ResendEmailService:
         to_email: str,
         user_name: str,
         backup_codes: List[str],
+        org_id: Optional[Any] = None,
+        branding_redirect_url: Optional[str] = None,
+        locale: Optional[str] = None,
+        formality: Optional[str] = None,
     ) -> EmailDeliveryStatus:
         """Send MFA recovery email with backup codes"""
 
+        if map_auth_mail_held(
+            template="mfa_recovery", redirect_url=branding_redirect_url, org_id=org_id
+        ):
+            return EmailDeliveryStatus(
+                message_id="",
+                status="disabled",
+                timestamp=datetime.utcnow(),
+                error_message="MAP non-magic auth mail held",
+            )
+        signals = presentation_signals(org_id, branding_redirect_url)
         context = {
             "user_name": user_name,
             "backup_codes": backup_codes,
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
+            **resolve_branding(**signals),
+            "locale": locale,
+            "formality": formality,
             "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
         }
 
@@ -916,7 +1011,8 @@ class ResendEmailService:
         return await self.send_email(
             message_class=MESSAGE_CLASS_SECURITY,
             to_email=to_email,
-            subject="MFA Recovery Codes - Janua",
+            **signals,
+            subject=ctm_subject("mfa_recovery", context) or "Account Recovery Request - Janua",
             token_link=True,
             html_content=html_content,
             text_content=text_content,

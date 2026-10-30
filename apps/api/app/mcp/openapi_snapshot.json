@@ -59,6 +59,17 @@
             ],
             "title": "Click Link"
           },
+          "command_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
           "cursor": {
             "title": "Cursor",
             "type": "integer"
@@ -66,6 +77,39 @@
           "email_id": {
             "title": "Email Id",
             "type": "string"
+          },
+          "mail_audit_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mail Audit Id"
+          },
+          "map_audit_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Map Audit Id"
+          },
+          "message_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Kind"
           },
           "occurred_at": {
             "format": "date-time",
@@ -97,6 +141,17 @@
               }
             ],
             "title": "Source"
+          },
+          "trigger_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Kind"
           },
           "type": {
             "title": "Type",
@@ -263,6 +318,243 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "MailAuditPage": {
+        "properties": {
+          "coverage": {
+            "title": "Coverage",
+            "type": "string"
+          },
+          "from": {
+            "format": "date-time",
+            "title": "From",
+            "type": "string"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "history_complete": {
+            "title": "History Complete",
+            "type": "boolean"
+          },
+          "observed_through": {
+            "format": "date-time",
+            "title": "Observed Through",
+            "type": "string"
+          },
+          "org_id": {
+            "format": "uuid",
+            "title": "Org Id",
+            "type": "string"
+          },
+          "provider_events_in_window": {
+            "$ref": "#/components/schemas/ProviderEventsInWindow"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/MailAuditRecord"
+            },
+            "title": "Records",
+            "type": "array"
+          },
+          "source_app": {
+            "title": "Source App",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/MailAuditSummary"
+          },
+          "to": {
+            "format": "date-time",
+            "title": "To",
+            "type": "string"
+          },
+          "window_applies_to": {
+            "title": "Window Applies To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "org_id",
+          "source_app",
+          "records",
+          "summary",
+          "provider_events_in_window",
+          "has_more",
+          "coverage",
+          "history_complete",
+          "window_applies_to",
+          "from",
+          "to",
+          "observed_through"
+        ],
+        "title": "MailAuditPage",
+        "type": "object"
+      },
+      "MailAuditRecord": {
+        "properties": {
+          "attempted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempted At"
+          },
+          "audit_id": {
+            "format": "uuid",
+            "title": "Audit Id",
+            "type": "string"
+          },
+          "command_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command Id"
+          },
+          "map_audit_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Map Audit Id"
+          },
+          "message_kind": {
+            "title": "Message Kind",
+            "type": "string"
+          },
+          "provenance": {
+            "title": "Provenance",
+            "type": "string"
+          },
+          "provider_message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Message Id"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "source_app": {
+            "title": "Source App",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "trigger_kind": {
+            "title": "Trigger Kind",
+            "type": "string"
+          },
+          "verified_delivered_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Delivered At"
+          },
+          "verified_sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Sent At"
+          }
+        },
+        "required": [
+          "audit_id",
+          "source_app",
+          "provenance",
+          "message_kind",
+          "trigger_kind",
+          "state",
+          "requested_at"
+        ],
+        "title": "MailAuditRecord",
+        "type": "object"
+      },
+      "MailAuditSummary": {
+        "properties": {
+          "provider_accepted": {
+            "title": "Provider Accepted",
+            "type": "integer"
+          },
+          "states": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "States",
+            "type": "object"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "verified_delivered": {
+            "title": "Verified Delivered",
+            "type": "integer"
+          },
+          "verified_sent": {
+            "title": "Verified Sent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "provider_accepted",
+          "verified_sent",
+          "verified_delivered",
+          "states"
+        ],
+        "title": "MailAuditSummary",
+        "type": "object"
+      },
       "PreviewResponse": {
         "properties": {
           "from": {
@@ -358,6 +650,29 @@
           "token_link"
         ],
         "title": "PreviewTemplateInfo",
+        "type": "object"
+      },
+      "ProviderEventsInWindow": {
+        "properties": {
+          "events_for_older_intents": {
+            "title": "Events For Older Intents",
+            "type": "integer"
+          },
+          "verified_delivered": {
+            "title": "Verified Delivered",
+            "type": "integer"
+          },
+          "verified_sent": {
+            "title": "Verified Sent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "verified_sent",
+          "verified_delivered",
+          "events_for_older_intents"
+        ],
+        "title": "ProviderEventsInWindow",
         "type": "object"
       },
       "RawPreviewRequest": {
@@ -1021,6 +1336,119 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/internal/email/audit": {
+      "get": {
+        "operationId": "email_audit_api_v1_internal_email_audit_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Org Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source_app",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z0-9][a-z0-9_-]*$",
+              "title": "Source App",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "folio",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Folio"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Internal-API-Key",
+            "required": true,
+            "schema": {
+              "title": "X-Internal-Api-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailAuditPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Email Audit",
+        "tags": [
+          "email"
+        ]
+      }
+    },
     "/api/v1/internal/email/events": {
       "get": {
         "operationId": "email_events_feed_api_v1_internal_email_events_get",
@@ -1179,7 +1607,7 @@
     },
     "/api/v1/internal/email/preview/templates": {
       "get": {
-        "description": "Every Janua-owned template previewable (and sendable via /send-template).",
+        "description": "Template previews, including auth presentations with no sending grant.",
         "operationId": "list_preview_templates_api_v1_internal_email_preview_templates_get",
         "parameters": [
           {
@@ -1229,6 +1657,22 @@
         "description": "Send a custom email via Resend.\nUsed for emails that don't fit a predefined template.",
         "operationId": "send_email_api_v1_internal_email_send_post",
         "parameters": [
+          {
+            "in": "header",
+            "name": "X-MAP-Mail-Audit-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Map-Mail-Audit-Id"
+            }
+          },
           {
             "in": "header",
             "name": "X-Internal-API-Key",
@@ -1282,6 +1726,22 @@
         "description": "Send an email using a predefined template.\nTemplates are rendered server-side with provided variables.",
         "operationId": "send_template_email_api_v1_internal_email_send_template_post",
         "parameters": [
+          {
+            "in": "header",
+            "name": "X-MAP-Mail-Audit-ID",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Map-Mail-Audit-Id"
+            }
+          },
           {
             "in": "header",
             "name": "X-Internal-API-Key",

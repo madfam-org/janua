@@ -1,0 +1,30 @@
+{{ header_name }}
+{{ heading }}
+
+{{ labels.hello }}{% if user_name %} {{ user_name }}{% endif %}:
+
+{{ intro }}
+{% if kind in ['invitation', 'product_invite'] %}
+{% if inviter_name %}{{ labels.inviter }}: {{ inviter_name }}{% endif %}
+{% if organization_name %}{{ labels.organization }}: {{ organization_name }}{% endif %}
+{% if role %}{{ labels.role }}: {{ role }}{% endif %}
+{% endif %}
+{% if temporary_code %}{{ labels.code }}: {{ temporary_code }}
+{{ code_expiry_copy }}
+{% endif %}
+{% if action_url %}{{ action_label }}:
+{{ action_url }}
+{% elif kind == 'mfa_recovery' %}{{ labels.no_link }}{% endif %}
+{% if expiry_copy %}{{ expiry_copy }}{% endif %}
+{% if kind != 'welcome' %}
+{{ labels.security }}
+{{ security_copy }}
+{% endif %}
+{% if request_time %}{{ labels.time }}: {{ request_time }}{% endif %}
+{% if request_ip or ip_address %}{{ labels.ip }}: {{ request_ip or ip_address }}{% endif %}
+{% if request_browser or user_agent %}{{ labels.browser }}: {{ request_browser or user_agent }}{% endif %}
+
+{{ labels.help }}
+
+{{ labels.powered }} {{ platform_name }}
+{{ platform_url }}

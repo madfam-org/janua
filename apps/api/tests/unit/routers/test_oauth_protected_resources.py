@@ -1582,3 +1582,232 @@ class TestContentSecurityPolicy:
             "http://localhost:*",
             "http://127.0.0.1:*",
         } <= sources
+
+
+async def assured_resource_session(env, *, methods=None, user=None):
+    """A real signed credential whose factor evidence has a live session row."""
+    from datetime import datetime, timedelta
+
+    from app.auth.authentication_assurance import session_assurance
+    from app.models import Session
+
+    user = user or env.director
+    methods = methods or ["pwd", "otp"]
+    stamp = datetime.utcnow() - timedelta(hours=2)
+    row = Session(
+        id=uuid.uuid4(),
+        user_id=user.id,
+        token=secrets.token_urlsafe(24),
+        authentication_methods=methods,
+        authenticated_at=stamp,
+        mfa_verified_at=stamp if "otp" in methods else None,
+        expires_at=datetime.utcnow() + timedelta(days=1),
+        is_active=True,
+        revoked=False,
+    )
+    async with env.factory() as db:
+        db.add(row)
+        await db.commit()
+    proof = session_assurance(row)
+    signed, _, _ = jwt_manager.create_access_token(
+        user_id=str(user.id),
+        email=user.email,
+        additional_claims=proof,
+    )
+    return {"Authorization": f"Bearer {signed}"}, row, proof
+
+
+async def require_resource_mfa(env, *, tenant=True):
+    from app.models import Organization, OrganizationMember
+    from app.models.organization_authentication_policy import OrganizationAuthenticationPolicy
+
+    org_id = uuid.uuid4()
+    async with env.factory() as db:
+        db.add(
+            Organization(
+                id=org_id, name="Synthetic resource org", slug=str(org_id), owner_id=env.director.id
+            )
+        )
+        db.add(
+            OrganizationMember(
+                organization_id=org_id, user_id=env.director.id, role="member", status="active"
+            )
+        )
+        db.add(
+            OrganizationAuthenticationPolicy(
+                organization_id=org_id, mfa_mode="required", version=1, updated_by=env.director.id
+            )
+        )
+        if tenant:
+            await db.execute(
+                update(User).where(User.id == env.director.id).values(tenant_id=org_id)
+            )
+        await db.commit()
+    return org_id
+
+
+async def resource_code_with_headers(env, headers):
+    verifier, challenge = pkce()
+    page = await env.http.get(
+        "/api/v1/oauth/authorize", params=authorize_params(challenge), headers=headers
+    )
+    assert page.status_code == 200, page.text
+    request_id, csrf = form_fields(page.text)
+    result = await env.http.post(
+        "/api/v1/oauth/consent",
+        headers=headers,
+        data={
+            "auth_request_id": request_id,
+            "csrf_token": csrf,
+            "action": "allow",
+        },
+    )
+    assert result.status_code == 302, result.text
+    return query(result.headers["location"])["code"], verifier
+
+
+class TestResourceAuthenticationAssurance:
+    @pytest.mark.parametrize("tenant", [True, False])
+    async def test_required_mfa_blocks_legacy_session_before_silent_consent(self, env, tenant):
+        # Global identities that are active CTM members are covered too.
+        await require_resource_mfa(env, tenant=tenant)
+        _, challenge = pkce()
+        response = await authorize(env, authorize_params(challenge, prompt="none"), env.director)
+        assert query(response.headers["location"])["error"] == "interaction_required"
+        interactive = await authorize(env, authorize_params(challenge), env.director)
+        assert query(interactive.headers["location"])["mfa_required"] == "1"
+
+    async def test_voluntarily_enrolled_person_cannot_use_legacy_resource_session(self, env):
+        async with env.factory() as db:
+            await db.execute(
+                update(User)
+                .where(User.id == env.director.id)
+                .values(
+                    mfa_enabled=True,
+                    mfa_secret="SYNTHETIC-ENROLLMENT-PLACEHOLDER",
+                )
+            )
+            await db.commit()
+        _, challenge = pkce()
+        response = await authorize(env, authorize_params(challenge), env.director)
+        assert query(response.headers["location"])["mfa_required"] == "1"
+
+    async def test_policy_activation_between_page_and_consent_cannot_mint_code(self, env):
+        _, challenge = pkce()
+        page = await authorize(env, authorize_params(challenge), env.director)
+        await require_resource_mfa(env)
+        result = await consent(env, page, env.director)
+        assert result.status_code == 428
+        assert "location" not in result.headers
+
+    @pytest.mark.parametrize("legacy", [True, False])
+    async def test_policy_activation_before_exchange_rejects_weak_proof(self, env, legacy):
+        if legacy:
+            code, verifier, _ = await get_code(env)
+        else:
+            headers, _, _ = await assured_resource_session(env, methods=["pwd"])
+            code, verifier = await resource_code_with_headers(env, headers)
+        await require_resource_mfa(env)
+        assert_oauth_error(await exchange(env, code, verifier), "invalid_grant")
+
+    async def test_policy_activation_rejects_existing_legacy_refresh(self, env):
+        connected = await connect(env)
+        await require_resource_mfa(env)
+        assert_oauth_error(await refresh(env, connected["refresh_token"]), "invalid_grant")
+
+    async def test_real_session_evidence_survives_code_and_rotation_without_new_freshness(
+        self, env
+    ):
+        await require_resource_mfa(env)
+        headers, _, proof = await assured_resource_session(env)
+        code, verifier = await resource_code_with_headers(env, headers)
+        response = await exchange(env, code, verifier)
+        assert response.status_code == 200, response.text
+        first = response.json()
+        for body in (first, (await refresh(env, first["refresh_token"])).json()):
+            _, access_claims = jwks_claims(body["access_token"], MAP)
+            refresh_claims = resource_tokens.verify_refresh_token(body["refresh_token"])
+            for key, value in proof.items():
+                assert access_claims[key] == refresh_claims[key] == value
+            assert access_claims["aud"] == MAP and "type" not in access_claims
+            assert access_claims["iat"] > access_claims["auth_time"]
+
+    @pytest.mark.parametrize("boundary", ["consent", "code", "refresh"])
+    async def test_revoked_original_session_cannot_complete_resource_grant(self, env, boundary):
+        from app.models import Session
+
+        headers, row, _ = await assured_resource_session(env)
+        page = code = verifier = connected = None
+        if boundary == "consent":
+            _, challenge = pkce()
+            page = await env.http.get(
+                "/api/v1/oauth/authorize", params=authorize_params(challenge), headers=headers
+            )
+        else:
+            code, verifier = await resource_code_with_headers(env, headers)
+            if boundary == "refresh":
+                connected = (await exchange(env, code, verifier)).json()
+        async with env.factory() as db:
+            await db.execute(update(Session).where(Session.id == row.id).values(revoked=True))
+            await db.commit()
+        if boundary == "consent":
+            assert page is not None
+            request_id, csrf = form_fields(page.text)
+            result = await env.http.post(
+                "/api/v1/oauth/consent",
+                headers=headers,
+                data={
+                    "auth_request_id": request_id,
+                    "csrf_token": csrf,
+                    "action": "allow",
+                },
+            )
+            assert result.status_code == 401
+        elif boundary == "code":
+            assert code is not None and verifier is not None
+            result = await exchange(env, code, verifier)
+            assert_oauth_error(result, "invalid_grant")
+        else:
+            assert boundary == "refresh" and connected is not None
+            result = await refresh(env, connected["refresh_token"])
+            assert_oauth_error(result, "invalid_grant")
+
+    async def test_another_session_of_same_person_cannot_answer_original_consent(self, env):
+        first, _, _ = await assured_resource_session(env)
+        second, _, _ = await assured_resource_session(env)
+        _, challenge = pkce()
+        page = await env.http.get(
+            "/api/v1/oauth/authorize", params=authorize_params(challenge), headers=first
+        )
+        request_id, csrf = form_fields(page.text)
+        result = await env.http.post(
+            "/api/v1/oauth/consent",
+            headers=second,
+            data={
+                "auth_request_id": request_id,
+                "csrf_token": csrf,
+                "action": "allow",
+            },
+        )
+        assert result.status_code == 428
+
+    async def test_resource_proof_projection_cannot_replace_token_authority(self, env):
+        proof = {
+            "amr": ["pwd"],
+            "auth_time": 123,
+            "sid": "synthetic-session",
+            "aud": "wrong",
+            "sub": "wrong",
+            "type": "access",
+            "scope": "admin",
+        }
+        access = resource_tokens.mint_access_token(
+            resource=MAP_CREA_TU_MUNDO,
+            subject=str(env.director.id),
+            client_id=CLAUDE,
+            scopes=["map.ops:read"],
+            authentication_assurance=proof,
+        )
+        _, claims = jwks_claims(access.token, MAP)
+        assert claims["sub"] == str(env.director.id) and claims["scope"] == "map.ops:read"
+        assert "type" not in claims and claims["amr"] == ["pwd"]

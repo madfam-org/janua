@@ -3,6 +3,11 @@
 {% block title %}Account Recovery - Two-Factor Authentication{% endblock %}
 
 {% block content %}
+{% if not recovery_code and not recovery_url %}
+<h1 style="color:#1e293b;font-size:24px;line-height:30px;margin:0 0 20px;">Account recovery request</h1>
+<p style="color:#475569;font-size:16px;line-height:24px;margin:0 0 16px;">A request to recover account access was received. This message contains no recovery link or temporary code.</p>
+<p style="color:#475569;font-size:16px;line-height:24px;margin:0;">Reply to this email to request help. Do not forward recovery links or codes. If you did not request recovery, contact the support channel you already use.</p>
+{% else %}
 <h1 style="color: #1e293b; font-size: 24px; font-weight: 600; margin: 0 0 24px 0;">
     Account Recovery Request
 </h1>
@@ -12,10 +17,10 @@
 </p>
 
 <p style="color: #475569; font-size: 16px; line-height: 24px; margin: 0 0 24px 0;">
-    We received a request to recover your account because you've lost access to your two-factor authentication device. If you made this request, use the recovery code below or click the recovery link.
+    We received a request to recover your account because you've lost access to your two-factor authentication device. If you made this request, use the recovery details provided below.
 </p>
 
-<div style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 24px; margin: 24px 0; text-align: center;">
+{% if recovery_code %}<div style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 24px; margin: 24px 0; text-align: center;">
     <h2 style="color: #1e293b; font-size: 18px; font-weight: 600; margin: 0 0 16px 0;">
         Recovery Code
     </h2>
@@ -25,22 +30,22 @@
     <p style="color: #64748b; font-size: 14px; margin: 0;">
         This code expires in <strong>30 minutes</strong>
     </p>
-</div>
+</div>{% endif %}
 
-<div style="text-align: center; margin: 32px 0;">
+{% if recovery_url %}<div style="text-align: center; margin: 32px 0;">
     <a href="{{ recovery_url }}"
        style="background: #3b82f6; color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 600; display: inline-block;">
         Recover Account Access
     </a>
-</div>
+</div>{% endif %}
 
 <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 16px; margin: 24px 0;">
     <h3 style="color: #92400e; font-size: 16px; font-weight: 600; margin: 0 0 8px 0;">
         🔒 Important Security Information
     </h3>
     <ul style="color: #92400e; font-size: 14px; margin: 8px 0; padding-left: 20px;">
-        <li>This recovery code can only be used once</li>
-        <li>It expires in 30 minutes for your security</li>
+        {% if recovery_code %}<li>This recovery code can only be used once</li>
+        <li>It expires in 30 minutes for your security</li>{% endif %}
         <li>After recovery, you'll need to set up two-factor authentication again</li>
         <li>If you didn't request this, secure your account immediately</li>
     </ul>
@@ -68,4 +73,5 @@
 <p style="color: #64748b; font-size: 14px; line-height: 20px; margin: 0;">
     Need help? Contact our support team at <a href="mailto:{{ support_email }}" style="color: #3b82f6;">{{ support_email }}</a>
 </p>
+{% endif %}
 {% endblock %}

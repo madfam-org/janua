@@ -362,17 +362,23 @@ class TestSessionManagement:
         mock_session.revoked = False
         mock_session.is_active = True
         mock_session.expires_at = datetime.utcnow() + timedelta(days=1)
+        mock_session.authentication_methods = []
+        mock_session.authenticated_at = None
+        mock_session.mfa_verified_at = None
 
         # Mock user from database
         mock_user = MagicMock()
         mock_user.id = user_id
         mock_user.tenant_id = tenant_id
         mock_user.is_active = True
+        mock_user.mfa_enabled = False
+        mock_user.mfa_secret = None
 
         # Mock db.execute() for session lookup
         # db.execute() returns an awaitable that has .scalar_one_or_none() method
         mock_execute_result = MagicMock()
         mock_execute_result.scalar_one_or_none.return_value = mock_session
+        mock_execute_result.scalars.return_value.all.return_value = []
         mock_db.execute.return_value = mock_execute_result
 
         # Mock db.get() for user lookup
@@ -383,6 +389,10 @@ class TestSessionManagement:
         new_refresh_expires = datetime.utcnow() + timedelta(days=30)
 
         with (
+            patch(
+                "app.services.organization_authentication_policy.member_requires_mfa",
+                new=AsyncMock(return_value=False),
+            ),
             patch.object(AuthService, "verify_token", new=AsyncMock(return_value=token_payload)),
             patch.object(
                 AuthService,

@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models import AuditLog, PaymentMailDispatch
+from app.services.email_send_audit import require_map_attempt
 from app.services.payment_mail_auth import PaymentMailPrincipal, current_mail_client
 from app.services.resend_transport import send_on_account
 
@@ -167,6 +168,7 @@ async def _envelope(principal, intent):
         "tags": [
             {"name": "source_app", "value": "crea-map"},
             {"name": "source_type", "value": "payment"},
+            {"name": "payment_command_id", "value": str(intent.command_id)},
             {"name": "template", "value": TEMPLATE.replace("/", "_")},
             # Scopes webhook events to the tenant (app/services/email_events.py).
             # Part of the envelope hash: a retry of a pre-tag attempt is a
@@ -186,7 +188,11 @@ async def _envelope(principal, intent):
 
 
 async def dispatch_payment_notice(
-    db: AsyncSession, principal: PaymentMailPrincipal, intent: PaymentNoticeIntent
+    db: AsyncSession,
+    principal: PaymentMailPrincipal,
+    intent: PaymentNoticeIntent,
+    *,
+    map_audit_id: str | None = None,
 ):
     digest = _hash(intent.model_dump(mode="json"))
     # Exact accepted replay must work during a provider/credential outage.
@@ -196,6 +202,9 @@ async def dispatch_payment_notice(
         result = _known(row, digest, datetime.utcnow())
         if result:
             return result
+    # Existing receipt/backoff reads above perform no provider I/O. Any actual
+    # new attempt, including a legacy pending retry, requires a MAP join UUID.
+    map_attempt = require_map_attempt("crea-map", map_audit_id)
     params, credential, binding_hash, credential_fingerprint = await _envelope(principal, intent)
     envelope_hash = _hash(params)
     async with db.begin():
@@ -220,6 +229,7 @@ async def dispatch_payment_notice(
                 envelope_hash=envelope_hash,
                 binding_hash=binding_hash,
                 credential_fingerprint=credential_fingerprint,
+                map_audit_id=str(map_attempt),
                 attempts=0,
                 state="pending",
                 issue="",
@@ -233,6 +243,7 @@ async def dispatch_payment_notice(
             row.state, row.issue = "review", "mail_envelope_or_account_changed"
             row.lease_until, row.next_attempt_at = None, None
             return _result(row)
+        row.map_audit_id = row.map_audit_id or str(map_attempt)
         row.attempts += 1
         row.attempt_id = uuid.uuid4()
         row.state, row.issue = "sending", ""

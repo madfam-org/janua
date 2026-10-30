@@ -23,11 +23,11 @@ def _user(mfa_enabled=True, mfa_secret="SECRET"):
 
 
 class TestGateDefaultOff:
-    def test_off_by_default_even_with_mfa_enabled(self, monkeypatch):
+    def test_voluntary_enrollment_is_enforced_with_flag_off(self, monkeypatch):
         # The flag defaults False; with it off, NO login path is interrupted —
         # this is the property that makes shipping enforcement lock-out-safe.
         monkeypatch.setattr(settings, "MFA_ENFORCE_ON_LOGIN", False, raising=False)
-        assert mfa_required_for(_user(mfa_enabled=True)) is False
+        assert mfa_required_for(_user(mfa_enabled=True)) is True
 
     def test_on_and_enabled_requires_mfa(self, monkeypatch):
         monkeypatch.setattr(settings, "MFA_ENFORCE_ON_LOGIN", True, raising=False)
@@ -110,3 +110,20 @@ class TestChallengeSigningKey:
                 algorithms=["HS256"],
                 options={"verify_iss": False},
             )
+
+
+def test_challenge_replay_identity_is_random_bounded_and_not_a_credential():
+    from types import SimpleNamespace
+
+    import jwt
+
+    from app.auth.mfa_enforcement import challenge_replay_key, mint_mfa_challenge_token
+
+    user = SimpleNamespace(id="synthetic-subject")
+    first, second = [jwt.decode(mint_mfa_challenge_token(user), options={"verify_signature": False}) for _ in range(2)]
+    assert first["jti"] != second["jti"]
+    assert challenge_replay_key(first) == "auth:mfa:used:" + first["jti"]
+    assert "synthetic-subject" not in challenge_replay_key(first)
+    for invalid in [None, "short", "x" * 129, "line\ncontrol", 123]:
+        assert challenge_replay_key({"jti": invalid}) is None
+    assert challenge_replay_key({}) is None
