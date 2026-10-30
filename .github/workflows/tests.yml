@@ -290,9 +290,10 @@ jobs:
     # Same cap as api-tests, where these tests ran before.
     timeout-minutes: 25
 
+    # The hosted API jobs use official upstream images after ECR data-limit failures.
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:15-alpine
+        image: ${{ github.event_name == 'pull_request' && 'postgres:15-alpine' || 'public.ecr.aws/docker/library/postgres:15-alpine' }}
         env:
           POSTGRES_USER: janua
           POSTGRES_PASSWORD: janua_test
@@ -307,7 +308,7 @@ jobs:
       # Strict token-revocation reads need a reachable Redis; the invitation
       # proofs connect to 127.0.0.1:6379 in CI (55520 in local fixtures).
       redis:
-        image: public.ecr.aws/docker/library/redis:7-alpine
+        image: ${{ github.event_name == 'pull_request' && 'redis:7-alpine' || 'public.ecr.aws/docker/library/redis:7-alpine' }}
         ports:
           - 6379:6379
         options: >-
