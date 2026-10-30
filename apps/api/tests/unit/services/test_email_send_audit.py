@@ -47,6 +47,7 @@ async def test_provider_call_requires_durable_intent_and_exact_receipt(store):
             {"name": "message_kind", "value": "notification"},
             {"name": "trigger_kind", "value": "internal_api"},
             {"name": "source_app", "value": "crea-map"},
+            {"name": "org_id", "value": "org-synthetic"},
             {"name": "map_audit_id", "value": str(upstream)},
         ]
         await audit.accepted_receipt("provider-synthetic-001")

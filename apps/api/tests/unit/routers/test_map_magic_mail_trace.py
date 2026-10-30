@@ -140,3 +140,46 @@ async def test_map_issuer_never_schedules_before_intent_commits(monkeypatch, aud
         assert str(intent.id) == response.headers[CORRELATION_HEADER]
         assert intent.source_app == "crea-map" and intent.message_kind == "magic_login"
         assert tasks.add_task.call_args.kwargs["mail_audit_id"] == str(intent.id)
+
+
+@pytest.mark.parametrize("host", ["map.creatumundo.mx", "ensayo-map.madfam.io"])
+async def test_registered_platform_pool_map_and_training_bind_mail_without_mutating_pool(
+    monkeypatch, host
+):
+    client = SimpleNamespace(
+        organization_id=None, is_active=True, redirect_uris=[f"https://{host}/api/auth/callback"]
+    )
+    monkeypatch.setattr(auth, "_oauth_client_for_redirect", AsyncMock(return_value=client))
+    target = f"https://{host}/api/auth/callback"
+    assert await auth._map_mail_client(object(), target, None) is client
+    assert auth._map_mail_organization(client, target) == str(CTM_ORG_ID)
+    assert client.organization_id is None
+
+
+async def test_hosted_map_magic_body_uses_audit_binding_not_platform_pool(monkeypatch):
+    from app.services import email_send_audit, email_service
+
+    service = email_service.EmailService()
+    outgoing = AsyncMock(return_value=True)
+    monkeypatch.setattr(service, "_send_email", outgoing)
+    context = email_send_audit.SendAudit(
+        uuid.uuid4(),
+        "crea-map",
+        "magic_login",
+        "map_login_request",
+        "registered_map_login",
+        str(CTM_ORG_ID),
+        None,
+    )
+    token = email_send_audit._current.set(context)
+    try:
+        assert await service.send_magic_link_email(
+            "synthetic@example.com",
+            "synthetic-token",
+            "https://auth.madfam.io/api/v1/oauth/authorize?client_id=synthetic-map",
+            locale="es",
+        )
+    finally:
+        email_send_audit._current.reset(token)
+    body = outgoing.call_args.kwargs["html_content"]
+    assert "Crea Tu Mundo" in body

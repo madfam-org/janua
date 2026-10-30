@@ -3225,7 +3225,7 @@ async def _issue_magic_link(
                 message_kind="magic_login",
                 trigger_kind="map_login_request",
                 provenance="registered_map_login",
-                org_id=str(map_client.organization_id),
+                org_id=_map_mail_organization(map_client, safe_redirect_url),
             )
             await db.commit()
         except Exception as error:
@@ -3436,10 +3436,38 @@ async def _map_mail_client(db, redirect_url, client_id):
             ):
                 client = candidate
     if direct_map or client is not None:
-        if client is None or str(getattr(client, "organization_id", "")) != str(CTM_ORG_ID):
+        client_org = getattr(client, "organization_id", None)
+        if client is None or (client_org is not None and str(client_org) != str(CTM_ORG_ID)):
             raise HTTPException(status_code=503, detail="MAP login destination binding unavailable")
         return client
     return None
+
+
+def _map_mail_organization(client, redirect_url):
+    """Mail tenant is independent of the platform identity pool.
+
+    Real MAP/ensayo registrations share a native platform-pool OAuth client.
+    Resolve the mail organization from server-owned sender bindings after the
+    active registered destination has been verified, never from an org hint.
+    """
+    from app.services.email_branding import CTM_ORG_ID
+    from app.services.email_sender import binding_for
+
+    target = redirect_url if is_map_destination(redirect_url) else None
+    if target is None:
+        uris = getattr(client, "redirect_uris", None) or []
+        if isinstance(uris, str):
+            try:
+                uris = json.loads(uris)
+            except (ValueError, TypeError):
+                uris = []
+        target = next(
+            (uri for uri in uris if isinstance(uri, str) and is_map_destination(uri)), None
+        )
+    binding = binding_for(redirect_url=target)
+    if target is None or str(binding.org_id) != str(CTM_ORG_ID):
+        raise HTTPException(status_code=503, detail="MAP mail organization binding unavailable")
+    return str(binding.org_id)
 
 
 async def _invite_only_destination(

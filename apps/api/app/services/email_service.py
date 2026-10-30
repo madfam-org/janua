@@ -664,11 +664,17 @@ class EmailService:
         still carries the Crea header, still reads «tu», is still stamped in
         CDMX and still comes FROM Crea Tu Mundo; only `magic_url` differs.
         """
+        audit = current_audit()
+        mail_org = (
+            {"org_id": audit.org_id}
+            if audit is not None and audit.provenance == "registered_map_login"
+            else {}
+        )
         recipient_locale = resolve_locale(locale, user=user, default=self._default_locale())
         recipient_formality = resolve_formality_for_request(
             formality,
             user=user,
-            client_default=default_formality_for(redirect_url=redirect_url),
+            client_default=default_formality_for(redirect_url=redirect_url, **mail_org),
         )
         use_hop = should_use_hosted_hop(redirect_url, requested=hosted_hop)
         if redirect_url and not use_hop:
@@ -704,7 +710,7 @@ class EmailService:
             # TO. Defaults to MADFAM, so an unknown or absent host renders
             # exactly today's frame. The From line is unaffected: `resolve_sender`
             # below still returns MADFAM. See app/services/email_branding.py.
-            **resolve_branding(redirect_url=redirect_url),
+            **resolve_branding(redirect_url=redirect_url, **mail_org),
         }
 
         # Stamped with the SEND MOMENT in the requester's operating timezone.
@@ -718,7 +724,7 @@ class EmailService:
                 ctm_subject("magic_link", template_data, recipient_locale, recipient_formality)
                 or subject_for("magic_link", recipient_locale, recipient_formality)
             ),
-            now_for_timezone(timezone_for(redirect_url=redirect_url)),
+            now_for_timezone(timezone_for(redirect_url=redirect_url, **mail_org)),
         )
         html_content = self._render_template(
             "magic_link.html", template_data, recipient_locale, recipient_formality
@@ -841,6 +847,9 @@ class EmailService:
         is not a tenant's branded mail leaves as `MADFAM <noreply@madfam.io>`
         with `Reply-To: support@madfam.io`; welcome mail keeps `hola@`.
         """
+        audit = current_audit()
+        if audit is not None and audit.provenance == "registered_map_login":
+            org_id = audit.org_id
         name, address, reply_to = sender_for(
             redirect_url=redirect_url, org_id=org_id, message_class=message_class
         )

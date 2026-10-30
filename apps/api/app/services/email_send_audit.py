@@ -64,6 +64,8 @@ def audit_tags() -> list[dict[str, str]]:
         "trigger_kind": audit.trigger_kind,
         "source_app": audit.source_app,
     }
+    if audit.org_id is not None:
+        values["org_id"] = audit.org_id
     if audit.upstream_audit_id is not None:
         values["map_audit_id"] = str(audit.upstream_audit_id)
     return [{"name": name, "value": value} for name, value in values.items()]
