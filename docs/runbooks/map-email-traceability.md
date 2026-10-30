@@ -84,3 +84,45 @@ Organization membership alone is not provenance. A generic Janua reset/recovery
 with no verified MAP context remains Janua's own flow, including a shared CTM
 identity recovering for another product. Claimed caller headers never establish
 an authorized human send. The isolated tests cover both sides of this boundary.
+
+## Read metadata without SQL
+
+`GET /api/v1/internal/email/audit` uses the existing internal-key authentication.
+Supply `org_id` (UUID), `source_app`, `from` and `to` (aware UTC timestamps), an
+optional `folio` UUID and `limit` (1–200). The positive window is at most seven
+days and selects `requested_at`, with an exclusive upper bound. A folio matches
+the canonical audit UUID, upstream MAP attempt UUID or native payment command.
+The response echoes the validated organization/application binding.
+
+`summary.total`, `provider_accepted`, `verified_sent` and `verified_delivered`
+cover every recorded intent in that bounded scope, even when `records` is
+limited. `has_more` says when to narrow the window or look up an exact folio.
+Provider acceptance and verified delivery remain separate facts. Sent/delivery
+proof is observed through `observed_through`, including later delivery of a
+request in the selected window. `window_applies_to=requested_at` labels this
+request-based scope.
+
+Separately, `provider_events_in_window` selects verified provider `occurred_at`
+inside the same UTC window. Its `verified_sent` and `verified_delivered` count
+distinct provider message IDs with an exact recorded intent join, including
+intents requested before `from`. `events_for_older_intents` counts matching
+sent/delivered event rows for those older intents; it is an event count, not an
+additional message count. The organization, source and optional folio filters
+apply to both scopes. An older request delivered inside the window increases the
+provider delivery count without increasing `summary.total` or adding a request
+record. No timestamp proximity is used to establish message identity.
+
+`coverage=recorded_intents_only_no_backfill` and
+`history_complete=false` are always explicit: an empty page never proves zero
+historical mail. Unknown/rejected records without a recorded completion time
+return null `resolved_at`.
+
+The endpoint returns an allowlisted metadata DTO, never a recipient, subject,
+body, login token, redirect URL or MagicLink capability. PostgreSQL queries use a
+read-only repeatable snapshot and a five-second statement timeout. A database,
+key or unavailable endpoint is an error, never an invented empty audit.
+
+Production and training login provenance uses the active native registration's
+exact MAP redirect host. A platform-pool registration may have no organization;
+that does not invent a tenant identity pool. The mail organization is resolved
+from Janua's server-owned sender binding after the destination is verified.

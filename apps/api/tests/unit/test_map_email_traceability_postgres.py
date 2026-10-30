@@ -110,3 +110,113 @@ def test_native_operator_sql_matches_alembic_and_retains_receipts(databases):
     ok(_alembic(["downgrade", PARENT], hand))
     assert ok(_psql("SELECT count(*) FROM email_send_audits", hand)) == "1"
     assert "email" not in {line.split("\t")[0] for line in before["email_send_audits"].splitlines()}
+
+
+@pytest.mark.asyncio
+async def test_native_audit_reader_aggregates_verified_proof(databases):
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    from app.models.email_event import EmailEvent
+    from app.models.email_send_audit import EmailSendAudit
+    from app.services.email_audit_query import audit_page
+
+    ok(_alembic(["upgrade", HEAD], databases["hand"]))
+    engine = create_async_engine(databases["hand"])
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    identity, organization = uuid.uuid4(), uuid.uuid4()
+    now = datetime.utcnow()
+    try:
+        async with factory() as db:
+            db.add(
+                EmailSendAudit(
+                    id=identity,
+                    org_id=str(organization),
+                    source_app="crea-map",
+                    message_kind="notification",
+                    trigger_kind="internal_api",
+                    provenance="authenticated_internal_claim",
+                    state="accepted",
+                    created_at=now,
+                    attempted_at=now,
+                    accepted_at=now,
+                    provider_message_id="provider-query-synthetic",
+                )
+            )
+            db.add(
+                EmailEvent(
+                    provider="resend",
+                    cuenta="ctm",
+                    svix_id=str(uuid.uuid4()),
+                    email_id="provider-query-synthetic",
+                    event_type="email.delivered",
+                    occurred_at=now,
+                    source_app="crea-map",
+                    org_id=str(organization),
+                    mail_audit_id=str(identity),
+                    source="webhook",
+                )
+            )
+            old_identity = uuid.uuid4()
+            db.add(
+                EmailSendAudit(
+                    id=old_identity,
+                    org_id=str(organization),
+                    source_app="crea-map",
+                    message_kind="notification",
+                    trigger_kind="internal_api",
+                    provenance="authenticated_internal_claim",
+                    state="accepted",
+                    created_at=now - timedelta(days=1),
+                    attempted_at=now - timedelta(days=1),
+                    accepted_at=now - timedelta(days=1),
+                    provider_message_id="provider-older-query",
+                )
+            )
+            db.add(
+                EmailEvent(
+                    provider="resend",
+                    cuenta="ctm",
+                    svix_id=str(uuid.uuid4()),
+                    email_id="provider-older-query",
+                    event_type="email.delivered",
+                    occurred_at=now,
+                    source_app="crea-map",
+                    org_id=str(organization),
+                    mail_audit_id=str(old_identity),
+                    source="webhook",
+                )
+            )
+            await db.commit()
+            page = await audit_page(
+                db,
+                org_id=organization,
+                source_app="crea-map",
+                start=(now - timedelta(minutes=1)).replace(tzinfo=timezone.utc),
+                end=(now + timedelta(minutes=1)).replace(tzinfo=timezone.utc),
+                folio=identity,
+                limit=10,
+            )
+            assert (
+                page["summary"]["total"]
+                == page["summary"]["provider_accepted"]
+                == page["summary"]["verified_delivered"]
+                == 1
+            )
+            assert page["records"][0]["audit_id"] == str(identity)
+            await db.rollback()
+            whole = await audit_page(
+                db,
+                org_id=organization,
+                source_app="crea-map",
+                start=(now - timedelta(minutes=1)).replace(tzinfo=timezone.utc),
+                end=(now + timedelta(minutes=1)).replace(tzinfo=timezone.utc),
+                folio=None,
+                limit=10,
+            )
+            assert whole["summary"]["total"] == 1
+            assert whole["provider_events_in_window"]["verified_delivered"] == 2
+            assert whole["provider_events_in_window"]["events_for_older_intents"] == 1
+    finally:
+        await engine.dispose()
