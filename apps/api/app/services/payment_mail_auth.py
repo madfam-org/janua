@@ -36,7 +36,9 @@ async def payment_mail_principal(
     # fallback, audience omission, or shared internal-key authority here.
     if jwt_manager.algorithm != "RS256":
         raise _denied()
-    payload = jwt_manager.verify_token(credentials.credentials, audience=MAIL_AUDIENCE)
+    payload = await jwt_manager.verify_unrevoked_token(
+        credentials.credentials, audience=MAIL_AUDIENCE
+    )
     if not payload:
         raise _denied()
     client_id = payload.get("client_id")

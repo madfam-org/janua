@@ -19,6 +19,7 @@ from urllib.parse import parse_qs
 # Imported at module import (collection) time on purpose: a session-scoped
 # autouse fixture elsewhere in this directory swaps sys.modules["httpx"] for a
 # Mock, so a lazy `import httpx` inside a helper can receive the Mock.
+import fakeredis
 import httpx
 import respx
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -33,6 +34,7 @@ from app.core.consent_purposes import (
     PURPOSE_STATUS_GRANTED,
 )
 from app.core.jwt_manager import jwt_manager
+from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.database import get_db
 from app.main import app
 from app.models import ActivityLog, Base, OAuthClient, User, UserStatus
@@ -60,14 +62,19 @@ async def sqlite_app(extra_overrides: dict | None = None) -> AsyncIterator[tuple
         async with factory() as session:
             yield session
 
+    # The revocation list bearer verification reads: a fresh Redis per app,
+    # bound to this test's event loop (the shared conftest fake is not).
+    redis = ResilientRedisClient(fakeredis.aioredis.FakeRedis(decode_responses=True))
+
     saved = dict(app.dependency_overrides)
     app.dependency_overrides[get_db] = override_get_db
     for dep, override in (extra_overrides or {}).items():
         app.dependency_overrides[dep] = override
     try:
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as client:
-            yield client, factory
+        with patch("app.core.redis.get_redis", AsyncMock(return_value=redis)):
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                yield client, factory
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(saved)

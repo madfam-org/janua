@@ -17,7 +17,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Re
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -30,6 +29,7 @@ from app.auth.hosted_locale import (
     hosted_copy,
     hosted_locale,
     page_locale,
+    password_policy_message,
     ui_locales_query,
 )
 from app.auth.hosted_locale import html_lang as hosted_html_lang
@@ -61,11 +61,12 @@ from app.auth.sso_cookie import (
 )
 from app.config import settings
 from app.core.locale import locale_from_request
+from app.core.rate_limit_keys import client_ip_key
 from app.core.redis import ResilientRedisClient, get_redis
 from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.core.url_security import validate_redirect_url
 from app.database import AsyncSessionLocal, get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_user_for_sign_out
 from app.models.system_settings import SettingKeys
 from app.services.account_lockout_service import AccountLockoutService
 from app.services.audit_logger import AuditEventType, AuditLogger
@@ -99,7 +100,7 @@ from ...models import Session as UserSession
 logger = structlog.get_logger()
 
 # Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=client_ip_key)
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -1962,7 +1963,7 @@ async def login(credentials: SignInRequest, request: Request, db: Session = Depe
 async def logout(
     req: Request,
     response: Response,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_for_sign_out),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ):
@@ -1994,7 +1995,7 @@ async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_
 
 @router.post("/signout")
 async def sign_out(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_for_sign_out),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
     req: Request = None,
@@ -2746,42 +2747,37 @@ def _recovery_page_html(
 
 
 def _reset_form_body(token: str, error: Optional[str] = None, locale: str = "en") -> str:
+    """The reset form. `error` is plain text (escaped here); `locale` is a
+    `page_locale` value, and English renders the form it always rendered."""
     import html as html_mod
 
-    spanish = locale == "es"
-    if spanish and error:
-        translations = {
-            "The two passwords don't match.": "Las dos contraseñas no coinciden.",
-            "Password must be at least 12 characters long": "La contraseña debe tener al menos 12 caracteres.",
-            "Password must not exceed 72 UTF-8 bytes": "La contraseña es demasiado larga. Usa hasta 72 bytes de texto UTF-8.",
-            "Password must contain at least one uppercase letter": "Incluye al menos una letra mayúscula.",
-            "Password must contain at least one lowercase letter": "Incluye al menos una letra minúscula.",
-            "Password must contain at least one number": "Incluye al menos un número.",
-            "Password must contain at least one special character": "Incluye al menos un símbolo.",
-        }
-        error = translations.get(
-            error, "No se pudo guardar la contraseña. Revisa los requisitos e inténtalo de nuevo."
-        )
+    c = hosted_copy(locale)
     error_html = f'<div class="alert-error">{html_mod.escape(error)}</div>' if error else ""
     return f"""
-        <div class="logo"><h1>&#128274; Janua</h1><p>{"Elige tu contraseña" if spanish else "Choose a new password"}</p></div>
+        <div class="logo"><h1>&#128274; Janua</h1><p>{c["reset_tagline"]}</p></div>
         {error_html}
         <form method="POST" action="/api/v1/auth/reset-password-form">
-            {hidden_ui_locales_field(locale)}
-            <input type="hidden" name="token" value="{html_mod.escape(token)}">
+            <input type="hidden" name="token" value="{html_mod.escape(token)}">{hidden_ui_locales_field(locale)}
             <div class="form-group">
-                <label for="new_password">{"Nueva contraseña" if spanish else "New password"}</label>
+                <label for="new_password">{c["reset_new_password_label"]}</label>
                 <input type="password" id="new_password" name="new_password" required autocomplete="new-password" autofocus>
             </div>
             <div class="form-group">
-                <label for="confirm_password">{"Confirma tu contraseña" if spanish else "Confirm new password"}</label>
+                <label for="confirm_password">{c["reset_confirm_label"]}</label>
                 <input type="password" id="confirm_password" name="confirm_password" required autocomplete="new-password">
             </div>
-            <p class="hint">{"Al menos 12 caracteres, con una mayúscula, una minúscula, un número y un símbolo." if spanish else "At least 12 characters, with an uppercase letter, a lowercase letter, a number, and a special character."}</p>
-            <button type="submit">{"Guardar contraseña" if spanish else "Set new password"}</button>
+            <p class="hint">{c["reset_policy_hint"]}</p>
+            <button type="submit">{c["reset_button"]}</button>
         </form>
-        <div class="footer">Powered by Janua &bull; Secure Authentication</div>
+        <div class="footer">{c["footer"]}</div>
     """
+
+
+def _reset_page_html(body: str, locale: str) -> str:
+    """The recovery shell in the reset page's language (title and `lang`)."""
+    return _recovery_page_html(
+        body, title=hosted_copy(locale)["recovery_title"], lang=hosted_html_lang(locale)
+    )
 
 
 @router.get("/forgot-password")
@@ -2873,22 +2869,25 @@ async def reset_password_page(token: Optional[str] = None, ui_locales: Optional[
     /auth/reset-password route sits behind the login wall: a user who cannot
     log in (the entire premise of a reset) was bounced to /login and the
     token was lost. This page is served by the API itself, on the same host
-    that mints the token, so it can never be auth-walled away."""
+    that mints the token, so it can never be auth-walled away.
+
+    `ui_locales` is the reset email's language, carried on its link (English
+    when absent); the form carries it on to every page it answers with."""
     from fastapi.responses import HTMLResponse
 
+    locale = page_locale(ui_locales)
+    c = hosted_copy(locale)
     if not token:
-        body = """
-        <div class="logo"><h1>&#128274; Janua</h1><p>Choose a new password</p></div>
-        <div class="alert-error">This page needs the link from your reset email. Open the most recent password-reset email and use its button or URL.</div>
-        <p class="lead">Need a new link? <a href="/api/v1/auth/forgot-password">Request one here</a>.</p>
-        <div class="footer">Powered by Janua &bull; Secure Authentication</div>
+        forgot_url = f"/api/v1/auth/forgot-password{ui_locales_query(locale)}"
+        body = f"""
+        <div class="logo"><h1>&#128274; Janua</h1><p>{c["reset_tagline"]}</p></div>
+        <div class="alert-error">{c["reset_missing_token"]}</div>
+        <p class="lead">{c["reset_missing_token_retry"].format(forgot_url=forgot_url)}</p>
+        <div class="footer">{c["footer"]}</div>
         """
-        return HTMLResponse(content=_recovery_page_html(body), status_code=400)
+        return HTMLResponse(content=_reset_page_html(body, locale), status_code=400)
     return HTMLResponse(
-        content=_recovery_page_html(
-            _reset_form_body(token, locale=page_locale(ui_locales)),
-            lang=hosted_html_lang(page_locale(ui_locales)),
-        ),
+        content=_reset_page_html(_reset_form_body(token, locale=locale), locale),
         headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
     )
 
@@ -2907,12 +2906,13 @@ async def reset_password_form(
     via _consume_password_reset, rendered as pages instead of JSON."""
     from fastapi.responses import HTMLResponse
 
+    locale = page_locale(ui_locales)
+    c = hosted_copy(locale)
+
     if new_password != confirm_password:
         return HTMLResponse(
-            content=_recovery_page_html(
-                _reset_form_body(
-                    token, "The two passwords don't match.", locale=page_locale(ui_locales)
-                )
+            content=_reset_page_html(
+                _reset_form_body(token, c["reset_mismatch"], locale=locale), locale
             ),
             status_code=400,
         )
@@ -2949,27 +2949,31 @@ async def reset_password_form(
                 ),
                 headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
             )
-        body = """
-        <div class="logo"><h1>&#128274; Janua</h1><p>Password updated</p></div>
-        <div class="alert-ok">Your password has been updated. Close this tab and sign in again from the application you came from.</div>
-        <div class="footer">Powered by Janua &bull; Secure Authentication</div>
+        body = f"""
+        <div class="logo"><h1>&#128274; Janua</h1><p>{c["reset_done_tagline"]}</p></div>
+        <div class="alert-ok">{c["reset_done"]}</div>
+        <div class="footer">{c["footer"]}</div>
         """
-        return HTMLResponse(content=_recovery_page_html(body))
+        return HTMLResponse(content=_reset_page_html(body, locale))
 
     if message == "Invalid or expired reset token":
-        body = """
-        <div class="logo"><h1>&#128274; Janua</h1><p>Choose a new password</p></div>
-        <div class="alert-error">This reset link is invalid or has expired (links work once and last 1 hour).</div>
-        <p class="lead">Request a fresh one <a href="/api/v1/auth/forgot-password">here</a>.</p>
-        <div class="footer">Powered by Janua &bull; Secure Authentication</div>
+        forgot_url = f"/api/v1/auth/forgot-password{ui_locales_query(locale)}"
+        body = f"""
+        <div class="logo"><h1>&#128274; Janua</h1><p>{c["reset_tagline"]}</p></div>
+        <div class="alert-error">{c["reset_expired"]}</div>
+        <p class="lead">{c["reset_expired_retry"].format(forgot_url=forgot_url)}</p>
+        <div class="footer">{c["footer"]}</div>
         """
-        return HTMLResponse(content=_recovery_page_html(body), status_code=400)
+        return HTMLResponse(content=_reset_page_html(body, locale), status_code=400)
 
     # Policy rejection — the token is still live, re-render the form with the
     # policy message so the user can try a stronger password on the same link.
+    # The message is translated here, not at its source: the JSON endpoint
+    # keeps returning the English policy text.
     return HTMLResponse(
-        content=_recovery_page_html(
-            _reset_form_body(token, message, locale=page_locale(ui_locales))
+        content=_reset_page_html(
+            _reset_form_body(token, password_policy_message(message, locale), locale=locale),
+            locale,
         ),
         status_code=400,
     )

@@ -10,8 +10,8 @@ import pytest
 
 from app.services.email_service import (
     EmailService,
-    get_email_service,
     _redact_email,
+    get_email_service,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -415,6 +415,62 @@ class TestSendPasswordResetEmail:
         assert "Failed to send password reset email" in str(exc_info.value)
 
 
+class TestPasswordResetLinkLanguage:
+    """The default reset link opens the hosted page in the email's language
+    (2026-10-27): a Spanish email must not land on an English page."""
+
+    @pytest.fixture
+    def service(self):
+        return EmailService(redis_client=AsyncMock())
+
+    async def _reset_url(self, service, **kwargs):
+        from app.config import settings
+
+        with (
+            patch.object(service, "_send_email", return_value=True),
+            patch.object(service, "_render_template", return_value="content") as render,
+            patch.object(settings, "BASE_URL", "https://auth.example.test"),
+        ):
+            await service.send_password_reset_email(
+                email="test@example.com", reset_token="tok-abc", **kwargs
+            )
+        data = render.call_args_list[0][0][1]
+        assert data["reset_link"] == data["reset_url"]
+        return data["reset_url"]
+
+    async def test_spanish_email_links_to_the_spanish_page(self, service):
+        url = await self._reset_url(service, locale="es-MX")
+        assert url == (
+            "https://auth.example.test/api/v1/auth/reset-password?token=tok-abc&ui_locales=es"
+        )
+
+    async def test_english_email_links_to_the_unchanged_english_url(self, service):
+        url = await self._reset_url(service, locale="en")
+        assert url == "https://auth.example.test/api/v1/auth/reset-password?token=tok-abc"
+
+    async def test_stored_user_locale_decides_when_the_caller_names_none(self, service):
+        from types import SimpleNamespace
+
+        english_user = SimpleNamespace(locale="en-US")
+        url = await self._reset_url(service, user=english_user)
+        assert "ui_locales" not in url
+
+    async def test_the_deployment_default_language_decides_last(self, service):
+        from app.config import settings
+
+        with patch.object(settings, "DEFAULT_EMAIL_LOCALE", "es"):
+            assert (await self._reset_url(service)).endswith("&ui_locales=es")
+        with patch.object(settings, "DEFAULT_EMAIL_LOCALE", "en"):
+            assert "ui_locales" not in await self._reset_url(service)
+
+    async def test_a_product_redirect_base_is_left_untouched(self, service):
+        for locale in ("es", "en"):
+            url = await self._reset_url(
+                service, locale=locale, redirect_base="https://app.example.test/reset"
+            )
+            assert url == "https://app.example.test/reset?token=tok-abc"
+
+
 class TestSendWelcomeEmail:
     """Test send welcome email functionality."""
 
@@ -444,7 +500,7 @@ class TestSendWelcomeEmail:
 
     async def test_send_welcome_uses_email_local_part_as_name(self, service):
         """Test welcome email uses email local part when no name provided."""
-        with patch.object(service, "_send_email", return_value=True) as mock_send:
+        with patch.object(service, "_send_email", return_value=True):
             with patch.object(service, "_render_template", return_value="content") as mock_render:
                 await service.send_welcome_email(email="john@example.com")
 

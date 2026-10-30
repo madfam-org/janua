@@ -320,6 +320,40 @@ class JWTManager:
             logger.warning("Invalid token", error=str(e), token_type=token_type)
             return None
 
+    async def verify_unrevoked_token(
+        self,
+        token: str,
+        token_type: str = "access",
+        audience: Optional[str | Sequence[str]] = None,
+        verify_audience: bool = True,
+        redis: Any = None,
+    ) -> Optional[Dict[str, Any]]:
+        """`verify_token`, then the revocation list. None when either refuses.
+
+        The one check every bearer path shares: sign-out, session revocation,
+        password change and `POST /oauth/revoke` all write to the revocation
+        list (see `app.services.token_revocation`), and a token on it is
+        refused here exactly like an expired one.
+
+        Strict read: raises `RedisUnavailableError` (answered 503 +
+        Retry-After) when Redis cannot say whether the token is revoked.
+        """
+        payload = self.verify_token(
+            token, token_type=token_type, audience=audience, verify_audience=verify_audience
+        )
+        if not payload:
+            return None
+
+        from app.core import redis as core_redis
+        from app.services import token_revocation
+
+        if redis is None:
+            redis = await core_redis.get_redis()
+        if await token_revocation.is_revoked(redis, payload, token_type):
+            logger.info("Token rejected: revoked", token_type=token_type)
+            return None
+        return payload
+
     async def create_token_pair(
         self,
         user_id: str,

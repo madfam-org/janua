@@ -167,6 +167,11 @@ spec:
               value: "9464"
             - name: ENVIRONMENT
               value: production
+            # Rate-limit keys resolve the client address through these peers only
+            # (app/core/rate_limit_keys.py). The tunnel pods sit on the pod network;
+            # the NetworkPolicy admits only tunnel and application pods to 8080.
+            - name: TRUSTED_PROXIES
+              value: "127.0.0.1,::1,10.42.0.0/16"
             - name: LOG_LEVEL
               value: info
             - name: BASE_URL

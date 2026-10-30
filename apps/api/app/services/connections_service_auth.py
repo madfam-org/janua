@@ -97,14 +97,14 @@ def _lifetime_ok(payload: dict) -> bool:
     )
 
 
-def verify_delegation_service_token(
+async def verify_delegation_service_token(
     token: Optional[str], required_scope: str = CONNECTIONS_DELEGATE_SCOPE
 ) -> DelegationServicePrincipal:
     """Verify an actor token: signature, issuer, audience, expiry, shape, scope."""
     _require_rs256()
     if not looks_like_jwt(token):
         raise _unauthorized("invalid_service_token")
-    payload = jwt_manager.verify_token(token, audience=CONNECTIONS_AUDIENCE)
+    payload = await jwt_manager.verify_unrevoked_token(token, audience=CONNECTIONS_AUDIENCE)
     if not payload:
         raise _unauthorized("invalid_service_token")
 
@@ -212,7 +212,7 @@ async def verify_subject_token(
     if not allowed:
         logger.warning("Subject refused: purpose %s allowlists no audience", purpose.id)
         raise _forbidden("invalid_subject_token")
-    payload = jwt_manager.verify_token(token, token_type="access", audience=allowed)
+    payload = await jwt_manager.verify_unrevoked_token(token, token_type="access", audience=allowed)
     if not payload or not _lifetime_ok(payload):
         # Signature, issuer, expiry, type — or an audience outside the allowlist.
         raise _unauthorized("invalid_subject_token")

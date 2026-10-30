@@ -94,7 +94,7 @@ def _static_token_matches(candidate: Optional[str], expected: str) -> bool:
     )
 
 
-def _resolve_delegation_caller(
+async def _resolve_delegation_caller(
     x_service_token: Optional[str] = Header(None, alias="X-Service-Token"),
     authorization: Optional[str] = Header(None),
 ) -> _DelegationCaller:
@@ -127,7 +127,7 @@ def _resolve_delegation_caller(
             return _DelegationCaller(kind="static")
         if looks_like_jwt(bearer):
             return _DelegationCaller(
-                kind="service", service=verify_delegation_service_token(bearer)
+                kind="service", service=await verify_delegation_service_token(bearer)
             )
 
     if not expected:
