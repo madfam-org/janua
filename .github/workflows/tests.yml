@@ -38,7 +38,9 @@ jobs:
     # No PostgreSQL service: the tests that need one run in api-postgres-tests.
     services:
       redis:
-        image: public.ecr.aws/docker/library/redis:7-alpine
+        # Hosted PR runners hit ECR's anonymous data limit before tests start.
+        # Use the official upstream image there; main keeps its existing mirror.
+        image: ${{ github.event_name == 'pull_request' && 'redis:7-alpine' || 'public.ecr.aws/docker/library/redis:7-alpine' }}
         ports:
           - 6379:6379
         options: >-
