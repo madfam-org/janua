@@ -19,6 +19,13 @@ matching set below, and import the constant from the service-auth module that
 enforces it. ``tests/unit/core/test_reserved_oauth_boundaries.py`` pins the
 known members.
 
+A sibling resource server's new machine scope or audience is reserved HERE,
+and deployed, BEFORE any client carrying it is provisioned: until then any
+organization admin may register a client with it.
+``tests/unit/core/test_ecosystem_machine_edges_reserved.py`` lists the
+ecosystem's machine edges and fails while one is neither reserved nor
+deliberately tenant-bound.
+
 This module is pure (no database, no FastAPI) so any layer can import it.
 """
 
@@ -65,13 +72,58 @@ RESERVED_AUDIENCE_PREFIXES: tuple[str, ...] = ("janua-",)
 ECOSYSTEM_SERVICE_AUDIENCES: frozenset[str] = frozenset(
     {
         "karafiel-api",
+        # Karafiel also accepts its web client's audience on every route
+        # (JANUA_ADDITIONAL_AUDIENCES, karafiel infra/k8s/production), and its
+        # staging API trusts this issuer under its own audience.
+        "karafiel-app",
+        "karafiel-staging-api",
         "dhanam-api",
+        # Dhanam's read-only Money Moves projection (JANUA_MONEY_MOVES_AUDIENCE).
+        "dhanam-money-moves",
         "yantra4d-api",
         "pravara-api",
         "asset-shells-api",
         "fabrication-prep-api",
     }
 )
+
+#: Karafiel machine scopes (audience ``karafiel-api``/``karafiel-app``).
+#: Karafiel pins EVERY service token holding one of these to MADFAM's own
+#: emisor RFC (``LEGAL_SERVICE_RFC``, karafiel ``core/middleware/active_rfc.py``
+#: ``SERVICE_SCOPE_PREFIXES``), whatever the token's ``org_id``: whoever holds
+#: one reads or writes MADFAM's own CFDI, contracts and client records. The
+#: list mirrors karafiel ``core/plan_permissions.py`` plus ``cfdi:issue``
+#: (``integrations/zavlo_webhook.py``).
+KARAFIEL_SCOPES: frozenset[str] = frozenset(
+    {
+        "cfdi:issue",
+        "legal:draft",
+        "legal:employment-draft",
+        "legal:contractor-draft",
+        "legal:client-profile",
+        "fiscal:invoice",
+        "fiscal:csf-intake",
+        "familia:documents",
+    }
+)
+
+#: Dhanam machine scopes (audience ``dhanam-api``): the RouteCraft billing-event
+#: relay, and the machine strategies under dhanam ``apps/api/src/modules``
+#: (scheduled-payments writer, merchant payment projection), which also require
+#: a reviewed per-client grant row in Dhanam. The audience is reserved too; the
+#: scopes are reserved so the registry states the whole edge.
+DHANAM_SCOPES: frozenset[str] = frozenset(
+    {
+        "billing:events",
+        "dhanam:scheduled-payments:write",
+        "dhanam:merchant-read",
+    }
+)
+
+#: Symbiosis-HCM's tenant-less machine scope: public market benchmarks for
+#: platform-admin clients (``compensation/benchmark_views.py``). HCM's tenant
+#: app roles (``hcm:hr`` and friends) are NOT reserved, see below.
+HCM_PLATFORM_SCOPES: frozenset[str] = frozenset({"hcm-benchmarks:read"})
 
 #: Pravara MES machine scopes (audience ``pravara-api``). Pravara reads
 #: ``tenant_id`` from the token, so clients holding these are org-bound.
@@ -114,18 +166,31 @@ RESERVED_SCOPES: frozenset[str] = frozenset(
         SILENT_AUTH_SCOPE,
         PLATFORM_ADMIN_SCOPE,
         # Service-to-service scopes honoured by sibling resource servers.
-        "cfdi:issue",
-        "billing:events",
-        "legal:draft",
-        "legal:client-profile",
-        "fiscal:invoice",
-        "fiscal:csf-intake",
         "yantra4d:render",
     }
+    | KARAFIEL_SCOPES
+    | DHANAM_SCOPES
+    | HCM_PLATFORM_SCOPES
     | PRAVARA_SCOPES
     | ASSET_SHELLS_SCOPES
     | FABRICATION_PREP_SCOPES
 )
+
+#: Machine scopes and audiences the ecosystem declares that are deliberately
+#: NOT reserved: the resource server authorizes them on the token's own
+#: ``org_id`` (tenant), so an organization admin who grants one to a client of
+#: their own organization grants authority over that organization only. Each
+#: entry names why. ``tests/unit/core/test_ecosystem_machine_edges_reserved.py``
+#: requires every declared machine edge to be reserved or listed here, so a
+#: new edge cannot go unreviewed.
+TENANT_BOUND_MACHINE_SCOPES: dict[str, str] = {
+    "hcm:hr": "symbiosis-hcm TenantRolePermission requires org_id and reads it as the tenant",
+    "selva:infer": "selva nexus-api scopes every request to the token's org_id (RLS)",
+}
+TENANT_BOUND_SERVICE_AUDIENCES: dict[str, str] = {
+    "symbiosis-hcm": "tenant routes require org_id; hcm-benchmarks:read is reserved",
+    "selva-office": "selva nexus-api scopes every request to the token's org_id (RLS)",
+}
 
 #: ``<product>:admin`` becomes a ``<product>_admin`` role on a machine token
 #: whether or not the client is organization-bound.
@@ -206,9 +271,12 @@ __all__ = [
     "ASSET_SHELLS_SCOPES",
     "BRANDING_AUDIENCE",
     "BRANDING_SCOPE",
+    "DHANAM_SCOPES",
     "ECOSYSTEM_SERVICE_AUDIENCES",
     "FABRICATION_PREP_SCOPES",
     "FIRST_PARTY_NAME_PREFIXES",
+    "HCM_PLATFORM_SCOPES",
+    "KARAFIEL_SCOPES",
     "MAIL_AUDIENCE",
     "PAYMENT_MAIL_SCOPE",
     "PLATFORM_ADMIN_SCOPE",
@@ -219,6 +287,8 @@ __all__ = [
     "RESERVED_SCOPES",
     "RESERVED_SCOPE_SUFFIXES",
     "SILENT_AUTH_SCOPE",
+    "TENANT_BOUND_MACHINE_SCOPES",
+    "TENANT_BOUND_SERVICE_AUDIENCES",
     "client_is_reserved",
     "is_first_party_name",
     "is_reserved_audience",

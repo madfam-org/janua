@@ -24,7 +24,10 @@ def test_service_auth_modules_read_the_registry_constants():
         "janua-connections",
         "janua-anything-new",
         "karafiel-api",
+        "karafiel-app",
+        "karafiel-staging-api",
         "dhanam-api",
+        "dhanam-money-moves",
         "yantra4d-api",
         "pravara-api",
         "asset-shells-api",
@@ -36,7 +39,10 @@ def test_reserved_audiences(audience):
     assert reserved.is_reserved_audience(audience)
 
 
-@pytest.mark.parametrize("audience", [None, "", "tenant-api", "my-janua-app", "janua"])
+@pytest.mark.parametrize(
+    "audience",
+    [None, "", "tenant-api", "my-janua-app", "janua", "symbiosis-hcm", "selva-office"],
+)
 def test_ordinary_audiences(audience):
     assert not reserved.is_reserved_audience(audience)
 
@@ -61,9 +67,15 @@ def test_consent_purpose_audiences_and_names_are_reserved_by_construction():
         "cfdi:issue",
         "billing:events",
         "legal:draft",
+        "legal:employment-draft",
+        "legal:contractor-draft",
         "legal:client-profile",
         "fiscal:invoice",
         "fiscal:csf-intake",
+        "familia:documents",
+        "dhanam:scheduled-payments:write",
+        "dhanam:merchant-read",
+        "hcm-benchmarks:read",
         "yantra4d:render",
         "pravara-mes:jobs",
         "pravara-mes:nodes",
@@ -89,6 +101,10 @@ def test_reserved_scopes(scope):
         "email",
         "offline_access",
         "hcm:hr",
+        "hcm:payroll",
+        "selva:infer",
+        "legal:other",
+        "familia:other",
         "data-api",
         "billing:read",
         "pravara-mes:other",

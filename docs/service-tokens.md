@@ -75,10 +75,29 @@ else:
   `apps/api/app/core/reserved_oauth_boundaries.py`: every `janua-*` audience,
   the sibling-service audiences and scopes in the table above, consent-purpose
   client names and subject audiences, `admin` and `<product>:admin`,
-  `madfam:silent_auth`, and the `madfam-*` / `selva-office*` first-party names;
+  `madfam:silent_auth`, and the `madfam-*` / `selva-office*` first-party names.
+  It also reserves every machine scope a consumer honours without binding it
+  to the token's own organization: all of Karafiel's (`cfdi:issue`,
+  `legal:draft`, `legal:employment-draft`, `legal:contractor-draft`,
+  `legal:client-profile`, `fiscal:invoice`, `fiscal:csf-intake`,
+  `familia:documents`; Karafiel pins every service token holding one to
+  MADFAM's own RFC), Dhanam's (`billing:events`,
+  `dhanam:scheduled-payments:write`, `dhanam:merchant-read`) and HCM's
+  `hcm-benchmarks:read`, plus the audiences `karafiel-app`,
+  `karafiel-staging-api` and `dhanam-money-moves`;
 - cannot create a `client_credentials` client without an organization, or pin
   a `client_id`;
 - cannot edit or rotate a client that already holds a reserved value.
+
+**A new machine edge is reserved before it is provisioned.** A consumer that
+starts honouring a new machine scope or audience is open to every
+organization admin until Janua reserves it. Reserve it in
+`reserved_oauth_boundaries.py` (or, when the consumer authorizes it on the
+token's own `org_id`, list it in `TENANT_BOUND_MACHINE_SCOPES` /
+`TENANT_BOUND_SERVICE_AUDIENCES` with the reason), add the edge to
+`apps/api/tests/unit/core/test_ecosystem_machine_edges_reserved.py`, deploy,
+and only then provision the client. Reserving a value does not touch rows
+that already carry it: run the audit script below after the deploy.
 
 `/register` converges only onto rows a platform admin registered (it answers
 409 otherwise). Janua's own service boundaries (payment notices, white-label
