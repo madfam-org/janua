@@ -81,6 +81,7 @@ class EndpointRateLimitConfig:
         "/api/v1/oauth/session-bridge/start": (20, 300),
         "/api/v1/oauth/session-bridge/prepare": (20, 300),
         "/api/v1/oauth/session-bridge/complete": (20, 300),
+        "/api/v1/oauth/session-bridge/finalize": (20, 300),
         "/api/v1/oauth/authorize": (20, 300),  # 20 per 5 minutes
         "/api/v1/oauth/callback": (20, 300),
         "/api/v1/oauth/token": (10, 300),
