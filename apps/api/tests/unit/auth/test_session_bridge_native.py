@@ -11,8 +11,8 @@ import secrets
 import time
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from uuid import uuid4
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 import jwt
 import pytest
@@ -29,8 +29,8 @@ from app.auth.session_bridge_authority import InvalidSessionProof
 from app.auth.session_bridge_state import BridgeStateStore, InvalidBridgeState
 from app.core.jwt_manager import JWTManager
 from app.core.redis_circuit_breaker import ResilientRedisClient
-from app.models import Base, OAuthClient, Organization, Session, User, UserStatus
 from app.core.reserved_oauth_boundaries import SILENT_AUTH_SCOPE
+from app.models import Base, OAuthClient, Organization, Session, User, UserStatus
 from app.routers.v1 import session_bridge as bridge
 from app.services import token_revocation
 
@@ -58,11 +58,15 @@ def _services():
         os.getenv("LOCAL_DB") != "yes"
         or db.drivername != "postgresql+asyncpg"
         or db.host not in {"localhost", "127.0.0.1"}
-        or not db.database or not db.database.endswith("_test")
+        or not db.database
+        or not db.database.endswith("_test")
         or db.query
         or cache.scheme != "redis"
         or cache.hostname not in {"localhost", "127.0.0.1"}
-        or cache.username or cache.password or cache.query or cache.fragment
+        or cache.username
+        or cache.password
+        or cache.query
+        or cache.fragment
         or cache.path != "/0"
     ):
         pytest.fail("Native bridge proof requires explicit loopback test services", pytrace=False)
@@ -88,35 +92,83 @@ async def native(monkeypatch, signing_key):
         await asyncio.gather(*(client.ping() for client in clients))
         assert await clients[0].client_id() != await clients[1].client_id()
         async with admin.begin() as conn:
-            assert (await conn.execute(text("SELECT current_database()"))).scalar_one() == url.database
+            assert (
+                await conn.execute(text("SELECT current_database()"))
+            ).scalar_one() == url.database
             await conn.execute(text(f'CREATE SCHEMA "{schema}"'))
             created = True
         async with engine.begin() as conn:
             # This qualifies current ORM authority, not an Alembic upgrade.
-            await conn.run_sync(lambda conn: Base.metadata.create_all(
-                conn, tables=[User.__table__, Organization.__table__, Session.__table__, OAuthClient.__table__]
-            ))
+            await conn.run_sync(
+                lambda conn: Base.metadata.create_all(
+                    conn,
+                    tables=[
+                        User.__table__,
+                        Organization.__table__,
+                        Session.__table__,
+                        OAuthClient.__table__,
+                    ],
+                )
+            )
+            assert (
+                (await conn.execute(text("""SELECT n.nspname FROM pg_attribute a
+                JOIN pg_type t ON t.oid=a.atttypid
+                JOIN pg_namespace n ON n.oid=t.typnamespace
+                WHERE a.attrelid='users'::regclass AND a.attname='status'"""))).scalar_one()
+                == schema
+            )
         factory = async_sessionmaker(engine, expire_on_commit=False)
         user_id, sid = uuid4(), uuid4()
         suffix = uuid4().hex
         stamp = datetime.utcnow().replace(microsecond=0) - timedelta(seconds=1)
         async with factory.begin() as db:
-            db.add(User(id=user_id, email=f"u-901-{suffix}@example.test", status=UserStatus.ACTIVE,
-                        mfa_enabled=True, mfa_secret="F-901", is_service_account=False))
+            db.add(
+                User(
+                    id=user_id,
+                    email=f"u-901-{suffix}@example.test",
+                    status=UserStatus.ACTIVE,
+                    mfa_enabled=True,
+                    mfa_secret="F-901",
+                    is_service_account=False,
+                )
+            )
             await db.flush()
-            db.add(Session(id=sid, user_id=user_id, token="F-901-" + suffix,
-                           access_token_jti="F-902-" + suffix, refresh_token_jti="F-903-" + suffix,
-                           refresh_token_family="F-904-" + suffix, expires_at=stamp + timedelta(hours=1),
-                           authentication_methods=["password", "otp"], authenticated_at=stamp,
-                           mfa_verified_at=stamp, is_active=True, revoked=False))
+            db.add(
+                Session(
+                    id=sid,
+                    user_id=user_id,
+                    token="F-901-" + suffix,
+                    access_token_jti="F-902-" + suffix,
+                    refresh_token_jti="F-903-" + suffix,
+                    refresh_token_family="F-904-" + suffix,
+                    expires_at=stamp + timedelta(hours=1),
+                    authentication_methods=["password", "otp"],
+                    authenticated_at=stamp,
+                    mfa_verified_at=stamp,
+                    is_active=True,
+                    revoked=False,
+                )
+            )
             await db.flush()
-            for client_id, audience, uri in [("jnc_F-901", "F-901", SOURCE_URI), ("jnc_F-902", "F-902", TARGET_URI)]:
-                db.add(OAuthClient(created_by=user_id, client_id=client_id, name="F-901",
-                                   client_secret_hash="F-901", client_secret_prefix="F-901",
-                                   audience=audience, redirect_uris=[uri],
-                                   allowed_scopes=["openid", "profile", "email", SILENT_AUTH_SCOPE],
-                                   grant_types=["authorization_code", "refresh_token"],
-                                   is_active=True, is_confidential=True))
+            for client_id, audience, uri in [
+                ("jnc_F-901", "F-901", SOURCE_URI),
+                ("jnc_F-902", "F-902", TARGET_URI),
+            ]:
+                db.add(
+                    OAuthClient(
+                        created_by=user_id,
+                        client_id=client_id,
+                        name="F-901",
+                        client_secret_hash="F-901",
+                        client_secret_prefix="F-901",
+                        audience=audience,
+                        redirect_uris=[uri],
+                        allowed_scopes=["openid", "profile", "email", SILENT_AUTH_SCOPE],
+                        grant_types=["authorization_code", "refresh_token"],
+                        is_active=True,
+                        is_confidential=True,
+                    )
+                )
         manager = object.__new__(JWTManager)
         manager.algorithm, manager.public_key = "RS256", signing_key.public_key()
         manager.issuer, manager.audience = "https://issuer.example.test", "F-901"
@@ -126,21 +178,37 @@ async def native(monkeypatch, signing_key):
         async with factory() as db:
             parent = await db.get(Session, sid)
             evidence = session_assurance(parent)
-            access_jti, refresh_jti, family = parent.access_token_jti, parent.refresh_token_jti, parent.refresh_token_family
+            access_jti, refresh_jti, family = (
+                parent.access_token_jti,
+                parent.refresh_token_jti,
+                parent.refresh_token_family,
+            )
 
         def token(kind="access", oidc=False, **overrides):
-            claims = {"sub": str(user_id), "jti": access_jti if kind == "access" else refresh_jti,
-                      "family": family, "type": kind, "iss": manager.issuer, "aud": manager.audience,
-                      "exp": int(time.time()) + 300, **evidence}
+            claims = {
+                "sub": str(user_id),
+                "jti": access_jti if kind == "access" else refresh_jti,
+                "family": family,
+                "type": kind,
+                "iss": manager.issuer,
+                "aud": manager.audience,
+                "exp": int(time.time()) + 300,
+                **evidence,
+            }
             if oidc:
-                claims.update(client_id="jnc_F-901", jti="F-905-" + suffix, family="F-906-" + suffix)
+                claims.update(
+                    client_id="jnc_F-901", jti="F-905-" + suffix, family="F-906-" + suffix
+                )
             claims.update(overrides)
             return jwt.encode(claims, signing_key, algorithm="RS256")
 
         async def verify(kind="access", oidc=False, **overrides):
             async with factory() as db:
                 return await authority.verify_source_proof(
-                    db, wrappers[0], source_client_id="jnc_F-901", source_audience=manager.audience,
+                    db,
+                    wrappers[0],
+                    source_client_id="jnc_F-901",
+                    source_audience=manager.audience,
                     **{f"{kind}_token": token(kind, oidc, **overrides)},
                 )
 
@@ -150,22 +218,41 @@ async def native(monkeypatch, signing_key):
 
         async def mutate(model=Session, **values):
             async with factory.begin() as db:
-                await db.execute(update(model).where(model.id == (user_id if model is User else sid)).values(**values))
+                await db.execute(
+                    update(model)
+                    .where(model.id == (user_id if model is User else sid))
+                    .values(**values)
+                )
 
         async def stage(proof, reject_browser=False):
-            begun = await stores[0].start(source_client_id="jnc_F-901", source_uri=SOURCE_URI,
-                                          source_audience=manager.audience, target_client_id="jnc_F-902",
-                                          authorization={"response_type": "code", "client_id": "jnc_F-902", "redirect_uri": TARGET_URI,
-                                                         "scope": f"openid profile email {SILENT_AUTH_SCOPE}",
-                                                         "audience": "F-902", "state": "F-907-" + "S" * 32,
-                                                         "nonce": "F-908-" + "N" * 32, "prompt": "none",
-                                                         "code_challenge_method": "S256", "code_challenge": "F" * 43})
+            begun = await stores[0].start(
+                source_client_id="jnc_F-901",
+                source_uri=SOURCE_URI,
+                source_audience=manager.audience,
+                target_client_id="jnc_F-902",
+                authorization={
+                    "response_type": "code",
+                    "client_id": "jnc_F-902",
+                    "redirect_uri": TARGET_URI,
+                    "scope": f"openid profile email {SILENT_AUTH_SCOPE}",
+                    "audience": "F-902",
+                    "state": "F-907-" + "S" * 32,
+                    "nonce": "F-908-" + "N" * 32,
+                    "prompt": "none",
+                    "code_challenge_method": "S256",
+                    "code_challenge": "F" * 43,
+                },
+            )
+
             def digest(value):
                 return hashlib.sha256(value.encode()).hexdigest()
+
             prefix = "auth:session-bridge:v1:"
             keys.add(prefix + "transaction:" + digest(begun.state))
             code = await stores[0].issue(begun.state, proof)
-            keys.update([prefix + "issued:" + digest(begun.state), prefix + "code:" + digest(code.code)])
+            keys.update(
+                [prefix + "issued:" + digest(begun.state), prefix + "code:" + digest(code.code)]
+            )
             if reject_browser:
                 with pytest.raises(InvalidBridgeState):
                     await stores[1].bound(begun.state, code.code, secrets.token_urlsafe(32))
@@ -174,9 +261,21 @@ async def native(monkeypatch, signing_key):
             keys.add(prefix + "approved:" + digest(approved.code))
             return begun, code, approved
 
-        yield SimpleNamespace(factory=factory, clients=clients, wrappers=wrappers, stores=stores,
-                              keys=keys, verify=verify, recheck=recheck, mutate=mutate, stage=stage,
-                              user_id=user_id, sid=sid, evidence=evidence, token=token)
+        yield SimpleNamespace(
+            factory=factory,
+            clients=clients,
+            wrappers=wrappers,
+            stores=stores,
+            keys=keys,
+            verify=verify,
+            recheck=recheck,
+            mutate=mutate,
+            stage=stage,
+            user_id=user_id,
+            sid=sid,
+            evidence=evidence,
+            token=token,
+        )
     finally:
         # Exact known synthetic keys only; never FLUSHDB or pattern deletion.
         try:
@@ -219,8 +318,12 @@ async def test_native_committed_direct_rotation_refuses_old_proof_and_token(nati
         await native.verify(kind)
 
 
-@pytest.mark.parametrize("change", ["revoked", "inactive", "expired", "user_disabled", "parent_family", "assurance"])
-async def test_native_committed_parent_user_and_evidence_changes_refuse_approved_proof(native, change):
+@pytest.mark.parametrize(
+    "change", ["revoked", "inactive", "expired", "user_disabled", "parent_family", "assurance"]
+)
+async def test_native_committed_parent_user_and_evidence_changes_refuse_approved_proof(
+    native, change
+):
     proof = await native.verify()
     await native.stage(proof)
     if change == "revoked":
@@ -256,17 +359,23 @@ async def test_native_oidc_refresh_requires_actual_parent_and_exact_stored_evide
 
 
 @pytest.mark.parametrize("revocation", ["proof_jti", "proof_family", "parent_family"])
-async def test_native_redis_revocation_after_approval_is_observed_by_other_client(native, revocation):
+async def test_native_redis_revocation_after_approval_is_observed_by_other_client(
+    native, revocation
+):
     proof = await native.verify("refresh", oidc=True)
     await native.stage(proof)
     if revocation == "proof_jti":
         key = token_revocation.jti_keys(proof[revocation])[0]
         native.keys.add(key)
-        await token_revocation.revoke_jti(native.wrappers[0], proof[revocation], 60, reason="F-911", strict=True)
+        await token_revocation.revoke_jti(
+            native.wrappers[0], proof[revocation], 60, reason="F-911", strict=True
+        )
     else:
         key = token_revocation.family_key(proof[revocation])
         native.keys.add(key)
-        await token_revocation.revoke_family(native.wrappers[0], proof[revocation], 60, reason="F-911", strict=True)
+        await token_revocation.revoke_family(
+            native.wrappers[0], proof[revocation], 60, reason="F-911", strict=True
+        )
     assert await native.clients[1].exists(key) == 1
     with pytest.raises(InvalidSessionProof):
         await native.recheck(proof)
@@ -276,7 +385,10 @@ async def test_native_independent_redis_clients_compare_consume_exactly_once(nat
     proof = await native.verify()
     _, _, issued = await native.stage(proof)
     approvals = await asyncio.gather(*(store.approved(issued.code) for store in native.stores))
-    results = await asyncio.gather(*(store.consume_approval(approval) for store, approval in zip(native.stores, approvals)), return_exceptions=True)
+    results = await asyncio.gather(
+        *(store.consume_approval(approval) for store, approval in zip(native.stores, approvals)),
+        return_exceptions=True,
+    )
     assert sum(result is None for result in results) == 1
     assert sum(isinstance(result, InvalidBridgeState) for result in results) == 1
     with pytest.raises(InvalidBridgeState):
@@ -295,14 +407,27 @@ async def test_native_wrong_browser_and_old_source_code_do_not_spend_final_appro
 
 
 @pytest.mark.parametrize("change", ["uri", "audience", "disabled"])
-async def test_native_jsonb_source_selection_and_current_registered_pair_after_approval(native, change):
+async def test_native_jsonb_source_selection_and_current_registered_pair_after_approval(
+    native, change
+):
     # The exact JSONB containment expression used by mounted GETstart, not a
     # Python-side list filter or an injected client lookup.
     async with native.factory() as db:
-        sources = (await db.execute(select(OAuthClient).where(
-            OAuthClient.is_active.is_(True), OAuthClient.is_confidential.is_(True),
-            OAuthClient.redirect_uris.contains([SOURCE_URI]),
-        ).limit(2))).scalars().all()
+        sources = (
+            (
+                await db.execute(
+                    select(OAuthClient)
+                    .where(
+                        OAuthClient.is_active.is_(True),
+                        OAuthClient.is_confidential.is_(True),
+                        OAuthClient.redirect_uris.contains([SOURCE_URI]),
+                    )
+                    .limit(2)
+                )
+            )
+            .scalars()
+            .all()
+        )
         assert len(sources) == 1 and sources[0].client_id == "jnc_F-901"
     proof = await native.verify()
     _, _, issued = await native.stage(proof)
@@ -311,9 +436,15 @@ async def test_native_jsonb_source_selection_and_current_registered_pair_after_a
         source, target, authorization = await bridge._pair(approved.transaction, db)
         assert source.client_id == "jnc_F-901" and target.client_id == "jnc_F-902"
         assert authorization == approved.transaction["authorization"]
-    values = {"redirect_uris": []} if change == "uri" else {"audience": "F-999"} if change == "audience" else {"is_active": False}
+    values = (
+        {"redirect_uris": []}
+        if change == "uri"
+        else {"audience": "F-999"} if change == "audience" else {"is_active": False}
+    )
     async with native.factory.begin() as db:
-        await db.execute(update(OAuthClient).where(OAuthClient.client_id == "jnc_F-901").values(**values))
+        await db.execute(
+            update(OAuthClient).where(OAuthClient.client_id == "jnc_F-901").values(**values)
+        )
     async with native.factory() as db:
         with pytest.raises(InvalidBridgeState):
             await bridge._pair(approved.transaction, db)
