@@ -20,6 +20,7 @@ async def _start(store):
     return await store.start(
         source_client_id="jnc_source_F-001",
         source_uri="https://map.example.test/bridge",
+        source_audience="source-F-001",
         target_client_id="jnc_target_F-002",
         authorization={
             "client_id": "jnc_target_F-002",

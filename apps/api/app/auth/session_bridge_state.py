@@ -80,6 +80,7 @@ class BridgeStateStore:
         *,
         source_client_id: str,
         source_uri: str,
+        source_audience: str,
         target_client_id: str,
         authorization: dict[str, str],
     ) -> StartedBridge:
@@ -89,6 +90,7 @@ class BridgeStateStore:
             "version": 1,
             "source_client_id": source_client_id,
             "source_uri": source_uri,
+            "source_audience": source_audience,
             "target_client_id": target_client_id,
             "authorization": authorization,
             "browser_hash": _hash(browser_secret),
@@ -158,15 +160,27 @@ class BridgeStateStore:
             raise InvalidBridgeState()
         return IssuedBridge(code, expires)
 
-    async def bound(self, state: str, code: str, browser_secret: str) -> BoundBridge:
-        state_hash, code_hash = _hash(state), _hash(code)
-        transaction_raw, transaction = await self.read(state)
+    async def browser_transaction(self, state: str, browser_secret: str):
+        raw, transaction = await self.read(state)
         browser_hash = transaction.get("browser_hash")
         if not isinstance(browser_hash, str) or not hmac.compare_digest(
-            browser_hash,
-            _hash(browser_secret),
+            browser_hash, _hash(browser_secret)
         ):
             raise InvalidBridgeState()
+        return raw, transaction
+
+    async def cancel(self, state: str, browser_secret: str):
+        """A bound browser may abandon its transaction, never establish a session."""
+        raw, transaction = await self.browser_transaction(state, browser_secret)
+        if not await self.redis.strict_compare_delete(
+            {_PREFIX + "transaction:" + _hash(state): raw}
+        ):
+            raise InvalidBridgeState()
+        return transaction
+
+    async def bound(self, state: str, code: str, browser_secret: str) -> BoundBridge:
+        state_hash, code_hash = _hash(state), _hash(code)
+        transaction_raw, transaction = await self.browser_transaction(state, browser_secret)
         code_key = _PREFIX + "code:" + code_hash
         code_raw = await self.redis.strict_get(code_key)
         proof = _parse(code_raw)
