@@ -94,6 +94,7 @@ RESERVED_SCOPES = frozenset(
         "fiscal:csf-intake",
         "familia:documents",
         "billing:events",
+        "dhanam-scheduled-payments:write",
         "dhanam:scheduled-payments:write",
         "dhanam:merchant-read",
         "hcm-benchmarks:read",

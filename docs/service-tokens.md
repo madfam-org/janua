@@ -82,7 +82,9 @@ else:
   `legal:client-profile`, `fiscal:invoice`, `fiscal:csf-intake`,
   `familia:documents`; Karafiel pins every service token holding one to
   MADFAM's own RFC), Dhanam's (`billing:events`,
-  `dhanam:scheduled-payments:write`, `dhanam:merchant-read`) and HCM's
+  `dhanam-scheduled-payments:write`, `dhanam:merchant-read`; the writer
+  scope's never-registrable two-colon form `dhanam:scheduled-payments:write`
+  stays reserved too) and HCM's
   `hcm-benchmarks:read`, plus the audiences `karafiel-app`,
   `karafiel-staging-api` and `dhanam-money-moves`;
 - cannot create a `client_credentials` client without an organization, or pin

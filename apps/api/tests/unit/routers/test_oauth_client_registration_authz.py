@@ -356,9 +356,10 @@ MACHINE_EDGE_SCOPES = [
     "legal:contractor-draft",
     "familia:documents",
     "dhanam:merchant-read",
+    "dhanam-scheduled-payments:write",
     "hcm-benchmarks:read",
 ]
-#: Dhanam's writer scope has a second colon, which the CREATE schema's shape
+#: The writer scope's retired two-colon form, which the CREATE schema's shape
 #: check refuses (422) but the UPDATE schema does not check.
 UPDATE_ONLY_MACHINE_EDGE_SCOPES = ["dhanam:scheduled-payments:write"]
 MACHINE_EDGE_AUDIENCES = ["karafiel-app", "karafiel-staging-api", "dhanam-money-moves"]
