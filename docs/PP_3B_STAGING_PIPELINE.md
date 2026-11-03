@@ -44,7 +44,10 @@ there are no committed values or direct Vault/cluster secret commands.
 
 1. Prepare a persisted `staging` environment and its exact owned namespace
    through the supported project-scoped Enclii bootstrap. Require matching
-   repository/project ownership and default-deny; never use production
+   repository/project ownership and default-deny. Reserve the held service
+   `janua-api-staging` in `janua-staging`; the Deployment, Service, selectors and
+   `enclii.dev/service` identity use that exact name. The image repository and
+   container name remain `janua-api`. Never use production
    onboarding `ensure` to retarget its existing registration.
 2. Provision the dedicated addon, verify managed role Ready and public CA
    ownership, and establish fresh staging custody. Migrate through a separately
