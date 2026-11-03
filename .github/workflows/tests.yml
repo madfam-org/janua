@@ -443,10 +443,10 @@ jobs:
           root = ET.parse("coverage-postgres-tests.xml").getroot()
           cases = [case for case in root.iter("testcase")
                    if case.get("classname", "").endswith("test_session_bridge_native")]
-          if len(cases) != 19 or any(list(case.iter(tag)) for case in cases
+          if len(cases) != 27 or any(list(case.iter(tag)) for case in cases
                                     for tag in ("skipped", "failure", "error")):
               raise SystemExit("Required native bridge evidence missing or unsuccessful")
-          print("Native bridge SQL/Redis proof: 19 executed, zero skipped/failures/errors")
+          print("Native bridge SQL/Redis proof: 27 executed, zero skipped/failures/errors")
           PY
 
       - name: Upload coverage to Codecov

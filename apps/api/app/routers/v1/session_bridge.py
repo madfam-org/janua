@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import time
 from typing import Any
@@ -11,7 +12,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
-from sqlalchemy import select
+from sqlalchemy import Text, and_, cast, func, literal_column, or_, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.session_bridge_authority import (
@@ -25,6 +27,7 @@ from app.config import settings
 from app.core.database import get_db
 from app.core.redis import get_redis
 from app.core.redis_circuit_breaker import ResilientRedisClient
+from app.core.reserved_oauth_boundaries import FIRST_PARTY_NAME_PREFIXES, SILENT_AUTH_SCOPE
 from app.models import OAuthClient, User
 from app.routers.v1.oauth_provider import (
     _authenticate_revoking_client,
@@ -162,6 +165,85 @@ def _same_source_origin(request: Request, transaction: dict[str, Any]) -> None:
         raise InvalidBridgeState()
 
 
+def _json_member_candidate(column, value: str):
+    """Native arrays or exact quoted tokens in historical ORM JSON strings."""
+    stored = cast(column, JSONB)
+    scalar = stored.op("#>>", return_type=Text)(literal_column("'{}'::text[]"))
+    return or_(
+        and_(func.jsonb_typeof(stored) == "array", stored.contains([value])),
+        and_(
+            func.jsonb_typeof(stored) == "string",
+            scalar.contains(json.dumps(value), autoescape=True),
+        ),
+    )
+
+
+def _source_query(source_uri: str):
+    """Bound candidates without applying Text.contains to a JSONB column.
+
+    URI/scopes/grants retain historical ORM string storage compatibility. The
+    existing reserved first-party name/scope policy filters untrusted clients
+    BEFORE the cap, preventing self-registered lookalikes from crowding it.
+    Current Python trust and exact URI membership are still checked afterward.
+    """
+    redirects = cast(OAuthClient.redirect_uris, JSONB)
+    grants = cast(OAuthClient.grant_types, JSONB)
+    grant_scalar = grants.op("#>>", return_type=Text)(literal_column("'{}'::text[]"))
+    return (
+        select(OAuthClient.client_id, redirects.label("registered_uris"))
+        .where(
+            OAuthClient.is_active.is_(True),
+            OAuthClient.is_confidential.is_(True),
+            OAuthClient.audience.is_not(None),
+            OAuthClient.audience != "",
+            or_(
+                *(
+                    func.translate(
+                        OAuthClient.name, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"
+                    ).startswith(prefix, autoescape=True)
+                    for prefix in FIRST_PARTY_NAME_PREFIXES
+                ),
+                _json_member_candidate(OAuthClient.allowed_scopes, SILENT_AUTH_SCOPE),
+            ),
+            or_(
+                _json_member_candidate(OAuthClient.grant_types, "authorization_code"),
+                grants.is_(None),
+                func.jsonb_typeof(grants) == "null",
+                grants == [],
+                grant_scalar == "[]",
+            ),
+            _json_member_candidate(OAuthClient.redirect_uris, source_uri),
+        )
+        .limit(3)
+    )
+
+
+async def _source_client(source_uri: str, db: AsyncSession):
+    # Three candidates suffice to refuse overflow; never scan the registry or
+    # cast arbitrary stored strings to JSONB. A malformed candidate fails closed.
+    rows = (await db.execute(_source_query(source_uri))).all()
+    if len(rows) >= 3:
+        raise InvalidBridgeState()
+    matches = []
+    for client_id, stored in rows:
+        if isinstance(stored, str):
+            try:
+                stored = json.loads(stored)
+            except (ValueError, TypeError):
+                raise InvalidBridgeState() from None
+        if not isinstance(stored, list) or any(not isinstance(uri, str) for uri in stored):
+            raise InvalidBridgeState()
+        if source_uri in stored:
+            matches.append(client_id)
+    if len(matches) != 1:
+        raise InvalidBridgeState()
+    source = await _get_oauth_client(matches[0], db)
+    _trusted(source)
+    if not isinstance(source.redirect_uris, list) or source_uri not in source.redirect_uris:
+        raise InvalidBridgeState()
+    return source
+
+
 @router.get("/start")
 async def start(
     request: Request,
@@ -179,20 +261,7 @@ async def start(
         if not isinstance(source_uri, str) or urlsplit(source_uri).query:
             raise InvalidBridgeState()
         _origin(source_uri)
-        result = await db.execute(
-            select(OAuthClient)
-            .where(
-                OAuthClient.is_active.is_(True),
-                OAuthClient.is_confidential.is_(True),
-                OAuthClient.redirect_uris.contains([source_uri]),
-            )
-            .limit(2)
-        )
-        sources = result.scalars().all()
-        if len(sources) != 1:
-            raise InvalidBridgeState()
-        source = sources[0]
-        _trusted(source)
+        source = await _source_client(source_uri, db)
         if not isinstance(source.audience, str) or not source.audience:
             raise InvalidBridgeState()
         target = await _get_oauth_client(params.get("client_id"), db)

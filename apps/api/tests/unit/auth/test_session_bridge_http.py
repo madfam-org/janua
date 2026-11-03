@@ -64,6 +64,10 @@ async def env(monkeypatch):
     db = AsyncMock()
     rows = Mock()
     rows.scalars.return_value.all.return_value = [source]
+    rows.all.side_effect = lambda: [
+        (client.client_id, client.redirect_uris)
+        for client in rows.scalars.return_value.all.return_value
+    ]
     db.execute.return_value = rows
     user = SimpleNamespace(id=UUID(USER), status="active")
     parent = SimpleNamespace(

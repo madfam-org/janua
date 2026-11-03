@@ -6,6 +6,7 @@ Redis clients touch only exact owned keys. No flush, shared scan or fakeRedis.
 
 import asyncio
 import hashlib
+import json
 import os
 import secrets
 import time
@@ -410,25 +411,10 @@ async def test_native_wrong_browser_and_old_source_code_do_not_spend_final_appro
 async def test_native_jsonb_source_selection_and_current_registered_pair_after_approval(
     native, change
 ):
-    # The exact JSONB containment expression used by mounted GETstart, not a
-    # Python-side list filter or an injected client lookup.
+    # Same bounded lookup as mounted GETstart, including real SQL/storage.
     async with native.factory() as db:
-        sources = (
-            (
-                await db.execute(
-                    select(OAuthClient)
-                    .where(
-                        OAuthClient.is_active.is_(True),
-                        OAuthClient.is_confidential.is_(True),
-                        OAuthClient.redirect_uris.contains([SOURCE_URI]),
-                    )
-                    .limit(2)
-                )
-            )
-            .scalars()
-            .all()
-        )
-        assert len(sources) == 1 and sources[0].client_id == "jnc_F-901"
+        source = await bridge._source_client(SOURCE_URI, db)
+        assert source.client_id == "jnc_F-901"
     proof = await native.verify()
     _, _, issued = await native.stage(proof)
     approved = await native.stores[1].approved(issued.code)
@@ -450,3 +436,130 @@ async def test_native_jsonb_source_selection_and_current_registered_pair_after_a
             await bridge._pair(approved.transaction, db)
     # Policy re-read refusal is separate from HTTP response/cookie behavior.
     await native.stores[1].consume_approval(approved)
+
+
+@pytest.mark.parametrize("storage", ["orm_string", "native_array"])
+async def test_native_source_lookup_supports_both_storage_forms_and_multiple_uris(native, storage):
+    uris = ["https://map.example.test/F-912", SOURCE_URI]
+    async with native.factory.begin() as db:
+        if storage == "orm_string":
+            await db.execute(
+                update(OAuthClient)
+                .where(OAuthClient.client_id == "jnc_F-901")
+                .values(redirect_uris=uris)
+            )
+            expected_type = "string"
+        else:
+            await db.execute(
+                text(
+                    "UPDATE oauth_clients SET redirect_uris=CAST(:uris AS jsonb) WHERE client_id=:client"
+                ),
+                {"uris": json.dumps(uris), "client": "jnc_F-901"},
+            )
+            expected_type = "array"
+        actual_type = (
+            await db.execute(
+                text(
+                    "SELECT jsonb_typeof(redirect_uris) FROM oauth_clients WHERE client_id=:client"
+                ),
+                {"client": "jnc_F-901"},
+            )
+        ).scalar_one()
+        assert actual_type == expected_type
+    async with native.factory() as db:
+        assert (await bridge._source_client(SOURCE_URI, db)).client_id == "jnc_F-901"
+        with pytest.raises(InvalidBridgeState):
+            await bridge._source_client(SOURCE_URI + "/F-913", db)
+
+
+async def test_native_duplicate_registered_source_uri_is_refused(native):
+    async with native.factory.begin() as db:
+        db.add(
+            OAuthClient(
+                created_by=native.user_id,
+                client_id="jnc_F-914",
+                name="F-914",
+                client_secret_hash="F-914",
+                client_secret_prefix="F-914",
+                audience="F-914",
+                redirect_uris=[SOURCE_URI],
+                allowed_scopes=[SILENT_AUTH_SCOPE],
+                grant_types=["authorization_code"],
+                is_active=True,
+                is_confidential=True,
+            )
+        )
+    async with native.factory() as db:
+        with pytest.raises(InvalidBridgeState):
+            await bridge._source_client(SOURCE_URI, db)
+
+
+async def test_native_untrusted_source_lookalikes_cannot_crowd_out_platform_source(native):
+    async with native.factory.begin() as db:
+        for number in range(4):
+            db.add(
+                OAuthClient(
+                    created_by=native.user_id,
+                    client_id=f"jnc_F-915-{number}",
+                    name=f"F-915-{number}",
+                    client_secret_hash="F-915",
+                    client_secret_prefix="F-915",
+                    audience="F-915",
+                    redirect_uris=[SOURCE_URI],
+                    allowed_scopes=["openid", "profile"],
+                    grant_types=["authorization_code"],
+                    is_active=True,
+                    is_confidential=True,
+                )
+            )
+    async with native.factory() as db:
+        assert (await bridge._source_client(SOURCE_URI, db)).client_id == "jnc_F-901"
+
+
+async def test_native_malformed_top_level_registration_is_refused(native):
+    # A JSONB string that decodes to an object is not an allowed URI array.
+    async with native.factory.begin() as db:
+        await db.execute(
+            text(
+                "UPDATE oauth_clients SET redirect_uris=CAST(:uris AS jsonb) WHERE client_id=:client"
+            ),
+            {"uris": json.dumps(json.dumps({"F-916": SOURCE_URI})), "client": "jnc_F-901"},
+        )
+    async with native.factory() as db:
+        with pytest.raises(InvalidBridgeState):
+            await bridge._source_client(SOURCE_URI, db)
+
+
+async def test_native_literal_wildcards_and_substring_uris_require_exact_membership(native):
+    requested = SOURCE_URI + "/F_917%"
+    near = [SOURCE_URI + "/F-918", requested.replace("_", "X").replace("%", "Y")]
+    async with native.factory.begin() as db:
+        await db.execute(
+            update(OAuthClient)
+            .where(OAuthClient.client_id == "jnc_F-901")
+            .values(redirect_uris=near)
+        )
+    async with native.factory() as db:
+        for uri in (SOURCE_URI, requested):
+            with pytest.raises(InvalidBridgeState):
+                await bridge._source_client(uri, db)
+    async with native.factory.begin() as db:
+        await db.execute(
+            update(OAuthClient)
+            .where(OAuthClient.client_id == "jnc_F-901")
+            .values(redirect_uris=near + [requested])
+        )
+    async with native.factory() as db:
+        assert (await bridge._source_client(requested, db)).client_id == "jnc_F-901"
+
+
+@pytest.mark.parametrize("name", ["MADFAM-F-919", "SELVA-OFFICE-F-920"])
+async def test_native_existing_first_party_name_and_default_grant_policy_is_preserved(native, name):
+    async with native.factory.begin() as db:
+        await db.execute(
+            update(OAuthClient)
+            .where(OAuthClient.client_id == "jnc_F-901")
+            .values(name=name, allowed_scopes=["openid"], grant_types=[])
+        )
+    async with native.factory() as db:
+        assert (await bridge._source_client(SOURCE_URI, db)).client_id == "jnc_F-901"

@@ -119,7 +119,7 @@ grants and write its canonical cookies, without inventing a new session.
 
 `tests/unit/auth/test_session_bridge_native.py` belongs to the existing
 PostgreSQL partition. CI explicitly requires its test-service configuration and
-asserts that all 19 cases executed successfully, with zero skipped cases, from
+asserts that all 27 cases executed successfully, with zero skipped cases, from
 the PostgreSQL job's JUnit report. Missing configuration, services, collection or
 execution fails the proof closed. Local opt-in requires `LOCAL_DB=yes`, the
 existing loopback `MIGRATION_TEST_DATABASE_URL` targeting a dedicated `_test`
@@ -139,3 +139,22 @@ does not prove Alembic migrations, native HTTP middleware or browser cookie
 navigation. Actual isolated-stage cross-site POST → 303 → GET and physical PWA
 qualification remain separate before activation. No production configuration,
 client registration, credentials or identities are required by this test.
+
+
+The source lookup is shared by GET start and native qualification. Its bounded
+SQL predicate supports native JSONB arrays and historical JSON-string ORM
+serialization without changing global storage. Only extracted scalar text uses
+an escaped quoted-URI prefilter; native arrays use JSONB containment. At most
+three candidates are read, overflow/malformed values fail closed, and exact
+URI membership in the decoded top-level list is mandatory. A unique source is
+reloaded and must still satisfy current first-party/confidential/active policy.
+No registry row or stored representation is rewritten.
+
+The existing first-party name/reserved-scope and authorization-code eligibility
+predicates also run before the candidate cap. Self-registered untrusted clients
+sharing a URI cannot crowd out a legitimate platform source. The final current
+Python policy remains authoritative; SQL candidate filtering grants nothing.
+Native tests cover both physical storage forms, multiple URIs, duplicate source
+refusal, untrusted crowding, malformed values and literal wildcard/substring
+near misses. Source compilation or tests with substituted SQL are not native
+execution evidence.
