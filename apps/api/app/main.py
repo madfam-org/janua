@@ -146,7 +146,6 @@ from app.routers.v1 import (
 )
 from app.routers.v1 import (
     oauth_provider as oauth_provider_v1,
-    session_bridge as session_bridge_v1,
 )
 from app.routers.v1 import (
     organization_app_roles as organization_app_roles_v1,
@@ -168,6 +167,9 @@ from app.routers.v1 import (
 )
 from app.routers.v1 import (
     roles as roles_v1,
+)
+from app.routers.v1 import (
+    session_bridge as session_bridge_v1,
 )
 from app.routers.v1 import (
     sessions as sessions_v1,
