@@ -77,6 +77,7 @@ def _services():
 @pytest_asyncio.fixture
 async def native(monkeypatch, signing_key):
     url, redis_url = _services()
+    monkeypatch.setattr(bridge.settings, "SECRET_KEY", "F-901-" + "K" * 48)
     schema = "bridge_native_" + uuid4().hex
     admin = create_async_engine(url, hide_parameters=True)
     engine = create_async_engine(
@@ -254,11 +255,15 @@ async def native(monkeypatch, signing_key):
             keys.update(
                 [prefix + "issued:" + digest(begun.state), prefix + "code:" + digest(code.code)]
             )
+            initializer = bridge._seal_cookie(begun.browser_secret, bridge.COOKIE)
             if reject_browser:
+                wrong = bridge._seal_cookie(secrets.token_urlsafe(32), bridge.COOKIE)
                 with pytest.raises(InvalidBridgeState):
-                    await stores[1].bound(begun.state, code.code, secrets.token_urlsafe(32))
-            bound = await stores[0].bound(begun.state, code.code, begun.browser_secret)
+                    await stores[1].bound(begun.state, code.code, bridge._open_cookie(wrong, bridge.COOKIE))
+            bound = await stores[0].bound(begun.state, code.code, bridge._open_cookie(initializer, bridge.COOKIE))
             approved = await stores[0].approve(bound)
+            final_cookie = bridge._seal_cookie(approved.code, bridge.FINAL_COOKIE)
+            assert bridge._open_cookie(final_cookie, bridge.FINAL_COOKIE) == approved.code
             keys.add(prefix + "approved:" + digest(approved.code))
             return begun, code, approved
 

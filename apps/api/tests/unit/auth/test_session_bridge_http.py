@@ -38,6 +38,7 @@ BASIC = "Basic " + base64.b64encode(b"jnc_U-901:synthetic-U-901").decode()
 async def env(monkeypatch):
     monkeypatch.setattr(bridge.settings, "SESSION_BRIDGE_ENABLED", True)
     monkeypatch.setattr(bridge.settings, "COOKIE_DOMAIN", None)
+    monkeypatch.setattr(bridge.settings, "SECRET_KEY", "F-901-" + "K" * 48)
     source = SimpleNamespace(
         client_id="jnc_U-901",
         audience="source-U-901",
@@ -187,6 +188,10 @@ async def test_initializer_is_private_host_only_and_public_redirect_contains_no_
     assert response.headers["referrer-policy"] == "no-referrer"
     assert set(parse_qs(urlsplit(response.headers["location"]).query)) == {"state"}
     assert len(transaction) == 43
+    encrypted = env.client.cookies.get(bridge.COOKIE)
+    challenge = bridge._open_cookie(encrypted, bridge.COOKIE)
+    assert len(challenge) == 43 and challenge not in encrypted
+    assert challenge not in response.headers["location"]
     env.verify.assert_not_called()
 
 
@@ -482,7 +487,7 @@ async def test_post_only_stages_private_lax_finalizer_and_never_sets_auth(env):
     for attr in ("Secure", "HttpOnly", "SameSite=lax", "Path=/"):
         assert attr in final_cookie
     assert "Domain=" not in final_cookie
-    assert len(env.client.cookies.get(bridge.FINAL_COOKIE)) == 43
+    assert len(bridge._open_cookie(env.client.cookies.get(bridge.FINAL_COOKIE), bridge.FINAL_COOKIE)) == 43
     assert await env.raw.dbsize() == 1
     env.estate.assert_not_called()
     env.hosted.assert_not_called()
@@ -587,3 +592,20 @@ async def test_finalization_shared_state_outage_never_sets_auth(env):
     response = await env.client.get(bridge.FINAL_PATH)
     assert response.status_code == 503 and "set-cookie" not in response.headers
     assert await env.raw.dbsize() == 1
+
+
+@pytest.mark.asyncio
+async def test_cross_purpose_initializer_ciphertext_cannot_consume_transaction_or_auth(env):
+    transaction, code, _ = await issued(env)
+    original = env.client.cookies.get(bridge.COOKIE)
+    wrong = bridge._seal_cookie(bridge._open_cookie(original, bridge.COOKIE), bridge.FINAL_COOKIE)
+    response = await env.client.post(
+        "/api/v1/oauth/session-bridge/complete",
+        data={"state": transaction, "code": code},
+        headers={"origin": SOURCE_ORIGIN, "cookie": f"{bridge.COOKIE}={wrong}; janua_sso=synthetic-U-903"},
+    )
+    assert response.status_code == 400 and "set-cookie" not in response.headers
+    assert await env.raw.dbsize() == 3
+    env.estate.assert_not_called()
+    env.recheck.assert_not_called()
+    assert (await finish(env, transaction, code)).status_code == 303

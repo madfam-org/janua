@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import hmac
 import json
 import re
 import time
@@ -9,6 +11,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit
 from uuid import UUID
 
+from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
@@ -21,7 +24,7 @@ from app.auth.session_bridge_authority import (
     recheck_source_proof,
     verify_source_proof,
 )
-from app.auth.session_bridge_state import TRANSACTION_TTL, BridgeStateStore, InvalidBridgeState
+from app.auth.session_bridge_state import FINALIZATION_TTL, TRANSACTION_TTL, BridgeStateStore, InvalidBridgeState
 from app.auth.sso_cookie import SSO_COOKIE_NAME, resolve_sso_cookie_session, set_sso_cookie
 from app.config import settings
 from app.core.database import get_db
@@ -44,6 +47,8 @@ router = APIRouter(prefix="/oauth/session-bridge", tags=["OAuth Provider"])
 COOKIE = "__Host-janua-session-bridge"
 FINAL_COOKIE = "__Host-janua-session-bridge-final"
 FINAL_PATH = "/api/v1/oauth/session-bridge/finalize"
+COOKIE_LIFETIMES = {COOKIE: TRANSACTION_TTL, FINAL_COOKIE: FINALIZATION_TTL}
+MAX_COOKIE_LENGTH = 512
 HEADERS = {"Cache-Control": "no-store", "Pragma": "no-cache", "Referrer-Policy": "no-referrer"}
 REQUIRED = {
     "response_type",
@@ -65,6 +70,35 @@ class PrepareInput(BaseModel):
     state: str = Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$")
     access_token: SecretStr | None = Field(default=None, max_length=16384)
     refresh_token: SecretStr | None = Field(default=None, max_length=16384)
+
+
+def _cookie_cipher(purpose: str) -> Fernet:
+    # SECRET_KEY is an existing high-entropy, shared issuer secret. Domain
+    # separation prevents initializer/finalizer or unrelated storage reuse.
+    key = settings.SECRET_KEY
+    if purpose not in COOKIE_LIFETIMES or not isinstance(key, str) or len(key) < 32:
+        raise InvalidBridgeState()
+    derived = hmac.digest(key.encode(), b"janua-session-bridge-cookie:v1:" + purpose.encode(), "sha256")
+    return Fernet(base64.urlsafe_b64encode(derived))
+
+
+def _seal_cookie(value: str, purpose: str) -> str:
+    if not isinstance(value, str) or OPAQUE.fullmatch(value) is None:
+        raise InvalidBridgeState()
+    return _cookie_cipher(purpose).encrypt(value.encode("ascii")).decode("ascii")
+
+
+def _open_cookie(value: str, purpose: str) -> str:
+    if not isinstance(value, str) or not 100 <= len(value) <= MAX_COOKIE_LENGTH:
+        raise InvalidBridgeState()
+    cipher = _cookie_cipher(purpose)
+    try:
+        plain = cipher.decrypt(value.encode("ascii"), ttl=COOKIE_LIFETIMES[purpose]).decode("ascii")
+    except (InvalidToken, UnicodeError, ValueError):
+        raise InvalidBridgeState() from None
+    if OPAQUE.fullmatch(plain) is None:
+        raise InvalidBridgeState()
+    return plain
 
 
 def _enabled() -> None:
@@ -279,7 +313,7 @@ async def start(
         # Top-level cross-site POST requires None; Origin + random browser secret are both mandatory.
         response.set_cookie(
             COOKIE,
-            begun.browser_secret,
+            _seal_cookie(begun.browser_secret, COOKIE),
             max_age=TRANSACTION_TTL,
             path="/",
             secure=True,
@@ -396,7 +430,7 @@ async def complete(
     try:
         data = await _form(request)
         state = data.get("state", "")
-        browser = request.cookies.get(COOKIE, "")
+        browser = _open_cookie(request.cookies.get(COOKIE, ""), COOKIE)
         store = BridgeStateStore(redis)
         if "error" in data:
             if "code" in data or data["error"] not in {"login_required", "interaction_required"}:
@@ -421,7 +455,7 @@ async def complete(
         response.delete_cookie(COOKIE, path="/", secure=True, httponly=True, samesite="none")
         response.set_cookie(
             FINAL_COOKIE,
-            approved.code,
+            _seal_cookie(approved.code, FINAL_COOKIE),
             max_age=max(0, approved.expires_at - int(time.time())),
             path="/",
             secure=True,
@@ -449,7 +483,7 @@ async def finalize(
         ):
             raise InvalidBridgeState()
         store = BridgeStateStore(redis)
-        approved = await store.approved(request.cookies.get(FINAL_COOKIE, ""))
+        approved = await store.approved(_open_cookie(request.cookies.get(FINAL_COOKIE, ""), FINAL_COOKIE))
         try:
             _, _, authorization = await _pair(approved.transaction, db)
         except (InvalidBridgeState, ValueError, TypeError):

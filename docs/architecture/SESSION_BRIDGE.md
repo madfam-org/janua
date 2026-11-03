@@ -171,3 +171,19 @@ application and checks all four bridge route methods, unsupported GET completion
 the unchanged disabled default and all four rate-limit entries. A successful
 JavaScript build is not this evidence. Native PostgreSQL/Redis execution remains
 an independent required result; image import is not browser or stage proof.
+
+### Private cookie confidentiality
+
+Both private bridge cookies contain authenticated Fernet ciphertext. Their keys
+are separately derived with HMAC-SHA256 domain separation from the existing
+stable issuer `SECRET_KEY`; no new environment key or custom cipher is added.
+Missing or insufficient server key material fails closed when the feature is
+used. The general field encryptor's legacy plaintext fallback is not used.
+
+Only the fixed initializer/finalizer purposes are accepted. Decryption enforces
+bounded ciphertext, authentication, purpose and wall-clock age (120 seconds or
+at most 30 seconds respectively), then requires the original 43-character random
+challenge shape. Redis/proof expiry and atomic consumption remain authoritative.
+Fernet's creation timestamp is visible; its payload has no identity or token.
+Secure, HttpOnly, host-only, Path and SameSite attributes are unchanged. There is
+no legacy plaintext-cookie acceptance or scanner waiver.
