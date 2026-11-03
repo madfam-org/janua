@@ -111,10 +111,15 @@ KARAFIEL_SCOPES: frozenset[str] = frozenset(
 #: relay, and the machine strategies under dhanam ``apps/api/src/modules``
 #: (scheduled-payments writer, merchant payment projection), which also require
 #: a reviewed per-client grant row in Dhanam. The audience is reserved too; the
-#: scopes are reserved so the registry states the whole edge.
+#: scopes are reserved so the registry states the whole edge. The writer scope
+#: is ``dhanam-scheduled-payments:write`` (ONE colon, the only shape client
+#: registration accepts); its never-registrable two-colon predecessor
+#: ``dhanam:scheduled-payments:write`` stays reserved so the UPDATE path cannot
+#: write it onto a client either.
 DHANAM_SCOPES: frozenset[str] = frozenset(
     {
         "billing:events",
+        "dhanam-scheduled-payments:write",
         "dhanam:scheduled-payments:write",
         "dhanam:merchant-read",
     }
