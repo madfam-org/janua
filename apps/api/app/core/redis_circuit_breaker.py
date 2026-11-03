@@ -489,6 +489,34 @@ class ResilientRedisClient:
         self.circuit_breaker.invalidate_fallback(*keys)
         return int(await self._strict(lambda client: client.delete(*keys)))
 
+    async def strict_compare_delete(self, expected: Dict[str, Any]) -> bool:
+        """Consume a previously validated tuple once, unchanged, across replicas.
+
+        WATCH binds the comparison and deletion in one Redis transaction. A
+        competing consumer or expired/changed key returns False; transport
+        failure raises RedisUnavailableError, never a local-cache success.
+        """
+        if not expected or any(not isinstance(value, (str, bytes)) for value in expected.values()):
+            return False
+        keys, values = tuple(expected), tuple(expected.values())
+        self.circuit_breaker.invalidate_fallback(*keys)
+
+        async def operation(client: redis.Redis) -> bool:
+            async with client.pipeline(transaction=True) as pipe:
+                try:
+                    await pipe.watch(*keys)
+                    if tuple(await pipe.mget(keys)) != values:
+                        await pipe.unwatch()
+                        return False
+                    pipe.multi()
+                    pipe.delete(*keys)
+                    deleted, = await pipe.execute()
+                    return deleted == len(keys)
+                except redis.WatchError:
+                    return False
+
+        return bool(await self._strict(operation))
+
     async def strict_ping(self) -> None:
         """PING through this process's own client, or raise RedisUnavailableError."""
         await self._strict(lambda client: client.ping())
