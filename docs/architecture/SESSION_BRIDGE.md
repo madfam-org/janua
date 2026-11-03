@@ -156,3 +156,18 @@ Native tests cover both physical storage forms, multiple URIs, duplicate source
 refusal, untrusted crowding, malformed values and literal wildcard/substring
 near misses. Source compilation or tests with substituted SQL are not native
 execution evidence.
+
+### Nonpublishing API image gate
+
+PR verification builds the root `Dockerfile.api` with the actual repository
+context after both API test partitions succeed. It loads a unique CI-only local
+tag and never publishes, signs, pins or promotes it. The built image runs only
+an isolated Python import/compile check with network disabled and synthetic
+configuration. The production entrypoint, migrations and application lifespan
+are not started. Ephemeral RSA keys stay in process memory and are not printed.
+
+The gate compiles the seven changed API modules, imports the packaged real
+application and checks all four bridge route methods, unsupported GET completion,
+the unchanged disabled default and all four rate-limit entries. A successful
+JavaScript build is not this evidence. Native PostgreSQL/Redis execution remains
+an independent required result; image import is not browser or stage proof.

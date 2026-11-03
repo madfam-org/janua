@@ -458,6 +458,93 @@ jobs:
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
+  api-image-packaging:
+    name: API image packaging (nonpublishing)
+    if: github.event_name == 'pull_request'
+    needs: [api-tests, api-postgres-tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up single-worker Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 1
+
+      - name: Build the actual API image without publishing
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.api
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: janua-api-ci:${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          cache-from: type=gha,scope=janua-api
+          cache-to: type=gha,scope=janua-api,mode=max
+          provenance: false
+          sbom: false
+
+      - name: Verify packaged API imports and disabled bridge registration
+        env:
+          CI_IMAGE: janua-api-ci:${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+        run: |
+          # No application entrypoint, lifespan, migration, service or network.
+          docker run --rm -i --network none --cpus 1 --pids-limit 128 --memory 2g \
+            --entrypoint python \
+            -e ENVIRONMENT=test -e AUTO_MIGRATE=false -e EMAIL_ENABLED=false -e PYTHONOPTIMIZE=0 \
+            -e DATABASE_URL=postgresql+asyncpg://f901:f901@127.0.0.1:9/bridge_ci_test \
+            -e REDIS_URL=redis://127.0.0.1:9/0 \
+            -e SECRET_KEY=F-901-synthetic-image-check-only-not-a-real-secret \
+            -e JWT_ALGORITHM=RS256 -e RESEND_API_KEY= \
+            -e OMP_NUM_THREADS=1 -e OPENBLAS_NUM_THREADS=1 -e MKL_NUM_THREADS=1 \
+            "$CI_IMAGE" - <<'PY'
+          import os
+          import py_compile
+          from pathlib import Path
+          from cryptography.hazmat.primitives import serialization
+          from cryptography.hazmat.primitives.asymmetric import rsa
+
+          paths = (
+              "auth/session_bridge_authority.py", "auth/session_bridge_state.py",
+              "routers/v1/session_bridge.py", "config.py", "main.py",
+              "core/redis_circuit_breaker.py", "middleware/global_rate_limit.py",
+          )
+          for relative in paths:
+              path = Path("/app/app") / relative
+              assert path.is_file(), "required API image source missing"
+              py_compile.compile(str(path), doraise=True)
+          key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+          os.environ["JWT_PRIVATE_KEY"] = key.private_bytes(
+              serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+              serialization.NoEncryption(),
+          ).decode()
+          os.environ["JWT_PUBLIC_KEY"] = key.public_key().public_bytes(
+              serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo,
+          ).decode()
+          assert "SESSION_BRIDGE_ENABLED" not in os.environ
+          from app.main import app
+          from app.config import settings
+          from app.middleware.global_rate_limit import EndpointRateLimitConfig
+
+          assert type(settings).model_fields["SESSION_BRIDGE_ENABLED"].default is False
+          assert settings.SESSION_BRIDGE_ENABLED is False
+          expected = {"start": "GET", "prepare": "POST", "complete": "POST", "finalize": "GET"}
+          for suffix, method in expected.items():
+              path = "/api/v1/oauth/session-bridge/" + suffix
+              assert any(route.path == path and method in (getattr(route, "methods", None) or set())
+                         for route in app.routes), "packaged bridge route/method missing"
+              assert EndpointRateLimitConfig.OAUTH_LIMITS.get(path) == (20, 300)
+          assert not any(route.path == "/api/v1/oauth/session-bridge/complete"
+                         and "GET" in (getattr(route, "methods", None) or set()) for route in app.routes)
+          print("API image packaging: 7 sources compiled, 4 route methods, default OFF and rate limits verified")
+          PY
+
   e2e-tests:
     name: E2E Tests (Playwright)
     runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
