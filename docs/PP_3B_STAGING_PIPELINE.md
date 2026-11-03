@@ -1,14 +1,21 @@
 # PP.3b — Janua staging pipeline and consumer provisioning
 
-> Updated: 2026-10-20. Source profile prepared; deployment and runtime soak
+> Updated: 2026-11-02. Source profile prepared; deployment and runtime soak
 > require their own operational receipts.
 
 Janua uses the RFC 0001 manual promotion gate because it is the ecosystem
-identity provider. The isolated staging profile currently deploys **the API
-and its private Redis only**. Built frontend images are not staged frontend
+identity provider. The isolated staging source profile contains **the API
+and its private Redis only**, held at zero replicas pending native qualification. Built frontend images are not staged frontend
 proof; promotion accepts only `api` until separate frontend staging is reviewed.
 
 ## Source and runtime boundaries
+
+The current activation contract and exact remaining platform increments are in
+[isolated staging activation](runbooks/isolated-staging-activation.md). The stage
+API's separate identity is `janua-api-staging`; the proposed route uses that
+same-namespace Service on port 80. The promotion runtime guard deliberately
+refuses until a native image/isolation/auth/30-minute soak adapter is implemented.
+This source profile and a public metadata probe cannot establish runtime proof.
 
 The staging Kustomization is flat and self-contained: `api.yaml`, `service.yaml`,
 `redis.yaml`, and `secrets.yaml`. It does not import the production base,

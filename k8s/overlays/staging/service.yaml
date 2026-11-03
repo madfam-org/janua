@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: janua-api
+  name: janua-api-staging
   namespace: janua-staging
   labels:
-    app: janua-api
+    app: janua-api-staging
 spec:
   type: ClusterIP
   ports:
@@ -17,4 +17,4 @@ spec:
     protocol: TCP
     name: metrics
   selector:
-    app: janua-api
+    app: janua-api-staging

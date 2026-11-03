@@ -25,7 +25,7 @@ metadata:
     app.kubernetes.io/part-of: janua-staging
     enclii.dev/service: janua-staging-redis
 spec:
-  replicas: 1
+  replicas: 0
   strategy:
     type: Recreate
   selector:

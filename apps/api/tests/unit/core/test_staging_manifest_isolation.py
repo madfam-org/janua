@@ -21,7 +21,10 @@ def objects():
 
 def test_only_api_and_private_redis_workloads():
     workloads = [o for o in objects() if o["kind"] == "Deployment"]
-    assert {o["metadata"]["name"] for o in workloads} == {"janua-api", "janua-staging-redis"}
+    assert {o["metadata"]["name"] for o in workloads} == {
+        "janua-api-staging",
+        "janua-staging-redis",
+    }
     for workload in workloads:
         spec = workload["spec"]["template"]["spec"]
         assert spec["automountServiceAccountToken"] is False
@@ -33,7 +36,9 @@ def test_only_api_and_private_redis_workloads():
 
 def test_runtime_has_only_fresh_staging_secret_references():
     api = next(
-        o for o in objects() if o["kind"] == "Deployment" and o["metadata"]["name"] == "janua-api"
+        o
+        for o in objects()
+        if o["kind"] == "Deployment" and o["metadata"]["name"] == "janua-api-staging"
     )
     environment = api["spec"]["template"]["spec"]["containers"][0]["env"]
     values = {e["name"]: e.get("value") for e in environment}
@@ -90,7 +95,9 @@ def test_promotion_rejects_unstaged_frontends():
 
 def test_staging_requires_dependencies_while_production_keeps_availability():
     api = next(
-        o for o in objects() if o["kind"] == "Deployment" and o["metadata"]["name"] == "janua-api"
+        o
+        for o in objects()
+        if o["kind"] == "Deployment" and o["metadata"]["name"] == "janua-api-staging"
     )
     container = api["spec"]["template"]["spec"]["containers"][0]
     assert container["readinessProbe"]["httpGet"]["path"] == (
@@ -99,3 +106,21 @@ def test_staging_requires_dependencies_while_production_keeps_availability():
     production = yaml.safe_load((ROOT / "k8s/base/deployments/janua-api.yaml").read_text())
     runtime = production["spec"]["template"]["spec"]["containers"][0]
     assert runtime["readinessProbe"]["httpGet"]["path"] == "/api/v1/health/ready"
+
+
+def test_staging_identity_matches_the_separate_held_platform_service():
+    api = next(
+        o
+        for o in objects()
+        if o["kind"] == "Deployment" and o["metadata"]["name"] == "janua-api-staging"
+    )
+    labels = api["spec"]["template"]["metadata"]["labels"]
+    assert labels["app"] == labels["enclii.dev/service"] == "janua-api-staging"
+    assert api["spec"]["selector"]["matchLabels"] == {"app": "janua-api-staging"}
+    service = next(
+        o
+        for o in objects()
+        if o["kind"] == "Service" and o["metadata"]["name"] == "janua-api-staging"
+    )
+    assert service["spec"]["selector"] == {"app": "janua-api-staging"}
+    assert all(o["spec"]["replicas"] == 0 for o in objects() if o["kind"] == "Deployment")
