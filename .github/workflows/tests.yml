@@ -520,6 +520,7 @@ jobs:
               "auth/session_bridge_authority.py", "auth/session_bridge_state.py",
               "routers/v1/session_bridge.py", "config.py", "main.py",
               "core/redis_circuit_breaker.py", "middleware/global_rate_limit.py",
+              "core/isolated_staging_alembic.py",
           )
           for relative in paths:
               path = Path("/app/app") / relative
