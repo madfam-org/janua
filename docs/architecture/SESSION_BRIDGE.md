@@ -31,19 +31,37 @@ authoritative.
    no-referrer, frame-ancestors none, a fixed trusted form-action and a script
    nonce. No credentialed CORS read is involved. GET completion never
    establishes a session.
-5. Completion requires exactly one Origin header matching the registered source
-   origin, the initializer cookie, matching transaction/code, current
-   client/URI/scope/audience policy, live proof authority and no conflicting
-   existing issuer identity. The complete validated Redis tuple is atomically
-   consumed before setting the existing estate cookie. A 303 resumes the
-   original ordinary OAuth authorization with its original state, nonce and
-   PKCE.
+5. POST approval requires exactly one Origin header matching the registered source
+   origin, the initializer cookie, matching transaction/code, current client,
+   URI, scope, audience and live proof. It atomically consumes the original
+   tuple, then stages only approved proof references in strict Redis. Failure
+   after consumption loses this attempt and never restores the grant. POST
+   **never sets an estate or authentication cookie**.
+6. POST sets a new random `__Host-janua-session-bridge-final` cookie: Secure,
+   HttpOnly, Path=/, no Domain, SameSite=Lax. Its hash keys the approved record;
+   its TTL is at most 30 seconds and never exceeds the original proof expiry.
+   A 303 redirects to the fixed query-free `GET /api/v1/oauth/session-bridge/finalize`.
+7. That GET accepts only its private finalization cookie, never a public
+   transaction or source code. It rechecks current client policy, proof and both
+   current issuer identities before atomically consuming the approved record.
+   Only then may it set the existing estate cookie and resume ordinary OAuth
+   with the original state, nonce and PKCE. A conflict or revoked proof consumes
+   the approval, clears only private bridge cookies and leaves existing auth
+   cookies unchanged. Wrong/missing final cookies cannot consume another
+   browser's approval. GET `/complete` remains unsupported.
 
-The SameSite=None setting applies only to the short-lived initializer: a
-top-level cross-site POST needs it. The estate cookie keeps its existing
-attributes. A foreign browser form cannot forge Origin; a forged HTTP Origin
-alone lacks the initiating browser secret. Browser binding without this
-source-origin POST check would not reject a captured-transaction/code injection.
+The SameSite=None setting applies only to the initializer: a top-level
+cross-site POST needs it. Existing issuer authentication cookies are explicitly
+Lax and are absent on that POST, so an identity check there cannot authorize
+replacement. The 303 safe GET evaluates the current Lax cookies, including an
+account switch after POST approval. The new Lax cookie may be set during a
+top-level POST; the safe current redirect hop qualifies for Lax delivery under
+[the cookie specification](https://httpwg.org/http-extensions/draft-ietf-httpbis-rfc6265bis.html#name-strict-and-lax-enforcement).
+These source rules still require native owned-stage browser navigation proof;
+ASGI cookie injection does not demonstrate cross-site delivery. Existing auth
+cookie attributes are unchanged. A foreign form cannot forge Origin; a forged
+HTTP Origin lacks the initializer secret. No source code or finalization secret
+is placed in a redirect URL.
 
 ## Source authority
 
@@ -83,7 +101,8 @@ browser cookie delivery, physical-device behavior or live SSO.
 
 Before activation, qualify client registration, key custody, dependency
 readiness, native session revocation, hosted OAuth/PKCE and cross-origin browser
-POST behavior in the owned isolated stage. Retain the required continuous
+POST → 303 → GET behavior, including withheld POST auth cookies and account
+switches before finalization, in the owned isolated stage. Retain the required continuous
 running-digest soak and manual promotion contract. Source and consumer
 configurations remain disabled until their corresponding routes and
 browser-bound target callback are live. No real email or production credential

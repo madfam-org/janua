@@ -188,3 +188,76 @@ async def test_raw_credentials_are_never_persisted_with_the_grant():
 async def test_cache_unavailable_never_creates_a_local_continuation():
     with pytest.raises(RedisUnavailableError):
         await _start(BridgeStateStore(ResilientRedisClient(None)))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decode", [True, False])
+async def test_approval_burns_source_tuple_and_final_secret_is_one_use(decode):
+    client = _client(decode)
+    store = BridgeStateStore(ResilientRedisClient(client))
+    try:
+        start = await _start(store)
+        issued = await store.issue(start.state, _proof(access_token="synthetic-F-008"))
+        bound = await store.bound(start.state, issued.code, start.browser_secret)
+        approval = await store.approve(bound)
+        assert approval.expires_at <= issued.expires_at
+        assert approval.expires_at <= time.time() + bridge.FINALIZATION_TTL
+        assert await client.dbsize() == 1
+        with pytest.raises(InvalidBridgeState):
+            await store.bound(start.state, issued.code, start.browser_secret)
+        with pytest.raises(InvalidBridgeState):
+            await store.approved(start.state)
+        stored = (await client.mget(await client.keys("*")))[0]
+        text = stored.decode() if isinstance(stored, bytes) else stored
+        assert approval.code not in text and "synthetic-F-008" not in text
+        final = await store.approved(approval.code)
+        results = await asyncio.gather(
+            store.consume_approval(final), store.consume_approval(final), return_exceptions=True
+        )
+        assert sum(result is None for result in results) == 1
+        assert sum(isinstance(result, InvalidBridgeState) for result in results) == 1
+        assert await client.dbsize() == 0
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_final_approval_expiry_checked_again_at_consumption(monkeypatch):
+    client = _client()
+    store = BridgeStateStore(ResilientRedisClient(client))
+    try:
+        start = await _start(store)
+        issued = await store.issue(start.state, _proof())
+        approved = await store.approve(
+            await store.bound(start.state, issued.code, start.browser_secret)
+        )
+        final = await store.approved(approved.code)
+        monkeypatch.setattr(bridge, "time", SimpleNamespace(time=lambda: approved.expires_at + 1))
+        with pytest.raises(InvalidBridgeState):
+            await store.consume_approval(final)
+        assert await client.dbsize() == 1
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_approval_write_outage_burns_source_without_local_fallback(monkeypatch):
+    client = _client()
+    redis = ResilientRedisClient(client)
+    store = BridgeStateStore(redis)
+    try:
+        start = await _start(store)
+        issued = await store.issue(start.state, _proof())
+        bound = await store.bound(start.state, issued.code, start.browser_secret)
+
+        async def unavailable(*args, **kwargs):
+            raise RedisUnavailableError("unavailable")
+
+        monkeypatch.setattr(redis, "strict_set_nx", unavailable)
+        with pytest.raises(RedisUnavailableError):
+            await store.approve(bound)
+        assert await client.dbsize() == 0
+        with pytest.raises(InvalidBridgeState):
+            await store.approve(bound)
+    finally:
+        await client.aclose()

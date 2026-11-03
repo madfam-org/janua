@@ -156,12 +156,19 @@ async def issued(env):
     return transaction, response.json()["code"], initial
 
 
-async def finish(env, transaction, code, **kwargs):
+async def approve(env, transaction, code, **kwargs):
     return await env.client.post(
         "/api/v1/oauth/session-bridge/complete",
         data={"state": transaction, "code": code},
         headers={"origin": SOURCE_ORIGIN, **kwargs},
     )
+
+
+async def finish(env, transaction, code, **kwargs):
+    response = await approve(env, transaction, code, **kwargs)
+    if response.status_code == 303 and response.headers["location"] == bridge.FINAL_PATH:
+        return await env.client.get(bridge.FINAL_PATH)
+    return response
 
 
 @pytest.mark.asyncio
@@ -189,13 +196,13 @@ async def test_success_consumes_before_cookie_and_resumes_original_oidc_state(en
         assert consumed.called
         return real_set(response, user_id, parent)
 
-    real_consume = bridge.BridgeStateStore.consume
+    real_consume = bridge.BridgeStateStore.consume_approval
     consumed = AsyncMock(wraps=real_consume)
 
     async def observe_consume(store, bound):
         return await consumed(store, bound)
 
-    monkeypatch.setattr(bridge.BridgeStateStore, "consume", observe_consume)
+    monkeypatch.setattr(bridge.BridgeStateStore, "consume_approval", observe_consume)
     monkeypatch.setattr(bridge, "set_sso_cookie", checked_set)
     response = await finish(env, transaction, code)
     assert response.status_code == 303
@@ -214,8 +221,8 @@ async def test_success_consumes_before_cookie_and_resumes_original_oidc_state(en
         assert query[key] == [env.params[key]]
     assert await env.raw.dbsize() == 0
     names = [value.split("=", 1)[0] for value in response.headers.get_list("set-cookie")]
-    assert names == ["janua_sso", bridge.COOKIE]
-    env.recheck.assert_awaited_once()
+    assert names == ["janua_sso", bridge.COOKIE, bridge.FINAL_COOKIE]
+    assert env.recheck.await_count == 2
 
 
 @pytest.mark.asyncio
@@ -336,8 +343,11 @@ async def test_inactive_legacy_hosted_identity_cannot_outrank_the_restored_perso
     query = parse_qs(urlsplit(response.headers["location"]).query)
     assert query["error"] == ["interaction_required"]
     assert query["state"] == [env.params["state"]] and query["fixed"] == ["U-901"]
-    # Only the private initializer expires. Existing identity cookies are untouched.
-    assert [v.split("=", 1)[0] for v in response.headers.get_list("set-cookie")] == [bridge.COOKIE]
+    # Only private bridge cookies expire. Existing identity cookies are untouched.
+    assert [v.split("=", 1)[0] for v in response.headers.get_list("set-cookie")] == [
+        bridge.COOKIE,
+        bridge.FINAL_COOKIE,
+    ]
 
 
 @pytest.mark.asyncio
@@ -358,7 +368,10 @@ async def test_both_live_cookie_identities_are_compared(env):
     ]
     env.estate.assert_awaited_once()
     env.hosted.assert_awaited_once()
-    assert [v.split("=", 1)[0] for v in response.headers.get_list("set-cookie")] == [bridge.COOKIE]
+    assert [v.split("=", 1)[0] for v in response.headers.get_list("set-cookie")] == [
+        bridge.COOKIE,
+        bridge.FINAL_COOKIE,
+    ]
 
 
 @pytest.mark.asyncio
@@ -369,7 +382,10 @@ async def test_revocation_after_issue_fails_closed_without_renewing_an_auth_cook
     assert parse_qs(urlsplit(response.headers["location"]).query)["error"] == [
         "interaction_required"
     ]
-    assert [v.split("=", 1)[0] for v in response.headers.get_list("set-cookie")] == [bridge.COOKIE]
+    assert [v.split("=", 1)[0] for v in response.headers.get_list("set-cookie")] == [
+        bridge.COOKIE,
+        bridge.FINAL_COOKIE,
+    ]
 
 
 @pytest.mark.asyncio
@@ -383,7 +399,10 @@ async def test_source_cancel_requires_browser_and_origin_and_preserves_callback_
     assert response.status_code == 303 and await env.raw.dbsize() == 0
     query = parse_qs(urlsplit(response.headers["location"]).query)
     assert query["error"] == ["login_required"] and query["fixed"] == ["U-901"]
-    assert [v.split("=", 1)[0] for v in response.headers.get_list("set-cookie")] == [bridge.COOKIE]
+    assert [v.split("=", 1)[0] for v in response.headers.get_list("set-cookie")] == [
+        bridge.COOKIE,
+        bridge.FINAL_COOKIE,
+    ]
 
 
 @pytest.mark.asyncio
@@ -445,3 +464,122 @@ async def test_default_off_and_shared_state_failure_do_not_issue_a_cookie(env, m
     env.app.dependency_overrides[bridge.get_redis] = lambda: ResilientRedisClient(None)
     response = await env.client.get("/api/v1/oauth/session-bridge/start", params=env.params)
     assert response.status_code == 503 and "set-cookie" not in response.headers
+
+
+@pytest.mark.asyncio
+async def test_post_only_stages_private_lax_finalizer_and_never_sets_auth(env):
+    transaction, code, _ = await issued(env)
+    response = await approve(env, transaction, code)
+    assert response.status_code == 303 and response.headers["location"] == bridge.FINAL_PATH
+    assert not urlsplit(response.headers["location"]).query
+    cookies = response.headers.get_list("set-cookie")
+    assert [v.split("=", 1)[0] for v in cookies] == [bridge.COOKIE, bridge.FINAL_COOKIE]
+    final_cookie = cookies[1]
+    for attr in ("Secure", "HttpOnly", "SameSite=lax", "Path=/"):
+        assert attr in final_cookie
+    assert "Domain=" not in final_cookie
+    assert len(env.client.cookies.get(bridge.FINAL_COOKIE)) == 43
+    assert await env.raw.dbsize() == 1
+    env.estate.assert_not_called()
+    env.hosted.assert_not_called()
+    # Consumed old tuple cannot be presented as a grant to the safe endpoint.
+    denied = await env.client.get(bridge.FINAL_PATH, params={"state": transaction, "code": code})
+    assert denied.status_code == 400 and "set-cookie" not in denied.headers
+    assert await env.raw.dbsize() == 1
+    assert (await env.client.get(bridge.FINAL_PATH)).status_code == 303
+    assert await env.raw.dbsize() == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cookie", [None, "W" * 43])
+async def test_missing_or_wrong_final_cookie_cannot_spend_another_browsers_approval(env, cookie):
+    transaction, code, _ = await issued(env)
+    await approve(env, transaction, code)
+    original = env.client.cookies.get(bridge.FINAL_COOKIE)
+    env.client.cookies.clear()
+    headers = {} if cookie is None else {"cookie": f"{bridge.FINAL_COOKIE}={cookie}"}
+    response = await env.client.get(bridge.FINAL_PATH, headers=headers)
+    assert response.status_code == 400 and "set-cookie" not in response.headers
+    assert await env.raw.dbsize() == 1
+    response = await env.client.get(
+        bridge.FINAL_PATH, headers={"cookie": f"{bridge.FINAL_COOKIE}={original}"}
+    )
+    assert response.status_code == 303 and await env.raw.dbsize() == 0
+    assert (
+        await env.client.get(
+            bridge.FINAL_PATH, headers={"cookie": f"{bridge.FINAL_COOKIE}={original}"}
+        )
+    ).status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("held", ["estate", "hosted"])
+async def test_lax_identity_first_visible_on_get_or_switched_after_post_blocks_replacement(
+    env, held
+):
+    transaction, code, _ = await issued(env)
+    # Model the browser contract explicitly: no Lax auth is delivered on POST.
+    response = await approve(env, transaction, code)
+    assert response.headers["location"] == bridge.FINAL_PATH
+    env.estate.assert_not_called()
+    env.hosted.assert_not_called()
+    if held == "estate":
+        env.client.cookies.set("janua_sso", "synthetic-U-903", domain="auth.issuer.test", path="/")
+        env.estate.return_value = (SimpleNamespace(id=UUID(OTHER)), env.parent)
+    else:
+        env.client.cookies.set(
+            "janua_access_token", "synthetic-U-903", domain="auth.issuer.test", path="/"
+        )
+        env.hosted.return_value = {"sub": OTHER}
+        env.db.get.return_value = SimpleNamespace(id=UUID(OTHER), status="active")
+    response = await env.client.get(bridge.FINAL_PATH)
+    assert parse_qs(urlsplit(response.headers["location"]).query)["error"] == [
+        "interaction_required"
+    ]
+    assert [v.split("=", 1)[0] for v in response.headers.get_list("set-cookie")] == [
+        bridge.COOKIE,
+        bridge.FINAL_COOKIE,
+    ]
+    assert await env.raw.dbsize() == 0
+
+
+@pytest.mark.asyncio
+async def test_proof_revoked_between_post_and_get_cannot_establish_estate(env):
+    transaction, code, _ = await issued(env)
+    await approve(env, transaction, code)
+    env.recheck.side_effect = InvalidSessionProof()
+    response = await env.client.get(bridge.FINAL_PATH)
+    assert parse_qs(urlsplit(response.headers["location"]).query)["error"] == [
+        "interaction_required"
+    ]
+    assert all(
+        not value.startswith("janua_sso=") for value in response.headers.get_list("set-cookie")
+    )
+    assert await env.raw.dbsize() == 0
+
+
+@pytest.mark.asyncio
+async def test_finalization_rechecks_policy_and_default_off_without_grant(env, monkeypatch):
+    transaction, code, _ = await issued(env)
+    await approve(env, transaction, code)
+    monkeypatch.setattr(bridge.settings, "SESSION_BRIDGE_ENABLED", False)
+    response = await env.client.get(bridge.FINAL_PATH)
+    assert response.status_code == 404 and "set-cookie" not in response.headers
+    assert await env.raw.dbsize() == 1
+    monkeypatch.setattr(bridge.settings, "SESSION_BRIDGE_ENABLED", True)
+    env.source.audience = "changed-U-901"
+    response = await env.client.get(bridge.FINAL_PATH)
+    assert response.status_code == 400 and await env.raw.dbsize() == 0
+    assert all(
+        not value.startswith("janua_sso=") for value in response.headers.get_list("set-cookie")
+    )
+
+
+@pytest.mark.asyncio
+async def test_finalization_shared_state_outage_never_sets_auth(env):
+    transaction, code, _ = await issued(env)
+    await approve(env, transaction, code)
+    env.app.dependency_overrides[bridge.get_redis] = lambda: ResilientRedisClient(None)
+    response = await env.client.get(bridge.FINAL_PATH)
+    assert response.status_code == 503 and "set-cookie" not in response.headers
+    assert await env.raw.dbsize() == 1

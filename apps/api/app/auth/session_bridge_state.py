@@ -15,6 +15,7 @@ from app.core.redis_circuit_breaker import ResilientRedisClient
 
 TRANSACTION_TTL = 120
 CODE_TTL = 30
+FINALIZATION_TTL = 30
 _OPAQUE = re.compile(r"[A-Za-z0-9_-]{43}\Z")
 _PREFIX = "auth:session-bridge:v1:"
 
@@ -69,6 +70,14 @@ class BoundBridge:
     transaction: dict[str, Any] = field(repr=False)
     proof: dict[str, Any] = field(repr=False)
     expected: dict[str, str | bytes] = field(repr=False)
+
+
+@dataclass(frozen=True)
+class ApprovedBridge:
+    transaction: dict[str, Any] = field(repr=False)
+    proof: dict[str, Any] = field(repr=False)
+    expected: dict[str, str | bytes] = field(repr=False)
+    expires_at: int
 
 
 class BridgeStateStore:
@@ -207,4 +216,53 @@ class BridgeStateStore:
         if min(bound.transaction["expires_at"], bound.proof["expires_at"]) <= time.time():
             raise InvalidBridgeState()
         if not await self.redis.strict_compare_delete(bound.expected):
+            raise InvalidBridgeState()
+
+    async def approve(self, bound: BoundBridge) -> IssuedBridge:
+        """Burn the source tuple before staging proof refs for a private-cookie GET.
+
+        A failed staging write loses this attempt, never restores the consumed
+        source grant or creates an in-process fallback.
+        """
+        now = int(time.time())
+        expires = min(
+            now + FINALIZATION_TTL, bound.transaction["expires_at"], bound.proof["expires_at"]
+        )
+        if expires <= now:
+            raise InvalidBridgeState()
+        secret = secrets.token_urlsafe(32)
+        value = {
+            "version": 1,
+            "phase": "finalization",
+            "expires_at": expires,
+            "transaction": bound.transaction,
+            "proof": bound.proof,
+        }
+        await self.consume(bound)
+        if not await self.redis.strict_set_nx(
+            _PREFIX + "approved:" + _hash(secret), _serialize(value), ex=expires - now
+        ):
+            raise InvalidBridgeState()
+        return IssuedBridge(secret, expires)
+
+    async def approved(self, secret: str) -> ApprovedBridge:
+        key = _PREFIX + "approved:" + _hash(secret)
+        raw = await self.redis.strict_get(key)
+        value = _parse(raw)
+        transaction, proof = value.get("transaction"), value.get("proof")
+        if (
+            value.get("phase") != "finalization"
+            or not isinstance(transaction, dict)
+            or not isinstance(proof, dict)
+            or type(transaction.get("expires_at")) is not int
+            or type(proof.get("expires_at")) is not int
+            or value["expires_at"] > min(transaction["expires_at"], proof["expires_at"])
+        ):
+            raise InvalidBridgeState()
+        return ApprovedBridge(transaction, proof, {key: raw}, value["expires_at"])
+
+    async def consume_approval(self, approved: ApprovedBridge) -> None:
+        if approved.expires_at <= time.time():
+            raise InvalidBridgeState()
+        if not await self.redis.strict_compare_delete(approved.expected):
             raise InvalidBridgeState()

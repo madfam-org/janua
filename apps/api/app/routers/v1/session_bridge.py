@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlsplit
 from uuid import UUID
@@ -38,6 +39,8 @@ from app.services import token_revocation
 
 router = APIRouter(prefix="/oauth/session-bridge", tags=["OAuth Provider"])
 COOKIE = "__Host-janua-session-bridge"
+FINAL_COOKIE = "__Host-janua-session-bridge-final"
+FINAL_PATH = "/api/v1/oauth/session-bridge/finalize"
 HEADERS = {"Cache-Control": "no-store", "Pragma": "no-cache", "Referrer-Policy": "no-referrer"}
 REQUIRED = {
     "response_type",
@@ -149,6 +152,7 @@ async def _pair(transaction: dict[str, Any], db: AsyncSession):
 
 def _clear(response):
     response.delete_cookie(COOKIE, path="/", secure=True, httponly=True, samesite="none")
+    response.delete_cookie(FINAL_COOKIE, path="/", secure=True, httponly=True, samesite="lax")
     return response
 
 
@@ -337,19 +341,69 @@ async def complete(
         _same_source_origin(request, bound.transaction)
         _, _, authorization = await _pair(bound.transaction, db)
         try:
-            user, parent = await recheck_source_proof(db, redis, bound.proof)
+            await recheck_source_proof(db, redis, bound.proof)
+        except InvalidSessionProof:
+            await store.cancel(state, browser)
+            return _failure(authorization, "interaction_required")
+        # Cross-site POST does not carry explicit-Lax issuer auth cookies. It
+        # approves refs only; current identity comparison belongs to the safe GET.
+        approved = await store.approve(bound)
+        response = RedirectResponse(FINAL_PATH, status_code=303, headers=HEADERS)
+        response.delete_cookie(COOKIE, path="/", secure=True, httponly=True, samesite="none")
+        response.set_cookie(
+            FINAL_COOKIE,
+            approved.code,
+            max_age=max(0, approved.expires_at - int(time.time())),
+            path="/",
+            secure=True,
+            httponly=True,
+            samesite="lax",
+        )
+        return response
+    except (InvalidBridgeState, ValueError, TypeError, UnicodeError):
+        raise HTTPException(400, "Invalid session continuation") from None
+
+
+@router.get("/finalize")
+async def finalize(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    redis: ResilientRedisClient = Depends(get_redis),
+):
+    _enabled()
+    try:
+        # No public transaction, source code or caller-supplied grant is accepted.
+        if request.query_params or request.headers.get("sec-fetch-dest") not in (
+            None,
+            "",
+            "document",
+        ):
+            raise InvalidBridgeState()
+        store = BridgeStateStore(redis)
+        approved = await store.approved(request.cookies.get(FINAL_COOKIE, ""))
+        try:
+            _, _, authorization = await _pair(approved.transaction, db)
+        except (InvalidBridgeState, ValueError, TypeError):
+            await store.consume_approval(approved)
+            return _clear(
+                JSONResponse(
+                    {"detail": "Invalid session continuation"}, status_code=400, headers=HEADERS
+                )
+            )
+        try:
+            user, parent = await recheck_source_proof(db, redis, approved.proof)
             held = await _existing_identities(request, db, redis)
             if held - {str(user.id)}:
                 raise InvalidSessionProof()
         except InvalidSessionProof:
-            await store.cancel(state, browser)
+            await store.consume_approval(approved)
             return _failure(authorization, "interaction_required")
-        await store.consume(bound)
+        await store.consume_approval(approved)
         response = RedirectResponse(
             "/api/v1/oauth/authorize?" + urlencode(authorization), status_code=303, headers=HEADERS
         )
         if not set_sso_cookie(response, str(user.id), parent):
             raise InvalidBridgeState()
         return _clear(response)
-    except (InvalidBridgeState, ValueError, TypeError, UnicodeError):
-        raise HTTPException(400, "Invalid session continuation") from None
+    except (InvalidBridgeState, ValueError, TypeError):
+        raise HTTPException(400, "Invalid session continuation", headers=HEADERS) from None
