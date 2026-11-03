@@ -10,7 +10,9 @@ point that stops that from recurring:
 
 - ``ECOSYSTEM_MACHINE_EDGES``: every ``client_credentials`` client declared in
   enclii ``config/ecosystem-oidc-provision.yaml`` (copied at c945fe0a,
-  2026-10-27) and in ``docs/reference/PROTECTED_RESOURCES_AND_MCP_CLIENTS.md``.
+  2026-10-27, plus ``symbiosis-hcm-dhanam-writer`` from enclii#900, which is
+  provisioned only after this reservation deploys) and in
+  ``docs/reference/PROTECTED_RESOURCES_AND_MCP_CLIENTS.md``.
 - ``CONSUMER_MACHINE_SCOPES`` / ``CONSUMER_AUDIENCES``: what the consumers'
   code authorizes machine tokens on, with the file that does it.
 - ``scripts/seed_service_clients.py``: Janua's own service-client seed.
@@ -59,6 +61,11 @@ ECOSYSTEM_MACHINE_EDGES: dict[str, tuple[str, tuple[str, ...], bool]] = {
     "selva-yantra4d": ("yantra4d-api", ("yantra4d:render",), False),
     "selva-pravara-mes": ("pravara-api", ("pravara-mes:read",), True),
     "cv-hcm-benchmarks": ("symbiosis-hcm", ("hcm-benchmarks:read",), False),
+    "symbiosis-hcm-dhanam-writer": (
+        "dhanam-api",
+        ("dhanam-scheduled-payments:write",),
+        True,
+    ),
 }
 
 #: scope -> where the consumer authorizes a machine token on it. None of these
@@ -73,7 +80,7 @@ CONSUMER_MACHINE_SCOPES: dict[str, str] = {
     "fiscal:csf-intake": "karafiel apps/api/core/middleware/active_rfc.py",
     "familia:documents": "karafiel apps/api/core/middleware/active_rfc.py",
     "billing:events": "routecraft-billing-relay edge, docs/service-tokens.md (no check in dhanam yet)",
-    "dhanam:scheduled-payments:write": "dhanam scheduled-payments/machine/writer.strategy.ts",
+    "dhanam-scheduled-payments:write": "dhanam scheduled-payments/machine/writer.strategy.ts",
     "dhanam:merchant-read": "dhanam spaces/payment-projection.strategy.ts",
     "hcm-benchmarks:read": "symbiosis-hcm apps/api/compensation/benchmark_views.py",
 }
