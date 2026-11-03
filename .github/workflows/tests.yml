@@ -402,6 +402,9 @@ jobs:
           # tests reach the postgres service above. Unset in CI, they fail
           # rather than skip; see tests/unit/test_migration_reentrancy.py.
           MIGRATION_TEST_DATABASE_URL: postgresql+asyncpg://janua:janua_test@localhost:5432/janua_test
+          # Required real SQL authority + independent Redis-client CAS proof.
+          JANUA_SESSION_BRIDGE_NATIVE_REQUIRED: '1'
+          JANUA_SESSION_BRIDGE_TEST_REDIS_URL: redis://127.0.0.1:6379/0
           # This proof uses an ordinary owner, never the service's superuser.
           JANUA_ORG_CREATE_TEST_DATABASE_URL: postgresql+asyncpg://janua_org_owner:janua_org_test@127.0.0.1:5432/janua_org_create_test
           # Separate guarded URL: payment-mail concurrency tests must use real
@@ -422,6 +425,7 @@ jobs:
             --cov=app \
             --cov-report=xml:coverage-postgres.xml \
             --cov-report=term \
+            --junitxml=coverage-postgres-tests.xml \
             --cov-fail-under=0 \
             -v \
             --tb=short \
@@ -430,6 +434,20 @@ jobs:
             --ignore=tests/integration \
             --ignore=tests/archived \
             --ignore=tests/quarantine
+
+      - name: Require executed native session bridge evidence
+        working-directory: ./apps/api
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse("coverage-postgres-tests.xml").getroot()
+          cases = [case for case in root.iter("testcase")
+                   if case.get("classname", "").endswith("test_session_bridge_native")]
+          if len(cases) != 19 or any(list(case.iter(tag)) for case in cases
+                                    for tag in ("skipped", "failure", "error")):
+              raise SystemExit("Required native bridge evidence missing or unsuccessful")
+          print("Native bridge SQL/Redis proof: 19 executed, zero skipped/failures/errors")
+          PY
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7

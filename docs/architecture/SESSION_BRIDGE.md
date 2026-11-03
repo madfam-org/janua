@@ -113,3 +113,29 @@ Installed-app storage and out-of-scope navigation require a physical-device
 acceptance pass; unrelated browser profiles cannot silently infer a source
 identity. The source's refresh path must distinguish direct from OIDC refresh
 grants and write its canonical cookies, without inventing a new session.
+
+
+### Required native authority evidence
+
+`tests/unit/auth/test_session_bridge_native.py` belongs to the existing
+PostgreSQL partition. CI explicitly requires its test-service configuration and
+asserts that all 19 cases executed successfully, with zero skipped cases, from
+the PostgreSQL job's JUnit report. Missing configuration, services, collection or
+execution fails the proof closed. Local opt-in requires `LOCAL_DB=yes`, the
+existing loopback `MIGRATION_TEST_DATABASE_URL` targeting a dedicated `_test`
+database, and `JANUA_SESSION_BRIDGE_TEST_REDIS_URL` for loopback Redis database 0.
+`JANUA_SESSION_BRIDGE_NATIVE_REQUIRED=1` forbids a local configuration skip.
+
+The fixture creates only its generated scratch schema with real User, Session,
+Organization and OAuthClient ORM tables. It exercises actual AsyncSession reads,
+committed row changes, stored MFA evidence/current JTI, real source JSONB URI
+selection/current registered pair, and revocation through two independent Redis
+connections. Every Redis key is tracked individually and deleted only by exact
+owned key; no shared scan or flush is used. Synthetic RSA is generated locally;
+verification, authority and session-policy functions are not mocked.
+
+Source preparation or collection is not execution evidence. This ORM fixture
+does not prove Alembic migrations, native HTTP middleware or browser cookie
+navigation. Actual isolated-stage cross-site POST → 303 → GET and physical PWA
+qualification remain separate before activation. No production configuration,
+client registration, credentials or identities are required by this test.
