@@ -7,6 +7,7 @@ Redis clients touch only exact owned keys. No flush, shared scan or fakeRedis.
 import asyncio
 import hashlib
 import os
+import secrets
 import time
 from datetime import datetime, timedelta
 from types import SimpleNamespace
@@ -151,7 +152,7 @@ async def native(monkeypatch, signing_key):
             async with factory.begin() as db:
                 await db.execute(update(model).where(model.id == (user_id if model is User else sid)).values(**values))
 
-        async def stage(proof):
+        async def stage(proof, reject_browser=False):
             begun = await stores[0].start(source_client_id="jnc_F-901", source_uri=SOURCE_URI,
                                           source_audience=manager.audience, target_client_id="jnc_F-902",
                                           authorization={"response_type": "code", "client_id": "jnc_F-902", "redirect_uri": TARGET_URI,
@@ -165,6 +166,9 @@ async def native(monkeypatch, signing_key):
             keys.add(prefix + "transaction:" + digest(begun.state))
             code = await stores[0].issue(begun.state, proof)
             keys.update([prefix + "issued:" + digest(begun.state), prefix + "code:" + digest(code.code)])
+            if reject_browser:
+                with pytest.raises(InvalidBridgeState):
+                    await stores[1].bound(begun.state, code.code, secrets.token_urlsafe(32))
             bound = await stores[0].bound(begun.state, code.code, begun.browser_secret)
             approved = await stores[0].approve(bound)
             keys.add(prefix + "approved:" + digest(approved.code))
@@ -281,7 +285,7 @@ async def test_native_independent_redis_clients_compare_consume_exactly_once(nat
 
 async def test_native_wrong_browser_and_old_source_code_do_not_spend_final_approval(native):
     proof = await native.verify()
-    begun, code, issued = await native.stage(proof)
+    begun, code, issued = await native.stage(proof, reject_browser=True)
     with pytest.raises(InvalidBridgeState):
         await native.stores[1].approved(begun.state)
     with pytest.raises(InvalidBridgeState):
