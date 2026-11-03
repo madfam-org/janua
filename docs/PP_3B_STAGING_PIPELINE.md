@@ -49,6 +49,10 @@ there are no committed values or direct Vault/cluster secret commands.
    `enclii.dev/service` identity use that exact name. The image repository and
    container name remain `janua-api`. Never use production
    onboarding `ensure` to retarget its existing registration.
+   The closed preregistration-intent adapter retains metadata only; it cannot
+   materialize that service. Source alignment alone does not satisfy this step.
+   See [Owned staging admission](runbooks/staging-owned-admission.md) for the
+   supported inspection contracts and remaining implementation gaps.
 2. Provision the dedicated addon, verify managed role Ready and public CA
    ownership, and establish fresh staging custody. Migrate through a separately
    approved migrator job before activating the nonowner API; runtime auto-DDL
@@ -94,6 +98,13 @@ addon-bound and same-namespace Redis rules. A source helper or CI proof does not
 establish live role attributes, certificate transport, RLS, workload network
 denial, resource placement, migration or application readiness. Preserve a
 concrete adapter gap instead of substituting raw infrastructure access.
+
+The logical-name correction is not a live Kubernetes rename. Before activation,
+prove that no old `janua-api` Deployment or Service remains in `janua-staging`.
+If one exists, prepare a separate ownership/reconciliation plan rather than
+assuming automatic pruning is safe. Review the exact stage backend and monitoring
+references together with the separate central Application declaration. Keep the
+production registration and manifests unchanged.
 
 ## Consumer OAuth provisioning
 
