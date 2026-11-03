@@ -278,7 +278,7 @@ async def delete_organization(
     # In a real implementation, you'd check for active subscriptions here
 
     # Delete organization (this will cascade to members via foreign key)
-    db.delete(organization)
+    await db.delete(organization)
     await db.commit()
 
     return {"success": True, "message": "Organization deleted successfully"}

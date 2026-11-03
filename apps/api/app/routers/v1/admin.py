@@ -737,7 +737,7 @@ async def delete_user_admin(
 
     if permanent:
         # Hard delete - remove from database
-        db.delete(user)
+        await db.delete(user)
     else:
         # Soft delete
         user.status = UserStatus.DELETED
@@ -1098,7 +1098,7 @@ async def delete_organization_admin(
         raise HTTPException(status_code=404, detail="Organization not found")
 
     # Delete organization (cascade will handle related records)
-    db.delete(org)
+    await db.delete(org)
     await db.commit()
 
     return {"message": "Organization deleted successfully"}

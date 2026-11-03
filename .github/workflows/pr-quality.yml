@@ -20,10 +20,11 @@ env:
   # pattern in ci.yml / tests.yml / docs-validation.yml.
   NPM_MADFAM_TOKEN: ${{ secrets.NPM_MADFAM_TOKEN }}
 
+# Public PR verification uses hosted runners; non-PR routing is retained.
 jobs:
   code-quality:
     name: Code Quality
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
 
     steps:
       - uses: actions/checkout@v7
@@ -49,7 +50,7 @@ jobs:
 
   frontend-tests-build:
     name: Frontend Tests & Build
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
 
     steps:
       - uses: actions/checkout@v7
@@ -92,6 +93,9 @@ jobs:
           path: |
             apps/*/.next
             packages/*/dist
+          # No workflow downloads this. It was ~0.24 GiB kept for the 90-day
+          # default (2026-10-26); one day is enough to fetch it by hand.
+          retention-days: 1
 
   backend-tests:
     # Disabled - consolidated into tests.yml workflow
@@ -210,7 +214,7 @@ jobs:
 
   security-scan:
     name: Security Scan
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
 
     steps:
       - uses: actions/checkout@v7
@@ -283,7 +287,7 @@ jobs:
 
   security-scanning:
     name: Security Scanning
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
     permissions:
       actions: read
       contents: read
@@ -308,7 +312,7 @@ jobs:
 
   smoke-tests:
     name: Smoke Tests
-    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-24.04' || (vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04') }}
     needs: [frontend-tests-build]  # backend-tests disabled, consolidated into tests.yml
 
     steps:

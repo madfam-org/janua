@@ -345,6 +345,89 @@ async def test_platform_admin_registers_reserved_clients(env, payload):
     assert response.json()["organization_id"] == str(env.other_org.id)
 
 
+# Machine-edge values that sibling resource servers honour with authority the
+# caller's own organization does not carry. Karafiel pins EVERY service token
+# holding one of its scopes to MADFAM's own emisor RFC (LEGAL_SERVICE_RFC,
+# karafiel core/middleware/active_rfc.py), whatever the token's org_id, and
+# accepts `karafiel-app` alongside `karafiel-api` (JANUA_ADDITIONAL_AUDIENCES).
+# Dhanam's machine strategies and HCM's benchmark view are platform edges.
+MACHINE_EDGE_SCOPES = [
+    "legal:employment-draft",
+    "legal:contractor-draft",
+    "familia:documents",
+    "dhanam:merchant-read",
+    "hcm-benchmarks:read",
+]
+#: Dhanam's writer scope has a second colon, which the CREATE schema's shape
+#: check refuses (422) but the UPDATE schema does not check.
+UPDATE_ONLY_MACHINE_EDGE_SCOPES = ["dhanam:scheduled-payments:write"]
+MACHINE_EDGE_AUDIENCES = ["karafiel-app", "karafiel-staging-api", "dhanam-money-moves"]
+
+
+@pytest.mark.parametrize("scope", MACHINE_EDGE_SCOPES)
+async def test_machine_edge_scopes_need_platform_admin(env, scope):
+    env.act_as(env.org_admin)
+    response = await _create(env, _machine(allowed_scopes=[scope]), env.own_org.id)
+    assert response.status_code == 403, response.text
+    assert "allowed_scopes" in response.json()["error"]["message"]
+    await _assert_nothing_written(env)
+
+
+@pytest.mark.parametrize("audience", MACHINE_EDGE_AUDIENCES)
+async def test_machine_edge_audiences_need_platform_admin(env, audience):
+    env.act_as(env.org_admin)
+    response = await _create(env, _machine(audience=audience), env.own_org.id)
+    assert response.status_code == 403, response.text
+    assert "audience" in response.json()["error"]["message"]
+    await _assert_nothing_written(env)
+
+
+async def test_karafiel_app_contract_drafts_client_needs_platform_admin(env):
+    """The exact shape that would read MADFAM's own contract drafts."""
+    payload = _machine(
+        "tenant-drafts", audience="karafiel-app", allowed_scopes=["legal:employment-draft"]
+    )
+    env.act_as(env.org_admin)
+    response = await _create(env, payload, env.own_org.id)
+    assert response.status_code == 403, response.text
+    assert response.json()["error"]["message"] == (
+        "Platform admin privileges required for reserved OAuth client values: "
+        "audience, allowed_scopes"
+    )
+    await _assert_nothing_written(env)
+
+    env.act_as(env.platform_admin)
+    response = await _create(env, payload, env.other_org.id)
+    assert response.status_code == 201, response.text
+
+
+@pytest.mark.parametrize(
+    "change",
+    [{"allowed_scopes": ["hcm:hr", scope]} for scope in MACHINE_EDGE_SCOPES]
+    + [{"allowed_scopes": ["hcm:hr", scope]} for scope in UPDATE_ONLY_MACHINE_EDGE_SCOPES]
+    + [{"audience": audience} for audience in MACHINE_EDGE_AUDIENCES],
+)
+async def test_update_cannot_widen_into_machine_edge_values(env, change):
+    created = await _org_admin_client(env)
+    response = await env.http.patch(f"{CLIENTS_URL}/{created['id']}", json=change)
+    assert response.status_code == 403, response.text
+    row = await env.client_row(created["id"])
+    assert row.allowed_scopes == ["hcm:hr"]
+    assert row.audience is None
+
+
+async def test_platform_admin_widens_a_client_into_machine_edge_values(env):
+    env.act_as(env.platform_admin)
+    created = await _create(env, _machine("drafts-edge"), env.other_org.id)
+    assert created.status_code == 201, created.text
+    response = await env.http.patch(
+        f"{CLIENTS_URL}/{created.json()['id']}",
+        json={"audience": "karafiel-app", "allowed_scopes": ["legal:contractor-draft"]},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["allowed_scopes"] == ["legal:contractor-draft"]
+
+
 async def test_refusal_precedes_the_duplicate_lookup(env):
     """A refused request learns nothing, not even another client's id."""
     env.act_as(env.platform_admin)
