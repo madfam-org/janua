@@ -24,6 +24,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Production stage
 FROM python:3.11-slim AS runner
 
+ARG VCS_REF
+LABEL org.opencontainers.image.source="https://github.com/madfam-org/janua" \
+      org.opencontainers.image.revision="${VCS_REF}"
+
 WORKDIR /app
 
 # Install runtime dependencies for xmlsec
