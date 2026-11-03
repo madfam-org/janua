@@ -114,7 +114,6 @@ acceptance pass; unrelated browser profiles cannot silently infer a source
 identity. The source's refresh path must distinguish direct from OIDC refresh
 grants and write its canonical cookies, without inventing a new session.
 
-
 ### Required native authority evidence
 
 `tests/unit/auth/test_session_bridge_native.py` belongs to the existing
@@ -139,7 +138,6 @@ does not prove Alembic migrations, native HTTP middleware or browser cookie
 navigation. Actual isolated-stage cross-site POST → 303 → GET and physical PWA
 qualification remain separate before activation. No production configuration,
 client registration, credentials or identities are required by this test.
-
 
 The source lookup is shared by GET start and native qualification. Its bounded
 SQL predicate supports native JSONB arrays and historical JSON-string ORM
