@@ -117,9 +117,21 @@ jobs:
           fi
           python scripts/alembic_promote_guard.py $ARGS
 
+  staging-runtime-guard:
+    name: Isolated staging runtime qualification
+    if: github.event_name == 'workflow_dispatch' || vars.AUTO_PROMOTE_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Refuse promotion until native staging proof exists
+        run: python scripts/staging/promotion_runtime_guard.py
+
   validate:
     name: Validate promotion candidate(s)
-    needs: migrations-guard
+    needs: [migrations-guard, staging-runtime-guard]
     runs-on: ubuntu-24.04
     outputs:
       should_promote: ${{ steps.resolve.outputs.should_promote }}

@@ -1269,6 +1269,7 @@ is tracked privately and appears here only by name.
 
 | Item | Why it matters | Priority | Kind | Link |
 |---|---|---|---|---|
+| Native isolated staging activation and runtime promotion proof | Source API/Redis are held at zero replicas; source authority, inert materialization, dedicated DB/custody/migration, synthetic auth and continuous healthy runtime soak still require typed Enclii adapters and native receipts. Promotion is held until those exist | P1 | engineering | [activation contract](docs/runbooks/isolated-staging-activation.md) |
 | Merge and deploy window for the audit-log fixes | Both PRs change the audit logger and add migration `020`; they need a scheduled window and a migration run | P1 | owner decision | #673, #676 |
 | Next.js hardening checklist for `apps/admin`, `apps/dashboard`, `apps/docs` and `apps/website` (tracked privately) | Brings the four Next apps to the posture the rest of the estate already ships | P1 | engineering | — |
 | Un-skip the 11 core auth e2e tests in `tests/e2e/auth-flows.spec.ts` and run them in CI | Every `test.skip` there (invalid credentials, password reset, MFA enrollment, session persistence, logout, protected-route redirect, Google OAuth, lockout, email verification, concurrent sessions, inactivity timeout) leaves a core auth journey without an E2E proof | P1 | engineering | — |
