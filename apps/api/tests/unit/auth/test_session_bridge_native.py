@@ -259,8 +259,12 @@ async def native(monkeypatch, signing_key):
             if reject_browser:
                 wrong = bridge._seal_cookie(secrets.token_urlsafe(32), bridge.COOKIE)
                 with pytest.raises(InvalidBridgeState):
-                    await stores[1].bound(begun.state, code.code, bridge._open_cookie(wrong, bridge.COOKIE))
-            bound = await stores[0].bound(begun.state, code.code, bridge._open_cookie(initializer, bridge.COOKIE))
+                    await stores[1].bound(
+                        begun.state, code.code, bridge._open_cookie(wrong, bridge.COOKIE)
+                    )
+            bound = await stores[0].bound(
+                begun.state, code.code, bridge._open_cookie(initializer, bridge.COOKIE)
+            )
             approved = await stores[0].approve(bound)
             final_cookie = bridge._seal_cookie(approved.code, bridge.FINAL_COOKIE)
             assert bridge._open_cookie(final_cookie, bridge.FINAL_COOKIE) == approved.code

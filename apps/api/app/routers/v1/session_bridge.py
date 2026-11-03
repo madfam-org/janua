@@ -24,7 +24,12 @@ from app.auth.session_bridge_authority import (
     recheck_source_proof,
     verify_source_proof,
 )
-from app.auth.session_bridge_state import FINALIZATION_TTL, TRANSACTION_TTL, BridgeStateStore, InvalidBridgeState
+from app.auth.session_bridge_state import (
+    FINALIZATION_TTL,
+    TRANSACTION_TTL,
+    BridgeStateStore,
+    InvalidBridgeState,
+)
 from app.auth.sso_cookie import SSO_COOKIE_NAME, resolve_sso_cookie_session, set_sso_cookie
 from app.config import settings
 from app.core.database import get_db
@@ -78,7 +83,9 @@ def _cookie_cipher(purpose: str) -> Fernet:
     key = settings.SECRET_KEY
     if purpose not in COOKIE_LIFETIMES or not isinstance(key, str) or len(key) < 32:
         raise InvalidBridgeState()
-    derived = hmac.digest(key.encode(), b"janua-session-bridge-cookie:v1:" + purpose.encode(), "sha256")
+    derived = hmac.digest(
+        key.encode(), b"janua-session-bridge-cookie:v1:" + purpose.encode(), "sha256"
+    )
     return Fernet(base64.urlsafe_b64encode(derived))
 
 
@@ -483,7 +490,9 @@ async def finalize(
         ):
             raise InvalidBridgeState()
         store = BridgeStateStore(redis)
-        approved = await store.approved(_open_cookie(request.cookies.get(FINAL_COOKIE, ""), FINAL_COOKIE))
+        approved = await store.approved(
+            _open_cookie(request.cookies.get(FINAL_COOKIE, ""), FINAL_COOKIE)
+        )
         try:
             _, _, authorization = await _pair(approved.transaction, db)
         except (InvalidBridgeState, ValueError, TypeError):

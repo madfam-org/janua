@@ -487,7 +487,10 @@ async def test_post_only_stages_private_lax_finalizer_and_never_sets_auth(env):
     for attr in ("Secure", "HttpOnly", "SameSite=lax", "Path=/"):
         assert attr in final_cookie
     assert "Domain=" not in final_cookie
-    assert len(bridge._open_cookie(env.client.cookies.get(bridge.FINAL_COOKIE), bridge.FINAL_COOKIE)) == 43
+    assert (
+        len(bridge._open_cookie(env.client.cookies.get(bridge.FINAL_COOKIE), bridge.FINAL_COOKIE))
+        == 43
+    )
     assert await env.raw.dbsize() == 1
     env.estate.assert_not_called()
     env.hosted.assert_not_called()
@@ -602,7 +605,10 @@ async def test_cross_purpose_initializer_ciphertext_cannot_consume_transaction_o
     response = await env.client.post(
         "/api/v1/oauth/session-bridge/complete",
         data={"state": transaction, "code": code},
-        headers={"origin": SOURCE_ORIGIN, "cookie": f"{bridge.COOKIE}={wrong}; janua_sso=synthetic-U-903"},
+        headers={
+            "origin": SOURCE_ORIGIN,
+            "cookie": f"{bridge.COOKIE}={wrong}; janua_sso=synthetic-U-903",
+        },
     )
     assert response.status_code == 400 and "set-cookie" not in response.headers
     assert await env.raw.dbsize() == 3
