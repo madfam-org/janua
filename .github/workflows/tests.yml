@@ -534,14 +534,15 @@ jobs:
 
           assert type(settings).model_fields["SESSION_BRIDGE_ENABLED"].default is False
           assert settings.SESSION_BRIDGE_ENABLED is False
-          expected = {"start": "GET", "prepare": "POST", "complete": "POST", "finalize": "GET"}
+          # Public schema resolves FastAPI's lazy included routers; app.routes
+          # can contain _IncludedRouter objects without flat path/method fields.
+          paths = app.openapi()["paths"]
+          expected = {"start": "get", "prepare": "post", "complete": "post", "finalize": "get"}
           for suffix, method in expected.items():
               path = "/api/v1/oauth/session-bridge/" + suffix
-              assert any(route.path == path and method in (getattr(route, "methods", None) or set())
-                         for route in app.routes), "packaged bridge route/method missing"
+              assert method in paths.get(path, {}), "packaged bridge route/method missing"
               assert EndpointRateLimitConfig.OAUTH_LIMITS.get(path) == (20, 300)
-          assert not any(route.path == "/api/v1/oauth/session-bridge/complete"
-                         and "GET" in (getattr(route, "methods", None) or set()) for route in app.routes)
+          assert "get" not in paths.get("/api/v1/oauth/session-bridge/complete", {})
           print("API image packaging: 7 sources compiled, 4 route methods, default OFF and rate limits verified")
           PY
 
