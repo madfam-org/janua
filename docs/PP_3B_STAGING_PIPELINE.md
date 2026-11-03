@@ -16,6 +16,39 @@ namespace, HPA, frontend origins or integration credentials. This keeps the
 existing governed flat-manifest admission preflight usable without a general
 Kustomize interpreter or an exception.
 
+The API's Enclii logical service and staging Deployment/Service names are all
+`janua-api-staging` in `janua-staging`. Both resource labels and the Pod template
+carry `enclii.dev/service: janua-api-staging`; Deployment and Service selectors
+require that exact native label together with the existing `app: janua-api`.
+The application identity, container name, image repository/digest, ports,
+environment and staging issuer/host remain the same. Production keeps its
+separate `janua-api` service and objects.
+
+This distinction is required because Enclii service names are unique within a
+project, while native health looks up the recorded Deployment name and binding
+policies select the canonical service label. Registering a stage row under an
+alias while retaining production's label would leave health/binding evidence
+inconsistent. Use one exact source identity; do not retarget or reuse the
+production service row, add an alias exception, or infer ownership from a name.
+
+Before any activation, verify through Enclii that no old `janua-api` Deployment
+or Service exists in the staging namespace. This source change does not perform
+a live Kubernetes rename. If old objects exist, stop activation and prepare a
+separate reviewed ownership/reconciliation plan; do not depend on automatic
+pruning or create overlapping workloads.
+
+Central staging registration is a separate private change: bind the held
+metadata-only service intent to this exact source identity, staging namespace,
+repository and `apps/api` path. Review central declaration health/bind targets,
+stage Service backend references and monitoring references for the new logical
+name before admission/activation. Keep the existing staging issuer/host and image
+pointer; production registration is separate. Product source does not write
+central declarations, service rows, DNS, tunnel routes, credentials or workloads.
+A held repository-ownership intent is planning evidence only: it must retain
+`SOURCE_STAGE_REGISTRATION_NOT_PROVEN` until separate governed staging
+application/workload source ownership is established. It is not an active
+service registration or permission to reuse the production onboarding binding.
+
 The API uses the staging issuer and origin, host-only cookies, fresh staging
 RSA keys and fresh symmetric/Fernet keys. Email, SMTP, Resend, tracking,
 federation, magic links and public signup remain off. No production identity or

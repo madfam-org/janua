@@ -6,6 +6,7 @@ import yaml
 
 ROOT = Path(__file__).parents[5]
 STAGING = ROOT / "k8s" / "overlays" / "staging"
+API_SERVICE = "janua-api-staging"
 
 
 def objects():
@@ -21,7 +22,7 @@ def objects():
 
 def test_only_api_and_private_redis_workloads():
     workloads = [o for o in objects() if o["kind"] == "Deployment"]
-    assert {o["metadata"]["name"] for o in workloads} == {"janua-api", "janua-staging-redis"}
+    assert {o["metadata"]["name"] for o in workloads} == {API_SERVICE, "janua-staging-redis"}
     for workload in workloads:
         spec = workload["spec"]["template"]["spec"]
         assert spec["automountServiceAccountToken"] is False
@@ -33,7 +34,7 @@ def test_only_api_and_private_redis_workloads():
 
 def test_runtime_has_only_fresh_staging_secret_references():
     api = next(
-        o for o in objects() if o["kind"] == "Deployment" and o["metadata"]["name"] == "janua-api"
+        o for o in objects() if o["kind"] == "Deployment" and o["metadata"]["name"] == API_SERVICE
     )
     environment = api["spec"]["template"]["spec"]["containers"][0]["env"]
     values = {e["name"]: e.get("value") for e in environment}
@@ -80,6 +81,39 @@ def test_external_secret_paths_and_private_service_are_isolated():
             assert obj["spec"]["type"] == "ClusterIP"
 
 
+def test_staging_identity_matches_native_health_and_binding_without_production_alias():
+    items = objects()
+    deployment = next(
+        o for o in items if o["kind"] == "Deployment" and o["metadata"]["name"] == API_SERVICE
+    )
+    service = next(
+        o for o in items if o["kind"] == "Service" and o["metadata"]["name"] == API_SERVICE
+    )
+    selector = {"app": "janua-api", "enclii.dev/service": API_SERVICE}
+    assert deployment["metadata"]["labels"]["enclii.dev/service"] == API_SERVICE
+    assert service["metadata"]["labels"]["enclii.dev/service"] == API_SERVICE
+    assert deployment["spec"]["selector"]["matchLabels"] == selector
+    assert service["spec"]["selector"] == selector
+    labels = deployment["spec"]["template"]["metadata"]["labels"]
+    assert all(labels.get(key) == value for key, value in selector.items())
+    assert labels["app.kubernetes.io/name"] == labels["app"] == "janua-api"
+    assert deployment["spec"]["template"]["spec"]["containers"][0]["name"] == "janua-api"
+    assert deployment["metadata"]["annotations"]["enclii.dev/reconcile"] == "disabled"
+    assert not any(
+        o["kind"] in {"Deployment", "Service"} and o["metadata"]["name"] == "janua-api"
+        for o in items
+    )
+    legacy_labels = {"app": "janua-api", "enclii.dev/service": "janua-api"}
+    assert not all(legacy_labels.get(key) == value for key, value in selector.items())
+    production = yaml.safe_load((ROOT / "k8s/base/deployments/janua-api.yaml").read_text())
+    assert production["metadata"]["name"] == "janua-api"
+    assert production["spec"]["template"]["metadata"]["labels"]["app"] == "janua-api"
+    assert (
+        production["spec"]["template"]["metadata"]["labels"].get("enclii.dev/service")
+        != API_SERVICE
+    )
+
+
 def test_promotion_rejects_unstaged_frontends():
     workflow = yaml.safe_load((ROOT / ".github/workflows/promote-to-prod.yml").read_text())
     trigger = workflow.get("on", workflow.get(True))  # PyYAML YAML1.1 recognizes on as bool.
@@ -90,7 +124,7 @@ def test_promotion_rejects_unstaged_frontends():
 
 def test_staging_requires_dependencies_while_production_keeps_availability():
     api = next(
-        o for o in objects() if o["kind"] == "Deployment" and o["metadata"]["name"] == "janua-api"
+        o for o in objects() if o["kind"] == "Deployment" and o["metadata"]["name"] == API_SERVICE
     )
     container = api["spec"]["template"]["spec"]["containers"][0]
     assert container["readinessProbe"]["httpGet"]["path"] == (

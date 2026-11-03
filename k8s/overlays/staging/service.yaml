@@ -1,10 +1,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: janua-api
+  name: janua-api-staging
   namespace: janua-staging
   labels:
     app: janua-api
+    enclii.dev/service: janua-api-staging
 spec:
   type: ClusterIP
   ports:
@@ -18,3 +19,4 @@ spec:
     name: metrics
   selector:
     app: janua-api
+    enclii.dev/service: janua-api-staging
