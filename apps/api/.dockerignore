@@ -1,0 +1,26 @@
+# Build context: apps/api (apps/api/Dockerfile, apps/api/docker-compose.yml).
+# The Dockerfile copies the whole context, so local-only files must be
+# excluded here.
+
+# Local env files and key material
+.env
+.env.*
+**/.env
+**/.env.*
+keys/
+**/*.pem
+**/*.key
+
+# Local virtualenvs, caches and VCS metadata
+.git
+.venv/
+venv/
+env/
+__pycache__/
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
