@@ -48,20 +48,6 @@ patches:
       kind: Deployment
       name: janua-api
 
-# Use local images for dev
-images:
-  - name: localhost:5000/janua-api
-    newName: janua-api
-    newTag: latest
-  - name: localhost:5000/janua-dashboard
-    newName: janua-dashboard
-    newTag: latest
-  - name: localhost:5000/janua-admin
-    newName: janua-admin
-    newTag: latest
-  - name: localhost:5000/janua-docs
-    newName: janua-docs
-    newTag: latest
-  - name: localhost:5000/janua-website
-    newName: janua-website
-    newTag: latest
+# Images come from the base: ghcr.io/madfam-org/janua-*:main. To try a
+# locally built image, load it into the local cluster (e.g. `kind load
+# docker-image`) and override it here with `kustomize edit set image`.

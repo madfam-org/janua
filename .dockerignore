@@ -9,6 +9,13 @@ __pycache__
 *.pyd
 .env
 .env.*
+# Local env files, key pairs and certificates stay out of every build
+# context, at any depth (e.g. apps/api/.env, apps/dashboard/.env.local).
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+apps/api/keys
 node_modules
 .DS_Store
 tests/
