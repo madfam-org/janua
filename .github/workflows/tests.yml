@@ -71,7 +71,7 @@ jobs:
         working-directory: ./apps/api
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.txt
           pip install -r requirements-test.txt
 
       - name: Check changed Python source (blocking)
@@ -232,7 +232,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libxmlsec1-dev pkg-config
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.txt
       - name: Render schema evidence
         working-directory: ./apps/api
         env:
@@ -273,7 +273,7 @@ jobs:
         working-directory: ./apps/api
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.txt
           pip install -r requirements-test.txt
 
       - name: Legacy global Python diagnostics (advisory)
@@ -340,7 +340,7 @@ jobs:
         working-directory: ./apps/api
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.txt
           pip install -r requirements-test.txt
 
       - name: Check the PostgreSQL test split
@@ -484,7 +484,7 @@ jobs:
         working-directory: ./apps/api
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.txt
           pip install -r requirements-test.txt
 
       - name: Setup pnpm

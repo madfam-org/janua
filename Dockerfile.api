@@ -15,11 +15,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxmlsec1-openssl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
+# Copy the dependency lock (compiled from apps/api/requirements.in; every
+# package pinned with hashes, so two builds of one commit get the same set)
 COPY apps/api/requirements.txt ./
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies exactly as locked
+RUN pip install --no-cache-dir --require-hashes -r requirements.txt
 
 # Production stage
 FROM python:3.11-slim AS runner
