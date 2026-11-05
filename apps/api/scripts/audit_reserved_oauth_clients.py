@@ -96,6 +96,7 @@ RESERVED_SCOPES = frozenset(
         "billing:events",
         "dhanam-scheduled-payments:write",
         "dhanam:scheduled-payments:write",
+        "dhanam-cost-events:write",
         "dhanam:merchant-read",
         "hcm-benchmarks:read",
         "yantra4d:render",
