@@ -46,6 +46,21 @@ the first.
    - the rollout is healthy.
 4. Undo: revert the pin PR, or run `rollback-prod.yml` with a blank digest.
 
+## Exception record
+
+| | |
+|---|---|
+| Approved by | Owner, 2026-11-05 (in session, after the promotion hold was explained) |
+| Built by | [run 41954831187](https://github.com/madfam-org/janua/actions/runs/41954831187), from `main` at `f896df23`; all three proofs passed, then cosign-signed |
+| Hotfix digest | `sha256:35c60b3935125a706941f724252f3a48409428d5ba55739b20cd428f37ba50f3` (tag `hotfix-762-f896df23…`) |
+| Replaces | `sha256:7c9076615ad8345c88b8093e660a4484dd3ff6f0b9d43b11c28a9d85c5884676` (source `b16869d7`) |
+| Delta | `app/core/oauth_metadata.py` only; the discovery documents lose `registration_endpoint` |
+| Not shipped | #758 (`reserved_oauth_boundaries.py`) and everything else on `main` after `b16869d7` |
+| Pinned by | the PR that sets the hotfix digest in `k8s/overlays/production/kustomization.yaml` |
+
+An earlier run, 41952923922, failed its discovery check (fixed in #766). It
+signed nothing, and its unsigned `hotfix-762-7518ff00…` tag is not used.
+
 ## Remove
 
 Delete this folder and `.github/workflows/hotfix-janua-api-762.yml` in the
