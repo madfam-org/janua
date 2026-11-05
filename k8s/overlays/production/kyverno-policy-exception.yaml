@@ -44,5 +44,3 @@ spec:
             - janua
           names:
             - janua-api*
-            - janua-admin*
-            - janua-dashboard*
