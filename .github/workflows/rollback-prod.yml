@@ -7,6 +7,14 @@
 # RFC 0001, leaving `digest` blank rolls back to the previous prod
 # digest for the chosen component by reading git history.
 #
+# Rollback only goes back. An explicit `digest` must be one production
+# has already run: it must have been this component's digest in the
+# production overlay at some point in main's first-parent history.
+# Anything else is a new image, and new images reach production only
+# through promote-to-prod.yml and its guards (including the isolated-
+# staging hold, scripts/staging/promotion_runtime_guard.py). Without
+# this check, rollback was a way to roll forward around those guards.
+#
 # Janua-specific operator note:
 #   Rollbacks share the `prod-promote` concurrency group with promotes
 #   to serialize prod-touching writes. If a JWT keypair rotation is in
@@ -36,7 +44,7 @@ on:
           - docs
           - website
       digest:
-        description: "Digest to roll back to (sha256:...). Leave blank to use the previous prod digest from git history."
+        description: "Digest to roll back to (sha256:...). Must be a digest production has run before (production overlay history on main). Leave blank to use the previous prod digest from git history."
         required: false
         type: string
       reason:
@@ -62,8 +70,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           token: ${{ secrets.MADFAM_BOT_PAT || secrets.GITHUB_TOKEN }}
-          fetch-depth: 100
-
+          # Full history: the target check below reads every version of the
+          # production overlay on main. A shallow clone would silently forget
+          # older production digests and refuse a legitimate rollback.
+          fetch-depth: 0
 
       - name: Require rollback acknowledgement
         env:
@@ -146,11 +156,56 @@ jobs:
             fi
           fi
 
-          if [[ ! "$TARGET" =~ ^sha256:[a-f0-9]+$ ]]; then
+          if [[ ! "$TARGET" =~ ^sha256:[a-f0-9]{64}$ ]]; then
             echo "::error::Invalid digest: $TARGET"; exit 1
           fi
+
+          # Rollback restores an image production has already run. It never
+          # introduces one: new images reach production only through
+          # promote-to-prod.yml and its guards. So the target must have been
+          # THIS component's digest in the production overlay in some commit
+          # of main's first-parent history -- the states main itself has held.
+          # Three things deliberately do not count:
+          #   - the dispatch ref, when it is not main (it may carry an overlay
+          #     edit that never landed), hence the fresh fetch of main;
+          #   - side-branch commits that a merge brought in but main's tip
+          #     never held (--first-parent);
+          #   - another component's digest, or a staging-only digest.
+          # The blank-digest path above passes through here too; it already
+          # picks from this history, so for it the check is a no-op.
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          SEEN_AT=$(python3 - "$IMAGE" "$TARGET" "$FILE" <<'PY'
+          import re, subprocess, sys
+          image, target, path = sys.argv[1:4]
+          ref = "refs/remotes/origin/main"
+          e = re.escape(image)
+          patterns = (
+              r'name:\s+' + e + r'[ \t]*\n(?:[ \t]+newName:\s+' + e + r'[ \t]*\n)?[ \t]+digest:\s+(sha256:[a-f0-9]+)',
+              r'digest:\s+(sha256:[a-f0-9]+)[ \t]*\n[ \t]+name:\s+' + e + r'[ \t]*(?:\n|$)',
+          )
+          log = subprocess.run(
+              ["git", "log", "--first-parent", "--format=%H", ref, "--", path],
+              capture_output=True, text=True, check=True,
+          )
+          commits = log.stdout.split()
+          for sha in commits:  # newest first
+              shown = subprocess.run(["git", "show", f"{sha}:{path}"], capture_output=True, text=True)
+              if shown.returncode != 0:
+                  continue  # a commit that deleted the file has no version to read
+              if any(target in re.findall(p, shown.stdout) for p in patterns):
+                  print(sha)
+                  sys.exit(0)
+          print(
+              f"::error::{target} was never the production digest for {image} on main "
+              f"(checked {len(commits)} versions of {path}). Rollback only restores an "
+              "image production has already run; a new image must go through promote-to-prod.yml.",
+              file=sys.stderr,
+          )
+          sys.exit(1)
+          PY
+          )
           echo "target=$TARGET" >> "$GITHUB_OUTPUT"
-          echo "Rolling back $COMPONENT to $TARGET"
+          echo "Rolling back $COMPONENT to $TARGET (last pinned in the production overlay at $SEEN_AT)"
 
       - name: Patch prod kustomization
         env:

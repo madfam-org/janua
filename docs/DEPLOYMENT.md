@@ -767,6 +767,9 @@ incident. Known blockers (stuck Argo syncs, Kyverno signature denials, stale
 [`rollback-prod.yml`](/.github/workflows/rollback-prod.yml), `workflow_dispatch`
 only — there is no auto-trigger, a rollback is always a human call. It writes the
 previous (or an explicit) digest to the production overlay; RTO target < 5 min.
+An explicit digest must be one production has already run — it has to appear as
+that component's digest in the production overlay's history on `main` — so a
+rollback can only go back. A new image goes through `promote-to-prod.yml`.
 It shares the `prod-promote` concurrency group. Do **not** roll back across a JWT
 key-rotation boundary without checking the rotation first.
 
