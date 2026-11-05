@@ -5,7 +5,7 @@
 # ============================================
 # STAGE 1: Builder (dependencies + build)
 # ============================================
-FROM python:3.14-slim AS builder
+FROM python:3.15-slim AS builder
 
 WORKDIR /app
 
@@ -28,7 +28,7 @@ RUN pip install --no-cache-dir --prefix=/install --require-hashes -r requirement
 # ============================================
 # STAGE 2: Runner (minimal runtime)
 # ============================================
-FROM python:3.14-slim AS runner
+FROM python:3.15-slim AS runner
 
 WORKDIR /app
 
