@@ -67,6 +67,23 @@ def test_workflow_writes_only_to_the_registry():
         assert forbidden not in scripts, forbidden
 
 
+def test_discovery_check_uses_a_driver_the_production_image_has():
+    """The production image installs requirements.txt only: asyncpg, not aiosqlite.
+
+    The first dispatch (run 41952923922) failed importing the app with a
+    sqlite+aiosqlite URL, a test-only driver.
+    """
+    step = next(
+        s
+        for s in WORKFLOW["jobs"]["build"]["steps"]
+        if s.get("name") == "Discovery document loses registration_endpoint and nothing else"
+    )
+    urls = re.findall(r"DATABASE_URL='([^']*)'", step["run"])
+    assert urls and all(url.startswith("postgresql+asyncpg://") for url in urls), urls
+    requirements = (ROOT / "apps/api/requirements.txt").read_text()
+    assert re.search(r"^asyncpg\b", requirements, re.M)
+
+
 def test_workflow_checks_source_delta_and_discovery_before_signing():
     names = [step.get("name", "") for step in WORKFLOW["jobs"]["build"]["steps"]]
     order = [
