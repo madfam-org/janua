@@ -24,7 +24,28 @@ jobs:
   diagnose:
     name: Cluster Diagnostics
     runs-on: ubuntu-24.04
+    # The production kubeconfig lives in this environment, which only main
+    # may use (see docs/runbooks/production-gitops-reconcile.md).
+    environment: production-cluster
+    env:
+      # Free text: read only through these variables, never inlined into a
+      # script, and validated before the job touches the cluster.
+      NS: ${{ inputs.namespace }}
+      DEPLOYMENT: ${{ inputs.deployment }}
     steps:
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+          label='^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$'
+          if [[ ! "$NS" =~ $label ]]; then
+            echo "::error::namespace must be a Kubernetes name (lowercase letters, digits, '-')." >&2
+            exit 1
+          fi
+          if [[ -n "$DEPLOYMENT" && ! "$DEPLOYMENT" =~ $label ]]; then
+            echo "::error::deployment must be blank or a Kubernetes name (lowercase letters, digits, '-')." >&2
+            exit 1
+          fi
+
       - name: Setup kubectl
         uses: azure/setup-kubectl@v5
         with:
@@ -44,120 +65,110 @@ jobs:
 
       - name: Namespace overview
         run: |
-          NS="${{ inputs.namespace }}"
           echo "=== Namespace: $NS Overview ==="
           echo ""
           echo "--- All Resources ---"
-          kubectl get all -n $NS 2>&1 || echo "Failed to list resources"
+          kubectl get all -n "$NS" 2>&1 || echo "Failed to list resources"
           echo ""
 
       - name: Pod status details
         run: |
-          NS="${{ inputs.namespace }}"
           echo "=== Pod Status Details ==="
           echo ""
-          kubectl get pods -n $NS -o wide 2>&1
+          kubectl get pods -n "$NS" -o wide 2>&1
           echo ""
           echo "--- Pods NOT Running ---"
-          kubectl get pods -n $NS --field-selector=status.phase!=Running 2>&1 || echo "All pods running (or none exist)"
+          kubectl get pods -n "$NS" --field-selector=status.phase!=Running 2>&1 || echo "All pods running (or none exist)"
           echo ""
 
       - name: Pod describe (non-running)
         run: |
-          NS="${{ inputs.namespace }}"
           echo "=== Describe Non-Running Pods ==="
 
           # Get pods that aren't running
-          NOT_RUNNING=$(kubectl get pods -n $NS --no-headers 2>/dev/null | grep -v "Running" | awk '{print $1}')
+          NOT_RUNNING=$(kubectl get pods -n "$NS" --no-headers 2>/dev/null | grep -v "Running" | awk '{print $1}')
 
           if [ -z "$NOT_RUNNING" ]; then
             echo "All pods are in Running state"
             # Still describe the API pod for debugging
             echo ""
             echo "--- Describing janua-api pods anyway ---"
-            kubectl describe pods -n $NS -l app=janua-api 2>&1 | tail -100
+            kubectl describe pods -n "$NS" -l app=janua-api 2>&1 | tail -100
           else
             for POD in $NOT_RUNNING; do
               echo ""
               echo "--- Pod: $POD ---"
-              kubectl describe pod $POD -n $NS 2>&1 | tail -80
+              kubectl describe pod $POD -n "$NS" 2>&1 | tail -80
             done
           fi
 
       - name: Pod logs (recent)
         run: |
-          NS="${{ inputs.namespace }}"
-          DEPLOYMENT="${{ inputs.deployment }}"
           echo "=== Recent Pod Logs ==="
 
           if [ -n "$DEPLOYMENT" ]; then
-            PODS=$(kubectl get pods -n $NS -l app=$DEPLOYMENT --no-headers 2>/dev/null | awk '{print $1}')
+            PODS=$(kubectl get pods -n "$NS" -l "app=$DEPLOYMENT" --no-headers 2>/dev/null | awk '{print $1}')
           else
-            PODS=$(kubectl get pods -n $NS --no-headers 2>/dev/null | awk '{print $1}')
+            PODS=$(kubectl get pods -n "$NS" --no-headers 2>/dev/null | awk '{print $1}')
           fi
 
           for POD in $PODS; do
             echo ""
             echo "--- Logs: $POD (last 50 lines) ---"
-            kubectl logs $POD -n $NS --tail=50 2>&1 || echo "Cannot get logs for $POD"
+            kubectl logs $POD -n "$NS" --tail=50 2>&1 || echo "Cannot get logs for $POD"
             echo ""
             echo "--- Previous Container Logs (if crashed) ---"
-            kubectl logs $POD -n $NS --previous --tail=30 2>&1 || echo "No previous container logs"
+            kubectl logs $POD -n "$NS" --previous --tail=30 2>&1 || echo "No previous container logs"
           done
 
       - name: Events (recent)
         run: |
-          NS="${{ inputs.namespace }}"
           echo "=== Recent Events (last 50) ==="
-          kubectl get events -n $NS --sort-by='.lastTimestamp' 2>&1 | tail -50
+          kubectl get events -n "$NS" --sort-by='.lastTimestamp' 2>&1 | tail -50
 
       - name: Deployment status
         run: |
-          NS="${{ inputs.namespace }}"
           echo "=== Deployment Details ==="
           echo ""
-          kubectl get deployments -n $NS -o wide 2>&1
+          kubectl get deployments -n "$NS" -o wide 2>&1
           echo ""
           echo "--- Deployment Conditions ---"
-          kubectl get deployments -n $NS -o jsonpath='{range .items[*]}{.metadata.name}{": "}{range .status.conditions[*]}{.type}={.status} {end}{"\n"}{end}' 2>&1
+          kubectl get deployments -n "$NS" -o jsonpath='{range .items[*]}{.metadata.name}{": "}{range .status.conditions[*]}{.type}={.status} {end}{"\n"}{end}' 2>&1
 
       - name: ReplicaSet status
         run: |
-          NS="${{ inputs.namespace }}"
           echo "=== ReplicaSet Status ==="
-          kubectl get rs -n $NS 2>&1
+          kubectl get rs -n "$NS" 2>&1
           echo ""
           echo "--- ReplicaSets with 0 ready ---"
-          kubectl get rs -n $NS -o jsonpath='{range .items[?(@.status.readyReplicas==0)]}{.metadata.name}{" (desired: "}{.spec.replicas}{", ready: "}{.status.readyReplicas}{")\n"}{end}' 2>&1
+          kubectl get rs -n "$NS" -o jsonpath='{range .items[?(@.status.readyReplicas==0)]}{.metadata.name}{" (desired: "}{.spec.replicas}{", ready: "}{.status.readyReplicas}{")\n"}{end}' 2>&1
 
       - name: Service endpoints
         run: |
-          NS="${{ inputs.namespace }}"
           echo "=== Service Endpoints ==="
-          kubectl get endpoints -n $NS 2>&1
+          kubectl get endpoints -n "$NS" 2>&1
           echo ""
           echo "--- Services with no endpoints ---"
-          kubectl get endpoints -n $NS -o jsonpath='{range .items[?(@.subsets==null)]}{.metadata.name}{" has NO ENDPOINTS\n"}{end}' 2>&1 || true
+          kubectl get endpoints -n "$NS" -o jsonpath='{range .items[?(@.subsets==null)]}{.metadata.name}{" has NO ENDPOINTS\n"}{end}' 2>&1 || true
 
       - name: Secret verification
         run: |
-          NS="${{ inputs.namespace }}"
           echo "=== Secrets Verification ==="
           echo "Listing secrets (names only for security):"
-          kubectl get secrets -n $NS 2>&1
+          kubectl get secrets -n "$NS" 2>&1
           echo ""
           echo "--- Checking required secrets ---"
 
           # Check janua-secrets
-          if kubectl get secret janua-secrets -n $NS >/dev/null 2>&1; then
+          if kubectl get secret janua-secrets -n "$NS" >/dev/null 2>&1; then
             echo "janua-secrets: EXISTS"
-            echo "  Keys: $(kubectl get secret janua-secrets -n $NS -o jsonpath='{.data}' | jq -r 'keys | join(", ")' 2>/dev/null || echo 'cannot list keys')"
+            echo "  Keys: $(kubectl get secret janua-secrets -n "$NS" -o jsonpath='{.data}' | jq -r 'keys | join(", ")' 2>/dev/null || echo 'cannot list keys')"
           else
             echo "janua-secrets: MISSING!"
           fi
 
           # Check ghcr-credentials
-          if kubectl get secret ghcr-credentials -n $NS >/dev/null 2>&1; then
+          if kubectl get secret ghcr-credentials -n "$NS" >/dev/null 2>&1; then
             echo "ghcr-credentials: EXISTS"
           else
             echo "ghcr-credentials: MISSING!"
@@ -165,36 +176,32 @@ jobs:
 
       - name: Image pull test
         run: |
-          NS="${{ inputs.namespace }}"
           echo "=== Image Pull Status ==="
 
           # Check for ImagePullBackOff or ErrImagePull
-          kubectl get pods -n $NS -o jsonpath='{range .items[*]}{.metadata.name}{": "}{range .status.containerStatuses[*]}{.state.waiting.reason}{" "}{end}{"\n"}{end}' 2>&1 | grep -E "(ImagePull|Err)" || echo "No image pull errors detected"
+          kubectl get pods -n "$NS" -o jsonpath='{range .items[*]}{.metadata.name}{": "}{range .status.containerStatuses[*]}{.state.waiting.reason}{" "}{end}{"\n"}{end}' 2>&1 | grep -E "(ImagePull|Err)" || echo "No image pull errors detected"
 
           echo ""
           echo "--- Current images in use ---"
-          kubectl get pods -n $NS -o jsonpath='{range .items[*]}{.metadata.name}{": "}{.spec.containers[0].image}{"\n"}{end}' 2>&1
+          kubectl get pods -n "$NS" -o jsonpath='{range .items[*]}{.metadata.name}{": "}{.spec.containers[0].image}{"\n"}{end}' 2>&1
 
       - name: Resource usage
         run: |
-          NS="${{ inputs.namespace }}"
           echo "=== Resource Usage ==="
-          kubectl top pods -n $NS 2>&1 || echo "Metrics not available (metrics-server may not be installed)"
+          kubectl top pods -n "$NS" 2>&1 || echo "Metrics not available (metrics-server may not be installed)"
           echo ""
           kubectl top nodes 2>&1 || echo "Node metrics not available"
 
       - name: Network policies
         run: |
-          NS="${{ inputs.namespace }}"
           echo "=== Network Policies ==="
-          kubectl get networkpolicies -n $NS 2>&1
+          kubectl get networkpolicies -n "$NS" 2>&1
           echo ""
           echo "--- Cloudflare tunnel namespace check ---"
           kubectl get pods -n cloudflare-tunnel 2>&1 || echo "cloudflare-tunnel namespace not found or inaccessible"
 
       - name: Summary and recommendations
         run: |
-          NS="${{ inputs.namespace }}"
           echo ""
           echo "=========================================="
           echo "       DIAGNOSTIC SUMMARY"
@@ -202,9 +209,9 @@ jobs:
           echo ""
 
           # Check pod status
-          TOTAL=$(kubectl get pods -n $NS --no-headers 2>/dev/null | wc -l)
-          RUNNING=$(kubectl get pods -n $NS --no-headers 2>/dev/null | grep Running | wc -l)
-          FAILED=$(kubectl get pods -n $NS --no-headers 2>/dev/null | grep -E "(Error|CrashLoop|ImagePull)" | wc -l)
+          TOTAL=$(kubectl get pods -n "$NS" --no-headers 2>/dev/null | wc -l)
+          RUNNING=$(kubectl get pods -n "$NS" --no-headers 2>/dev/null | grep Running | wc -l)
+          FAILED=$(kubectl get pods -n "$NS" --no-headers 2>/dev/null | grep -E "(Error|CrashLoop|ImagePull)" | wc -l)
 
           echo "Pods: $RUNNING/$TOTAL running, $FAILED with errors"
 
@@ -213,26 +220,26 @@ jobs:
           echo "Potential Issues Detected:"
 
           # Check for CrashLoopBackOff
-          if kubectl get pods -n $NS --no-headers 2>/dev/null | grep -q "CrashLoopBackOff"; then
+          if kubectl get pods -n "$NS" --no-headers 2>/dev/null | grep -q "CrashLoopBackOff"; then
             echo "  - CrashLoopBackOff: Container crashing repeatedly (check logs)"
           fi
 
           # Check for ImagePullBackOff
-          if kubectl get pods -n $NS --no-headers 2>/dev/null | grep -q "ImagePullBackOff"; then
+          if kubectl get pods -n "$NS" --no-headers 2>/dev/null | grep -q "ImagePullBackOff"; then
             echo "  - ImagePullBackOff: Cannot pull container image (check GHCR credentials)"
           fi
 
           # Check for pending pods
-          if kubectl get pods -n $NS --no-headers 2>/dev/null | grep -q "Pending"; then
+          if kubectl get pods -n "$NS" --no-headers 2>/dev/null | grep -q "Pending"; then
             echo "  - Pending pods: Insufficient resources or scheduling issues"
           fi
 
           # Check for missing secrets
-          if ! kubectl get secret janua-secrets -n $NS >/dev/null 2>&1; then
+          if ! kubectl get secret janua-secrets -n "$NS" >/dev/null 2>&1; then
             echo "  - CRITICAL: janua-secrets is MISSING"
           fi
 
-          if ! kubectl get secret ghcr-credentials -n $NS >/dev/null 2>&1; then
+          if ! kubectl get secret ghcr-credentials -n "$NS" >/dev/null 2>&1; then
             echo "  - CRITICAL: ghcr-credentials is MISSING"
           fi
 
