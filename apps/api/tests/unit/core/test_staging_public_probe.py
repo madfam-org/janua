@@ -53,7 +53,6 @@ def responses():
             "introspection_endpoint": stage + "/api/v1/oauth/introspect",
             "revocation_endpoint": stage + "/api/v1/oauth/revoke",
             "end_session_endpoint": stage + "/logout",
-            "registration_endpoint": stage + "/api/v1/oauth/register",
         },
         stage + "/.well-known/jwks.json": {"keys": [key(13, "synthetic-stage")]},
         PROBE.PROD + "/.well-known/jwks.json": {"keys": [key(17, "synthetic-production")]},
