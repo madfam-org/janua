@@ -56,6 +56,8 @@ Kyverno could not pull the private GHCR manifest to verify cosign signatures.
 
 **Fix (merged `dbc23614`):** `k8s/overlays/production/kyverno-policy-exception.yaml`
 — scoped PolicyException (same pattern as Dhanam `dhanam-gitops-rollout-signature`).
+**Removed 2026-11-05** in four stages (#770–#773), once Kyverno could read and
+verify every Janua image; see `docs/runbooks/production-gitops-reconcile.md` §2.
 
 ### Layer 3 — Image pull credentials
 
@@ -131,8 +133,8 @@ refreshed `janua/ghcr-credentials` with `madfam-bot` + `GHCR_PAT`, then
 |----------|--------|-------|
 | P1 | Add `GHCR_PAT` or `MADFAM_BOT_PAT` to janua repo; use `madfam-bot` in `docker-publish.yml` GHCR login | DevOps |
 | P2 | Add `prod-post-promote.yml` (mirror Dhanam) — Enclii lifecycle callback + best-effort Argo refresh | Platform |
-| P2 | Rotate or retire stale external `KUBECONFIG_PRODUCTION` secret; document ARC-only path | Platform |
-| P3 | Kyverno long-term: public GHCR packages or registry creds for verify-image-signatures | Security |
+| P2 | Rotate or retire stale external `KUBECONFIG_PRODUCTION` secret; document ARC-only path | **Done** 2026-11-05: the secret lives only in the `main`-only `production-cluster` environment (#767) |
+| P3 | Kyverno long-term: public GHCR packages or registry creds for verify-image-signatures | **Done** 2026-11-05: exception removed, all workloads verified (#770–#773) |
 | P3 | Phase 2 UX: typography beyond Inter, gradient cleanup, legal pages | **Done** (#423, prod `sha256:92a73b80…`) |
 | P3 | `sync-prod-gitops` smoke: use `grep` not `rg` on ARC runners | **Done** |
 

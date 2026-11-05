@@ -73,6 +73,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MFA challenge verify endpoint (`POST /mfa/challenge/verify`) for completing MFA during sign-in
 
 ### Security
+- **Production changes only through promotion or rollback** (2026-11-05). Images reach production only through the production overlay, written by `promote-to-prod.yml` or `rollback-prod.yml`:
+  - `rollback-prod.yml` accepts only a digest production has already run ([#765](https://github.com/madfam-org/janua/pull/765)).
+  - Two old recovery workflows that bypassed GitOps are retired ([#767](https://github.com/madfam-org/janua/pull/767)).
+  - `sync-prod-gitops.yml` runs only from `main` and applies `main`'s overlay ([#767](https://github.com/madfam-org/janua/pull/767)).
+  - Workflow inputs are validated before any cluster step ([#767](https://github.com/madfam-org/janua/pull/767)).
+  - The production kubeconfig lives in the `main`-only `production-cluster` environment.
+- **Image signatures verified for every Janua workload** (2026-11-05). The Kyverno PolicyException that exempted Janua from `verify-image-signatures` since 2026-06-15 is removed. It went in four stages, each checked in the cluster ([#770](https://github.com/madfam-org/janua/pull/770)–[#773](https://github.com/madfam-org/janua/pull/773)), and a test keeps it from coming back.
 - **Browser-based auth audit** (2026-03-05): Comprehensive Playwright-driven audit of 12 surfaces across 8 domains — found 2 critical (tokens in URL on Enclii callback, missing headers on Tezca/Forgesight), 4 high (broken auth flows on Dhanam/Forgesight, logout 500, Enclii shell leak), 5 medium severity issues. Full report: `docs/internal/browser-audit-report.md`
 - **CSP Swagger UI fix**: Added `cdn.jsdelivr.net` to `script-src` and `style-src` in security headers middleware so `/docs` endpoint renders correctly
 - **CSP dynamic host**: Security headers middleware now accepts `api_host` parameter for environment-aware `connect-src` directives instead of hardcoded values
