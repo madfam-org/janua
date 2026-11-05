@@ -20,9 +20,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python dependencies to /install
+# Copy and install Python dependencies to /install, exactly as locked
+# (requirements.txt is the hashed lock compiled from requirements.in)
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN pip install --no-cache-dir --prefix=/install --require-hashes -r requirements.txt
 
 # ============================================
 # STAGE 2: Runner (minimal runtime)

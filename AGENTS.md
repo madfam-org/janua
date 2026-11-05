@@ -756,7 +756,7 @@ variable `AUTO_PROMOTE_ENABLED=true`.
 | `docker-publish.yml` | push to main (apps/packages/Dockerfile paths) | Builds images, commits digests to `k8s/overlays/staging/`, ArgoCD syncs staging (after ops bootstrap) |
 | `promote-to-prod.yml` | workflow_dispatch (manual) | Promotes soaked staging digest(s) → `k8s/overlays/production/` |
 | `sync-prod-gitops.yml` | workflow_dispatch (break-glass, `main` only) | ARC apply of `main`'s production overlay + GHCR refresh when cluster lags git |
-| `rollback-prod.yml` | workflow_dispatch (incident) | Rolls back prod digest from git history or explicit input |
+| `rollback-prod.yml` | workflow_dispatch (incident) | Rolls back prod digest from git history or explicit input; an explicit digest must be one production already ran (main's prod-overlay history) |
 
 **Docs image path-filter trap.** `docker-publish.yml` rebuilds a service only
 when its `dorny/paths-filter` entry matches. The `docs` entry is `apps/docs/**`
@@ -1182,8 +1182,11 @@ pg_restore --list janua_backup_*.sql | head
   everyone else gets the unknown-id 404. Read-only audit:
   `apps/api/scripts/audit_data_subject_request_access.py`. Runbook:
   [`docs/runbooks/data-subject-request-access-audit.md`](docs/runbooks/data-subject-request-access-audit.md).
-- **Dependency pins**: `sqlalchemy>=2.0.36,<2.1` in `apps/api/requirements.txt`
-  (2.1 makes psycopg v3 the default driver; janua ships psycopg2). GitHub-hosted
+- **Dependency pins**: `sqlalchemy>=2.0.36,<2.1` in `apps/api/requirements.in`
+  (2.1 makes psycopg v3 the default driver; janua ships psycopg2).
+  `apps/api/requirements.txt` is the hashed lock compiled from it with
+  `uv pip compile`; images and CI install it with `--require-hashes`. Bump
+  steps are in the `requirements.in` header. GitHub-hosted
   jobs run on `ubuntu-24.04` (#675), not `ubuntu-latest`.
 - **Website**: [janua.dev](https://janua.dev)
 - **GitHub**: [madfam-org/janua](https://github.com/madfam-org/janua)

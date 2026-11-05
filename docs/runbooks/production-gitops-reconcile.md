@@ -164,6 +164,30 @@ Does **not** disable cluster-wide verification — only Janua workload names in
 **Long-term:** Public GHCR packages or Kyverno registry credentials aligned with
 `madfam-bot` `read:packages` across all janua images.
 
+**Removing the exception (owner decision).** While the exception is in place the
+cluster does not check that a Janua image was built and signed by CI. Deleting the
+file without the prerequisites below breaks every Argo sync of `janua-services`,
+so remove it only when all of these hold:
+
+1. **Kyverno can read the images.** The policy reads registry credentials from a
+   `ghcr-credentials` secret in Kyverno's own namespace. Either that secret holds
+   a token with `read:packages` for `madfam-org/janua-*`, or the packages are
+   public and Kyverno reads them anonymously (no stale token in that secret).
+   Which of these is true can only be confirmed in the cluster; nothing in Git
+   declares that secret.
+2. **Every image it would admit is signed.** That means each digest production
+   runs, and each digest a rollback could restore, needs a keyless cosign
+   signature from GitHub Actions.
+3. **Staged removal.** Drop one workload name from the exception first (lowest
+   blast radius: `janua-website*`), sync, and confirm admission. Then do the rest.
+
+Status 2026-11-04, read from the public registry (not from the cluster):
+- All five packages answer anonymous manifest reads.
+- The five digests production runs verify with `cosign verify` against the GitHub Actions issuer, signed by `docker-publish.yml` on `main`.
+- 104 of the 105 digests in the production overlay's history on `main` are still pullable, each with a signature. One old api digest is gone from GHCR.
+
+Item 1 is the open question.
+
 ### 3. Stale `janua/ghcr-credentials`
 
 **Symptoms:** New pod `ImagePullBackOff` / `ErrImagePull` with

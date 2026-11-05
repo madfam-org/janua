@@ -22,7 +22,7 @@ from unittest.mock import patch
 
 import pytest
 from fastapi import APIRouter, FastAPI, HTTPException
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from prometheus_client import REGISTRY, CollectorRegistry, Counter
 
 from app.monitoring.metrics import UNMATCHED_ROUTE, method_label, route_label
@@ -101,7 +101,9 @@ def test_public_app_registers_no_prometheus_route():
 async def test_public_style_metrics_request_is_404(path, headers):
     from app.main import app
 
-    async with AsyncClient(app=app, base_url="http://api.janua.dev") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://api.janua.dev"
+    ) as client:
         resp = await client.get(path, headers=headers, follow_redirects=False)
 
     assert resp.status_code == 404
@@ -119,7 +121,9 @@ async def test_listener_serves_real_counters_after_one_request(listener):
     user_id = str(uuid.uuid4())
     root_before = _requests_total("GET", "/", "200")
 
-    async with AsyncClient(app=app, base_url="http://testserver") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
         assert (await client.get("/")).status_code == 200
         param_resp = await client.get(f"/api/v1/users/{user_id}")
 
@@ -359,7 +363,9 @@ async def test_performance_middleware_records_templates_and_unhandled_500():
     teapot_before = _requests_total("GET", "/lane-l/v1/teapot", "418")
     unmatched_before = _requests_total("GET", UNMATCHED_ROUTE, "404")
 
-    async with AsyncClient(app=mini, base_url="http://testserver") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=mini), base_url="http://testserver"
+    ) as client:
         assert (await client.get("/lane-l/v1/items/one")).status_code == 200
         assert (await client.get("/lane-l/v1/items/two")).status_code == 200
         assert (await client.get("/lane-l/v1/teapot")).status_code == 418
