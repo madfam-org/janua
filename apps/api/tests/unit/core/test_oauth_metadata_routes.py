@@ -4,38 +4,20 @@
 listed `registration_endpoint: …/api/v1/oauth/register` until 2026-11, but
 Janua never had an RFC 7591 route there: it answered 404. An MCP client that
 tries dynamic registration before CIMD (the Claude desktop app signing in to
-the MAP's MCP server) failed before sign-in started. These tests read the app's
-real route table, so the next endpoint that is advertised but not served (or
-served under another method) fails here instead of in a client.
+the MAP's MCP server) failed before sign-in started. These tests ask the app's
+router how it would dispatch each advertised URL, so the next endpoint that is
+advertised but not served (or served under another method) fails here instead
+of in a client.
 """
 
 from __future__ import annotations
 
-import json
-import os
-import subprocess
-import sys
-from pathlib import Path
-
 import pytest
+from starlette.routing import Match
 
 from app.core.oauth_metadata import authorization_server_metadata
 
 ISSUER = "https://auth.madfam.io"
-
-API_ROOT = Path(__file__).resolve().parents[3]
-
-_ROUTE_TABLE_SCRIPT = """
-import json
-from app.main import app
-table = {}
-for route in app.routes:
-    methods = getattr(route, "methods", None)
-    path = getattr(route, "path", None)
-    if methods and path:
-        table.setdefault(path, set()).update(methods)
-print("ROUTE_TABLE=" + json.dumps({path: sorted(m) for path, m in table.items()}))
-"""
 
 #: The HTTP method a client uses at each endpoint the metadata may name.
 #: A new `*_endpoint` / `*_uri` key must be added here (the test below fails
@@ -60,32 +42,38 @@ WELL_KNOWN_METADATA_PATHS = (
 
 
 @pytest.fixture(scope="module")
-def served() -> dict[str, set[str]]:
-    """Path -> HTTP methods, from a fresh `import app.main` in a child process.
+def janua_app():
+    from app.main import app
 
-    Not this process's `app.main.app`: in the full unit suite under
-    pytest-xdist, an earlier test leaves that object without the OAuth
-    provider routes (seen in CI on 2026-11-05), which would fail this check
-    for reasons unrelated to the metadata. A fresh interpreter builds the
-    route table the way the server does. It inherits this process's
-    environment (pytest.ini's `env`).
+    return app
+
+
+def route_match(app, method: str, path: str) -> Match:
+    """How the app's router would dispatch `method path`, without running it.
+
+    FULL: a route answers it. PARTIAL: the path exists, not for this method
+    (405). NONE: 404. This goes through Starlette's `BaseRoute.matches`, the
+    call the router itself dispatches with, rather than reading `app.routes`
+    as a flat list: since FastAPI 0.15x, `include_router` keeps a router's
+    routes inside one included-router entry (CI installs 0.162), so a flat
+    read finds only the routes declared directly on `app`.
     """
-    result = subprocess.run(
-        [sys.executable, "-c", _ROUTE_TABLE_SCRIPT],
-        cwd=API_ROOT,
-        env=os.environ.copy(),
-        capture_output=True,
-        text=True,
-        timeout=180,
-    )
-    assert result.returncode == 0, result.stderr[-2000:]
-    line = next(
-        line for line in reversed(result.stdout.splitlines()) if line.startswith("ROUTE_TABLE=")
-    )
-    table = {path: set(methods) for path, methods in json.loads(line.split("=", 1)[1]).items()}
-    # Guard against a vacuous table: the well-known documents are always served.
-    assert set(WELL_KNOWN_METADATA_PATHS) <= set(table)
-    return table
+    scope = {
+        "type": "http",
+        "method": method,
+        "path": path,
+        "root_path": "",
+        "query_string": b"",
+        "headers": [],
+    }
+    result = Match.NONE
+    for route in app.router.routes:
+        match, _ = route.matches(scope)
+        if match == Match.FULL:
+            return Match.FULL
+        if match == Match.PARTIAL:
+            result = Match.PARTIAL
+    return result
 
 
 @pytest.fixture
@@ -96,6 +84,16 @@ def doc(monkeypatch) -> dict:
 
 def _endpoint_keys(doc: dict) -> list[str]:
     return [key for key in doc if key.endswith("_endpoint") or key.endswith("_uri")]
+
+
+def test_the_matcher_sees_included_routers_and_unknown_paths(janua_app):
+    """Guard against a vacuous check in either direction."""
+    # Declared on `app` itself.
+    assert route_match(janua_app, "GET", "/.well-known/openid-configuration") == Match.FULL
+    # Declared on an included router (oauth_provider, prefix /api/v1).
+    assert route_match(janua_app, "POST", "/api/v1/oauth/token") == Match.FULL
+    assert route_match(janua_app, "GET", "/api/v1/oauth/token") == Match.PARTIAL
+    assert route_match(janua_app, "GET", "/no-such-route-for-the-metadata-test") == Match.NONE
 
 
 def test_every_endpoint_key_has_a_known_method(doc):
@@ -114,24 +112,26 @@ def test_every_endpoint_is_on_the_issuer(doc):
     assert not off_issuer, f"endpoints not served by this issuer: {off_issuer}"
 
 
-def test_every_advertised_url_is_a_served_route(doc, served):
-    """Every URL on the issuer, under any key, is a path in the route table."""
+def test_every_advertised_url_is_a_served_route(doc, janua_app):
+    """Every URL on the issuer, under any key, routes somewhere (no 404)."""
     missing = {}
     for key, value in doc.items():
         if isinstance(value, str) and value.startswith(ISSUER + "/"):
             path = value[len(ISSUER) :]
-            if path not in served:
+            method = ENDPOINT_METHODS.get(key, "GET")
+            if route_match(janua_app, method, path) == Match.NONE:
                 missing[key] = path
     assert not missing, f"advertised but not served (404): {missing}"
 
 
-def test_every_endpoint_answers_the_method_clients_use(doc, served):
+def test_every_endpoint_answers_the_method_clients_use(doc, janua_app):
     wrong = {}
     for key in _endpoint_keys(doc):
         path = doc[key][len(ISSUER) :]
         method = ENDPOINT_METHODS[key]
-        if method not in served.get(path, set()):
-            wrong[key] = (method, path, sorted(served.get(path, set())))
+        match = route_match(janua_app, method, path)
+        if match != Match.FULL:
+            wrong[key] = (method, path, match.name)
     assert not wrong, f"advertised endpoints that refuse the client's method: {wrong}"
 
 
@@ -149,8 +149,8 @@ def test_no_registration_endpoint(doc):
 
 
 @pytest.mark.parametrize("path", WELL_KNOWN_METADATA_PATHS)
-def test_both_well_known_paths_are_served_with_get(path, served):
-    assert "GET" in served[path]
+def test_both_well_known_paths_are_served_with_get(path, janua_app):
+    assert route_match(janua_app, "GET", path) == Match.FULL
 
 
 def test_both_well_known_handlers_return_the_same_document(doc):
