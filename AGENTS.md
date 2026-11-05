@@ -756,7 +756,7 @@ variable `AUTO_PROMOTE_ENABLED=true`.
 | `docker-publish.yml` | push to main (apps/packages/Dockerfile paths) | Builds images, commits digests to `k8s/overlays/staging/`, ArgoCD syncs staging (after ops bootstrap) |
 | `promote-to-prod.yml` | workflow_dispatch (manual) | Promotes soaked staging digest(s) → `k8s/overlays/production/` |
 | `sync-prod-gitops.yml` | workflow_dispatch (break-glass) | ARC apply + GHCR refresh when cluster lags git |
-| `rollback-prod.yml` | workflow_dispatch (incident) | Rolls back prod digest from git history or explicit input |
+| `rollback-prod.yml` | workflow_dispatch (incident) | Rolls back prod digest from git history or explicit input; an explicit digest must be one production already ran (main's prod-overlay history) |
 
 **Docs image path-filter trap.** `docker-publish.yml` rebuilds a service only
 when its `dorny/paths-filter` entry matches. The `docs` entry is `apps/docs/**`
