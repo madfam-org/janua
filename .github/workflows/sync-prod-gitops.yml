@@ -4,6 +4,14 @@ name: Sync prod GitOps overlay
 # applied a digest-only promote (Pattern B manual gate). Prefer:
 #   enclii ops apps sync janua-services -n argocd --apply --reason "..."
 # from an operator workstation when possible.
+#
+# This workflow applies to the cluster exactly what main's production overlay
+# already says -- the same thing Argo CD reconciles. It is not a way to change
+# what production runs: images reach that overlay only through
+# promote-to-prod.yml (with its guards and the isolated-staging hold) or
+# rollback-prod.yml. So it refuses any dispatch ref but main, checks out
+# main's tip, and validates its free-text input before anything touches the
+# cluster.
 
 on:
   workflow_dispatch:
@@ -31,8 +39,33 @@ jobs:
     name: Apply production overlay
     runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
     if: github.event.inputs.confirm == 'sync-now'
+    env:
+      # Free text: read only through this variable, never inlined into a
+      # script, and validated by the first step.
+      COMPONENT: ${{ inputs.component }}
     steps:
+      - name: Refuse anything but main and a known deployment
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::sync-prod-gitops runs only from main (dispatched from $REF). It applies main's production overlay; a change to what production runs lands on main first, through promote-to-prod.yml or rollback-prod.yml." >&2
+            exit 1
+          fi
+          case "${COMPONENT:-janua-website}" in
+            janua-api|janua-admin|janua-dashboard|janua-docs|janua-website) ;;
+            *)
+              echo "::error::component must be one of janua-api, janua-admin, janua-dashboard, janua-docs, janua-website (or blank for janua-website)." >&2
+              exit 1
+              ;;
+          esac
+
+      # main's tip at run time, not the dispatch-time snapshot: the overlay
+      # applied here is always the one Argo CD would reconcile now.
       - uses: actions/checkout@v7
+        with:
+          ref: refs/heads/main
 
       - uses: azure/setup-kubectl@v5
         with:
@@ -116,12 +149,8 @@ jobs:
       - name: Wait for rollout
         if: steps.connectivity.outputs.connected == 'true'
         run: |
-          TARGET="${{ inputs.component }}"
-          if [[ -n "$TARGET" ]]; then
-            kubectl rollout status "deployment/$TARGET" -n "$NAMESPACE" --timeout=300s
-          else
-            kubectl rollout status deployment/janua-website -n "$NAMESPACE" --timeout=300s
-          fi
+          # COMPONENT was validated by the first step.
+          kubectl rollout status "deployment/${COMPONENT:-janua-website}" -n "$NAMESPACE" --timeout=300s
 
       - name: Smoke janua-website (in-cluster)
         if: steps.connectivity.outputs.connected == 'true'

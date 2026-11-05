@@ -71,6 +71,12 @@ patched in git, GHCR pull failure):
 
 The workflow (`.github/workflows/sync-prod-gitops.yml`):
 
+- Refuses any dispatch ref but `main`, and any `component` other than
+  `janua-api`, `janua-admin`, `janua-dashboard`, `janua-docs` or `janua-website`,
+  before it touches the cluster
+- Checks out `main`'s tip, so it applies exactly what Argo CD would reconcile.
+  It cannot change what production runs; that goes through `promote-to-prod.yml`
+  or `rollback-prod.yml` first
 - Runs on **`madfam-runners-blue`** when `ARC_BOOTSTRAP_COMPLETE=true`
 - Repoints `KUBECONFIG_PRODUCTION` to the **in-cluster API** on ARC
   (`KUBERNETES_SERVICE_HOST`) — external kube-apiserver URLs in the secret are
@@ -83,6 +89,42 @@ The workflow (`.github/workflows/sync-prod-gitops.yml`):
 **Limitation:** Copying GHCR credentials from `dhanam` may not grant access to
 all `madfam-org/janua-*` packages. Prefer the Enclii rotate workflow below when
 pulls fail with `403 Forbidden`.
+
+**Retired 2026-11:** `force-fix-deployment.yml` and `unified-recovery.yml`, both
+from the January 2026 Switchyard incidents, are gone. They replaced `janua-api`
+with an image tag that was never promoted, outside GitOps, and scaled Enclii's
+`switchyard-api`. Use this workflow or Enclii ops sync instead.
+
+### Production kubeconfig secret (owner decision)
+
+Only three workflows may hold `KUBECONFIG_PRODUCTION`: this one,
+`drift-check.yml` and `diagnose-cluster.yml`. The last two only read.
+`apps/api/tests/unit/core/test_cluster_credential_workflows.py` enforces that.
+
+It is still a **repository** secret, though. GitHub gives repository secrets to a
+run on any branch, and that run uses the branch's copy of the workflow. So the
+`main`-only check above stops a mistaken dispatch, not someone with write access
+who edits the workflow on a branch. Closing that needs repository settings, in
+this order so that nothing breaks in between:
+
+1. Create an environment with deployment branches limited to `main`. A suggested
+   name is `production-cluster`; the existing `Production` environment is a
+   leftover from the Plinto era. Add `KUBECONFIG_PRODUCTION` to it, and keep the
+   repository copy for now.
+2. Merge a change adding `environment: production-cluster` to the three jobs
+   that read the secret:
+   - `sync` in `sync-prod-gitops.yml`;
+   - `check-drift` in `drift-check.yml`;
+   - `diagnose` in `diagnose-cluster.yml`.
+
+   All three already run only from `main`, by dispatch or schedule.
+3. Delete the repository-level `KUBECONFIG_PRODUCTION`.
+4. Optional: required reviewers on the environment make a break-glass apply
+   wait for a second person.
+
+Also worth confirming in the cluster: the ARC runner pods' own service account
+should have no write access to the `janua` namespace. Otherwise a workflow on
+ARC would not need this secret at all.
 
 ---
 
@@ -161,7 +203,7 @@ unavailable; use `enclii ops apps sync` from an authenticated operator session.
 | `k8s/overlays/production/kustomization.yaml` | Prod digest pins (promote-only) |
 | `k8s/overlays/production/kyverno-policy-exception.yaml` | GitOps rollout unblock for cosign gate |
 | `.github/workflows/promote-to-prod.yml` | Manual promote (Pattern B) |
-| `.github/workflows/sync-prod-gitops.yml` | Break-glass apply + GHCR refresh |
+| `.github/workflows/sync-prod-gitops.yml` | Break-glass apply of `main`'s overlay + GHCR refresh |
 | `.github/workflows/docker-publish.yml` | Build/sign → staging digests only |
 | `infra/argocd/config.json` | Argo app metadata (`janua-services`) |
 | `enclii/.github/workflows/rotate-ghcr-namespace.yml` | Namespace GHCR secret refresh |
