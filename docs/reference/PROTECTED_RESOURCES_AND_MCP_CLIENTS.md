@@ -278,11 +278,12 @@ resource verifies them offline against the JWKS.
   usual. Prefer the CIMD path: Janua's CORS layer trusts the origin of every
   registered redirect URI, with credentials, so a registered loopback client
   also opens the API to that local origin.
-- **Dynamic Client Registration**: Janua has no RFC 7591 endpoint. Discovery
-  has long advertised `registration_endpoint`
-  (`/api/v1/oauth/register`), which answers 404; Claude does not use it
-  because CIMD is advertised. Whether to implement it or stop advertising it
-  is an open owner decision (AGENTS.md backlog).
+- **Dynamic Client Registration**: Janua has no RFC 7591 endpoint, and
+  discovery does not advertise a `registration_endpoint`. Until 2026-11 it
+  listed `/api/v1/oauth/register`, which answered 404, so an MCP client that
+  tried registration before CIMD failed before sign-in started. Use CIMD or a
+  registered client. A unit test fails if the discovery document names a URL
+  the app does not serve.
 
 ## Consent
 

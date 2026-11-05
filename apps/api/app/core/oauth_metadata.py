@@ -68,7 +68,12 @@ def authorization_server_metadata() -> dict[str, Any]:
         "introspection_endpoint": f"{base_url}/api/v1/oauth/introspect",
         "revocation_endpoint": f"{base_url}/api/v1/oauth/revoke",
         "end_session_endpoint": f"{base_url}/logout",
-        "registration_endpoint": f"{base_url}/api/v1/oauth/register",
+        # No `registration_endpoint`: Janua has no RFC 7591 dynamic client
+        # registration. `/api/v1/oauth/register` was listed until 2026-11 and
+        # answered 404, so an MCP client that tries registration before CIMD
+        # failed before sign-in started. Clients use CIMD (flag below) or a
+        # client registered through the admin API. Every URL here must be a
+        # route the app serves (tests/unit/core/test_oauth_metadata_routes.py).
         # The authorization endpoint has only ever answered response_type=code
         # in the query (anything else is a 400); the implicit and hybrid types
         # and the fragment / form_post modes listed until 2026-10 were never

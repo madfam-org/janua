@@ -124,7 +124,6 @@ def probe(fetch=fetch_json):
         "introspection_endpoint": STAGE + "/api/v1/oauth/introspect",
         "revocation_endpoint": STAGE + "/api/v1/oauth/revoke",
         "end_session_endpoint": STAGE + "/logout",
-        "registration_endpoint": STAGE + "/api/v1/oauth/register",
     }
     if any(discovery.get(name) != value for name, value in expected.items()):
         raise ProbeRefused("staging_issuer")
