@@ -1,0 +1,198 @@
+# One-off: build, verify and sign the janua#762 hotfix image.
+# See deployment/hotfix/janua-api-762/README.md.
+#
+# It builds ONE image (the image production runs, plus one file) and writes
+# nothing to staging, production or this repository. Pinning the result in
+# production is a separate reviewed PR. Delete this workflow and that folder
+# once a normal promotion replaces the hotfix in production.
+
+name: Hotfix image (janua#762)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why build it now (shown in the run summary; required)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write # cosign keyless signing via OIDC
+
+concurrency:
+  group: hotfix-janua-api-762
+  cancel-in-progress: false
+
+env:
+  # The digest production runs (k8s/overlays/production/kustomization.yaml on
+  # 2026-11-05) and the commit it was built from (the parent of staging-pin
+  # commit 8dc70295, promoted on 2026-11-03).
+  BASE_IMAGE: ghcr.io/madfam-org/janua-api@sha256:7c9076615ad8345c88b8093e660a4484dd3ff6f0b9d43b11c28a9d85c5884676
+  BASE_SOURCE: b16869d75bf8e91967b3f8443032f01bc2463417
+  DOCKERFILE: deployment/hotfix/janua-api-762/Dockerfile
+  PATCHED_FILE: apps/api/app/core/oauth_metadata.py
+  TARGET: ghcr.io/madfam-org/janua-api
+
+jobs:
+  build:
+    name: Build, verify and sign
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    steps:
+      - name: Refuse anything but main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Build the hotfix from main only, where the Dockerfile was reviewed."
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # BASE_SOURCE must be reachable
+
+      - name: Dockerfile pins the base this workflow verifies
+        run: |
+          set -euo pipefail
+          grep -qxF "FROM ${BASE_IMAGE}" "$DOCKERFILE" || {
+            echo "::error::$DOCKERFILE does not start FROM ${BASE_IMAGE}."
+            exit 1
+          }
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+
+      # Proves the base is what we think production runs: its application
+      # code is exactly apps/api/app at BASE_SOURCE.
+      - name: Base image is BASE_SOURCE
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hotfix/src /tmp/hotfix/base
+          docker pull --quiet "$BASE_IMAGE"
+          cid=$(docker create "$BASE_IMAGE")
+          docker cp "$cid:/app/app" /tmp/hotfix/base/app
+          docker rm "$cid" >/dev/null
+          git archive "$BASE_SOURCE" apps/api/app | tar -x -C /tmp/hotfix/src
+          diff -r -x __pycache__ /tmp/hotfix/src/apps/api/app /tmp/hotfix/base/app
+          echo "Base image application code matches $BASE_SOURCE."
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: ${{ env.TARGET }}:hotfix-762-${{ github.sha }}
+          provenance: false
+          sbom: false
+
+      # Proves the delta: one added layer, one changed file (byte-identical to
+      # the reviewed source), and a discovery document that differs from the
+      # base only by the missing registration_endpoint.
+      - name: Hotfix differs from the base by one file
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          new="${TARGET}@${DIGEST}"
+          docker pull --quiet "$new"
+          base_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$BASE_IMAGE")
+          new_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$new")
+          if [[ "$new_layers" -ne $((base_layers + 1)) ]]; then
+            echo "::error::Expected exactly one added layer ($base_layers -> $new_layers)."
+            exit 1
+          fi
+          mkdir -p /tmp/hotfix/new
+          cid=$(docker create "$new")
+          docker cp "$cid:/app/app" /tmp/hotfix/new/app
+          docker rm "$cid" >/dev/null
+          changed=$(diff -rq -x __pycache__ /tmp/hotfix/base/app /tmp/hotfix/new/app || true)
+          expected="Files /tmp/hotfix/base/app/core/oauth_metadata.py and /tmp/hotfix/new/app/core/oauth_metadata.py differ"
+          if [[ "$changed" != "$expected" ]]; then
+            echo "::error::Unexpected application-code delta:"
+            echo "$changed"
+            exit 1
+          fi
+          cmp /tmp/hotfix/new/app/core/oauth_metadata.py "$PATCHED_FILE"
+          echo "Only core/oauth_metadata.py changed, and it is the reviewed file."
+
+      - name: Discovery document loses registration_endpoint and nothing else
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          dump() {
+            docker run --rm --entrypoint python \
+              -e ENVIRONMENT=test \
+              -e DATABASE_URL='sqlite+aiosqlite:///:memory:' \
+              -e REDIS_URL='redis://localhost:6379/0' \
+              -e SECRET_KEY=hotfix-verification-only \
+              -e JWT_SECRET_KEY=hotfix-verification-only \
+              -e CORS_ORIGINS=http://localhost:3000 \
+              -e JANUA_CUSTOM_DOMAIN=auth.madfam.io \
+              "$1" -c 'import json; from app.core.oauth_metadata import authorization_server_metadata as m; print("METADATA=" + json.dumps(m(), sort_keys=True))' \
+              | grep '^METADATA=' | tail -1 | cut -d= -f2-
+          }
+          dump "$BASE_IMAGE" > /tmp/hotfix/base.json
+          dump "${TARGET}@${DIGEST}" > /tmp/hotfix/new.json
+          python3 - <<'PY'
+          import json
+
+          base = json.load(open("/tmp/hotfix/base.json"))
+          new = json.load(open("/tmp/hotfix/new.json"))
+          assert "registration_endpoint" in base, "the base no longer advertises it"
+          assert "registration_endpoint" not in new, "the hotfix still advertises it"
+          base.pop("registration_endpoint")
+          diff = sorted(k for k in set(base) | set(new) if base.get(k) != new.get(k))
+          assert not diff, f"other keys changed: {diff}"
+          print("Discovery: only registration_endpoint removed.")
+          PY
+
+      # Same retry as docker-publish.yml: a lost signature once cost a deploy.
+      - name: Sign image with cosign
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IMAGE_REF="${TARGET}@${DIGEST}"
+          for attempt in 1 2 3; do
+            if cosign sign --yes "${IMAGE_REF}"; then
+              echo "Signed ${IMAGE_REF}"
+              exit 0
+            fi
+            wait=$((attempt * 15))
+            echo "::warning::cosign sign failed for ${IMAGE_REF}; retrying in ${wait}s..."
+            sleep "$wait"
+          done
+          echo "::error::cosign sign failed 3 times for ${IMAGE_REF}."
+          exit 1
+
+      - name: Summary
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          {
+            echo "## janua#762 hotfix image"
+            echo ""
+            echo "- Digest: \`${DIGEST}\`"
+            echo "- Tag: \`${TARGET}:hotfix-762-${GITHUB_SHA}\`"
+            echo "- Base: \`${BASE_IMAGE}\` (source \`${BASE_SOURCE}\`)"
+            echo "- Delta: \`app/core/oauth_metadata.py\` only; discovery loses \`registration_endpoint\`"
+            echo "- Reason: ${REASON}"
+            echo ""
+            echo "Nothing was pinned. Production changes only through the reviewed PR that sets this digest as the production janua-api pin."
+          } >> "$GITHUB_STEP_SUMMARY"
