@@ -4,18 +4,38 @@
 listed `registration_endpoint: …/api/v1/oauth/register` until 2026-11, but
 Janua never had an RFC 7591 route there: it answered 404. An MCP client that
 tries dynamic registration before CIMD (the Claude desktop app signing in to
-the MAP's MCP server) failed before sign-in started. These tests read the live
-route table, so the next endpoint that is advertised but not served (or served
-under another method) fails here instead of in a client.
+the MAP's MCP server) failed before sign-in started. These tests read the app's
+real route table, so the next endpoint that is advertised but not served (or
+served under another method) fails here instead of in a client.
 """
 
 from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
 from app.core.oauth_metadata import authorization_server_metadata
 
 ISSUER = "https://auth.madfam.io"
+
+API_ROOT = Path(__file__).resolve().parents[3]
+
+_ROUTE_TABLE_SCRIPT = """
+import json
+from app.main import app
+table = {}
+for route in app.routes:
+    methods = getattr(route, "methods", None)
+    path = getattr(route, "path", None)
+    if methods and path:
+        table.setdefault(path, set()).update(methods)
+print("ROUTE_TABLE=" + json.dumps({path: sorted(m) for path, m in table.items()}))
+"""
 
 #: The HTTP method a client uses at each endpoint the metadata may name.
 #: A new `*_endpoint` / `*_uri` key must be added here (the test below fails
@@ -41,16 +61,31 @@ WELL_KNOWN_METADATA_PATHS = (
 
 @pytest.fixture(scope="module")
 def served() -> dict[str, set[str]]:
-    """Path -> HTTP methods, from the app's real route table."""
-    from app.main import app
+    """Path -> HTTP methods, from a fresh `import app.main` in a child process.
 
-    routes: dict[str, set[str]] = {}
-    for route in app.routes:
-        methods = getattr(route, "methods", None)
-        path = getattr(route, "path", None)
-        if methods and path:
-            routes.setdefault(path, set()).update(methods)
-    return routes
+    Not this process's `app.main.app`: in the full unit suite under
+    pytest-xdist, an earlier test leaves that object without the OAuth
+    provider routes (seen in CI on 2026-11-05), which would fail this check
+    for reasons unrelated to the metadata. A fresh interpreter builds the
+    route table the way the server does. It inherits this process's
+    environment (pytest.ini's `env`).
+    """
+    result = subprocess.run(
+        [sys.executable, "-c", _ROUTE_TABLE_SCRIPT],
+        cwd=API_ROOT,
+        env=os.environ.copy(),
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+    line = next(
+        line for line in reversed(result.stdout.splitlines()) if line.startswith("ROUTE_TABLE=")
+    )
+    table = {path: set(methods) for path, methods in json.loads(line.split("=", 1)[1]).items()}
+    # Guard against a vacuous table: the well-known documents are always served.
+    assert set(WELL_KNOWN_METADATA_PATHS) <= set(table)
+    return table
 
 
 @pytest.fixture
@@ -114,9 +149,12 @@ def test_no_registration_endpoint(doc):
 
 
 @pytest.mark.parametrize("path", WELL_KNOWN_METADATA_PATHS)
-def test_both_well_known_paths_serve_the_same_document(path, doc, served):
-    from app.main import app
-
+def test_both_well_known_paths_are_served_with_get(path, served):
     assert "GET" in served[path]
-    (endpoint,) = [r.endpoint for r in app.routes if getattr(r, "path", None) == path]
-    assert endpoint() == doc
+
+
+def test_both_well_known_handlers_return_the_same_document(doc):
+    from app.main import oauth_authorization_server, openid_configuration
+
+    assert openid_configuration() == doc
+    assert oauth_authorization_server() == doc
