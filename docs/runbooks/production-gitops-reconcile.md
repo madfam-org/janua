@@ -215,8 +215,8 @@ Items 1 and 2 hold, so removal is under way, one name at a time:
 | Stage | Workload name dropped | Status |
 | --- | --- | --- |
 | 1 | `janua-website*` | done 2026-11-05 (#770), check OK |
-| 2 | `janua-docs*` | this change |
-| 3 | `janua-dashboard*`, `janua-admin*` | after stage 2 |
+| 2 | `janua-docs*` | done 2026-11-05 (#771), check OK |
+| 3 | `janua-dashboard*`, `janua-admin*` | this change |
 | 4 | `janua-api*`, then delete the file | last: highest blast radius |
 
 **Check after each stage syncs.** Replace `janua-website` with the stage's

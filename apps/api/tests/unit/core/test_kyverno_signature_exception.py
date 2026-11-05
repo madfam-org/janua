@@ -15,8 +15,8 @@ OVERLAY = ROOT / "k8s/overlays/production"
 EXCEPTION = OVERLAY / "kyverno-policy-exception.yaml"
 
 # Workloads still exempt. Remove names as stages land; never add one back.
-STILL_EXEMPT = {"janua-api*", "janua-admin*", "janua-dashboard*"}
-VERIFIED = {"janua-website*", "janua-docs*"}
+STILL_EXEMPT = {"janua-api*"}
+VERIFIED = {"janua-website*", "janua-docs*", "janua-dashboard*", "janua-admin*"}
 
 
 def exception():
