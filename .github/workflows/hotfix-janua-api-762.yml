@@ -134,10 +134,13 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           set -euo pipefail
+          # Importing the app builds the database engine (it never connects
+          # here). The production image has asyncpg but not the test-only
+          # aiosqlite, so the URL must be PostgreSQL; nothing listens on it.
           dump() {
             docker run --rm --entrypoint python \
               -e ENVIRONMENT=test \
-              -e DATABASE_URL='sqlite+aiosqlite:///:memory:' \
+              -e DATABASE_URL='postgresql+asyncpg://verify:verify@127.0.0.1:5432/verify' \
               -e REDIS_URL='redis://localhost:6379/0' \
               -e SECRET_KEY=hotfix-verification-only \
               -e JWT_SECRET_KEY=hotfix-verification-only \
