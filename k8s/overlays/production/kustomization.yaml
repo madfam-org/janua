@@ -13,7 +13,6 @@ namespace: janua
 
 resources:
   - ../../base
-  - kyverno-policy-exception.yaml
   - servicemonitor-janua-api.yaml
 
 # Production image digests — seeded from the former k8s/base/deployments

@@ -174,6 +174,8 @@ private GHCR manifests to verify signatures.
 
 **Mitigation (shipped 2026-06-15):** Scoped PolicyException in
 `k8s/overlays/production/kyverno-policy-exception.yaml` (Dhanam-aligned pattern).
+**Removed 2026-11-05**, in four stages (table below). All five Janua workloads
+are signature-checked again.
 Does **not** disable cluster-wide verification — only Janua workload names in
 `janua` namespace.
 
@@ -216,8 +218,8 @@ Items 1 and 2 hold, so removal is under way, one name at a time:
 | --- | --- | --- |
 | 1 | `janua-website*` | done 2026-11-05 (#770), check OK |
 | 2 | `janua-docs*` | done 2026-11-05 (#771), check OK |
-| 3 | `janua-dashboard*`, `janua-admin*` | this change |
-| 4 | `janua-api*`, then delete the file | last: highest blast radius |
+| 3 | `janua-dashboard*`, `janua-admin*` | done 2026-11-05, check OK |
+| 4 | `janua-api*`, then delete the file | this change |
 
 **Check after each stage syncs.** Replace `janua-website` with the stage's
 workload. The script refuses to answer until Argo has synced the shorter
@@ -276,7 +278,6 @@ unavailable; use `enclii ops apps sync` from an authenticated operator session.
 | Artifact | Purpose |
 |----------|---------|
 | `k8s/overlays/production/kustomization.yaml` | Prod digest pins (promote-only) |
-| `k8s/overlays/production/kyverno-policy-exception.yaml` | GitOps rollout unblock for cosign gate |
 | `.github/workflows/promote-to-prod.yml` | Manual promote (Pattern B) |
 | `.github/workflows/sync-prod-gitops.yml` | Break-glass apply of `main`'s overlay + GHCR refresh |
 | `.github/workflows/docker-publish.yml` | Build/sign → staging digests only |
