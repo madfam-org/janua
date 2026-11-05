@@ -56,8 +56,8 @@ cd apps/api
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (requirements.txt is the hashed lock; edit requirements.in)
+pip install --require-hashes -r requirements.txt
 pip install -r requirements-test.txt  # For development
 
 # Environment configuration
@@ -189,8 +189,9 @@ apps/api/
 │
 ├── alembic/                     # Database migrations
 ├── scripts/                     # Utility scripts
-├── requirements.txt             # Production dependencies
-├── requirements-test.txt        # Testing dependencies
+├── requirements.in              # Production dependencies (edit this)
+├── requirements.txt             # Hashed lock compiled from requirements.in
+├── requirements-test.txt        # Testing dependencies (pinned overlay)
 ├── docker-compose.yml           # Local development
 ├── Dockerfile                   # Container configuration
 └── pytest.ini                  # Test configuration

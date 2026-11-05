@@ -1,4 +1,18 @@
-# Testing Dependencies
+# Testing dependencies: an overlay installed AFTER the lock.
+#
+#   pip install --require-hashes -r requirements.txt
+#   pip install -r requirements-test.txt
+#
+# Every package this second install adds or replaces is pinned with == below,
+# so the CI test environment is as reproducible as the lock. Lines left as
+# floors (pytest, pytest-asyncio, fakeredis, black) are already pinned by
+# requirements.txt, which lists them in requirements.in; the floor only
+# documents the minimum and never changes what the lock installed.
+#
+# Some pins here are older than the lock's versions and REPLACE them for tests
+# (httpx 0.25.0 over 0.28.1, structlog 23.2.0 over 26.1.0, coverage, pytest-cov,
+# plus httpcore/h11 that httpx 0.25 needs). That is how CI already behaved
+# before the lock; this file pins it rather than changing it.
 pytest>=8.3.3
 pytest-asyncio>=0.23.0
 pytest-cov==4.1.0
@@ -19,7 +33,19 @@ pytest-xdist==3.5.0
 pytest-html==4.1.1
 
 # Lint & type tooling (invoked by the API Tests workflow lint/typecheck steps;
-# previously missing, which caused exit-127 "command not found" in CI)
-ruff>=0.8.0
+# previously missing, which caused exit-127 "command not found" in CI).
+# ruff gates changed files in api-tests, so a floating ruff could fail a PR
+# that changed nothing about style.
+ruff==0.17.3
 black>=24.10.0
-mypy>=1.13.0
+mypy==2.4.1
+
+# Packages the pins above pull in that the lock does not already provide
+# (versions CI resolved on 2026-11-05).
+httpcore==0.18.0  # httpx 0.25.0
+h11==0.14.0  # httpcore 0.18.0
+sniffio==1.3.1  # httpx 0.25.0
+execnet==2.1.2  # pytest-xdist
+pytest-metadata==3.1.1  # pytest-html
+librt==0.16.0  # mypy
+ast-serialize==0.13.1  # mypy

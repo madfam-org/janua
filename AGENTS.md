@@ -1182,8 +1182,11 @@ pg_restore --list janua_backup_*.sql | head
   everyone else gets the unknown-id 404. Read-only audit:
   `apps/api/scripts/audit_data_subject_request_access.py`. Runbook:
   [`docs/runbooks/data-subject-request-access-audit.md`](docs/runbooks/data-subject-request-access-audit.md).
-- **Dependency pins**: `sqlalchemy>=2.0.36,<2.1` in `apps/api/requirements.txt`
-  (2.1 makes psycopg v3 the default driver; janua ships psycopg2). GitHub-hosted
+- **Dependency pins**: `sqlalchemy>=2.0.36,<2.1` in `apps/api/requirements.in`
+  (2.1 makes psycopg v3 the default driver; janua ships psycopg2).
+  `apps/api/requirements.txt` is the hashed lock compiled from it with
+  `uv pip compile`; images and CI install it with `--require-hashes`. Bump
+  steps are in the `requirements.in` header. GitHub-hosted
   jobs run on `ubuntu-24.04` (#675), not `ubuntu-latest`.
 - **Website**: [janua.dev](https://janua.dev)
 - **GitHub**: [madfam-org/janua](https://github.com/madfam-org/janua)
