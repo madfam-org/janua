@@ -66,7 +66,7 @@ class TestServicePattern:
 
 ```python
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from unittest.mock import patch, AsyncMock
 
 @pytest.mark.asyncio
@@ -85,7 +85,7 @@ async def test_api_endpoint():
             mock_service.return_value = mock_service_instance
             
             # Test the endpoint
-            async with AsyncClient(app=app, base_url="http://test") as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.post("/api/endpoint", json={"data": "test"})
                 
             assert response.status_code == 200

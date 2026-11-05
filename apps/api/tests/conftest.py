@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 import structlog
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -569,7 +569,9 @@ async def client():
     try:
         from app.main import app
 
-        async with AsyncClient(app=app, base_url="http://testserver") as ac:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://testserver"
+        ) as ac:
             yield ac
     except ImportError:
         # Fallback client for when app is not available
@@ -649,7 +651,7 @@ async def integration_client(integration_db_session):
 
     app.dependency_overrides[get_db] = override_get_db
 
-    async with AsyncClient(app=app, base_url="http://testserver") as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as ac:
         yield ac
 
     # Clean up override
