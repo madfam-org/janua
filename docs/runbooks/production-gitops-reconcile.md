@@ -95,7 +95,7 @@ from the January 2026 Switchyard incidents, are gone. They replaced `janua-api`
 with an image tag that was never promoted, outside GitOps, and scaled Enclii's
 `switchyard-api`. Use this workflow or Enclii ops sync instead.
 
-### Production kubeconfig secret (owner decision)
+### Production kubeconfig secret
 
 Only three workflows may hold `KUBECONFIG_PRODUCTION`: this one,
 `drift-check.yml` and `diagnose-cluster.yml`. The last two only read. The jobs
@@ -106,41 +106,24 @@ that read the secret all declare `environment: production-cluster`:
 
 `apps/api/tests/unit/core/test_cluster_credential_workflows.py` enforces both.
 
-Until the secret moves into that environment, those jobs still read the
-**repository** copy. GitHub gives repository secrets to a run on any branch, and
-that run uses the branch's copy of the workflow. So the `main`-only check above
-stops a mistaken dispatch, not someone with write access. Finishing the move is a
-repository-settings change for the owner:
+**Done 2026-11-05.** The secret lives only in the `production-cluster`
+environment, which only `main` may deploy to, and the repository-level copy is
+deleted. A run on any other branch can't read it. The value is a
+base64-encoded kubeconfig; `sync-prod-gitops` repoints its server to the
+in-cluster API on ARC. In the cluster, the ARC runner
+pods' own service account (`arc-runners:arc-runner`) has no rights in `janua`,
+so this secret is the only credential to protect.
 
-1. Limit the environment to `main`. If a job has already run in it, GitHub has
-   created the environment without rules; this adds them.
+To rotate it, run this as an admin, with the base64-encoded kubeconfig on stdin:
 
-   ```bash
-   gh api -X PUT repos/madfam-org/janua/environments/production-cluster --input - <<'EOF'
-   {"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}
-   EOF
-   gh api -X POST repos/madfam-org/janua/environments/production-cluster/deployment-branch-policies -f name=main -f type=branch
-   ```
+```bash
+gh secret set KUBECONFIG_PRODUCTION --env production-cluster -R madfam-org/janua
+```
 
-2. Store the base64-encoded kubeconfig in the environment. Pass the value on
-   stdin, with
-   `gh secret set KUBECONFIG_PRODUCTION --env production-cluster -R madfam-org/janua`,
-   then confirm it with
-   `gh secret list --env production-cluster -R madfam-org/janua`.
-3. Only then delete the repository copy:
-   `gh secret delete KUBECONFIG_PRODUCTION -R madfam-org/janua`.
-
-Steps 1 and 2 may happen before or after the jobs gain the `environment:` line:
-until step 3, a job falls back to the repository copy.
-
-Do **not** add required reviewers to this environment while `drift-check` runs
-in it on its six-hourly schedule. Every scheduled run would then wait for an
-approval. If you want a second approver on break-glass applies, give `sync` its
-own environment first.
-
-Also worth confirming in the cluster: the ARC runner pods' own service account
-should have no write access to the `janua` namespace. Otherwise a workflow on
-ARC would not need this secret at all.
+Never recreate a repository-level copy. Do **not** add required reviewers to
+this environment while `drift-check` runs in it on its six-hourly schedule:
+every scheduled run would then wait for an approval. If you want a second
+approver on break-glass applies, give `sync` its own environment first.
 
 ---
 
@@ -179,13 +162,17 @@ are signature-checked again.
 Does **not** disable cluster-wide verification — only Janua workload names in
 `janua` namespace.
 
-**Long-term:** Public GHCR packages or Kyverno registry credentials aligned with
-`madfam-bot` `read:packages` across all janua images.
+**Long-term (met 2026-11-05):** The packages are public, and Kyverno reads and
+verifies every Janua image with its own `ghcr-credentials` secret. No exception
+exists any more. An image Kyverno refuses now needs its signature or the
+credential fixed, not a new exception:
+`apps/api/tests/unit/core/test_kyverno_signature_exception.py` fails if any
+manifest under `k8s/` exempts workloads from `verify-image-signatures`.
 
-**Removing the exception (owner decision).** While the exception is in place the
-cluster does not check that a Janua image was built and signed by CI. Deleting the
-file without the prerequisites below breaks every Argo sync of `janua-services`,
-so remove it only when all of these hold:
+**Removing the exception (done 2026-11-05).** While the exception existed, the
+cluster did not check that a Janua image was built and signed by CI. Deleting it
+without the prerequisites below would have broken every Argo sync of
+`janua-services`, so it was removed only once all of these held:
 
 1. **Kyverno can read the images.** The policy reads registry credentials from a
    `ghcr-credentials` secret in Kyverno's own namespace. Either that secret holds
@@ -212,34 +199,34 @@ Status 2026-11-05, read in the cluster (no changes made):
 - A control dry run with a digest that does not exist *was* refused by it, which
   proves the check runs on dry runs.
 
-Items 1 and 2 hold, so removal is under way, one name at a time:
+Items 1 and 2 held, so the exception was removed one name at a time:
 
 | Stage | Workload name dropped | Status |
 | --- | --- | --- |
 | 1 | `janua-website*` | done 2026-11-05 (#770), check OK |
 | 2 | `janua-docs*` | done 2026-11-05 (#771), check OK |
-| 3 | `janua-dashboard*`, `janua-admin*` | done 2026-11-05, check OK |
-| 4 | `janua-api*`, then delete the file | this change |
+| 3 | `janua-dashboard*`, `janua-admin*` | done 2026-11-05 (#772), check OK |
+| 4 | `janua-api*`, then delete the file | done 2026-11-05 (#773); Argo pruned the exception, all five workloads check OK |
 
-**Check after each stage syncs.** Replace `janua-website` with the stage's
-workload. The script refuses to answer until Argo has synced the shorter
-exception.
+**Check a workload's signature admission.** Run this after a Kyverno or
+registry-credential change, or when a rollout is refused. Set `w` to any of
+`janua-api`, `janua-admin`, `janua-dashboard`, `janua-docs` or `janua-website`.
+It is a server-side dry run, so nothing is created.
 
 ```bash
 ssh ssh.madfam.io 'bash -s' <<'EOF'
-w=janua-website
+w=janua-api
 k() { sudo -n kubectl "$@"; }
-names=$(k -n janua get policyexception janua-gitops-rollout-signature -o jsonpath='{.spec.match.any[0].resources.names}')
-case "$names" in *"$w"*) echo "NOT SYNCED: the exception still lists $w; sync janua-services and rerun"; exit 1;; esac
 img=$(k -n janua get deploy "$w" -o jsonpath='{.spec.template.spec.containers[0].image}')
 out=$(k -n janua run "$w-verify" --restart=Never --dry-run=server -o name --image="$img" 2>&1)
-if echo "$out" | grep -q verify-image-signatures; then echo "SIGNATURE-FAIL: revert this stage"; else echo "OK: $w is signature-checked and its image passes"; fi
-echo "$out" | tail -3
+if echo "$out" | grep -q verify-image-signatures; then echo "SIGNATURE-FAIL: $w's image would be refused"; echo "$out" | tail -3; else echo "OK: $w's image passes signature verification"; fi
 EOF
 ```
 
 A bare test pod may also be refused by `drop-all-capabilities`. That is expected
-and does not affect the signature verdict.
+and does not affect the signature verdict. To prove the check is live, run the
+same dry run with the image `ghcr.io/madfam-org/janua-api@sha256:` followed by
+64 zeros. It must be refused by `verify-image-signatures`.
 
 ### 3. Stale `janua/ghcr-credentials`
 
