@@ -144,7 +144,42 @@ Status 2026-11-04, read from the public registry (not from the cluster):
 - The five digests production runs verify with `cosign verify` against the GitHub Actions issuer, signed by `docker-publish.yml` on `main`.
 - 104 of the 105 digests in the production overlay's history on `main` are still pullable, each with a signature. One old api digest is gone from GHCR.
 
-Item 1 is the open question.
+Status 2026-11-05, read in the cluster (no changes made):
+- The `janua` namespace is opted in to signature checks.
+- Kyverno has its own `ghcr-credentials` secret.
+- Server-side dry runs of pods using each of the five running images were never
+  refused by `verify-image-signatures`.
+- A control dry run with a digest that does not exist *was* refused by it, which
+  proves the check runs on dry runs.
+
+Items 1 and 2 hold, so removal is under way, one name at a time:
+
+| Stage | Workload name dropped | Status |
+| --- | --- | --- |
+| 1 | `janua-website*` | this change |
+| 2 | `janua-docs*` | after stage 1 admits cleanly |
+| 3 | `janua-dashboard*`, `janua-admin*` | after stage 2 |
+| 4 | `janua-api*`, then delete the file | last: highest blast radius |
+
+**Check after each stage syncs.** Replace `janua-website` with the stage's
+workload. The script refuses to answer until Argo has synced the shorter
+exception.
+
+```bash
+ssh ssh.madfam.io 'bash -s' <<'EOF'
+w=janua-website
+k() { sudo -n kubectl "$@"; }
+names=$(k -n janua get policyexception janua-gitops-rollout-signature -o jsonpath='{.spec.match.any[0].resources.names}')
+case "$names" in *"$w"*) echo "NOT SYNCED: the exception still lists $w; sync janua-services and rerun"; exit 1;; esac
+img=$(k -n janua get deploy "$w" -o jsonpath='{.spec.template.spec.containers[0].image}')
+out=$(k -n janua run "$w-verify" --restart=Never --dry-run=server -o name --image="$img" 2>&1)
+if echo "$out" | grep -q verify-image-signatures; then echo "SIGNATURE-FAIL: revert this stage"; else echo "OK: $w is signature-checked and its image passes"; fi
+echo "$out" | tail -3
+EOF
+```
+
+A bare test pod may also be refused by `drop-all-capabilities`. That is expected
+and does not affect the signature verdict.
 
 ### 3. Stale `janua/ghcr-credentials`
 

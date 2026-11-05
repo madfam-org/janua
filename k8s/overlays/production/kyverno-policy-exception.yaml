@@ -8,6 +8,11 @@
 # cluster-wide signature verification. Prefer cosign-signed digests from
 # docker-publish; this exception unblocks reconcile until GHCR visibility or
 # Kyverno registry credentials are aligned with madfam-bot read:packages.
+#
+# Being removed in stages (docs/runbooks/production-gitops-reconcile.md, §2).
+# 2026-11-05: Kyverno verified all five running Janua images in a server-side
+# dry run, so janua-website (lowest blast radius) goes first. Drop the next
+# name only after the previous one has synced and admitted cleanly.
 
 apiVersion: kyverno.io/v2beta1
 kind: PolicyException
@@ -42,4 +47,3 @@ spec:
             - janua-admin*
             - janua-dashboard*
             - janua-docs*
-            - janua-website*
