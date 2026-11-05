@@ -18,6 +18,7 @@ import yaml
 ROOT = Path(__file__).parents[5]
 WORKFLOWS = ROOT / ".github/workflows"
 KUBECONFIG = "secrets.KUBECONFIG_PRODUCTION"
+ENVIRONMENT = "production-cluster"
 
 # Every workflow allowed to hold the production kubeconfig. Adding one is a
 # reviewed decision: it must appear here, with what it may do.
@@ -50,6 +51,20 @@ def scripts(workflow):
 def test_only_reviewed_workflows_hold_the_production_kubeconfig():
     holders = {p.name for p in WORKFLOWS.glob("*.y*ml") if KUBECONFIG in p.read_text()}
     assert holders == set(ALLOWED)
+
+
+@pytest.mark.parametrize("name", sorted(ALLOWED))
+def test_every_job_reading_the_kubeconfig_uses_the_main_only_environment(name):
+    # The secret belongs in an environment that only main may deploy to. A job
+    # outside it would read a repository-level copy, available to any branch.
+    jobs = {
+        job_id: job
+        for job_id, job in load(name)["jobs"].items()
+        if KUBECONFIG in yaml.safe_dump(job, width=10_000)
+    }
+    assert jobs, f"{name} no longer reads {KUBECONFIG}; update ALLOWED"
+    for job_id, job in jobs.items():
+        assert job.get("environment") == ENVIRONMENT, f"{name}:{job_id}"
 
 
 @pytest.mark.parametrize("name", sorted(n for n, role in ALLOWED.items() if role == "read-only"))

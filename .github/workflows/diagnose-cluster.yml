@@ -24,6 +24,9 @@ jobs:
   diagnose:
     name: Cluster Diagnostics
     runs-on: ubuntu-24.04
+    # The production kubeconfig lives in this environment, which only main
+    # may use (see docs/runbooks/production-gitops-reconcile.md).
+    environment: production-cluster
     env:
       # Free text: read only through these variables, never inlined into a
       # script, and validated before the job touches the cluster.

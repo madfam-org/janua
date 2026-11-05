@@ -98,29 +98,45 @@ with an image tag that was never promoted, outside GitOps, and scaled Enclii's
 ### Production kubeconfig secret (owner decision)
 
 Only three workflows may hold `KUBECONFIG_PRODUCTION`: this one,
-`drift-check.yml` and `diagnose-cluster.yml`. The last two only read.
-`apps/api/tests/unit/core/test_cluster_credential_workflows.py` enforces that.
+`drift-check.yml` and `diagnose-cluster.yml`. The last two only read. The jobs
+that read the secret all declare `environment: production-cluster`:
+- `sync` in `sync-prod-gitops.yml`;
+- `check-drift` in `drift-check.yml`;
+- `diagnose` in `diagnose-cluster.yml`.
 
-It is still a **repository** secret, though. GitHub gives repository secrets to a
-run on any branch, and that run uses the branch's copy of the workflow. So the
-`main`-only check above stops a mistaken dispatch, not someone with write access
-who edits the workflow on a branch. Closing that needs repository settings, in
-this order so that nothing breaks in between:
+`apps/api/tests/unit/core/test_cluster_credential_workflows.py` enforces both.
 
-1. Create an environment with deployment branches limited to `main`. A suggested
-   name is `production-cluster`; the existing `Production` environment is a
-   leftover from the Plinto era. Add `KUBECONFIG_PRODUCTION` to it, and keep the
-   repository copy for now.
-2. Merge a change adding `environment: production-cluster` to the three jobs
-   that read the secret:
-   - `sync` in `sync-prod-gitops.yml`;
-   - `check-drift` in `drift-check.yml`;
-   - `diagnose` in `diagnose-cluster.yml`.
+Until the secret moves into that environment, those jobs still read the
+**repository** copy. GitHub gives repository secrets to a run on any branch, and
+that run uses the branch's copy of the workflow. So the `main`-only check above
+stops a mistaken dispatch, not someone with write access. Finishing the move is a
+repository-settings change for the owner:
 
-   All three already run only from `main`, by dispatch or schedule.
-3. Delete the repository-level `KUBECONFIG_PRODUCTION`.
-4. Optional: required reviewers on the environment make a break-glass apply
-   wait for a second person.
+1. Limit the environment to `main`. If a job has already run in it, GitHub has
+   created the environment without rules; this adds them.
+
+   ```bash
+   gh api -X PUT repos/madfam-org/janua/environments/production-cluster --input - <<'EOF'
+   {"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}
+   EOF
+   gh api -X POST repos/madfam-org/janua/environments/production-cluster/deployment-branch-policies -f name=main -f type=branch
+   ```
+
+2. Store the base64-encoded kubeconfig in the environment. Pass the value on
+   stdin, with
+   `gh secret set KUBECONFIG_PRODUCTION --env production-cluster -R madfam-org/janua`,
+   then confirm it with
+   `gh secret list --env production-cluster -R madfam-org/janua`.
+3. Only then delete the repository copy:
+   `gh secret delete KUBECONFIG_PRODUCTION -R madfam-org/janua`.
+
+Steps 1 and 2 may happen before or after the jobs gain the `environment:` line:
+until step 3, a job falls back to the repository copy.
+
+Do **not** add required reviewers to this environment while `drift-check` runs
+in it on its six-hourly schedule. Every scheduled run would then wait for an
+approval. If you want a second approver on break-glass applies, give `sync` its
+own environment first.
 
 Also worth confirming in the cluster: the ARC runner pods' own service account
 should have no write access to the `janua` namespace. Otherwise a workflow on

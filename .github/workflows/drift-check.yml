@@ -22,6 +22,9 @@ jobs:
   check-drift:
     name: Check Configuration Drift
     runs-on: ubuntu-24.04
+    # The production kubeconfig lives in this environment, which only main
+    # may use (see docs/runbooks/production-gitops-reconcile.md).
+    environment: production-cluster
     permissions:
       contents: read
       issues: write
