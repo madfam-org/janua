@@ -10,8 +10,9 @@ point that stops that from recurring:
 
 - ``ECOSYSTEM_MACHINE_EDGES``: every ``client_credentials`` client declared in
   enclii ``config/ecosystem-oidc-provision.yaml`` (copied at c945fe0a,
-  2026-10-27, plus ``symbiosis-hcm-dhanam-writer`` from enclii#900, which is
-  provisioned only after this reservation deploys) and in
+  2026-10-27, plus ``symbiosis-hcm-dhanam-writer`` from enclii#900 and
+  ``karafiel-dhanam-cost-events`` (RFC 0050 Phase 1), each provisioned only
+  after its reservation deploys) and in
   ``docs/reference/PROTECTED_RESOURCES_AND_MCP_CLIENTS.md``.
 - ``CONSUMER_MACHINE_SCOPES`` / ``CONSUMER_AUDIENCES``: what the consumers'
   code authorizes machine tokens on, with the file that does it.
@@ -66,6 +67,11 @@ ECOSYSTEM_MACHINE_EDGES: dict[str, tuple[str, tuple[str, ...], bool]] = {
         ("dhanam-scheduled-payments:write",),
         True,
     ),
+    "karafiel-dhanam-cost-events": (
+        "dhanam-api",
+        ("dhanam-cost-events:write",),
+        True,
+    ),
 }
 
 #: scope -> where the consumer authorizes a machine token on it. None of these
@@ -81,6 +87,7 @@ CONSUMER_MACHINE_SCOPES: dict[str, str] = {
     "familia:documents": "karafiel apps/api/core/middleware/active_rfc.py",
     "billing:events": "routecraft-billing-relay edge, docs/service-tokens.md (no check in dhanam yet)",
     "dhanam-scheduled-payments:write": "dhanam scheduled-payments/machine/writer.strategy.ts",
+    "dhanam-cost-events:write": "dhanam cost-events/machine/cost-event-writer.strategy.ts",
     "dhanam:merchant-read": "dhanam spaces/payment-projection.strategy.ts",
     "hcm-benchmarks:read": "symbiosis-hcm apps/api/compensation/benchmark_views.py",
 }

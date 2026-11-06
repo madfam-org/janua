@@ -75,6 +75,7 @@ def test_consent_purpose_audiences_and_names_are_reserved_by_construction():
         "familia:documents",
         "dhanam-scheduled-payments:write",
         "dhanam:scheduled-payments:write",
+        "dhanam-cost-events:write",
         "dhanam:merchant-read",
         "hcm-benchmarks:read",
         "yantra4d:render",
