@@ -14,8 +14,9 @@ point that stops that from recurring:
   ``karafiel-dhanam-cost-events`` (RFC 0050 Phase 1), the twelve RFC 0051 COGS
   MCP consumers from enclii#946 (``feat/cogs-mcp-consumer-clients``, open) and
   Symbiosis HCM's two labor-cost clients from symbiosis-hcm#232
-  (``apps/api/symbiosis/settings.py``, open), each provisioned only after its
-  reservation deploys) and in
+  (``apps/api/symbiosis/settings.py``, open), Pravara's Dhanam cost-event writer
+  (pravara-mes#71, declared in enclii#948) and ``ops-agents-selva-cogs``
+  (enclii#946), each provisioned only after its reservation deploys) and in
   ``docs/reference/PROTECTED_RESOURCES_AND_MCP_CLIENTS.md``.
 - ``CONSUMER_MACHINE_SCOPES`` / ``CONSUMER_AUDIENCES``: what the consumers'
   code authorizes machine tokens on, with the file that does it.
@@ -81,6 +82,12 @@ ECOSYSTEM_MACHINE_EDGES: dict[str, tuple[str, tuple[str, ...], bool]] = {
     # client reads Nauta's hours, another writes Dhanam's cost events.
     "symbiosis-hcm-nauta-labor-hours": ("nauta-api", ("nauta-labor-hours:read",), True),
     "symbiosis-hcm-dhanam-cost-events": ("dhanam-api", ("dhanam-cost-events:write",), True),
+    # Pravara MES job consumption as quantity-only cost events (RFC 0050 C12,
+    # pravara-mes#71; client declared in enclii#948).
+    "pravara-dhanam-cost-events": ("dhanam-api", ("dhanam-cost-events:write",), True),
+    # The ops agents reading Selva's own COGS MCP (selva-office#362; client
+    # declared in enclii#946). No Selva-fleet client for Selva's own ledger.
+    "ops-agents-selva-cogs": ("selva-office", ("selva-cogs:read",), True),
     # RFC 0051 ruling M3 (enclii#946): Selva's fleet and the ops agents, one
     # client per platform MCP, each org-bound to madfam-ecosystem.
     **{
