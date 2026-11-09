@@ -349,7 +349,18 @@ npm unpublish @janua/<package> --force
 
 ## Automated Publishing (GitHub Actions)
 
-See `.github/workflows/publish-sdk.yml` for automated publishing on tag push.
+See `.github/workflows/publish-sdks.yml` for automated publishing on tag push
+(`<package-dir>-v<version>`, e.g. `typescript-sdk-v0.1.5`) or manual dispatch
+(`gh workflow run publish-sdks.yml -f sdk_name=typescript-sdk -f version=0.1.5`).
+The version must already be in the package's `package.json` on `main`; an
+already-published version is skipped.
+
+The workflow publishes with `pnpm publish`, which rewrites `workspace:^`
+dependencies to the sibling's current version. `react-sdk`, `nextjs-sdk` and
+`vue-sdk` depend on `typescript-sdk` (and `ui`) that way, so **publish the
+dependencies first**: `typescript-sdk`, then `ui`, then the framework SDKs.
+A framework SDK published before its dependency's new version is on the
+registry cannot be installed.
 
 Trigger automated publish:
 ```bash

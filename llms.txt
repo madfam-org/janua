@@ -107,6 +107,11 @@ Compact LLM context index for this repository.
 ## Build and CI facts (2026-10-01)
 
 - GitHub-hosted jobs run on `ubuntu-24.04` (#675); ARC jobs fall back to it.
+- `@janua/typescript-sdk` >= 0.1.5 starts no timers or sockets without a
+  browser `window`, so a `JanuaClient` per server render is safe; earlier 0.1.x
+  leaked one interval per server render (pass `autoRefreshTokens: false` on the
+  server there). SDKs publish via `publish-sdks.yml` (tag `<dir>-v<version>`,
+  `pnpm publish`); publish `typescript-sdk` and `ui` before framework SDKs.
 - `docker-publish.yml` does not rebuild the **docs** image on `pnpm-lock.yaml`
   or `packages/**` changes. Ship docs with `gh workflow run docker-publish.yml`
   (a dispatch rebuilds all five services).

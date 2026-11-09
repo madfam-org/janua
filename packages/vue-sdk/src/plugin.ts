@@ -12,7 +12,7 @@ export interface JanuaState {
 
 export interface JanuaPluginOptions extends JanuaConfig {
   onAuthChange?: (user: User | null) => void;
-  /** Polling interval in ms for auth state checks (default: 60000) */
+  /** Polling interval in ms for auth state checks (default: 60000; 0 disables polling) */
   pollInterval?: number;
 }
 
@@ -23,6 +23,7 @@ export class JanuaVue {
   private state: JanuaState;
   private onAuthChange?: (user: User | null) => void;
   private pollIntervalId: ReturnType<typeof setInterval> | null = null;
+  private destroyed = false;
 
   constructor(options: JanuaPluginOptions) {
     const { onAuthChange, pollInterval, ...config } = options;
@@ -66,6 +67,10 @@ export class JanuaVue {
       this.state.isLoading = false;
     }
 
+    // destroy() may have run while the initial auth check was in flight;
+    // a poll scheduled now would never be cleared.
+    if (this.destroyed || pollInterval <= 0) return;
+
     // Set up periodic auth state check (60s default, not 1s)
     this.pollIntervalId = setInterval(async () => {
       try {
@@ -77,13 +82,16 @@ export class JanuaVue {
   }
 
   /**
-   * Clean up intervals and resources. Called on app unmount.
+   * Clean up intervals and resources: the auth poll and the SDK client's
+   * timers and sockets. Called on app unmount. Idempotent.
    */
   destroy() {
+    this.destroyed = true;
     if (this.pollIntervalId !== null) {
       clearInterval(this.pollIntervalId);
       this.pollIntervalId = null;
     }
+    this.client.destroy();
   }
 
   private async updateAuthState() {

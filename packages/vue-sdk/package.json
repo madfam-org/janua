@@ -1,6 +1,6 @@
 {
   "name": "@janua/vue-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Official Janua SDK for Vue 3 applications",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

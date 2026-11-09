@@ -126,11 +126,15 @@ jobs:
             echo "OK: ${PKG_NAME}@${VERSION} not yet published"
           fi
 
+      # pnpm publish, not npm publish: react-sdk, nextjs-sdk and vue-sdk depend
+      # on siblings via `workspace:^`. pnpm rewrites that to the sibling's
+      # current version (e.g. ^0.1.5); npm publish would ship the literal
+      # `workspace:^`, which no consumer can install.
       - name: Publish to npm.madfam.io
         if: steps.publish_state.outputs.already_published != 'true'
         run: |
           cd packages/${{ steps.extract.outputs.sdk_name }}
-          npm publish --access restricted
+          pnpm publish --access restricted --no-git-checks
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

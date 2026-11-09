@@ -20,6 +20,7 @@ vi.mock('@janua/typescript-sdk', () => {
   return {
     JanuaClient: vi.fn().mockImplementation(() => ({
       auth: mockAuth,
+      destroy: vi.fn(),
       users: { updateCurrentUser: vi.fn() },
       organizations: {},
       getCurrentUser: vi.fn().mockResolvedValue(null),
@@ -71,6 +72,39 @@ describe('JanuaVue Plugin', () => {
 
     janua.destroy()
     expect(clearSpy).toHaveBeenCalled()
+  })
+
+  it('destroy releases the SDK client (its timers and sockets)', async () => {
+    const janua = new JanuaVue({ baseURL: BASE_URL })
+    await vi.advanceTimersByTimeAsync(0)
+
+    janua.destroy()
+    janua.destroy()
+
+    expect(janua.getClient().destroy).toHaveBeenCalled()
+  })
+
+  it('destroy during the initial auth check leaves no poll behind', async () => {
+    const setSpy = vi.spyOn(globalThis, 'setInterval')
+    const janua = new JanuaVue({ baseURL: BASE_URL })
+
+    // initialize() is still awaiting the first auth check here.
+    janua.destroy()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(setSpy).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+    setSpy.mockRestore()
+  })
+
+  it('pollInterval: 0 disables polling', async () => {
+    const setSpy = vi.spyOn(globalThis, 'setInterval')
+    const janua = new JanuaVue({ baseURL: BASE_URL, pollInterval: 0 })
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(setSpy).not.toHaveBeenCalled()
+    janua.destroy()
+    setSpy.mockRestore()
   })
 
   it('SSR safety: initialize does not throw when window is undefined', () => {

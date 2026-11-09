@@ -866,6 +866,17 @@ cd packages/nextjs-sdk && pnpm build
 cd apps/dashboard && pnpm build
 ```
 
+**SDK timers and releases.** `JanuaClient` starts its background timers
+(auto-refresh interval, proactive refresh, WebSocket auto-connect) only where a
+browser `window` exists, so a client built per server render holds nothing
+(0.1.x before 0.1.5 leaked one interval per server render). Keep it that way:
+no timer in a constructor without a `window` guard and an `unref()`, and every
+timer reachable from `destroy()`. Versions are bumped by hand in
+`package.json` (and `typescript-sdk/src/version.ts`, which a test keeps in
+sync); `publish-sdks.yml` publishes on a `<package-dir>-v<version>` tag with
+`pnpm publish`. Publish `typescript-sdk` and `ui` before the framework SDKs
+that depend on them via `workspace:^`. See `docs/PUBLISHING.md`.
+
 ### Running Specific Test Suites
 
 ```bash
