@@ -80,6 +80,10 @@ ECOSYSTEM_SERVICE_AUDIENCES: frozenset[str] = frozenset(
         "dhanam-api",
         # Dhanam's read-only Money Moves projection (JANUA_MONEY_MOVES_AUDIENCE).
         "dhanam-money-moves",
+        # PhyndCRM machine tokens (PHYND_CRM_MACHINE_AUDIENCE, default
+        # ``phynd-crm``). Distinct from the staff SSO client's audience
+        # ``phynd-crm-api``, which stays ordinary.
+        "phynd-crm",
         "yantra4d-api",
         "pravara-api",
         "asset-shells-api",
@@ -159,6 +163,15 @@ ASSET_SHELLS_SCOPES: frozenset[str] = frozenset(
 #: so the client that holds it is platform-admin.
 FABRICATION_PREP_SCOPES: frozenset[str] = frozenset({"fabrication-prep:slice"})
 
+#: PhyndCRM machine scopes (audience ``phynd-crm``). PhyndCRM maps each to a
+#: fixed set of read scopes (phynd-crm ``apps/web/src/lib/trpc/machine-auth.ts``
+#: ``MACHINE_SCOPE_GRANTS``: engagements and contacts, read only) and pins every
+#: machine token to ONE configured tenant, refusing any ``org_id`` but
+#: ``PHYND_CRM_MACHINE_JANUA_ORG_ID``. That pin is phynd's configuration, not
+#: the token's own organization, so the scope is reserved rather than
+#: tenant-bound: only a platform admin grants a read of MADFAM's CRM.
+PHYND_CRM_SCOPES: frozenset[str] = frozenset({"phynd-crm-engagements:read"})
+
 RESERVED_AUDIENCES: frozenset[str] = frozenset(
     {MAIL_AUDIENCE, BRANDING_AUDIENCE, CONNECTIONS_AUDIENCE}
     | ECOSYSTEM_SERVICE_AUDIENCES
@@ -177,6 +190,7 @@ RESERVED_SCOPES: frozenset[str] = frozenset(
     }
     | KARAFIEL_SCOPES
     | DHANAM_SCOPES
+    | PHYND_CRM_SCOPES
     | HCM_PLATFORM_SCOPES
     | PRAVARA_SCOPES
     | ASSET_SHELLS_SCOPES
@@ -286,6 +300,7 @@ __all__ = [
     "KARAFIEL_SCOPES",
     "MAIL_AUDIENCE",
     "PAYMENT_MAIL_SCOPE",
+    "PHYND_CRM_SCOPES",
     "PLATFORM_ADMIN_SCOPE",
     "PRAVARA_SCOPES",
     "RESERVED_AUDIENCES",
