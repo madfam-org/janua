@@ -188,6 +188,17 @@ function parseUserFromToken(token: string): JanuaUser | null {
  */
 export function JanuaProvider({ children, config, appearance }: JanuaProviderProps) {
   const [client] = useState(() => new JanuaClient(config));
+
+  // Release the client's background token-refresh timer when the provider
+  // unmounts. On the server the SDK never starts it; in the browser it starts
+  // in the constructor. stop/start rather than destroy(): React Strict Mode and
+  // Fast Refresh unmount and remount the SAME useState client, and destroy()
+  // also removes every event listener for good.
+  useEffect(() => {
+    client.startAutoRefresh();
+    return () => client.stopAutoRefresh();
+  }, [client]);
+
   const [user, setUser] = useState<JanuaUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);

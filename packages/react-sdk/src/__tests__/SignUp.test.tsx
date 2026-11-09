@@ -13,6 +13,8 @@ jest.mock('@janua/typescript-sdk', () => ({
     getCurrentUser: jest.fn(),
     getAccessToken: jest.fn().mockResolvedValue(null),
     signOut: jest.fn(),
+    startAutoRefresh: jest.fn().mockReturnValue(false),
+    stopAutoRefresh: jest.fn(),
   })),
 }))
 

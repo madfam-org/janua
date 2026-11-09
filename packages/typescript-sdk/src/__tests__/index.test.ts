@@ -65,6 +65,11 @@ describe('Janua TypeScript SDK - Main Exports', () => {
       expect(SDK_VERSION).toMatch(/^\d+\.\d+\.\d+/);
     });
 
+    it('should match the package.json version (bump both together)', () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      expect(SDK_VERSION).toBe(require('../../package.json').version);
+    });
+
     it('should export correct SDK name', () => {
       expect(SDK_NAME).toBeDefined();
       expect(SDK_NAME).toBe('janua-typescript-sdk');

@@ -29,6 +29,7 @@ import { EnterpriseFeatures, FEATURES, type LicenseInfo } from './enterprise';
 import { GraphQL } from './graphql';
 import { WebSocket } from './websocket';
 import { SDK_VERSION } from './version';
+import { AutoRefreshTimer, hasBrowserWindow } from './auto-refresh';
 
 /**
  * Main Janua SDK client class
@@ -57,6 +58,9 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
   // Enterprise features
   private enterprise: EnterpriseFeatures;
   private licenseInfo?: LicenseInfo;
+
+  // Background token refresh (browser only; see auto-refresh.ts)
+  private autoRefresh: AutoRefreshTimer;
 
   /**
    * Get the HTTP client for making raw API requests.
@@ -127,8 +131,11 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
         debug: this.config.debug,
       });
 
-      // Auto-connect WebSocket
-      if ((config as any).wsAutoConnect !== false) {
+      // Auto-connect WebSocket. Unset means "in a browser only": a socket
+      // opened on every server render would never close. Pass
+      // `wsAutoConnect: true` to connect from a long-lived Node process.
+      const wsAutoConnect = config.wsAutoConnect;
+      if (wsAutoConnect === true || (wsAutoConnect !== false && hasBrowserWindow())) {
         this.ws.connect().catch((err) => logger.warn('WebSocket auto-connect failed:', err));
       }
     }
@@ -141,10 +148,12 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
       this.validateLicense().catch((err) => logger.warn('License validation failed:', err));
     }
 
-    // Auto-refresh tokens if enabled
-    if (this.config.autoRefreshTokens) {
-      this.setupAutoTokenRefresh();
-    }
+    // Auto-refresh tokens if enabled. Starts only in a browser: a server-side
+    // client never schedules the interval (see auto-refresh.ts).
+    this.autoRefresh = new AutoRefreshTimer(() => {
+      void this.checkAndRefreshTokens();
+    });
+    this.startAutoRefresh();
   }
 
   /**
@@ -277,28 +286,50 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
   }
 
   /**
-   * Set up automatic token refresh
+   * Refresh the access token when it expires within five minutes.
    */
-  private setupAutoTokenRefresh(): void {
-    const checkAndRefresh = async () => {
-      try {
-        const tokenData = await this.tokenManager.getTokenData();
-        if (!tokenData) return;
+  private async checkAndRefreshTokens(): Promise<void> {
+    try {
+      const tokenData = await this.tokenManager.getTokenData();
+      if (!tokenData) return;
 
-        // Check if token expires within 5 minutes
-        const expiresIn = tokenData.expires_at - Date.now();
-        const fiveMinutes = 5 * 60 * 1000;
+      const expiresIn = tokenData.expires_at - Date.now();
+      const fiveMinutes = 5 * 60 * 1000;
 
-        if (expiresIn <= fiveMinutes && expiresIn > 0) {
-          await this.auth.refreshToken();
-        }
-      } catch (error) {
-        this.emit('error', { error });
+      if (expiresIn <= fiveMinutes && expiresIn > 0) {
+        await this.auth.refreshToken();
       }
-    };
+    } catch (error) {
+      this.emit('error', { error });
+    }
+  }
 
-    // Check every minute
-    setInterval(checkAndRefresh, 60 * 1000);
+  /**
+   * Start the once-a-minute background token refresh check.
+   *
+   * Idempotent. Does nothing when `autoRefreshTokens` is false or when there is
+   * no browser `window` (server rendering, Node scripts, workers). Returns
+   * whether the check is running afterwards. The constructor calls this, so
+   * browser clients refresh automatically exactly as before; call it again
+   * after `stopAutoRefresh()` to resume (React Strict Mode remounts do this).
+   */
+  startAutoRefresh(): boolean {
+    if (!this.config.autoRefreshTokens) return false;
+    return this.autoRefresh.start();
+  }
+
+  /**
+   * Stop the background token refresh check. Safe to call repeatedly.
+   */
+  stopAutoRefresh(): void {
+    this.autoRefresh.stop();
+  }
+
+  /**
+   * Whether the background token refresh check is currently scheduled.
+   */
+  isAutoRefreshActive(): boolean {
+    return this.autoRefresh.active;
   }
 
   // Authentication State Methods
@@ -696,9 +727,22 @@ export class JanuaClient extends EventEmitter<SdkEventMap> {
   }
 
   /**
-   * Destroy the client and cleanup resources
+   * Destroy the client and release its timers and sockets: the background
+   * token refresh, the proactive refresh timer, any WebSocket / GraphQL
+   * subscription socket, and every event listener. Idempotent.
    */
   destroy(): void {
+    this.stopAutoRefresh();
+
+    // Proactive refresh exists on the fetch client only.
+    const http = this._httpClient as Partial<Pick<HttpClient, 'stopProactiveRefresh'>>;
+    if (typeof http.stopProactiveRefresh === 'function') {
+      http.stopProactiveRefresh();
+    }
+
+    this.ws?.disconnect();
+    this.graphql?.disconnect().catch((err) => logger.warn('GraphQL disconnect failed:', err));
+
     this.removeAllListeners();
 
     // Note: We don't clear tokens here as that would sign out the user

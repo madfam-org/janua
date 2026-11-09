@@ -16,6 +16,8 @@ import { JanuaProvider, useAuth } from './provider';
 // --- Stub the JanuaClient module ---------------------------------------
 
 let getCurrentUserCalls = 0;
+let autoRefreshStarts = 0;
+let autoRefreshStops = 0;
 let getCurrentUserBehavior: 'cors-fail' | '5xx-fail' | 'success' = 'cors-fail';
 
 vi.mock('@janua/typescript-sdk', () => {
@@ -37,6 +39,13 @@ vi.mock('@janua/typescript-sdk', () => {
     };
     getAccessToken = vi.fn(async () => null);
     getRefreshToken = vi.fn(async () => null);
+    startAutoRefresh = vi.fn(() => {
+      autoRefreshStarts += 1;
+      return true;
+    });
+    stopAutoRefresh = vi.fn(() => {
+      autoRefreshStops += 1;
+    });
   }
   return { JanuaClient: FakeJanuaClient };
 });
@@ -71,7 +80,7 @@ function Probe() {
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
-async function renderProvider(opts?: { fastBackoff?: boolean }) {
+async function renderProvider(opts?: { fastBackoff?: boolean; strict?: boolean }) {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -82,15 +91,17 @@ async function renderProvider(opts?: { fastBackoff?: boolean }) {
     ? { baseDelayMs: 5, maxDelayMs: 100, jitter: 0, random: () => 0.5 }
     : undefined;
 
+  const tree = (
+    <JanuaProvider
+      config={{ baseURL: 'https://auth.example.test' } as any}
+      retryOptions={retryOptions}
+    >
+      <Probe />
+    </JanuaProvider>
+  );
+
   await act(async () => {
-    root!.render(
-      <JanuaProvider
-        config={{ baseURL: 'https://auth.example.test' } as any}
-        retryOptions={retryOptions}
-      >
-        <Probe />
-      </JanuaProvider>
-    );
+    root!.render(opts?.strict ? <React.StrictMode>{tree}</React.StrictMode> : tree);
   });
 
   // Drain any pending microtasks from the initial fetch.
@@ -114,6 +125,8 @@ async function clickRetry() {
 
 beforeEach(() => {
   getCurrentUserCalls = 0;
+  autoRefreshStarts = 0;
+  autoRefreshStops = 0;
   getCurrentUserBehavior = 'cors-fail';
   probeHandles.length = 0;
   Object.defineProperty(document, 'hidden', { configurable: true, value: false });
@@ -243,5 +256,35 @@ describe('JanuaProvider — retry storm guard', () => {
 
     // Without user interaction, only the initial fetch fires.
     expect(getCurrentUserCalls).toBeLessThanOrEqual(5);
+  });
+});
+
+describe('JanuaProvider — client auto-refresh lifecycle', () => {
+  async function unmountProvider() {
+    await act(async () => {
+      root!.unmount();
+    });
+    root = null;
+  }
+
+  it('starts the client auto-refresh on mount and stops it on unmount', async () => {
+    await renderProvider();
+    expect(autoRefreshStarts).toBe(1);
+    expect(autoRefreshStops).toBe(0);
+
+    await unmountProvider();
+
+    expect(autoRefreshStops).toBe(1);
+  });
+
+  it('Strict Mode remount resumes auto-refresh; final unmount stops it', async () => {
+    await renderProvider({ strict: true });
+    // mount -> simulated unmount -> remount
+    expect(autoRefreshStarts).toBe(2);
+    expect(autoRefreshStops).toBe(1);
+
+    await unmountProvider();
+
+    expect(autoRefreshStops).toBe(autoRefreshStarts);
   });
 });

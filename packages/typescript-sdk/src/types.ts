@@ -490,6 +490,11 @@ export interface JanuaConfig {
   wsReconnectInterval?: number
   wsReconnectAttempts?: number
   wsHeartbeatInterval?: number
+  /**
+   * Connect the WebSocket from the constructor. Unset: only in a browser
+   * (a socket opened per server render would never close). `true`: always,
+   * e.g. a long-lived Node process. `false`: never; call `client.ws.connect()`.
+   */
   wsAutoConnect?: boolean
 
   // Existing configuration
@@ -502,6 +507,13 @@ export interface JanuaConfig {
   retryDelay?: number;
   environment?: Environment;
   debug?: boolean;
+  /**
+   * Check every minute, in a browser, whether the access token is about to
+   * expire and refresh it (default `true`). The check never runs without a
+   * browser `window`, so server-rendered clients hold no timers; servers
+   * refresh on demand when a request returns 401. Stop it with
+   * `client.stopAutoRefresh()` or `client.destroy()`.
+   */
   autoRefreshTokens?: boolean;
   /** Skip remote getCurrentUser() calls — use when auth is managed server-side (e.g. httpOnly cookies) */
   skipRemoteAuth?: boolean;

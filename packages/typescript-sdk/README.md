@@ -113,11 +113,35 @@ const client = createClient({
   timeout: 15000,                    // Request timeout in milliseconds (default: 15000)
   retryAttempts: 3,                  // Automatic retry count on transient failures (default: 3)
   retryDelay: 1000,                  // Base delay between retries in milliseconds
-  autoRefreshTokens: true,           // Refresh access tokens before expiry (default: true)
+  autoRefreshTokens: true,           // Browser only: refresh access tokens before expiry (default: true)
   tokenStorage: 'localStorage',      // Where to persist tokens (see below)
   debug: false                       // Log SDK activity to console
 });
 ```
+
+### Background Timers, Server Rendering and Cleanup
+
+With `autoRefreshTokens` on (the default), a client checks once a minute
+whether the access token expires within five minutes and refreshes it. That
+check, the proactive refresh timer and WebSocket auto-connect run **only where
+a browser `window` exists**. A client built on a server (Next.js or Nuxt server
+render, route handlers, Node scripts) schedules no timers and opens no sockets,
+so building one per request is safe; server code refreshes on demand when a
+request returns 401. Since 0.1.5. Earlier 0.1.x versions started a
+never-cleared interval in every client, which held each server-rendered request
+in memory; on those versions pass `autoRefreshTokens: false` on the server.
+
+```typescript
+client.isAutoRefreshActive(); // true in a browser, false on a server
+client.stopAutoRefresh();     // pause the background check
+client.startAutoRefresh();    // resume it (no-op on a server or when disabled)
+client.destroy();             // release timers, sockets and event listeners
+```
+
+Pass `wsAutoConnect: true` to connect the WebSocket from a long-lived Node
+process; unset, it connects only in a browser. `<JanuaProvider>` from
+`@janua/react-sdk` and `@janua/nextjs` stops the check on unmount, and the Vue
+plugin destroys its client on `app.unmount()`.
 
 ### Token Storage
 

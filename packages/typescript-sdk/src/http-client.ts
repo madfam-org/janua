@@ -19,6 +19,7 @@ import { TokenManager, RetryUtils, EventEmitter } from './utils';
 import type { SdkEventMap } from './types';
 import { SDK_NAME, SDK_VERSION } from './version';
 import { refreshSession } from './refresh-coordinator';
+import { hasBrowserWindow, unrefTimer } from './auto-refresh';
 import type { SessionSnapshot } from './utils/token-utils';
 import type { TokenResponse } from './types';
 
@@ -48,9 +49,14 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
   /**
    * Start proactive token refresh, scheduling a refresh 60 seconds before expiry.
    * After each successful refresh the next cycle is automatically scheduled.
+   *
+   * Browser only: on a server the timer would outlive the request that
+   * refreshed (holding it in memory until the token expires). Server code
+   * refreshes on demand when a request comes back 401.
    */
   startProactiveRefresh(): void {
     this.stopProactiveRefresh();
+    if (!hasBrowserWindow()) return;
 
     this.tokenManager.getTokenData().then((tokenData) => {
       if (!tokenData || !tokenData.expires_at) {
@@ -72,6 +78,7 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
           // Errors are handled inside refreshTokens (events emitted, tokens cleared)
         });
       }, delay);
+      unrefTimer(this.proactiveRefreshTimer);
     }).catch(() => {
       // Token storage read failed — no proactive refresh possible
     });
@@ -175,6 +182,7 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
    * Make the actual HTTP request
    */
   private async makeRequest(url: string, config: RequestConfig): Promise<HttpResponse> {
+    const timeout = this.createTimeoutSignal(config.timeout || this.config.timeout);
     const requestInit: RequestInit = {
       method: config.method,
       headers: {
@@ -182,7 +190,7 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
         'User-Agent': this.getUserAgent(),
         ...config.headers
       },
-      signal: this.createAbortSignal(config.timeout || this.config.timeout)
+      signal: timeout.signal
     };
 
     if (config.data && config.method !== 'GET' && config.method !== 'DELETE') {
@@ -214,6 +222,10 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
         throw new NetworkError('Request timeout');
       }
       throw new NetworkError('Network request failed', error instanceof Error ? error : undefined);
+    } finally {
+      // Release the timeout as soon as the request settles, so a finished
+      // request is not kept alive for the rest of the timeout window.
+      timeout.clear();
     }
   }
 
@@ -285,12 +297,14 @@ export class HttpClient extends EventEmitter<SdkEventMap> {
   }
 
   /**
-   * Create abort signal for timeout
+   * Create an abort signal that fires after `timeout` ms, plus a `clear()`
+   * that cancels the timer once the request has settled.
    */
-  private createAbortSignal(timeout: number): AbortSignal {
+  private createTimeoutSignal(timeout: number): { signal: AbortSignal; clear: () => void } {
     const controller = new AbortController();
-    setTimeout(() => controller.abort(), timeout);
-    return controller.signal;
+    const timer = setTimeout(() => controller.abort(), timeout);
+    unrefTimer(timer);
+    return { signal: controller.signal, clear: () => clearTimeout(timer) };
   }
 
   /**
