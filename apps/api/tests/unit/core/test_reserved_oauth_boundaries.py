@@ -28,6 +28,7 @@ def test_service_auth_modules_read_the_registry_constants():
         "karafiel-staging-api",
         "dhanam-api",
         "dhanam-money-moves",
+        "phynd-crm",
         "yantra4d-api",
         "pravara-api",
         "asset-shells-api",
@@ -77,6 +78,8 @@ def test_consent_purpose_audiences_and_names_are_reserved_by_construction():
         "dhanam:scheduled-payments:write",
         "dhanam-cost-events:write",
         "dhanam:merchant-read",
+        "phynd-crm-engagements:read",
+        " phynd-crm-engagements:read ",
         "hcm-benchmarks:read",
         "yantra4d:render",
         "pravara-mes:jobs",
@@ -109,6 +112,10 @@ def test_reserved_scopes(scope):
         "familia:other",
         "data-api",
         "billing:read",
+        # PhyndCRM look-alikes no consumer honours (exact-match scopes).
+        "phynd-crm:read",
+        "phynd-crm-engagements:write",
+        "engagements:read",
         "pravara-mes:other",
         "asset-shells:write",
         "fabrication-prep:read",
@@ -146,3 +153,17 @@ def test_client_is_reserved_reads_a_row():
     assert not reserved.client_is_reserved(row)
     row.allowed_scopes = ["white-label:branding"]
     assert reserved.client_is_reserved(row)
+
+
+def test_phynd_crm_machine_audience_is_reserved_but_its_sso_audience_is_not():
+    # Machine tokens carry ``phynd-crm`` (PHYND_CRM_MACHINE_AUDIENCE); the staff
+    # SSO client's ``phynd-crm-api`` is an ordinary interactive audience.
+    assert reserved.is_reserved_audience("phynd-crm")
+    assert not reserved.is_reserved_audience("phynd-crm-api")
+    assert reserved.PHYND_CRM_SCOPES == frozenset({"phynd-crm-engagements:read"})
+    assert reserved.PHYND_CRM_SCOPES <= reserved.RESERVED_SCOPES
+    assert "phynd-crm-engagements:read" not in reserved.TENANT_BOUND_MACHINE_SCOPES
+    assert "phynd-crm" not in reserved.TENANT_BOUND_SERVICE_AUDIENCES
+    assert reserved.reserved_fields(
+        name="nauta-phynd-crm", audience="phynd-crm", scopes=["phynd-crm-engagements:read"]
+    ) == ["audience", "allowed_scopes"]

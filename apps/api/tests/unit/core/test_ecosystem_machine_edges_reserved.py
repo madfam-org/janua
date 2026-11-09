@@ -35,6 +35,10 @@ from scripts.seed_service_clients import ORG_BOUND_SERVICE_CLIENTS, SERVICE_CLIE
 #: name -> (audience, scopes, organization-bound)
 ECOSYSTEM_MACHINE_EDGES: dict[str, tuple[str, tuple[str, ...], bool]] = {
     "nauta-symbiosis-hcm": ("symbiosis-hcm", ("hcm:hr",), True),
+    # Nauta's cockpit CRM reads (enclii ``nauta-phynd-crm``, declared after this
+    # reservation deploys). Org-bound: phynd-crm refuses any org_id but
+    # PHYND_CRM_MACHINE_JANUA_ORG_ID.
+    "nauta-phynd-crm": ("phynd-crm", ("phynd-crm-engagements:read",), True),
     "crea-map-payment-mail": ("janua-email", ("crea-map:payment-mail",), True),
     "pravara-yantra4d-step-reader": ("yantra4d-api", ("yantra4d:render",), False),
     "yantra4d-asset-shells-publisher": (
@@ -85,6 +89,9 @@ CONSUMER_MACHINE_SCOPES: dict[str, str] = {
     "fiscal:invoice": "karafiel apps/api/core/middleware/active_rfc.py",
     "fiscal:csf-intake": "karafiel apps/api/core/middleware/active_rfc.py",
     "familia:documents": "karafiel apps/api/core/middleware/active_rfc.py",
+    "phynd-crm-engagements:read": (
+        "phynd-crm apps/web/src/lib/trpc/machine-auth.ts MACHINE_SCOPE_GRANTS"
+    ),
     "billing:events": "routecraft-billing-relay edge, docs/service-tokens.md (no check in dhanam yet)",
     "dhanam-scheduled-payments:write": "dhanam scheduled-payments/machine/writer.strategy.ts",
     "dhanam-cost-events:write": "dhanam cost-events/machine/cost-event-writer.strategy.ts",
@@ -97,6 +104,7 @@ CONSUMER_AUDIENCES: dict[str, str] = {
     "karafiel-api": "karafiel JANUA_AUDIENCE",
     "karafiel-app": "karafiel JANUA_ADDITIONAL_AUDIENCES (infra/k8s/production)",
     "karafiel-staging-api": "karafiel staging JANUA_AUDIENCE",
+    "phynd-crm": "phynd-crm PHYND_CRM_MACHINE_AUDIENCE (apps/web/src/lib/trpc/machine-auth.ts)",
     "dhanam-api": "dhanam machine strategies (hard-coded audience)",
     "dhanam-money-moves": "dhanam JANUA_MONEY_MOVES_AUDIENCE",
 }

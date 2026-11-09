@@ -7,6 +7,7 @@ Cross-service identity for the RFC 0024 §P4 consolidations:
 | Zavlo → Karafiel CFDI bridge (§P4.2) | `zavlo-cfdi-emitter` | `cfdi:issue` | `karafiel-api` | Karafiel API |
 | RouteCraft → Dhanam billing (§P4.3) | `routecraft-billing-relay` | `billing:events` | `dhanam-api` | Dhanam API |
 | Nauta → Karafiel legal drafts (D3.5) and fiscal edge | `nauta-legal-drafts` | `legal:draft`, `legal:client-profile`, `fiscal:invoice`, `fiscal:csf-intake` | `karafiel-api` | Karafiel API |
+| Nauta → PhyndCRM cockpit reads (engagements + contacts, read only; org-bound to the organization phynd-crm pins as `PHYND_CRM_MACHINE_JANUA_ORG_ID`) | `nauta-phynd-crm` | `phynd-crm-engagements:read` (reserved) | `phynd-crm` (reserved; the staff SSO audience `phynd-crm-api` is not) | PhyndCRM tRPC |
 | Forj → Yantra4D catalog render | `forj-catalog-materializer` | `yantra4d:render` | `yantra4d-api` | Yantra4D render API |
 | Pravara MES → Yantra4D STEP export | `pravara-yantra4d-step-reader` | `yantra4d:render` | `yantra4d-api` | Yantra4D render API |
 | Yantra4D → asset-shells type shells | `yantra4d-asset-shells-publisher` | `asset-shells:publish-types` | `asset-shells-api` | asset-shells publish API |
