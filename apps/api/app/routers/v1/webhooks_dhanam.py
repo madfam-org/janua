@@ -30,6 +30,7 @@ from app.services.entitlements_service import (
     upsert_entitlement,
 )
 from app.services.user_lookup import get_user_by_email
+from app.sso.application.services.product_tiers import legacy_subscription_tier
 
 logger = structlog.get_logger()
 router = APIRouter(prefix="/webhooks/dhanam", tags=["webhooks"])
@@ -208,8 +209,9 @@ async def dhanam_subscription_webhook(
     - subscription.updated: Plan change, update tier
     - subscription.canceled: Subscription ended, downgrade to community
 
-    Updates the organization's subscription_tier based on the Dhanam plan,
-    which affects the foundry_tier claim in SSO JWT tokens for Enclii feature gating.
+    Updates the organization's per-product `product_tiers` from the Dhanam
+    plan, and rewrites the legacy single `subscription_tier` as a summary of
+    them (`legacy_subscription_tier`: community / pro / enterprise).
 
     Expected payload format:
     ```json
@@ -342,14 +344,10 @@ async def dhanam_subscription_webhook(
 
     organization.product_tiers = current_tiers
 
-    # Keep legacy subscription_tier in sync (derived from highest product tier)
-    tier_rank = {"essentials": 1, "pro": 2, "madfam": 3}
-    highest = max(
-        (tier_rank.get(t, 0) for t in current_tiers.values()),
-        default=0,
-    )
-    rank_to_legacy = {0: "community", 1: "pro", 2: "pro", 3: "enterprise"}
-    organization.subscription_tier = rank_to_legacy.get(highest, "community")
+    # Keep the legacy single subscription_tier in sync as a summary of
+    # product_tiers (community / pro / enterprise). Every catalog tier counts,
+    # not only essentials/pro/madfam: see `legacy_subscription_tier`.
+    organization.subscription_tier = legacy_subscription_tier(current_tiers)
 
     organization.updated_at = datetime.utcnow()
 

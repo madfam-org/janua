@@ -24,6 +24,46 @@ LEGACY_TIER_MAP = {
 }
 
 
+#: Product tier slugs that mean «not billed». The Dhanam webhook already drops
+#: `free` / `community` / `trial` from `product_tiers`; the catalog also has
+#: free, never-priced tiers whose slug says so (`open_source` for janua,
+#: subtext and phynd-crm; `incluida` / `incluido` for fragua and publica, the
+#: tiers included at no cost). A stored tier with one of these slugs entitles
+#: nobody to a paid summary.
+NON_PAID_TIERS = frozenset({"free", "community", "trial", "open_source", "incluida", "incluido"})
+
+#: The operator-only tier (MADFAM's own services and staff). Never sold.
+MADFAM_TIER = "madfam"
+
+
+def legacy_subscription_tier(product_tiers: Mapping[str, str] | None) -> str:
+    """The single legacy `Organization.subscription_tier` summary of `product_tiers`.
+
+    Tiers are per product and their names differ per product (`karafiel`
+    sells `contador`…`firma`, `selva` sells `developer`…`business`), so the
+    summary does not rank tier names across products. It answers one question
+    with the three strings its consumers already know:
+
+    - `enterprise` — some product carries the operator-only `madfam` tier;
+    - `pro` — some product carries any other billed tier, whatever its name
+      (a slug Janua has never seen included: an unknown paid tier must never
+      read as unbilled);
+    - `community` — no product carries a billed tier.
+
+    `pro` is the lowest paid value on purpose: a buyer of a product's top
+    tier (`premium`, `firma`, `enterprise`) is never summarised above it.
+    """
+    summary = "community"
+    for tier in (product_tiers or {}).values():
+        slug = str(tier or "").strip().lower()
+        if not slug or slug in NON_PAID_TIERS:
+            continue
+        if slug == MADFAM_TIER:
+            return "enterprise"
+        summary = "pro"
+    return summary
+
+
 def map_subscription_to_foundry_tier(subscription_tier: str | None) -> str:
     """Map Janua subscription_tier to Foundry tier for JWT claims.
 
@@ -133,9 +173,15 @@ def resolve_product_tiers(
         # Map new tier names to legacy foundry_tier values for Enclii compat
         foundry_map = {"essentials": "community", "pro": "sovereign", "madfam": "ecosystem"}
         claims["foundry_tier"] = foundry_map.get(enclii_tier, enclii_tier)
-    else:
-        # Fall back to legacy subscription_tier mapping
+    elif not product_tiers:
+        # Fall back to the legacy subscription_tier mapping only for an
+        # organization with no per-product tiers (one set before per-product
+        # billing, or by hand). Once Dhanam writes `product_tiers`, the
+        # legacy field is a cross-product summary (`legacy_subscription_tier`):
+        # a Karafiel or Tezca purchase must not read as an Enclii plan.
         claims["foundry_tier"] = map_subscription_to_foundry_tier(subscription_tier)
+    else:
+        claims["foundry_tier"] = "community"
 
     # Per-product claims: iterate ALL products in product_tiers.
     # Any product stored in the JSONB gets a JWT claim; no hardcoded list.

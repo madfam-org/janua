@@ -528,7 +528,7 @@ Each product tier is emitted as a separate claim in the SSO JWT:
 
 | Claim | Source | Values | Consumer |
 |-------|--------|--------|----------|
-| `foundry_tier` | `product_tiers.enclii` (mapped) or legacy `subscription_tier` | `community`, `sovereign`, `ecosystem` | Enclii (Switchyard API) |
+| `foundry_tier` | `product_tiers.enclii` (mapped); legacy `subscription_tier` only when the org has no `product_tiers` | `community`, `sovereign`, `ecosystem` | Enclii (Switchyard API) |
 | `tezca_tier` | `product_tiers.tezca` | `essentials`, `pro`, `madfam` | Tezca |
 | `yantra4d_tier` | `product_tiers.yantra4d` | `essentials`, `pro`, `madfam` | Yantra4D |
 | `dhanam_tier` | `product_tiers.dhanam` | `essentials`, `pro`, `madfam` | Dhanam |
@@ -538,6 +538,28 @@ Downstream services treat an absent claim as the free/community tier.
 
 The `foundry_tier` claim uses legacy Enclii naming for backwards compatibility:
 `essentials` maps to `community`, `pro` maps to `sovereign`, `madfam` maps to `ecosystem`.
+
+### The legacy `subscription_tier` summary
+
+Every Dhanam webhook also rewrites the single legacy
+`Organization.subscription_tier` (the `tier` claim on OAuth tokens) as a
+summary of `product_tiers`, computed by `legacy_subscription_tier()` in
+`app/sso/application/services/product_tiers.py`:
+
+| `product_tiers` holds | `subscription_tier` |
+|---|---|
+| some product at the operator-only `madfam` tier | `enterprise` |
+| some product at any other billed tier, whatever its slug (`contador`, `team`, `academic`, `premium`, an unknown slug) | `pro` |
+| nothing billed (empty, or only `free`, `community`, `trial`, `open_source`, `incluida`, `incluido`) | `community` |
+
+Tiers are per product, so the summary does not rank tier names across
+products: it only says whether the organization pays for something. It is
+not a product entitlement. A product gates on its own `{product}_tier` claim
+or on `madfam_entitled_products`, never on `tier`: a Karafiel purchase makes
+`tier` say `pro`, and that says nothing about Tezca or Enclii. For the same
+reason `foundry_tier` falls back to the legacy field only for an organization
+with no `product_tiers` at all (one set before per-product billing, or by
+hand).
 
 ## Entitlement Resolution and the `/entitlements` Reads
 
