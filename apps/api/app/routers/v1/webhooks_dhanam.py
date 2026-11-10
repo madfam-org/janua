@@ -6,6 +6,8 @@ organization tiers in sync for JWT claims across all products.
 
 Plan ID format: "{product}_{tier}" (e.g. "tezca_pro", "enclii_pro")
 Bare plan IDs (e.g. "pro") default to product="dhanam".
+Catalog slugs with an underscore (MULTI_WORD_PRODUCTS: "enclii_depot",
+"nauta_erp", "nauta_vcto") are matched before the first-underscore split.
 
 Per-product tiers are stored in Organization.product_tiers JSONB and emitted
 as individual JWT claims (foundry_tier, tezca_tier, yantra4d_tier, dhanam_tier).
@@ -57,6 +59,31 @@ LEGACY_PLAN_MAP = {
 # Plans that mean "not billed" — remove product tier on these
 CANCEL_TIERS = {"free", "community", "trial"}
 
+# Dhanam catalog product slugs that contain an underscore (dhanam
+# catalog.yaml `products:` keys). The grammar splits a plan id on its FIRST
+# underscore, so without this list `nauta_erp_self_serve` read as product
+# `nauta` / tier `erp_self_serve`, and `enclii_depot_pro` overwrote the
+# buyer's `enclii` tier with `depot_pro`. Dhanam sends no separate product
+# field, so the slug can only be recovered from a known list: the longest
+# listed slug followed by `_<tier>` wins. Vendored, not fetched: add a slug
+# here (and to Dhanam's port, `janua-plan-grammar.ts`) when the catalog gains
+# one. Hyphenated slugs (`pravara-mes`) need no entry.
+MULTI_WORD_PRODUCTS = ("enclii_depot", "nauta_erp", "nauta_vcto")
+
+
+def _split_multi_word_product(plan_lower: str) -> tuple[str, str] | None:
+    """Split `<multi-word product>_<tier>` on the longest known product slug.
+
+    Returns None when no listed slug prefixes the plan with a non-empty tier,
+    so every other plan id keeps the first-underscore grammar unchanged.
+    """
+    for product in sorted(MULTI_WORD_PRODUCTS, key=len, reverse=True):
+        prefix = f"{product}_"
+        if plan_lower.startswith(prefix) and len(plan_lower) > len(prefix):
+            return product, plan_lower[len(prefix) :]
+    return None
+
+
 # `data.grant_to` value of a user-scoped (org-less) grant from Dhanam's hosted
 # checkout (owner ruling G1-1, 2026-10-14).
 USER_GRANT = "user"
@@ -75,6 +102,8 @@ def parse_product_plan(plan_id: str) -> tuple[str, str | None]:
         "tezca_pro" -> ("tezca", "pro")
         "enclii_essentials" -> ("enclii", "essentials")
         "pravara-mes_starter" -> ("pravara-mes", "starter")  # hyphenated product
+        "nauta_erp_self_serve" -> ("nauta_erp", "self_serve")  # MULTI_WORD_PRODUCTS
+        "enclii_depot_pro" -> ("enclii_depot", "pro")
         "pro" -> ("dhanam", "pro")
         "sovereign" -> ("enclii", "pro")  # legacy
         "free" -> ("dhanam", None)  # cancel tier
@@ -98,9 +127,12 @@ def parse_product_plan(plan_id: str) -> tuple[str, str | None]:
     if plan_lower in CANCEL_TIERS:
         return "dhanam", None
 
-    # Parse "{product}_{tier}" format — accepts any valid product name
-    parts = plan_lower.split("_", 1)
-    if len(parts) == 2 and PRODUCT_PATTERN.match(parts[0]):
+    # Parse "{product}_{tier}" format — accepts any valid product name. A
+    # known multi-word product slug is matched first (longest wins); it is
+    # trusted from the vendored list, since PRODUCT_PATTERN admits no "_".
+    multi_word = _split_multi_word_product(plan_lower)
+    parts = multi_word or plan_lower.split("_", 1)
+    if len(parts) == 2 and (multi_word or PRODUCT_PATTERN.match(parts[0])):
         product, tier = parts
         if tier in CANCEL_TIERS:
             return product, None
