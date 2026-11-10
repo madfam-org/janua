@@ -95,11 +95,14 @@ class TestPickProductTier:
     def test_sso_orchestrator_claims_include_user_grants(self):
         claims = resolve_product_tiers(None, None, {"yantra4d": "pro"})
         assert claims == {"foundry_tier": "community", "yantra4d_tier": "pro"}
-        # No grants: exactly the previous output.
+        # No grants: the org's own tiers. A Tezca tier is not an Enclii plan,
+        # so `foundry_tier` no longer falls back to the legacy summary once
+        # the org has per-product tiers (test_webhooks_dhanam_legacy_tier.py).
         assert resolve_product_tiers({"tezca": "pro"}, "pro") == {
-            "foundry_tier": "sovereign",
+            "foundry_tier": "community",
             "tezca_tier": "pro",
         }
+        assert resolve_product_tiers({}, "pro") == {"foundry_tier": "sovereign"}
 
 
 # ---------------------------------------------------------------------------
