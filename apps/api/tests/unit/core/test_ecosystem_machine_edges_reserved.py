@@ -75,6 +75,14 @@ ECOSYSTEM_MACHINE_EDGES: dict[str, tuple[str, tuple[str, ...], bool]] = {
     # machine-only READ of one business space's bank movements, which Dhanam
     # also binds to that space with a reviewed BankLedgerReaderGrant.
     "karafiel-dhanam-bank-ledger": ("dhanam-api", ("dhanam-bank-ledger:read",), True),
+    # Karafiel's tax obligations as planned payments in Dhanam (enclii
+    # ``karafiel-dhanam-scheduled-payments``, RFC 0055 Phase 1.5), through the
+    # same writer route and scope as ``symbiosis-hcm-dhanam-writer``.
+    "karafiel-dhanam-scheduled-payments": (
+        "dhanam-api",
+        ("dhanam-scheduled-payments:write",),
+        True,
+    ),
     # Selva's inference usage as cost events, source ``selva`` (enclii
     # ``selva-dhanam-cost-events``), org-bound like the other cost-event writers.
     "selva-dhanam-cost-events": ("dhanam-api", ("dhanam-cost-events:write",), True),
