@@ -88,6 +88,13 @@ ECOSYSTEM_SERVICE_AUDIENCES: frozenset[str] = frozenset(
         "pravara-api",
         "asset-shells-api",
         "fabrication-prep-api",
+        # converge-dash's API audience (JANUA_AUDIENCE). Its native COGS MCP
+        # admits any machine token carrying this audience and
+        # ``converge-dash-cogs:read``, with no further client binding.
+        "converge-dash",
+        # Nauta's API audience (JANUA_AUDIENCE): the machine reads under
+        # ``/api/internal/`` and its native COGS MCP (NAUTA_SCOPES below).
+        "nauta-api",
     }
 )
 
@@ -147,6 +154,35 @@ PRAVARA_SCOPES: frozenset[str] = frozenset(
     }
 )
 
+#: Native COGS MCP read scopes (RFC 0051, ruling M2: ``<platform>-cogs:read``,
+#: ONE colon). Each opens ``POST /mcp`` on the platform's existing API audience
+#: for a Janua ``client_credentials`` token: the cost ledger's money, fiscal,
+#: usage and labor aggregates. Granting one is a platform-admin decision
+#: whatever the consumer adds on top (an org allow-list, a client binding, RLS
+#: on the token's organization), so every one is reserved, Selva's included
+#: although its MCP reads only the token's own organization. Consumers, with
+#: the code that enforces each, are listed in
+#: ``tests/unit/core/test_ecosystem_machine_edges_reserved.py``.
+COGS_READ_SCOPES: frozenset[str] = frozenset(
+    {
+        "dhanam-cogs:read",
+        "karafiel-cogs:read",
+        "converge-dash-cogs:read",
+        "pravara-cogs:read",
+        "nauta-cogs:read",
+        "enclii-cogs:read",
+        "selva-cogs:read",
+        "symbiosis-hcm-cogs:read",
+    }
+)
+
+#: Nauta's other machine reads (audience ``nauta-api``, nauta
+#: ``apps/web/src/lib/machine-reads.ts``). ``nauta-labor-hours:read`` returns
+#: logged hours per engagement and PERSON (RFC 0050 ruling C10), for Symbiosis
+#: HCM's labor client only; ``nauta-engagements:read`` lists MADFAM's
+#: engagement registry. Nauta reads neither on the token's organization.
+NAUTA_SCOPES: frozenset[str] = frozenset({"nauta-engagements:read", "nauta-labor-hours:read"})
+
 #: asset-shells (AAS store) scopes (audience ``asset-shells-api``).
 #: ``publish-types`` writes tenant-less type shells (platform-admin clients);
 #: ``publish-instances`` and ``read`` act on one tenant's instances (org-bound).
@@ -195,6 +231,8 @@ RESERVED_SCOPES: frozenset[str] = frozenset(
     | PRAVARA_SCOPES
     | ASSET_SHELLS_SCOPES
     | FABRICATION_PREP_SCOPES
+    | COGS_READ_SCOPES
+    | NAUTA_SCOPES
 )
 
 #: Machine scopes and audiences the ecosystem declares that are deliberately
@@ -211,6 +249,19 @@ TENANT_BOUND_MACHINE_SCOPES: dict[str, str] = {
 TENANT_BOUND_SERVICE_AUDIENCES: dict[str, str] = {
     "symbiosis-hcm": "tenant routes require org_id; hcm-benchmarks:read is reserved",
     "selva-office": "selva nexus-api scopes every request to the token's org_id (RLS)",
+}
+
+#: Audiences a machine edge uses that CANNOT be reserved, each with why and what
+#: gates the edge instead. ``janua.dev`` is Janua's default ``JWT_AUDIENCE``
+#: (`app/config.py`): every token from a client with no audience of its own
+#: carries it, so reserving the string would not stop anyone. Enclii's API
+#: (switchyard-api ``ENCLII_JANUA_AUDIENCE``) accepts it today.
+SHARED_DEFAULT_AUDIENCES: dict[str, str] = {
+    "janua.dev": (
+        "Janua's default JWT_AUDIENCE, carried by every client without an audience; "
+        "enclii switchyard-api accepts it, gated by the reserved enclii-cogs:read and "
+        "ENCLII_MCP_ORG_IDS"
+    ),
 }
 
 #: ``<product>:admin`` becomes a ``<product>_admin`` role on a machine token
@@ -292,6 +343,7 @@ __all__ = [
     "ASSET_SHELLS_SCOPES",
     "BRANDING_AUDIENCE",
     "BRANDING_SCOPE",
+    "COGS_READ_SCOPES",
     "DHANAM_SCOPES",
     "ECOSYSTEM_SERVICE_AUDIENCES",
     "FABRICATION_PREP_SCOPES",
@@ -299,6 +351,7 @@ __all__ = [
     "HCM_PLATFORM_SCOPES",
     "KARAFIEL_SCOPES",
     "MAIL_AUDIENCE",
+    "NAUTA_SCOPES",
     "PAYMENT_MAIL_SCOPE",
     "PHYND_CRM_SCOPES",
     "PLATFORM_ADMIN_SCOPE",
@@ -308,6 +361,7 @@ __all__ = [
     "RESERVED_CLIENT_NAMES",
     "RESERVED_SCOPES",
     "RESERVED_SCOPE_SUFFIXES",
+    "SHARED_DEFAULT_AUDIENCES",
     "SILENT_AUTH_SCOPE",
     "TENANT_BOUND_MACHINE_SCOPES",
     "TENANT_BOUND_SERVICE_AUDIENCES",

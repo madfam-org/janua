@@ -76,6 +76,8 @@ RESERVED_AUDIENCES = frozenset(
         "pravara-api",
         "asset-shells-api",
         "fabrication-prep-api",
+        "converge-dash",
+        "nauta-api",
         "creator-census-api",
     }
 )
@@ -110,6 +112,16 @@ RESERVED_SCOPES = frozenset(
         "asset-shells:publish-types",
         "asset-shells:publish-instances",
         "fabrication-prep:slice",
+        "dhanam-cogs:read",
+        "karafiel-cogs:read",
+        "converge-dash-cogs:read",
+        "pravara-cogs:read",
+        "nauta-cogs:read",
+        "enclii-cogs:read",
+        "selva-cogs:read",
+        "symbiosis-hcm-cogs:read",
+        "nauta-engagements:read",
+        "nauta-labor-hours:read",
     }
 )
 RESERVED_SCOPE_SUFFIXES = (":admin",)

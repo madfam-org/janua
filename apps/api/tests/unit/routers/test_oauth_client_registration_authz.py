@@ -350,7 +350,8 @@ async def test_platform_admin_registers_reserved_clients(env, payload):
 # holding one of its scopes to MADFAM's own emisor RFC (LEGAL_SERVICE_RFC,
 # karafiel core/middleware/active_rfc.py), whatever the token's org_id, and
 # accepts `karafiel-app` alongside `karafiel-api` (JANUA_ADDITIONAL_AUDIENCES).
-# Dhanam's machine strategies and HCM's benchmark view are platform edges.
+# Dhanam's machine strategies, HCM's benchmark view, every platform's native COGS
+# MCP (RFC 0051) and Nauta's machine reads are platform edges.
 MACHINE_EDGE_SCOPES = [
     "legal:employment-draft",
     "legal:contractor-draft",
@@ -359,11 +360,28 @@ MACHINE_EDGE_SCOPES = [
     "dhanam-scheduled-payments:write",
     "dhanam-cost-events:write",
     "hcm-benchmarks:read",
+    # RFC 0051 native COGS MCP read scopes and Nauta's machine reads.
+    "dhanam-cogs:read",
+    "karafiel-cogs:read",
+    "converge-dash-cogs:read",
+    "pravara-cogs:read",
+    "nauta-cogs:read",
+    "enclii-cogs:read",
+    "selva-cogs:read",
+    "symbiosis-hcm-cogs:read",
+    "nauta-labor-hours:read",
+    "nauta-engagements:read",
 ]
 #: The writer scope's retired two-colon form, which the CREATE schema's shape
 #: check refuses (422) but the UPDATE schema does not check.
 UPDATE_ONLY_MACHINE_EDGE_SCOPES = ["dhanam:scheduled-payments:write"]
-MACHINE_EDGE_AUDIENCES = ["karafiel-app", "karafiel-staging-api", "dhanam-money-moves"]
+MACHINE_EDGE_AUDIENCES = [
+    "karafiel-app",
+    "karafiel-staging-api",
+    "dhanam-money-moves",
+    "converge-dash",
+    "nauta-api",
+]
 
 
 @pytest.mark.parametrize("scope", MACHINE_EDGE_SCOPES)
@@ -401,6 +419,26 @@ async def test_karafiel_app_contract_drafts_client_needs_platform_admin(env):
     env.act_as(env.platform_admin)
     response = await _create(env, payload, env.other_org.id)
     assert response.status_code == 201, response.text
+
+
+async def test_cogs_reader_on_the_default_audience_needs_platform_admin(env):
+    """Enclii's COGS reader shape (enclii#946): Janua's default audience, which
+    cannot be reserved, so the reserved scope alone refuses the org admin."""
+    payload = _machine(
+        "tenant-cogs-reader", audience="janua.dev", allowed_scopes=["enclii-cogs:read"]
+    )
+    env.act_as(env.org_admin)
+    response = await _create(env, payload, env.own_org.id)
+    assert response.status_code == 403, response.text
+    assert response.json()["error"]["message"] == (
+        "Platform admin privileges required for reserved OAuth client values: allowed_scopes"
+    )
+    await _assert_nothing_written(env)
+
+    env.act_as(env.platform_admin)
+    response = await _create(env, payload, env.other_org.id)
+    assert response.status_code == 201, response.text
+    assert response.json()["allowed_scopes"] == ["enclii-cogs:read"]
 
 
 @pytest.mark.parametrize(

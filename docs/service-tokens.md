@@ -88,7 +88,16 @@ else:
   scope's never-registrable two-colon form `dhanam:scheduled-payments:write`
   stays reserved too) and HCM's
   `hcm-benchmarks:read`, plus the audiences `karafiel-app`,
-  `karafiel-staging-api` and `dhanam-money-moves`;
+  `karafiel-staging-api` and `dhanam-money-moves`. Every native COGS MCP
+  read scope (RFC 0051, `<platform>-cogs:read`: `dhanam-cogs:read`,
+  `karafiel-cogs:read`, `converge-dash-cogs:read`, `pravara-cogs:read`,
+  `nauta-cogs:read`, `enclii-cogs:read`, `selva-cogs:read`,
+  `symbiosis-hcm-cogs:read`) and Nauta's other machine reads
+  (`nauta-labor-hours:read`, HCM's labor client only, and
+  `nauta-engagements:read`) are reserved too, with the audiences
+  `converge-dash` and `nauta-api`. Enclii's API accepts Janua's default
+  audience `janua.dev`, which cannot be reserved (every client without an
+  audience gets it), so its reserved scope is the gate there;
 - cannot create a `client_credentials` client without an organization, or pin
   a `client_id`;
 - cannot edit or rotate a client that already holds a reserved value.

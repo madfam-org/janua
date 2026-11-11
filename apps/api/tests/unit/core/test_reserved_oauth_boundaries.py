@@ -33,6 +33,8 @@ def test_service_auth_modules_read_the_registry_constants():
         "pravara-api",
         "asset-shells-api",
         "fabrication-prep-api",
+        "converge-dash",
+        "nauta-api",
         " janua-email ",
     ],
 )
@@ -42,7 +44,19 @@ def test_reserved_audiences(audience):
 
 @pytest.mark.parametrize(
     "audience",
-    [None, "", "tenant-api", "my-janua-app", "janua", "symbiosis-hcm", "selva-office"],
+    [
+        None,
+        "",
+        "tenant-api",
+        "my-janua-app",
+        "janua",
+        "symbiosis-hcm",
+        "selva-office",
+        # Janua's default JWT_AUDIENCE: every client without an audience gets it.
+        "janua.dev",
+        "nauta-portal",
+        "converge-dash-web",
+    ],
 )
 def test_ordinary_audiences(audience):
     assert not reserved.is_reserved_audience(audience)
@@ -92,6 +106,17 @@ def test_consent_purpose_audiences_and_names_are_reserved_by_construction():
         "asset-shells:publish-instances",
         "fabrication-prep:slice",
         "fabrication-prep:admin",
+        "dhanam-cogs:read",
+        "karafiel-cogs:read",
+        "converge-dash-cogs:read",
+        "pravara-cogs:read",
+        "nauta-cogs:read",
+        "enclii-cogs:read",
+        "selva-cogs:read",
+        "symbiosis-hcm-cogs:read",
+        "nauta-labor-hours:read",
+        "nauta-engagements:read",
+        " nauta-labor-hours:read ",
     ],
 )
 def test_reserved_scopes(scope):
@@ -119,6 +144,13 @@ def test_reserved_scopes(scope):
         "pravara-mes:other",
         "asset-shells:write",
         "fabrication-prep:read",
+        # COGS look-alikes no consumer honours (exact-match scopes, RFC 0051 M2).
+        "cogs:read",
+        "dhanam:cogs:read",
+        "dhanam-cogs:read-all",
+        "nauta:labor-hours:read",
+        "nauta.cogs:read",
+        "selva-cogs:write",
     ],
 )
 def test_ordinary_scopes(scope):
