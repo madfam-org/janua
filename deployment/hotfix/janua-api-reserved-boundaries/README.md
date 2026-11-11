@@ -75,6 +75,18 @@ theirs that holds a newly reserved value.
      (use a throwaway organization, never a real client).
 6. Undo: revert the pin PR.
 
+## Exception record
+
+| | |
+|---|---|
+| Approved by | Owner, 2026-11-11 (in session): the exception route («Yes, start now» with the Janua exception as recommended), janua#781/#788 («Yes, merge all three») and #784 («Yes, merge #784») |
+| Built by | [run 43056254767](https://github.com/madfam-org/janua/actions/runs/43056254767), dispatched by the owner from `main` at `ee7668b8`; every proof passed («Registry: strictly tighter than the base; nothing loosened.»), then cosign-signed |
+| Hotfix digest | `sha256:b6e16fa59433bb9f4bdc662c3a0e9d20fb55dca3f546d2b016f2346d41c80d72` (tag `hotfix-reserved-ee7668b8…`) |
+| Replaces | `sha256:7c9076615ad8345c88b8093e660a4484dd3ff6f0b9d43b11c28a9d85c5884676` (source `b16869d7`) |
+| Delta | `app/core/reserved_oauth_boundaries.py` and `app/core/oauth_metadata.py` from `main` (reservations #758, #775, #781, #782, #788; #762's discovery fix) |
+| Supersedes | the janua#762 pin PR, #769 (close it when this merges) |
+| Pinned by | this PR, which sets the hotfix digest in `k8s/overlays/production/kustomization.yaml` |
+
 ## Remove
 
 Delete this folder, `.github/workflows/hotfix-janua-api-reserved-boundaries.yml`
