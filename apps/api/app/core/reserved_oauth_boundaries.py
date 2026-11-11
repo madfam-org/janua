@@ -120,8 +120,8 @@ KARAFIEL_SCOPES: frozenset[str] = frozenset(
 
 #: Dhanam machine scopes (audience ``dhanam-api``): the RouteCraft billing-event
 #: relay, and the machine strategies under dhanam ``apps/api/src/modules``
-#: (scheduled-payments writer, cost-events writer, merchant payment projection),
-#: which also require
+#: (scheduled-payments writer, cost-events writer, merchant payment projection,
+#: bank-ledger reader), which also require
 #: a reviewed per-client grant row in Dhanam. The audience is reserved too; the
 #: scopes are reserved so the registry states the whole edge. The writer scope
 #: is ``dhanam-scheduled-payments:write`` (ONE colon, the only shape client
@@ -135,6 +135,9 @@ DHANAM_SCOPES: frozenset[str] = frozenset(
         "dhanam:scheduled-payments:write",
         "dhanam-cost-events:write",
         "dhanam:merchant-read",
+        # Karafiel's bank mirror: a READ of one business space's bank movements
+        # (dhanam bank-ledger/bank-ledger-reader.strategy.ts + BankLedgerReaderGrant).
+        "dhanam-bank-ledger:read",
     }
 )
 

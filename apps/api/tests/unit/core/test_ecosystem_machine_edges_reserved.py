@@ -77,6 +77,21 @@ ECOSYSTEM_MACHINE_EDGES: dict[str, tuple[str, tuple[str, ...], bool]] = {
         ("dhanam-scheduled-payments:write",),
         True,
     ),
+    # Karafiel's bank mirror (enclii ``karafiel-dhanam-bank-ledger``): a
+    # machine-only READ of one business space's bank movements, which Dhanam
+    # also binds to that space with a reviewed BankLedgerReaderGrant.
+    "karafiel-dhanam-bank-ledger": ("dhanam-api", ("dhanam-bank-ledger:read",), True),
+    # Karafiel's tax obligations as planned payments in Dhanam (enclii
+    # ``karafiel-dhanam-scheduled-payments``, RFC 0055 Phase 1.5), through the
+    # same writer route and scope as ``symbiosis-hcm-dhanam-writer``.
+    "karafiel-dhanam-scheduled-payments": (
+        "dhanam-api",
+        ("dhanam-scheduled-payments:write",),
+        True,
+    ),
+    # Selva's inference usage as cost events, source ``selva`` (enclii
+    # ``selva-dhanam-cost-events``), org-bound like the other cost-event writers.
+    "selva-dhanam-cost-events": ("dhanam-api", ("dhanam-cost-events:write",), True),
     "karafiel-dhanam-cost-events": (
         "dhanam-api",
         ("dhanam-cost-events:write",),
@@ -124,6 +139,7 @@ CONSUMER_MACHINE_SCOPES: dict[str, str] = {
     ),
     "billing:events": "routecraft-billing-relay edge, docs/service-tokens.md (no check in dhanam yet)",
     "dhanam-scheduled-payments:write": "dhanam scheduled-payments/machine/writer.strategy.ts",
+    "dhanam-bank-ledger:read": "dhanam bank-ledger/bank-ledger-reader.strategy.ts",
     "dhanam-cost-events:write": "dhanam cost-events/machine/cost-event-writer.strategy.ts",
     "dhanam:merchant-read": "dhanam spaces/payment-projection.strategy.ts",
     "hcm-benchmarks:read": "symbiosis-hcm apps/api/compensation/benchmark_views.py",

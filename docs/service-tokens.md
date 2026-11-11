@@ -6,6 +6,9 @@ Cross-service identity for the RFC 0024 §P4 consolidations:
 |---|---|---|---|---|
 | Zavlo → Karafiel CFDI bridge (§P4.2) | `zavlo-cfdi-emitter` | `cfdi:issue` | `karafiel-api` | Karafiel API |
 | RouteCraft → Dhanam billing (§P4.3) | `routecraft-billing-relay` | `billing:events` | `dhanam-api` | Dhanam API |
+| Karafiel bank mirror → Dhanam bank-ledger read (one business space, bound by a Dhanam reader grant; org-bound) | `karafiel-dhanam-bank-ledger` | `dhanam-bank-ledger:read` (reserved) | `dhanam-api` | Dhanam bank-ledger API |
+| Karafiel tax obligations → Dhanam planned payments (RFC 0055 Phase 1.5, bound by a Dhanam scheduled-payments writer grant; org-bound) | `karafiel-dhanam-scheduled-payments` | `dhanam-scheduled-payments:write` (reserved) | `dhanam-api` | Dhanam scheduled-payments API |
+| Selva inference usage → Dhanam cost events (source `selva`, bound by a Dhanam writer grant; org-bound) | `selva-dhanam-cost-events` | `dhanam-cost-events:write` (reserved) | `dhanam-api` | Dhanam cost-events API |
 | Nauta → Karafiel legal drafts (D3.5) and fiscal edge | `nauta-legal-drafts` | `legal:draft`, `legal:client-profile`, `fiscal:invoice`, `fiscal:csf-intake` | `karafiel-api` | Karafiel API |
 | Nauta → PhyndCRM cockpit reads (engagements + contacts, read only; org-bound to the organization phynd-crm pins as `PHYND_CRM_MACHINE_JANUA_ORG_ID`) | `nauta-phynd-crm` | `phynd-crm-engagements:read` (reserved) | `phynd-crm` (reserved; the staff SSO audience `phynd-crm-api` is not) | PhyndCRM tRPC |
 | Forj → Yantra4D catalog render | `forj-catalog-materializer` | `yantra4d:render` | `yantra4d-api` | Yantra4D render API |
@@ -84,7 +87,7 @@ else:
   `familia:documents`; Karafiel pins every service token holding one to
   MADFAM's own RFC), Dhanam's (`billing:events`,
   `dhanam-scheduled-payments:write`, `dhanam-cost-events:write`,
-  `dhanam:merchant-read`; the writer
+  `dhanam:merchant-read`, `dhanam-bank-ledger:read`; the writer
   scope's never-registrable two-colon form `dhanam:scheduled-payments:write`
   stays reserved too) and HCM's
   `hcm-benchmarks:read`, plus the audiences `karafiel-app`,

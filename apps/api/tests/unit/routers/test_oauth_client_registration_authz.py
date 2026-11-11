@@ -359,6 +359,7 @@ MACHINE_EDGE_SCOPES = [
     "dhanam:merchant-read",
     "dhanam-scheduled-payments:write",
     "dhanam-cost-events:write",
+    "dhanam-bank-ledger:read",
     "hcm-benchmarks:read",
     # RFC 0051 native COGS MCP read scopes and Nauta's machine reads.
     "dhanam-cogs:read",
