@@ -78,6 +78,7 @@ def test_consent_purpose_audiences_and_names_are_reserved_by_construction():
         "dhanam:scheduled-payments:write",
         "dhanam-cost-events:write",
         "dhanam:merchant-read",
+        "dhanam-bank-ledger:read",
         "phynd-crm-engagements:read",
         " phynd-crm-engagements:read ",
         "hcm-benchmarks:read",

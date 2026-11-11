@@ -358,6 +358,7 @@ MACHINE_EDGE_SCOPES = [
     "dhanam:merchant-read",
     "dhanam-scheduled-payments:write",
     "dhanam-cost-events:write",
+    "dhanam-bank-ledger:read",
     "hcm-benchmarks:read",
 ]
 #: The writer scope's retired two-colon form, which the CREATE schema's shape
