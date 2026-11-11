@@ -11,7 +11,8 @@ point that stops that from recurring:
 - ``ECOSYSTEM_MACHINE_EDGES``: every ``client_credentials`` client declared in
   enclii ``config/ecosystem-oidc-provision.yaml`` (copied at c945fe0a,
   2026-10-27, plus ``symbiosis-hcm-dhanam-writer`` from enclii#900,
-  ``karafiel-dhanam-cost-events`` (RFC 0050 Phase 1), the twelve RFC 0051 COGS
+  ``karafiel-dhanam-cost-events`` (RFC 0050 Phase 1), ``symbiosis-hcm-karafiel``
+  (enclii#899, widened with ``fiscal:csf-intake`` in enclii#959), the twelve RFC 0051 COGS
   MCP consumers from enclii#946 (``feat/cogs-mcp-consumer-clients``, open) and
   Symbiosis HCM's two labor-cost clients from symbiosis-hcm#232
   (``apps/api/symbiosis/settings.py``, open), Pravara's Dhanam cost-event writer
@@ -58,6 +59,21 @@ ECOSYSTEM_MACHINE_EDGES: dict[str, tuple[str, tuple[str, ...], bool]] = {
         False,
     ),
     "zavlo-cfdi-emitter": ("karafiel-api", ("cfdi:issue",), False),
+    # Symbiosis HCM's Karafiel edge (enclii ``symbiosis-hcm-karafiel``):
+    # contract drafts, CFDI and, from 2026-11-11, reading a contractor's
+    # constancia de situación fiscal. Platform-admin like zavlo-cfdi-emitter;
+    # Karafiel pins the token to a reviewed service RFC, so every scope must
+    # be reserved.
+    "symbiosis-hcm-karafiel": (
+        "karafiel-api",
+        (
+            "legal:contractor-draft",
+            "legal:employment-draft",
+            "fiscal:invoice",
+            "fiscal:csf-intake",
+        ),
+        False,
+    ),
     "pravara-fabrication-prep": ("fabrication-prep-api", ("fabrication-prep:slice",), False),
     "routecraft-billing-relay": ("dhanam-api", ("billing:events",), False),
     "forj-pravara-intake": ("pravara-api", ("pravara-mes:jobs",), True),
