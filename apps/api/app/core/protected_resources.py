@@ -136,8 +136,20 @@ CLAUDE_HOSTED_CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 CLAUDE_HOSTED_CLIENT_ID = "https://claude.ai/oauth/mcp-oauth-client-metadata"
 CLAUDE_CODE_CLIENT_ID = "https://claude.ai/oauth/claude-code-client-metadata"
 
+#: ChatGPT's stable Client ID Metadata Document and redirect URI (OpenAI,
+#: developers.openai.com/plugins/build/auth, checked 2026-11-12). ChatGPT uses
+#: this stable pair with authorization servers that meet RFC 9207 issuer
+#: identification, as Janua does (``authorization_response_iss_parameter_supported``);
+#: otherwise it would use per-callback ids that cannot be pinned here. Its
+#: document prefers ``private_key_jwt`` but lists ``none`` as supported, which is
+#: the method Janua advertises and enforces (see client_id_metadata.parse_document).
+CHATGPT_CLIENT_ID = "https://chatgpt.com/oauth/client.json"
+CHATGPT_CALLBACK = "https://chatgpt.com/connector_platform_oauth_redirect"
+
 #: The MAP (operations app) of Crea Tu Mundo, as an MCP server. Owner decision
 #: 2026-10: Claude and Claude Code only, read-only scopes, no clinical data.
+#: Owner decision 2026-11-12: ChatGPT too, on the same read-only scopes, token
+#: lifetime and consent; the MAP keeps its own client allowlist in step.
 MAP_CREA_TU_MUNDO = ProtectedResource(
     resource="https://map.creatumundo.mx/api/mcp",
     display_name="MAP de Crea Tu Mundo",
@@ -152,9 +164,11 @@ MAP_CREA_TU_MUNDO = ProtectedResource(
         ),
     ),
     client_policy=ClientPolicy(
-        cimd_hosts=frozenset({"claude.ai"}),
-        cimd_client_ids=frozenset({CLAUDE_HOSTED_CLIENT_ID, CLAUDE_CODE_CLIENT_ID}),
-        redirect_uris=frozenset({CLAUDE_HOSTED_CALLBACK}),
+        cimd_hosts=frozenset({"claude.ai", "chatgpt.com"}),
+        cimd_client_ids=frozenset(
+            {CLAUDE_HOSTED_CLIENT_ID, CLAUDE_CODE_CLIENT_ID, CHATGPT_CLIENT_ID}
+        ),
+        redirect_uris=frozenset({CLAUDE_HOSTED_CALLBACK, CHATGPT_CALLBACK}),
         allow_loopback_redirects=True,
     ),
     access_token_ttl_seconds=15 * 60,

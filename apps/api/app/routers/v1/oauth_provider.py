@@ -3152,7 +3152,8 @@ async def _authenticate_resource_token_client(
                 "invalid_client", "this client is not allowed at this server", 401
             )
         if client_secret or used_basic_auth:
-            # Its document says token_endpoint_auth_method "none": PKCE only.
+            # A CIMD client is public here (its document says or supports
+            # token_endpoint_auth_method "none"): PKCE only, never a secret.
             return None, _oauth_token_error(
                 "invalid_client",
                 "this client authenticates with PKCE only",

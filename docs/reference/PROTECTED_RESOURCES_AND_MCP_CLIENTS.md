@@ -5,7 +5,8 @@ MCP server, that a third-party client names in the RFC 8707 `resource`
 parameter. The token's `aud` is that resource's URI, its scopes are the
 resource's own, and it lives at most 15 minutes. This is how the center's
 Director connects the MAP of Crea Tu Mundo to Claude (claude.ai, Desktop,
-mobile) and how Claude Code connects to it.
+mobile), how Claude Code connects to it, and (owner decision 2026-11-12) how
+ChatGPT connects to it.
 
 A request **without** `resource`, from a registered (`jnc_…`) client, behaves
 exactly as before. The only change every client sees is the `iss` parameter on
@@ -33,9 +34,9 @@ whose data. Anything not listed is refused with `invalid_target`.
 | scopes | `map.ops:read` «Consultar la operación del MAP, sin nombres ni datos clínicos»; `map.cobro:read` «Consultar la cobranza del MAP por clave de familia» |
 | access token lifetime | 15 minutes (the registry refuses more) |
 | refresh token | rotates on every use; ends after 7 days unused or 30 days after consent, whichever is first |
-| CIMD hosts | `claude.ai` |
-| CIMD client_ids (pinned) | `https://claude.ai/oauth/mcp-oauth-client-metadata` (claude.ai, Desktop, mobile, Cowork); `https://claude.ai/oauth/claude-code-client-metadata` (Claude Code) |
-| exact redirect URIs | `https://claude.ai/api/mcp/auth_callback` |
+| CIMD hosts | `claude.ai`, `chatgpt.com` |
+| CIMD client_ids (pinned) | `https://claude.ai/oauth/mcp-oauth-client-metadata` (claude.ai, Desktop, mobile, Cowork); `https://claude.ai/oauth/claude-code-client-metadata` (Claude Code); `https://chatgpt.com/oauth/client.json` (ChatGPT, added 2026-11-12) |
+| exact redirect URIs | `https://claude.ai/api/mcp/auth_callback`; `https://chatgpt.com/connector_platform_oauth_redirect` |
 | loopback redirects | allowed (`127.0.0.1`, `[::1]`, `localhost`, any port) |
 | first login method offered | emailed link (`magic_link`) |
 
@@ -182,6 +183,24 @@ Janua change. No tenant records were queried to produce these declarations.
    [the post-promote checks](../runbooks/mcp-connector-post-promote.md).
 
 ## What Claude needs, and what Janua answers
+
+### ChatGPT (added 2026-11-12)
+
+From OpenAI's authentication guide (https://developers.openai.com/plugins/build/auth),
+checked 2026-11-12, and its published document at `https://chatgpt.com/oauth/client.json`:
+
+| ChatGPT does / needs | Janua |
+| --- | --- |
+| Prefers a Client ID Metadata Document when `client_id_metadata_document_supported: true`; with servers that meet RFC 9207 it uses the stable `https://chatgpt.com/oauth/client.json` and redirect `https://chatgpt.com/connector_platform_oauth_redirect` | Advertised; `authorization_response_iss_parameter_supported: true` and `iss` on every authorization response, so the stable pair is used and pinned |
+| Its document says `token_endpoint_auth_method: private_key_jwt` and lists `["none", "private_key_jwt"]` | A document qualifies when it says or supports `none`; Janua records it as `none` and treats it as public (PKCE, no secret). Janua advertises `none`, not `private_key_jwt` |
+| PKCE `S256`; requires `code_challenge_methods_supported` | `["S256"]` |
+| Appends `resource` to authorization and token requests | Required for CIMD clients |
+| Per-callback ids `https://chatgpt.com/oauth/{callback_id}/client.json` for servers without RFC 9207 | Not pinned: refused |
+
+Not verified from Janua's side: that the CIMD fetch from the production pods to
+`chatgpt.com` succeeds (egress and the host's bot protection). The post-promote
+probe in `docs/runbooks/mcp-connector-post-promote.md` checks it the same way as
+for `claude.ai`.
 
 Claude's connector client is stricter than the MCP specification in a few
 places (https://claude.com/docs/connectors/building/authentication):

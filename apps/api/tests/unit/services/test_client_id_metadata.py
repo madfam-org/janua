@@ -31,6 +31,7 @@ from app.services.client_id_metadata import (
 
 CLAUDE = "https://claude.ai/oauth/mcp-oauth-client-metadata"
 CLAUDE_CODE = "https://claude.ai/oauth/claude-code-client-metadata"
+CHATGPT = "https://chatgpt.com/oauth/client.json"
 CLAUDE_DOC = {
     "client_id": CLAUDE,
     "client_name": "Claude",
@@ -393,6 +394,57 @@ class TestDocumentValidation:
         del document["token_endpoint_auth_method"]
         with pytest.raises(ClientMetadataError):
             self._parse(document)
+
+    def test_chatgpt_document_is_a_public_client(self):
+        # OpenAI's document as published at https://chatgpt.com/oauth/client.json
+        # (2026-11-12): it PREFERS private_key_jwt and also supports none. Janua
+        # only does public clients, so it is recorded as none (PKCE, no secret).
+        document = {
+            "client_id": CHATGPT,
+            "client_uri": "https://chatgpt.com/",
+            "redirect_uris": ["https://chatgpt.com/connector_platform_oauth_redirect"],
+            "token_endpoint_auth_method": "private_key_jwt",
+            "token_endpoint_auth_methods_supported": ["none", "private_key_jwt"],
+            "grant_types": [
+                "authorization_code",
+                "refresh_token",
+                "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            ],
+            "response_types": ["code"],
+            "client_name": "ChatGPT",
+            "logo_uri": "https://persistent.oaistatic.com/sonic/misc/openai-logo.png",
+            "token_endpoint_auth_signing_alg": "RS256",
+            "jwks_uri": "https://chatgpt.com/oauth/jwks.json",
+        }
+        metadata = parse_document(json.dumps(document).encode(), CHATGPT, "chatgpt.com")
+        assert metadata.token_endpoint_auth_method == "none"
+        assert metadata.client_name == "ChatGPT"
+        assert metadata.redirect_uris == ("https://chatgpt.com/connector_platform_oauth_redirect",)
+
+    @pytest.mark.parametrize(
+        "change",
+        [
+            # Supports only confidential methods: still refused.
+            {
+                "token_endpoint_auth_method": "private_key_jwt",
+                "token_endpoint_auth_methods_supported": ["private_key_jwt"],
+            },
+            {
+                "token_endpoint_auth_method": "client_secret_basic",
+                "token_endpoint_auth_methods_supported": ["client_secret_basic"],
+            },
+            # Malformed list: refused, never read as "supports none".
+            {
+                "token_endpoint_auth_method": "private_key_jwt",
+                "token_endpoint_auth_methods_supported": "none",
+            },
+            # A secret is refused even when none is supported.
+            {"token_endpoint_auth_methods_supported": ["none"], "client_secret": "x"},
+        ],
+    )
+    def test_supported_methods_never_admit_a_confidential_only_client(self, change):
+        with pytest.raises(ClientMetadataError):
+            self._parse(dict(CLAUDE_DOC, **change))
 
     @pytest.mark.parametrize("raw", [b"not json", b"[]", b"\xff\xfe", b'"string"'])
     def test_not_a_json_object(self, raw):
