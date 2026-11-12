@@ -54,16 +54,23 @@ class TestTheMapEntry:
         assert 0 < MAP_CREA_TU_MUNDO.access_token_ttl_seconds <= 15 * 60
         assert MAX_ACCESS_TOKEN_TTL_SECONDS == 15 * 60
 
-    def test_client_policy_is_claude_and_claude_code_only(self):
+    def test_client_policy_is_claude_claude_code_and_chatgpt_only(self):
+        # Owner decisions: 2026-10 Claude and Claude Code; 2026-11-12 ChatGPT.
         policy = MAP_CREA_TU_MUNDO.client_policy
-        assert policy.cimd_hosts == frozenset({"claude.ai"})
+        assert policy.cimd_hosts == frozenset({"claude.ai", "chatgpt.com"})
         assert policy.cimd_client_ids == frozenset(
             {
                 "https://claude.ai/oauth/mcp-oauth-client-metadata",
                 "https://claude.ai/oauth/claude-code-client-metadata",
+                "https://chatgpt.com/oauth/client.json",
             }
         )
-        assert policy.redirect_uris == frozenset({"https://claude.ai/api/mcp/auth_callback"})
+        assert policy.redirect_uris == frozenset(
+            {
+                "https://claude.ai/api/mcp/auth_callback",
+                "https://chatgpt.com/connector_platform_oauth_redirect",
+            }
+        )
         assert policy.allow_loopback_redirects is True
         assert CLAUDE_HOSTED_CALLBACK == "https://claude.ai/api/mcp/auth_callback"
 
@@ -84,6 +91,10 @@ class TestTheMapEntry:
         assert policy.allows_redirect("http://[::1]:61000/callback")
         assert not policy.allows_redirect("https://claude.ai/api/mcp/auth_callback/")
         assert not policy.allows_redirect("https://claude.ai.evil.example/api/mcp/auth_callback")
+        assert policy.allows_redirect("https://chatgpt.com/connector_platform_oauth_redirect")
+        assert not policy.allows_redirect("https://chatgpt.com/connector_platform_oauth_redirect/")
+        # ChatGPT's per-callback redirects (non-RFC 9207 servers) are not pinned.
+        assert not policy.allows_redirect("https://chatgpt.com/connector/oauth/abc123")
         assert not policy.allows_redirect("https://app.example.test/callback")
         assert not policy.allows_redirect("https://localhost:3118/callback")
 
@@ -93,6 +104,7 @@ class TestTheMapEntry:
 
     def test_csp_origins_come_from_the_policies(self):
         assert protected_resource_redirect_origins() == [
+            "https://chatgpt.com",
             "https://claude.ai",
             "https://sim.creatumundo.mx",
         ]

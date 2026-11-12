@@ -31,9 +31,12 @@ chose, so the fetch is fenced in on every side (server-side request forgery):
 - valid documents are cached per process (bounded LRU) for their
   ``Cache-Control: max-age``, at most an hour; failures are never cached.
 
-The document must name itself (``client_id`` equal to the URL, exactly), be a
-public client (``token_endpoint_auth_method: none`` — it then needs PKCE), and
-list its ``redirect_uris``; it must not carry a client secret.
+The document must name itself (``client_id`` equal to the URL, exactly), be
+usable as a public client — ``token_endpoint_auth_method: none``, or ``none``
+among its ``token_endpoint_auth_methods_supported`` (ChatGPT's document prefers
+``private_key_jwt`` and also supports ``none``); Janua treats it as public
+either way and requires PKCE — and list its ``redirect_uris``; it must not carry
+a client secret.
 """
 
 from __future__ import annotations
@@ -342,11 +345,25 @@ def parse_document(raw: bytes, client_id: str, host: str) -> ClientMetadata:
     if not redirect_uris or len(redirect_uris) > MAX_REDIRECT_URIS:
         raise ClientMetadataError("client metadata document must list 1 to 20 redirect_uris")
 
+    # Janua only authenticates CIMD clients as PUBLIC clients (no secret, PKCE),
+    # and advertises ``none`` in ``token_endpoint_auth_methods_supported``. A
+    # document qualifies when it declares ``none`` as its method, or lists
+    # ``none`` among the methods it supports (OpenAI's ChatGPT document:
+    # ``token_endpoint_auth_method: private_key_jwt``,
+    # ``token_endpoint_auth_methods_supported: ["none", "private_key_jwt"]``).
+    # Either way the recorded method is ``none``: that is what Janua enforces.
     auth_method = document.get("token_endpoint_auth_method")
-    if auth_method != "none":
+    supported = _string_list(
+        document.get("token_endpoint_auth_methods_supported"),
+        "token_endpoint_auth_methods_supported",
+        required=False,
+        default=(),
+    )
+    if auth_method != "none" and "none" not in supported:
         raise ClientMetadataError(
             "only public clients (token_endpoint_auth_method none, with PKCE) are accepted"
         )
+    auth_method = "none"
 
     # RFC 7591 defaults: authorization_code / code.
     grant_types = _string_list(
