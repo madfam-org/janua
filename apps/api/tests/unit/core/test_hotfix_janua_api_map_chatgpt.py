@@ -158,7 +158,7 @@ def test_promotion_hold_is_untouched():
 def test_dump_policy_against_this_checkout_shows_chatgpt():
     snapshot = dump_policy.snapshot()
     json.dumps(snapshot)  # serialisable
-    assert "chatgpt.com" in snapshot["resources"][MAP]["cimd_hosts"]
+    assert snapshot["resources"][MAP]["cimd_hosts"] == ["chatgpt.com", "claude.ai"]
     assert snapshot["documents"] == {
         "chatgpt": "accepted:none",
         "claude": "accepted:none",

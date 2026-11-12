@@ -36,39 +36,33 @@ def compare(base: dict, new: dict) -> list[str]:
             if uri == MAP and key in ADDED:
                 expected = sorted(set(b[key]) | set(ADDED[key]))
                 if set(ADDED[key]) & set(b[key]):
-                    errors.append(f"{uri} {key}: the base already has {ADDED[key]}")
+                    errors.append(
+                        f"{uri} {key}: the base already has the ChatGPT values"
+                    )
             if n.get(key) != expected:
-                errors.append(f"{uri} {key}: expected {expected}, got {n.get(key)}")
+                errors.append(f"{uri} {key}: not the expected value")
     origins = list(base["redirect_origins"])
     if "https://chatgpt.com" not in origins:
         origins.append("https://chatgpt.com")
     if sorted(new["redirect_origins"]) != sorted(origins):
-        errors.append(
-            f"redirect origins: expected {sorted(origins)}, got {sorted(new['redirect_origins'])}"
-        )
+        errors.append("redirect origins: not the base plus https://chatgpt.com")
     docs_b, docs_n = base["documents"], new["documents"]
     if not docs_b["chatgpt"].startswith("refused:"):
-        errors.append(
-            f"the base already accepts ChatGPT's document ({docs_b['chatgpt']})"
-        )
+        errors.append("the base already accepts ChatGPT's document")
     if docs_n["chatgpt"] != "accepted:none":
-        errors.append(
-            f"ChatGPT's document: expected accepted:none, got {docs_n['chatgpt']}"
-        )
+        errors.append("ChatGPT's document: not accepted as a public client")
     if docs_b["claude"] != "accepted:none" or docs_n["claude"] != "accepted:none":
-        errors.append(
-            f"Claude's document changed: {docs_b['claude']} -> {docs_n['claude']}"
-        )
+        errors.append("Claude's document: no longer accepted as a public client")
     if not docs_n["confidential"].startswith("refused:"):
-        errors.append(
-            f"a confidential-only document is no longer refused ({docs_n['confidential']})"
-        )
+        errors.append("a confidential-only document is no longer refused")
     return errors
 
 
 def main(argv: list[str]) -> int:
-    base = json.load(open(argv[1]))
-    new = json.load(open(argv[2]))
+    with open(argv[1], encoding="utf-8") as handle:
+        base = json.load(handle)
+    with open(argv[2], encoding="utf-8") as handle:
+        new = json.load(handle)
     errors = compare(base, new)
     if errors:
         print("Policy: REFUSED")
@@ -79,9 +73,7 @@ def main(argv: list[str]) -> int:
     for key, values in ADDED.items():
         print(f"  + {MAP} {key}: {', '.join(values)}")
     print("  + redirect origin: https://chatgpt.com")
-    print(
-        f"  ChatGPT document: {base['documents']['chatgpt']} -> {new['documents']['chatgpt']}"
-    )
+    print("  ChatGPT document: refused -> accepted as a public client")
     return 0
 
 
