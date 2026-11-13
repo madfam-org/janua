@@ -820,3 +820,216 @@ async def test_registered_map_recovery_refuses_controls_or_backslash_before_mail
     })
     assert response.status_code == 400
     env.mail.assert_not_awaited()
+
+
+# --- Org-bound client resolving platform-pool members of its own organization ---
+
+
+async def _as_platform_member(env, *, membership="active"):
+    """Move the fixture identity to the platform pool (tenant_id IS NULL), the
+    way staff are provisioned, keeping it a member of the client's org."""
+    async with env.factory() as db:
+        user = await db.get(User, env.user.id)
+        user.tenant_id = None
+        member = (await db.execute(select(OrganizationMember))).scalar_one()
+        if membership is None:
+            await db.delete(member)
+        else:
+            member.status = membership
+        await db.commit()
+
+
+async def _client(db):
+    return (await db.execute(select(OAuthClient))).scalar_one()
+
+
+async def test_login_user_prefers_tenant_pool_over_platform_member(env):
+    platform_id = uuid.uuid4()
+    async with env.factory() as db:
+        db.add(
+            User(
+                id=platform_id,
+                email=env.user.email,
+                password_hash=AuthService.hash_password("Different-Pass-1!"),
+                status=UserStatus.ACTIVE,
+                is_active=True,
+            )
+        )
+        db.add(
+            OrganizationMember(
+                user_id=platform_id, organization_id=env.org_id, role="member", status="active"
+            )
+        )
+        await db.commit()
+    async with env.factory() as db:
+        user = await login_user(db, env.user.email, await _client(db))
+        assert user.id == env.user.id and user.tenant_id == env.org_id
+
+
+async def test_login_user_tenant_hit_without_membership_still_refused(env):
+    async with env.factory() as db:
+        member = (await db.execute(select(OrganizationMember))).scalar_one()
+        member.status = "removed"
+        await db.commit()
+    async with env.factory() as db:
+        with pytest.raises(HTTPException) as error:
+            await login_user(db, env.user.email, await _client(db))
+        assert error.value.status_code == 403
+
+
+async def test_login_user_falls_back_to_active_platform_member(env):
+    await _as_platform_member(env)
+    async with env.factory() as db:
+        user = await login_user(db, env.user.email, await _client(db))
+        assert user is not None and user.id == env.user.id and user.tenant_id is None
+        user = await login_user(db, env.user.email, await _client(db), active_only=True)
+        assert user is not None and user.id == env.user.id
+
+
+async def test_hosted_password_login_accepts_platform_member_of_bound_org(env):
+    await _as_platform_member(env)
+    response = await _login(env)
+    assert response.status_code == 302, response.text
+    async with env.factory() as db:
+        session = (await db.execute(select(UserSession))).scalar_one()
+        assert session.user_id == env.user.id
+
+
+async def test_platform_member_completes_required_factor_for_bound_org(env):
+    await _require(env)
+    await _as_platform_member(env)
+    flow, data, _ = await _flow(env)
+    assert data["organization_id"] == str(env.org_id)
+    result = await env.http.post(
+        "/api/v1/auth/factor/complete",
+        data={"flow_id": flow, "code": pyotp.TOTP(data["setup_secret"]).now()},
+    )
+    assert result.status_code == 200, result.text
+    async with env.factory() as db:
+        session = (await db.execute(select(UserSession))).scalar_one()
+        assert session.user_id == env.user.id
+        assert session.authentication_methods == ["pwd", "otp"]
+
+
+@pytest.mark.parametrize("membership", [None, "removed", "pending", "inactive"])
+async def test_platform_user_without_active_membership_is_not_found(env, membership):
+    await _as_platform_member(env, membership=membership)
+    async with env.factory() as db:
+        client = await _client(db)
+        assert await login_user(db, env.user.email, client) is None
+        assert await login_user(db, env.user.email, client, active_only=True) is None
+        # Same answer as an address that exists nowhere.
+        assert await login_user(db, "nobody@example.com", client) is None
+    refused = await _login(env)
+    unknown = await env.http.post(
+        "/api/v1/auth/login-form",
+        data={
+            "email": "nobody@example.com",
+            "password": PASSWORD,
+            "client_id": "synthetic-map",
+            "next": "/",
+        },
+    )
+    assert refused.status_code == unknown.status_code == 401
+    async with env.factory() as db:
+        assert not (await db.execute(select(UserSession))).scalars().all()
+
+
+async def test_platform_member_of_another_org_is_not_found(env):
+    await _as_platform_member(env, membership=None)
+    other_org = uuid.uuid4()
+    async with env.factory() as db:
+        db.add(Organization(id=other_org, name="Other org", slug="other", owner_id=env.user.id))
+        db.add(
+            OrganizationMember(
+                user_id=env.user.id, organization_id=other_org, role="owner", status="active"
+            )
+        )
+        await db.commit()
+    async with env.factory() as db:
+        assert await login_user(db, env.user.email, await _client(db)) is None
+
+
+async def test_inactive_platform_member_respects_active_only(env):
+    await _as_platform_member(env)
+    async with env.factory() as db:
+        user = await db.get(User, env.user.id)
+        user.status = UserStatus.SUSPENDED
+        await db.commit()
+    async with env.factory() as db:
+        client = await _client(db)
+        assert await login_user(db, env.user.email, client, active_only=True) is None
+        found = await login_user(db, env.user.email, client)
+        assert found is not None and found.status == UserStatus.SUSPENDED
+    response = await _login(env)
+    assert response.status_code == 401
+
+
+async def test_bound_client_never_falls_back_to_other_tenant_pools(env):
+    await _as_platform_member(env, membership=None)
+    other_org = uuid.uuid4()
+    async with env.factory() as db:
+        user = await db.get(User, env.user.id)
+        user.tenant_id = other_org
+        db.add(Organization(id=other_org, name="Other org", slug="other", owner_id=env.user.id))
+        # Even an active membership in the client's org does not pull an
+        # identity out of another tenant's pool.
+        db.add(
+            OrganizationMember(
+                user_id=env.user.id, organization_id=env.org_id, role="owner", status="active"
+            )
+        )
+        await db.commit()
+    async with env.factory() as db:
+        assert await login_user(db, env.user.email, await _client(db)) is None
+
+
+async def test_unbound_client_resolves_platform_pool_only(env):
+    platform_id = uuid.uuid4()
+    async with env.factory() as db:
+        db.add(
+            User(
+                id=platform_id,
+                email="staff@example.com",
+                status=UserStatus.ACTIVE,
+                is_active=True,
+            )
+        )
+        await db.commit()
+    unbound = SimpleNamespace(organization_id=None)
+    async with env.factory() as db:
+        for client in (None, unbound):
+            # The tenant-pool fixture identity is invisible without a bound client.
+            assert await login_user(db, env.user.email, client) is None
+            user = await login_user(db, "staff@example.com", client)
+            assert user is not None and user.id == platform_id
+
+
+async def test_scoped_recovery_reaches_platform_member_of_bound_org(env, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "EMAIL_ENABLED", True)
+    await _as_platform_member(env)
+    response = await env.http.post(
+        "/api/v1/auth/password/forgot",
+        json={"email": env.user.email, "client_id": "synthetic-map", "return_url": RETURN},
+    )
+    assert response.status_code == 200, response.text
+    async with env.factory() as db:
+        reset = (await db.execute(select(PasswordReset))).scalar_one()
+        assert reset.user_id == env.user.id
+
+
+async def test_scoped_recovery_ignores_platform_user_without_membership(env, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "EMAIL_ENABLED", True)
+    await _as_platform_member(env, membership="removed")
+    response = await env.http.post(
+        "/api/v1/auth/password/forgot",
+        json={"email": env.user.email, "client_id": "synthetic-map", "return_url": RETURN},
+    )
+    assert response.status_code == 200, response.text
+    async with env.factory() as db:
+        assert not (await db.execute(select(PasswordReset))).scalars().all()
+    env.mail.assert_not_awaited()
