@@ -1,0 +1,217 @@
+# Owner exception: build, verify and sign a janua-api image that is the image
+# production runs plus ChatGPT on the MAP de Crea Tu Mundo protected resource.
+# See deployment/hotfix/janua-api-map-chatgpt/README.md.
+#
+# It builds ONE image and writes nothing to staging, production or this
+# repository. Pinning the result in production is a separate reviewed PR. The
+# promotion hold (scripts/staging/promotion_runtime_guard.py) is untouched.
+# Delete this workflow and that folder once a normal promotion replaces the
+# hotfix in production.
+
+name: Hotfix image (ChatGPT on the MAP resource)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why build it now (shown in the run summary; required)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write # cosign keyless signing via OIDC
+
+concurrency:
+  group: hotfix-janua-api-map-chatgpt
+  cancel-in-progress: false
+
+env:
+  # The digest production runs (k8s/overlays/production/kustomization.yaml on
+  # 2026-11-12, pinned by janua#789): the image built from BASE_SOURCE plus the
+  # two reserved-boundaries files as they were at RESERVED_SOURCE.
+  BASE_IMAGE: ghcr.io/madfam-org/janua-api@sha256:b6e16fa59433bb9f4bdc662c3a0e9d20fb55dca3f546d2b016f2346d41c80d72
+  BASE_SOURCE: b16869d75bf8e91967b3f8443032f01bc2463417
+  RESERVED_SOURCE: ee7668b894a6445c78a37bb5f5eea9183988777c
+  HOTFIX_DIR: deployment/hotfix/janua-api-map-chatgpt
+  DOCKERFILE: deployment/hotfix/janua-api-map-chatgpt/Dockerfile
+  TARGET: ghcr.io/madfam-org/janua-api
+
+jobs:
+  build:
+    name: Build, verify and sign
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    steps:
+      - name: Refuse anything but main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Build the hotfix from main only, where the Dockerfile and the policy were reviewed."
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # BASE_SOURCE and RESERVED_SOURCE must be reachable
+
+      - name: Dockerfile pins the base this workflow verifies
+        run: |
+          set -euo pipefail
+          grep -qxF "FROM ${BASE_IMAGE}" "$DOCKERFILE" || {
+            echo "::error::$DOCKERFILE does not start FROM ${BASE_IMAGE}."
+            exit 1
+          }
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+
+      # Proves the base is what we think production runs: apps/api/app at
+      # BASE_SOURCE with the two reserved-boundaries files from RESERVED_SOURCE.
+      - name: Base image is BASE_SOURCE plus the reserved-boundaries files
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hotfix/src /tmp/hotfix/base
+          docker pull --quiet "$BASE_IMAGE"
+          cid=$(docker create "$BASE_IMAGE")
+          docker cp "$cid:/app/app" /tmp/hotfix/base/app
+          docker rm "$cid" >/dev/null
+          git archive "$BASE_SOURCE" apps/api/app | tar -x -C /tmp/hotfix/src
+          for f in core/oauth_metadata.py core/reserved_oauth_boundaries.py; do
+            git show "$RESERVED_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          diff -r -x __pycache__ /tmp/hotfix/src/apps/api/app /tmp/hotfix/base/app
+          echo "Base image application code matches $BASE_SOURCE plus the reserved-boundaries files."
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: ${{ env.TARGET }}:hotfix-map-chatgpt-${{ github.sha }}
+          provenance: false
+          sbom: false
+
+      # Proves the delta: two added layers, and exactly the two copied files
+      # changed, each byte-identical to the reviewed source on main.
+      - name: Hotfix differs from the base by two files
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          new="${TARGET}@${DIGEST}"
+          docker pull --quiet "$new"
+          base_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$BASE_IMAGE")
+          new_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$new")
+          if [[ "$new_layers" -ne $((base_layers + 2)) ]]; then
+            echo "::error::Expected exactly two added layers ($base_layers -> $new_layers)."
+            exit 1
+          fi
+          mkdir -p /tmp/hotfix/new
+          cid=$(docker create "$new")
+          docker cp "$cid:/app/app" /tmp/hotfix/new/app
+          docker rm "$cid" >/dev/null
+          changed=$(diff -rq -x __pycache__ /tmp/hotfix/base/app /tmp/hotfix/new/app | sort || true)
+          expected=$(printf '%s\n' \
+            "Files /tmp/hotfix/base/app/core/protected_resources.py and /tmp/hotfix/new/app/core/protected_resources.py differ" \
+            "Files /tmp/hotfix/base/app/services/client_id_metadata.py and /tmp/hotfix/new/app/services/client_id_metadata.py differ" | sort)
+          if [[ "$changed" != "$expected" ]]; then
+            echo "::error::Unexpected application-code delta:"
+            echo "$changed"
+            exit 1
+          fi
+          cmp /tmp/hotfix/new/app/core/protected_resources.py apps/api/app/core/protected_resources.py
+          cmp /tmp/hotfix/new/app/services/client_id_metadata.py apps/api/app/services/client_id_metadata.py
+          echo "Only core/protected_resources.py and services/client_id_metadata.py changed, and they are the reviewed files."
+
+      # Importing app.core imports the whole application, so these also prove
+      # both images import cleanly. The production image has asyncpg but not
+      # the test-only aiosqlite, so the URL must be PostgreSQL; nothing listens
+      # on it and nothing connects.
+      - name: Discovery unchanged; policy gains ChatGPT on the MAP only
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          run_py() {
+            docker run --rm -i --entrypoint python \
+              -e ENVIRONMENT=test \
+              -e DATABASE_URL='postgresql+asyncpg://verify:verify@127.0.0.1:5432/verify' \
+              -e REDIS_URL='redis://localhost:6379/0' \
+              -e SECRET_KEY=hotfix-verification-only \
+              -e JWT_SECRET_KEY=hotfix-verification-only \
+              -e CORS_ORIGINS=http://localhost:3000 \
+              -e JANUA_CUSTOM_DOMAIN=auth.madfam.io \
+              "$@"
+          }
+          metadata() {
+            run_py "$1" -c 'import json; from app.core.oauth_metadata import authorization_server_metadata as m; print("METADATA=" + json.dumps(m(), sort_keys=True))' \
+              | grep '^METADATA=' | tail -1 | cut -d= -f2-
+          }
+          policy() {
+            run_py "$1" - < "$HOTFIX_DIR/dump_policy.py" \
+              | grep '^POLICY=' | tail -1 | cut -d= -f2-
+          }
+          new="${TARGET}@${DIGEST}"
+          metadata "$BASE_IMAGE" > /tmp/hotfix/base-metadata.json
+          metadata "$new" > /tmp/hotfix/new-metadata.json
+          cmp /tmp/hotfix/base-metadata.json /tmp/hotfix/new-metadata.json
+          echo "Discovery: identical."
+          policy "$BASE_IMAGE" > /tmp/hotfix/base-policy.json
+          policy "$new" > /tmp/hotfix/new-policy.json
+          python3 "$HOTFIX_DIR/compare_policy.py" /tmp/hotfix/base-policy.json /tmp/hotfix/new-policy.json \
+            | tee /tmp/hotfix/policy-summary.txt
+
+      # Same retry as docker-publish.yml: a lost signature once cost a deploy.
+      - name: Sign image with cosign
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IMAGE_REF="${TARGET}@${DIGEST}"
+          for attempt in 1 2 3; do
+            if cosign sign --yes "${IMAGE_REF}"; then
+              echo "Signed ${IMAGE_REF}"
+              exit 0
+            fi
+            wait=$((attempt * 15))
+            echo "::warning::cosign sign failed for ${IMAGE_REF}; retrying in ${wait}s..."
+            sleep "$wait"
+          done
+          echo "::error::cosign sign failed 3 times for ${IMAGE_REF}."
+          exit 1
+
+      - name: Summary
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          {
+            echo "## ChatGPT on the MAP resource: hotfix image"
+            echo ""
+            echo "- Digest: \`${DIGEST}\`"
+            echo "- Tag: \`${TARGET}:hotfix-map-chatgpt-${GITHUB_SHA}\`"
+            echo "- Source (main): \`${GITHUB_SHA}\`"
+            echo "- Base: \`${BASE_IMAGE}\` (source \`${BASE_SOURCE}\` + reserved-boundaries files from \`${RESERVED_SOURCE}\`)"
+            echo "- Delta: \`app/core/protected_resources.py\` and \`app/services/client_id_metadata.py\` only"
+            echo "- Reason: ${REASON}"
+            echo ""
+            echo '```'
+            cat /tmp/hotfix/policy-summary.txt
+            echo '```'
+            echo ""
+            echo "Nothing was pinned. Production changes only through the reviewed PR that sets this digest as the production janua-api pin."
+          } >> "$GITHUB_STEP_SUMMARY"
