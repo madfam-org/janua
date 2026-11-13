@@ -64,8 +64,8 @@ only in janua#795 (`6f3b9b1a`); the workflow re-checks that.
 | | |
 |---|---|
 | Approved by | Owner, 2026-11-13 (in session): «Yes, merge #795» to «merge and promote janua#795» |
-| Built by | pending |
-| Hotfix digest | pending |
+| Built by | [run 43524028111](https://github.com/madfam-org/janua/actions/runs/43524028111), dispatched from `main` (`6da88e02`) on 2026-11-13 |
+| Hotfix digest | `sha256:f97bddd83a8091ed17c9c33d8ee36577406afefa902c35cd8e42c2f7dff8326e` (cosign-signed by that run) |
 | Replaces | `sha256:ae28948d88cbd9dcb0ee3795ec881e9c8ddbb7e68103b0c83f937e3d003926e4` (janua#794) |
 | Delta | `app/auth/tenant_login_context.py` and `app/auth/hosted_security.py` from `main` (janua#795) |
 
