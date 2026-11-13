@@ -67,7 +67,18 @@ def test_dockerfile_is_one_pinned_base_and_one_copy_per_file():
     ]
 
 
+def _record(field: str) -> str:
+    """A value from the README's exception record (`| Field | value |`)."""
+    readme = (HOTFIX / "README.md").read_text()
+    row = re.search(rf"^\| {re.escape(field)} \| (.+) \|$", readme, re.M)
+    assert row, f"exception record has no {field!r} row"
+    return row.group(1)
+
+
 def test_base_is_the_image_production_pins():
+    """Before the pin PR, production runs the base; after it, production runs the
+    hotfix digest the exception record names, and that record says it replaced
+    exactly this base. Any other production digest means the hotfix is stale."""
     base = _instructions()[0].removeprefix("FROM ")
     assert WORKFLOW["env"]["BASE_IMAGE"] == base
     kustomization = (ROOT / "k8s/overlays/production/kustomization.yaml").read_text()
@@ -75,9 +86,14 @@ def test_base_is_the_image_production_pins():
     block = re.search(
         r"name: ghcr\.io/madfam-org/janua-api\n(?:\s+\S.*\n){1,3}", kustomization
     )
-    assert block and digest in block.group(
+    assert block, "production overlay has no janua-api image"
+    if digest in block.group(0):
+        return
+    pinned = re.search(r"sha256:[0-9a-f]{64}", _record("Hotfix digest"))
+    assert pinned and pinned.group(0) in block.group(
         0
-    ), "the hotfix must start from the production pin"
+    ), "the hotfix must start from the production pin, or be the production pin"
+    assert digest in _record("Replaces"), "the pinned hotfix must replace this base"
 
 
 def test_base_is_the_reserved_boundaries_image_with_its_proven_source():

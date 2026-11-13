@@ -70,8 +70,8 @@ is reinstalled.
 | | |
 |---|---|
 | Approved by | Owner, 2026-11-12 (in session): «Add ChatGPT too» |
-| Built by | the run the owner dispatches from `main` (filled in by the pin PR) |
-| Hotfix digest | filled in by the pin PR |
+| Built by | [run 43345492945](https://github.com/madfam-org/janua/actions/runs/43345492945), dispatched by the owner from `main` (`ae7a3f50`) on 2026-11-12 |
+| Hotfix digest | `sha256:ae28948d88cbd9dcb0ee3795ec881e9c8ddbb7e68103b0c83f937e3d003926e4` (cosign-signed by that run) |
 | Replaces | `sha256:b6e16fa59433bb9f4bdc662c3a0e9d20fb55dca3f546d2b016f2346d41c80d72` (janua#789) |
 | Delta | `app/core/protected_resources.py` and `app/services/client_id_metadata.py` from `main` (janua#792) |
 
