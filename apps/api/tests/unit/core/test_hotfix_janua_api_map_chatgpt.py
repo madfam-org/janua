@@ -90,10 +90,30 @@ def test_base_is_the_image_production_pins():
     if digest in block.group(0):
         return
     pinned = re.search(r"sha256:[0-9a-f]{64}", _record("Hotfix digest"))
-    assert pinned and pinned.group(0) in block.group(
-        0
-    ), "the hotfix must start from the production pin, or be the production pin"
+    assert pinned, "exception record has no hotfix digest"
     assert digest in _record("Replaces"), "the pinned hotfix must replace this base"
+    if pinned.group(0) in block.group(0):
+        return
+    # A later owner-exception hotfix may start FROM this one and replace it in
+    # production. Accept that only when its own record says it replaced exactly
+    # this hotfix's digest and production pins its digest.
+    for readme in sorted((ROOT / "deployment/hotfix").glob("*/README.md")):
+        if readme.parent == HOTFIX:
+            continue
+        text = readme.read_text()
+        replaces = re.search(r"^\| Replaces \| (.+) \|$", text, re.M)
+        successor = re.search(r"^\| Hotfix digest \| `(sha256:[0-9a-f]{64})`", text, re.M)
+        if (
+            replaces
+            and successor
+            and pinned.group(0) in replaces.group(1)
+            and successor.group(1) in block.group(0)
+        ):
+            return
+    raise AssertionError(
+        "the hotfix must start from the production pin, be the production pin, "
+        "or be replaced in production by a hotfix whose record names it"
+    )
 
 
 def test_base_is_the_reserved_boundaries_image_with_its_proven_source():
