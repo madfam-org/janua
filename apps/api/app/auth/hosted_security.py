@@ -17,7 +17,7 @@ from app.auth.authentication_assurance import (
     assurance_for_request,
     user_requires_mfa,
 )
-from app.auth.tenant_login_context import login_client_context
+from app.auth.tenant_login_context import login_client_context, user_in_client_pool
 from app.core.redis import get_redis
 from app.database import get_db
 from app.models import User, UserStatus
@@ -119,8 +119,9 @@ async def start_factor_flow(
         return_url=next_url if next_url.startswith("https://") else None,
     )
     org_id = getattr(client, "organization_id", None) or organization_id or user.tenant_id
-    # If the caller selected a client pool, the identity must belong to it.
-    if client is not None and str(user.tenant_id) != str(client.organization_id):
+    # If the caller selected a client pool, the identity must belong to it
+    # (its own pool, or a platform identity actively in the client's org).
+    if client is not None and not await user_in_client_pool(db, user, client):
         raise HTTPException(403, "La cuenta no pertenece a esta organización")
     flow_id, binding = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     setup_secret = None if user.mfa_enabled and user.mfa_secret else pyotp.random_base32()
@@ -206,7 +207,7 @@ async def complete_factor(
         raise HTTPException(403, "Esta cuenta no está activa")
     org_id = getattr(client, "organization_id", None) or user.tenant_id
     if str(org_id) != str(data["organization_id"]) or (
-        client and str(user.tenant_id) != str(client.organization_id)
+        client and not await user_in_client_pool(db, user, client)
     ):
         raise HTTPException(403, "La organización cambió")
     if client is not None:
@@ -309,7 +310,7 @@ async def security_page(request: Request, client_id: str, return_url: str, db=De
         )
     if user.status != UserStatus.ACTIVE or not user.is_active:
         raise HTTPException(403, "Esta cuenta no está activa")
-    if str(user.tenant_id) != str(client.organization_id):
+    if not await user_in_client_pool(db, user, client):
         raise HTTPException(403, "La cuenta no pertenece a esta organización")
     evidence = await assurance_for_request(request, db, user)
     now = int(datetime.now(timezone.utc).timestamp())
