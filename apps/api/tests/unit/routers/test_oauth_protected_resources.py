@@ -330,6 +330,12 @@ def session_bearer(user) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+def session_cookie(user) -> dict:
+    """The hosted browser session: /authorize and /consent read cookies only."""
+    token, _, _ = jwt_manager.create_access_token(user_id=str(user.id), email=user.email)
+    return {"Cookie": f"janua_access_token={token}"}
+
+
 def query(location: str) -> dict:
     return {key: values[0] for key, values in parse_qs(urlparse(location).query).items()}
 
@@ -387,7 +393,7 @@ def authorize_params(
 
 
 async def authorize(env, params, user=None):
-    headers = session_bearer(user) if user is not None else {}
+    headers = session_cookie(user) if user is not None else {}
     return await env.http.get("/api/v1/oauth/authorize", params=params, headers=headers)
 
 
@@ -396,7 +402,7 @@ async def consent(env, page_response, user, action="allow"):
     return await env.http.post(
         "/api/v1/oauth/consent",
         data={"auth_request_id": auth_request_id, "csrf_token": csrf_token, "action": action},
-        headers=session_bearer(user),
+        headers=session_cookie(user),
     )
 
 
@@ -810,7 +816,7 @@ class TestConsentScreen:
         response = await env.http.post(
             "/api/v1/oauth/consent",
             data={"auth_request_id": auth_request_id, "csrf_token": "forged", "action": "allow"},
-            headers=session_bearer(env.director),
+            headers=session_cookie(env.director),
         )
         assert response.status_code == 403
 
@@ -819,6 +825,29 @@ class TestConsentScreen:
         page = await authorize(env, authorize_params(challenge), env.director)
         response = await consent(env, page, env.other)
         assert response.status_code == 403  # the CSRF token is the director's
+
+    async def test_a_bearer_token_does_not_reach_the_consent_screen(self, env):
+        """The consent screen (and its CSRF token) is for a browser session."""
+        _, challenge = pkce()
+        response = await env.http.get(
+            "/api/v1/oauth/authorize",
+            params=authorize_params(challenge),
+            headers=session_bearer(env.director),
+        )
+        assert 'name="csrf_token"' not in response.text
+        assert "code=" not in response.headers.get("location", "")
+
+    async def test_a_bearer_token_cannot_answer_the_consent_screen(self, env):
+        _, challenge = pkce()
+        page = await authorize(env, authorize_params(challenge), env.director)
+        auth_request_id, csrf_token = form_fields(page.text)
+        response = await env.http.post(
+            "/api/v1/oauth/consent",
+            data={"auth_request_id": auth_request_id, "csrf_token": csrf_token, "action": "allow"},
+            headers=session_bearer(env.director),
+        )
+        assert response.status_code == 401
+        assert "code=" not in response.headers.get("location", "")
 
     async def test_success_redirect_carries_code_state_and_iss(self, env):
         _, _, params = await get_code(env)
@@ -1299,7 +1328,7 @@ class TestSignInResume:
         assert params["code_challenge"] == [challenge]
 
         # Signed in now: the rebuilt request reaches the consent screen.
-        page = await env.http.get(target, headers=session_bearer(env.director))
+        page = await env.http.get(target, headers=session_cookie(env.director))
         assert page.status_code == 200 and "Permitir" in page.text
 
     async def test_expired_resume_is_a_page(self, env):
