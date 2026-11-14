@@ -24,6 +24,7 @@ async def get_user_organization_role(
             and_(
                 organization_members.c.user_id == user_id,
                 organization_members.c.organization_id == org_id,
+                organization_members.c.status == "active",
             )
         )
     )

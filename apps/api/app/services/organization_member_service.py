@@ -2,6 +2,7 @@
 Organization Member Service
 Ported from TypeScript implementation with full feature parity
 """
+
 import json
 import secrets
 from datetime import datetime, timedelta
@@ -9,7 +10,7 @@ from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_
+from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from ..core.events import EventEmitter
@@ -360,30 +361,18 @@ class OrganizationMemberService:
     async def get_members(
         self, organization_id: UUID, include_removed: bool = False
     ) -> List[OrganizationMember]:
-        """Get organization members"""
-        # Check cache
-        cache_key = f"org_members:{organization_id}{'_all' if include_removed else ''}"
-        cached = await self.redis.get(cache_key)
+        """Read current memberships using the API's AsyncSession.
 
-        if cached:
-            return json.loads(cached)
-
-        # Query database
-        query = self.db.query(OrganizationMember).filter(
+        Do not reuse cached ORM-shaped rows: removals must be visible immediately,
+        and declarative models do not implement ``dict()`` serialization.
+        """
+        statement = select(OrganizationMember).where(
             OrganizationMember.organization_id == organization_id
         )
-
         if not include_removed:
-            query = query.filter(OrganizationMember.status == "active")
-
-        members = query.all()
-
-        # Cache result
-        await self.redis.set(
-            cache_key, json.dumps([m.dict() for m in members]), ex=300  # 5 minutes
-        )
-
-        return members
+            statement = statement.where(OrganizationMember.status == "active")
+        result = await self.db.execute(statement.order_by(OrganizationMember.id))
+        return list(result.scalars().all())
 
     async def has_permission(
         self, user_id: UUID, organization_id: UUID, required_role: str
