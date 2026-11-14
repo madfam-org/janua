@@ -120,6 +120,8 @@ jobs:
           context: .
           file: Dockerfile.api
           push: true
+          build-args: |
+            VCS_REF=${{ github.sha }}
           tags: |
             ${{ env.IMAGE_PREFIX }}/janua-api:main
             ${{ env.IMAGE_PREFIX }}/janua-api:${{ github.sha }}

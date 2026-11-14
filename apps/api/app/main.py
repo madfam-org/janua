@@ -169,6 +169,9 @@ from app.routers.v1 import (
     roles as roles_v1,
 )
 from app.routers.v1 import (
+    session_bridge as session_bridge_v1,
+)
+from app.routers.v1 import (
     sessions as sessions_v1,
 )
 from app.routers.v1 import (
@@ -951,6 +954,7 @@ app.include_router(auth_v1.router, prefix="/api/v1")
 app.include_router(oauth_v1.router, prefix="/api/v1")
 app.include_router(oauth_clients_v1.router, prefix="/api/v1")
 app.include_router(oauth_provider_v1.router, prefix="/api/v1")
+app.include_router(session_bridge_v1.router, prefix="/api/v1")
 app.include_router(oauth_provider_v1.logout_router)
 # P3.2 — on-behalf OAuth linking for Enclii self-serve signup.
 # Endpoints no-op with 404 unless JANUA_SERVICE_TOKEN is configured.

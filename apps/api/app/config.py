@@ -472,6 +472,10 @@ class Settings(BaseSettings):
     ENABLE_WEBHOOKS: bool = Field(default=True)
     ENABLE_AUDIT: bool = Field(default=True)
     ENABLE_SSO: bool = Field(default=False)
+    SESSION_BRIDGE_ENABLED: bool = Field(
+        default=False,
+        description="Enable first-party browser-bound session continuation; stage-qualified opt-in.",
+    )
     ENABLE_SCIM: bool = Field(default=False)
     ENABLE_SIGNUPS: bool = Field(default=True)
     # Service-to-service token shared with trusted internal callers (e.g.

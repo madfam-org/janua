@@ -21,6 +21,12 @@ from app import models  # noqa: F401 - Side effect import for SQLAlchemy metadat
 from app.config import settings
 from app.core.database import Base
 from app.core.database_ssl import asyncpg_options
+from app.core.isolated_staging_alembic import (
+    RECEIPT_ATTRIBUTE,
+    inspect_isolated_staging_connection,
+    isolated_staging_connect_args,
+    isolated_staging_requested,
+)
 
 # Reference to prevent unused import warning (models must be imported for Alembic)
 __all__ = ["models"]
@@ -56,6 +62,8 @@ def run_migrations_offline() -> None:
 
     Calls to context.execute() here emit the given string to the script output.
     """
+    if isolated_staging_requested(config.attributes):
+        raise RuntimeError("Isolated staging migrations require a live DDL connection")
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -79,13 +87,21 @@ def do_run_migrations(connection: Connection) -> None:
         compare_server_default=True,
     )
 
+    receipt = None
     with context.begin_transaction():
+        if isolated_staging_requested(config.attributes):
+            receipt = inspect_isolated_staging_connection(connection)
         context.run_migrations()
+    if receipt is not None:
+        config.attributes[RECEIPT_ATTRIBUTE] = receipt
 
 
 async def run_async_migrations() -> None:
     """Run migrations in async mode."""
     migration_url, connect_args = asyncpg_options(database_url, settings)
+    if isolated_staging_requested(config.attributes):
+        config.attributes.pop(RECEIPT_ATTRIBUTE, None)
+        connect_args = isolated_staging_connect_args(settings.ENVIRONMENT, connect_args)
     section = config.get_section(config.config_ini_section, {})
     section["sqlalchemy.url"] = migration_url
     connectable = async_engine_from_config(

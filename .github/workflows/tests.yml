@@ -402,6 +402,9 @@ jobs:
           # tests reach the postgres service above. Unset in CI, they fail
           # rather than skip; see tests/unit/test_migration_reentrancy.py.
           MIGRATION_TEST_DATABASE_URL: postgresql+asyncpg://janua:janua_test@localhost:5432/janua_test
+          # Required real SQL authority + independent Redis-client CAS proof.
+          JANUA_SESSION_BRIDGE_NATIVE_REQUIRED: '1'
+          JANUA_SESSION_BRIDGE_TEST_REDIS_URL: redis://127.0.0.1:6379/0
           # This proof uses an ordinary owner, never the service's superuser.
           JANUA_ORG_CREATE_TEST_DATABASE_URL: postgresql+asyncpg://janua_org_owner:janua_org_test@127.0.0.1:5432/janua_org_create_test
           # Separate guarded URL: payment-mail concurrency tests must use real
@@ -422,6 +425,7 @@ jobs:
             --cov=app \
             --cov-report=xml:coverage-postgres.xml \
             --cov-report=term \
+            --junitxml=coverage-postgres-tests.xml \
             --cov-fail-under=0 \
             -v \
             --tb=short \
@@ -431,6 +435,20 @@ jobs:
             --ignore=tests/archived \
             --ignore=tests/quarantine
 
+      - name: Require executed native session bridge evidence
+        working-directory: ./apps/api
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse("coverage-postgres-tests.xml").getroot()
+          cases = [case for case in root.iter("testcase")
+                   if case.get("classname", "").endswith("test_session_bridge_native")]
+          if len(cases) != 27 or any(list(case.iter(tag)) for case in cases
+                                    for tag in ("skipped", "failure", "error")):
+              raise SystemExit("Required native bridge evidence missing or unsuccessful")
+          print("Native bridge SQL/Redis proof: 27 executed, zero skipped/failures/errors")
+          PY
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7
         with:
@@ -439,6 +457,101 @@ jobs:
           name: api-postgres-coverage
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  api-image-packaging:
+    name: API image packaging (nonpublishing)
+    if: github.event_name == 'pull_request'
+    needs: [api-tests, api-postgres-tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up single-worker Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 1
+
+      - name: Build the actual API image without publishing
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.api
+          push: false
+          load: true
+          platforms: linux/amd64
+          build-args: |
+            VCS_REF=${{ github.sha }}
+          tags: janua-api-ci:${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          cache-from: type=gha,scope=janua-api
+          cache-to: type=gha,scope=janua-api,mode=max
+          provenance: false
+          sbom: false
+
+      - name: Verify packaged API imports and disabled bridge registration
+        env:
+          CI_IMAGE: janua-api-ci:${{ github.run_id }}-${{ github.run_attempt }}-${{ github.sha }}
+          EXPECTED_SOURCE_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(docker image inspect "$CI_IMAGE" --format '{{ index .Config.Labels "org.opencontainers.image.source" }}')" = 'https://github.com/madfam-org/janua'
+          test "$(docker image inspect "$CI_IMAGE" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$EXPECTED_SOURCE_REVISION"
+          # No application entrypoint, lifespan, migration, service or network.
+          docker run --rm -i --network none --cpus 1 --pids-limit 128 --memory 2g \
+            --entrypoint python \
+            -e ENVIRONMENT=test -e AUTO_MIGRATE=false -e EMAIL_ENABLED=false -e PYTHONOPTIMIZE=0 \
+            -e DATABASE_URL=postgresql+asyncpg://f901:f901@127.0.0.1:9/bridge_ci_test \
+            -e REDIS_URL=redis://127.0.0.1:9/0 \
+            -e SECRET_KEY=F-901-synthetic-image-check-only-not-a-real-secret \
+            -e JWT_ALGORITHM=RS256 -e RESEND_API_KEY= \
+            -e OMP_NUM_THREADS=1 -e OPENBLAS_NUM_THREADS=1 -e MKL_NUM_THREADS=1 \
+            "$CI_IMAGE" - <<'PY'
+          import os
+          import py_compile
+          from pathlib import Path
+          from cryptography.hazmat.primitives import serialization
+          from cryptography.hazmat.primitives.asymmetric import rsa
+
+          paths = (
+              "auth/session_bridge_authority.py", "auth/session_bridge_state.py",
+              "routers/v1/session_bridge.py", "config.py", "main.py",
+              "core/redis_circuit_breaker.py", "middleware/global_rate_limit.py",
+              "core/isolated_staging_alembic.py",
+          )
+          for relative in paths:
+              path = Path("/app/app") / relative
+              assert path.is_file(), "required API image source missing"
+              py_compile.compile(str(path), doraise=True)
+          key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+          os.environ["JWT_PRIVATE_KEY"] = key.private_bytes(
+              serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+              serialization.NoEncryption(),
+          ).decode()
+          os.environ["JWT_PUBLIC_KEY"] = key.public_key().public_bytes(
+              serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo,
+          ).decode()
+          assert "SESSION_BRIDGE_ENABLED" not in os.environ
+          from app.main import app
+          from app.config import settings
+          from app.middleware.global_rate_limit import EndpointRateLimitConfig
+
+          assert type(settings).model_fields["SESSION_BRIDGE_ENABLED"].default is False
+          assert settings.SESSION_BRIDGE_ENABLED is False
+          # Public schema resolves FastAPI's lazy included routers; app.routes
+          # can contain _IncludedRouter objects without flat path/method fields.
+          paths = app.openapi()["paths"]
+          expected = {"start": "get", "prepare": "post", "complete": "post", "finalize": "get"}
+          for suffix, method in expected.items():
+              path = "/api/v1/oauth/session-bridge/" + suffix
+              assert method in paths.get(path, {}), "packaged bridge route/method missing"
+              assert EndpointRateLimitConfig.OAUTH_LIMITS.get(path) == (20, 300)
+          assert "get" not in paths.get("/api/v1/oauth/session-bridge/complete", {})
+          print("API image packaging: 7 sources compiled, 4 route methods, default OFF and rate limits verified")
+          PY
 
   e2e-tests:
     name: E2E Tests (Playwright)
