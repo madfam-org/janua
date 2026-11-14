@@ -60,7 +60,7 @@ class AdminNotificationService:
 
         # Fallback defaults
         fallback_emails = [
-            settings.SUPPORT_EMAIL or "support@janua.dev",
+            settings.SUPPORT_EMAIL or "support@madfam.io",
             "admin@janua.dev",
             "alerts@janua.dev",
         ]

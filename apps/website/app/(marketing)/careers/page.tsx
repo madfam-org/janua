@@ -123,7 +123,7 @@ export default function CareersPage() {
                   </p>
                 </div>
                 <Button className="group shrink-0" asChild>
-                  <Link href="mailto:careers@janua.dev?subject=Senior Platform Engineer">
+                  <Link href="mailto:support@madfam.io?subject=Senior Platform Engineer">
                     Apply Now
                     <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
                   </Link>
@@ -156,7 +156,7 @@ export default function CareersPage() {
                   </p>
                 </div>
                 <Button className="group shrink-0" asChild>
-                  <Link href="mailto:careers@janua.dev?subject=Frontend Engineer">
+                  <Link href="mailto:support@madfam.io?subject=Frontend Engineer">
                     Apply Now
                     <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
                   </Link>
@@ -189,7 +189,7 @@ export default function CareersPage() {
                   </p>
                 </div>
                 <Button className="group shrink-0" asChild>
-                  <Link href="mailto:careers@janua.dev?subject=Developer Relations Engineer">
+                  <Link href="mailto:support@madfam.io?subject=Developer Relations Engineer">
                     Apply Now
                     <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
                   </Link>
@@ -203,7 +203,7 @@ export default function CareersPage() {
               Don't see the perfect role? We're always looking for exceptional talent.
             </p>
             <Button variant="outline" className="group" asChild>
-              <Link href="mailto:careers@janua.dev?subject=General Interest">
+              <Link href="mailto:support@madfam.io?subject=General Interest">
                 Send Us Your Resume
                 <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
               </Link>

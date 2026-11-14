@@ -1437,7 +1437,7 @@ Full OpenAPI 3.0 specification available at:
 
 - **Documentation**: [https://docs.janua.dev](https://docs.janua.dev)
 - **API Status**: [https://status.janua.dev](https://status.janua.dev)
-- **Support**: [support@janua.dev](mailto:support@janua.dev)
+- **Support**: [support@madfam.io](mailto:support@madfam.io)
 - **GitHub**: [https://github.com/madfam-org/janua](https://github.com/madfam-org/janua)
 
 ---

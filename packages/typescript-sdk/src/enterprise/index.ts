@@ -114,7 +114,7 @@ export class EnterpriseFeatures {
 
     if (license.plan === 'community') {
       throw new EnterpriseError(
-        `${feature} requires an enterprise license. Visit https://janua.dev/pricing or contact sales@janua.dev`,
+        `${feature} requires an enterprise license. Visit https://janua.dev/pricing or contact support@madfam.io`,
         'ENTERPRISE_REQUIRED',
         { feature, upgradeUrl: 'https://janua.dev/pricing' }
       );

@@ -416,7 +416,9 @@ class Settings(BaseSettings):
         if not self.FROM_NAME:
             self.FROM_NAME = self.EMAIL_FROM_NAME
         if not self.SUPPORT_EMAIL:
-            self.SUPPORT_EMAIL = self.EMAIL_FROM_ADDRESS
+            # The support inbox (R101), not the sender: "contact us at" must
+            # name a mailbox that receives mail.
+            self.SUPPORT_EMAIL = self.EMAIL_SUPPORT_REPLY_TO or self.EMAIL_FROM_ADDRESS
 
     # WebAuthn
     WEBAUTHN_RP_ID: str = Field(default="janua.dev")

@@ -183,7 +183,7 @@ class EmailService:
             "verification_expiry_hours": 24,
             "company_name": "Janua",
             **resolve_branding(**signals),
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         # Render email template. Stamped: verification is re-sendable ("resend
@@ -338,7 +338,7 @@ class EmailService:
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
             **resolve_branding(**signals),
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         # Render email template. Stamped like the magic link, and for the same
@@ -411,7 +411,7 @@ class EmailService:
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
             **resolve_branding(**signals),
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         # Render email template
@@ -708,7 +708,7 @@ class EmailService:
             "magic_link": magic_url,
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
             # BODY branding (header wordmark + palette, footer credit) resolved
             # from the redirect host — the tenant the link sends the person back
             # TO. Defaults to MADFAM, so an unknown or absent host renders
@@ -801,7 +801,7 @@ class EmailService:
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
             **resolve_branding(**signals),
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         subject = (
@@ -1236,7 +1236,7 @@ async def send_product_invite_email_task(
             "magic_link": magic_url,
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
             **resolve_branding(**signals),
         }
         subject = stamp_subject(
@@ -1310,7 +1310,7 @@ async def send_verification_email_task(
             "verification_expiry_hours": 48,
             **resolve_branding(**signals),
             "company_name": "Janua",
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
         sent = await service._send_email(
             to_email=email,

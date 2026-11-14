@@ -59,7 +59,7 @@ export default function BlogPage() {
             Until then, follow releases and docs — that is where we ship facts first.
           </p>
           <Button asChild className="bg-brand-gradient hover:opacity-90 text-white">
-            <Link href="mailto:hello@janua.dev?subject=Janua%20blog%20updates">
+            <Link href="mailto:support@madfam.io?subject=Janua%20blog%20updates">
               <Mail className="mr-2 h-4 w-4" />
               Notify me at launch
               <ArrowRight className="ml-2 h-4 w-4" />

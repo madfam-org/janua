@@ -355,7 +355,7 @@ Rate limit headers returned in response:
 - Documentation: https://docs.janua.dev
 - GitHub: https://github.com/madfam-org/janua
 - Discord: https://discord.gg/janua
-- Email: support@janua.dev
+- Email: support@madfam.io
 
 ## SDK Libraries
 
@@ -435,7 +435,7 @@ Rate limit headers returned in response:
     contact={
         "name": "Janua Support",
         "url": "https://janua.dev/support",
-        "email": "support@janua.dev",
+        "email": "support@madfam.io",
     },
     license_info={
         "name": "AGPL-3.0",
