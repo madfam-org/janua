@@ -22,8 +22,8 @@ DOCKERFILE = HOTFIX / "Dockerfile"
 WORKFLOW_PATH = ROOT / ".github/workflows/hotfix-janua-api-reservations-2.yml"
 WORKFLOW = yaml.safe_load(WORKFLOW_PATH.read_text())
 COPIED = {"apps/api/app/core/reserved_oauth_boundaries.py": "/app/app/core/"}
-ORG_BOUND_WORKFLOW = yaml.safe_load(
-    (ROOT / ".github/workflows/hotfix-janua-api-org-bound-login.yml").read_text()
+ROLE_SHAPE_WORKFLOW = yaml.safe_load(
+    (ROOT / ".github/workflows/hotfix-janua-api-org-role-shape.yml").read_text()
 )
 EXPECTED_ADDED = {
     "audiences": {"tlacuilo", "eido-api"},
@@ -73,13 +73,13 @@ def test_base_is_the_image_production_pins():
     assert digest in _record("Replaces"), "the pinned hotfix must replace this base"
 
 
-def test_base_is_the_org_bound_hotfix_with_its_proven_sources():
-    org_readme = (ROOT / "deployment/hotfix/janua-api-org-bound-login/README.md").read_text()
+def test_base_is_the_org_role_shape_hotfix_with_its_proven_sources():
+    readme = (ROOT / "deployment/hotfix/janua-api-org-role-shape/README.md").read_text()
     digest = WORKFLOW["env"]["BASE_IMAGE"].split("@", 1)[1]
-    assert re.search(rf"^\| Hotfix digest \| `{digest}`", org_readme, re.M)
-    for key in ("BASE_SOURCE", "RESERVED_SOURCE", "CHATGPT_SOURCE"):
-        assert WORKFLOW["env"][key] == ORG_BOUND_WORKFLOW["env"][key], key
-    assert re.fullmatch(r"[0-9a-f]{40}", WORKFLOW["env"]["ORG_BOUND_SOURCE"])
+    assert re.search(rf"^\| Hotfix digest \| `{digest}`", readme, re.M)
+    for key in ("BASE_SOURCE", "RESERVED_SOURCE", "CHATGPT_SOURCE", "ORG_LOGIN_SOURCE"):
+        assert WORKFLOW["env"][key] == ROLE_SHAPE_WORKFLOW["env"][key], key
+    assert re.fullmatch(r"[0-9a-f]{40}", WORKFLOW["env"]["ROLE_SHAPE_SOURCE"])
     assert WORKFLOW["env"]["DOCKERFILE"] == str(DOCKERFILE.relative_to(ROOT))
     assert WORKFLOW["env"]["HOTFIX_DIR"] == str(HOTFIX.relative_to(ROOT))
     for key in ("POLICY_DUMP", "REGISTRY_DUMP", "REGISTRY_COMPARE"):
