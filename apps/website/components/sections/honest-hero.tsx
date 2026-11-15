@@ -95,7 +95,7 @@ export function HonestHeroSection() {
             </Button>
 
             <Button size="lg" variant="outline" asChild>
-              <Link href="mailto:hello@janua.dev?subject=Janua%20managed%20%2F%20enterprise">
+              <Link href="mailto:support@madfam.io?subject=Janua%20managed%20%2F%20enterprise">
                 Talk to us
               </Link>
             </Button>

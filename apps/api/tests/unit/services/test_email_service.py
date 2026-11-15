@@ -311,6 +311,23 @@ class TestSendVerificationEmail:
             f"https://app.janua.dev/auth/verify-email?token={token}"
         )
 
+    async def test_send_verification_support_email_falls_back_to_madfam_inbox(self, service):
+        """With no SUPPORT_EMAIL, the "contact us" address must be a mailbox
+        that receives mail: janua.dev has no MX record."""
+        with patch("app.services.email_service.settings") as mock_settings:
+            mock_settings.FRONTEND_URL = "https://app.janua.dev"
+            mock_settings.BASE_URL = "https://janua.dev"
+            mock_settings.SUPPORT_EMAIL = None
+
+            with patch.object(service, "_send_email", return_value=True):
+                with patch.object(
+                    service, "_render_template", return_value="content"
+                ) as mock_render:
+                    await service.send_verification_email(email="test@example.com")
+
+        rendered_data = mock_render.call_args_list[0].args[1]
+        assert rendered_data["support_email"] == "support@madfam.io"
+
 
 class TestVerifyEmailToken:
     """Test email token verification."""

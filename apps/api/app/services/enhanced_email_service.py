@@ -408,7 +408,7 @@ class EnhancedEmailService:
             "request_time": request_info.get("timestamp", datetime.utcnow().isoformat()),
             "ip_address": request_info.get("ip_address", "Unknown"),
             "user_agent": request_info.get("user_agent", "Unknown"),
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         html_template = self.jinja_env.get_template("mfa_recovery.html")
@@ -455,7 +455,7 @@ class EnhancedEmailService:
             "was_you": alert_type in ["Suspicious Login Attempt", "New Device Login"],
             "confirm_url": f"{settings.FRONTEND_URL}/security/confirm/{event_details.get('event_id', '')}",
             "secure_account_url": f"{settings.FRONTEND_URL}/security/alert",
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         html_template = self.jinja_env.get_template("security_alert.html")

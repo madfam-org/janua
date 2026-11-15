@@ -636,7 +636,7 @@ class ResendEmailService:
             **resolve_branding(**signals),
             "locale": locale,
             "formality": formality,
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         html_content = self._render_template("verification.html", context)
@@ -676,7 +676,7 @@ class ResendEmailService:
             **resolve_branding(**signals),
             "locale": locale,
             "formality": formality,
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         html_content = self._render_template("password_reset.html", context)
@@ -715,7 +715,7 @@ class ResendEmailService:
             **resolve_branding(**signals),
             "locale": locale,
             "formality": formality,
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         html_content = self._render_template("welcome.html", context)
@@ -764,7 +764,7 @@ class ResendEmailService:
             **resolve_branding(**signals),
             "locale": locale,
             "formality": formality,
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         html_content = self._render_template("invitation.html", context)
@@ -811,7 +811,7 @@ class ResendEmailService:
             "domains": domains,
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         html_content = self._render_template("sso_configuration.html", context)
@@ -853,7 +853,7 @@ class ResendEmailService:
             "login_url": login_url,
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         html_content = self._render_template("sso_enabled.html", context)
@@ -901,7 +901,7 @@ class ResendEmailService:
             "deadline": deadline.strftime("%B %d, %Y") if deadline else None,
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         html_content = self._render_template("compliance_alert.html", context)
@@ -947,7 +947,7 @@ class ResendEmailService:
             "expires_at": expires_at.strftime("%B %d, %Y at %I:%M %p UTC"),
             "base_url": settings.BASE_URL,
             "company_name": "Janua",
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         html_content = self._render_template("data_export_ready.html", context)
@@ -1002,7 +1002,7 @@ class ResendEmailService:
             **resolve_branding(**signals),
             "locale": locale,
             "formality": formality,
-            "support_email": settings.SUPPORT_EMAIL or "support@janua.dev",
+            "support_email": settings.SUPPORT_EMAIL or "support@madfam.io",
         }
 
         html_content = self._render_template("mfa_recovery.html", context)

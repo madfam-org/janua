@@ -246,7 +246,7 @@ export default function EmailTemplatesPage() {
         .replace(/\{\{user_email\}\}/g, 'jane@example.com')
         .replace(/\{\{app_name\}\}/g, 'Janua')
         .replace(/\{\{dashboard_url\}\}/g, '#')
-        .replace(/\{\{support_email\}\}/g, 'support@janua.dev')
+        .replace(/\{\{support_email\}\}/g, 'support@madfam.io')
         .replace(/\{\{verification_link\}\}/g, '#')
         .replace(/\{\{verification_code\}\}/g, '123456')
         .replace(/\{\{expiry_hours\}\}/g, '24')

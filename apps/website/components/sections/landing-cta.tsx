@@ -8,7 +8,7 @@ import { SITE_LINKS } from '@/lib/site-links'
 
 // Two real CTAs:
 //   - Self-host: README "Self-hosting (Production)" (operator path; see lib/site-links.ts)
-//   - Talk to us: hello@janua.dev (managed/enterprise path)
+//   - Talk to us: support@madfam.io (managed/enterprise path)
 // MAU number aligned with the canonical billing tier
 // (apps/api/app/services/billing_service.py + components/sections/pricing.tsx).
 export function LandingCTA() {
@@ -40,7 +40,7 @@ export function LandingCTA() {
             </Button>
 
             <Button size="lg" variant="outline" className="bg-transparent border-white text-white hover:bg-white hover:text-blue-600" asChild>
-              <Link href="mailto:hello@janua.dev?subject=Janua%20managed%20%2F%20enterprise">
+              <Link href="mailto:support@madfam.io?subject=Janua%20managed%20%2F%20enterprise">
                 <Mail className="mr-2 w-4 h-4" />
                 Talk to us
               </Link>

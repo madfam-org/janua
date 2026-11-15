@@ -190,6 +190,10 @@ spec:
               value: resend
             - name: EMAIL_FROM
               value: hola@madfam.io
+            # Address customers are told to write to in every email footer.
+            # janua.dev has no MX record, so it must be a madfam.io inbox.
+            - name: SUPPORT_EMAIL
+              value: support@madfam.io
             - name: EMAIL_ENABLED
               value: "true"
             - name: RESEND_API_KEY
