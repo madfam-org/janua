@@ -129,3 +129,22 @@ async def test_bad_value_is_never_rendered_and_the_name_stays_escaped(hosted_cli
     page = await _page(hosted_client, client_id=CV, client_name='<img src=x onerror="1">')
     assert "<img src=x" not in page
     assert "<strong>&lt;img src=x onerror=&quot;1&quot;&gt;</strong> will handle your data" in page
+
+
+def test_an_unlisted_page_is_byte_for_byte_what_production_rendered():
+    """The template with no notice is exactly the template production's source
+    (b16869d7) rendered: an empty notice adds no byte, not even a blank line.
+    The hashes were taken from that source with the same arguments; a hotfix
+    image carrying this file proves the same thing against the running image."""
+    import hashlib
+
+    from app.routers.v1.auth import _hosted_login_page_html
+
+    common = {"app_name": "MADFAM CV", "hidden_fields": "", "method": "password", "switch_url": None}
+    production = {
+        "en": "6eb9f5dede2d22fc87eaf8e6a966d513926bf7e718dd514d0a4cd4b04739b965",
+        "es": "44b1b17a41dddb0fda005ec54a6fe9a72b4a0341179264b34833d449533e670f",
+    }
+    for locale, expected in production.items():
+        page = _hosted_login_page_html(**common, locale=locale)
+        assert hashlib.sha256(page.encode()).hexdigest() == expected, locale

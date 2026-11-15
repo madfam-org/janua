@@ -1334,8 +1334,7 @@ def _hosted_login_page_html(
         {error_html}
 
         {form_html}
-        {switch_html}
-        {notice_html}
+        {switch_html}{notice_html}
 
         <div class="footer">
             {c["footer"]}
