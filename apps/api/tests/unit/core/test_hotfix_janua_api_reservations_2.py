@@ -21,7 +21,15 @@ HOTFIX = ROOT / "deployment/hotfix/janua-api-reservations-2"
 DOCKERFILE = HOTFIX / "Dockerfile"
 WORKFLOW_PATH = ROOT / ".github/workflows/hotfix-janua-api-reservations-2.yml"
 WORKFLOW = yaml.safe_load(WORKFLOW_PATH.read_text())
-COPIED = {"apps/api/app/core/reserved_oauth_boundaries.py": "/app/app/core/"}
+COPIED = {
+    "apps/api/app/core/reserved_oauth_boundaries.py": "/app/app/core/",
+    "apps/api/app/services/client_privacy_notices.py": "/app/app/services/",
+    "apps/api/app/auth/hosted_locale.py": "/app/app/auth/",
+    "apps/api/app/routers/v1/auth.py": "/app/app/routers/v1/",
+    "apps/api/app/config.py": "/app/app/",
+}
+#: Added by the image, not changed: the base has no such file.
+ADDED = {"apps/api/app/services/client_privacy_notices.py"}
 ROLE_SHAPE_WORKFLOW = yaml.safe_load(
     (ROOT / ".github/workflows/hotfix-janua-api-org-role-shape.yml").read_text()
 )
@@ -47,7 +55,7 @@ def _record(field: str) -> str:
     return row.group(1)
 
 
-def test_dockerfile_is_one_pinned_base_and_one_copy():
+def test_dockerfile_is_one_pinned_base_and_one_copy_per_file():
     instructions = _instructions()
     assert len(instructions) == 1 + len(COPIED), instructions
     base, *copies = instructions
@@ -87,7 +95,7 @@ def test_base_is_the_entitlement_source_hotfix_with_its_proven_sources():
     assert '"$ENTITLEMENT_SOURCE:apps/api/app/models/__init__.py"' in base_step["run"]
     assert WORKFLOW["env"]["DOCKERFILE"] == str(DOCKERFILE.relative_to(ROOT))
     assert WORKFLOW["env"]["HOTFIX_DIR"] == str(HOTFIX.relative_to(ROOT))
-    for key in ("POLICY_DUMP", "REGISTRY_DUMP", "REGISTRY_COMPARE"):
+    for key in ("POLICY_DUMP", "REGISTRY_DUMP", "REGISTRY_COMPARE", "SIGNIN_CHECK"):
         assert (ROOT / WORKFLOW["env"][key]).is_file(), key
 
 
@@ -106,13 +114,17 @@ def test_workflow_writes_only_to_the_registry():
         assert forbidden not in scripts, forbidden
 
 
-def test_workflow_expects_exactly_the_copied_file():
-    step = next(s for s in _steps() if s.get("name") == "Hotfix differs from the base by one file")
+def test_workflow_expects_exactly_the_copied_files():
+    step = next(s for s in _steps() if s.get("name") == "Hotfix differs from the base by five files")
     for path in COPIED:
         inner = path.removeprefix("apps/api/app/")
-        assert f"/tmp/hotfix/base/app/{inner} and /tmp/hotfix/new/app/{inner} differ" in step["run"]
-        assert f"cmp /tmp/hotfix/new/app/{inner} {path}" in step["run"]
-    assert "base_layers + 1" in step["run"]
+        if path in ADDED:
+            folder, name = inner.rsplit("/", 1)
+            assert f"Only in /tmp/hotfix/new/app/{folder}: {name}" in step["run"]
+        else:
+            assert f"/tmp/hotfix/base/app/{inner} and /tmp/hotfix/new/app/{inner} differ" in step["run"]
+        assert inner in step["run"].split("for f in", 1)[1].split("; do", 1)[0], inner
+    assert f"base_layers + {len(COPIED)}" in step["run"]
 
 
 def test_workflow_checks_source_delta_and_behaviour_before_signing():
@@ -120,9 +132,10 @@ def test_workflow_checks_source_delta_and_behaviour_before_signing():
     order = [
         "Base image is BASE_SOURCE plus the earlier hotfix files",
         "The registry changed only in janua#799, #800 and #801 since production's copy",
+        "The sign-in files changed only in janua#806 (and config.py in janua#798) since production's source",
         "Build and push",
-        "Hotfix differs from the base by one file",
-        "Discovery and client policy unchanged; registry only tightens, by the expected values",
+        "Hotfix differs from the base by five files",
+        "Discovery and client policy unchanged; registry only tightens; sign-in notice only for a listed client",
         "Sign image with cosign",
     ]
     positions = [names.index(name) for name in order]
