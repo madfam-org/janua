@@ -103,8 +103,10 @@ else:
   tasks, deals and pipelines, read only) is reserved like
   `phynd-crm-engagements:read`: PhyndCRM matches it exactly, pins the token's
   `org_id` to its own configured organization and also requires the client on
-  its own readers allowlist (`PHYND_CRM_MCP_READ_CLIENTS`). No client holds
-  it yet. Enclii's API accepts Janua's default
+  its own readers allowlist (`PHYND_CRM_MCP_READ_CLIENTS`). Its two consumer
+  clients, `selva-phynd-crm-pipeline` and `ops-agents-phynd-crm-pipeline`
+  (RFC 0051 M3, org-bound), are declared in enclii and not provisioned yet.
+  Enclii's API accepts Janua's default
   audience `janua.dev`, which cannot be reserved (every client without an
   audience gets it), so its reserved scope is the gate there;
 - cannot create a `client_credentials` client without an organization, or pin

@@ -46,6 +46,16 @@ ECOSYSTEM_MACHINE_EDGES: dict[str, tuple[str, tuple[str, ...], bool]] = {
     # reservation deploys). Org-bound: phynd-crm refuses any org_id but
     # PHYND_CRM_MACHINE_JANUA_ORG_ID.
     "nauta-phynd-crm": ("phynd-crm", ("phynd-crm-engagements:read",), True),
+    # PhyndCRM's native MCP readers (RFC 0051 ruling M3: Selva's fleet and the
+    # ops agents, one client each; enclii ``selva-phynd-crm-pipeline`` and
+    # ``ops-agents-phynd-crm-pipeline``, declared in enclii#967, open, and
+    # provisioned only after this reservation deploys). Org-bound like
+    # ``nauta-phynd-crm``; a different scope on purpose, so neither client
+    # opens the other's surface.
+    **{
+        f"{consumer}-phynd-crm-pipeline": ("phynd-crm", ("phynd-crm-pipeline:read",), True)
+        for consumer in ("selva", "ops-agents")
+    },
     "crea-map-payment-mail": ("janua-email", ("crea-map:payment-mail",), True),
     "pravara-yantra4d-step-reader": ("yantra4d-api", ("yantra4d:render",), False),
     "yantra4d-asset-shells-publisher": (
@@ -154,9 +164,9 @@ CONSUMER_MACHINE_SCOPES: dict[str, str] = {
         "phynd-crm apps/web/src/lib/trpc/machine-auth.ts MACHINE_SCOPE_GRANTS"
     ),
     # PhyndCRM's native MCP read tools, ``POST /mcp`` on the ``phynd-crm``
-    # audience. No consumer client is declared yet: each one is provisioned
-    # only after this reservation deploys, and is added to
-    # ``ECOSYSTEM_MACHINE_EDGES`` in the change that declares it.
+    # audience. Its two consumer clients (``selva-phynd-crm-pipeline``,
+    # ``ops-agents-phynd-crm-pipeline``) are in ``ECOSYSTEM_MACHINE_EDGES``;
+    # each is provisioned only after this reservation deploys.
     "phynd-crm-pipeline:read": (
         "phynd-crm apps/web/src/lib/mcp/settings.ts MCP_READ_SCOPE, "
         "apps/web/src/lib/mcp/auth.ts (phynd-crm#131, open draft, "
