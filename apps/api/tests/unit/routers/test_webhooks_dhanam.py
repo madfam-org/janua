@@ -376,7 +376,7 @@ class TestFindOrganizationExplicitIdWins:
         assert second.billing_customer_id == "cus_other"
         assert first.billing_customer_id == CUSTOMER
 
-    @pytest.mark.parametrize("explicit", [str(uuid4()), "not-a-uuid"])
+    @pytest.mark.parametrize("explicit", ["5f0c6a52-0000-4000-8000-000000000001", "not-a-uuid"])
     async def test_unknown_explicit_id_is_not_found_without_customer_fallback(self, explicit):
         linked = _org(CUSTOMER)
         db = _FakeOrgDB(linked)
