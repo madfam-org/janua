@@ -4,11 +4,25 @@ Tests for Dhanam billing webhook plan parsing and per-product tier resolution.
 Covers:
 - parse_product_plan(): plan_id string -> (product, tier) tuple
 - resolve_product_tiers(): organization tier data -> JWT claim dict
+- find_organization(): an explicit organization id takes precedence over the
+  billing_customer_id lookup (ruling V14)
 """
+
+import hashlib
+import hmac
+import json
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 import pytest
 
-from app.routers.v1.webhooks_dhanam import parse_product_plan
+from app.routers.v1 import webhooks_dhanam
+from app.routers.v1.webhooks_dhanam import (
+    dhanam_subscription_webhook,
+    find_organization,
+    parse_product_plan,
+)
 from app.sso.application.services.product_tiers import resolve_product_tiers
 
 
@@ -274,3 +288,184 @@ class TestResolveProductTiers:
         assert claims["tezca_tier"] == "pro"
         assert "yantra4d_tier" not in claims
         assert "dhanam_tier" not in claims
+
+
+# ---------------------------------------------------------------------------
+# find_organization: explicit organization id first (ruling V14)
+# ---------------------------------------------------------------------------
+
+CUSTOMER = "cus_buyer_1"
+SECRET = "test-dhanam-webhook-secret"
+
+
+class _Result:
+    def __init__(self, rows: list):
+        self._rows = rows
+
+    def scalar_one_or_none(self):
+        assert len(self._rows) <= 1
+        return self._rows[0] if self._rows else None
+
+    def scalars(self):
+        return SimpleNamespace(all=lambda: list(self._rows))
+
+
+class _FakeOrgDB:
+    """Answers `select(Organization).where(Organization.<col> == value)`
+    from an in-memory list, and records which column each query used."""
+
+    def __init__(self, *orgs):
+        self.orgs = list(orgs)
+        self.queried_columns: list[str] = []
+        self.commit = AsyncMock()
+
+    async def execute(self, stmt):
+        clause = stmt.whereclause
+        column = clause.left.key
+        value = clause.right.value
+        self.queried_columns.append(column)
+        rows = [o for o in self.orgs if getattr(o, column) == value]
+        limit = getattr(stmt, "_limit", None)
+        return _Result(rows[:limit] if limit else rows)
+
+
+def _org(billing_customer_id: str | None, name: str = "Org"):
+    return SimpleNamespace(
+        id=uuid4(),
+        name=name,
+        billing_customer_id=billing_customer_id,
+        product_tiers={},
+        subscription_tier="community",
+        updated_at=None,
+    )
+
+
+@pytest.mark.asyncio
+class TestFindOrganizationExplicitIdWins:
+    async def test_buyer_with_two_orgs_buying_for_the_second(self):
+        first = _org(CUSTOMER, "First")
+        second = _org(None, "Second")
+        db = _FakeOrgDB(first, second)
+
+        found = await find_organization(db, CUSTOMER, str(second.id), {})
+
+        assert found is second
+        assert db.queried_columns == ["id"]
+        # The empty field is linked; the first org keeps its link.
+        assert second.billing_customer_id == CUSTOMER
+        assert first.billing_customer_id == CUSTOMER
+
+    async def test_metadata_organization_id_is_also_explicit(self):
+        first = _org(CUSTOMER)
+        second = _org(None)
+        db = _FakeOrgDB(first, second)
+
+        found = await find_organization(db, CUSTOMER, None, {"organization_id": str(second.id)})
+
+        assert found is second
+        assert db.queried_columns == ["id"]
+
+    async def test_existing_link_on_the_target_is_never_repointed(self):
+        first = _org(CUSTOMER)
+        second = _org("cus_other")
+        db = _FakeOrgDB(first, second)
+
+        found = await find_organization(db, CUSTOMER, str(second.id), {})
+
+        assert found is second
+        assert second.billing_customer_id == "cus_other"
+        assert first.billing_customer_id == CUSTOMER
+
+    @pytest.mark.parametrize("explicit", [str(uuid4()), "not-a-uuid"])
+    async def test_unknown_explicit_id_is_not_found_without_customer_fallback(self, explicit):
+        linked = _org(CUSTOMER)
+        db = _FakeOrgDB(linked)
+
+        assert await find_organization(db, CUSTOMER, explicit, {}) is None
+        assert await find_organization(db, CUSTOMER, None, {"organization_id": explicit}) is None
+        assert "billing_customer_id" not in db.queried_columns
+
+    async def test_no_explicit_id_keeps_the_customer_lookup(self):
+        linked = _org(CUSTOMER)
+        db = _FakeOrgDB(linked, _org(None))
+
+        assert await find_organization(db, CUSTOMER, None, {}) is linked
+        assert db.queried_columns == ["billing_customer_id"]
+
+    async def test_no_explicit_id_and_no_match_is_not_found(self):
+        db = _FakeOrgDB(_org("cus_other"))
+        assert await find_organization(db, CUSTOMER, None, None) is None
+
+    async def test_customer_shared_by_two_orgs_needs_an_explicit_id(self):
+        db = _FakeOrgDB(_org(CUSTOMER), _org(CUSTOMER))
+        assert await find_organization(db, CUSTOMER, None, {}) is None
+
+
+class _FakeRequest:
+    def __init__(self, payload: dict):
+        self._body = json.dumps(payload).encode()
+
+    async def body(self) -> bytes:
+        return self._body
+
+    async def json(self) -> dict:
+        return json.loads(self._body)
+
+
+@pytest.mark.asyncio
+class TestWebhookAppliesToTheExplicitOrganization:
+    @pytest.fixture(autouse=True)
+    def _secret(self, monkeypatch):
+        monkeypatch.setattr(webhooks_dhanam.settings, "DHANAM_WEBHOOK_SECRET", SECRET)
+
+    async def _call(self, payload: dict, db):
+        request = _FakeRequest(payload)
+        signature = hmac.new(SECRET.encode(), request._body, hashlib.sha256).hexdigest()
+        with patch.object(
+            webhooks_dhanam, "_maybe_upsert_user_entitlement", AsyncMock(return_value=None)
+        ):
+            return await dhanam_subscription_webhook(
+                request=request, db=db, x_dhanam_signature=signature
+            )
+
+    async def test_second_purchase_lands_on_the_chosen_org(self):
+        first = _org(CUSTOMER, "First")
+        first.product_tiers = {"karafiel": "contador"}
+        second = _org(None, "Second")
+        db = _FakeOrgDB(first, second)
+
+        out = await self._call(
+            {
+                "type": "subscription.created",
+                "data": {
+                    "customer_id": CUSTOMER,
+                    "plan_id": "selva_team",
+                    "organization_id": str(second.id),
+                },
+            },
+            db,
+        )
+
+        assert out["organization_id"] == str(second.id)
+        assert second.product_tiers == {"selva": "team"}
+        assert first.product_tiers == {"karafiel": "contador"}
+        db.commit.assert_awaited_once()
+
+    async def test_unknown_explicit_id_answers_404(self):
+        from fastapi import HTTPException
+
+        db = _FakeOrgDB(_org(CUSTOMER))
+        with pytest.raises(HTTPException) as exc:
+            await self._call(
+                {
+                    "type": "subscription.created",
+                    "data": {
+                        "customer_id": CUSTOMER,
+                        "plan_id": "selva_team",
+                        "organization_id": str(uuid4()),
+                    },
+                },
+                db,
+            )
+        assert exc.value.status_code == 404
+        db.commit.assert_not_awaited()
