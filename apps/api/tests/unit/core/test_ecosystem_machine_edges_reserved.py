@@ -88,6 +88,10 @@ ECOSYSTEM_MACHINE_EDGES: dict[str, tuple[str, tuple[str, ...], bool]] = {
     "selva-yantra4d": ("yantra4d-api", ("yantra4d:render",), False),
     "selva-pravara-mes": ("pravara-api", ("pravara-mes:read",), True),
     "cv-hcm-benchmarks": ("symbiosis-hcm", ("hcm-benchmarks:read",), False),
+    # MADFAM CV's server reading page images of a job posting through tlacuilo
+    # (ai-portfolio-builder#31; the client is declared in enclii only after this
+    # reservation deploys).
+    "cv-tlacuilo": ("tlacuilo", ("tlacuilo:extract",), False),
     "symbiosis-hcm-dhanam-writer": (
         "dhanam-api",
         ("dhanam-scheduled-payments:write",),
@@ -159,6 +163,7 @@ CONSUMER_MACHINE_SCOPES: dict[str, str] = {
     "dhanam-cost-events:write": "dhanam cost-events/machine/cost-event-writer.strategy.ts",
     "dhanam:merchant-read": "dhanam spaces/payment-projection.strategy.ts",
     "hcm-benchmarks:read": "symbiosis-hcm apps/api/compensation/benchmark_views.py",
+    "tlacuilo:extract": "tlacuilo tlacuilo/auth.py require_principal (settings.required_role)",
     # RFC 0051 native COGS MCPs: ``POST /mcp`` on each platform's API audience.
     "dhanam-cogs:read": "dhanam apps/api/src/modules/mcp/mcp-auth.strategy.ts (dhanam#942)",
     "karafiel-cogs:read": (
@@ -205,6 +210,7 @@ CONSUMER_AUDIENCES: dict[str, str] = {
     "pravara-api": "pravara-mes apps/pravara-api/internal/config/config.go oidc.audience",
     "converge-dash": "converge-dash JANUA_AUDIENCE (apps/api/src/auth/janua.ts, /mcp)",
     "nauta-api": "nauta JANUA_AUDIENCE (apps/web/src/lib/machine-token.ts, /api/internal/, /mcp)",
+    "tlacuilo": "tlacuilo settings.py janua_audience (tlacuilo/auth.py verify_token)",
 }
 
 

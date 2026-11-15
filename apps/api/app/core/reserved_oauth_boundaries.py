@@ -95,6 +95,11 @@ ECOSYSTEM_SERVICE_AUDIENCES: frozenset[str] = frozenset(
         # Nauta's API audience (JANUA_AUDIENCE): the machine reads under
         # ``/api/internal/`` and its native COGS MCP (NAUTA_SCOPES below).
         "nauta-api",
+        # tlacuilo, the document-intelligence service (settings.py
+        # ``janua_audience``). Its API admits any machine token carrying this
+        # audience and ``tlacuilo:extract``; the token's organization only
+        # scopes which job records the caller may read back.
+        "tlacuilo",
     }
 )
 
@@ -145,6 +150,12 @@ DHANAM_SCOPES: frozenset[str] = frozenset(
 #: platform-admin clients (``compensation/benchmark_views.py``). HCM's tenant
 #: app roles (``hcm:hr`` and friends) are NOT reserved, see below.
 HCM_PLATFORM_SCOPES: frozenset[str] = frozenset({"hcm-benchmarks:read"})
+
+#: tlacuilo's one machine role (``tlacuilo/auth.py`` ``required_role``): send a
+#: document, get its extraction back. Not bound to the token's organization,
+#: so only a platform admin grants it. ``tlacuilo:admin`` is covered by
+#: ``RESERVED_SCOPE_SUFFIXES``.
+TLACUILO_SCOPES: frozenset[str] = frozenset({"tlacuilo:extract"})
 
 #: Pravara MES machine scopes (audience ``pravara-api``). Pravara reads
 #: ``tenant_id`` from the token, so clients holding these are org-bound.
@@ -231,6 +242,7 @@ RESERVED_SCOPES: frozenset[str] = frozenset(
     | DHANAM_SCOPES
     | PHYND_CRM_SCOPES
     | HCM_PLATFORM_SCOPES
+    | TLACUILO_SCOPES
     | PRAVARA_SCOPES
     | ASSET_SHELLS_SCOPES
     | FABRICATION_PREP_SCOPES
@@ -368,6 +380,7 @@ __all__ = [
     "SILENT_AUTH_SCOPE",
     "TENANT_BOUND_MACHINE_SCOPES",
     "TENANT_BOUND_SERVICE_AUDIENCES",
+    "TLACUILO_SCOPES",
     "client_is_reserved",
     "is_first_party_name",
     "is_reserved_audience",
