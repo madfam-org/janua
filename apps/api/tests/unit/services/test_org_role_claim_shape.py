@@ -168,6 +168,40 @@ async def test_platform_admin_flag_still_adds_the_bare_admin_role():
     assert result["roles"] == ["admin"]
 
 
+# -- 1b. the shared merge holds the rule for every caller -----------------------------
+
+
+@pytest.mark.parametrize("forged", FORGED)
+def test_the_merge_drops_a_forged_role_from_an_unfiltered_legacy_list(forged):
+    """A caller that hands the merge the raw membership strings (the OIDC
+    handler before it filtered them) still gets a clean claim."""
+    claims = merge_app_roles_into_claims({}, existing_roles=["admin", forged])
+    assert claims["roles"] == ["admin"]
+
+
+def test_the_merge_writes_an_empty_roles_key_when_everything_was_dropped():
+    """The OIDC handler builds `{"roles": <its list>, ..., **org_claims}`. If
+    the merge returned no `roles` key, the handler's unfiltered list would be
+    the one in the token."""
+    unfiltered = ["hcm:admin"]
+    org_claims = merge_app_roles_into_claims({}, existing_roles=unfiltered)
+    token_claims = {"roles": unfiltered, **org_claims}
+
+    assert token_claims["roles"] == []
+
+
+def test_the_merge_keeps_a_grant_equal_to_a_dropped_organization_role():
+    claims = merge_app_roles_into_claims(
+        {APP_ROLES_KEY: ["hcm:admin"]}, existing_roles=["hcm:admin", "member"]
+    )
+    assert claims["roles"] == ["member", "hcm:admin"]
+
+
+def test_the_merge_still_emits_no_roles_key_when_there_is_nothing_at_all():
+    assert "roles" not in merge_app_roles_into_claims({}, existing_roles=[])
+    assert "roles" not in merge_app_roles_into_claims({})
+
+
 # -- 2. what the custom-role routes accept ------------------------------------------
 
 

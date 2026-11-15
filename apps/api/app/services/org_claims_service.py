@@ -301,8 +301,10 @@ def merge_app_roles_into_claims(
       the invariant that motivated the ``madfam_org_roles`` namespace holds
       unchanged.
     * The OIDC path passes its legacy organization-role list, and the result is
-      the UNION: every string existing clients read today, plus the namespaced
-      application roles. Nothing is removed from an established claim.
+      the UNION: every bare organization role existing clients read today, plus
+      the namespaced application roles. The one thing removed from the legacy
+      list is an organization role SHAPED like an application role, which was
+      never a grant (see `is_application_role_shaped`).
 
     Always pops the private transport key, so ``APP_ROLES_KEY`` can never reach
     a token. Returns a NEW dict; the input is not mutated.
@@ -315,7 +317,16 @@ def merge_app_roles_into_claims(
         # so a user with no grants gets a token shaped exactly as before.
         return merged
 
-    combined = list(existing_roles or [])
+    # The legacy list is ORGANIZATION roles, which organizations name themselves.
+    # One shaped like an application role is dropped HERE as well as where the
+    # OIDC handler builds the list (`organization_roles_for_roles_claim`): this
+    # helper is the one place both minting seams agree on what `roles` means,
+    # so the rule "a string with the separator comes only from a grant" holds
+    # for every caller, including one that hands in an unfiltered list.
+    # `roles` is still written when everything was dropped: the OIDC handler
+    # spreads this dict over its own `"roles"` key, and an absent key would let
+    # the unfiltered list through.
+    combined = [role for role in (existing_roles or []) if not is_application_role_shaped(role)]
     for role in app_roles:
         if role not in combined:
             combined.append(role)
