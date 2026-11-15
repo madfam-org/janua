@@ -103,6 +103,7 @@ from app.services.org_claims_service import (
     ORG_ROLES_CLAIM,
     get_user_org_claims,
     merge_app_roles_into_claims,
+    organization_roles_for_roles_claim,
 )
 from app.services.service_principal import service_principal_claims
 from app.services.spanish_formality import spanish_formality_claims, stored_formality
@@ -321,9 +322,14 @@ async def _get_user_entitlements(
         memberships = result.scalars().all()
 
         if memberships:
-            # Collect all roles across active organizations
-            roles = list({m.role for m in memberships if m.role})
-            entitlements["roles"] = roles
+            # Collect the organization roles across active organizations.
+            # A string shaped like an application role (`<app>:<role>`) is NOT
+            # published: organization admins name these strings freely, and
+            # under `roles` nothing would tell it from an audited grant. See
+            # `organization_roles_for_roles_claim`.
+            entitlements["roles"] = organization_roles_for_roles_claim(
+                (m.role for m in memberships), user_id=user.id
+            )
 
             # Get primary organization (tenant, or first ACTIVE membership).
             primary_org_id = memberships[0].organization_id

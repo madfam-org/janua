@@ -80,6 +80,7 @@ RESERVED_AUDIENCES = frozenset(
         "nauta-api",
         "tlacuilo",
         "creator-census-api",
+        "eido-api",
     }
 )
 RESERVED_SCOPES = frozenset(

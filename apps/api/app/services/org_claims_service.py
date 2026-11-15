@@ -131,7 +131,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Organization, OrganizationMember, User
-from app.models.app_role import OrganizationMemberAppRole, format_app_role
+from app.models.app_role import APP_ROLE_SEPARATOR, OrganizationMemberAppRole, format_app_role
 
 logger = structlog.get_logger()
 
@@ -324,6 +324,57 @@ def merge_app_roles_into_claims(
     return merged
 
 
+def is_application_role_shaped(role: str | None) -> bool:
+    """True when an ORGANIZATION role string could be read as an application role.
+
+    A resource server reads ``roles`` and authorizes on ``<app>:<role>``
+    (``hcm:hr``, ``hcm:admin``). It cannot
+    tell where a string came from, so the separator is what makes a string an
+    application role, exactly as it is for the grant routes
+    (`schemas/app_role.py`: "authority fabricated by punctuation").
+    """
+    return bool(role) and APP_ROLE_SEPARATOR in str(role)
+
+
+def organization_roles_for_roles_claim(
+    membership_roles: Any, *, user_id: Any = None
+) -> list[str]:
+    """The organization role strings the OIDC path may put under ``roles``.
+
+    Organization roles are named by an organization's own admins: the custom
+    role routes accept any name, and a member's role is a free string. The
+    OIDC path publishes those strings under ``roles`` NEXT TO real
+    application-role grants (`merge_app_roles_into_claims`). So an admin of
+    any organization could name a role ``hcm:admin``, assign it to
+    themselves, sign in through a client, and present a token no resource
+    server can tell from one carrying an audited grant.
+
+    The rule that closes it: **a string containing the separator reaches
+    ``roles`` only from a live `OrganizationMemberAppRole` grant.** An
+    organization role string shaped like one is never published. Bare strings
+    (``owner``, ``admin``, ``member``, ``employee``, a custom ``Support``) are
+    published as before; nothing else about the legacy claim changes.
+
+    Dropped strings are logged, by name and without the user's other claims,
+    because the person holding one loses an authority they may have relied on:
+    the remedy is an application-role grant (`routers/v1/internal_app_roles.py`).
+    """
+    published: set[str] = set()
+    for role in membership_roles:
+        if not role:
+            continue
+        if is_application_role_shaped(role):
+            logger.warning(
+                "Organization role shaped like an application role was not published "
+                "under `roles`; grant the application role instead",
+                user_id=str(user_id) if user_id is not None else None,
+                organization_role=str(role),
+            )
+            continue
+        published.add(role)
+    return list(published)
+
+
 async def get_user_org_claims_safe(user: User, db: AsyncSession) -> dict[str, Any]:
     """`get_user_org_claims` that can never raise, for the session-mint path.
 
@@ -348,5 +399,7 @@ __all__ = [
     "ORG_ROLES_CLAIM",
     "get_user_org_claims",
     "get_user_org_claims_safe",
+    "is_application_role_shaped",
     "merge_app_roles_into_claims",
+    "organization_roles_for_roles_claim",
 ]
