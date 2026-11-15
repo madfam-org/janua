@@ -153,6 +153,15 @@ CONSUMER_MACHINE_SCOPES: dict[str, str] = {
     "phynd-crm-engagements:read": (
         "phynd-crm apps/web/src/lib/trpc/machine-auth.ts MACHINE_SCOPE_GRANTS"
     ),
+    # PhyndCRM's native MCP read tools, ``POST /mcp`` on the ``phynd-crm``
+    # audience. No consumer client is declared yet: each one is provisioned
+    # only after this reservation deploys, and is added to
+    # ``ECOSYSTEM_MACHINE_EDGES`` in the change that declares it.
+    "phynd-crm-pipeline:read": (
+        "phynd-crm apps/web/src/lib/mcp/settings.ts MCP_READ_SCOPE, "
+        "apps/web/src/lib/mcp/auth.ts (phynd-crm#131, open draft, "
+        "branch feat/native-mcp-read-2026-11-14)"
+    ),
     "billing:events": "routecraft-billing-relay edge, docs/service-tokens.md (no check in dhanam yet)",
     "dhanam-scheduled-payments:write": "dhanam scheduled-payments/machine/writer.strategy.ts",
     "dhanam-bank-ledger:read": "dhanam bank-ledger/bank-ledger-reader.strategy.ts",
