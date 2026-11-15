@@ -29,15 +29,16 @@ concurrency:
 
 env:
   # The digest production runs (k8s/overlays/production/kustomization.yaml on
-  # 2026-11-15, pinned by janua#797): BASE_SOURCE plus the two
+  # 2026-11-15, pinned by janua#805): BASE_SOURCE plus the two
   # reserved-boundaries files at RESERVED_SOURCE, the two ChatGPT files at
-  # CHATGPT_SOURCE and the two org-bound login files at ORG_BOUND_SOURCE
-  # (run 43524028111).
-  BASE_IMAGE: ghcr.io/madfam-org/janua-api@sha256:f97bddd83a8091ed17c9c33d8ee36577406afefa902c35cd8e42c2f7dff8326e
+  # CHATGPT_SOURCE, the two org-bound login files at ORG_LOGIN_SOURCE and the
+  # three organization-role-shape files at ROLE_SHAPE_SOURCE (run 43763092668).
+  BASE_IMAGE: ghcr.io/madfam-org/janua-api@sha256:99f354a940f6a9ada0f899653445ee75682c101b9aba8525b06a0627301b8c0d
   BASE_SOURCE: b16869d75bf8e91967b3f8443032f01bc2463417
   RESERVED_SOURCE: ee7668b894a6445c78a37bb5f5eea9183988777c
   CHATGPT_SOURCE: ae7a3f504e1965002148fb7f8e86c0a36b5e5922
-  ORG_BOUND_SOURCE: 6da88e02fb81f0df2e2b10b47f892c70a2779a18
+  ORG_LOGIN_SOURCE: 6f3b9b1afcfb988c4383619ce3c9325389e748b0
+  ROLE_SHAPE_SOURCE: 0742d02a6d06cc10bb8d945194cd719ef8de788d
   HOTFIX_DIR: deployment/hotfix/janua-api-reservations-2
   DOCKERFILE: deployment/hotfix/janua-api-reservations-2/Dockerfile
   POLICY_DUMP: deployment/hotfix/janua-api-map-chatgpt/dump_policy.py
@@ -59,7 +60,7 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # the four source commits must be reachable
+          fetch-depth: 0 # the five source commits must be reachable
 
       - name: Dockerfile pins the base this workflow verifies
         run: |
@@ -102,7 +103,10 @@ jobs:
             git show "$CHATGPT_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
           done
           for f in auth/tenant_login_context.py auth/hosted_security.py; do
-            git show "$ORG_BOUND_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+            git show "$ORG_LOGIN_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          for f in services/org_claims_service.py services/role_service.py services/organization_member_service.py; do
+            git show "$ROLE_SHAPE_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
           done
           diff -r -x __pycache__ /tmp/hotfix/src/apps/api/app /tmp/hotfix/base/app
           echo "Base image application code matches its proven sources."
@@ -258,7 +262,7 @@ jobs:
             echo "- Digest: \`${DIGEST}\`"
             echo "- Tag: \`${TARGET}:hotfix-reservations-2-${GITHUB_SHA}\`"
             echo "- Source (main): \`${GITHUB_SHA}\`"
-            echo "- Base: \`${BASE_IMAGE}\` (production, janua#797)"
+            echo "- Base: \`${BASE_IMAGE}\` (production, janua#805)"
             echo "- Delta: \`app/core/reserved_oauth_boundaries.py\` only (janua#799, #800, #801)"
             echo "- Reason: ${REASON}"
             echo ""
