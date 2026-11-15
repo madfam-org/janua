@@ -28,6 +28,14 @@ is invite-only.
 Order: promote the code first, then the setting. Invite the first people right after the setting is live.
 Until someone is invited, nobody (operators included) can sign in to that client.
 
+## The client's own privacy notice on the sign-in page
+
+`CLIENT_PRIVACY_NOTICES` on janua-api: comma-separated `client_id=https://…` pairs (since 2026-11-15, first used by
+MADFAM CV). The hosted login page of a listed client shows one line under the form, in the page's language, naming
+the product and linking its own privacy notice. A client not listed, or a value that is not a plain `https` URL,
+renders the page exactly as before. Code: `apps/api/app/services/client_privacy_notices.py`. Tests:
+`apps/api/tests/unit/routers/test_client_privacy_notice_on_login.py`.
+
 ## Inviting, resending, removing
 
 These are internal endpoints (`X-Internal-API-Key`). The public edge refuses `/api/v1/internal/*`, so they are
