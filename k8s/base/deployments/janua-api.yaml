@@ -295,6 +295,12 @@ spec:
             # (until then nobody, operators included, can sign in to cv).
             - name: INVITE_ONLY_CLIENTS
               value: "jnc_M08TqJZOCUeW5M03YXjMtXxFrogxmI6X=cv"
+            # The client's own privacy notice on the hosted sign-in page (owner
+            # ruling A5, 2026-11-15): one line under the form naming MADFAM CV and
+            # linking its notice, in the page's language. Inert until the janua-api
+            # image carries app/services/client_privacy_notices.py.
+            - name: CLIENT_PRIVACY_NOTICES
+              value: "jnc_M08TqJZOCUeW5M03YXjMtXxFrogxmI6X=https://cv.madfam.io/privacidad"
             - name: ENABLE_ORGANIZATIONS
               value: "true"
           resources:

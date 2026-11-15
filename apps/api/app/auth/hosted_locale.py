@@ -87,6 +87,9 @@ HOSTED_COPY: Dict[str, Dict[str, str]] = {
         "switch_to_password": "Use a password instead",
         "switch_to_magic": "Email me a sign-in link instead",
         "footer": "Powered by Janua &bull; Secure Authentication",
+        # Only for a client listed in CLIENT_PRIVACY_NOTICES; {app} and {notice} are HTML.
+        "privacy_notice_line": "By continuing, {app} will handle your data as its {notice} explains: who is responsible, what for, and how to exercise your rights.",
+        "privacy_notice_link": "privacy notice",
         "invalid_credentials": "Invalid email or password. Please try again.",
         "locked_temporarily": (
             "Account temporarily locked due to too many failed login attempts. "
@@ -179,6 +182,8 @@ HOSTED_COPY: Dict[str, Dict[str, str]] = {
         "switch_to_password": "Usar mi contraseña",
         "switch_to_magic": "Enviarme un enlace para entrar",
         "footer": "Con tecnología de Janua &bull; Autenticación segura",
+        "privacy_notice_line": "Al continuar, {app} tratará tus datos como explica su {notice}: quién es responsable, para qué y cómo ejercer tus derechos.",
+        "privacy_notice_link": "aviso de privacidad",
         "invalid_credentials": "El correo o la contraseña no son correctos. Inténtalo de nuevo.",
         "locked_temporarily": (
             "La cuenta está bloqueada por demasiados intentos fallidos. "

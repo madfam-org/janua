@@ -502,6 +502,14 @@ class Settings(BaseSettings):
     # (fail closed). See app/services/invite_only_clients.py and
     # docs/runbooks/INVITE_ONLY_CLIENTS.md.
     INVITE_ONLY_CLIENTS: str = Field(default="")
+    # Per-client privacy notices on the hosted sign-in page (2026-11-15, MADFAM
+    # CV). Comma-separated `client_id=https://…` pairs: the hosted login page of
+    # that client shows one line under the form naming the product and linking
+    # its own privacy notice, in the page's language. Empty (the default), or a
+    # client not listed, renders the page exactly as before. A value that is not
+    # an https URL is ignored and logged, never rendered. See
+    # app/services/client_privacy_notices.py.
+    CLIENT_PRIVACY_NOTICES: str = Field(default="")
     # How long the ONE sign-in link in an operator invitation stays valid
     # (POST /api/v1/internal/product-invites). Longer than a requested link's 15
     # minutes because an invitation is read whenever the person gets to it; the

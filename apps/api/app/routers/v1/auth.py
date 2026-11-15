@@ -71,6 +71,7 @@ from app.models.system_settings import SettingKeys
 from app.services.account_lockout_service import AccountLockoutService
 from app.services.audit_logger import AuditEventType, AuditLogger
 from app.services.auth_service import AuthService
+from app.services.client_privacy_notices import client_privacy_notice_url
 from app.services.email_i18n import normalize_formality
 from app.services.email_send_audit import (
     CORRELATION_HEADER,
@@ -1119,6 +1120,7 @@ def _hosted_login_page_html(
     switch_url: Optional[str],
     error_message: Optional[str] = None,
     locale: str = DEFAULT_HOSTED_LOCALE,
+    privacy_notice_url: Optional[str] = None,
 ) -> str:
     """The hosted login page with ONE method first and the other one click away.
 
@@ -1127,6 +1129,9 @@ def _hosted_login_page_html(
     links cannot be offered on this deployment (then only the password form
     exists, exactly as before 2026-09-17). `app_name` and `error_message` are
     plain text and escaped here; `hidden_fields` is already HTML.
+    `privacy_notice_url` (app/services/client_privacy_notices.py, already
+    validated https) adds one line linking the client's own privacy notice;
+    None renders the page exactly as before.
     """
     import html as _html
 
@@ -1146,6 +1151,31 @@ def _hosted_login_page_html(
         f'<div class="error" id="error" style="display:block">{_html.escape(error_message)}</div>'
         if error_message
         else '<div class="error" id="error"></div>'
+    )
+    notice_html = (
+        '<p class="privacy-notice">'
+        + c["privacy_notice_line"].format(
+            app=f"<strong>{_html.escape(app_name)}</strong>",
+            notice=(
+                f'<a href="{_html.escape(privacy_notice_url, quote=True)}" target="_blank" rel="noopener noreferrer">'
+                f'{c["privacy_notice_link"]}</a>'
+            ),
+        )
+        + "</p>"
+        if privacy_notice_url
+        else ""
+    )
+    notice_style = (
+        """
+        .privacy-notice {
+            margin-top: 18px;
+            color: #444;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .privacy-notice a { color: #4c51bf; }"""
+        if privacy_notice_url
+        else ""
     )
     return f"""
 <!DOCTYPE html>
@@ -1287,7 +1317,7 @@ def _hosted_login_page_html(
             margin-top: 24px;
             color: #666;
             font-size: 12px;
-        }}
+        }}{notice_style}
     </style>
 </head>
 <body>
@@ -1305,6 +1335,7 @@ def _hosted_login_page_html(
 
         {form_html}
         {switch_html}
+        {notice_html}
 
         <div class="footer">
             {c["footer"]}
@@ -1398,6 +1429,7 @@ async def login_page(
         method=method,
         switch_url=switch_url,
         locale=locale,
+        privacy_notice_url=client_privacy_notice_url(client_id),
     )
     if client_id or auth_request_id:
         import html as html_module
@@ -4489,6 +4521,7 @@ async def login_form_magic_link(
                 switch_url=_password_url(),
                 error_message=message,
                 locale=locale,
+                privacy_notice_url=client_privacy_notice_url(client_id),
             ),
             status_code=status_code,
         )
@@ -4502,6 +4535,7 @@ async def login_form_magic_link(
                 switch_url=None,
                 error_message=copy["magic_unavailable"],
                 locale=locale,
+                privacy_notice_url=client_privacy_notice_url(client_id),
             ),
             status_code=400,
         )
