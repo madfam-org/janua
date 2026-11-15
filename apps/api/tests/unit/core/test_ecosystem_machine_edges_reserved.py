@@ -230,6 +230,7 @@ CONSUMER_AUDIENCES: dict[str, str] = {
     "converge-dash": "converge-dash JANUA_AUDIENCE (apps/api/src/auth/janua.ts, /mcp)",
     "nauta-api": "nauta JANUA_AUDIENCE (apps/web/src/lib/machine-token.ts, /api/internal/, /mcp)",
     "tlacuilo": "tlacuilo settings.py janua_audience (tlacuilo/auth.py verify_token)",
+    "eido-api": "eido apps/api/src/eido_api/auth.py JANUA_AUDIENCES (accepted as issued once configured)",
 }
 
 

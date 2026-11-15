@@ -100,6 +100,14 @@ ECOSYSTEM_SERVICE_AUDIENCES: frozenset[str] = frozenset(
         # audience and ``tlacuilo:extract``; the token's organization only
         # scopes which job records the caller may read back.
         "tlacuilo",
+        # Eido's own API audience (eido `JANUA_AUDIENCES`, apps/api auth.py).
+        # Eido accepts a token on an audience of its own AS ISSUED, OAuth-client
+        # and machine tokens included, so whoever can register a client
+        # claiming it can mint tokens Eido takes for the signed-in person.
+        # Reserved before Eido trusts it: today Eido accepts only the shared
+        # first-party session audience, and adds this one only after this
+        # registry carries it and no other client row does.
+        "eido-api",
     }
 )
 

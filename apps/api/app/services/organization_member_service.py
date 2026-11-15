@@ -15,7 +15,21 @@ from sqlalchemy.orm import Session
 from ..core.events import EventEmitter
 from ..core.redis_config import RedisService
 from ..models import OrganizationInvitation, OrganizationMember
+from .role_service import reject_application_role_shape
 
+
+def _refuse_application_role_shape(role: str) -> None:
+    """400 for a membership role that could be read as an application role.
+
+    A member's role is a free string here. One shaped ``<app>:<role>`` is
+    authority inside a product and comes only from the grant routes; see
+    `role_service.reject_application_role_shape`. The token path would not
+    publish it either way.
+    """
+    try:
+        reject_application_role_shape(role)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 class OrganizationMemberService:
     """
@@ -37,6 +51,7 @@ class OrganizationMemberService:
         metadata: Optional[Dict] = None,
     ) -> OrganizationMember:
         """Add a new member to organization"""
+        _refuse_application_role_shape(role)
         # Check if already member
         existing = (
             self.db.query(OrganizationMember)
@@ -149,6 +164,7 @@ class OrganizationMemberService:
         self, organization_id: UUID, user_id: UUID, new_role: str, updated_by: UUID
     ) -> OrganizationMember:
         """Update member's role"""
+        _refuse_application_role_shape(new_role)
         member = (
             self.db.query(OrganizationMember)
             .filter(
@@ -223,6 +239,7 @@ class OrganizationMemberService:
         expires_in_days: int = 7,
     ) -> OrganizationInvitation:
         """Create invitation for new member"""
+        _refuse_application_role_shape(role)
         # Check for existing pending invitation
         existing = (
             self.db.query(OrganizationInvitation)

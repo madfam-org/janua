@@ -36,6 +36,7 @@ def test_service_auth_modules_read_the_registry_constants():
         "converge-dash",
         "nauta-api",
         "tlacuilo",
+        "eido-api",
         " janua-email ",
     ],
 )

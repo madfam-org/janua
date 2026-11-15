@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AuditLog, OrganizationMember, Role, User
+from app.models.app_role import APP_ROLE_SEPARATOR
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,26 @@ def _sanitize_log_value(value: str, max_length: int = 100) -> str:
 
 
 # Default system roles with their permissions
+def reject_application_role_shape(name: str) -> None:
+    """Refuse an ORGANIZATION role name that could be read as an application role.
+
+    Organization roles are named by the organization's own admins. An
+    application role (``hcm:hr``, ``hcm:admin``) is authority inside
+    a product and is granted only through the audited grant routes
+    (`routers/v1/internal_app_roles.py`, `organization_app_roles.py`). The
+    separator is what makes a string an application role, so it may not appear
+    in an organization role name. The token path independently refuses to
+    publish such a string (`organization_roles_for_roles_claim`); this check is
+    so the person is told at the time, instead of holding a role that silently
+    does nothing.
+    """
+    if APP_ROLE_SEPARATOR in name:
+        raise ValueError(
+            f"Role names must not contain {APP_ROLE_SEPARATOR!r}: names of that shape "
+            "are application roles, which are granted per product, not created here"
+        )
+
+
 SYSTEM_ROLES = {
     "owner": {
         "name": "Owner",
@@ -202,6 +223,8 @@ class RoleService:
         Returns:
             The created Role model
         """
+        reject_application_role_shape(name)
+
         # Check for duplicate name
         existing = await self.get_role_by_name(name, organization_id)
         if existing:
@@ -288,6 +311,7 @@ class RoleService:
         changes = {}
 
         if name and name != role.name:
+            reject_application_role_shape(name)
             # Check for duplicate name
             existing = await self.get_role_by_name(name, organization_id)
             if existing and existing.id != role_id:
@@ -412,6 +436,10 @@ class RoleService:
         Returns:
             The updated OrganizationMember
         """
+        # A role created before names were checked may still carry the
+        # separator; it must not become a member's role now.
+        reject_application_role_shape(role_name)
+
         # Verify role exists (system or custom)
         role = await self.get_role_by_name(role_name, organization_id)
         if not role and role_name not in SYSTEM_ROLES:

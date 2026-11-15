@@ -86,6 +86,19 @@ Ejemplo (token de sesión de un integrante de una organización cliente):
 - **`roles` no cambia.** El camino OIDC sigue emitiéndolo igual para los
   clientes que ya lo leen. Los tokens de **sesión** no lo emiten: estrenan el
   claim con namespace, sin heredar la ambigüedad.
+- **Un rol de organización nunca se lee como rol de aplicación.** Los roles de
+  organización los nombra la propia organización (roles a medida, rol de la
+  membresía), y el camino OIDC los publica bajo `roles` junto a las concesiones
+  de aplicación. Un servidor de recursos no distingue el origen de una cadena:
+  lo que la hace rol de aplicación es el separador `:`. Por eso **una cadena
+  con `:` sólo llega a `roles` desde una concesión viva** de
+  `organization_member_app_roles` (§5). Un rol de organización con esa forma
+  **no se publica** (`organization_roles_for_roles_claim`, con aviso en el log)
+  y las rutas de roles a medida **rechazan el nombre** al crearlo, renombrarlo
+  o asignarlo. Las cadenas sin separador (`owner`, `admin`, `member`,
+  `employee`, `Soporte`) se publican igual que antes. Quien dependía de una
+  cadena de membresía con `:` necesita la concesión de aplicación
+  correspondiente **antes** de desplegar este cambio.
 - **Fail-closed.** Si la resolución falla, no se emite ningún claim de
   organización. Los servicios con alcance de org rechazan; nunca mal-asignan.
 - **Nunca bloquea el login.** Un fallo del resolvedor degrada a «sin claims»,
