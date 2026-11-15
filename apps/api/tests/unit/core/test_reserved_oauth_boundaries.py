@@ -35,6 +35,7 @@ def test_service_auth_modules_read_the_registry_constants():
         "fabrication-prep-api",
         "converge-dash",
         "nauta-api",
+        "tlacuilo",
         " janua-email ",
     ],
 )
@@ -96,6 +97,8 @@ def test_consent_purpose_audiences_and_names_are_reserved_by_construction():
         "phynd-crm-engagements:read",
         " phynd-crm-engagements:read ",
         "hcm-benchmarks:read",
+        "tlacuilo:extract",
+        "tlacuilo:admin",
         "yantra4d:render",
         "pravara-mes:jobs",
         "pravara-mes:nodes",

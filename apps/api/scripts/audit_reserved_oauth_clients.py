@@ -78,6 +78,7 @@ RESERVED_AUDIENCES = frozenset(
         "fabrication-prep-api",
         "converge-dash",
         "nauta-api",
+        "tlacuilo",
         "creator-census-api",
     }
 )
@@ -104,6 +105,7 @@ RESERVED_SCOPES = frozenset(
         "dhanam-bank-ledger:read",
         "phynd-crm-engagements:read",
         "hcm-benchmarks:read",
+        "tlacuilo:extract",
         "yantra4d:render",
         "pravara-mes:jobs",
         "pravara-mes:nodes",

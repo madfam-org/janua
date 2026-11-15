@@ -89,9 +89,9 @@ else:
   `dhanam-scheduled-payments:write`, `dhanam-cost-events:write`,
   `dhanam:merchant-read`, `dhanam-bank-ledger:read`; the writer
   scope's never-registrable two-colon form `dhanam:scheduled-payments:write`
-  stays reserved too) and HCM's
-  `hcm-benchmarks:read`, plus the audiences `karafiel-app`,
-  `karafiel-staging-api` and `dhanam-money-moves`. Every native COGS MCP
+  stays reserved too), HCM's
+  `hcm-benchmarks:read` and tlacuilo's `tlacuilo:extract`, plus the audiences `karafiel-app`,
+  `karafiel-staging-api`, `dhanam-money-moves` and `tlacuilo`. Every native COGS MCP
   read scope (RFC 0051, `<platform>-cogs:read`: `dhanam-cogs:read`,
   `karafiel-cogs:read`, `converge-dash-cogs:read`, `pravara-cogs:read`,
   `nauta-cogs:read`, `enclii-cogs:read`, `selva-cogs:read`,
