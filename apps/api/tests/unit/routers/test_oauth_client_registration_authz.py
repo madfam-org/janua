@@ -372,6 +372,8 @@ MACHINE_EDGE_SCOPES = [
     "symbiosis-hcm-cogs:read",
     "nauta-labor-hours:read",
     "nauta-engagements:read",
+    # PhyndCRM's native MCP read scope (phynd-crm#131).
+    "phynd-crm-pipeline:read",
 ]
 #: The writer scope's retired two-colon form, which the CREATE schema's shape
 #: check refuses (422) but the UPDATE schema does not check.

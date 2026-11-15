@@ -104,6 +104,7 @@ RESERVED_SCOPES = frozenset(
         "dhanam:merchant-read",
         "dhanam-bank-ledger:read",
         "phynd-crm-engagements:read",
+        "phynd-crm-pipeline:read",
         "hcm-benchmarks:read",
         "tlacuilo:extract",
         "yantra4d:render",

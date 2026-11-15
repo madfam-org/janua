@@ -213,14 +213,26 @@ ASSET_SHELLS_SCOPES: frozenset[str] = frozenset(
 #: so the client that holds it is platform-admin.
 FABRICATION_PREP_SCOPES: frozenset[str] = frozenset({"fabrication-prep:slice"})
 
-#: PhyndCRM machine scopes (audience ``phynd-crm``). PhyndCRM maps each to a
-#: fixed set of read scopes (phynd-crm ``apps/web/src/lib/trpc/machine-auth.ts``
-#: ``MACHINE_SCOPE_GRANTS``: engagements and contacts, read only) and pins every
-#: machine token to ONE configured tenant, refusing any ``org_id`` but
+#: PhyndCRM machine scopes (audience ``phynd-crm``). PhyndCRM pins every machine
+#: token to ONE configured tenant, refusing any ``org_id`` but
 #: ``PHYND_CRM_MACHINE_JANUA_ORG_ID``. That pin is phynd's configuration, not
-#: the token's own organization, so the scope is reserved rather than
+#: the token's own organization, so each scope is reserved rather than
 #: tenant-bound: only a platform admin grants a read of MADFAM's CRM.
-PHYND_CRM_SCOPES: frozenset[str] = frozenset({"phynd-crm-engagements:read"})
+#:
+#: - ``phynd-crm-engagements:read``: the tRPC machine reads, a fixed set
+#:   (phynd-crm ``apps/web/src/lib/trpc/machine-auth.ts``
+#:   ``MACHINE_SCOPE_GRANTS``: engagements and contacts, read only).
+#: - ``phynd-crm-pipeline:read``: the native MCP read tools on ``POST /mcp``
+#:   (phynd-crm ``apps/web/src/lib/mcp/settings.ts`` ``MCP_READ_SCOPE``,
+#:   phynd-crm#131: contacts, leads, open tasks, deals and pipelines, read
+#:   only). PhyndCRM matches the scope exactly and additionally requires the
+#:   client to be on its own readers allowlist (``PHYND_CRM_MCP_READ_CLIENTS``,
+#:   ``client-id@org-id``).
+#:
+#: Neither scope opens the other's surface.
+PHYND_CRM_SCOPES: frozenset[str] = frozenset(
+    {"phynd-crm-engagements:read", "phynd-crm-pipeline:read"}
+)
 
 RESERVED_AUDIENCES: frozenset[str] = frozenset(
     {MAIL_AUDIENCE, BRANDING_AUDIENCE, CONNECTIONS_AUDIENCE}

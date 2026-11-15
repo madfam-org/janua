@@ -96,6 +96,8 @@ def test_consent_purpose_audiences_and_names_are_reserved_by_construction():
         "dhanam-bank-ledger:read",
         "phynd-crm-engagements:read",
         " phynd-crm-engagements:read ",
+        "phynd-crm-pipeline:read",
+        " phynd-crm-pipeline:read ",
         "hcm-benchmarks:read",
         "tlacuilo:extract",
         "tlacuilo:admin",
@@ -145,6 +147,10 @@ def test_reserved_scopes(scope):
         "phynd-crm:read",
         "phynd-crm-engagements:write",
         "engagements:read",
+        "phynd-crm-pipeline:write",
+        "phynd-crm:pipeline:read",
+        "phynd-crm-pipeline:read-all",
+        "pipeline:read",
         "pravara-mes:other",
         "asset-shells:write",
         "fabrication-prep:read",
@@ -196,10 +202,33 @@ def test_phynd_crm_machine_audience_is_reserved_but_its_sso_audience_is_not():
     # SSO client's ``phynd-crm-api`` is an ordinary interactive audience.
     assert reserved.is_reserved_audience("phynd-crm")
     assert not reserved.is_reserved_audience("phynd-crm-api")
-    assert reserved.PHYND_CRM_SCOPES == frozenset({"phynd-crm-engagements:read"})
+    assert reserved.PHYND_CRM_SCOPES == frozenset(
+        {"phynd-crm-engagements:read", "phynd-crm-pipeline:read"}
+    )
     assert reserved.PHYND_CRM_SCOPES <= reserved.RESERVED_SCOPES
     assert "phynd-crm-engagements:read" not in reserved.TENANT_BOUND_MACHINE_SCOPES
     assert "phynd-crm" not in reserved.TENANT_BOUND_SERVICE_AUDIENCES
     assert reserved.reserved_fields(
         name="nauta-phynd-crm", audience="phynd-crm", scopes=["phynd-crm-engagements:read"]
     ) == ["audience", "allowed_scopes"]
+
+
+def test_phynd_crm_native_mcp_read_scope_is_reserved_not_tenant_bound():
+    # ``phynd-crm-pipeline:read`` opens PhyndCRM's native MCP read tools
+    # (phynd-crm#131). PhyndCRM pins the token to its own configured
+    # organization, so the grant is a platform-admin one, never tenant-bound.
+    scope = "phynd-crm-pipeline:read"
+    assert scope in reserved.PHYND_CRM_SCOPES
+    assert scope in reserved.RESERVED_SCOPES
+    assert scope not in reserved.TENANT_BOUND_MACHINE_SCOPES
+    # Reserved on its own, whatever audience or name the client asks for.
+    assert reserved.reserved_fields(
+        name="some-reader", audience="tenant-api", scopes=["openid", scope]
+    ) == ["allowed_scopes"]
+    assert reserved.reserved_fields(name="some-reader", audience="phynd-crm", scopes=[scope]) == [
+        "audience",
+        "allowed_scopes",
+    ]
+    assert reserved.client_is_reserved(
+        SimpleNamespace(name="some-reader", audience=None, allowed_scopes=[scope])
+    )
