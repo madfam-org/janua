@@ -80,8 +80,8 @@ published only for a person with one unambiguous primary organization.
 | | |
 |---|---|
 | Approved by | Owner, 2026-11-15 (in session): «Yes, ship hotfix» to «Ship the identity fix to production now as a hotfix image?» |
-| Built by | pending: filled in by the pin PR |
-| Hotfix digest | pending: filled in by the pin PR |
+| Built by | [run 43763092668](https://github.com/madfam-org/janua/actions/runs/43763092668), dispatched from `main` (`0742d02a`) on 2026-11-15 |
+| Hotfix digest | `sha256:99f354a940f6a9ada0f899653445ee75682c101b9aba8525b06a0627301b8c0d` (cosign-signed by that run) |
 | Replaces | `sha256:f97bddd83a8091ed17c9c33d8ee36577406afefa902c35cd8e42c2f7dff8326e` (janua#797) |
 | Delta | `app/services/org_claims_service.py`, `app/services/role_service.py` and `app/services/organization_member_service.py` from `main` (janua#801, janua#802) |
 
