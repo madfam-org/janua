@@ -1,6 +1,7 @@
 # Owner exception: build, verify and sign a janua-api image that is the image
 # production runs plus the current OAuth reservation registry (janua#799, #800,
-# #801). See deployment/hotfix/janua-api-reservations-2/README.md.
+# #801) and the per-client privacy notice on the hosted sign-in page (janua#806).
+# See deployment/hotfix/janua-api-reservations-2/README.md.
 #
 # It builds ONE image and writes nothing to staging, production or this
 # repository. Pinning the result in production is a separate reviewed PR. The
@@ -8,7 +9,7 @@
 # Delete this workflow and that folder once a normal promotion replaces the
 # hotfix in production.
 
-name: Hotfix image (reservation registry, second refresh)
+name: Hotfix image (reservation registry and sign-in privacy notice)
 
 on:
   workflow_dispatch:
@@ -46,6 +47,7 @@ env:
   POLICY_DUMP: deployment/hotfix/janua-api-map-chatgpt/dump_policy.py
   REGISTRY_DUMP: deployment/hotfix/janua-api-reserved-boundaries/dump_registry.py
   REGISTRY_COMPARE: deployment/hotfix/janua-api-reserved-boundaries/compare_registry.py
+  SIGNIN_CHECK: deployment/hotfix/janua-api-reservations-2/check_signin_notice.py
   TARGET: ghcr.io/madfam-org/janua-api
 
 jobs:
@@ -131,6 +133,33 @@ jobs:
             exit 1
           fi
 
+      # Proves the sign-in files differ from production's source only by the
+      # reviewed pull requests (config.py also carries janua#798, declared).
+      - name: "The sign-in files changed only in janua#806 (and config.py in janua#798) since production's source"
+        run: |
+          set -euo pipefail
+          check() {
+            local f="$1" expected="$2"
+            commits=$(git log --format=%H "$BASE_SOURCE..HEAD" -- "apps/api/app/$f" | sort | tr '\n' ' ')
+            if [[ "$commits" != "$expected" ]]; then
+              echo "::error::apps/api/app/$f changed outside the reviewed pull requests: $commits"
+              exit 1
+            fi
+          }
+          N806=5e01121e050e42a9e585798f018963e37b8c772e
+          N798=3a480fed761c4b2a45f74c76baee0d4c542ed3ac
+          # janua#808 (an unlisted page byte-identical to production's), merged
+          # 2026-11-16.
+          N808=7a30ec419c3554dcd92fa29f3539d617b7f4cfda
+          check routers/v1/auth.py "$(printf '%s\n' "$N806" "$N808" | sort | tr '\n' ' ')"
+          check auth/hosted_locale.py "$N806 "
+          check services/client_privacy_notices.py "$N806 "
+          check config.py "$(printf '%s\n' "$N806" "$N798" | sort | tr '\n' ' ')"
+          for f in routers/v1/auth.py auth/hosted_locale.py config.py; do
+            cmp <(git show "$BASE_SOURCE:apps/api/app/$f") "/tmp/hotfix/base/app/$f"
+          done
+          test ! -e /tmp/hotfix/base/app/services/client_privacy_notices.py
+
       - name: Build and push
         id: build
         uses: docker/build-push-action@v7
@@ -142,9 +171,9 @@ jobs:
           provenance: false
           sbom: false
 
-      # Proves the delta: one added layer, and exactly the one copied file
-      # changed, byte-identical to the reviewed source on main.
-      - name: Hotfix differs from the base by one file
+      # Proves the delta: five added layers, and exactly the five copied files
+      # changed or added, each byte-identical to the reviewed source on main.
+      - name: Hotfix differs from the base by five files
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
@@ -153,8 +182,8 @@ jobs:
           docker pull --quiet "$new"
           base_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$BASE_IMAGE")
           new_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$new")
-          if [[ "$new_layers" -ne $((base_layers + 1)) ]]; then
-            echo "::error::Expected exactly one added layer ($base_layers -> $new_layers)."
+          if [[ "$new_layers" -ne $((base_layers + 5)) ]]; then
+            echo "::error::Expected exactly five added layers ($base_layers -> $new_layers)."
             exit 1
           fi
           mkdir -p /tmp/hotfix/new
@@ -162,20 +191,27 @@ jobs:
           docker cp "$cid:/app/app" /tmp/hotfix/new/app
           docker rm "$cid" >/dev/null
           changed=$(diff -rq -x __pycache__ /tmp/hotfix/base/app /tmp/hotfix/new/app | sort || true)
-          expected="Files /tmp/hotfix/base/app/core/reserved_oauth_boundaries.py and /tmp/hotfix/new/app/core/reserved_oauth_boundaries.py differ"
+          expected=$(printf '%s\n' \
+            "Files /tmp/hotfix/base/app/auth/hosted_locale.py and /tmp/hotfix/new/app/auth/hosted_locale.py differ" \
+            "Files /tmp/hotfix/base/app/config.py and /tmp/hotfix/new/app/config.py differ" \
+            "Files /tmp/hotfix/base/app/core/reserved_oauth_boundaries.py and /tmp/hotfix/new/app/core/reserved_oauth_boundaries.py differ" \
+            "Files /tmp/hotfix/base/app/routers/v1/auth.py and /tmp/hotfix/new/app/routers/v1/auth.py differ" \
+            "Only in /tmp/hotfix/new/app/services: client_privacy_notices.py" | sort)
           if [[ "$changed" != "$expected" ]]; then
             echo "::error::Unexpected application-code delta:"
             echo "$changed"
             exit 1
           fi
-          cmp /tmp/hotfix/new/app/core/reserved_oauth_boundaries.py apps/api/app/core/reserved_oauth_boundaries.py
-          echo "Only core/reserved_oauth_boundaries.py changed, and it is the reviewed file."
+          for f in core/reserved_oauth_boundaries.py services/client_privacy_notices.py auth/hosted_locale.py routers/v1/auth.py config.py; do
+            cmp "/tmp/hotfix/new/app/$f" "apps/api/app/$f"
+          done
+          echo "Only the five reviewed files changed or were added, each byte-identical to main."
 
       # Importing app modules imports the whole application, so these also prove
       # both images import cleanly. The production image has asyncpg but not
       # the test-only aiosqlite, so the URL must be PostgreSQL; nothing listens
       # on it and nothing connects.
-      - name: Discovery and client policy unchanged; registry only tightens, by the expected values
+      - name: Discovery and client policy unchanged; registry only tightens; sign-in notice only for a listed client
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
@@ -234,6 +270,21 @@ jobs:
           assert added == expected, f"reservations added: {sorted(added)}; expected {sorted(expected)}"
           print("Registry: exactly the four expected reservations were added.")
           PY
+          signin() {
+            run_py "$1" - < "$SIGNIN_CHECK" | grep '^SIGNIN=' | tail -1 | cut -d= -f2-
+          }
+          signin "$BASE_IMAGE" > /tmp/hotfix/base-signin.json
+          signin "$new" > /tmp/hotfix/new-signin.json
+          python3 - <<'PY'
+          import json
+
+          base = json.load(open("/tmp/hotfix/base-signin.json"))
+          new = json.load(open("/tmp/hotfix/new-signin.json"))
+          assert not base["has_notice"], "the base already has the notice: wrong base"
+          assert new["has_notice"] and new["listed_line"] and new["rejects_http"], new
+          assert base["unlisted"] == new["unlisted"], "a client not listed must render byte for byte as before"
+          print("Sign-in: unlisted pages identical; a listed client shows its notice.")
+          PY
 
       # Same retry as docker-publish.yml: a lost signature once cost a deploy.
       - name: Sign image with cosign
@@ -260,13 +311,13 @@ jobs:
           REASON: ${{ inputs.reason }}
         run: |
           {
-            echo "## Reservation registry, second refresh: hotfix image"
+            echo "## Reservation registry and sign-in privacy notice: hotfix image"
             echo ""
             echo "- Digest: \`${DIGEST}\`"
             echo "- Tag: \`${TARGET}:hotfix-reservations-2-${GITHUB_SHA}\`"
             echo "- Source (main): \`${GITHUB_SHA}\`"
             echo "- Base: \`${BASE_IMAGE}\` (production, janua#811)"
-            echo "- Delta: \`app/core/reserved_oauth_boundaries.py\` only (janua#799, #800, #801)"
+            echo "- Delta: \`app/core/reserved_oauth_boundaries.py\` (janua#799, #800, #801); \`app/services/client_privacy_notices.py\`, \`app/auth/hosted_locale.py\`, \`app/routers/v1/auth.py\` (janua#806); \`app/config.py\` (janua#806, janua#798)"
             echo "- Reason: ${REASON}"
             echo ""
             echo '```'
