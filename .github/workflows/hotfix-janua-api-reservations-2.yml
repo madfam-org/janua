@@ -148,9 +148,9 @@ jobs:
           }
           N806=5e01121e050e42a9e585798f018963e37b8c772e
           N798=3a480fed761c4b2a45f74c76baee0d4c542ed3ac
-          # janua#808 (an unlisted page byte-identical to production's). Its merge
-          # commit is filled in once it merges; until then this check refuses (fail closed).
-          N808=PENDING-janua-808
+          # janua#808 (an unlisted page byte-identical to production's), merged
+          # 2026-11-16.
+          N808=7a30ec419c3554dcd92fa29f3539d617b7f4cfda
           check routers/v1/auth.py "$(printf '%s\n' "$N806" "$N808" | sort | tr '\n' ' ')"
           check auth/hosted_locale.py "$N806 "
           check services/client_privacy_notices.py "$N806 "
