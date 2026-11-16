@@ -95,7 +95,7 @@ production's ([`../janua-api-reserved-boundaries/compare_registry.py`](../janua-
 | | |
 |---|---|
 | Approved by | Owner, 2026-11-15 (in session): the route (a fifth hotfix image, not lifting the hold). The build and the pin are each approved when ready |
-| Built by | not built yet |
-| Hotfix digest | not built yet |
+| Built by | [run 43800933291](https://github.com/madfam-org/janua/actions/runs/43800933291) from `main` `393a95b2` (janua#809), every proof passed, signed |
+| Hotfix digest | `sha256:78efc78925192d99f2116dbed27afcd46b9db96d27bcb7c029aaca73d681f858` |
 | Replaces | `sha256:cf723284080b94d78419c8cd2a189e8ecffe9b5a24c79e7b60e60bd0fa528032` (janua#811's entitlement-source hotfix; rebased from janua#805's image when that was pinned) |
 | Delta | `app/core/reserved_oauth_boundaries.py` (janua#799, #800, #801); `app/services/client_privacy_notices.py`, `app/auth/hosted_locale.py`, `app/routers/v1/auth.py` (janua#806); `app/config.py` (janua#806, janua#798) |

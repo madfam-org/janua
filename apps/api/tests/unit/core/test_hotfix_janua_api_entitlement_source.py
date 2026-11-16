@@ -52,22 +52,40 @@ def test_dockerfile_is_one_pinned_base_and_one_copy():
 
 def test_base_is_the_image_production_pins():
     """Before the pin PR, production runs the base; after it, production runs the
-    hotfix digest the exception record names, which replaced exactly this base.
-    Once another hotfix replaces that, this folder is retired with its workflow."""
+    hotfix digest the exception record names, which replaced exactly this base,
+    or a later hotfix reached from it through the exception records."""
     base = _instructions()[0].removeprefix("FROM ")
     assert WORKFLOW["env"]["BASE_IMAGE"] == base
     kustomization = (ROOT / "k8s/overlays/production/kustomization.yaml").read_text()
-    block = re.search(r"name: ghcr\.io/madfam-org/janua-api\n(?:\s+\S.*\n){1,3}", kustomization)
+    block = re.search(
+        r"name: ghcr\.io/madfam-org/janua-api\n(?:\s+\S.*\n){1,3}", kustomization
+    )
     assert block, "production overlay has no janua-api image"
     digest = base.split("@", 1)[1]
     if digest in block.group(0):
         return
     pinned = re.search(r"sha256:[0-9a-f]{64}", _record("Hotfix digest"))
-    assert pinned and pinned.group(0) in block.group(0), (
-        "the hotfix must start from the production pin, or be the production pin"
-    )
+    assert pinned, "exception record has no hotfix digest"
     assert digest in _record("Replaces"), "the pinned hotfix must replace this base"
-
+    # Later owner-exception hotfixes may each start FROM the one before and
+    # replace it in production. Follow the exception records from this hotfix's
+    # digest: every step must be a record that says it replaced exactly the
+    # previous digest, and the chain must end at what production pins.
+    successors: dict[str, str] = {}
+    for readme in sorted((ROOT / "deployment/hotfix").glob("*/README.md")):
+        text = readme.read_text()
+        replaces = re.search(r"^\| Replaces \| `(sha256:[0-9a-f]{64})`", text, re.M)
+        successor = re.search(r"^\| Hotfix digest \| `(sha256:[0-9a-f]{64})`", text, re.M)
+        if replaces and successor:
+            successors[replaces.group(1)] = successor.group(1)
+    current, seen = pinned.group(0), set()
+    while current not in block.group(0):
+        assert current in successors and current not in seen, (
+            "the hotfix must start from the production pin, be the production pin, "
+            "or be replaced in production through hotfixes whose records name each step"
+        )
+        seen.add(current)
+        current = successors[current]
 
 def test_base_sources_are_the_org_role_shape_hotfix_ones():
     readme = (ROOT / "deployment/hotfix/janua-api-org-role-shape/README.md").read_text()
