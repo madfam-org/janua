@@ -130,15 +130,31 @@ class TestWebhookRequestModels:
             id=uuid.uuid4(),
             webhook_endpoint_id=uuid.uuid4(),
             webhook_event_id=uuid.uuid4(),
-            status_code=200,
+            status="delivered",
+            attempts=1,
+            last_attempt=datetime.utcnow(),
+            response_status=200,
             response_body="OK",
-            error=None,
-            attempt=1,
-            delivered_at=datetime.utcnow(),
+            error_message=None,
             created_at=datetime.utcnow(),
         )
-        assert response.status_code == 200
-        assert response.attempt == 1
+        assert response.response_status == 200
+        assert response.attempts == 1
+
+    def test_webhook_delivery_response_reads_a_delivery_row(self):
+        """The schema takes the WebhookDelivery model's own fields (from_attributes), as the list endpoint does."""
+        from types import SimpleNamespace
+
+        from app.models import WebhookStatus
+        from app.routers.v1.webhooks import WebhookDeliveryResponse
+
+        row = SimpleNamespace(
+            id=uuid.uuid4(), webhook_endpoint_id=uuid.uuid4(), webhook_event_id=uuid.uuid4(),
+            status=WebhookStatus.FAILED, attempts=3, last_attempt=datetime.utcnow(), response_status=500,
+            response_body="boom", error_message=None, created_at=datetime.utcnow(),
+        )
+        dumped = WebhookDeliveryResponse.model_validate(row).model_dump(mode="json")
+        assert dumped["status"] == "failed" and dumped["attempts"] == 3 and dumped["response_status"] == 500
 
     def test_webhook_stats_response_model(self):
         """Test WebhookStatsResponse model."""
@@ -563,16 +579,17 @@ class TestWebhookDeliveryAttempts:
             id=uuid.uuid4(),
             webhook_endpoint_id=uuid.uuid4(),
             webhook_event_id=uuid.uuid4(),
-            status_code=None,
+            status="failed",
+            attempts=3,
+            last_attempt=datetime.utcnow(),
+            response_status=None,
             response_body=None,
-            error="Connection timeout",
-            attempt=3,
-            delivered_at=None,
+            error_message="Connection timeout",
             created_at=datetime.utcnow(),
         )
-        assert delivery.error == "Connection timeout"
-        assert delivery.status_code is None
-        assert delivery.delivered_at is None
+        assert delivery.error_message == "Connection timeout"
+        assert delivery.response_status is None
+        assert delivery.status == "failed"
 
     def test_delivery_multiple_attempts(self):
         """Test delivery with multiple attempts."""
@@ -583,14 +600,15 @@ class TestWebhookDeliveryAttempts:
                 id=uuid.uuid4(),
                 webhook_endpoint_id=uuid.uuid4(),
                 webhook_event_id=uuid.uuid4(),
-                status_code=None,
+                status="retrying",
+                attempts=attempt_num,
+                last_attempt=datetime.utcnow(),
+                response_status=None,
                 response_body=None,
-                error="Failed",
-                attempt=attempt_num,
-                delivered_at=None,
+                error_message="Failed",
                 created_at=datetime.utcnow(),
             )
-            assert delivery.attempt == attempt_num
+            assert delivery.attempts == attempt_num
 
 
 class TestWebhookSecurityFeatures:

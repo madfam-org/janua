@@ -1,0 +1,32 @@
+@@ -17,7 +17,8 @@ from app.database import get_db
+ from app.dependencies import get_current_user
+ from app.services.webhooks import WebhookEventType, webhook_service
+ 
+-from ...models import User, WebhookDelivery, WebhookEndpoint, LegacyWebhookEvent as WebhookEvent
++from ...models import LegacyWebhookEvent as WebhookEvent
++from ...models import User, WebhookDelivery, WebhookEndpoint
+ 
+ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+ 
+@@ -77,14 +78,17 @@ class WebhookEventResponse(BaseModel):
+ class WebhookDeliveryResponse(BaseModel):
+     """Response model for webhook delivery"""
+ 
++    # The WebhookDelivery model's own fields (2026-11-16): the previous names (status_code, error, attempt,
++    # delivered_at) do not exist on it, so listing would fail validation as soon as a delivery existed.
+     id: uuid.UUID
+     webhook_endpoint_id: uuid.UUID
+     webhook_event_id: uuid.UUID
+-    status_code: Optional[int]
++    status: Optional[str]
++    attempts: int = 0
++    last_attempt: Optional[datetime]
++    response_status: Optional[int]
+     response_body: Optional[str]
+-    error: Optional[str]
+-    attempt: int
+-    delivered_at: Optional[datetime]
++    error_message: Optional[str]
+     created_at: datetime
+ 
+     class Config:
