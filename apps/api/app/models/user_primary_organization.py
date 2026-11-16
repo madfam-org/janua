@@ -66,12 +66,18 @@ class UserPrimaryOrganization(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        ForeignKey(
+            "users.id", ondelete="CASCADE", name="fk_user_primary_organizations_user_id_users"
+        ),
         nullable=False,
     )
     organization_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("organizations.id", ondelete="CASCADE"),
+        ForeignKey(
+            "organizations.id",
+            ondelete="CASCADE",
+            name="fk_user_primary_organizations_organization_id_organizations",
+        ),
         nullable=True,
     )
     # Who last wrote the pointer (set or clear), and when.

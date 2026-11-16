@@ -60,12 +60,18 @@ BEGIN
 END
 $$;
 
+-- Constraint names are explicit and match what alembic emits under the
+-- metadata naming convention (app/core/database.py), so the two paths agree.
 CREATE TABLE IF NOT EXISTS user_primary_organizations (
-  user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-  organization_id UUID REFERENCES organizations (id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  organization_id UUID,
   set_by VARCHAR(255) NOT NULL,
   set_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-  CONSTRAINT pk_user_primary_organizations PRIMARY KEY (user_id)
+  CONSTRAINT pk_user_primary_organizations PRIMARY KEY (user_id),
+  CONSTRAINT fk_user_primary_organizations_user_id_users
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+  CONSTRAINT fk_user_primary_organizations_organization_id_organizations
+    FOREIGN KEY (organization_id) REFERENCES organizations (id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS ix_user_primary_organizations_organization_id
@@ -100,9 +106,9 @@ COMMIT;
 --     -- user_id | uuid | NO
 --   SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
 --    WHERE conrelid = 'public.user_primary_organizations'::regclass ORDER BY conname;
+--     -- fk_user_primary_organizations_organization_id_organizations | FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+--     -- fk_user_primary_organizations_user_id_users | FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 --     -- pk_user_primary_organizations | PRIMARY KEY (user_id)
---     -- ..._organization_id_fkey | FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
---     -- ..._user_id_fkey | FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 --   SELECT indexname FROM pg_indexes WHERE tablename = 'user_primary_organizations' ORDER BY 1;
 --     -- ix_user_primary_organizations_organization_id, pk_user_primary_organizations
 --   SELECT has_table_privilege('janua', 'user_primary_organizations', 'SELECT'),

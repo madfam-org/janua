@@ -51,6 +51,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
+# Constraint names are explicit (they equal what the naming convention in
+# app/core/database.py would produce) so the operator SQL can name them too.
 # Keep revision ids <= 32 characters: `alembic_version.version_num` is
 # VARCHAR(32). Enforced by tests/unit/test_alembic_revision_graph.py.
 revision = "022_user_primary_organization"
@@ -70,13 +72,19 @@ def upgrade() -> None:
             sa.Column(
                 "user_id",
                 sa.Uuid(),
-                sa.ForeignKey("users.id", ondelete="CASCADE"),
+                sa.ForeignKey(
+                    "users.id", ondelete="CASCADE", name="fk_user_primary_organizations_user_id_users"
+                ),
                 nullable=False,
             ),
             sa.Column(
                 "organization_id",
                 sa.Uuid(),
-                sa.ForeignKey("organizations.id", ondelete="CASCADE"),
+                sa.ForeignKey(
+                    "organizations.id",
+                    ondelete="CASCADE",
+                    name="fk_user_primary_organizations_organization_id_organizations",
+                ),
                 nullable=True,
             ),
             sa.Column("set_by", sa.String(255), nullable=False),

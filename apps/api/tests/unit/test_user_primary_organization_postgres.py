@@ -236,19 +236,38 @@ def test_downgrade_removes_it_and_upgrade_is_reentrant(databases):
 async def test_without_the_table_a_multi_org_login_still_mints_on_postgresql(databases):
     """PostgreSQL aborts a transaction on a failed statement; the savepoint is
     what keeps the caller's transaction usable. Real resolver, real session
-    mint, database at 021 (no table)."""
+    mint, on a PRODUCTION-SHAPED schema without the new table.
+
+    The schema comes from the models (`create_all` minus
+    `user_primary_organizations`), the way tests/unit/services/
+    test_payment_mail_postgres.py builds its fixture: the alembic chain alone
+    trails the models on tables production carries by hand (`sessions.revoked`,
+    for one), so a database built only from migrations would fail on the
+    session write for reasons that have nothing to do with this change.
+    """
     from unittest.mock import AsyncMock, MagicMock, patch
 
     import jwt as pyjwt
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-    from app.models import Organization, OrganizationMember, User, UserStatus
+    from app.models import Base, Organization, OrganizationMember, User, UserStatus
+    from app.models import Session as UserSession
     from app.services.auth_service import AuthService
 
-    url = databases["hand"]
-    ok(_alembic(["downgrade", PARENT], url))
+    base = _postgres_url()
+    assert base is not None and databases  # the module fixture already proved the server
+    name = f"janua_primary_org_absent_{uuid.uuid4().hex[:10]}"
+    ok(_psql(f'CREATE DATABASE "{name}"', base, autocommit=True))
+    url = _with_database(base, name)
+    engine = create_async_engine(url)
     try:
-        engine = create_async_engine(url)
+        tables = [t for t in Base.metadata.sorted_tables if t.name != "user_primary_organizations"]
+        async with engine.begin() as conn:
+            await conn.run_sync(lambda sync: Base.metadata.create_all(sync, tables=tables))
+        assert ok(_psql("SELECT to_regclass('public.user_primary_organizations') IS NULL", url)) == (
+            "True"
+        )
+
         factory = async_sessionmaker(engine, expire_on_commit=False)
         user_id = uuid.uuid4()
         async with factory() as db:
@@ -266,8 +285,11 @@ async def test_without_the_table_a_multi_org_login_still_mints_on_postgresql(dat
                 await db.flush()
                 db.add(
                     OrganizationMember(
-                        id=uuid.uuid4(), organization_id=org_id, user_id=user_id,
-                        role="member", status="active",
+                        id=uuid.uuid4(),
+                        organization_id=org_id,
+                        user_id=user_id,
+                        role="member",
+                        status="active",
                     )
                 )
             await db.commit()
@@ -291,9 +313,7 @@ async def test_without_the_table_a_multi_org_login_still_mints_on_postgresql(dat
 
         # The session row the mint wrote AFTER the failed read was committed.
         async with factory() as db:
-            from app.models import Session
-
-            assert await db.get(Session, session.id) is not None
-        await engine.dispose()
+            assert await db.get(UserSession, session.id) is not None
     finally:
-        ok(_alembic(["upgrade", HEAD], url))
+        await engine.dispose()
+        _psql(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)', base, autocommit=True)
