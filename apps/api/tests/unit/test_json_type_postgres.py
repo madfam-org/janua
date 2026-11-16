@@ -1,8 +1,8 @@
 """PostgreSQL proof that ORM JSON writes are real JSON again, and that the cleanup unwraps legacy rows.
 
-On a scratch database migrated to head: an ORM write stores an object/array (not a string), `@>` containment finds
-it (the webhook-endpoint and audit queries depend on that), a legacy double-encoded row still reads back as a dict,
-and scripts/normalize_jsonb_strings.py turns it into a real object so the same query finds it too.
+On a scratch database migrated to head: a write through the type stores an object/array (not a string), SQL JSON
+containment (`@>`) finds it, a legacy double-encoded row still reads back as a dict but is invisible to `@>`, and
+scripts/normalize_jsonb_strings.py turns it into a real object so the same query finds it too.
 
 The driver work runs in a subprocess: psycopg2 is mocked inside the test process (see test_migration_reentrancy).
 """
@@ -56,18 +56,19 @@ async def main():
         await db.commit()
         out["typeof"] = (await db.execute(text("SELECT jsonb_typeof(product_tiers), jsonb_typeof(settings) FROM organizations WHERE id = :i"), {"i": org_id})).one()._tuple()
         out["events_typeof"] = (await db.execute(text("SELECT jsonb_typeof(events) FROM webhook_endpoints"))).scalar_one()
-        out["contains_event"] = len((await db.execute(select(WebhookEndpoint.id).where(WebhookEndpoint.events.contains(["user.deleted"])))).scalars().all())
-        out["contains_tier"] = len((await db.execute(select(Organization.id).where(Organization.product_tiers.contains({"dhanam": "pro"})))).scalars().all())
+        # JSON containment in SQL (`@>`). Not the ORM's `.contains()`: on this Text-based type it compiles to LIKE.
+        out["contains_event"] = (await db.execute(text("SELECT count(*) FROM webhook_endpoints WHERE events @> '[\"user.deleted\"]'::jsonb"))).scalar_one()
+        out["contains_tier"] = (await db.execute(text("SELECT count(*) FROM organizations WHERE product_tiers @> '{\"dhanam\": \"pro\"}'::jsonb"))).scalar_one()
         # A legacy row, stored the way the old type stored it: a JSON string holding the document.
         await db.execute(text("UPDATE organizations SET settings = to_jsonb(CAST('{\"k\": \"legacy\"}' AS text)) WHERE id = :i"), {"i": org_id})
         await db.commit()
         db.expire_all()
         out["legacy_read"] = (await db.execute(select(Organization.settings).where(Organization.id == org_id))).scalar_one()
-        out["legacy_contains_before"] = len((await db.execute(select(Organization.id).where(Organization.settings.contains({"k": "legacy"})))).scalars().all())
+        out["legacy_contains_before"] = (await db.execute(text("SELECT count(*) FROM organizations WHERE settings @> '{\"k\": \"legacy\"}'::jsonb"))).scalar_one()
     out["dry_run"] = await normalize.run(os.environ["U_PLAIN"], apply=False)
     out["left_after_apply"] = await normalize.run(os.environ["U_PLAIN"], apply=True)
     async with AsyncSession(engine) as db:
-        out["legacy_contains_after"] = len((await db.execute(select(Organization.id).where(Organization.settings.contains({"k": "legacy"})))).scalars().all())
+        out["legacy_contains_after"] = (await db.execute(text("SELECT count(*) FROM organizations WHERE settings @> '{\"k\": \"legacy\"}'::jsonb"))).scalar_one()
         out["settings_typeof_after"] = (await db.execute(text("SELECT jsonb_typeof(settings) FROM organizations"))).scalar_one()
     await engine.dispose()
     print("RESULT=" + json.dumps(out))
@@ -107,7 +108,7 @@ def test_orm_json_is_real_json_and_the_cleanup_unwraps_legacy_rows(database):
     out = json.loads(line.removeprefix("RESULT="))
     assert out["typeof"] == ["object", "object"], "an ORM write must store a JSON object, not a string"
     assert out["events_typeof"] == "array"
-    assert out["contains_event"] == 1, "webhook endpoint matching (@>) must find an ORM-written endpoint"
+    assert out["contains_event"] == 1, "JSON containment (@>) must find an array written through the type"
     assert out["contains_tier"] == 1
     assert out["legacy_read"] == {"k": "legacy"}, "a legacy string row still reads back as a dict"
     assert out["legacy_contains_before"] == 0, "a legacy string row is invisible to @> (the bug)"

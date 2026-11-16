@@ -76,8 +76,8 @@ class JSON(TypeDecorator):
     def process_bind_param(self, value, dialect):
         # PostgreSQL: objects, arrays and scalars go to the JSONB type as they are, and the driver encodes them once.
         # Encoding them here as well stored every ORM write as a JSON *string* (jsonb_typeof = 'string'), which
-        # SQL-level JSON queries (`@>`, `->>`, paths) never match (2026-11-16: webhook endpoint matching, compliance
-        # audit queries). A Python str keeps the old encoding so it reads back exactly as before (the read below
+        # SQL-level JSON operators (`@>`, `->>`, paths), direct database readers and JSON indexes never see as JSON
+        # (2026-11-16). A Python str keeps the old encoding so it reads back exactly as before (the read below
         # decodes one level). SQLite stores TEXT, so it always needs the encoding here.
         if value is not None and (dialect.name != "postgresql" or isinstance(value, str)):
             value = json.dumps(value)

@@ -7,11 +7,13 @@ the PostgreSQL JSONB driver encoded it again, so every ORM write was stored as a
 JSON **string**. A read-only count on 2026-11-16 found 3,154 such values in 13
 production columns (activity and audit logs, OAuth clients, sessions, consents,
 user metadata, organization settings). The ORM decodes both shapes, but SQL-level
-JSON queries never match those rows:
+JSON operators (`@>`, `->>`, paths), direct database readers and JSON indexes see
+those rows as strings, not JSON.
 
-- webhook endpoint matching (`events @> [event]`): an endpoint created through the
-  ORM would never receive events;
-- compliance queries on audit metadata (`@>`, `->>`, paths): empty or short.
+Not fixed here (separate bugs found on the way): `.contains()` on this Text-based
+type compiles to `LIKE` and fails on PostgreSQL (webhook endpoint matching), and the
+compliance queries read `AuditLog.metadata`, which is SQLAlchemy's schema registry,
+not the `details` column.
 
 The fix is janua#815 (the type plus `scripts/normalize_jsonb_strings.py`).
 `promote-to-prod.yml` is held until isolated staging is proven
