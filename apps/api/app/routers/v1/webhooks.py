@@ -77,14 +77,17 @@ class WebhookEventResponse(BaseModel):
 class WebhookDeliveryResponse(BaseModel):
     """Response model for webhook delivery"""
 
+    # The WebhookDelivery model's own fields (2026-11-16): the previous names (status_code, error, attempt,
+    # delivered_at) do not exist on it, so listing would fail validation as soon as a delivery existed.
     id: uuid.UUID
     webhook_endpoint_id: uuid.UUID
     webhook_event_id: uuid.UUID
-    status_code: Optional[int]
+    status: Optional[str]
+    attempts: int = 0
+    last_attempt: Optional[datetime]
+    response_status: Optional[int]
     response_body: Optional[str]
-    error: Optional[str]
-    attempt: int
-    delivered_at: Optional[datetime]
+    error_message: Optional[str]
     created_at: datetime
 
     class Config:

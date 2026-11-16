@@ -558,28 +558,24 @@ class TestEndpointMutationLogging:
         return [r for r in caplog.records if r.getMessage() == message]
 
     async def test_register_endpoint_returns_endpoint_and_logs_url_in_extra(self, service, caplog):
-        from unittest.mock import MagicMock
-
         caplog.set_level("INFO", logger=self.LOGGER_NAME)
-        db = MagicMock()
+        db = _async_session()
 
         endpoint = await service.register_endpoint(
             db, url="https://hooks.example.test/janua", events=[WebhookEventType.USER_CREATED]
         )
 
         assert endpoint.url == "https://hooks.example.test/janua"
-        db.commit.assert_called_once()
+        db.commit.assert_awaited_once()
         (record,) = self._messages(caplog, "Registered webhook endpoint")
         assert record.url == "https://hooks.example.test/janua"
 
     async def test_update_endpoint_returns_endpoint_and_logs_id_in_extra(self, service, caplog):
         from types import SimpleNamespace
-        from unittest.mock import MagicMock
 
         caplog.set_level("INFO", logger=self.LOGGER_NAME)
         stored = SimpleNamespace(url="https://old.example.test", is_active=True, updated_at=None)
-        db = MagicMock()
-        db.query.return_value.filter.return_value.first.return_value = stored
+        db = _async_session(found=stored)
 
         endpoint = await service.update_endpoint(db, "endpoint-1", is_active=False)
 
@@ -590,13 +586,67 @@ class TestEndpointMutationLogging:
 
     async def test_delete_endpoint_returns_true_and_logs_id_in_extra(self, service, caplog):
         from types import SimpleNamespace
-        from unittest.mock import MagicMock
 
         caplog.set_level("INFO", logger=self.LOGGER_NAME)
-        db = MagicMock()
-        db.query.return_value.filter.return_value.first.return_value = SimpleNamespace()
+        db = _async_session(found=SimpleNamespace())
 
         assert await service.delete_endpoint(db, "endpoint-1") is True
-        db.commit.assert_called_once()
+        db.delete.assert_awaited_once()
+        db.commit.assert_awaited_once()
         (record,) = self._messages(caplog, "Deleted webhook endpoint")
         assert record.endpoint_id == "endpoint-1"
+
+
+from app.models import WebhookStatus  # noqa: E402 - beside the tests that use it
+
+
+def _async_session(found=None, endpoints=()):
+    """An AsyncSession double with the real interface: `query()` does not exist on it, and every I/O method is
+    awaited. (These tests used to pass a MagicMock whose `.query()` answered, which is how a service written for the
+    sync API passed while failing on every real request.)"""
+    from unittest.mock import MagicMock, create_autospec
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    db = create_autospec(AsyncSession, instance=True)
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = found
+    result.scalars.return_value.all.return_value = list(endpoints)
+    db.execute.return_value = result
+    return db
+
+
+class TestEventDeliveryOnAnAsyncSession:
+    """trigger_event on the session the app really passes: match in Python, deliver, commit once after delivering."""
+
+    @pytest.fixture
+    def service(self):
+        return WebhookService()
+
+    async def test_only_subscribed_endpoints_receive_the_event_and_the_session_commits_after_delivery(self, service):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+
+        crm = SimpleNamespace(id="e1", url="https://crm.example.test/hook", secret="s", headers=None, events=["user.created"], organization_id=None)
+        other = SimpleNamespace(id="e2", url="https://other.example.test/hook", secret="s", headers=None, events=["user.deleted"], organization_id=None)
+        db = _async_session(endpoints=[crm, other])
+        service.client = MagicMock()
+        service.client.post = AsyncMock(return_value=SimpleNamespace(status_code=202, text="ok"))
+
+        await service.trigger_event(db, WebhookEventType.USER_CREATED, {"id": "u1"}, user_id="u1")
+
+        assert [c.args[0] for c in service.client.post.await_args_list] == ["https://crm.example.test/hook"]
+        assert db.commit.await_count == 2  # the event row, then the delivery records after every delivery finished
+        added = [c.args[0] for c in db.add.call_args_list]
+        assert type(added[0]).__name__ == "LegacyWebhookEvent"
+        delivery = added[1]
+        assert type(delivery).__name__ == "WebhookDelivery"
+        assert delivery.status == WebhookStatus.DELIVERED and delivery.response_status == 202 and delivery.attempts == 1
+
+    async def test_matching_never_uses_json_contains(self, service):
+        """`.contains()` on the Text-based JSON type compiles to LIKE, which PostgreSQL rejects for JSONB."""
+        db = _async_session()
+        await service._get_active_endpoints(db, WebhookEventType.USER_CREATED)
+        statement = str(db.execute.await_args.args[0].compile())
+        assert "LIKE" not in statement.upper()
+        assert "is_active" in statement

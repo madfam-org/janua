@@ -13,14 +13,20 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 
 from ..models import LegacyWebhookEvent as WebhookEvent
-from ..models import WebhookDelivery, WebhookEndpoint
+from ..models import WebhookDelivery, WebhookEndpoint, WebhookStatus
 
 logger = logging.getLogger(__name__)
+
+
+#: Janua's settings have no API_VERSION field: reading `settings.API_VERSION` raised AttributeError, so every event
+#: failed before any delivery (2026-11-16). The webhook payload version is "v1" unless a setting is added later.
+_API_VERSION = getattr(settings, "API_VERSION", None) or "v1"
 
 
 class WebhookEventType(str, Enum):
@@ -86,7 +92,7 @@ class WebhookService:
 
     async def trigger_event(
         self,
-        db: Session,
+        db: AsyncSession,
         event_type: WebhookEventType,
         data: Dict[str, Any],
         user_id: Optional[str] = None,
@@ -108,10 +114,10 @@ class WebhookService:
                 type=event_type, data=data, user_id=user_id, organization_id=organization_id
             )
             db.add(event)
-            db.commit()
+            await db.commit()
 
             # Get active endpoints for this event type
-            endpoints = self._get_active_endpoints(db, event_type, organization_id)
+            endpoints = await self._get_active_endpoints(db, event_type, organization_id)
 
             if not endpoints:
                 logger.debug(f"No active endpoints for event {event_type}")
@@ -124,28 +130,33 @@ class WebhookService:
                 created_at=datetime.utcnow().isoformat(),
                 data=data,
                 object=self._get_object_type(event_type),
-                api_version=settings.API_VERSION or "v1",
+                api_version=_API_VERSION,
             )
 
-            # Send to all endpoints asynchronously
+            # Send to all endpoints concurrently. Each delivery only adds its record to the session (no I/O on it);
+            # the session commits once, after every delivery has finished, so no two coroutines use it at once.
             tasks = [self._deliver_webhook(db, endpoint, event, payload) for endpoint in endpoints]
             await asyncio.gather(*tasks, return_exceptions=True)
+            await db.commit()
 
         except Exception as e:
             logger.error(f"Error triggering webhook event: {e}")
 
-    def _get_active_endpoints(
-        self, db: Session, event_type: WebhookEventType, organization_id: Optional[str] = None
+    async def _get_active_endpoints(
+        self, db: AsyncSession, event_type: WebhookEventType, organization_id: Optional[str] = None
     ) -> List[WebhookEndpoint]:
-        """Get active webhook endpoints for an event type"""
-        query = db.query(WebhookEndpoint).filter(
-            WebhookEndpoint.is_active == True, WebhookEndpoint.events.contains([event_type])
-        )
+        """Active endpoints subscribed to an event type.
 
+        The subscription is matched in Python, not with `WebhookEndpoint.events.contains(...)`: on Janua's
+        Text-based JSON type that compiles to `LIKE`, which PostgreSQL rejects for a JSONB column (2026-11-16).
+        Endpoints are few, so reading the active ones and filtering is cheap and works on every dialect.
+        """
+        query = select(WebhookEndpoint).where(WebhookEndpoint.is_active == True)  # noqa: E712 - SQL expression
         if organization_id:
-            query = query.filter(WebhookEndpoint.organization_id == organization_id)
-
-        return query.all()
+            query = query.where(WebhookEndpoint.organization_id == organization_id)
+        wanted = getattr(event_type, "value", event_type)
+        result = await db.execute(query)
+        return [endpoint for endpoint in result.scalars().all() if wanted in (endpoint.events or [])]
 
     def _get_object_type(self, event_type: WebhookEventType) -> str:
         """Get object type from event type"""
@@ -165,12 +176,18 @@ class WebhookService:
             return "system"
 
     async def _deliver_webhook(
-        self, db: Session, endpoint: WebhookEndpoint, event: WebhookEvent, payload: WebhookPayload
+        self, db: AsyncSession, endpoint: WebhookEndpoint, event: WebhookEvent, payload: WebhookPayload
     ) -> None:
         """Deliver webhook to a specific endpoint with retries"""
 
+        # The model's own fields (status, attempts, last_attempt, response_status, error_message): the old
+        # `WebhookDelivery(..., attempt=1)` and `status_code` / `delivered_at` / `error` do not exist on it, so the
+        # constructor raised and no delivery was ever recorded or sent (2026-11-16: 0 rows in production).
         delivery = WebhookDelivery(
-            webhook_endpoint_id=endpoint.id, webhook_event_id=event.id, attempt=1
+            webhook_endpoint_id=endpoint.id,
+            webhook_event_id=event.id,
+            status=WebhookStatus.PENDING,
+            attempts=0,
         )
         db.add(delivery)
 
@@ -179,7 +196,7 @@ class WebhookService:
                 # Prepare request
                 headers = {
                     "Content-Type": "application/json",
-                    "User-Agent": f"Janua-Webhook/{settings.API_VERSION or 'v1'}",
+                    "User-Agent": f"Janua-Webhook/{_API_VERSION}",
                     "X-Webhook-ID": str(event.id),
                     "X-Webhook-Timestamp": str(int(time.time())),
                     "X-Webhook-Signature": self._generate_signature(
@@ -197,28 +214,33 @@ class WebhookService:
                 )
 
                 # Update delivery record
-                delivery.status_code = response.status_code
+                delivery.attempts = attempt
+                delivery.last_attempt = datetime.utcnow()
+                delivery.response_status = response.status_code
                 delivery.response_body = response.text[:1000]  # Limit response size
-                delivery.attempt = attempt
 
                 if response.status_code < 300:
-                    delivery.delivered_at = datetime.utcnow()
+                    delivery.status = WebhookStatus.DELIVERED
+                    delivery.error_message = None
                     logger.info(f"Webhook delivered to {endpoint.url}")
                     break
                 else:
                     logger.warning(
                         f"Webhook delivery failed: {response.status_code} - {endpoint.url}"
                     )
+                    delivery.status = WebhookStatus.RETRYING if attempt < self.max_retries else WebhookStatus.FAILED
                     if attempt < self.max_retries:
                         await asyncio.sleep(self.retry_delays[attempt - 1])
 
             except Exception as e:
                 logger.error(f"Webhook delivery error: {e} - {endpoint.url}")
-                delivery.error = str(e)
+                delivery.attempts = attempt
+                delivery.last_attempt = datetime.utcnow()
+                delivery.error_message = str(e)[:1000]
+                delivery.status = WebhookStatus.RETRYING if attempt < self.max_retries else WebhookStatus.FAILED
                 if attempt < self.max_retries:
                     await asyncio.sleep(self.retry_delays[attempt - 1])
-
-        db.commit()
+        # The caller (trigger_event) commits once every delivery has finished.
 
     def _generate_signature(self, secret: str, payload: str) -> str:
         """Generate HMAC signature for webhook payload"""
@@ -231,7 +253,7 @@ class WebhookService:
 
     async def register_endpoint(
         self,
-        db: Session,
+        db: AsyncSession,
         url: str,
         events: List[WebhookEventType],
         organization_id: Optional[str] = None,
@@ -254,8 +276,8 @@ class WebhookService:
         )
 
         db.add(endpoint)
-        db.commit()
-        db.refresh(endpoint)
+        await db.commit()
+        await db.refresh(endpoint)
 
         # SECURITY: constant message, values as fields (no log injection).
         # Stdlib logger: fields go through `extra` (keyword fields raise TypeError).
@@ -265,7 +287,7 @@ class WebhookService:
 
     async def update_endpoint(
         self,
-        db: Session,
+        db: AsyncSession,
         endpoint_id: str,
         url: Optional[str] = None,
         events: Optional[List[WebhookEventType]] = None,
@@ -275,7 +297,9 @@ class WebhookService:
     ) -> WebhookEndpoint:
         """Update webhook endpoint configuration"""
 
-        endpoint = db.query(WebhookEndpoint).filter(WebhookEndpoint.id == endpoint_id).first()
+        endpoint = (
+            await db.execute(select(WebhookEndpoint).where(WebhookEndpoint.id == endpoint_id))
+        ).scalar_one_or_none()
 
         if not endpoint:
             raise ValueError(f"Webhook endpoint {endpoint_id} not found")
@@ -293,8 +317,8 @@ class WebhookService:
 
         endpoint.updated_at = datetime.utcnow()
 
-        db.commit()
-        db.refresh(endpoint)
+        await db.commit()
+        await db.refresh(endpoint)
 
         # SECURITY: constant message, values as fields (no log injection).
         # Stdlib logger: fields go through `extra` (keyword fields raise TypeError).
@@ -302,16 +326,18 @@ class WebhookService:
 
         return endpoint
 
-    async def delete_endpoint(self, db: Session, endpoint_id: str) -> bool:
+    async def delete_endpoint(self, db: AsyncSession, endpoint_id: str) -> bool:
         """Delete webhook endpoint"""
 
-        endpoint = db.query(WebhookEndpoint).filter(WebhookEndpoint.id == endpoint_id).first()
+        endpoint = (
+            await db.execute(select(WebhookEndpoint).where(WebhookEndpoint.id == endpoint_id))
+        ).scalar_one_or_none()
 
         if not endpoint:
             return False
 
-        db.delete(endpoint)
-        db.commit()
+        await db.delete(endpoint)
+        await db.commit()
 
         # SECURITY: constant message, values as fields (no log injection).
         # Stdlib logger: fields go through `extra` (keyword fields raise TypeError).
@@ -320,31 +346,31 @@ class WebhookService:
         return True
 
     async def get_endpoint_stats(
-        self, db: Session, endpoint_id: str, days: int = 7
+        self, db: AsyncSession, endpoint_id: str, days: int = 7
     ) -> Dict[str, Any]:
         """Get webhook endpoint delivery statistics"""
 
         since = datetime.utcnow() - timedelta(days=days)
 
-        deliveries = (
-            db.query(WebhookDelivery)
-            .filter(
+        result = await db.execute(
+            select(WebhookDelivery).where(
                 WebhookDelivery.webhook_endpoint_id == endpoint_id,
                 WebhookDelivery.created_at >= since,
             )
-            .all()
         )
+        deliveries = result.scalars().all()
 
         total = len(deliveries)
-        successful = len([d for d in deliveries if d.delivered_at])
+        delivered = [d for d in deliveries if d.status == WebhookStatus.DELIVERED]
+        successful = len(delivered)
         failed = total - successful
 
-        # Calculate average delivery time for successful deliveries
-        delivery_times = []
-        for d in deliveries:
-            if d.delivered_at:
-                delta = d.delivered_at - d.created_at
-                delivery_times.append(delta.total_seconds())
+        # Average time from the delivery record to its successful attempt
+        delivery_times = [
+            (d.last_attempt - d.created_at).total_seconds()
+            for d in delivered
+            if d.last_attempt and d.created_at
+        ]
 
         avg_delivery_time = sum(delivery_times) / len(delivery_times) if delivery_times else 0
 
@@ -357,10 +383,12 @@ class WebhookService:
             "period_days": days,
         }
 
-    async def test_endpoint(self, db: Session, endpoint_id: str) -> bool:
+    async def test_endpoint(self, db: AsyncSession, endpoint_id: str) -> bool:
         """Send test webhook to endpoint"""
 
-        endpoint = db.query(WebhookEndpoint).filter(WebhookEndpoint.id == endpoint_id).first()
+        endpoint = (
+            await db.execute(select(WebhookEndpoint).where(WebhookEndpoint.id == endpoint_id))
+        ).scalar_one_or_none()
 
         if not endpoint:
             raise ValueError(f"Webhook endpoint {endpoint_id} not found")
@@ -378,20 +406,22 @@ class WebhookService:
 
         return True
 
-    async def cleanup_old_events(self, db: Session, days_to_keep: int = 30) -> int:
+    async def cleanup_old_events(self, db: AsyncSession, days_to_keep: int = 30) -> int:
         """Clean up old webhook events and deliveries"""
 
         cutoff = datetime.utcnow() - timedelta(days=days_to_keep)
 
         # Delete old deliveries
         deliveries_deleted = (
-            db.query(WebhookDelivery).filter(WebhookDelivery.created_at < cutoff).delete()
-        )
+            await db.execute(delete(WebhookDelivery).where(WebhookDelivery.created_at < cutoff))
+        ).rowcount
 
         # Delete old events
-        events_deleted = db.query(WebhookEvent).filter(WebhookEvent.created_at < cutoff).delete()
+        events_deleted = (
+            await db.execute(delete(WebhookEvent).where(WebhookEvent.created_at < cutoff))
+        ).rowcount
 
-        db.commit()
+        await db.commit()
 
         logger.info(f"Cleaned up {events_deleted} events and {deliveries_deleted} deliveries")
 
@@ -422,21 +452,21 @@ webhook_service = WebhookService()
 
 # Convenience functions for common webhook triggers
 async def trigger_user_webhook(
-    db: Session, event_type: WebhookEventType, user_data: Dict[str, Any], user_id: str
+    db: AsyncSession, event_type: WebhookEventType, user_data: Dict[str, Any], user_id: str
 ) -> None:
     """Trigger user-related webhook"""
     await webhook_service.trigger_event(db, event_type, user_data, user_id=user_id)
 
 
 async def trigger_organization_webhook(
-    db: Session, event_type: WebhookEventType, org_data: Dict[str, Any], organization_id: str
+    db: AsyncSession, event_type: WebhookEventType, org_data: Dict[str, Any], organization_id: str
 ) -> None:
     """Trigger organization-related webhook"""
     await webhook_service.trigger_event(db, event_type, org_data, organization_id=organization_id)
 
 
 async def trigger_security_webhook(
-    db: Session, event_type: WebhookEventType, security_data: Dict[str, Any], user_id: str
+    db: AsyncSession, event_type: WebhookEventType, security_data: Dict[str, Any], user_id: str
 ) -> None:
     """Trigger security-related webhook"""
     await webhook_service.trigger_event(db, event_type, security_data, user_id=user_id)
