@@ -67,7 +67,7 @@ adds one layer with one file from `main`:
 | | |
 |---|---|
 | Approved by | Owner, 2026-11-16 (in session): «Fix it here» (the systemic JSON fix). The merge, the build, the pin and the data cleanup are each approved when ready |
-| Built by | not built yet |
-| Hotfix digest | not built yet |
+| Built by | [run 43813937372](https://github.com/madfam-org/janua/actions/runs/43813937372) from `main` `e9442f2f` (janua#815), every proof passed, signed |
+| Hotfix digest | `sha256:9bac921211d652922f61571e9d1129da19df49725067bfabbd0e67b224910c2c` |
 | Replaces | `sha256:78efc78925192d99f2116dbed27afcd46b9db96d27bcb7c029aaca73d681f858` (janua#813) |
 | Delta | `app/models/types.py` from `main` (janua#815: the hunk in `types.diff`) |
