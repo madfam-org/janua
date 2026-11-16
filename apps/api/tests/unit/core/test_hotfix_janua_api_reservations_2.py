@@ -73,13 +73,18 @@ def test_base_is_the_image_production_pins():
     assert digest in _record("Replaces"), "the pinned hotfix must replace this base"
 
 
-def test_base_is_the_org_role_shape_hotfix_with_its_proven_sources():
-    readme = (ROOT / "deployment/hotfix/janua-api-org-role-shape/README.md").read_text()
+def test_base_is_the_entitlement_source_hotfix_with_its_proven_sources():
+    """The base is janua#811's hotfix (production's image since it was pinned): the
+    organization-role-shape image's proven sources plus the model at ENTITLEMENT_SOURCE."""
+    readme = (ROOT / "deployment/hotfix/janua-api-entitlement-source/README.md").read_text()
     digest = WORKFLOW["env"]["BASE_IMAGE"].split("@", 1)[1]
     assert re.search(rf"^\| Hotfix digest \| `{digest}`", readme, re.M)
     for key in ("BASE_SOURCE", "RESERVED_SOURCE", "CHATGPT_SOURCE", "ORG_LOGIN_SOURCE"):
         assert WORKFLOW["env"][key] == ROLE_SHAPE_WORKFLOW["env"][key], key
     assert re.fullmatch(r"[0-9a-f]{40}", WORKFLOW["env"]["ROLE_SHAPE_SOURCE"])
+    assert re.fullmatch(r"[0-9a-f]{40}", WORKFLOW["env"]["ENTITLEMENT_SOURCE"])
+    base_step = next(s for s in _steps() if s.get("name") == "Base image is BASE_SOURCE plus the earlier hotfix files")
+    assert '"$ENTITLEMENT_SOURCE:apps/api/app/models/__init__.py"' in base_step["run"]
     assert WORKFLOW["env"]["DOCKERFILE"] == str(DOCKERFILE.relative_to(ROOT))
     assert WORKFLOW["env"]["HOTFIX_DIR"] == str(HOTFIX.relative_to(ROOT))
     for key in ("POLICY_DUMP", "REGISTRY_DUMP", "REGISTRY_COMPARE"):
