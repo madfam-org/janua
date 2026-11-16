@@ -1,6 +1,6 @@
 # Owner exception: build, verify and sign a janua-api image that is the image
 # production runs plus the JSON column type that encodes once on PostgreSQL
-# (janua#814). See deployment/hotfix/janua-api-json-encoding/README.md.
+# (janua#815). See deployment/hotfix/janua-api-json-encoding/README.md.
 #
 # It builds ONE image and writes nothing to staging, production or this
 # repository. Pinning the result in production is a separate reviewed PR. The
@@ -254,7 +254,7 @@ jobs:
             echo "- Tag: \`${TARGET}:hotfix-json-encoding-${GITHUB_SHA}\`"
             echo "- Source (main): \`${GITHUB_SHA}\`"
             echo "- Base: \`${BASE_IMAGE}\` (production, janua#813)"
-            echo "- Delta: \`app/models/types.py\` only (janua#814, the hunk in types.diff)"
+            echo "- Delta: \`app/models/types.py\` only (janua#815, the hunk in types.diff)"
             echo "- Reason: ${REASON}"
             echo ""
             echo "Nothing was pinned. Production changes only through the reviewed PR that sets this digest as the production janua-api pin."
