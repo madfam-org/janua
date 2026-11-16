@@ -177,6 +177,10 @@ EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption(
         "GET", f"{INTERNAL_PREFIX}/app-roles/{{organization_id}}/{{user_id}}", _READ_OR_GRANT
     ),
+    # internal_primary_organization -- which membership's app roles reach JWT `roles`.
+    Exemption("POST", f"{INTERNAL_PREFIX}/primary-organization/set", _READ_OR_GRANT),
+    Exemption("POST", f"{INTERNAL_PREFIX}/primary-organization/clear", _DESTRUCTIVE),
+    Exemption("GET", f"{INTERNAL_PREFIX}/primary-organization/{{user_id}}", _READ_OR_GRANT),
     # internal_capability_links -- capability grants between orgs/apps.
     Exemption("POST", f"{INTERNAL_PREFIX}/capability-links", _READ_OR_GRANT),
     Exemption("POST", f"{INTERNAL_PREFIX}/capability-links/resolve", _READ_OR_GRANT),

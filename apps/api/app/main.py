@@ -1065,6 +1065,16 @@ try:
 except Exception as e:
     logger.warning(f"Internal app roles router not available: {e}")
 
+# Internal primary organization (operator-set: which of a multi-org person's
+# memberships their tokens speak for, so its app roles can reach `roles`)
+try:
+    from app.routers.v1 import internal_primary_organization as internal_primary_organization_v1
+
+    app.include_router(internal_primary_organization_v1.router, prefix="/api/v1/internal")
+    logger.info("Registered internal primary organization router successfully")
+except Exception as e:
+    logger.warning(f"Internal primary organization router not available: {e}")
+
 # Internal by-org entitlement read (the VIEWED WORKSPACE's org tiles, for the
 # nauta ERP advisor case: a service credential reads an org's entitlements by id,
 # where `/me/entitlements` can only answer for the calling user)
