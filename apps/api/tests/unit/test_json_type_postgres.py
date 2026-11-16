@@ -54,7 +54,7 @@ async def main():
             {"id": uuid.uuid4(), "url": "https://example.test/hook", "org": org_id, "events": ["user.created", "user.deleted"]},
         )
         await db.commit()
-        out["typeof"] = (await db.execute(text("SELECT jsonb_typeof(product_tiers), jsonb_typeof(settings) FROM organizations WHERE id = :i"), {"i": org_id})).one()._tuple()
+        out["typeof"] = list((await db.execute(text("SELECT jsonb_typeof(product_tiers), jsonb_typeof(settings) FROM organizations WHERE id = :i"), {"i": org_id})).one())
         out["events_typeof"] = (await db.execute(text("SELECT jsonb_typeof(events) FROM webhook_endpoints"))).scalar_one()
         # JSON containment in SQL (`@>`). Not the ORM's `.contains()`: on this Text-based type it compiles to LIKE.
         out["contains_event"] = (await db.execute(text("SELECT count(*) FROM webhook_endpoints WHERE events @> '[\"user.deleted\"]'::jsonb"))).scalar_one()
