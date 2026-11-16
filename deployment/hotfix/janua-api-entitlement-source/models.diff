@@ -1,0 +1,21 @@
+@@ -383,7 +383,19 @@
+     # entitlement is treated as inactive at JWT-issue time.
+     expires_at = Column(DateTime, nullable=True, index=True)
+ 
+-    source = Column(SQLEnum(EntitlementSource), nullable=False)
++    # The PostgreSQL type is `entitlement_source` holding the lowercase VALUES (migration 007; production verified
++    # 2026-11-15). SQLAlchemy's defaults would look for a type named `entitlementsource` and store the member NAMES
++    # (`ADMIN_GRANT`), so every write failed with `type "entitlementsource" does not exist` and no entitlement could
++    # ever be granted. Pin both the name and the values to the migration's.
++    source = Column(
++        SQLEnum(
++            EntitlementSource,
++            name="entitlement_source",
++            values_callable=lambda members: [m.value for m in members],
++            validate_strings=True,
++        ),
++        nullable=False,
++    )
+ 
+     # Idempotency key for Dhanam webhook upserts. NULL for admin grants.
+     dhanam_subscription_id = Column(String(255), nullable=True, index=True)
