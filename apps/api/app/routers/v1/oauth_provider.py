@@ -2399,6 +2399,12 @@ async def authorize_get(
                 client_validated=True,
             )
         pre_login_id = secrets.token_urlsafe(24)
+        # The page language follows the same rule as the unauthenticated
+        # branch above: only the normalized constant is stored (the rebuilt
+        # authorize URL forwards it) and named on the login URL, never the raw
+        # parameter. No language asked for means no `ui_locales` at all, so the
+        # login page is the English default like every other hosted page.
+        mfa_ui_locale = hosted_locale(ui_locales)
         pending = {
             "response_type": response_type,
             "client_id": client_id,
@@ -2408,7 +2414,7 @@ async def authorize_get(
             "nonce": nonce,
             "code_challenge": code_challenge,
             "code_challenge_method": code_challenge_method,
-            "ui_locales": ui_locales,
+            "ui_locales": mfa_ui_locale,
         }
         await redis.strict_set("oauth:pre_login:" + pre_login_id, json.dumps(pending), ex=600)
         auth_time = authentication_assurance.get("auth_time")
@@ -2424,17 +2430,10 @@ async def authorize_get(
                 auth_request_id=pre_login_id,
                 client_id=client_id,
             )
-        return RedirectResponse(
-            "/api/v1/auth/login?"
-            + urlencode(
-                {
-                    "client_id": client_id,
-                    "auth_request_id": pre_login_id,
-                    "ui_locales": ui_locales or "es",
-                }
-            ),
-            302,
-        )
+        mfa_login_params = {"client_id": client_id, "auth_request_id": pre_login_id}
+        if mfa_ui_locale:
+            mfa_login_params[UI_LOCALES_PARAM] = mfa_ui_locale
+        return RedirectResponse("/api/v1/auth/login?" + urlencode(mfa_login_params), 302)
 
     # Check if user has already consented to all requested scopes
     requested_scopes = ConsentService.parse_scopes(scope)
