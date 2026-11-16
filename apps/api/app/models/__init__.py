@@ -98,6 +98,34 @@ class User(Base):
     # says otherwise. See migration 015_user_is_service_acct.
     is_service_account = Column(Boolean, nullable=False, default=False, server_default=sa.false())
 
+    # Which organization this person's tokens speak for when they belong to
+    # several. Set ONLY by an operator (`POST /api/v1/internal/primary-
+    # organization/set`), never guessed and never derived.
+    #
+    # NOT `tenant_id`. `tenant_id` is the email-uniqueness pool the identity
+    # lives in (see `__table_args__` above and `routers/v1/internal_users.py`);
+    # pointing it at an organization to fix token claims once made staff
+    # unreachable by magic link and password reset. This column carries no
+    # identity-pool meaning at all.
+    #
+    # It counts only while the user holds an ACTIVE membership in that
+    # organization: `services/org_claims_service.py` resolves it against the
+    # active memberships and fails closed otherwise. `tenant_id`, when it names
+    # one of those memberships, still wins. ON DELETE SET NULL: deleting the
+    # organization clears the pointer. See migration 022.
+    primary_organization_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "organizations.id",
+            ondelete="SET NULL",
+            name="fk_users_primary_organization_id",
+            # users <-> organizations is a cycle (organizations.owner_id), so
+            # the constraint is created after both tables on create_all.
+            use_alter=True,
+        ),
+        nullable=True,
+    )
+
     # MFA fields
     mfa_enabled = Column(Boolean, default=False)
     mfa_secret = Column(EncryptedString())

@@ -24,11 +24,27 @@ Claim contract
     user has none.
 
 ``org_id`` / ``tenant_id`` / ``org_slug``
-    Emitted ONLY when unambiguous — exactly one active membership, or
-    ``user.tenant_id`` names one of them. Ambiguity emits ``orgs`` alone;
-    consumers must not guess a tenant. This is deliberate: guessing a primary
-    org for a multi-org user is how one tenant's operator reads another
-    tenant's payroll.
+    Emitted ONLY when unambiguous — exactly one active membership, or, among
+    several, the one this rule picks, in this order:
+
+    1. ``user.tenant_id`` names one of them (unchanged);
+    2. else ``user.primary_organization_id`` names one of them — an
+       organization an OPERATOR chose through the internal API
+       (``routers/v1/internal_primary_organization.py``, migration 022).
+
+    A primary organization the user holds no ACTIVE membership in resolves to
+    nothing: the pointer is checked against the same active-membership rows as
+    everything else here, so a removed or suspended membership cannot be
+    revived by it. Ambiguity emits ``orgs`` alone; consumers must not guess a
+    tenant. This is deliberate: guessing a primary org for a multi-org user is
+    how one tenant's operator reads another tenant's payroll. The explicit
+    primary organization is not a guess — it is a recorded operator decision,
+    on the audit trail, that a person can be asked about.
+
+    ``tenant_id`` is NOT how an operator sets a primary organization: it is the
+    email-uniqueness pool the identity lives in (see
+    ``routers/v1/internal_users.py``), and pointing it at an organization for
+    staff once made magic link and password reset unable to find them.
 
 ``madfam_org_roles``
     The user's organization roles (``owner`` / ``admin`` / ``member``) for the
@@ -65,8 +81,9 @@ Three scoping rules the resolver holds:
 * **Only the resolved primary org's membership contributes.** Grants are keyed
   by ``organization_member_id``, so the query starts from ONE membership row and
   structurally cannot reach another org's grants. A multi-org user with no
-  unambiguous primary org gets ``orgs`` and no ``roles``, for the same reason
-  they get no ``org_id``.
+  unambiguous primary org (no ``tenant_id`` match and no operator-set primary
+  organization they are an active member of) gets ``orgs`` and no ``roles``,
+  for the same reason they get no ``org_id``.
 * **Nothing is implicit for service accounts.** A service principal receives
   application roles on exactly the same terms as a person: those explicitly
   granted to its membership, and no others.
@@ -202,13 +219,25 @@ async def get_user_org_claims(user: User, db: AsyncSession) -> dict[str, Any]:
     if len(rows) == 1:
         primary_member, primary = rows[0]
     else:
-        tenant_id = getattr(user, "tenant_id", None)
-        if tenant_id:
-            tenant_id = str(tenant_id)
+        # Among several ACTIVE memberships, the first explicit pointer that
+        # names one of them wins: the identity pool (`tenant_id`, unchanged),
+        # then the operator-set primary organization. Both are matched against
+        # `rows`, which holds active memberships only, so a pointer to an
+        # organization the user is not an active member of matches nothing and
+        # the user stays ambiguous — fail closed, exactly as before.
+        for pointer in (
+            getattr(user, "tenant_id", None),
+            _explicit_primary_organization_id(user),
+        ):
+            if not pointer:
+                continue
+            pointer = str(pointer)
             for member, org in rows:
-                if str(org.id) == tenant_id:
+                if str(org.id) == pointer:
                     primary_member, primary = member, org
                     break
+            if primary is not None:
+                break
 
     if primary is not None:
         claims.update(
@@ -233,6 +262,26 @@ async def get_user_org_claims(user: User, db: AsyncSession) -> dict[str, Any]:
                 claims[APP_ROLES_KEY] = app_roles
 
     return claims
+
+
+def _explicit_primary_organization_id(user: Any) -> Any:
+    """The operator-set primary organization on the user row, or ``None``.
+
+    Read from the user object every minting seam already loaded, like
+    ``tenant_id`` — no extra query. Any failure to read it (an object without
+    the attribute, an expired instance that cannot lazy-load in an async
+    session) is ``None``: no pointer, so a multi-org user stays ambiguous, which
+    is today's behaviour, never a guessed organization and never a failed login.
+    """
+    try:
+        return getattr(user, "primary_organization_id", None)
+    except Exception as e:  # pragma: no cover - defensive; attribute load failure
+        logger.warning(
+            "Failed to read primary organization, treating as unset",
+            user_id=str(getattr(user, "id", None)),
+            error=str(e),
+        )
+        return None
 
 
 async def _get_member_app_roles(member: Any, db: AsyncSession) -> list[str]:

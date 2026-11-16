@@ -110,6 +110,13 @@ class AuditEventType(str, Enum):
     APP_ROLE_GRANT = "app_role.grant"
     APP_ROLE_REVOKE = "app_role.revoke"
 
+    # Primary-organization events. An operator chose (or cleared) the ONE
+    # organization a multi-org person's tokens speak for, via the internal
+    # primary-organization API. It decides which membership's application roles
+    # reach `roles`, so it is audited like the grants it unlocks.
+    PRIMARY_ORGANIZATION_SET = "primary_organization.set"
+    PRIMARY_ORGANIZATION_CLEAR = "primary_organization.clear"
+
     # A machine token was minted CARRYING application roles — authority inside
     # another product, held by a service client rather than a person. Logged
     # separately from the human grant events because the grant record is
