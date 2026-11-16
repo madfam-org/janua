@@ -2,7 +2,7 @@
 
 A primary organization is the ONE organization a person's tokens speak for when
 they hold several active memberships. It is chosen by an operator and recorded
-on ``users.primary_organization_id`` (migration 022); see
+in ``user_primary_organizations`` (migration 022); see
 ``routers/v1/internal_primary_organization.py`` for the rules the handlers hold
 and ``services/org_claims_service.py`` for how it resolves into a token.
 """

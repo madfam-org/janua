@@ -24,6 +24,7 @@ from app.database import get_db
 from app.main import app
 from app.models import Base, Organization, OrganizationMember, User, UserStatus
 from app.models.app_role import OrganizationMemberAppRole
+from app.models.user_primary_organization import UserPrimaryOrganization
 from app.routers.v1.internal_app_roles import NO_MEMBERSHIP_DETAIL
 from app.routers.v1.internal_primary_organization import NO_USER_DETAIL
 from app.services.audit_logger import AuditEventType
@@ -111,12 +112,8 @@ async def _seed(factory) -> dict:
 
 async def _stored(factory, user_id: str):
     async with factory() as session:
-        value = (
-            await session.execute(
-                select(User.primary_organization_id).where(User.id == uuid.UUID(user_id))
-            )
-        ).scalar_one()
-    return str(value) if value else None
+        row = await session.get(UserPrimaryOrganization, uuid.UUID(user_id))
+    return str(row.organization_id) if row is not None and row.organization_id else None
 
 
 # --- auth -------------------------------------------------------------------
@@ -283,8 +280,11 @@ async def test_clear_removes_the_choice_idempotently_and_deletes_nothing(env):
         AuditEventType.PRIMARY_ORGANIZATION_CLEAR,
     ]
 
-    # Nothing but the pointer changed: the memberships and the grant remain.
+    # Nothing but the pointer changed: the pointer row survives with NULL and
+    # says who cleared it; the memberships and the grant remain.
     async with factory() as session:
+        row = await session.get(UserPrimaryOrganization, uuid.UUID(ids["user_id"]))
+        assert row is not None and row.organization_id is None and row.set_by
         assert len((await session.execute(select(OrganizationMember))).scalars().all()) == 3
         assert len((await session.execute(select(OrganizationMemberAppRole))).scalars().all()) == 1
         assert await session.get(User, uuid.UUID(ids["user_id"])) is not None
@@ -390,3 +390,26 @@ async def test_read_with_a_malformed_user_id_is_422(env):
     client, _ = env
     response = await client.get(READ_URL.format(user_id="not-a-uuid"), headers=AUTH)
     assert response.status_code == 422
+
+
+# --- a database without migration 022 ---------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_without_the_table_a_write_fails_visibly(env):
+    """Before 022 is applied the feature is off: a write is a server error
+    (never a silent success), and nothing is stored anywhere else."""
+    from sqlalchemy import text
+
+    client, factory = env
+    ids = await _seed(factory)
+    async with factory() as session:
+        await session.execute(text("DROP TABLE user_primary_organizations"))
+        await session.commit()
+
+    response = await client.post(
+        SET_URL, json={"organization_id": ids["b"], "user_id": ids["user_id"]}, headers=AUTH
+    )
+
+    # The app maps database errors to 503; what matters is a 5xx, not a 200.
+    assert response.status_code >= 500

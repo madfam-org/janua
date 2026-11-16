@@ -4,8 +4,7 @@ deployment/hotfix/janua-api-entitlement-source builds the image production runs
 plus the model fix of janua#811, because the promotion hold
 (scripts/staging/promotion_runtime_guard.py) blocks normal promotions. These
 tests keep the Dockerfile and its workflow from quietly widening, and pin that
-the model the image was built from differs from production's copy by exactly
-the reviewed hunk.
+this checkout's model differs from production's copy by exactly the reviewed hunk.
 """
 
 from __future__ import annotations
@@ -139,26 +138,13 @@ def test_workflow_checks_source_delta_and_behaviour_before_signing():
     assert positions == sorted(positions), names
 
 
-def test_the_built_model_differs_from_production_by_exactly_the_reviewed_hunk():
-    """Production's copy is the file at BASE_SOURCE (no earlier hotfix overlays it).
-
-    The image was built from the `main` commit the exception record names, and
-    `main`'s model has moved past it since (migration 022 adds
-    `users.primary_organization_id`). So the proof reads the BUILT commit, not
-    this checkout. Re-running the workflow from today's `main` stops at its own
-    "model differs only by the entitlement source mapping" step rather than
-    shipping a column a database may not have yet.
-    """
-    built = re.search(r"from `main` `([0-9a-f]{7,40})`", _record("Built by"))
-    assert built, "the exception record must name the commit the image was built from"
+def test_the_model_in_this_checkout_differs_from_production_by_exactly_the_reviewed_hunk():
+    """Production's copy is the file at BASE_SOURCE (no earlier hotfix overlays it)."""
     base = subprocess.run(
         ["git", "show", f"{WORKFLOW['env']['BASE_SOURCE']}:apps/api/app/models/__init__.py"],
         cwd=ROOT, check=True, capture_output=True, text=True,
     ).stdout
-    now = subprocess.run(
-        ["git", "show", f"{built.group(1)}:apps/api/app/models/__init__.py"],
-        cwd=ROOT, check=True, capture_output=True, text=True,
-    ).stdout
+    now = (ROOT / "apps/api/app/models/__init__.py").read_text()
     import difflib
 
     hunk = "".join(difflib.unified_diff(base.splitlines(True), now.splitlines(True), n=3))

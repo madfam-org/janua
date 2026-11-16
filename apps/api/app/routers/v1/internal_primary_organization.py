@@ -13,9 +13,10 @@ Why not ``tenant_id``
 is the email-uniqueness pool the identity lives in (see the docstring of
 ``internal_users.py``): pointing it at an organization for staff once made
 magic link and password reset unable to find them. The primary organization is
-a separate column (``users.primary_organization_id``, migration 022) with no
-identity-pool meaning, and ``tenant_id`` still wins when it names an active
-membership.
+a separate table (``user_primary_organizations``, migration 022, one row per
+user) with no identity-pool meaning, and ``tenant_id`` still wins when it names
+an active membership. It is a table and not a ``users`` column so that the
+``User`` model, read on every login, does not depend on the migration.
 
 Rules the handlers hold
 -----------------------
@@ -28,8 +29,9 @@ Rules the handlers hold
    ACTIVE membership in the organization. The resolver re-checks at every mint,
    so a membership removed later stops the pointer from resolving (fail
    closed) without anyone having to clear it.
-3. NOTHING IS DELETED. ``clear`` nulls one column; no row is removed, and the
-   history of choices lives on the AuditLogger trail. Both writes are
+3. NOTHING IS DELETED. ``clear`` sets the row's ``organization_id`` to NULL
+   (recording who and when on the row); no row is removed, and the history of
+   choices lives on the AuditLogger trail. Both writes are
    idempotent and report ``changed``.
 
 Auth is ``verify_internal_api_key``, the same swappable seam as
@@ -39,6 +41,7 @@ path: which organization's authority a token carries is an operator decision.
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 import structlog
@@ -49,6 +52,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import verify_internal_api_key
 from app.models import OrganizationMember, User
+from app.models.user_primary_organization import UserPrimaryOrganization
 from app.routers.v1.internal_app_roles import NO_MEMBERSHIP_DETAIL, _get_active_membership
 from app.routers.v1.oauth_clients import INTERNAL_API_KEY_PRINCIPAL
 from app.schemas.primary_organization import (
@@ -78,6 +82,10 @@ async def _get_user(db: AsyncSession, user_id) -> User:
     return user
 
 
+async def _get_pointer(db: AsyncSession, user_id) -> UserPrimaryOrganization | None:
+    return await db.get(UserPrimaryOrganization, user_id)
+
+
 async def _has_active_membership(db: AsyncSession, user_id, organization_id) -> bool:
     if organization_id is None:
         return False
@@ -99,7 +107,8 @@ async def _describe(
     Calls the SAME resolver every minting seam calls, so what an operator reads
     here cannot drift from what a token carries.
     """
-    stored = user.primary_organization_id
+    pointer = await _get_pointer(db, user.id)
+    stored = pointer.organization_id if pointer is not None else None
     claims = await get_user_org_claims(user, db)
     return PrimaryOrganizationResponse(
         user_id=str(user.id),
@@ -155,11 +164,17 @@ async def set_primary_organization(
     membership = await _get_active_membership(db, body.organization_id, body.user_id)
     user = await _get_user(db, body.user_id)
 
-    previous = user.primary_organization_id
+    pointer = await _get_pointer(db, body.user_id)
+    previous = pointer.organization_id if pointer is not None else None
     if previous is not None and str(previous) == str(body.organization_id):
         return await _describe(db, user, changed=False)
 
-    user.primary_organization_id = body.organization_id
+    if pointer is None:
+        pointer = UserPrimaryOrganization(user_id=body.user_id)
+        db.add(pointer)
+    pointer.organization_id = body.organization_id
+    pointer.set_by = INTERNAL_API_KEY_PRINCIPAL
+    pointer.set_at = datetime.utcnow()
     await _audit(
         db,
         event_type=AuditEventType.PRIMARY_ORGANIZATION_SET,
@@ -199,11 +214,15 @@ async def clear_primary_organization(
     """
     user = await _get_user(db, body.user_id)
 
-    previous = user.primary_organization_id
+    pointer = await _get_pointer(db, body.user_id)
+    previous = pointer.organization_id if pointer is not None else None
     if previous is None:
         return await _describe(db, user, changed=False)
 
-    user.primary_organization_id = None
+    # An UPDATE to NULL, never a DELETE: the row keeps who cleared it and when.
+    pointer.organization_id = None
+    pointer.set_by = INTERNAL_API_KEY_PRINCIPAL
+    pointer.set_at = datetime.utcnow()
     await _audit(
         db,
         event_type=AuditEventType.PRIMARY_ORGANIZATION_CLEAR,

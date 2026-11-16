@@ -28,14 +28,17 @@ Claim contract
     several, the one this rule picks, in this order:
 
     1. ``user.tenant_id`` names one of them (unchanged);
-    2. else ``user.primary_organization_id`` names one of them — an
-       organization an OPERATOR chose through the internal API
+    2. else the user's row in ``user_primary_organizations`` names one of them
+       — an organization an OPERATOR chose through the internal API
        (``routers/v1/internal_primary_organization.py``, migration 022).
 
     A primary organization the user holds no ACTIVE membership in resolves to
     nothing: the pointer is checked against the same active-membership rows as
     everything else here, so a removed or suspended membership cannot be
-    revived by it. Ambiguity emits ``orgs`` alone; consumers must not guess a
+    revived by it. The table is read only in that case (several memberships,
+    no ``tenant_id`` match), and any failure to read it — a database without
+    migration 022 included — is "no primary": the token is exactly what it
+    was before this rule existed. Ambiguity emits ``orgs`` alone; consumers must not guess a
     tenant. This is deliberate: guessing a primary org for a multi-org user is
     how one tenant's operator reads another tenant's payroll. The explicit
     primary organization is not a guess — it is a recorded operator decision,
@@ -149,6 +152,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Organization, OrganizationMember, User
 from app.models.app_role import APP_ROLE_SEPARATOR, OrganizationMemberAppRole, format_app_role
+from app.models.user_primary_organization import UserPrimaryOrganization
 
 logger = structlog.get_logger()
 
@@ -224,20 +228,13 @@ async def get_user_org_claims(user: User, db: AsyncSession) -> dict[str, Any]:
         # then the operator-set primary organization. Both are matched against
         # `rows`, which holds active memberships only, so a pointer to an
         # organization the user is not an active member of matches nothing and
-        # the user stays ambiguous — fail closed, exactly as before.
-        for pointer in (
-            getattr(user, "tenant_id", None),
-            _explicit_primary_organization_id(user),
-        ):
-            if not pointer:
-                continue
-            pointer = str(pointer)
-            for member, org in rows:
-                if str(org.id) == pointer:
-                    primary_member, primary = member, org
-                    break
-            if primary is not None:
-                break
+        # the user stays ambiguous — fail closed, exactly as before. The
+        # primary-organization table is read ONLY here, so a person with one
+        # membership or a matching `tenant_id` never touches it.
+        primary_member, primary = _membership_for(rows, getattr(user, "tenant_id", None))
+        if primary is None:
+            explicit = await _get_explicit_primary_organization_id(user, db)
+            primary_member, primary = _membership_for(rows, explicit)
 
     if primary is not None:
         claims.update(
@@ -264,21 +261,48 @@ async def get_user_org_claims(user: User, db: AsyncSession) -> dict[str, Any]:
     return claims
 
 
-def _explicit_primary_organization_id(user: Any) -> Any:
-    """The operator-set primary organization on the user row, or ``None``.
+def _membership_for(rows: list[Any], organization_id: Any) -> tuple[Any, Any]:
+    """The ``(member, org)`` row whose organization is ``organization_id``."""
+    if not organization_id:
+        return None, None
+    wanted = str(organization_id)
+    for member, org in rows:
+        if str(org.id) == wanted:
+            return member, org
+    return None, None
 
-    Read from the user object every minting seam already loaded, like
-    ``tenant_id`` — no extra query. Any failure to read it (an object without
-    the attribute, an expired instance that cannot lazy-load in an async
-    session) is ``None``: no pointer, so a multi-org user stays ambiguous, which
-    is today's behaviour, never a guessed organization and never a failed login.
+
+async def _get_explicit_primary_organization_id(user: Any, db: AsyncSession) -> Any:
+    """The operator-set primary organization for ``user``, or ``None``.
+
+    One primary-key read of ``user_primary_organizations`` (migration 022).
+    Degrades to ``None`` — "no primary", today's behaviour exactly — on ANY
+    failure, a database that has not had 022 applied included: never a guessed
+    organization and never a failed login. Same rule as the application-role
+    read below.
+
+    Unlike that read, it runs inside a SAVEPOINT rather than rolling back the
+    whole session on failure. It sits on the login path BEFORE the session row
+    is written, after writes the caller may still have pending (the session-
+    limit revocations in ``AuthService.create_session``, for one): a failed
+    statement rolls back to the savepoint, and the caller's transaction stays
+    usable with nothing it had pending discarded.
     """
+    user_id = getattr(user, "id", None)
+    if user_id is None:
+        return None
     try:
-        return getattr(user, "primary_organization_id", None)
-    except Exception as e:  # pragma: no cover - defensive; attribute load failure
+        async with db.begin_nested():
+            result = await db.execute(
+                select(UserPrimaryOrganization.organization_id).where(
+                    UserPrimaryOrganization.user_id == user_id
+                )
+            )
+            return result.scalar_one_or_none()
+    except Exception as e:
         logger.warning(
             "Failed to read primary organization, treating as unset",
-            user_id=str(getattr(user, "id", None)),
+            user_id=str(user_id),
             error=str(e),
         )
         return None

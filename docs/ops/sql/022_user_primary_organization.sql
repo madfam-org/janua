@@ -11,30 +11,34 @@
 -- apps/api/tests/unit/test_user_primary_organization_postgres.py, which applies
 -- BOTH to scratch databases and compares the catalogs).
 --
--- ORDER. Apply this BEFORE any API image that carries revision 022 runs
--- against the database. The User model selects and inserts the new column, so
--- an image that meets a database without it fails every login loudly (the same
--- property 015, users.is_service_account, had). The column is inert for every
--- existing image: nothing older reads it.
+-- ORDER DOES NOT MATTER FOR AVAILABILITY. Nothing on the login path reads this
+-- table except the claims resolver, and it reads it in a guarded SAVEPOINT that
+-- answers "no primary" on any failure, a missing table included. An image with
+-- revision 022 on a database without this table mints exactly today's tokens;
+-- this table on a database whose image predates 022 is never read. Until both
+-- are present, the operator endpoints (/api/v1/internal/primary-organization)
+-- fail with a server error (503) and the feature is simply off.
 --
 -- HOW TO RUN (same shape as 019): in the data/postgres pod,
 --   psql -U postgres -d janua -v ON_ERROR_STOP=1 -f 022_user_primary_organization.sql
 -- One transaction. Idempotent: re-running it after success changes nothing and
 -- still exits 0. It refuses (and rolls back everything) unless alembic_version
 -- holds exactly one row reading 021_map_email_traceability or
--- 022_user_primary_organization, or if the app role `janua` would not be able
--- to read and write the new column.
+-- 022_user_primary_organization.
 --
 -- WHAT IT DOES:
---   * users gains primary_organization_id (UUID, NULL, no default: a
---     catalog-only change, no table rewrite). Every existing row reads NULL,
---     which is today's behaviour exactly.
---   * adds fk_users_primary_organization_id -> organizations(id) ON DELETE SET
---     NULL. Validation reads users once; every value is NULL, so it rejects
---     nothing. lock_timeout bounds the wait for the locks on users and
---     organizations; on timeout everything rolls back and it can be re-run.
---   * no grant changes: the app role's existing table privileges on users
---     cover the new column (checked below, not assumed).
+--   * creates user_primary_organizations (owned by `enclii`, empty):
+--       user_id         UUID PK -> users(id)          ON DELETE CASCADE
+--       organization_id UUID NULL -> organizations(id) ON DELETE CASCADE
+--       set_by          VARCHAR(255) NOT NULL
+--       set_at          TIMESTAMP NOT NULL
+--     plus ix_user_primary_organizations_organization_id.
+--     The foreign keys take short locks on users and organizations; a new,
+--     empty table means nothing to validate. lock_timeout bounds the wait; on
+--     timeout everything rolls back and it can be re-run.
+--   * grants the app role `janua` SELECT, INSERT, UPDATE (no DELETE: clearing
+--     is an UPDATE to NULL, and the cascades run as the table owner).
+--   * no existing table, column, index or grant changes.
 --   * moves alembic_version 021 -> 022.
 
 \set ON_ERROR_STOP on
@@ -56,32 +60,18 @@ BEGIN
 END
 $$;
 
-ALTER TABLE users ADD COLUMN IF NOT EXISTS primary_organization_id UUID;
+CREATE TABLE IF NOT EXISTS user_primary_organizations (
+  user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  organization_id UUID REFERENCES organizations (id) ON DELETE CASCADE,
+  set_by VARCHAR(255) NOT NULL,
+  set_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+  CONSTRAINT pk_user_primary_organizations PRIMARY KEY (user_id)
+);
 
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-     WHERE conrelid = 'public.users'::regclass
-       AND conname = 'fk_users_primary_organization_id'
-  ) THEN
-    ALTER TABLE users
-      ADD CONSTRAINT fk_users_primary_organization_id
-      FOREIGN KEY (primary_organization_id) REFERENCES organizations (id) ON DELETE SET NULL;
-  END IF;
-END
-$$;
+CREATE INDEX IF NOT EXISTS ix_user_primary_organizations_organization_id
+  ON user_primary_organizations (organization_id);
 
-DO $$
-BEGIN
-  -- has_column_privilege with a LIST answers "any of"; check each one.
-  IF NOT (has_column_privilege('janua', 'public.users', 'primary_organization_id', 'SELECT')
-      AND has_column_privilege('janua', 'public.users', 'primary_organization_id', 'INSERT')
-      AND has_column_privilege('janua', 'public.users', 'primary_organization_id', 'UPDATE')) THEN
-    RAISE EXCEPTION 'app role janua cannot SELECT/INSERT/UPDATE users.primary_organization_id; refusing';
-  END IF;
-END
-$$;
+GRANT SELECT, INSERT, UPDATE ON user_primary_organizations TO janua;
 
 UPDATE alembic_version
    SET version_num = '022_user_primary_organization'
@@ -98,20 +88,28 @@ $$;
 COMMIT;
 
 -- Post-commit verification (read-only; paste the output into the ledger PR):
---   SELECT version_num FROM alembic_version;                -- 022_user_primary_organization
---   SELECT data_type, is_nullable, column_default
+--   SELECT version_num FROM alembic_version;            -- 022_user_primary_organization
+--   SELECT tableowner FROM pg_tables WHERE tablename = 'user_primary_organizations';  -- enclii
+--   SELECT column_name, data_type, is_nullable
 --     FROM information_schema.columns
---    WHERE table_schema = 'public' AND table_name = 'users'
---      AND column_name = 'primary_organization_id';        -- uuid | YES | (null)
---   SELECT pg_get_constraintdef(oid), convalidated
---     FROM pg_constraint
---    WHERE conname = 'fk_users_primary_organization_id';
---     -- FOREIGN KEY (primary_organization_id) REFERENCES organizations(id) ON DELETE SET NULL | t
---   SELECT has_column_privilege('janua', 'public.users', 'primary_organization_id', 'SELECT'),
---          has_column_privilege('janua', 'public.users', 'primary_organization_id', 'INSERT'),
---          has_column_privilege('janua', 'public.users', 'primary_organization_id', 'UPDATE');
---     -- t, t, t
---   SELECT count(*) FROM users WHERE primary_organization_id IS NOT NULL;  -- 0
+--    WHERE table_schema = 'public' AND table_name = 'user_primary_organizations'
+--    ORDER BY column_name;
+--     -- organization_id | uuid | YES
+--     -- set_at | timestamp without time zone | NO
+--     -- set_by | character varying | NO
+--     -- user_id | uuid | NO
+--   SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
+--    WHERE conrelid = 'public.user_primary_organizations'::regclass ORDER BY conname;
+--     -- pk_user_primary_organizations | PRIMARY KEY (user_id)
+--     -- ..._organization_id_fkey | FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+--     -- ..._user_id_fkey | FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+--   SELECT indexname FROM pg_indexes WHERE tablename = 'user_primary_organizations' ORDER BY 1;
+--     -- ix_user_primary_organizations_organization_id, pk_user_primary_organizations
+--   SELECT has_table_privilege('janua', 'user_primary_organizations', 'SELECT'),
+--          has_table_privilege('janua', 'user_primary_organizations', 'INSERT'),
+--          has_table_privilege('janua', 'user_primary_organizations', 'UPDATE'),
+--          has_table_privilege('janua', 'user_primary_organizations', 'DELETE');  -- t, t, t, f
+--   SELECT count(*) FROM user_primary_organizations;    -- 0
 --
 -- scripts/alembic_converge.py --check only knows revisions 012-016, so it does
 -- not verify this one: the queries above ARE the readback for 022 (as for

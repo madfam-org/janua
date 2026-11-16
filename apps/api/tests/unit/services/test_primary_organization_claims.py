@@ -8,32 +8,38 @@ server gating on an app role. `tenant_id` could not fix it: it is the identity
 pool, and pointing it at an organization once made staff unreachable by magic
 link and password reset.
 
-These tests pin the rule as built:
+The choice lives in its own table, `user_primary_organizations`, read only by
+the resolver in a guarded read. These tests pin the rule and that guard:
 
   * several memberships + a primary organization the person is an ACTIVE member
     of ⇒ that organization's claims and ONLY its application roles;
   * a primary organization they are not an active member of (inactive
-    membership, or no membership at all) ⇒ nothing, exactly as before;
-  * `tenant_id` naming an active membership still wins;
-  * a single membership is unchanged whatever the pointer says;
-  * the session mint and the OIDC mint both carry the app role for such a
-    person, through the one shared resolver.
+    membership, no membership, or a cleared pointer) ⇒ nothing, as before;
+  * `tenant_id` naming an active membership still wins, and then the table is
+    not even read; a single membership never reads it either;
+  * the session mint and the OIDC mint both carry the app role;
+  * on a database WITHOUT the table, both mints still succeed for a multi-org
+    person — no app roles, no error, and the caller's later writes commit.
 """
 
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import jwt as pyjwt
 import pytest
 import pytest_asyncio
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.models import Base, Organization, OrganizationMember, User, UserStatus
+from app.models import Session as UserSession
 from app.models.app_role import OrganizationMemberAppRole
+from app.models.user_primary_organization import UserPrimaryOrganization
 from app.services.auth_service import AuthService
 from app.services.org_claims_service import (
     APP_ROLES_CLAIM,
@@ -47,125 +53,36 @@ APP_ROLE = ("ops", "platform-admin")
 APP_ROLE_CLAIM = "ops:platform-admin"
 
 
-def _person(*, tenant_id=None, primary_organization_id=None):
-    return SimpleNamespace(
-        id=uuid.uuid4(),
-        email="staff@example.com",
-        tenant_id=tenant_id,
-        primary_organization_id=primary_organization_id,
-        is_admin=False,
-        is_active=True,
-        is_service_account=False,
-    )
-
-
 # ---------------------------------------------------------------------------
-# The resolver, against a query double (what each branch reads)
+# When the table is read at all
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_primary_organization_resolves_a_multi_org_person_to_that_org():
-    org_a, member_a = _org("a"), _member("admin")
-    org_b, member_b = _org("b"), _member("member")
-    org_c, member_c = _org("c"), _member("owner")
-    db = _db(
-        [(member_a, org_a), (member_b, org_b), (member_c, org_c)],
-        {
-            member_a.id: [_grant("hcm", "hr")],
-            member_b.id: [_grant(*APP_ROLE)],
-            member_c.id: [_grant("hcm", "admin")],
-        },
-    )
-
-    claims = await get_user_org_claims(_person(primary_organization_id=org_b.id), db)
-
-    assert claims["org_id"] == claims["tenant_id"] == str(org_b.id)
-    assert claims["org_slug"] == "b"
-    assert claims[ORG_ROLES_CLAIM] == ["member"]
-    # ONLY org B's grants: A's and C's must not ride along.
-    assert claims[APP_ROLES_KEY] == [APP_ROLE_CLAIM]
-    assert len(claims["orgs"]) == 3
-
-
-@pytest.mark.asyncio
-async def test_primary_organization_outside_the_active_memberships_resolves_to_nothing():
-    """The pointer names an org that is not among the ACTIVE membership rows."""
-    org_a, member_a = _org("a"), _member()
-    org_b, member_b = _org("b"), _member()
-    db = _db(
-        [(member_a, org_a), (member_b, org_b)],
-        {member_a.id: [_grant(*APP_ROLE)], member_b.id: [_grant(*APP_ROLE)]},
-    )
-
-    claims = await get_user_org_claims(_person(primary_organization_id=uuid.uuid4()), db)
-
-    assert "org_id" not in claims
-    assert ORG_ROLES_CLAIM not in claims
-    assert APP_ROLES_KEY not in claims
-    # No grants query ran at all: there was no membership to read from.
-    assert db._calls["app_role_queries"] == []
-
-
-@pytest.mark.asyncio
-async def test_tenant_id_still_wins_over_the_primary_organization():
-    org_a, member_a = _org("a"), _member("admin")
-    org_b, member_b = _org("b"), _member("member")
-    db = _db(
-        [(member_a, org_a), (member_b, org_b)],
-        {member_a.id: [_grant("hcm", "hr")], member_b.id: [_grant(*APP_ROLE)]},
-    )
-
-    claims = await get_user_org_claims(
-        _person(tenant_id=org_a.id, primary_organization_id=org_b.id), db
-    )
-
-    assert claims["org_id"] == str(org_a.id)
-    assert claims[APP_ROLES_KEY] == ["hcm:hr"]
-
-
-@pytest.mark.asyncio
-async def test_primary_organization_applies_when_tenant_id_names_no_active_membership():
-    """`tenant_id` first, ELSE the primary organization: a pool id that is not
-    an active membership does not block the explicit choice."""
-    org_a, member_a = _org("a"), _member()
-    org_b, member_b = _org("b"), _member()
-    db = _db([(member_a, org_a), (member_b, org_b)], {member_b.id: [_grant(*APP_ROLE)]})
-
-    claims = await get_user_org_claims(
-        _person(tenant_id=uuid.uuid4(), primary_organization_id=org_b.id), db
-    )
-
-    assert claims["org_id"] == str(org_b.id)
-    assert claims[APP_ROLES_KEY] == [APP_ROLE_CLAIM]
-
-
-@pytest.mark.asyncio
-async def test_single_membership_is_unchanged_whatever_the_pointer_says():
+async def test_a_single_membership_never_reads_the_table():
     org, member = _org("only"), _member("member")
     db = _db([(member, org)], {member.id: [_grant(*APP_ROLE)]})
 
-    claims = await get_user_org_claims(_person(primary_organization_id=uuid.uuid4()), db)
+    claims = await get_user_org_claims(SimpleNamespace(id=uuid.uuid4(), tenant_id=None), db)
 
     assert claims["org_id"] == str(org.id)
-    assert claims[APP_ROLES_KEY] == [APP_ROLE_CLAIM]
+    db.begin_nested.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_a_user_object_without_the_attribute_stays_ambiguous():
-    """Callers that hand in a lightweight user keep today's behaviour."""
+async def test_a_matching_tenant_id_never_reads_the_table():
     org_a, member_a = _org("a"), _member()
     org_b, member_b = _org("b"), _member()
     db = _db([(member_a, org_a), (member_b, org_b)])
-    user = SimpleNamespace(id=uuid.uuid4(), tenant_id=None)
 
-    claims = await get_user_org_claims(user, db)
+    claims = await get_user_org_claims(SimpleNamespace(id=uuid.uuid4(), tenant_id=org_a.id), db)
 
-    assert "org_id" not in claims and APP_ROLES_KEY not in claims
+    assert claims["org_id"] == str(org_a.id)
+    db.begin_nested.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
-# End to end against a real (SQLite) schema: memberships, grants, the mints
+# End to end against a real (SQLite) schema
 # ---------------------------------------------------------------------------
 
 
@@ -230,45 +147,62 @@ async def _seed(factory) -> dict:
     return {"user_id": user_id, **ids}
 
 
-async def _set_primary(factory, user_id, organization_id) -> User:
+async def _set_primary(factory, user_id, organization_id) -> None:
+    async with factory() as session:
+        session.add(
+            UserPrimaryOrganization(
+                user_id=user_id,
+                organization_id=organization_id,
+                set_by="test",
+                set_at=datetime.utcnow(),
+            )
+        )
+        await session.commit()
+
+
+async def _claims(factory, user_id) -> dict:
     async with factory() as session:
         user = await session.get(User, user_id)
-        user.primary_organization_id = organization_id
+        return await get_user_org_claims(user, session)
+
+
+async def _drop_table(factory) -> None:
+    async with factory() as session:
+        await session.execute(text("DROP TABLE user_primary_organizations"))
         await session.commit()
-        await session.refresh(user)
-        return user
 
 
 @pytest.mark.asyncio
-async def test_real_schema_no_primary_is_ambiguous(schema):
+async def test_no_primary_is_ambiguous(schema):
     ids = await _seed(schema)
-    async with schema() as session:
-        user = await session.get(User, ids["user_id"])
-        claims = await get_user_org_claims(user, session)
+
+    claims = await _claims(schema, ids["user_id"])
 
     assert len(claims["orgs"]) == 3  # the inactive membership is not listed
     assert "org_id" not in claims and APP_ROLES_KEY not in claims
 
 
 @pytest.mark.asyncio
-async def test_real_schema_primary_resolves_that_orgs_claims_and_app_roles(schema):
+async def test_primary_resolves_that_orgs_claims_and_only_its_app_roles(schema):
     ids = await _seed(schema)
-    user = await _set_primary(schema, ids["user_id"], ids["b"])
-    async with schema() as session:
-        claims = await get_user_org_claims(user, session)
+    await _set_primary(schema, ids["user_id"], ids["b"])
 
-    assert claims["org_id"] == str(ids["b"])
+    claims = await _claims(schema, ids["user_id"])
+
+    assert claims["org_id"] == claims["tenant_id"] == str(ids["b"])
     assert claims["org_slug"] == "org-b"
+    assert claims[ORG_ROLES_CLAIM] == ["member"]
+    # ONLY org b's grant: a's `hcm:hr` must not ride along.
     assert claims[APP_ROLES_KEY] == [APP_ROLE_CLAIM]
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target", ["d", "e"], ids=["inactive-membership", "not-a-member"])
-async def test_real_schema_primary_without_active_membership_resolves_nothing(schema, target):
+async def test_primary_without_active_membership_resolves_nothing(schema, target):
     ids = await _seed(schema)
-    user = await _set_primary(schema, ids["user_id"], ids[target])
-    async with schema() as session:
-        claims = await get_user_org_claims(user, session)
+    await _set_primary(schema, ids["user_id"], ids[target])
+
+    claims = await _claims(schema, ids["user_id"])
 
     assert "org_id" not in claims
     assert ORG_ROLES_CLAIM not in claims
@@ -278,28 +212,89 @@ async def test_real_schema_primary_without_active_membership_resolves_nothing(sc
 
 
 @pytest.mark.asyncio
-async def test_real_schema_tenant_id_still_wins(schema):
+async def test_a_cleared_pointer_is_no_primary(schema):
     ids = await _seed(schema)
+    await _set_primary(schema, ids["user_id"], None)
+
+    claims = await _claims(schema, ids["user_id"])
+
+    assert "org_id" not in claims and APP_ROLES_KEY not in claims
+
+
+@pytest.mark.asyncio
+async def test_tenant_id_still_wins(schema):
+    ids = await _seed(schema)
+    await _set_primary(schema, ids["user_id"], ids["b"])
     async with schema() as session:
         user = await session.get(User, ids["user_id"])
         user.tenant_id = ids["a"]
-        user.primary_organization_id = ids["b"]
         await session.commit()
-        claims = await get_user_org_claims(user, session)
+
+    claims = await _claims(schema, ids["user_id"])
 
     assert claims["org_id"] == str(ids["a"])
     assert claims[APP_ROLES_KEY] == ["hcm:hr"]
 
 
 @pytest.mark.asyncio
-async def test_deleting_the_primary_organization_clears_the_pointer_in_the_model(schema):
-    """The model declares ON DELETE SET NULL (PostgreSQL enforces it; the
-    parity test in tests/unit/test_user_primary_organization_postgres.py
-    checks the real constraint)."""
-    fk = next(iter(User.__table__.c.primary_organization_id.foreign_keys))
-    assert fk.ondelete == "SET NULL"
-    assert fk.target_fullname == "organizations.id"
-    assert User.__table__.c.primary_organization_id.nullable is True
+async def test_primary_applies_when_tenant_id_names_no_active_membership(schema):
+    """`tenant_id` first, ELSE the primary organization."""
+    ids = await _seed(schema)
+    await _set_primary(schema, ids["user_id"], ids["b"])
+    async with schema() as session:
+        user = await session.get(User, ids["user_id"])
+        user.tenant_id = uuid.uuid4()
+        await session.commit()
+
+    claims = await _claims(schema, ids["user_id"])
+
+    assert claims["org_id"] == str(ids["b"])
+    assert claims[APP_ROLES_KEY] == [APP_ROLE_CLAIM]
+
+
+@pytest.mark.asyncio
+async def test_without_the_table_the_resolver_is_exactly_todays(schema):
+    """A database that has not had 022 applied: no error, no org claims."""
+    ids = await _seed(schema)
+    await _drop_table(schema)
+
+    claims = await _claims(schema, ids["user_id"])
+
+    assert len(claims["orgs"]) == 3
+    assert "org_id" not in claims and APP_ROLES_KEY not in claims
+
+
+@pytest.mark.asyncio
+async def test_a_failed_read_keeps_the_callers_pending_writes(schema):
+    """The read runs in a SAVEPOINT: a failure must not discard what the
+    caller had pending (the session-limit revocations in create_session, for
+    one), and the caller's transaction must still commit."""
+    ids = await _seed(schema)
+    await _drop_table(schema)
+
+    async with schema() as session:
+        user = await session.get(User, ids["user_id"])
+        user.display_name = "pending before the read"
+        claims = await get_user_org_claims(user, session)
+        await session.commit()
+
+    async with schema() as session:
+        reloaded = await session.get(User, ids["user_id"])
+    assert "org_id" not in claims
+    assert reloaded.display_name == "pending before the read"
+
+
+@pytest.mark.asyncio
+async def test_the_model_declares_the_cascades():
+    """PostgreSQL enforces them; tests/unit/test_user_primary_organization_postgres.py
+    checks the real constraints."""
+    table = UserPrimaryOrganization.__table__
+    user_fk = next(iter(table.c.user_id.foreign_keys))
+    org_fk = next(iter(table.c.organization_id.foreign_keys))
+    assert (user_fk.target_fullname, user_fk.ondelete) == ("users.id", "CASCADE")
+    assert (org_fk.target_fullname, org_fk.ondelete) == ("organizations.id", "CASCADE")
+    assert [c.name for c in table.primary_key.columns] == ["user_id"]
+    assert "primary_organization_id" not in User.__table__.c
 
 
 # --- the mints --------------------------------------------------------------
@@ -309,15 +304,11 @@ def _decode(token: str) -> dict:
     return pyjwt.decode(token, options={"verify_signature": False}, algorithms=["HS256", "RS256"])
 
 
-@pytest.mark.asyncio
-async def test_session_token_carries_the_primary_orgs_app_role(schema):
-    """Session path (magic link, password, MFA, passkey): the REAL resolver,
-    the real schema, only redis and entitlements stubbed."""
-    ids = await _seed(schema)
-    await _set_primary(schema, ids["user_id"], ids["b"])
-
-    async with schema() as session:
-        user = await session.get(User, ids["user_id"])
+async def _mint_session(factory, user_id) -> tuple[dict, uuid.UUID]:
+    """Session path (magic link, password, MFA, passkey): the REAL resolver and
+    schema; only redis and entitlements stubbed."""
+    async with factory() as session:
+        user = await session.get(User, user_id)
         with (
             patch(
                 "app.services.entitlements_service.get_user_entitlements",
@@ -326,47 +317,16 @@ async def test_session_token_carries_the_primary_orgs_app_role(schema):
             patch("app.services.auth_service.get_redis", AsyncMock(return_value=MagicMock())),
             patch("app.services.auth_service.SessionStore", return_value=AsyncMock()),
         ):
-            access_token, _refresh, _session = await AuthService.create_session(
+            access_token, _refresh, row = await AuthService.create_session(
                 db=session, user=user, enforce_session_limit=False
             )
-
-    claims = _decode(access_token)
-    assert claims["org_id"] == str(ids["b"])
-    assert claims[APP_ROLES_CLAIM] == [APP_ROLE_CLAIM]
-    assert claims[ORG_ROLES_CLAIM] == ["member"]
-    assert APP_ROLES_KEY not in claims
+    return _decode(access_token), row.id
 
 
-@pytest.mark.asyncio
-async def test_session_token_without_primary_carries_no_app_role(schema):
-    """The control: same person, no pointer ⇒ today's token."""
-    ids = await _seed(schema)
-
-    async with schema() as session:
-        user = await session.get(User, ids["user_id"])
-        with (
-            patch(
-                "app.services.entitlements_service.get_user_entitlements",
-                AsyncMock(return_value=[]),
-            ),
-            patch("app.services.auth_service.get_redis", AsyncMock(return_value=MagicMock())),
-            patch("app.services.auth_service.SessionStore", return_value=AsyncMock()),
-        ):
-            access_token, _refresh, _session = await AuthService.create_session(
-                db=session, user=user, enforce_session_limit=False
-            )
-
-    claims = _decode(access_token)
-    assert "org_id" not in claims
-    assert APP_ROLES_CLAIM not in claims
-
-
-@pytest.mark.asyncio
-async def test_oidc_code_grant_carries_the_primary_orgs_app_role(schema, monkeypatch):
+async def _mint_oidc(factory, user_id, monkeypatch) -> dict:
     """OIDC path: the authorization-code handler, with the shared resolver
-    running for real against the seeded schema and every unrelated claim
-    source stubbed as tests/unit/routers/test_oauth_provider_scope_enforcement
-    does. The app role is UNIONED onto the legacy organization-role list."""
+    running for real against the schema and every unrelated claim source
+    stubbed as tests/unit/routers/test_oauth_provider_scope_enforcement does."""
     from app.routers.v1 import oauth_provider as op
     from tests.unit.routers.test_oauth_provider_scope_enforcement import (
         MOD,
@@ -378,10 +338,8 @@ async def test_oidc_code_grant_carries_the_primary_orgs_app_role(schema, monkeyp
     monkeypatch.setattr(op, "user_requires_mfa", AsyncMock(return_value=False))
     monkeypatch.setattr(op, "assurance_for_request", AsyncMock(return_value={}))
 
-    ids = await _seed(schema)
-    user = await _set_primary(schema, ids["user_id"], ids["b"])
-
-    async with schema() as session:
+    async with factory() as session:
+        user = await session.get(User, user_id)
 
         async def real_resolver(_user, _db):
             # The handler's own db is a double; the resolver gets the real one.
@@ -428,11 +386,65 @@ async def test_oidc_code_grant_carries_the_primary_orgs_app_role(schema, monkeyp
                     db=db,
                     redis=AsyncMock(),
                 )
-                claims = op.jwt_manager.create_access_token.call_args.kwargs["additional_claims"]
+                return op.jwt_manager.create_access_token.call_args.kwargs["additional_claims"]
             finally:
                 for p in reversed(patches):
                     p.stop()
 
+
+@pytest.mark.asyncio
+async def test_session_token_carries_the_primary_orgs_app_role(schema):
+    ids = await _seed(schema)
+    await _set_primary(schema, ids["user_id"], ids["b"])
+
+    claims, _ = await _mint_session(schema, ids["user_id"])
+
+    assert claims["org_id"] == str(ids["b"])
+    assert claims[APP_ROLES_CLAIM] == [APP_ROLE_CLAIM]
+    assert claims[ORG_ROLES_CLAIM] == ["member"]
+    assert APP_ROLES_KEY not in claims
+
+
+@pytest.mark.asyncio
+async def test_oidc_code_grant_carries_the_primary_orgs_app_role(schema, monkeypatch):
+    """The app role is UNIONED onto the legacy organization-role list."""
+    ids = await _seed(schema)
+    await _set_primary(schema, ids["user_id"], ids["b"])
+
+    claims = await _mint_oidc(schema, ids["user_id"], monkeypatch)
+
     assert claims["org_id"] == str(ids["b"])
     assert claims["roles"] == ["member", APP_ROLE_CLAIM]
     assert APP_ROLES_KEY not in claims
+
+
+@pytest.mark.asyncio
+async def test_without_the_table_a_multi_org_session_still_mints(schema):
+    """THE availability test: this code on a database without 022."""
+    ids = await _seed(schema)
+    await _drop_table(schema)
+
+    claims, session_id = await _mint_session(schema, ids["user_id"])
+
+    assert len(claims["orgs"]) == 3
+    assert "org_id" not in claims
+    assert APP_ROLES_CLAIM not in claims
+    # The session row create_session writes AFTER the failed read committed.
+    async with schema() as session:
+        stored = (
+            await session.execute(select(UserSession).where(UserSession.id == session_id))
+        ).scalar_one_or_none()
+    assert stored is not None
+
+
+@pytest.mark.asyncio
+async def test_without_the_table_a_multi_org_oidc_token_still_mints(schema, monkeypatch):
+    ids = await _seed(schema)
+    await _drop_table(schema)
+
+    claims = await _mint_oidc(schema, ids["user_id"], monkeypatch)
+
+    assert len(claims["orgs"]) == 3
+    assert "org_id" not in claims
+    # Only the legacy organization role list, exactly as before.
+    assert claims["roles"] == ["member"]
