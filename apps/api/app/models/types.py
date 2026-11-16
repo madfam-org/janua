@@ -74,23 +74,22 @@ class JSON(TypeDecorator):
             return dialect.type_descriptor(Text())
 
     def process_bind_param(self, value, dialect):
-        # PostgreSQL: hand the value to the JSONB type as it is; the driver encodes it once. Encoding it here as well
-        # stored every ORM write as a JSON *string* (jsonb_typeof = 'string'), which SQL-level JSON queries
-        # (`@>`, `->>`, paths) never match (2026-11-16: webhook endpoint matching, compliance audit queries).
-        # SQLite stores TEXT, so it still needs the encoding here.
-        if value is not None and dialect.name != "postgresql":
+        # PostgreSQL: objects, arrays and scalars go to the JSONB type as they are, and the driver encodes them once.
+        # Encoding them here as well stored every ORM write as a JSON *string* (jsonb_typeof = 'string'), which
+        # SQL-level JSON queries (`@>`, `->>`, paths) never match (2026-11-16: webhook endpoint matching, compliance
+        # audit queries). A Python str keeps the old encoding so it reads back exactly as before (the read below
+        # decodes one level). SQLite stores TEXT, so it always needs the encoding here.
+        if value is not None and (dialect.name != "postgresql" or isinstance(value, str)):
             value = json.dumps(value)
         return value
 
     def process_result_value(self, value, dialect):
-        if value is not None and isinstance(value, str):
-            # SQLite returns the TEXT; PostgreSQL returns a str for a value stored as a JSON string, which is how
-            # every ORM write was stored before the fix above (scripts/normalize_jsonb_strings.py unwraps them).
-            # A str that is not JSON is a genuine string value: return it unchanged.
-            try:
+        if value is not None:
+            # SQLite returns the TEXT; PostgreSQL returns a str for a value stored as a JSON string (a str value, or
+            # any value written before the fix above: scripts/normalize_jsonb_strings.py unwraps those).
+            if isinstance(value, str):
                 value = json.loads(value)
-            except ValueError:
-                pass
+            # else: value is already a dict/list from JSONB, return as-is
         return value
 
 

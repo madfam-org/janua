@@ -31,7 +31,7 @@ PROGRAM = r'''
 import asyncio, json, os, sys, uuid
 sys.path.insert(0, os.environ["API_ROOT"])
 sys.path.insert(0, os.path.join(os.environ["API_ROOT"], "scripts"))
-from sqlalchemy import select, text
+from sqlalchemy import insert, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from app.models import Organization, WebhookEndpoint
 import normalize_jsonb_strings as normalize
@@ -44,22 +44,23 @@ async def main():
         org = Organization(name="Prueba", slug="prueba-" + uuid.uuid4().hex[:6], product_tiers={"dhanam": "pro"}, settings={"k": "v"})
         db.add(org)
         await db.flush()
-        db.add(WebhookEndpoint(url="https://example.test/hook", organization_id=org.id, events=["user.created", "user.deleted"]))
+        # Core insert/select of the columns used: the model declares columns the migrations do not create.
+        await db.execute(insert(WebhookEndpoint.__table__).values(id=uuid.uuid4(), url="https://example.test/hook", organization_id=org.id, events=["user.created", "user.deleted"], is_active=True))
         await db.commit()
         out["typeof"] = (await db.execute(text("SELECT jsonb_typeof(product_tiers), jsonb_typeof(settings) FROM organizations WHERE id = :i"), {"i": org.id})).one()._tuple()
         out["events_typeof"] = (await db.execute(text("SELECT jsonb_typeof(events) FROM webhook_endpoints"))).scalar_one()
-        out["contains_event"] = len((await db.execute(select(WebhookEndpoint).where(WebhookEndpoint.events.contains(["user.deleted"])))).scalars().all())
-        out["contains_tier"] = len((await db.execute(select(Organization).where(Organization.product_tiers.contains({"dhanam": "pro"})))).scalars().all())
+        out["contains_event"] = len((await db.execute(select(WebhookEndpoint.id).where(WebhookEndpoint.events.contains(["user.deleted"])))).scalars().all())
+        out["contains_tier"] = len((await db.execute(select(Organization.id).where(Organization.product_tiers.contains({"dhanam": "pro"})))).scalars().all())
         # A legacy row, stored the way the old type stored it: a JSON string holding the document.
         await db.execute(text("UPDATE organizations SET settings = to_jsonb(CAST('{\"k\": \"legacy\"}' AS text)) WHERE id = :i"), {"i": org.id})
         await db.commit()
         db.expire_all()
         out["legacy_read"] = (await db.execute(select(Organization.settings).where(Organization.id == org.id))).scalar_one()
-        out["legacy_contains_before"] = len((await db.execute(select(Organization).where(Organization.settings.contains({"k": "legacy"})))).scalars().all())
+        out["legacy_contains_before"] = len((await db.execute(select(Organization.id).where(Organization.settings.contains({"k": "legacy"})))).scalars().all())
     out["dry_run"] = await normalize.run(os.environ["U_PLAIN"], apply=False)
     out["left_after_apply"] = await normalize.run(os.environ["U_PLAIN"], apply=True)
     async with AsyncSession(engine) as db:
-        out["legacy_contains_after"] = len((await db.execute(select(Organization).where(Organization.settings.contains({"k": "legacy"})))).scalars().all())
+        out["legacy_contains_after"] = len((await db.execute(select(Organization.id).where(Organization.settings.contains({"k": "legacy"})))).scalars().all())
         out["settings_typeof_after"] = (await db.execute(text("SELECT jsonb_typeof(settings) FROM organizations"))).scalar_one()
     await engine.dispose()
     print("RESULT=" + json.dumps(out))

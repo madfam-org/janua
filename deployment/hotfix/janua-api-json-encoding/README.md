@@ -41,7 +41,7 @@ adds one layer with one file from `main`:
      the reviewed source;
    - discovery and the protected-resource client policy are identical;
    - the base binds a JSON string for PostgreSQL (the bug) and the new image binds
-     the value as is, while still reading legacy strings and plain strings.
+     objects as they are, still reads legacy strings, and stores a str value as before.
    It writes nothing to staging, production or the repository.
 2. Pin: a separate PR changes only the `janua-api` digest in
    `k8s/overlays/production/kustomization.yaml` and fills in the exception record.

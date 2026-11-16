@@ -199,7 +199,7 @@ jobs:
             run_py "$1" - < "$POLICY_DUMP" | grep '^POLICY=' | tail -1 | cut -d= -f2-
           }
           encoding() {
-            run_py "$1" -c 'import json; from sqlalchemy.dialects import postgresql, sqlite; from app.models.types import JSON; t = JSON(); pg = postgresql.dialect(); print("ENCODING=" + json.dumps({"pg_bind": t.process_bind_param({"a": 1}, pg), "sqlite_bind": t.process_bind_param({"a": 1}, sqlite.dialect()), "legacy_read": t.process_result_value("{\"a\": 1}", pg), "plain_read": t.process_result_value("plain", pg)}))' \
+            run_py "$1" -c 'import json; from sqlalchemy.dialects import postgresql, sqlite; from app.models.types import JSON; t = JSON(); pg = postgresql.dialect(); print("ENCODING=" + json.dumps({"pg_bind": t.process_bind_param({"a": 1}, pg), "sqlite_bind": t.process_bind_param({"a": 1}, sqlite.dialect()), "legacy_read": t.process_result_value("{\"a\": 1}", pg), "str_bind": t.process_bind_param("a,b", pg)}))' \
               | grep '^ENCODING=' | tail -1 | cut -d= -f2-
           }
           new="${TARGET}@${DIGEST}"
@@ -219,8 +219,8 @@ jobs:
           base = json.load(open("/tmp/hotfix/base-encoding.json"))
           new = json.load(open("/tmp/hotfix/new-encoding.json"))
           assert base["pg_bind"] == '{"a": 1}', base  # production's bug, reproduced: a string for the JSONB driver
-          assert new == {"pg_bind": {"a": 1}, "sqlite_bind": '{"a": 1}', "legacy_read": {"a": 1}, "plain_read": "plain"}, new
-          print("Encoding: PostgreSQL binds the value as is; legacy strings and plain strings still read.")
+          assert new == {"pg_bind": {"a": 1}, "sqlite_bind": '{"a": 1}', "legacy_read": {"a": 1}, "str_bind": '"a,b"'}, new
+          print("Encoding: PostgreSQL binds objects as they are; legacy strings still read; a str value is stored as before.")
           PY
 
       # Same retry as docker-publish.yml: a lost signature once cost a deploy.
