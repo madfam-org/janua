@@ -31,9 +31,10 @@ PROGRAM = r'''
 import asyncio, json, os, sys, uuid
 sys.path.insert(0, os.environ["API_ROOT"])
 sys.path.insert(0, os.path.join(os.environ["API_ROOT"], "scripts"))
-from sqlalchemy import insert, select, text
+from sqlalchemy import bindparam, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from app.models import Organization, WebhookEndpoint
+from app.models.types import JSON
 import normalize_jsonb_strings as normalize
 
 async def main():
@@ -44,8 +45,13 @@ async def main():
         org = Organization(name="Prueba", slug="prueba-" + uuid.uuid4().hex[:6], product_tiers={"dhanam": "pro"}, settings={"k": "v"})
         db.add(org)
         await db.flush()
-        # Core insert/select of the columns used: the model declares columns the migrations do not create.
-        await db.execute(insert(WebhookEndpoint.__table__).values(id=uuid.uuid4(), url="https://example.test/hook", organization_id=org.id, events=["user.created", "user.deleted"], is_active=True))
+        # Explicit columns: the model declares columns the migrations never create (description, max_retries, ...).
+        # `events` is still bound through Janua's JSON type, which is what this test is about.
+        await db.execute(
+            text("INSERT INTO webhook_endpoints (id, url, organization_id, events, is_active) VALUES (:id, :url, :org, :events, true)")
+            .bindparams(bindparam("events", type_=JSON())),
+            {"id": uuid.uuid4(), "url": "https://example.test/hook", "org": org.id, "events": ["user.created", "user.deleted"]},
+        )
         await db.commit()
         out["typeof"] = (await db.execute(text("SELECT jsonb_typeof(product_tiers), jsonb_typeof(settings) FROM organizations WHERE id = :i"), {"i": org.id})).one()._tuple()
         out["events_typeof"] = (await db.execute(text("SELECT jsonb_typeof(events) FROM webhook_endpoints"))).scalar_one()
