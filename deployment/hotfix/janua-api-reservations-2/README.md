@@ -28,7 +28,8 @@ Nothing here runs on merge.
 ## What
 
 [`Dockerfile`](Dockerfile) starts from the exact image production runs
-(`janua-api@sha256:99f354a9…`, the organization-role-shape hotfix pinned by janua#805)
+(`janua-api@sha256:cf723284…`, the entitlement-source hotfix of janua#811, which
+replaced janua#805's organization-role-shape image)
 and adds one layer with one file from `main`:
 
 - `apps/api/app/core/reserved_oauth_boundaries.py`: the reservation registry.
@@ -47,8 +48,8 @@ production's ([`../janua-api-reserved-boundaries/compare_registry.py`](../janua-
    The workflow refuses any ref but `main`. Before it signs anything, it proves:
    - the base image's application code is `b16869d7` plus the reserved-boundaries
      files from `ee7668b8`, the ChatGPT files from `ae7a3f50`, the org-bound
-     login files from `6f3b9b1a` and the organization-role-shape files from
-     `0742d02a` (what production runs);
+     login files from `6f3b9b1a`, the organization-role-shape files from
+     `0742d02a` and the model from `7c6150ff` (what production runs);
    - the copied file changed only in janua#799, #800 and #801 since `ee7668b8`;
    - the new image adds one layer and changes only that file, byte-identical to
      the reviewed source;
@@ -76,5 +77,5 @@ production's ([`../janua-api-reserved-boundaries/compare_registry.py`](../janua-
 | Approved by | Owner, 2026-11-15 (in session): the route (a fifth hotfix image, not lifting the hold). The build and the pin are each approved when ready |
 | Built by | not built yet |
 | Hotfix digest | not built yet |
-| Replaces | `sha256:99f354a940f6a9ada0f899653445ee75682c101b9aba8525b06a0627301b8c0d` (janua#805) |
+| Replaces | `sha256:cf723284080b94d78419c8cd2a189e8ecffe9b5a24c79e7b60e60bd0fa528032` (janua#811's entitlement-source hotfix; rebased from janua#805's image when that was pinned) |
 | Delta | `app/core/reserved_oauth_boundaries.py` from `main` (janua#799, #800, #801) |

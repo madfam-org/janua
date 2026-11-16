@@ -69,7 +69,7 @@ other is rebased onto it before it is built, as janua#807 did.
 | | |
 |---|---|
 | Approved by | Owner, 2026-11-15 (in session): «make it so the login works». The merge, the build and the pin are each approved when ready |
-| Built by | not built yet |
-| Hotfix digest | not built yet |
+| Built by | [run 43794177356](https://github.com/madfam-org/janua/actions/runs/43794177356) from `main` `7c6150ff` (janua#811), every proof passed, signed |
+| Hotfix digest | `sha256:cf723284080b94d78419c8cd2a189e8ecffe9b5a24c79e7b60e60bd0fa528032` |
 | Replaces | `sha256:99f354a940f6a9ada0f899653445ee75682c101b9aba8525b06a0627301b8c0d` (janua#805) |
 | Delta | `app/models/__init__.py` from `main` (janua#811: the hunk in `models.diff`) |

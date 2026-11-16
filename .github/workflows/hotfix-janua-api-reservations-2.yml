@@ -28,17 +28,19 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # The digest production runs (k8s/overlays/production/kustomization.yaml on
-  # 2026-11-15, pinned by janua#805): BASE_SOURCE plus the two
-  # reserved-boundaries files at RESERVED_SOURCE, the two ChatGPT files at
-  # CHATGPT_SOURCE, the two org-bound login files at ORG_LOGIN_SOURCE and the
-  # three organization-role-shape files at ROLE_SHAPE_SOURCE (run 43763092668).
-  BASE_IMAGE: ghcr.io/madfam-org/janua-api@sha256:99f354a940f6a9ada0f899653445ee75682c101b9aba8525b06a0627301b8c0d
+  # The digest production runs (k8s/overlays/production/kustomization.yaml,
+  # the entitlement-source hotfix of janua#811, run 43794177356): BASE_SOURCE
+  # plus the two reserved-boundaries files at RESERVED_SOURCE, the two ChatGPT
+  # files at CHATGPT_SOURCE, the two org-bound login files at ORG_LOGIN_SOURCE,
+  # the three organization-role-shape files at ROLE_SHAPE_SOURCE and the model
+  # at ENTITLEMENT_SOURCE.
+  BASE_IMAGE: ghcr.io/madfam-org/janua-api@sha256:cf723284080b94d78419c8cd2a189e8ecffe9b5a24c79e7b60e60bd0fa528032
   BASE_SOURCE: b16869d75bf8e91967b3f8443032f01bc2463417
   RESERVED_SOURCE: ee7668b894a6445c78a37bb5f5eea9183988777c
   CHATGPT_SOURCE: ae7a3f504e1965002148fb7f8e86c0a36b5e5922
   ORG_LOGIN_SOURCE: 6f3b9b1afcfb988c4383619ce3c9325389e748b0
   ROLE_SHAPE_SOURCE: 0742d02a6d06cc10bb8d945194cd719ef8de788d
+  ENTITLEMENT_SOURCE: 7c6150ffc1226abe0d02ac7a60e40191af97f8e5
   HOTFIX_DIR: deployment/hotfix/janua-api-reservations-2
   DOCKERFILE: deployment/hotfix/janua-api-reservations-2/Dockerfile
   POLICY_DUMP: deployment/hotfix/janua-api-map-chatgpt/dump_policy.py
@@ -86,7 +88,7 @@ jobs:
           cosign-release: 'v2.2.4'
 
       # Proves the base is what production runs: apps/api/app at BASE_SOURCE
-      # with the files of the three earlier hotfixes from their sources.
+      # with the files of the five earlier hotfixes from their sources.
       - name: Base image is BASE_SOURCE plus the earlier hotfix files
         run: |
           set -euo pipefail
@@ -108,6 +110,7 @@ jobs:
           for f in services/org_claims_service.py services/role_service.py services/organization_member_service.py; do
             git show "$ROLE_SHAPE_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
           done
+          git show "$ENTITLEMENT_SOURCE:apps/api/app/models/__init__.py" > /tmp/hotfix/src/apps/api/app/models/__init__.py
           diff -r -x __pycache__ /tmp/hotfix/src/apps/api/app /tmp/hotfix/base/app
           echo "Base image application code matches its proven sources."
 
@@ -262,7 +265,7 @@ jobs:
             echo "- Digest: \`${DIGEST}\`"
             echo "- Tag: \`${TARGET}:hotfix-reservations-2-${GITHUB_SHA}\`"
             echo "- Source (main): \`${GITHUB_SHA}\`"
-            echo "- Base: \`${BASE_IMAGE}\` (production, janua#805)"
+            echo "- Base: \`${BASE_IMAGE}\` (production, janua#811)"
             echo "- Delta: \`app/core/reserved_oauth_boundaries.py\` only (janua#799, #800, #801)"
             echo "- Reason: ${REASON}"
             echo ""
