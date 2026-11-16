@@ -4,15 +4,14 @@ Run INSIDE an image, piped on stdin:
 
     docker run --rm -i --entrypoint python <env> IMAGE - < check_signin_notice.py
 
-Prints one line ``SIGNIN=<json>`` with the SHA-256 of the page rendered for a client
-that is NOT listed (es and en), and, when the image has the per-client notice, whether
-a listed client's page carries the line. Nothing is read from a database, the network
+Prints one line ``SIGNIN=<json>`` with the page rendered for a client that is NOT
+listed (es and en; public HTML, compared byte for byte between images), and, when the
+image has the per-client notice, whether a listed client's page carries the line. Nothing is read from a database, the network
 or a secret; the client id and URL are fixtures.
 """
 
 from __future__ import annotations
 
-import hashlib
 import inspect
 import json
 
@@ -21,12 +20,8 @@ from app.routers.v1 import auth
 COMMON = {"app_name": "MADFAM CV", "hidden_fields": "", "method": "password", "switch_url": None}
 
 
-def digest(page: str) -> str:
-    return hashlib.sha256(page.encode()).hexdigest()
-
-
 out = {
-    "unlisted": {loc: digest(auth._hosted_login_page_html(**COMMON, locale=loc)) for loc in ("es", "en")},
+    "unlisted": {loc: auth._hosted_login_page_html(**COMMON, locale=loc) for loc in ("es", "en")},
     "has_notice": "privacy_notice_url" in inspect.signature(auth._hosted_login_page_html).parameters,
 }
 if out["has_notice"]:
