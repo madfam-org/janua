@@ -141,6 +141,15 @@ HOSTED_COPY: Dict[str, Dict[str, str]] = {
             "sign in with that one."
         ),
         "invite_only_other_account": "Use another account",
+        # The prompt=select_account chooser. {app} is HTML (already escaped);
+        # the two fallbacks stand in for a client without a name and an account
+        # without an email or username.
+        "chooser_title": "Choose an account - Janua",
+        "chooser_heading": "Choose an account",
+        "chooser_continue_to": "to continue to {app}",
+        "chooser_other_account": "Use another account",
+        "chooser_account_fallback": "Account",
+        "chooser_app_fallback": "the application",
         # The reset page the recovery email opens (/reset-password and the
         # pages its form answers with).
         "reset_tagline": "Choose a new password",
@@ -234,6 +243,12 @@ HOSTED_COPY: Dict[str, Dict[str, str]] = {
             "El acceso es por invitación. Si te invitaron con otro correo, entra con ese."
         ),
         "invite_only_other_account": "Usar otra cuenta",
+        "chooser_title": "Elige una cuenta - Janua",
+        "chooser_heading": "Elige una cuenta",
+        "chooser_continue_to": "para continuar a {app}",
+        "chooser_other_account": "Usar otra cuenta",
+        "chooser_account_fallback": "Cuenta",
+        "chooser_app_fallback": "la aplicación",
         "reset_tagline": "Elige una contraseña nueva",
         "reset_new_password_label": "Contraseña nueva",
         "reset_confirm_label": "Confirma la contraseña nueva",
