@@ -258,7 +258,7 @@ class EnterpriseFeatures:
         if license_info.plan == Plan.COMMUNITY:
             raise EnterpriseError(
                 f"{feature} requires an enterprise license. "
-                f"Visit https://janua.dev/pricing or contact support@madfam.io",
+                f"Visit https://janua.dev/pricing or contact hola@madfam.io",
                 'ENTERPRISE_REQUIRED',
                 {'feature': feature, 'upgrade_url': 'https://janua.dev/pricing'}
             )

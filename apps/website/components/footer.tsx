@@ -60,7 +60,7 @@ const socialLinks = [
   },
   {
     name: 'Email',
-    href: 'mailto:support@madfam.io',
+    href: 'mailto:hola@madfam.io',
     icon: Mail
   }
 ]

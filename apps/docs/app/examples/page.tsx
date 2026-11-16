@@ -243,7 +243,7 @@ export default function ExamplesPage() {
         <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-6 mb-6">
           <p className="text-blue-800 dark:text-blue-200 mb-4">
             Community examples are built and maintained by the Janua community.
-            Want to add your example? <a href="mailto:support@madfam.io" className="underline">Contact us</a> or submit a PR!
+            Want to add your example? <a href="mailto:hola@madfam.io" className="underline">Contact us</a> or submit a PR!
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
