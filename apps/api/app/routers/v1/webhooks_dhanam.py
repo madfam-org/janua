@@ -157,72 +157,71 @@ async def find_organization(
     metadata: dict | None = None,
 ) -> Organization | None:
     """
-    Find organization using multiple lookup strategies:
-    1. By billing_customer_id (primary)
-    2. By organization_id in metadata
-    3. By explicit org_id parameter
-    """
-    organization = None
+    Find the organization a Dhanam subscription event applies to.
 
-    # Strategy 1: Lookup by billing_customer_id
+    1. An explicit organization id is authoritative: ``data.organization_id``
+       (``org_id``), else ``metadata.organization_id``. When one is sent, it
+       alone decides: an id that names no organization (or is not a UUID)
+       returns None and never falls back to the customer-id lookup.
+    2. Only when no explicit id is sent, look the organization up by
+       ``billing_customer_id``.
+
+    ``billing_customer_id`` is linked to the explicit organization only when
+    that organization's field is empty; an existing link is never re-pointed.
+    """
+    explicit_org_id = org_id or (metadata or {}).get("organization_id")
+
+    if explicit_org_id:
+        try:
+            org_uuid = UUID(str(explicit_org_id))
+        except (ValueError, TypeError) as e:
+            logger.warning(
+                "Invalid explicit organization_id",
+                org_id=explicit_org_id,
+                error=str(e),
+            )
+            return None
+
+        result = await db.execute(select(Organization).where(Organization.id == org_uuid))
+        organization = result.scalar_one_or_none()
+        if organization is None:
+            return None
+
+        logger.debug(
+            "Found organization by explicit organization_id",
+            org_id=str(organization.id),
+        )
+        if customer_id and not organization.billing_customer_id:
+            organization.billing_customer_id = customer_id
+            logger.info(
+                "Linked billing_customer_id to organization",
+                org_id=str(organization.id),
+                customer_id=customer_id,
+            )
+        return organization
+
     if customer_id:
         result = await db.execute(
-            select(Organization).where(Organization.billing_customer_id == customer_id)
+            select(Organization).where(Organization.billing_customer_id == customer_id).limit(2)
         )
-        organization = result.scalar_one_or_none()
-        if organization:
+        matches = list(result.scalars().all())
+        if len(matches) > 1:
+            # One billing customer can pay for several organizations (each
+            # sent with its explicit id). Without an explicit id the event is
+            # ambiguous: refuse rather than pick one.
+            logger.warning(
+                "billing_customer_id matches several organizations; explicit organization_id required",
+                customer_id=customer_id,
+            )
+            return None
+        if matches:
+            organization = matches[0]
             logger.debug(
                 "Found organization by billing_customer_id",
                 org_id=str(organization.id),
                 customer_id=customer_id,
             )
             return organization
-
-    # Strategy 2: Lookup by org_id from metadata
-    if metadata and metadata.get("organization_id"):
-        try:
-            org_uuid = UUID(metadata["organization_id"])
-            result = await db.execute(select(Organization).where(Organization.id == org_uuid))
-            organization = result.scalar_one_or_none()
-            if organization:
-                logger.debug(
-                    "Found organization by metadata.organization_id",
-                    org_id=str(organization.id),
-                )
-                # Also link the customer_id if we have it
-                if customer_id and not organization.billing_customer_id:
-                    organization.billing_customer_id = customer_id
-                    logger.info(
-                        "Linked billing_customer_id to organization",
-                        org_id=str(organization.id),
-                        customer_id=customer_id,
-                    )
-                return organization
-        except (ValueError, TypeError) as e:
-            logger.warning(
-                "Invalid organization_id in metadata",
-                org_id=metadata.get("organization_id"),
-                error=str(e),
-            )
-
-    # Strategy 3: Direct org_id lookup
-    if org_id:
-        try:
-            org_uuid = UUID(org_id)
-            result = await db.execute(select(Organization).where(Organization.id == org_uuid))
-            organization = result.scalar_one_or_none()
-            if organization:
-                logger.debug(
-                    "Found organization by direct org_id",
-                    org_id=str(organization.id),
-                )
-                return organization
-        except (ValueError, TypeError) as e:
-            logger.warning(
-                "Invalid org_id parameter",
-                org_id=org_id,
-                error=str(e),
-            )
 
     return None
 
