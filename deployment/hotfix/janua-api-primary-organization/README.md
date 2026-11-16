@@ -116,8 +116,8 @@ The readback queries are at the end of that file.
 | | |
 |---|---|
 | Approved by | Owner, 2026-11-16, in chat: «You have my GO for the hotfix». Scope: this primary-organization hotfix only (janua#822), on top of the current production digest `sha256:1b1e28de…` (janua#818). The merge of this folder, the build dispatch and the pin PR remain separate steps the owner's coordinator takes after review |
-| Built by | (filled in by the pin PR: run link and `main` commit) |
-| Hotfix digest | (filled in by the pin PR) |
+| Built by | [run 43951571993](https://github.com/madfam-org/janua/actions/runs/43951571993) from `main` `54fbf9bf` (janua#823); every proof step passed |
+| Hotfix digest | `sha256:cd6e19df31f412fe3530c7481af8de1c4263b7ae0830795ab9d392737a0da9f5` |
 | Replaces | `sha256:1b1e28de2e16d9672c5d536675f29a5784e556b5e0a14badfe2a999e7346c499` (janua#818) |
 | Delta | `app/models/user_primary_organization.py`, `app/schemas/primary_organization.py`, `app/routers/v1/internal_primary_organization.py`, `alembic/versions/022_user_primary_organization.py` (new), `app/services/org_claims_service.py` and `app/services/audit_logger.py` from `main`, and production's `app/main.py` plus the registration (janua#822: `claims.diff`, `audit.diff`, `main.diff`) |
 
