@@ -17,7 +17,8 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.services.webhooks import WebhookEventType, webhook_service
 
-from ...models import User, WebhookDelivery, WebhookEndpoint, LegacyWebhookEvent as WebhookEvent
+from ...models import LegacyWebhookEvent as WebhookEvent
+from ...models import User, WebhookDelivery, WebhookEndpoint
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 

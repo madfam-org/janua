@@ -7,7 +7,8 @@ PostgreSQL), read a missing `settings.API_VERSION`, and built WebhookDelivery wi
 On a scratch database migrated to head and brought to PRODUCTION's webhook schema (the migrations lack columns that
 production's tables have; idempotent ADD COLUMN IF NOT EXISTS with production's types, read on 2026-11-16), one
 `user.created` event on a real AsyncSession: records the event, calls only the subscribed endpoint (HTTP stubbed),
-and commits a DELIVERED delivery row. Driver work runs in a subprocess (psycopg2 is mocked in-process).
+and commits a DELIVERED delivery row once scripts/repoint_webhook_delivery_event_fk.py has pointed the delivery foreign
+key at the legacy events table (as the model declares). Driver work runs in a subprocess (psycopg2 is mocked).
 """
 
 import json
@@ -64,12 +65,17 @@ ALTER TABLE webhook_deliveries
 PROGRAM = r'''
 import asyncio, json, os, sys, uuid
 sys.path.insert(0, os.environ["API_ROOT"])
+sys.path.insert(0, os.path.join(os.environ["API_ROOT"], "scripts"))
+import repoint_webhook_delivery_event_fk as repoint
 from types import SimpleNamespace
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from app.services.webhooks import WebhookEventType, WebhookService
 
 async def main():
+    # Production's (and the migrations') delivery foreign key pointed at webhook_events, not the legacy events table
+    # the model declares and the service writes: the operator script re-points it, exactly as in production.
+    repointed = await repoint.run(os.environ["U_PLAIN"], apply=True)
     engine = create_async_engine(os.environ["U"])
     service = WebhookService()
     calls = []
@@ -90,7 +96,7 @@ async def main():
         events = (await db.execute(text("SELECT count(*) FROM legacy_webhook_events WHERE type = 'user.created'"))).scalar_one()
         rows = (await db.execute(text("SELECT status::text, attempts, response_status FROM webhook_deliveries"))).all()
     await engine.dispose()
-    print("RESULT=" + json.dumps({"calls": calls, "events": events, "deliveries": [list(r) for r in rows]}))
+    print("RESULT=" + json.dumps({"calls": calls, "events": events, "deliveries": [list(r) for r in rows], "repointed": repointed["changed"]}))
 
 asyncio.run(main())
 '''
@@ -120,7 +126,7 @@ def test_a_user_created_event_reaches_only_its_subscriber_and_is_recorded(databa
     async_url = database if "+asyncpg" in database else database.replace("postgresql://", "postgresql+asyncpg://", 1)
     run = subprocess.run(
         [sys.executable, "-c", PROGRAM],
-        env={**os.environ, "U": async_url, "API_ROOT": str(API_ROOT), "DATABASE_URL": async_url},
+        env={**os.environ, "U": async_url, "U_PLAIN": async_url.replace("postgresql+asyncpg://", "postgresql://", 1), "API_ROOT": str(API_ROOT), "DATABASE_URL": async_url},
         capture_output=True, text=True, timeout=300,
     )
     line = next((row for row in run.stdout.splitlines() if row.startswith("RESULT=")), None)
@@ -128,4 +134,5 @@ def test_a_user_created_event_reaches_only_its_subscriber_and_is_recorded(databa
     out = json.loads(line.removeprefix("RESULT="))
     assert out["calls"] == [{"url": "https://crm.example.test/hook", "type": "user.created", "signed": True}]
     assert out["events"] == 1
+    assert out["repointed"] is True
     assert out["deliveries"] == [["DELIVERED", 1, 202]]

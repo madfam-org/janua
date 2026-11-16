@@ -16,7 +16,10 @@ four ways, each caught and logged as «Error triggering webhook event»:
   and `error`, none of which exist on the model (`status`, `attempts`,
   `last_attempt`, `response_status`, `error_message` do).
 
-The webhooks API's delivery schema used the same wrong names. The fix is
+The webhooks API's delivery schema used the same wrong names. And production's
+foreign key `webhook_deliveries.webhook_event_id` pointed at `webhook_events`
+(0 rows), not at `legacy_webhook_events` where the model declares it and the
+service writes events, so even a correct delivery record would have failed. The fix is
 janua#817. `promote-to-prod.yml` is held, so this follows the exception pattern of
 [`../janua-api-json-encoding/README.md`](../janua-api-json-encoding/README.md).
 Nothing here runs on merge.
@@ -34,6 +37,15 @@ Production's copies are byte-identical to the files at `BASE_SOURCE` (checked in
 the running pod on 2026-11-16).
 
 ## How
+
+0. Before the pin (safe: today's code never writes a delivery), re-point the
+   foreign key, dry run first. It refuses if any delivery's event is missing from
+   `legacy_webhook_events` (0 deliveries on 2026-11-16):
+
+   ```bash
+   kubectl -n janua exec -i deploy/janua-api -c janua-api -- python - < apps/api/scripts/repoint_webhook_delivery_event_fk.py
+   kubectl -n janua exec -i deploy/janua-api -c janua-api -- python - --apply < apps/api/scripts/repoint_webhook_delivery_event_fk.py
+   ```
 
 1. Build: `gh workflow run hotfix-janua-api-webhooks.yml --repo madfam-org/janua --ref main -f reason="..."`.
    The workflow refuses any ref but `main`. Before it signs anything, it proves:
@@ -57,7 +69,7 @@ the running pod on 2026-11-16).
 
 | | |
 |---|---|
-| Approved by | Owner, 2026-11-16 (in session): «Fix webhooks». The merge, the build and the pin are each approved when ready |
+| Approved by | Owner, 2026-11-16 (in session): «Fix webhooks». The merge, the foreign-key re-point, the build and the pin are each approved when ready |
 | Built by | not built yet |
 | Hotfix digest | not built yet |
 | Replaces | `sha256:9bac921211d652922f61571e9d1129da19df49725067bfabbd0e67b224910c2c` (janua#816) |
