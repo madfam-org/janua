@@ -1,0 +1,1380 @@
+# Fix passlib/bcrypt 5.x compatibility issue BEFORE any imports
+# This must be at the very top of the file
+import os
+
+os.environ["PASSLIB_BUILTIN_BCRYPT"] = "enabled"
+
+# Patch bcrypt to handle the wrap bug detection issue with bcrypt >= 4.1
+try:
+    import bcrypt
+
+    if not hasattr(bcrypt, "_original_hashpw"):
+        bcrypt._original_hashpw = bcrypt.hashpw
+
+        def _patched_hashpw(password, salt):
+            if isinstance(password, str):
+                password = password.encode("utf-8")
+            if len(password) > 72:
+                password = password[:72]
+            return bcrypt._original_hashpw(password, salt)
+
+        bcrypt.hashpw = _patched_hashpw
+except ImportError:
+    pass  # bcrypt not installed, passlib will use fallback implementation
+
+# Initialize Sentry early, before other imports
+_sentry_dsn = os.environ.get("SENTRY_DSN", "")
+if _sentry_dsn:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+        sentry_sdk.init(
+            dsn=_sentry_dsn,
+            environment=os.environ.get(
+                "SENTRY_ENVIRONMENT", os.environ.get("ENVIRONMENT", "development")
+            ),
+            traces_sample_rate=0.1,
+            integrations=[FastApiIntegration()],
+        )
+    except ImportError:
+        pass  # sentry-sdk not installed
+
+
+from urllib.parse import urlparse
+
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from passlib.context import CryptContext
+from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.core.rate_limit_keys import client_ip_key
+
+# Secure password hashing context - using bcrypt 2b to avoid passlib wrap bug detection issue
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=12,  # Strong rounds for security
+    bcrypt__ident="2b",  # Use 2b to avoid wrap bug detection
+)
+import asyncio
+import logging
+import os
+import secrets
+from datetime import datetime
+
+import redis.asyncio as redis
+
+# Setup logger early
+logger = logging.getLogger(__name__)
+
+from app.config import settings
+from app.core.database_manager import close_database, get_database_health, init_database
+from app.core.error_handling import (
+    APIException,
+    ErrorHandlingMiddleware,
+    api_exception_handler,
+    http_exception_handler,
+    janua_exception_handler,
+    redis_unavailable_handler,
+    validation_exception_handler,
+)
+from app.core.exceptions import JanuaAPIException
+from app.core.oauth_metadata import authorization_server_metadata
+from app.core.redis import get_redis, get_redis_public_status
+from app.core.redis_circuit_breaker import RedisUnavailableError
+from app.routers.v1 import (
+    admin as admin_v1,
+)
+from app.routers.v1 import (
+    alerts as alerts_v1,
+)
+from app.routers.v1 import (
+    api_keys as api_keys_v1,
+)
+from app.routers.v1 import (
+    audit_logs as audit_logs_v1,
+)
+from app.routers.v1 import (
+    auth as auth_v1,
+)
+from app.routers.v1 import (
+    billing as billing_v1,
+)
+from app.routers.v1 import (
+    connections as connections_v1,
+)
+from app.routers.v1 import (
+    connections_consent as connections_consent_v1,
+)
+from app.routers.v1 import (
+    devices as devices_v1,
+)
+from app.routers.v1 import (
+    guest as guest_v1,
+)
+from app.routers.v1 import (
+    guest_invites as guest_invites_v1,
+)
+from app.routers.v1 import (
+    integrations as integrations_v1,
+)
+from app.routers.v1 import (
+    invitations as invitations_v1,
+)
+from app.routers.v1 import (
+    localization as localization_v1,
+)
+from app.routers.v1 import (
+    me as me_v1,
+)
+from app.routers.v1 import (
+    mfa as mfa_v1,
+)
+from app.routers.v1 import (
+    oauth as oauth_v1,
+)
+from app.routers.v1 import (
+    oauth_clients as oauth_clients_v1,
+)
+from app.routers.v1 import (
+    oauth_on_behalf as oauth_on_behalf_v1,
+)
+from app.routers.v1 import (
+    oauth_provider as oauth_provider_v1,
+)
+from app.routers.v1 import (
+    organization_app_roles as organization_app_roles_v1,
+)
+from app.routers.v1 import (
+    organization_members as organization_members_v1,
+)
+from app.routers.v1 import (
+    organizations as organizations_v1,
+)
+from app.routers.v1 import (
+    passkeys as passkeys_v1,
+)
+from app.routers.v1 import (
+    policies as policies_v1,
+)
+from app.routers.v1 import (
+    rbac as rbac_v1,
+)
+from app.routers.v1 import (
+    roles as roles_v1,
+)
+from app.routers.v1 import (
+    sessions as sessions_v1,
+)
+from app.routers.v1 import (
+    users as users_v1,
+)
+from app.routers.v1 import (
+    webhooks as webhooks_v1,
+)
+from app.routers.v1 import (
+    webhooks_dhanam as webhooks_dhanam_v1,
+)
+
+# Additional feature routers with optional loading
+additional_routers = {}
+try:
+    from app.routers.v1 import graphql as graphql_v1
+
+    additional_routers["graphql"] = graphql_v1
+except Exception as e:
+    logger.warning(f"GraphQL router not available: {e}")
+
+try:
+    from app.routers.v1 import websocket as websocket_v1
+
+    additional_routers["websocket"] = websocket_v1
+except Exception as e:
+    logger.warning(f"WebSocket router not available: {e}")
+
+try:
+    from app.routers.v1 import iot as iot_v1
+
+    additional_routers["iot"] = iot_v1
+except Exception as e:
+    logger.warning(f"IoT router not available: {e}")
+
+# Enterprise routers with optional loading for production stability
+enterprise_routers = {}
+try:
+    from app.routers.v1 import sso as sso_v1
+
+    enterprise_routers["sso"] = sso_v1
+except Exception as e:
+    logger.warning(f"SSO router not available: {e}")
+
+# SSO DDD module routers (enterprise implementation)
+try:
+    from app.sso.routers import configuration as sso_config
+    from app.sso.routers import metadata as sso_metadata
+    from app.sso.routers import oidc as sso_oidc
+
+    enterprise_routers["sso_oidc"] = sso_oidc
+    enterprise_routers["sso_config"] = sso_config
+    enterprise_routers["sso_metadata"] = sso_metadata
+except Exception as e:
+    logger.warning(f"SSO DDD routers not available: {e}")
+
+try:
+    from app.routers.v1 import migration as migration_v1
+
+    enterprise_routers["migration"] = migration_v1
+except Exception as e:
+    logger.warning(f"Migration router not available: {e}")
+
+try:
+    from app.routers.v1 import white_label as white_label_v1
+
+    enterprise_routers["white_label"] = white_label_v1
+except Exception as e:
+    logger.warning(f"White label router not available: {e}")
+
+try:
+    from app.routers.v1 import compliance as compliance_v1
+
+    enterprise_routers["compliance"] = compliance_v1
+except Exception as e:
+    logger.warning(f"Compliance router not available: {e}")
+
+try:
+    from app.routers.v1 import scim as scim_v1
+
+    enterprise_routers["scim"] = scim_v1
+except Exception as e:
+    logger.warning(f"SCIM router not available: {e}")
+
+try:
+    from app.routers.v1 import scim_config as scim_config_v1
+
+    enterprise_routers["scim_config"] = scim_config_v1
+except Exception as e:
+    logger.warning(f"SCIM Config router not available: {e}")
+from app.core.performance import PerformanceMonitoringMiddleware, cache_manager
+from app.core.scalability import (
+    get_scalability_status,
+    initialize_scalability_features,
+    shutdown_scalability_features,
+)
+from app.core.tenant_context import TenantMiddleware
+from app.core.webhook_dispatcher import webhook_dispatcher
+from app.services.monitoring import (
+    AlertManager,
+    HealthChecker,
+    MetricsCollector,
+    SystemMonitor,
+    redact_error_text,
+)
+
+# Set up logging
+logging.basicConfig(level=logging.INFO if settings.DEBUG else logging.WARNING)
+logger = logging.getLogger(__name__)
+
+# Initialize rate limiter (kept for backward compatibility with existing endpoints)
+limiter = Limiter(key_func=client_ip_key)
+
+# Import global rate limiting middleware
+from app.middleware.global_rate_limit import create_rate_limit_middleware
+
+# Import comprehensive input validation middleware
+from app.middleware.input_validation import create_input_validation_middleware
+
+# Initialize monitoring components
+metrics_collector = MetricsCollector()
+health_checker = HealthChecker(metrics_collector)
+alert_manager = AlertManager(metrics_collector)
+system_monitor = SystemMonitor(metrics_collector)
+
+app = FastAPI(
+    title="Janua Authentication API",
+    version="0.1.0",
+    description="""
+# Janua Authentication Platform
+
+Modern, open-core authentication and identity management platform with enterprise features.
+
+## Features
+
+* 🔐 **Complete Authentication**: Email/password, OAuth (Google, GitHub, Microsoft, Apple), Magic Links, Passkeys
+* 🛡️ **MFA & Security**: TOTP, SMS, Backup codes, Device fingerprinting
+* 👥 **Multi-Tenancy**: Organizations, RBAC, Team management
+* 🔄 **Session Management**: Multi-device tracking, Revocation, Security warnings
+* 🎯 **Enterprise Features**: SAML/SSO, SCIM, Compliance (GDPR, SOC 2), Webhooks
+* 📊 **Developer Experience**: TypeScript SDK, React UI Components, Comprehensive docs
+
+## Getting Started
+
+1. **Sign Up**: `POST /api/v1/auth/signup` - Create your account
+2. **Get Token**: Receive JWT access + refresh tokens
+3. **Authenticate**: Add `Authorization: Bearer {token}` header to requests
+4. **Integrate**: Use our TypeScript SDK or REST API directly
+
+## Authentication
+
+All protected endpoints require a JWT access token in the Authorization header:
+
+```
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+Get tokens via:
+- Email/password: `POST /api/v1/auth/signin`
+- OAuth: `POST /api/v1/oauth/{provider}/callback`
+- Magic link: `POST /api/v1/auth/magic-link/verify`
+
+## Rate Limiting
+
+All endpoints are rate-limited for security:
+- Sign up: 3 requests/minute
+- Sign in: 5 requests/minute
+- Password reset: 3 requests/hour
+- General endpoints: 100 requests/minute
+
+Rate limit headers returned in response:
+- `X-RateLimit-Limit`: Maximum requests allowed
+- `X-RateLimit-Remaining`: Requests remaining
+- `X-RateLimit-Reset`: Unix timestamp when limit resets
+
+## Environments
+
+- **Production**: https://api.janua.dev
+- **Staging**: https://staging-api.janua.dev
+- **Development**: http://localhost:4100
+
+## Support
+
+- Documentation: https://docs.janua.dev
+- GitHub: https://github.com/madfam-org/janua
+- Discord: https://discord.gg/janua
+- Email: support@janua.dev
+
+## SDK Libraries
+
+- **TypeScript**: `npm install @janua/typescript-sdk`
+- **React UI**: `npm install @janua/ui`
+- **Python**: `pip install janua` (coming soon)
+- **Go**: `go get github.com/madfam-org/janua-go` (coming soon)
+    """,
+    docs_url="/docs" if settings.ENABLE_DOCS else None,
+    redoc_url="/redoc" if settings.ENABLE_DOCS else None,
+    openapi_tags=[
+        {
+            "name": "Authentication",
+            "description": "User authentication endpoints including sign up, sign in, password management, email verification, and magic links.",
+        },
+        {
+            "name": "OAuth",
+            "description": "Social authentication with Google, GitHub, Microsoft, and Apple OAuth providers.",
+        },
+        {
+            "name": "Users",
+            "description": "User profile management including updates, deletion, and profile information.",
+        },
+        {
+            "name": "Sessions",
+            "description": "Session management across multiple devices with tracking, listing, and revocation capabilities.",
+        },
+        {
+            "name": "Organizations",
+            "description": "Multi-tenant organization management with members, roles, and settings.",
+        },
+        {
+            "name": "MFA",
+            "description": "Multi-factor authentication with TOTP, SMS, and backup codes for enhanced security.",
+        },
+        {
+            "name": "Passkeys",
+            "description": "WebAuthn/FIDO2 passkey authentication for passwordless secure login.",
+        },
+        {
+            "name": "Admin",
+            "description": "Administrative endpoints for system monitoring, user management, and statistics.",
+        },
+        {
+            "name": "Webhooks",
+            "description": "Event-driven webhooks for user actions, authentication events, and system notifications.",
+        },
+        {
+            "name": "RBAC",
+            "description": "Role-based access control for fine-grained permission management.",
+        },
+        {
+            "name": "Policies",
+            "description": "Security policies for password requirements, session timeouts, and access controls.",
+        },
+        {
+            "name": "Audit Logs",
+            "description": "Comprehensive audit logging for compliance and security monitoring.",
+        },
+        {
+            "name": "SSO",
+            "description": "Enterprise Single Sign-On with SAML 2.0 and OIDC support.",
+        },
+        {
+            "name": "SCIM",
+            "description": "System for Cross-domain Identity Management for automated user provisioning.",
+        },
+        {
+            "name": "Compliance",
+            "description": "GDPR, SOC 2, and regulatory compliance features including data export and deletion.",
+        },
+        {
+            "name": "API Keys",
+            "description": "API key management for programmatic access with scoped permissions.",
+        },
+    ],
+    contact={
+        "name": "Janua Support",
+        "url": "https://janua.dev/support",
+        "email": "support@janua.dev",
+    },
+    license_info={
+        "name": "AGPL-3.0",
+        "url": "https://github.com/madfam-org/janua/blob/main/LICENSE",
+    },
+    servers=[
+        {
+            "url": "https://api.janua.dev",
+            "description": "Production server",
+        },
+        {
+            "url": "https://staging-api.janua.dev",
+            "description": "Staging server",
+        },
+        {
+            "url": "http://localhost:4100",
+            "description": "Local development server",
+        },
+    ],
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add Janua-specific exception handler
+app.add_exception_handler(JanuaAPIException, janua_exception_handler)
+
+# Add comprehensive error handling
+app.add_exception_handler(APIException, api_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+# Strict Redis operations (OAuth consent/authorize/token security state) answer a
+# retryable 503 instead of silently degrading — see redis_unavailable_handler.
+app.add_exception_handler(RedisUnavailableError, redis_unavailable_handler)
+
+# Performance Monitoring Middleware (add early for accurate timing)
+app.add_middleware(PerformanceMonitoringMiddleware, slow_threshold_ms=100.0)
+
+
+# Import standalone security headers middleware
+from app.middleware.security_headers import SecurityHeadersMiddleware
+
+# Add security middleware (order matters - add these first)
+# Disabled HTTPS redirect - Railway handles HTTPS termination at the proxy level
+# if not settings.DEBUG:
+#     app.add_middleware(HTTPSRedirectMiddleware)
+
+# Add trusted host middleware
+# Port 4100 per PORT_ALLOCATION.md in solarpunk-foundry (Janua block: 4100-4199)
+#
+# In Kubernetes environments (behind reverse proxy/ingress), host validation is
+# handled at the network layer. Use TRUST_ALL_HOSTS=true to allow all hosts.
+# This is safe because:
+# 1. Cloudflare tunnel handles external host validation
+# 2. K8s NetworkPolicy restricts internal access
+# 3. Health probes come from various internal IPs
+trust_all_hosts = os.getenv("TRUST_ALL_HOSTS", "false").lower() == "true"
+
+if trust_all_hosts:
+    allowed_hosts = ["*"]
+else:
+    allowed_hosts = [
+        "janua.dev",
+        "*.janua.dev",
+        "api.janua.dev",
+        "docs.janua.dev",
+        "localhost",
+        "localhost:4100",
+        "localhost:8080",
+        "127.0.0.1",
+        "127.0.0.1:4100",
+        "127.0.0.1:8080",
+        # Docker internal hostnames for container-to-container communication
+        "janua-api",
+        "janua-api:4100",
+        "janua-api:8080",
+        # Kubernetes internal networking (service names)
+        "janua-api.janua.svc.cluster.local",
+        "janua-api.janua.svc.cluster.local:4100",
+        "janua-api.janua.svc.cluster.local:8080",
+    ]
+    # Add custom domain aliases from environment (e.g., auth.madfam.io for MADFAM deployment)
+    custom_domain = os.getenv("JANUA_CUSTOM_DOMAIN")
+    if custom_domain:
+        allowed_hosts.extend(
+            [
+                custom_domain,
+                f"*.{custom_domain.split('.', 1)[-1] if '.' in custom_domain else custom_domain}",
+            ]
+        )
+    # First-party tracking hosts (e.g. enlaces.creatumundo.mx), one per sender
+    # binding with a tracking origin configured. Trusted here so /e/o and /e/c
+    # answer on them; TrackingHostScopeMiddleware (below) keeps them to that.
+    from app.services.sender_binding import tracking_bindings
+
+    allowed_hosts.extend(tracking_bindings().keys())
+    # Add test host for integration tests
+    if settings.ENVIRONMENT == "test":
+        allowed_hosts.extend(["test", "testserver", "testclient"])
+
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+
+# A tracking host serves ONLY the first-party pixel and click redirect: trusting
+# it above is global, so without this it would also serve sign-in, password
+# reset and OIDC discovery under a tenant's marketing domain. Fixed at startup,
+# like the list above; applies with TRUST_ALL_HOSTS too.
+from app.middleware.tracking_host_scope import TrackingHostScopeMiddleware
+from app.services.sender_binding import tracking_bindings as _tracking_bindings
+
+app.add_middleware(TrackingHostScopeMiddleware, hosts=_tracking_bindings().keys())
+
+# Add security headers middleware (CSP connect-src uses the configured API host)
+_api_host = settings.JANUA_CUSTOM_DOMAIN or urlparse(settings.API_BASE_URL).netloc
+app.add_middleware(SecurityHeadersMiddleware, api_host=_api_host)
+
+# Add GLOBAL RATE LIMITING for 100% endpoint coverage
+# This ensures ALL endpoints have rate limiting, not just those with @limiter.limit decorators
+redis_url = os.getenv("REDIS_URL", settings.REDIS_URL if hasattr(settings, "REDIS_URL") else None)
+if redis_url or settings.ENVIRONMENT != "test":
+    # Only enable in non-test environments or when Redis is available
+    # Tests handle rate limiting via mocks in conftest.py
+    create_rate_limit_middleware(app, redis_url)
+
+# Add COMPREHENSIVE INPUT VALIDATION for all endpoints
+# This provides defense-in-depth against injection attacks and malformed input
+if settings.ENVIRONMENT != "test":
+    # Disable strict validation in test environment to avoid test complexity
+    # Tests verify validation logic in unit tests
+    create_input_validation_middleware(app, strict_mode=not settings.DEBUG)
+
+# Add tenant context middleware for multi-tenancy
+app.add_middleware(TenantMiddleware)
+
+# Add comprehensive error handling middleware (add last so it catches everything)
+app.add_middleware(ErrorHandlingMiddleware)
+
+# API Key Authentication Middleware (must be registered BEFORE CORS)
+# Intercepts X-API-Key / Bearer sk_live_* and injects X-Org-Id, X-Scopes, X-Key-Id
+from app.middleware.api_key_auth import ApiKeyAuthMiddleware
+
+app.add_middleware(ApiKeyAuthMiddleware)
+
+# Configure Dynamic CORS (loads origins from config + database)
+# This supports multi-tenant CORS origins managed via Admin API
+from app.middleware.dynamic_cors import DynamicCORSMiddleware
+
+app.add_middleware(
+    DynamicCORSMiddleware,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-Requested-With",
+        "X-API-Key",
+        "Accept",
+        "Origin",
+        "User-Agent",
+        "DNT",
+        "Cache-Control",
+        "X-Mx-ReqToken",
+        "Keep-Alive",
+        "If-Modified-Since",
+        "X-CSRF-Token",
+    ],
+    expose_headers=[
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+    ],
+    max_age=600,
+    enable_database_origins=True,
+)
+
+
+# Direct Redis connection using Railway environment variables
+async def get_redis_client():
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    return redis.from_url(redis_url, decode_responses=True)
+
+
+# Beta endpoint support (only when ENABLE_BETA_ENDPOINTS=true)
+# SECURITY: These are disabled by default and should only be used for development/testing
+if settings.ENABLE_BETA_ENDPOINTS:
+    # In-memory fallback storage for beta endpoints
+    BETA_USERS: dict = {}
+
+    # Simple models for beta endpoints
+    class SignUpRequest(BaseModel):
+        email: str
+        password: str
+        name: str = "Beta User"
+
+    class SignInRequest(BaseModel):
+        email: str
+        password: str
+
+    # Secure password hashing functions for beta endpoints
+    def hash_password(password: str) -> str:
+        """Hash password using bcrypt with salt"""
+        return pwd_context.hash(password)
+
+    def verify_password(password: str, hashed: str) -> bool:
+        """Verify password against bcrypt hash"""
+        return pwd_context.verify(password, hashed)
+
+
+# Root endpoint
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "Ultra-minimal beta API", "version": "0.1.0"}
+
+
+# Health check
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "version": settings.VERSION, "environment": settings.ENVIRONMENT}
+
+
+# Test endpoints for debugging
+@app.get("/test")
+def test_endpoint():
+    return {"status": "test endpoint working", "auth_router_included": True}
+
+
+@app.post("/test-json")
+async def test_json_endpoint(data: dict):
+    return {"received": data}
+
+
+# OpenID Connect discovery and RFC 8414 authorization-server metadata.
+# One document, two well-known paths (app/core/oauth_metadata.py): MCP clients
+# such as Claude read /.well-known/oauth-authorization-server first, OIDC
+# relying parties read /.well-known/openid-configuration.
+@app.get("/.well-known/openid-configuration")
+def openid_configuration():
+    """
+    OpenID Connect Discovery endpoint.
+
+    Returns the OIDC provider configuration document (OpenID Connect
+    Discovery 1.0). Used by clients to automatically configure OAuth2/OIDC
+    integration. The issuer and every endpoint use JANUA_CUSTOM_DOMAIN when it
+    is set (white-label deployments like auth.madfam.io), else API_BASE_URL.
+    """
+    return authorization_server_metadata()
+
+
+@app.get("/.well-known/oauth-authorization-server")
+def oauth_authorization_server():
+    """
+    OAuth 2.0 Authorization Server Metadata (RFC 8414).
+
+    The same document as the OpenID configuration. The issuer has no path
+    component, so this is the only RFC 8414 well-known location.
+    """
+    return authorization_server_metadata()
+
+
+@app.get("/.well-known/jwks.json")
+def jwks():
+    """
+    JSON Web Key Set (JWKS) endpoint for public key distribution.
+    Used by edge workers and clients to verify JWT signatures.
+    """
+    from app.core.jwt_manager import jwt_manager
+
+    return jwt_manager.get_jwks()
+
+
+# ---------------------------------------------------------------------------
+# Metrics auth guard
+#
+# /metrics/performance and /metrics/scalability (JSON, on the public app)
+# disclose endpoint inventory, latency profiles, and per-path call counters
+# (including paths probed by attackers). Public exposure on
+# api.janua.dev is an information-disclosure risk, so we gate them
+# behind a service-to-service token distinct from user auth.
+#
+# Prometheus text is not served on the public app at all: see the internal
+# metrics listener (app/monitoring/metrics_server.py, METRICS_PORT 9464).
+#
+# Set METRICS_TOKEN in the API deployment env; callers must send it as
+# `Authorization: Bearer <METRICS_TOKEN>`.
+# If METRICS_TOKEN is unset (e.g., local dev), the endpoints are open
+# only when ENVIRONMENT in {"development", "test"}; in any other
+# environment an unset token causes a 404 (fail-closed).
+# ---------------------------------------------------------------------------
+def _require_metrics_token(request: Request) -> None:
+    expected = os.getenv("METRICS_TOKEN", "").strip()
+    if not expected:
+        # Fail-open only in non-prod-like environments.
+        if settings.ENVIRONMENT in {"development", "test"}:
+            return
+        # Treat as not-configured -> 404 to avoid signalling existence.
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        # 404 (not 401) so unauthenticated probes cannot fingerprint /metrics*.
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    presented = auth.split(" ", 1)[1].strip()
+    if not secrets.compare_digest(presented, expected):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+# Performance metrics endpoint
+@app.get("/metrics/performance", dependencies=[Depends(_require_metrics_token)])
+async def performance_metrics():
+    """Get API performance metrics"""
+    from app.core.performance import get_performance_metrics
+
+    return await get_performance_metrics()
+
+
+# Prometheus exposition is NOT served here. The public app (8080) has no
+# /metrics route; the real default registry is served by the internal-only
+# listener on METRICS_PORT (9464), started in startup_event below. See
+# app/monitoring/metrics_server.py.
+
+
+# Scalability status endpoint
+@app.get("/metrics/scalability", dependencies=[Depends(_require_metrics_token)])
+async def scalability_metrics():
+    """Get enterprise scalability status and metrics"""
+    return await get_scalability_status()
+
+
+# Infrastructure connectivity summary. Unauthenticated, so it publishes status
+# fields only (J4-002): the database and Redis checks below never return error
+# text, hostnames or DSNs; the detail goes to the server log, redacted. Same
+# rules and fields as /api/v1/health/ready (see READINESS_REPORTED_ONLY there):
+# it reports the database and Redis and answers 200 while they are down.
+@app.get("/ready")
+async def ready_check():
+    database_healthy = await _check_database_health()
+    # THIS process's own Redis client (the one every request uses), bounded:
+    # a fresh connection can succeed while this replica's client is broken.
+    redis_healthy = await _check_redis_health()
+
+    degraded = [
+        name
+        for name, healthy in (("database", database_healthy), ("redis", redis_healthy))
+        if not healthy
+    ]
+    return {
+        "status": "degraded" if degraded else "ready",
+        "database": {
+            "healthy": database_healthy,
+            "status": "healthy" if database_healthy else "unhealthy",
+        },
+        "redis": redis_healthy,
+        # Per-pod breaker state: state, last failure time and counters only.
+        "redis_circuit": get_redis_public_status(),
+        "degraded": degraded,
+    }
+
+
+# Beta endpoints - SECURITY: Gated behind ENABLE_BETA_ENDPOINTS flag
+# These endpoints bypass standard auth flows and should only be enabled for development/testing
+# NOTE: /beta/users endpoint has been REMOVED entirely (major security risk - lists all users)
+if settings.ENABLE_BETA_ENDPOINTS:
+    logger.warning(
+        "⚠️  SECURITY WARNING: Beta endpoints are ENABLED. "
+        "These bypass standard authentication and should only be used for development/testing."
+    )
+
+    @app.post("/beta/signup")
+    @limiter.limit("5/minute")
+    async def beta_signup(request: Request, signup_request: SignUpRequest):
+        try:
+            # Validate
+            if len(signup_request.password) < 8:
+                raise HTTPException(
+                    status_code=400, detail="Password must be at least 8 characters"
+                )
+
+            # Try Redis first, fallback to memory
+            user_id = secrets.token_hex(16)
+            user_data = {
+                "id": user_id,
+                "email": signup_request.email,
+                "name": signup_request.name,
+                "password_hash": hash_password(signup_request.password),
+                "created_at": datetime.utcnow().isoformat(),
+            }
+
+            try:
+                redis_client = await get_redis_client()
+                user_key = f"beta_user:{signup_request.email}"
+
+                # Check if exists
+                if await redis_client.exists(user_key):
+                    await redis_client.close()
+                    raise HTTPException(status_code=400, detail="User already exists")
+
+                # Store in Redis
+                await redis_client.hset(user_key, mapping=user_data)
+                await redis_client.expire(user_key, 30 * 24 * 60 * 60)  # 30 days
+                await redis_client.close()
+
+                return {
+                    "id": user_id,
+                    "email": signup_request.email,
+                    "name": signup_request.name,
+                    "message": "User created in Railway Redis",
+                    "storage": "redis",
+                }
+
+            except Exception:
+                # Fallback to memory storage
+                if signup_request.email in BETA_USERS:
+                    raise HTTPException(status_code=400, detail="User already exists")
+
+                BETA_USERS[signup_request.email] = user_data
+
+                return {
+                    "id": user_id,
+                    "email": signup_request.email,
+                    "name": signup_request.name,
+                    "message": "User created in memory (Redis fallback)",
+                    "storage": "memory",
+                }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Signup failed: {str(e)}")
+
+    @app.post("/beta/signin")
+    @limiter.limit("10/minute")
+    async def beta_signin(request: Request, signin_request: SignInRequest):
+        try:
+            user_data = None
+            storage_type = "unknown"
+
+            # Try Redis first
+            try:
+                redis_client = await get_redis_client()
+                user_key = f"beta_user:{signin_request.email}"
+                user_data = await redis_client.hgetall(user_key)
+                await redis_client.close()
+
+                if user_data:
+                    storage_type = "redis"
+
+            except Exception:
+                # Fallback to memory
+                user_data = BETA_USERS.get(signin_request.email)
+                if user_data:
+                    storage_type = "memory"
+
+            if not user_data:
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+
+            # Verify password
+            if not verify_password(signin_request.password, user_data["password_hash"]):
+                raise HTTPException(status_code=401, detail="Invalid credentials")
+
+            # Create simple token
+            access_token = secrets.token_hex(32)
+
+            return {
+                "access_token": access_token,
+                "token_type": "bearer",
+                "user": {
+                    "id": user_data["id"],
+                    "email": user_data["email"],
+                    "name": user_data["name"],
+                },
+                "storage": storage_type,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Signin failed: {str(e)}")
+
+
+# API status
+@app.get("/api/status")
+def api_status():
+    # Build beta endpoints list dynamically based on feature flag
+    beta_endpoints = []
+    if settings.ENABLE_BETA_ENDPOINTS:
+        beta_endpoints = ["/beta/signup", "/beta/signin"]
+
+    return {
+        "status": "Janua API v0.1.0 operational",
+        "version": "0.1.0",
+        "authentication": "JWT with refresh tokens",
+        "infrastructure": "Railway PostgreSQL + Redis",
+        "endpoints": {
+            "beta": beta_endpoints,
+            "v1": ["/api/v1/auth/*", "/api/v1/users/*", "/api/v1/organizations/*"],
+        },
+        "features": {
+            "signups": settings.ENABLE_SIGNUPS,
+            "magic_links": settings.ENABLE_MAGIC_LINKS,
+            "oauth": settings.ENABLE_OAUTH,
+            "mfa": settings.ENABLE_MFA,
+            "organizations": settings.ENABLE_ORGANIZATIONS,
+            "beta_endpoints": settings.ENABLE_BETA_ENDPOINTS,
+        },
+    }
+
+
+# Import health router and inject health checker
+from app.routers.v1 import health as health_v1
+
+# Include v1 routers
+app.include_router(health_v1.router, prefix="/api/v1")
+app.include_router(auth_v1.router, prefix="/api/v1")
+app.include_router(oauth_v1.router, prefix="/api/v1")
+app.include_router(oauth_clients_v1.router, prefix="/api/v1")
+app.include_router(oauth_provider_v1.router, prefix="/api/v1")
+app.include_router(oauth_provider_v1.logout_router)
+# P3.2 — on-behalf OAuth linking for Enclii self-serve signup.
+# Endpoints no-op with 404 unless JANUA_SERVICE_TOKEN is configured.
+app.include_router(oauth_on_behalf_v1.router, prefix="/api/v1")
+app.include_router(users_v1.router, prefix="/api/v1")
+app.include_router(sessions_v1.router, prefix="/api/v1")
+app.include_router(devices_v1.router, prefix="/api/v1")
+app.include_router(organizations_v1.router, prefix="/api/v1")
+app.include_router(organization_members_v1.router, prefix="/api/v1")
+# Delegated app-role administration: an `<app>:admin` manages that app's roles
+# in their own org (user token). Imported at module top, so a broken router
+# fails startup instead of silently dropping the surface.
+app.include_router(organization_app_roles_v1.router, prefix="/api/v1")
+app.include_router(rbac_v1.router, prefix="/api/v1")
+app.include_router(mfa_v1.router, prefix="/api/v1")
+app.include_router(passkeys_v1.router, prefix="/api/v1")
+app.include_router(admin_v1.router, prefix="/api/v1")
+app.include_router(webhooks_v1.router, prefix="/api/v1")
+app.include_router(webhooks_dhanam_v1.router, prefix="/api/v1")
+app.include_router(integrations_v1.router, prefix="/api/v1")
+app.include_router(connections_v1.router, prefix="/api/v1")
+app.include_router(connections_consent_v1.router, prefix="/api/v1")
+app.include_router(api_keys_v1.router, prefix="/api/v1")
+app.include_router(roles_v1.router, prefix="/api/v1")
+
+# Dhanam checkout router (for MADFAM billing integration)
+try:
+    from app.routers.v1 import checkout_dhanam as checkout_dhanam_v1
+
+    app.include_router(checkout_dhanam_v1.router, prefix="/api/v1")
+    logger.info("Registered Dhanam checkout router successfully")
+except Exception as e:
+    logger.warning(f"Dhanam checkout router not available: {e}")
+
+# Register newly added core routers
+app.include_router(policies_v1.router, prefix="/api")
+app.include_router(invitations_v1.router, prefix="/api")
+app.include_router(audit_logs_v1.router, prefix="/api")
+app.include_router(alerts_v1.router, prefix="/api/v1")
+app.include_router(localization_v1.router, prefix="/api/v1")  # Localization model now available
+app.include_router(billing_v1.router, prefix="/api/v1")  # Billing and plans
+app.include_router(guest_v1.router, prefix="/api/v1")  # Guest access tokens
+app.include_router(guest_invites_v1.router, prefix="/api/v1")  # Guest invite CRUD
+app.include_router(me_v1.router, prefix="/api/v1")  # Caller-scoped (entitlements)
+
+# Narrow service-token mail boundary; registration failures must fail startup.
+from app.routers.v1 import payment_notices as payment_notices_v1
+
+app.include_router(payment_notices_v1.router, prefix="/api/v1")
+
+# Resend webhooks (public, Svix-signed) and the per-app events feed they fill
+# (internal-key). Registration failures must fail startup: a silently missing
+# receiver makes Resend retry into a 404 until it disables the endpoint.
+from app.routers.v1 import email_webhooks as email_webhooks_v1
+from app.routers.v1 import internal_email_audit as internal_email_audit_v1
+from app.routers.v1 import internal_email_events as internal_email_events_v1
+from app.routers.v1 import internal_email_usage as internal_email_usage_v1
+
+app.include_router(email_webhooks_v1.router, prefix="/api/v1")
+app.include_router(internal_email_events_v1.router, prefix="/api/v1/internal")
+app.include_router(internal_email_audit_v1.router, prefix="/api/v1/internal")
+# Per-account quota usage, counted from the same stored `email.sent` events.
+app.include_router(internal_email_usage_v1.router, prefix="/api/v1/internal")
+
+# First-party open pixel / click redirect (public, no auth, not in the schema),
+# served on each binding's tracking host (CTM_TRACKING_HOST). Mounted at the
+# root: `/e/o/{token}.gif`, `/e/c/{token}/{index}`. Registration failures must
+# fail startup: a missing redirect would break links in delivered mail.
+from app.routers.v1 import email_engagement as email_engagement_v1
+
+app.include_router(email_engagement_v1.router)
+
+# Render-only preview of what /internal/email/send{,-template} would hand to
+# Resend (same renderer, same sender resolution, same token-link rule).
+from app.routers.v1 import email_preview as email_preview_v1
+
+app.include_router(email_preview_v1.router, prefix="/api/v1/internal")
+
+# Internal service API routers (for MADFAM service-to-service communication)
+try:
+    from app.routers.v1 import email as email_v1
+
+    app.include_router(email_v1.router, prefix="/api/v1/internal")
+    logger.info("Registered internal email router successfully")
+except Exception as e:
+    logger.warning(f"Email router not available: {e}")
+
+# Internal user lifecycle (sibling-app roster provisioning: crea-map alta/baja)
+try:
+    from app.routers.v1 import internal_users as internal_users_v1
+
+    app.include_router(internal_users_v1.router, prefix="/api/v1/internal")
+    logger.info("Registered internal users router successfully")
+except Exception as e:
+    logger.warning(f"Internal users router not available: {e}")
+
+# Internal capability links (subject-scoped bearer grants for sibling apps)
+try:
+    from app.routers.v1 import internal_capability_links as internal_capability_links_v1
+
+    app.include_router(internal_capability_links_v1.router, prefix="/api/v1/internal")
+    logger.info("Registered internal capability links router successfully")
+except Exception as e:
+    logger.warning(f"Internal capability links router not available: {e}")
+
+# Internal application roles (per-org `hcm:*` grants that reach the `roles` claim)
+try:
+    from app.routers.v1 import internal_app_roles as internal_app_roles_v1
+
+    app.include_router(internal_app_roles_v1.router, prefix="/api/v1/internal")
+    logger.info("Registered internal app roles router successfully")
+except Exception as e:
+    logger.warning(f"Internal app roles router not available: {e}")
+
+# Internal primary organization (operator-set: which of a multi-org person's
+# memberships their tokens speak for, so its app roles can reach `roles`)
+try:
+    from app.routers.v1 import internal_primary_organization as internal_primary_organization_v1
+
+    app.include_router(internal_primary_organization_v1.router, prefix="/api/v1/internal")
+    logger.info("Registered internal primary organization router successfully")
+except Exception as e:
+    logger.warning(f"Internal primary organization router not available: {e}")
+
+# Internal by-org entitlement read (the VIEWED WORKSPACE's org tiles, for the
+# nauta ERP advisor case: a service credential reads an org's entitlements by id,
+# where `/me/entitlements` can only answer for the calling user)
+try:
+    from app.routers.v1 import internal_org_entitlements as internal_org_entitlements_v1
+
+    app.include_router(internal_org_entitlements_v1.router, prefix="/api/v1/internal")
+    logger.info("Registered internal org entitlements router successfully")
+except Exception as e:
+    logger.warning(f"Internal org entitlements router not available: {e}")
+
+# Internal OAuth-client scope grants (`allowed_scopes` IS a service client's
+# grant record: an org-bound client's namespaced scopes become `roles` app roles)
+try:
+    from app.routers.v1 import (
+        internal_oauth_client_scopes as internal_oauth_client_scopes_v1,
+    )
+
+    app.include_router(internal_oauth_client_scopes_v1.router, prefix="/api/v1/internal")
+    logger.info("Registered internal oauth client scopes router successfully")
+except Exception as e:
+    logger.warning(f"Internal oauth client scopes router not available: {e}")
+
+# Internal product invitations (invite-only clients: grant the client's product,
+# mail ONE sign-in link) and the public entry route the link lands on.
+try:
+    from app.routers.v1 import internal_product_invites as internal_product_invites_v1
+
+    app.include_router(internal_product_invites_v1.router, prefix="/api/v1/internal")
+    app.include_router(internal_product_invites_v1.entry_router, prefix="/api/v1")
+    logger.info("Registered internal product invites router successfully")
+except Exception as e:
+    logger.warning(f"Internal product invites router not available: {e}")
+
+# Internal role/tier sync router (Dhanam → Janua hub-and-spoke)
+try:
+    from app.routers.internal import roles as internal_roles
+
+    app.include_router(internal_roles.router, prefix="/internal")
+    logger.info("Registered internal roles router successfully")
+except Exception as e:
+    logger.warning(f"Internal roles router not available: {e}")
+
+# Register additional feature routers if available
+for router_name, router_module in additional_routers.items():
+    try:
+        app.include_router(router_module.router, prefix="/api/v1")
+        logger.info(f"Registered {router_name} router successfully")
+    except Exception as e:
+        logger.error(f"Failed to register {router_name} router: {e}")
+
+# Register enterprise routers if available
+for router_name, router_module in enterprise_routers.items():
+    try:
+        app.include_router(router_module.router, prefix="/api/v1")
+        logger.info(f"Registered {router_name} router successfully")
+    except Exception as e:
+        logger.error(f"Failed to register {router_name} router: {e}")
+
+
+def _start_metrics_listener() -> None:
+    """Start the internal-only Prometheus listener (METRICS_PORT, default 9464).
+
+    Fatal on misconfiguration or a failed bind, unlike the degraded-mode
+    blocks in startup_event: a pod that serves traffic but no metrics reads as
+    down to every `up` alert. Skipped under ENVIRONMENT=test, where tests
+    start their own listener on an ephemeral port.
+    """
+    if settings.ENVIRONMENT == "test":
+        return
+    from app.monitoring.metrics_server import resolve_metrics_port, start_metrics_server
+
+    metrics_port = resolve_metrics_port()
+    app.state.metrics_server = start_metrics_server(metrics_port)
+    logger.info(f"Metrics listener serving GET /metrics on port {metrics_port}")
+
+
+def _stop_metrics_listener() -> None:
+    metrics_server = getattr(app.state, "metrics_server", None)
+    if metrics_server is not None:
+        metrics_server.close()
+        app.state.metrics_server = None
+
+
+# Initialize database on startup
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting Janua API...")
+
+    _start_metrics_listener()
+
+    # Initialize PostHog analytics (no-op if POSTHOG_API_KEY is not set)
+    from app.analytics import init_posthog
+
+    init_posthog()
+
+    # CRITICAL: Validate SECRET_KEY in production
+    if settings.ENVIRONMENT == "production":
+        default_secret = "development-secret-key-change-in-production"
+        if settings.SECRET_KEY == default_secret:
+            logger.critical(
+                "FATAL: Using default SECRET_KEY in production! This is a critical security vulnerability."
+            )
+            raise RuntimeError(
+                "Production deployment detected with default SECRET_KEY. "
+                "Set SECRET_KEY environment variable to a secure random value. "
+                "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+            )
+        logger.info("✅ SECRET_KEY validation passed")
+
+    # Validate JWT_SECRET_KEY if set
+    if hasattr(settings, "JWT_SECRET_KEY") and settings.JWT_SECRET_KEY:
+        if settings.ENVIRONMENT == "production" and len(settings.JWT_SECRET_KEY) < 32:
+            logger.critical("FATAL: JWT_SECRET_KEY too weak for production (minimum 32 characters)")
+            raise RuntimeError("JWT_SECRET_KEY must be at least 32 characters in production")
+        logger.info("✅ JWT_SECRET_KEY validation passed")
+
+    # Database and Redis initialization — non-fatal so the app can start
+    # and serve /health (degraded) even if DB/Redis are temporarily unavailable.
+    try:
+        await init_database()
+        logger.info("Database manager initialized successfully")
+
+        # Bootstrap admin user if ADMIN_BOOTSTRAP_PASSWORD is set
+        from app.core.database import bootstrap_admin_user
+
+        await bootstrap_admin_user()
+    except Exception as e:
+        logger.error(f"Database initialization failed (app will start degraded): {e}")
+
+    try:
+        # Initialize performance cache manager
+        await cache_manager.init_redis()
+        logger.info("Performance cache manager initialized")
+    except Exception as e:
+        logger.error(f"Redis initialization failed (app will start degraded): {e}")
+
+    try:
+        # Initialize monitoring services
+        await metrics_collector.initialize()
+        await health_checker.initialize()
+        await alert_manager.initialize()
+        await system_monitor.initialize()
+        logger.info("Monitoring services initialized successfully")
+
+        # Register health checks
+        # critical=True keeps /health/detailed honest ("unhealthy" while the
+        # database or Redis is down). The readiness probe reports both checks
+        # but gates on neither: see READINESS_REPORTED_ONLY in
+        # routers/v1/health.py.
+        health_checker.register_check("database", _check_database_health, critical=True)
+        health_checker.register_check("redis", _check_redis_health, critical=True)
+        logger.info("Health checks registered")
+
+        # Inject health checker into health router
+        health_v1.health_checker = health_checker
+
+        # SOC 2 CF-09: Register encryption key health check
+        health_checker.register_check(
+            "encryption_key", health_v1.check_encryption_key_health, critical=False
+        )
+
+        # Initialize enterprise scalability features
+        await initialize_scalability_features()
+        logger.info("Enterprise scalability features initialized")
+
+        # Start webhook dispatcher
+        await webhook_dispatcher.start()
+        logger.info("Webhook dispatcher started successfully")
+    except Exception as e:
+        logger.error(f"Service initialization failed (app will start degraded): {e}")
+    logger.info("Janua API started successfully")
+
+
+# Each dependency check the readiness probe runs is bounded. The kubelet gives
+# the probe 5 s (`timeoutSeconds`, k8s/base/deployments/janua-api.yaml) and the
+# checks run one after another. A dependency that hangs instead of refusing
+# (a dropped route, a full connection pool) would otherwise outlast the probe,
+# and a probe that times out counts as failed: the pod would leave the Service
+# even though the check is only reported. A check that times out reports
+# "unhealthy".
+READINESS_CHECK_TIMEOUT_SECONDS = 2.0
+
+
+async def _check_database_health() -> bool:
+    """Can this replica reach the database right now? Reported, not gated.
+
+    `get_database_health()` returns a dict whose `healthy` says whether a
+    `SELECT 1` succeeded; only `healthy is True` counts (J3-001: the dict
+    itself is always truthy, so the check used to report `healthy` through
+    every outage). Owner decision 2026-10-04: readiness reports the database
+    but does not gate on it, so JWKS, discovery and health stay up during a
+    database outage while database-backed routes fail on their own (see
+    READINESS_REPORTED_ONLY in routers/v1/health.py). Bounded by
+    READINESS_CHECK_TIMEOUT_SECONDS. No error text leaves this function.
+    """
+    try:
+        result = await asyncio.wait_for(get_database_health(), READINESS_CHECK_TIMEOUT_SECONDS)
+    except Exception as e:  # includes the timeout
+        logger.warning(
+            "Database health check failed: %s: %s", type(e).__name__, redact_error_text(str(e))
+        )
+        return False
+    healthy = isinstance(result, dict) and result.get("healthy") is True
+    if not healthy:
+        detail = result.get("error", "") if isinstance(result, dict) else ""
+        # Server-side only, redacted (J4-002); callers publish the bool.
+        logger.warning("Database health check unhealthy: %s", redact_error_text(str(detail)))
+    return healthy
+
+
+async def _check_redis_health():
+    """Can THIS replica's own Redis client reach Redis right now?
+
+    Reported by the readiness probe, not gated on (owner decision 2026-10-04;
+    see READINESS_REPORTED_ONLY in routers/v1/health.py).
+
+    Deliberately not "is the breaker closed": a strict PING through the pod's
+    own client reports what matters (this replica cannot reach Redis, whether
+    Redis is down or only this replica's client is broken) and recovers on the
+    next probe. The strict ping also moves an OPEN breaker to half-open, so a
+    replica stops serving fallbacks within one probe period of Redis answering
+    again; the readiness probe keeps running it every period for that reason.
+    """
+
+    async def ping() -> None:
+        await (await get_redis()).strict_ping()
+
+    try:
+        # Bounded (READINESS_CHECK_TIMEOUT_SECONDS): the client's own connect
+        # timeout (REDIS_CONNECTION_TIMEOUT, 5 s by default) equals the probe's.
+        await asyncio.wait_for(ping(), READINESS_CHECK_TIMEOUT_SECONDS)
+        return True
+    except Exception as e:
+        logger.debug("Redis ping check failed: %s", type(e).__name__)
+        return False
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Shutting down Janua API...")
+
+    _stop_metrics_listener()
+
+    # Flush pending PostHog events
+    from app.analytics import shutdown as posthog_shutdown
+
+    posthog_shutdown()
+
+    try:
+        # Graceful shutdown of scalability features
+        await shutdown_scalability_features()
+        logger.info("Enterprise scalability features shutdown")
+
+        # Stop webhook dispatcher
+        await webhook_dispatcher.stop()
+        logger.info("Webhook dispatcher stopped")
+
+        # Close monitoring services (they have internal cleanup tasks)
+        # The monitoring services will automatically stop their background tasks
+        logger.info("Monitoring services stopped")
+
+        # Close cache manager
+        await cache_manager.close_redis()
+        logger.info("Performance cache manager closed")
+
+        await close_database()
+        logger.info("Database connections closed")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
+    logger.info("Janua API shutdown complete")
+
+
+def create_app(
+    title: str = "Janua API",
+    description: str = "Modern authentication and identity platform API",
+    version: str = "1.0.0",
+    **kwargs,
+) -> FastAPI:
+    """
+    Create and configure a FastAPI application with Janua authentication.
+
+    Args:
+        title: Application title
+        description: Application description
+        version: Application version
+        **kwargs: Additional FastAPI constructor arguments
+
+    Returns:
+        FastAPI: Configured FastAPI application
+    """
+    # Return the existing configured app instance
+    # In a production package, this would be refactored to create a new instance
+    app.title = title
+    app.description = description
+    app.version = version
+
+    # Apply any additional kwargs
+    for key, value in kwargs.items():
+        if hasattr(app, key):
+            setattr(app, key, value)
+
+    return app
