@@ -150,6 +150,13 @@ HOSTED_COPY: Dict[str, Dict[str, str]] = {
         "chooser_other_account": "Use another account",
         "chooser_account_fallback": "Account",
         "chooser_app_fallback": "the application",
+        # The page /auth/switch-session/form answers when it refuses a chooser
+        # click (its title is chooser_title). The body is one reason followed
+        # by the next step.
+        "switch_refused_heading": "That account can't be used here",
+        "switch_refused_cross_origin": "This request did not come from the account chooser.",
+        "switch_refused_not_held": "That account is no longer signed in on this browser.",
+        "switch_refused_next_step": "Go back to the application and sign in again.",
         # The reset page the recovery email opens (/reset-password and the
         # pages its form answers with).
         "reset_tagline": "Choose a new password",
@@ -249,6 +256,12 @@ HOSTED_COPY: Dict[str, Dict[str, str]] = {
         "chooser_other_account": "Usar otra cuenta",
         "chooser_account_fallback": "Cuenta",
         "chooser_app_fallback": "la aplicación",
+        "switch_refused_heading": "Esa cuenta no se puede usar aquí",
+        "switch_refused_cross_origin": (
+            "Esta solicitud no vino de la página para elegir una cuenta."
+        ),
+        "switch_refused_not_held": "Esa cuenta ya no tiene una sesión abierta en este navegador.",
+        "switch_refused_next_step": "Regresa a la aplicación y vuelve a iniciar sesión.",
         "reset_tagline": "Elige una contraseña nueva",
         "reset_new_password_label": "Contraseña nueva",
         "reset_confirm_label": "Confirma la contraseña nueva",
