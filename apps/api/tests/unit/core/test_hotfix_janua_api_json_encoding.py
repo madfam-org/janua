@@ -1,7 +1,7 @@
 """The JSON-encoding hotfix stays exactly as narrow as it was reviewed.
 
 deployment/hotfix/janua-api-json-encoding builds the image production runs
-plus the JSON type fix of janua#814, because the promotion hold
+plus the JSON type fix of janua#815, because the promotion hold
 (scripts/staging/promotion_runtime_guard.py) blocks normal promotions. These
 tests keep the Dockerfile and its workflow from quietly widening, and pin that
 this checkout's JSON type differs from production's copy by exactly the reviewed hunk.

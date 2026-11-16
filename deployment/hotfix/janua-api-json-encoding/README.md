@@ -13,7 +13,7 @@ JSON queries never match those rows:
   ORM would never receive events;
 - compliance queries on audit metadata (`@>`, `->>`, paths): empty or short.
 
-The fix is janua#814 (the type plus `scripts/normalize_jsonb_strings.py`).
+The fix is janua#815 (the type plus `scripts/normalize_jsonb_strings.py`).
 `promote-to-prod.yml` is held until isolated staging is proven
 (`scripts/staging/promotion_runtime_guard.py`), and promoting `main` would ship far
 more than this file. This folder follows the exception pattern of
@@ -68,4 +68,4 @@ adds one layer with one file from `main`:
 | Built by | not built yet |
 | Hotfix digest | not built yet |
 | Replaces | `sha256:78efc78925192d99f2116dbed27afcd46b9db96d27bcb7c029aaca73d681f858` (janua#813) |
-| Delta | `app/models/types.py` from `main` (janua#814: the hunk in `types.diff`) |
+| Delta | `app/models/types.py` from `main` (janua#815: the hunk in `types.diff`) |
