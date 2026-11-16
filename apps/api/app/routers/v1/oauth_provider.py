@@ -39,7 +39,15 @@ from app.auth.authentication_assurance import (
     user_requires_mfa,
 )
 from app.auth.authorize_resume import authorize_query
-from app.auth.hosted_locale import UI_LOCALES_PARAM, hosted_locale, page_locale
+from app.auth.hosted_locale import (
+    DEFAULT_HOSTED_LOCALE,
+    UI_LOCALES_PARAM,
+    hosted_copy,
+    hosted_locale,
+    html_lang,
+    page_locale,
+    with_ui_locales,
+)
 from app.auth.invite_only_page import render_invite_only_refusal
 from app.auth.login_method import normalize_login_method
 from app.auth.resource_consent_page import render_resource_consent_page
@@ -1320,6 +1328,7 @@ def _account_chooser_html(
     authorize_next: str,
     add_account_url: str,
     client_name: str,
+    locale: str = DEFAULT_HOSTED_LOCALE,
 ) -> str:
     """Render the `prompt=select_account` chooser over the held estate accounts.
 
@@ -1330,14 +1339,24 @@ def _account_chooser_html(
     account" is a normal interactive login. All user-controlled text is HTML
     escaped (XSS), and only the opaque `sid` and the pre-validated `next` travel
     in the forms — no token, no email in a query string.
+
+    ``locale`` is a page locale from ``page_locale`` (``"en"`` or ``"es"``),
+    never the raw ``ui_locales``: it only picks a row of ``HOSTED_COPY`` and the
+    ``<html lang>`` constant. English (the default) is the page every client
+    rendered before the chooser spoke Spanish, byte for byte.
     """
-    escaped_client = html.escape(client_name or "the application")
+    copy = hosted_copy(locale)
+    escaped_client = html.escape(client_name or copy["chooser_app_fallback"])
     escaped_next = html.escape(authorize_next)
     escaped_add = html.escape(add_account_url)
 
     rows = ""
     for sid, user in accounts:
-        label = getattr(user, "email", None) or getattr(user, "username", None) or "Account"
+        label = (
+            getattr(user, "email", None)
+            or getattr(user, "username", None)
+            or copy["chooser_account_fallback"]
+        )
         display = html.escape(str(label))
         escaped_sid = html.escape(str(sid))
         rows += f"""
@@ -1353,11 +1372,11 @@ def _account_chooser_html(
 
     return f"""
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{html_lang(locale)}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Choose an account - Janua</title>
+    <title>{copy["chooser_title"]}</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{
@@ -1394,10 +1413,10 @@ def _account_chooser_html(
 </head>
 <body>
     <div class="chooser">
-        <h1>Choose an account</h1>
-        <p class="sub">to continue to {escaped_client}</p>
+        <h1>{copy["chooser_heading"]}</h1>
+        <p class="sub">{copy["chooser_continue_to"].format(app=escaped_client)}</p>
         {rows}
-        <a class="add" href="{escaped_add}">Use another account</a>
+        <a class="add" href="{escaped_add}">{copy["chooser_other_account"]}</a>
     </div>
 </body>
 </html>
@@ -2290,13 +2309,22 @@ async def authorize_get(
                 ):
                     if value is not None:
                         authorize_params[key] = value
-                authorize_next = f"/api/v1/oauth/authorize?{urlencode(authorize_params)}"
+                # The page language survives the chooser: the resumed /authorize
+                # (and every hosted page after it) gets `ui_locales=es` back, and
+                # "Use another account" is `login_url`, which already names it.
+                # Only the normalized constant travels, never the raw parameter;
+                # English adds nothing, so its `next` is unchanged.
+                chooser_locale = page_locale(ui_locales)
+                authorize_next = with_ui_locales(
+                    f"/api/v1/oauth/authorize?{urlencode(authorize_params)}", chooser_locale
+                )
                 return HTMLResponse(
                     content=_account_chooser_html(
                         accounts,
                         authorize_next=authorize_next,
                         add_account_url=login_url,
                         client_name=client.name or "",
+                        locale=chooser_locale,
                     )
                 )
 

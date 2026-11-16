@@ -1,0 +1,68 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Choose an account - Janua</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh; display: flex; align-items: center;
+            justify-content: center; padding: 20px;
+        }
+        .chooser {
+            background: white; border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px; width: 100%; max-width: 420px;
+        }
+        h1 { font-size: 22px; color: #333; margin-bottom: 6px; text-align: center; }
+        p.sub { color: #666; font-size: 14px; margin-bottom: 24px; text-align: center; }
+        .account { margin-bottom: 10px; }
+        .account-btn {
+            width: 100%; display: flex; align-items: center; gap: 12px;
+            padding: 12px 14px; border: 1px solid #e2e2e2; border-radius: 10px;
+            background: #fafafa; cursor: pointer; font-size: 15px; color: #222;
+        }
+        .account-btn:hover { background: #f0f0ff; border-color: #764ba2; }
+        .account-avatar {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: #764ba2; color: white; display: flex;
+            align-items: center; justify-content: center; font-weight: 600;
+        }
+        .add {
+            display: block; margin-top: 18px; text-align: center;
+            color: #764ba2; text-decoration: none; font-size: 14px;
+        }
+        .add:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="chooser">
+        <h1>Choose an account</h1>
+        <p class="sub">to continue to the application</p>
+        
+        <form method="post" action="/api/v1/auth/switch-session/form" class="account">
+            <input type="hidden" name="sid" value="sid-a">
+            <input type="hidden" name="next" value="/api/v1/oauth/authorize?response_type=code&amp;client_id=rp&amp;state=a%26b">
+            <button type="submit" class="account-btn">
+                <span class="account-avatar">A</span>
+                <span class="account-email">ana@example.test</span>
+            </button>
+        </form>
+        
+        <form method="post" action="/api/v1/auth/switch-session/form" class="account">
+            <input type="hidden" name="sid" value="sid-&lt;b&gt;">
+            <input type="hidden" name="next" value="/api/v1/oauth/authorize?response_type=code&amp;client_id=rp&amp;state=a%26b">
+            <button type="submit" class="account-btn">
+                <span class="account-avatar">A</span>
+                <span class="account-email">Account</span>
+            </button>
+        </form>
+        
+        <a class="add" href="/api/v1/auth/login?auth_request_id=req&amp;client_id=rp&amp;client_name=RP">Use another account</a>
+    </div>
+</body>
+</html>
