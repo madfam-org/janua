@@ -37,7 +37,7 @@ export default function EnterprisePage() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" className="group" asChild>
-                <Link href="mailto:support@madfam.io">
+                <Link href="mailto:hola@madfam.io">
                   Contact Sales
                   <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </Link>
@@ -224,7 +224,7 @@ export default function EnterprisePage() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" className="group" asChild>
-              <Link href="mailto:support@madfam.io">
+              <Link href="mailto:hola@madfam.io">
                 Contact Enterprise Sales
                 <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
               </Link>

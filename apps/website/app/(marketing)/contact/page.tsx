@@ -44,7 +44,7 @@ export default function ContactPage() {
                 Interested in Janua for your organization? Let's discuss your authentication needs.
               </p>
               <Button className="w-full group" asChild>
-                <Link href="mailto:support@madfam.io">
+                <Link href="mailto:hola@madfam.io">
                   Contact Sales
                   <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </Link>
@@ -80,7 +80,7 @@ export default function ContactPage() {
                 Questions about partnerships, press, or anything else? We'd love to hear from you.
               </p>
               <Button className="w-full group" asChild>
-                <Link href="mailto:support@madfam.io">
+                <Link href="mailto:hola@madfam.io">
                   Say Hello
                   <ArrowRight className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" />
                 </Link>
@@ -113,8 +113,8 @@ export default function ContactPage() {
                   <p className="text-slate-600 dark:text-slate-400 mb-2">
                     Specialized support for healthcare organizations requiring HIPAA compliance.
                   </p>
-                  <Link href="mailto:support@madfam.io" className="text-blue-600 dark:text-blue-400 hover:underline">
-                    support@madfam.io
+                  <Link href="mailto:hola@madfam.io" className="text-blue-600 dark:text-blue-400 hover:underline">
+                    hola@madfam.io
                   </Link>
                 </div>
               </div>
@@ -128,8 +128,8 @@ export default function ContactPage() {
                   <p className="text-slate-600 dark:text-slate-400 mb-2">
                     Large-scale deployments, custom SLAs, and enterprise-specific requirements.
                   </p>
-                  <Link href="mailto:support@madfam.io" className="text-blue-600 dark:text-blue-400 hover:underline">
-                    support@madfam.io
+                  <Link href="mailto:hola@madfam.io" className="text-blue-600 dark:text-blue-400 hover:underline">
+                    hola@madfam.io
                   </Link>
                 </div>
               </div>
@@ -143,8 +143,8 @@ export default function ContactPage() {
                   <p className="text-slate-600 dark:text-slate-400 mb-2">
                     Interested in joining our team? View open positions and submit applications.
                   </p>
-                  <Link href="mailto:support@madfam.io" className="text-blue-600 dark:text-blue-400 hover:underline">
-                    support@madfam.io
+                  <Link href="mailto:hola@madfam.io" className="text-blue-600 dark:text-blue-400 hover:underline">
+                    hola@madfam.io
                   </Link>
                 </div>
               </div>

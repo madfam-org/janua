@@ -170,7 +170,7 @@ export default function HealthcarePage() {
                     </Link>
                   </Button>
                   <Button size="lg" variant="outline" className="w-full" asChild>
-                    <Link href="mailto:support@madfam.io">
+                    <Link href="mailto:hola@madfam.io">
                       Request BAA
                     </Link>
                   </Button>
@@ -247,7 +247,7 @@ export default function HealthcarePage() {
             </Button>
 
             <Button size="lg" variant="outline" asChild>
-              <Link href="mailto:support@madfam.io">
+              <Link href="mailto:hola@madfam.io">
                 Request Healthcare Demo
               </Link>
             </Button>
