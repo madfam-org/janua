@@ -45,23 +45,24 @@ async def main():
         org = Organization(name="Prueba", slug="prueba-" + uuid.uuid4().hex[:6], product_tiers={"dhanam": "pro"}, settings={"k": "v"})
         db.add(org)
         await db.flush()
+        org_id = org.id  # read before commit: a committed object expires, and a lazy reload needs a greenlet
         # Explicit columns: the model declares columns the migrations never create (description, max_retries, ...).
         # `events` is still bound through Janua's JSON type, which is what this test is about.
         await db.execute(
             text("INSERT INTO webhook_endpoints (id, url, organization_id, events, is_active) VALUES (:id, :url, :org, :events, true)")
             .bindparams(bindparam("events", type_=JSON())),
-            {"id": uuid.uuid4(), "url": "https://example.test/hook", "org": org.id, "events": ["user.created", "user.deleted"]},
+            {"id": uuid.uuid4(), "url": "https://example.test/hook", "org": org_id, "events": ["user.created", "user.deleted"]},
         )
         await db.commit()
-        out["typeof"] = (await db.execute(text("SELECT jsonb_typeof(product_tiers), jsonb_typeof(settings) FROM organizations WHERE id = :i"), {"i": org.id})).one()._tuple()
+        out["typeof"] = (await db.execute(text("SELECT jsonb_typeof(product_tiers), jsonb_typeof(settings) FROM organizations WHERE id = :i"), {"i": org_id})).one()._tuple()
         out["events_typeof"] = (await db.execute(text("SELECT jsonb_typeof(events) FROM webhook_endpoints"))).scalar_one()
         out["contains_event"] = len((await db.execute(select(WebhookEndpoint.id).where(WebhookEndpoint.events.contains(["user.deleted"])))).scalars().all())
         out["contains_tier"] = len((await db.execute(select(Organization.id).where(Organization.product_tiers.contains({"dhanam": "pro"})))).scalars().all())
         # A legacy row, stored the way the old type stored it: a JSON string holding the document.
-        await db.execute(text("UPDATE organizations SET settings = to_jsonb(CAST('{\"k\": \"legacy\"}' AS text)) WHERE id = :i"), {"i": org.id})
+        await db.execute(text("UPDATE organizations SET settings = to_jsonb(CAST('{\"k\": \"legacy\"}' AS text)) WHERE id = :i"), {"i": org_id})
         await db.commit()
         db.expire_all()
-        out["legacy_read"] = (await db.execute(select(Organization.settings).where(Organization.id == org.id))).scalar_one()
+        out["legacy_read"] = (await db.execute(select(Organization.settings).where(Organization.id == org_id))).scalar_one()
         out["legacy_contains_before"] = len((await db.execute(select(Organization.id).where(Organization.settings.contains({"k": "legacy"})))).scalars().all())
     out["dry_run"] = await normalize.run(os.environ["U_PLAIN"], apply=False)
     out["left_after_apply"] = await normalize.run(os.environ["U_PLAIN"], apply=True)
