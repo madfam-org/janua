@@ -70,7 +70,7 @@ the running pod on 2026-11-16).
 | | |
 |---|---|
 | Approved by | Owner, 2026-11-16 (in session): «Fix webhooks». The merge, the foreign-key re-point, the build and the pin are each approved when ready |
-| Built by | not built yet |
-| Hotfix digest | not built yet |
+| Built by | [run 43824386351](https://github.com/madfam-org/janua/actions/runs/43824386351) from `main` `505683db` (janua#817), every proof passed, signed |
+| Hotfix digest | `sha256:1b1e28de2e16d9672c5d536675f29a5784e556b5e0a14badfe2a999e7346c499` |
 | Replaces | `sha256:9bac921211d652922f61571e9d1129da19df49725067bfabbd0e67b224910c2c` (janua#816) |
 | Delta | `app/services/webhooks.py` and `app/routers/v1/webhooks.py` from `main` (janua#817: `service.diff`, `router.diff`) |
