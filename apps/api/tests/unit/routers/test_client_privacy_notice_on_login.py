@@ -16,6 +16,8 @@ from __future__ import annotations
 # The shared pytest fixtures are imported by name and requested as arguments, which
 # pyflakes reads as a redefinition.
 # ruff: noqa: F811
+from pathlib import Path
+
 import pytest
 
 from app.config import settings
@@ -129,3 +131,19 @@ async def test_bad_value_is_never_rendered_and_the_name_stays_escaped(hosted_cli
     page = await _page(hosted_client, client_id=CV, client_name='<img src=x onerror="1">')
     assert "<img src=x" not in page
     assert "<strong>&lt;img src=x onerror=&quot;1&quot;&gt;</strong> will handle your data" in page
+
+
+def test_an_unlisted_page_is_byte_for_byte_what_production_rendered():
+    """The template with no notice is exactly the template production's source
+    (b16869d7) rendered: an empty notice adds no byte, not even a blank line.
+    fixtures/hosted_login_unlisted/{en,es}.html are those renders (their SHA-256,
+    6eb9f5de… and 44b1b17a…, were taken from that source with the same
+    arguments); a hotfix image carrying this file proves the same thing against
+    the running image."""
+    from app.routers.v1.auth import _hosted_login_page_html
+
+    golden = Path(__file__).parent / "fixtures" / "hosted_login_unlisted"
+    common = {"app_name": "MADFAM CV", "hidden_fields": "", "method": "password", "switch_url": None}
+    for locale in ("en", "es"):
+        page = _hosted_login_page_html(**common, locale=locale)
+        assert page.encode() == (golden / f"{locale}.html").read_bytes(), locale
