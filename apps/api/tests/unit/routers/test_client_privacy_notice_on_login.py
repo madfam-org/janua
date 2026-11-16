@@ -16,6 +16,8 @@ from __future__ import annotations
 # The shared pytest fixtures are imported by name and requested as arguments, which
 # pyflakes reads as a redefinition.
 # ruff: noqa: F811
+from pathlib import Path
+
 import pytest
 
 from app.config import settings
@@ -134,17 +136,14 @@ async def test_bad_value_is_never_rendered_and_the_name_stays_escaped(hosted_cli
 def test_an_unlisted_page_is_byte_for_byte_what_production_rendered():
     """The template with no notice is exactly the template production's source
     (b16869d7) rendered: an empty notice adds no byte, not even a blank line.
-    The hashes were taken from that source with the same arguments; a hotfix
-    image carrying this file proves the same thing against the running image."""
-    import hashlib
-
+    fixtures/hosted_login_unlisted/{en,es}.html are those renders (their SHA-256,
+    6eb9f5de… and 44b1b17a…, were taken from that source with the same
+    arguments); a hotfix image carrying this file proves the same thing against
+    the running image."""
     from app.routers.v1.auth import _hosted_login_page_html
 
+    golden = Path(__file__).parent / "fixtures" / "hosted_login_unlisted"
     common = {"app_name": "MADFAM CV", "hidden_fields": "", "method": "password", "switch_url": None}
-    production = {
-        "en": "6eb9f5dede2d22fc87eaf8e6a966d513926bf7e718dd514d0a4cd4b04739b965",
-        "es": "44b1b17a41dddb0fda005ec54a6fe9a72b4a0341179264b34833d449533e670f",
-    }
-    for locale, expected in production.items():
+    for locale in ("en", "es"):
         page = _hosted_login_page_html(**common, locale=locale)
-        assert hashlib.sha256(page.encode()).hexdigest() == expected, locale
+        assert page.encode() == (golden / f"{locale}.html").read_bytes(), locale
