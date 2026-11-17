@@ -90,9 +90,9 @@ the Spanish one, like every other hosted page (janua#820). Requests that send
 
 | | |
 |---|---|
-| Approved by | Owner, 2026-11-17 (in session): ship the two language fixes to production now; `promote-to-prod.yml` stays held. Scope: this hotfix only (janua#814 and janua#820), on top of the current production digest `sha256:507e76f5…` (janua#828) |
-| Built by | pending: filled in by the pin PR |
-| Hotfix digest | pending: filled in by the pin PR |
+| Approved by | Owner, 2026-11-17 (in session): «Tackle dependabot updates and Janua language hotfix» (the language fixes waiting on a hotfix exception); `promote-to-prod.yml` stays held. Scope: this hotfix only (janua#814 and janua#820), on top of the current production digest `sha256:507e76f5…` (janua#828) |
+| Built by | [run 44026881218](https://github.com/madfam-org/janua/actions/runs/44026881218) from `main` `dbacd843` (janua#830); every proof step passed |
+| Hotfix digest | `sha256:b9396f85e85e6f233cac090a032026f12540881848122e6ddfd68600a3dcae1a` (cosign-signed by that run) |
 | Replaces | `sha256:507e76f567c0847a124515f3e2d3b76d698a2c9f4dc9aae9fdf6d099cf966eec` (janua#828) |
 | Delta | `app/auth/hosted_locale.py` and `app/routers/v1/auth.py` from `main`, production's `app/routers/v1/oauth_provider.py` plus the two merges (janua#814 and janua#820: `hosted_locale.diff`, `auth.diff`, `oauth_provider.diff`) |
 
