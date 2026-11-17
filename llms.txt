@@ -44,8 +44,10 @@ Compact LLM context index for this repository.
 - `docs/reference/ISSUER_AND_JWKS.md` — the token verification contract other
   services link to: issuer selection (`JANUA_CUSTOM_DOMAIN` else `API_BASE_URL`),
   JWKS at `<issuer>/.well-known/jwks.json` with one RS256 key, `kid` rotation as
-  a hard cut, and `aud` per token type (ID token = `client_id`; access/service
-  token = the client's registered audience).
+  a hard cut, key selection for session tokens (which carry no `kid`), the
+  required `type == "access"` check, and `aud` per token type (ID token =
+  `client_id`; access/service token = the client's audience, else
+  `JWT_AUDIENCE`; guest token = `janua-guest`).
 - `docs/runbooks/data-subject-request-access-audit.md` — data-subject request
   exports are readable only by the subject or a platform admin (others get the
   unknown-id 404), and the read-only audit

@@ -28,8 +28,15 @@ decision. This document is the decision record + integration contract.
 **Decision**: service-to-service calls authenticate with Janua-issued
 OAuth 2.0 `client_credentials` tokens (RFC 6749 §4.4). One confidential
 OAuth client per producer→consumer edge, scoped to exactly the capability
-that edge needs. Resource servers verify tokens offline via Janua's JWKS
-(RS256) or online via RFC 7662 introspection.
+that edge needs. Resource servers verify tokens locally against Janua's JWKS
+(RS256). Introspection answers only for the calling client's own tokens (see
+[Introspection (RFC 7662)](#introspection-rfc-7662)).
+
+The general verification contract (issuer, key selection, the `type` check,
+audiences) is [`docs/reference/ISSUER_AND_JWKS.md`](./reference/ISSUER_AND_JWKS.md).
+Organization, role and tier claims on human tokens are in
+[`docs/architecture/CLAIMS_DE_ORGANIZACION_Y_SERVICE_PRINCIPALS.md`](./architecture/CLAIMS_DE_ORGANIZACION_Y_SERVICE_PRINCIPALS.md)
+(Spanish).
 
 Janua's `client_credentials` support (token endpoint, per-client scope
 allowlist, introspection, JWKS) **already exists** — see
@@ -47,7 +54,7 @@ Issuer (production): `https://auth.madfam.io`
 | Discovery | `GET /.well-known/openid-configuration` |
 | JWKS (public keys) | `GET /.well-known/jwks.json` |
 | Token | `POST /api/v1/oauth/token` |
-| Introspection (RFC 7662) | `POST /api/v1/oauth/introspect` |
+| Introspection (RFC 7662), for the caller's own tokens | `POST /api/v1/oauth/introspect` |
 | Client registration (internal) | `POST /api/v1/oauth/clients/register` |
 
 ## Service clients
@@ -108,10 +115,26 @@ else:
   (RFC 0051 M3, org-bound), are declared in enclii and not provisioned yet.
   Enclii's API accepts Janua's default
   audience `janua.dev`, which cannot be reserved (every client without an
-  audience gets it), so its reserved scope is the gate there;
+  audience gets it), so its reserved scope is the gate there.
+  A scope of the one-colon shape `<namespace>:<role>`
+  (`^[a-z][a-z0-9-]*:[a-z][a-z0-9_-]*$`, `APP_ROLE_SCOPE_SHAPE`) whose
+  namespace is a MADFAM product namespace (`RESERVED_SCOPE_NAMESPACES`, for
+  example `hcm`, `kalya`, `selva`, `yantra4d`) is reserved as well, because an
+  organization-bound client's scopes of that shape reach its token's `roles`
+  as application roles. The exceptions are the tenant-bound scopes in
+  `TENANT_BOUND_MACHINE_SCOPES` (`hcm:hr`, `selva:infer`), which the consumer
+  authorizes on the token's own `org_id`. Other shapes (two colons, for
+  example) are not covered by this rule;
 - cannot create a `client_credentials` client without an organization, or pin
   a `client_id`;
 - cannot edit or rotate a client that already holds a reserved value.
+
+These checks run only when a client is registered or edited
+(`apps/api/app/services/oauth_client_authority.py`). Token issuance does not
+re-check them, a newly reserved value does not change rows that already carry
+it, and the operator route that adds one scope with `X-Internal-API-Key`
+(`POST /api/v1/internal/oauth-clients/{client_id}/scopes`) is not subject to
+them.
 
 **A new machine edge is reserved before it is provisioned.** A consumer that
 starts honouring a new machine scope or audience is open to every
@@ -338,14 +361,16 @@ async function serviceToken(): Promise<string> {
 ## Token shape
 
 Service tokens are RS256 JWTs (`kid` in the header, key published at
-`/.well-known/jwks.json`) with these claims:
+`/.well-known/jwks.json`), built by `_get_client_credentials_claims` and
+`_handle_client_credentials_grant` in
+`apps/api/app/routers/v1/oauth_provider.py`. Every service token carries:
 
 ```jsonc
 {
   "iss": "https://auth.madfam.io",
   "sub": "service-account:jnc_...",     // stable machine identity
-  "aud": "karafiel-api",                // per-client audience
-  "exp": 1780000000,                    // iat + 3600
+  "aud": "karafiel-api",                // the client's audience, else JWT_AUDIENCE
+  "exp": 1780000000,                    // iat + 3600 (SERVICE_TOKEN_TTL_SECONDS)
   "iat": 1779996400,
   "jti": "...",
   "type": "access",
@@ -353,10 +378,30 @@ Service tokens are RS256 JWTs (`kid` in the header, key published at
   "scope": "cfdi:issue",                // space-separated granted scopes
   "token_use": "client_credentials",
   "actor_type": "service_account",
-  "roles": ["service_account"],
+  "roles": ["service_account"],         // see below
+  "is_admin": false,                    // true only when `admin` was granted
+  "tier": "community",                  // the organization's tier when org-bound
+  "sub_status": "active",
+  "madfam_org_roles": ["service_account"],
   "email": "zavlo-cfdi-emitter@service.auth.madfam.io"
 }
 ```
+
+Claims that depend on the client:
+
+| Claim | When | Value |
+| --- | --- | --- |
+| `roles` | always | `service_account`; plus `admin` when the `admin` scope was granted; plus `<product>_admin` for each granted `<product>:admin` scope; plus, for an organization-bound client only, each granted scope of the application-role shape `<app>:<role>` that is in `allowed_scopes`, verbatim with the colon (`_service_client_app_roles`; never `owner`/`admin`/`member` and never a `*:admin` scope). Sorted and deduplicated |
+| `org_id`, `tenant_id`, `org_slug` | the client has an `organization_id` | the organization's id (both `org_id` and `tenant_id`) and slug |
+| `tier` | the client has an `organization_id` | the organization's `subscription_tier` (`community` when unset) |
+| `product_tiers` | the client has an `organization_id` | the organization's `product_tiers` map (`{}` when unset) |
+| `<product>_tier` | the client was registered by a platform admin | `madfam` for the namespace of each granted `<namespace>:…` scope |
+| `<product>_tier` | the client has an `organization_id` | each entry of the organization's `product_tiers`; these win over the `madfam` values |
+
+`<product>` in a claim name is lower-cased with every character outside
+`[a-z0-9_]` replaced by `_` (for example `yantra4d_tier`). A token minted with
+application roles in `roles` also writes a `service_token.app_roles` audit
+event (`_audit_service_token_app_roles`).
 
 ## How Karafiel verifies (offline, JWKS)
 
@@ -365,8 +410,13 @@ Karafiel (FastAPI) verifies without calling Janua on the hot path:
 1. Fetch + cache JWKS from `https://auth.madfam.io/.well-known/jwks.json`.
 2. Verify signature (RS256), `iss == https://auth.madfam.io`,
    `aud == "karafiel-api"`, and `exp` (PyJWT does all four).
-3. Enforce `token_use == "client_credentials"` and that the required
-   scope is present in the `scope` claim.
+3. Enforce `type == "access"`, `token_use == "client_credentials"` and that
+   the required scope is present in the `scope` claim.
+
+Looking the key up by `kid` is enough here because service tokens always carry
+one. A verifier that also accepts first-party session tokens, which carry no
+`kid`, selects keys as in
+[ISSUER_AND_JWKS.md](./reference/ISSUER_AND_JWKS.md#selecting-the-key).
 
 ```python
 import jwt
@@ -383,6 +433,8 @@ def verify_service_token(token: str, required_scope: str = "cfdi:issue") -> dict
         issuer="https://auth.madfam.io",
         audience="karafiel-api",
     )  # raises on bad signature / issuer / audience / expiry
+    if claims.get("type") != "access":
+        raise PermissionError("not an access token")
     if claims.get("token_use") != "client_credentials":
         raise PermissionError("not a service token")
     if required_scope not in (claims.get("scope") or "").split():
@@ -448,6 +500,7 @@ export class JanuaServiceJwtStrategy extends PassportStrategy(Strategy, "janua-s
   }
 
   validate(claims: Record<string, unknown>) {
+    if (claims.type !== "access") throw new UnauthorizedException();
     if (claims.token_use !== "client_credentials") throw new UnauthorizedException();
     const scopes = String(claims.scope ?? "").split(" ");
     if (!scopes.includes("billing:events")) throw new ForbiddenException();
@@ -464,22 +517,31 @@ Scope map on the Dhanam side:
   signature (`t=<ts>,v1=<hex>`) stays as content integrity on the event
   body; the Bearer token is the caller *identity*.
 
-## Alternative: introspection (RFC 7662)
+## Introspection (RFC 7662)
 
-Resource servers that prefer online checks (or need immediate-revocation
-semantics) can call introspection instead of JWKS verification:
+Introspection answers for the **calling client's own** tokens. The caller
+authenticates with its client credentials, and a token whose `client_id` names
+a different client is reported `{"active": false}`
+(`apps/api/app/routers/v1/oauth_provider.py`: `introspect`,
+`_verify_oauth_token`). A resource server cannot introspect a token that Janua
+issued to another client, such as the producer that calls it; resource
+servers verify locally against the JWKS as described above.
+
+A client can introspect a token it holds, for example to check whether it has
+been revoked:
 
 ```bash
 curl -sS https://auth.madfam.io/api/v1/oauth/introspect \
-  -u "$RESOURCE_CLIENT_ID:$RESOURCE_CLIENT_SECRET" \
-  -d token="$ACCESS_TOKEN"
+  -u "$JANUA_CLIENT_ID:$JANUA_CLIENT_SECRET" \
+  -d token="$ACCESS_TOKEN"     # a token issued to $JANUA_CLIENT_ID
 # => {"active": true, "sub": "service-account:jnc_...",
-#     "client_id": "jnc_...", "scope": "cfdi:issue", "exp": ..., "iat": ...}
+#     "client_id": "jnc_...", "scope": "cfdi:issue", "exp": ...,
+#     "iat": ..., "token_type": "access"}
 ```
 
-Expired or otherwise invalid tokens return `{"active": false}`.
-Introspection itself requires client authentication (the resource
-server's own Janua client credentials).
+Expired, revoked or otherwise invalid tokens return `{"active": false}`. When
+the revocation store cannot be read, the endpoint answers `503` with
+`Retry-After` instead of reporting the token active.
 
 ## Rotation & operations
 

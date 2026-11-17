@@ -7,7 +7,8 @@ automation.
 
 For the RFC 0024 §P4 consolidation service clients (Zavlo→Karafiel `cfdi:issue`,
 RouteCraft→Dhanam `billing:events`) and resource-server verification recipes
-(JWKS + introspection), see [docs/service-tokens.md](../service-tokens.md).
+(JWKS), see [docs/service-tokens.md](../service-tokens.md) and
+[docs/reference/ISSUER_AND_JWKS.md](../reference/ISSUER_AND_JWKS.md).
 
 ## Recommended identity
 

@@ -21,8 +21,9 @@ Complete documentation for the Janua self-hosted authentication platform.
 - **[Flutter SDK](guides/flutter-sdk-complete-guide.md)** - Flutter mobile integration
 - **[SSO Integration](guides/SSO_INTEGRATION_GUIDE.md)** - Single Sign-On setup
 - **[Machine-to-Machine Auth](guides/machine-to-machine-authentication-guide.md)** - Service-account OAuth clients for automated ecosystem runs
-- **[Issuer, JWKS and audience](reference/ISSUER_AND_JWKS.md)** - How to verify any Janua token: issuer selection, JWKS URL, `kid` rotation, `aud` per token type
-- **[Service Tokens](service-tokens.md)** - Decision record and integration contract for `client_credentials` service clients (token issuance, JWKS/introspection verification)
+- **[Issuer, JWKS and audience](reference/ISSUER_AND_JWKS.md)** - How to verify any Janua token: issuer selection, JWKS key selection (with and without `kid`), the `type` check, `aud` per token type
+- **[Service Tokens](service-tokens.md)** - Decision record and integration contract for `client_credentials` service clients (token issuance, token shape, JWKS verification)
+- **[Claims de organización y service principals](architecture/CLAIMS_DE_ORGANIZACION_Y_SERVICE_PRINCIPALS.md)** - Organization, role and tier claims on session and OIDC tokens (Spanish)
 - **[MFA Guide](guides/mfa-2fa-implementation-guide.md)** - Multi-factor authentication
 - **[Compliance Features](guides/COMPLIANCE_FEATURES_GUIDE.md)** - GDPR, SOC2, compliance
 
