@@ -1,0 +1,74 @@
+@@ -2263,16 +2263,34 @@ def _form_post_is_same_origin(req: Request) -> bool:
+     return source_host in allowed
+ 
+ 
+-def _switch_refused_html(message: str) -> str:
+-    """A short page for a refused chooser click (the browser is on a form post)."""
+-    import html as _html
++def _switch_page_locale(next_url: Optional[str]) -> str:
++    """The page language of a chooser click, read from its ``next``.
++
++    The chooser posts only ``sid`` and ``next``; ``next`` is the rebuilt
++    ``/oauth/authorize`` request, which carries ``ui_locales=es`` when the
++    chooser spoke Spanish (and nothing for English). The value is posted by the
++    browser, so it is only ever normalized to a page locale constant.
++    """
++    if not next_url or not isinstance(next_url, str):
++        return DEFAULT_HOSTED_LOCALE
++    requested = parse_qs(urlparse(next_url).query).get(UI_LOCALES_PARAM, [None])[0]
++    return page_locale(requested)
++
++
++def _switch_refused_html(reason_key: str, locale: str = DEFAULT_HOSTED_LOCALE) -> str:
++    """A short page for a refused chooser click (the browser is on a form post).
+ 
++    ``reason_key`` names a ``switch_refused_*`` row of ``HOSTED_COPY``;
++    ``locale`` is a page locale constant. English is byte for byte the page this
++    route answered before it spoke Spanish.
++    """
++    copy = hosted_copy(locale)
+     return f"""<!DOCTYPE html>
+-<html lang="en">
++<html lang="{hosted_html_lang(locale)}">
+ <head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-    <title>Choose an account - Janua</title>
++    <title>{copy["chooser_title"]}</title>
+     <style>
+         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: #f5f5f7; color: #333; display: flex; align-items: center;
+@@ -2285,8 +2303,8 @@ def _switch_refused_html(message: str) -> str:
+ </head>
+ <body>
+     <div class="box">
+-        <h1>That account can't be used here</h1>
+-        <p>{_html.escape(message)} Go back to the application and sign in again.</p>
++        <h1>{copy["switch_refused_heading"]}</h1>
++        <p>{copy[reason_key]} {copy["switch_refused_next_step"]}</p>
+     </div>
+ </body>
+ </html>
+@@ -2313,10 +2331,12 @@ async def switch_session_form(
+     """
+     from fastapi.responses import HTMLResponse
+ 
++    # A refusal speaks the chooser's language (from `next`); English otherwise.
++    locale = _switch_page_locale(next)
+     if not _form_post_is_same_origin(req):
+         logger.warning("switch_session_form.rejected", reason="cross_origin")
+         return HTMLResponse(
+-            _switch_refused_html("This request did not come from the account chooser."),
++            _switch_refused_html("switch_refused_cross_origin", locale),
+             status_code=403,
+         )
+     try:
+@@ -2335,7 +2355,7 @@ async def switch_session_form(
+     except HTTPException as exc:
+         logger.info("switch_session_form.rejected", reason=str(exc.detail))
+         return HTMLResponse(
+-            _switch_refused_html("That account is no longer signed in on this browser."),
++            _switch_refused_html("switch_refused_not_held", locale),
+             status_code=exc.status_code,
+         )
+ 
