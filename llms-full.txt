@@ -193,9 +193,12 @@ Update the ledger only after reading the database
 Issuer = `https://<JANUA_CUSTOM_DOMAIN>` when set, else `API_BASE_URL`; read it
 from `/.well-known/openid-configuration`. JWKS (`/.well-known/jwks.json`)
 publishes exactly one RS256 key whose `kid` is `JWT_KID`; rotating the key or
-the `kid` is a hard cut (no overlap). `aud`: ID token = `client_id`; access
-and service tokens = the OAuth client's registered `audience`, else
-`JWT_AUDIENCE`. Reference: `docs/reference/ISSUER_AND_JWKS.md`.
+the `kid` is a hard cut (no overlap). First-party session tokens
+(`services/auth_service.py`) carry no `kid`; verifiers try each RS256 key for
+them. Resource servers require `type == "access"`. `aud`: ID token =
+`client_id`; access and service tokens = the OAuth client's registered
+`audience`, else `JWT_AUDIENCE`; guest tokens = `janua-guest`. Reference:
+`docs/reference/ISSUER_AND_JWKS.md`.
 
 ### Data-subject request exports — `services/compliance_service.py`
 

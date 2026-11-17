@@ -162,15 +162,18 @@ The full contract (issuer selection, JWKS, `kid` rotation, audience per token ty
 
 | Check | Expected Value |
 |-------|----------------|
-| Algorithm | `RS256` |
+| Algorithm | `RS256`, from a fixed allow-list in your code (never from the token header) |
 | `iss` (issuer) | The `issuer` from your deployment's `/.well-known/openid-configuration` (`https://<JANUA_CUSTOM_DOMAIN>` on a white-label deployment, else `https://api.janua.dev`) |
 | `aud` (audience) | Your registered audience string (e.g., `dhanam-api`) |
 | `exp` (expiry) | Must be in the future |
-| Signature | Valid against the JWKS public key matching the token's `kid` |
+| `type` | Must equal `access`; refresh, guest, SSO-cookie and other token kinds share the issuer and key |
+| Signature | Valid against the JWKS key with the token's `kid`; a first-party session token has no `kid`, so try each RS256 key ([key selection](../reference/ISSUER_AND_JWKS.md#selecting-the-key)) |
 
 ### Audience Claim
 
-The `aud` claim prevents cross-application token reuse. Each consumer application registers a unique audience string when creating its OAuth client (for example, `dhanam-api`, `enclii-api`, `stratum-tcg-api`). During token validation, your application must reject any token whose `aud` value does not exactly match your registered audience. This is a case-sensitive comparison.
+The `aud` claim prevents cross-application token reuse. Each consumer application registers an audience string when creating its OAuth client (for example, `dhanam-api`, `enclii-api`, `stratum-tcg-api`). During token validation, your application must reject any token whose `aud` value does not exactly match your registered audience. This is a case-sensitive comparison.
+
+Janua does not enforce that an audience belongs to one client: several clients can carry the same value. An audience is limited to clients a platform admin registered only when it is reserved in `apps/api/app/core/reserved_oauth_boundaries.py`; otherwise also check `client_id`. See [Audience](../reference/ISSUER_AND_JWKS.md#audience).
 
 Without audience validation, a token issued for one application could be replayed against another, bypassing authorization boundaries.
 
@@ -185,6 +188,11 @@ Without audience validation, a token issued for one application could be replaye
 | `org_id` | string | Organization ID (if applicable) |
 
 ### Code Examples
+
+The Node.js and Python examples look the signing key up by `kid`. That covers
+OAuth/OIDC and `client_credentials` access tokens, which always carry one. A
+service that also accepts first-party session tokens (no `kid`) selects keys as
+in [ISSUER_AND_JWKS.md](../reference/ISSUER_AND_JWKS.md#example-python-pyjwt).
 
 **Node.js**
 
@@ -216,6 +224,7 @@ export function verifyJanuaToken(token: string): Promise<jwt.JwtPayload> {
       },
       (err, decoded) => {
         if (err) reject(err);
+        else if ((decoded as jwt.JwtPayload).type !== "access") reject(new Error("not an access token"));
         else resolve(decoded as jwt.JwtPayload);
       }
     );
@@ -237,13 +246,16 @@ jwks_client = jwt.PyJWKClient(JWKS_URL)
 
 def verify_janua_token(token: str) -> dict:
     signing_key = jwks_client.get_signing_key_from_jwt(token)
-    return jwt.decode(
+    claims = jwt.decode(
         token,
         signing_key.key,
         algorithms=["RS256"],
         issuer=ISSUER,
         audience=AUDIENCE,
     )
+    if claims.get("type") != "access":
+        raise jwt.InvalidTokenError("not an access token")
+    return claims
 ```
 
 **Go**
@@ -335,6 +347,11 @@ func (v *Verifier) Verify(ctx context.Context, tokenString string) (jwt.Token, e
 		}
 	}
 
+	// Only access tokens: refresh, guest and cookie tokens share the issuer and key.
+	if typ, _ := token.Get("type"); typ != "access" {
+		return nil, fmt.Errorf("not an access token")
+	}
+
 	return token, nil
 }
 ```
@@ -347,7 +364,7 @@ Fetching the JWKS on every request adds latency and puts unnecessary load on the
 
 **Cache responses aggressively.** A TTL of 1 hour is a reasonable default. JWKS key sets change infrequently (only during key rotation events).
 
-**Refresh on unknown `kid`.** If a token arrives with a `kid` that is not in your cached key set, fetch the JWKS again before rejecting the token. This handles key rotation gracefully without downtime.
+**Refresh on a miss.** If a token arrives with a `kid` that is not in your cached key set, or a token without a `kid` verifies against none of the cached keys, fetch the JWKS again before rejecting the token, at most once per minute. This handles key rotation without downtime.
 
 **Use stale-while-revalidate.** When a cache refresh fails (network error, temporary outage), continue using the stale key set for a bounded period rather than rejecting all tokens. This keeps your service available during transient Janua outages.
 
@@ -423,7 +440,7 @@ No manual CORS configuration or admin intervention is needed. If your applicatio
 
 **Symptom**: API calls return `401` after a period of inactivity.
 
-**Fix**: Implement token refresh. Access tokens expire after 15 minutes by default. Use the refresh token to obtain a new access token:
+**Fix**: Implement token refresh. User access tokens expire after `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` (default 480 minutes). Use the refresh token to obtain a new access token:
 
 ```
 POST https://api.janua.dev/oauth/token

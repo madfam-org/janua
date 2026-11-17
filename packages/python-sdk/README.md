@@ -2,6 +2,14 @@
 
 Official Python SDK for the Janua Authentication and User Management Platform.
 
+> [!WARNING]
+> `TokenValidator` (`janua/utils.py`) predates Janua's token verification contract
+> ([`docs/reference/ISSUER_AND_JWKS.md`](../../docs/reference/ISSUER_AND_JWKS.md))
+> and must not be used for resource-server verification until it is updated.
+> As it stands it allows `["RS256", "HS256"]` unless `algorithms` is passed,
+> verifies against one configured key or secret rather than the JWKS, and does
+> not check the `type` claim.
+
 ## Features
 
 - 🔐 **Complete Authentication** - Sign up, sign in, password reset, email verification

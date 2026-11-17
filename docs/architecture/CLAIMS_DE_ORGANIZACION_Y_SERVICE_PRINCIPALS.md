@@ -1,6 +1,10 @@
 # Claims de organización y service principals
 
-> Contrato de claims para las apps del ecosistema. Última revisión: 2026-09-03.
+> Contrato de claims para las apps del ecosistema. Última revisión: 2026-11-16.
+>
+> Cómo verificar un token (issuer, selección de llave, `type`, audiencias):
+> [ISSUER_AND_JWKS.md](../reference/ISSUER_AND_JWKS.md). Tokens de servicio
+> (`client_credentials`): [service-tokens.md](../service-tokens.md).
 
 Dos cambios que van juntos y **no deben separarse**:
 
@@ -55,21 +59,42 @@ alguien deja de trabajar— o abierta — alguien gana un tenant).
 | `tenant_id` | string (UUID) | igual que `org_id` | alias de `org_id` |
 | `org_slug` | string | igual que `org_id` | slug del tenant primario |
 | `madfam_org_roles` | lista de strings | igual que `org_id` | rol de organización **en esa org** |
-| `roles` | lista de strings | **solo** con concesiones vivas | roles de **aplicación** (`hcm:hr`), ver §5 |
+| `roles` | lista de strings | sesión: **solo** con concesiones vivas; OIDC: ver abajo | sesión: sólo roles de **aplicación** (`hcm:hr`); OIDC: además roles de organización sin `:`, ver «Invariantes» y §5 |
 | `is_service_account` | `true` | **solo** si la identidad es técnica | ver §4 |
 | `spanish_formality` | `"tu"` \| `"usted"` | **solo** si la persona ya respondió | cómo dirigirse a ella en español; también en el ID token y en `/oauth/userinfo`. No lo resuelve `org_claims_service` sino `app/services/spanish_formality.py`; ver `docs/EMAIL_SENDER_POLICY.md` |
 
-**«Sin ambigüedad»** significa: exactamente una membresía activa, o
-`user.tenant_id` nombra una de ellas. Con varias organizaciones y sin ancla, se
+**«Sin ambigüedad»** significa, en este orden:
+
+1. exactamente una membresía activa; o, con varias,
+2. `user.tenant_id` nombra una de ellas; o, si no,
+3. la **organización primaria fijada por un operador** (tabla
+   `user_primary_organizations`, migración 022, ruta interna
+   `routers/v1/internal_primary_organization.py`) nombra una de ellas.
+
+El puntero del paso 3 se compara contra las mismas membresías **activas**: si
+apunta a una organización donde la persona ya no es miembro activo, no resuelve
+nada. La tabla sólo se lee en ese caso (varias membresías y sin coincidencia de
+`tenant_id`), y un fallo al leerla equivale a «sin primaria»
+(`services/org_claims_service.py`). Con varias organizaciones y sin ancla, se
 emite `orgs` **y nada más** — ningún consumidor debe adivinar un tenant.
 Adivinar el tenant primario de un usuario multi-org es exactamente cómo el
 operador de un tenant termina leyendo la nómina de otro.
 
-Ejemplo (token de sesión de un integrante de una organización cliente):
+Ejemplo (token de sesión de un integrante de una organización cliente,
+`services/auth_service.py`, `AuthService.create_session`):
 
 ```jsonc
 {
-  "sub": "…", "tid": "…", "type": "access", "email": "…",
+  "iss": "https://auth.madfam.io",
+  "aud": "janua.dev",               // JWT_AUDIENCE, o la audiencia del destino de un enlace mágico
+  "sub": "…", "tid": "…", "jti": "…", "type": "access",
+  "iat": 1780000000, "exp": 1780028800,
+  "email": "…",
+  "family": "…",                    // familia de refresh de la sesión
+  "sid": "<uuid de la sesión>",
+  "amr": ["email"],                 // métodos: "pwd", "email", "otp"…
+  "auth_time": 1780000000,          // y "mfa_time" cuando hubo MFA
+  "<producto>_tier": "pro",         // un claim por producto con tier
   "madfam_entitled_products": ["<producto>:pro", "kalya:team"],
   "orgs": [{ "id": "<uuid>", "slug": "<slug>", "role": "member" }],
   "org_id": "<uuid>",
@@ -79,13 +104,24 @@ Ejemplo (token de sesión de un integrante de una organización cliente):
 }
 ```
 
+El encabezado JOSE de un token de sesión no lleva `kid`; ver
+[ISSUER_AND_JWKS.md](../reference/ISSUER_AND_JWKS.md#which-tokens-carry-kid).
+Los claims `<producto>_tier` combinan el `product_tiers` de la org primaria
+resuelta con las concesiones per-usuario vigentes
+(`entitlements_service.get_product_tier_claims`).
+
 ### Invariantes
 
 - **Aditivo.** Un usuario sin membresía activa recibe un token con la forma
   exacta de antes: ninguna de estas claves aparece.
-- **`roles` no cambia.** El camino OIDC sigue emitiéndolo igual para los
-  clientes que ya lo leen. Los tokens de **sesión** no lo emiten: estrenan el
-  claim con namespace, sin heredar la ambigüedad.
+- **Qué lleva `roles`.** En un token **OIDC** (`routers/v1/oauth_provider.py`)
+  es la unión de: los roles de organización **sin `:`** de **todas** las
+  membresías activas (`organization_roles_for_roles_claim`); `admin` cuando la
+  persona es administradora de la plataforma (`User.is_admin`); y las
+  concesiones de aplicación vivas de la membresía de la org primaria resuelta.
+  En un token de **sesión** sólo lleva esas concesiones de aplicación, y la
+  clave no aparece si no hay ninguna. En ambos, una cadena con `:` sólo puede
+  venir de una concesión.
 - **Un rol de organización nunca se lee como rol de aplicación.** Los roles de
   organización los nombra la propia organización (roles a medida, rol de la
   membresía), y el camino OIDC los publica bajo `roles` junto a las concesiones
@@ -197,7 +233,9 @@ confusión que el espacio de nombres existe para evitar (ver §5, «La trampa de
 `roles` heredado»).
 
 **Ejemplo — `nauta` pidiendo `hcm:hr`** (cliente con `organization_id` = la org
-de un cliente vCTO, `allowed_scopes` con `hcm:hr`):
+de un cliente vCTO, `allowed_scopes` con `hcm:hr`; sólo los claims de esta
+sección, la forma completa está en
+[service-tokens.md](../service-tokens.md#token-shape)):
 
 ```jsonc
 {
@@ -443,7 +481,8 @@ para ambos caminos:
 
 - **Tokens de sesión**: sólo roles de aplicación. Siguen sin llevar ningún rol de
   organización bajo `roles` — lo que aterriza ahí es `hcm:hr`, jamás `admin`.
-- **OIDC**: la **unión** con la lista heredada. Nadie pierde una cadena que ya leía.
+- **OIDC**: la **unión** con la lista heredada, de la que sólo se quitan los
+  roles de organización con `:` (ver «Invariantes» en §3).
 
 Sin concesiones **no se emite la clave `roles` en absoluto**, así que el token de
 quien no tiene nada concedido conserva exactamente su forma anterior.
@@ -634,4 +673,8 @@ entitlements; nauta sólo pregunta.
 - `apps/api/tests/unit/services/test_entitlements_service.py`
 - `nauta/apps/web/src/server/erp-entitlements.ts` — el consumidor (asesor ⇒ org del espacio visto)
 - `symbiosis-hcm/apps/api/core/roles.py` — el otro lado de §2
-- ADR-003 (multi-tenancy), ADR-004 (capability links), `docs/service-tokens.md`
+- `apps/api/app/routers/v1/internal_primary_organization.py` — la organización
+  primaria fijada por un operador (§3)
+- ADR-003 (multi-tenancy), ADR-004 (capability links),
+  [service-tokens.md](../service-tokens.md),
+  [ISSUER_AND_JWKS.md](../reference/ISSUER_AND_JWKS.md)

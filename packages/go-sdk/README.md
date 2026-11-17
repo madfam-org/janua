@@ -6,6 +6,14 @@
 
 Official Go SDK for the Janua Identity Platform. This SDK provides a complete, type-safe interface for user authentication, organization management, MFA, OAuth, passkeys, and administrative operations.
 
+> [!WARNING]
+> `janua.VerifyToken` predates Janua's token verification contract
+> ([`docs/reference/ISSUER_AND_JWKS.md`](../../docs/reference/ISSUER_AND_JWKS.md))
+> and must not be used for resource-server verification until it is updated.
+> As it stands (`janua/client.go`) it checks no issuer or audience, accepts
+> any RSA signing method rather than RS256 only, verifies against one PEM key
+> rather than the JWKS, and does not check the `type` claim.
+
 ## Features
 
 - **Complete Authentication** - Sign up, sign in, password reset, email verification

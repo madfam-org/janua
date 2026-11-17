@@ -598,7 +598,8 @@ See [LICENSE](LICENSE) for details.
 ## Verifying Janua tokens
 
 Services that accept Janua-issued tokens verify them offline against the JWKS.
-The contract (issuer, JWKS URL, `kid` rotation, audience per token type) is in
+The contract (issuer, JWKS key selection with and without `kid`, the
+`type == "access"` check, audience per token type) is in
 [docs/reference/ISSUER_AND_JWKS.md](docs/reference/ISSUER_AND_JWKS.md);
 service-to-service clients are in [docs/service-tokens.md](docs/service-tokens.md).
 

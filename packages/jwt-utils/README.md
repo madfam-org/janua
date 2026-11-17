@@ -2,6 +2,15 @@
 
 JWT and JWKS utilities for the Janua Identity Platform.
 
+> [!WARNING]
+> `verifyToken` predates Janua's token verification contract
+> ([`docs/reference/ISSUER_AND_JWKS.md`](../../docs/reference/ISSUER_AND_JWKS.md))
+> and must not be used for resource-server verification until it is updated.
+> As it stands (`src/jwt.ts`) it requires a `kid` in the JOSE header, so it
+> rejects first-party session tokens, which carry none; it does not check the
+> `type` claim; and it defaults `issuer` to `https://janua.dev` and `audience`
+> to `janua.dev` when they are not passed.
+
 ## Installation
 
 ```bash
