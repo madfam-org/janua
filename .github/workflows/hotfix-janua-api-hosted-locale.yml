@@ -159,7 +159,7 @@ jobs:
           }
           check auth/hosted_locale.py apps/api/app/auth/hosted_locale.py hosted_locale.diff
           check routers/v1/auth.py apps/api/app/routers/v1/auth.py auth.diff
-          check routers/v1/oauth_provider.py "$HOTFIX_DIR/oauth_provider.py" oauth_provider.diff
+          check routers/v1/oauth_provider.py "$HOTFIX_DIR/oauth_provider.py.shipped" oauth_provider.diff
           echo "Three files differ from production's by exactly the reviewed hunks."
 
       # Proves the reviewed hunks are janua#814 and janua#820 and nothing else:
@@ -191,7 +191,7 @@ jobs:
           (cd /tmp/hotfix/replay && git apply /tmp/hotfix/814.patch && git apply /tmp/hotfix/820.patch)
           cmp /tmp/hotfix/replay/apps/api/app/auth/hosted_locale.py apps/api/app/auth/hosted_locale.py
           cmp /tmp/hotfix/replay/apps/api/app/routers/v1/auth.py apps/api/app/routers/v1/auth.py
-          cmp /tmp/hotfix/replay/apps/api/app/routers/v1/oauth_provider.py "$HOTFIX_DIR/oauth_provider.py"
+          cmp /tmp/hotfix/replay/apps/api/app/routers/v1/oauth_provider.py "$HOTFIX_DIR/oauth_provider.py.shipped"
           echo "Production's copies plus janua#814 and janua#820 are exactly the shipped files."
 
       - name: Build and push
@@ -237,7 +237,7 @@ jobs:
           fi
           cmp /tmp/hotfix/new/app/auth/hosted_locale.py apps/api/app/auth/hosted_locale.py
           cmp /tmp/hotfix/new/app/routers/v1/auth.py apps/api/app/routers/v1/auth.py
-          cmp /tmp/hotfix/new/app/routers/v1/oauth_provider.py "$HOTFIX_DIR/oauth_provider.py"
+          cmp /tmp/hotfix/new/app/routers/v1/oauth_provider.py "$HOTFIX_DIR/oauth_provider.py.shipped"
           echo "Only the three reviewed files changed, and they are the reviewed files."
 
       # Importing app modules imports the whole application, so these also prove

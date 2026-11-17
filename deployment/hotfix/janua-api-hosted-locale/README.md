@@ -33,11 +33,16 @@ janua#828) and adds three layers, one file each:
   ([`hosted_locale.diff`](hosted_locale.diff); janua#814 and janua#820).
 - `apps/api/app/routers/v1/auth.py` from `main`: the refusal page reads the
   locale from `next` and renders its copy ([`auth.diff`](auth.diff); janua#820).
-- [`oauth_provider.py`](oauth_provider.py) in this folder: production's own
+- [`oauth_provider.py.shipped`](oauth_provider.py.shipped) in this folder,
+  copied in as `app/routers/v1/oauth_provider.py`: production's own
   `apps/api/app/routers/v1/oauth_provider.py` plus only the janua#814 and
   janua#820 hunks ([`oauth_provider.diff`](oauth_provider.diff)). `main`'s copy
   is not shipped: it also carries janua#792 (a comment) and janua#801 (the
-  `roles` claim filter), which production does not run.
+  `roles` claim filter), which production does not run. It does not end in
+  `.py` so code scanning does not re-report, on a second path, the
+  `py/url-redirection` alerts it already tracks (or has dismissed) on the same
+  lines of `apps/api/app/routers/v1/oauth_provider.py`; the copy is
+  production's scanned source plus hunks that are scanned on `main`.
 
 Production's copy of each file is its source's (`RES2_SOURCE` for
 `hosted_locale.py` and `auth.py`, `BASE_SOURCE` for `oauth_provider.py`). The

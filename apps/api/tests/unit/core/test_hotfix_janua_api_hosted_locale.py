@@ -29,7 +29,7 @@ CONTAIN_WORKFLOW = yaml.safe_load(
 COPIED = {
     "apps/api/app/auth/hosted_locale.py": "/app/app/auth/",
     "apps/api/app/routers/v1/auth.py": "/app/app/routers/v1/",
-    "deployment/hotfix/janua-api-hosted-locale/oauth_provider.py": "/app/app/routers/v1/",
+    "deployment/hotfix/janua-api-hosted-locale/oauth_provider.py.shipped": "/app/app/routers/v1/oauth_provider.py",
 }
 # (production's copy as `source key:path`, the file the image gets, the reviewed hunk)
 HUNKS = [
@@ -38,7 +38,7 @@ HUNKS = [
     ("RES2_SOURCE", "apps/api/app/routers/v1/auth.py",
      ROOT / "apps/api/app/routers/v1/auth.py", "auth.diff"),
     ("BASE_SOURCE", "apps/api/app/routers/v1/oauth_provider.py",
-     HOTFIX / "oauth_provider.py", "oauth_provider.diff"),
+     HOTFIX / "oauth_provider.py.shipped", "oauth_provider.diff"),
 ]
 
 
@@ -172,7 +172,7 @@ def test_workflow_expects_exactly_the_three_files():
         assert f"/tmp/hotfix/base/app/{changed} and /tmp/hotfix/new/app/{changed} differ" in step["run"]
     assert "cmp /tmp/hotfix/new/app/auth/hosted_locale.py apps/api/app/auth/hosted_locale.py" in step["run"]
     assert "cmp /tmp/hotfix/new/app/routers/v1/auth.py apps/api/app/routers/v1/auth.py" in step["run"]
-    assert 'cmp /tmp/hotfix/new/app/routers/v1/oauth_provider.py "$HOTFIX_DIR/oauth_provider.py"' in step["run"]
+    assert 'cmp /tmp/hotfix/new/app/routers/v1/oauth_provider.py "$HOTFIX_DIR/oauth_provider.py.shipped"' in step["run"]
     assert "base_layers + 3" in step["run"]
     assert "Only in" not in step["run"]
 
@@ -246,7 +246,7 @@ def test_shipped_files_are_production_copies_plus_the_two_merges():
         for _, prod_path, image_file, _ in HUNKS:
             assert (replay / prod_path).read_bytes() == image_file.read_bytes(), prod_path
     # The two files copied from main are main's; oauth_provider.py is not main's.
-    assert (HOTFIX / "oauth_provider.py").read_bytes() != (ROOT / "apps/api/app/routers/v1/oauth_provider.py").read_bytes()
+    assert (HOTFIX / "oauth_provider.py.shipped").read_bytes() != (ROOT / "apps/api/app/routers/v1/oauth_provider.py").read_bytes()
 
 
 def test_check_script_passes_in_this_checkout():

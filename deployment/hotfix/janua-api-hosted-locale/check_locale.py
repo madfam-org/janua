@@ -74,7 +74,7 @@ def _authorize_carries_locale() -> bool:
     return "with_ui_locales(" in source and "locale=chooser_locale" in source
 
 
-def _mfa_branch_normalizes_locale() -> bool:
+def _second_factor_branch_normalizes_locale() -> bool:
     source = inspect.getsource(oauth_provider.authorize_get)
     return (
         '"ui_locales": ui_locales or "es"' not in source
@@ -108,7 +108,7 @@ print(
         {
             "chooser_speaks_spanish": _chooser_speaks_spanish(),
             "authorize_carries_locale": _authorize_carries_locale(),
-            "mfa_branch_normalizes_locale": _mfa_branch_normalizes_locale(),
+            "second_factor_branch_normalizes_locale": _second_factor_branch_normalizes_locale(),
             "refusal_speaks_spanish": _refusal_speaks_spanish(),
         },
         sort_keys=True,
