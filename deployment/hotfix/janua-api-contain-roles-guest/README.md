@@ -67,8 +67,8 @@ audience, so its guests keep working.
 | | |
 |---|---|
 | Approved by | Owner, 2026-11-17 (in session): «Yes, contain now» to «Contain these now with an identity-service hotfix plus Tulana and Nauta patches?». Scope: this hotfix only (janua#826), on top of the current production digest `sha256:cd6e19df…` (janua#824) |
-| Built by | pending: filled in by the pin PR |
-| Hotfix digest | pending: filled in by the pin PR |
+| Built by | [run 44013383496](https://github.com/madfam-org/janua/actions/runs/44013383496) from `main` `35a37b6f` (janua#827); every proof step passed |
+| Hotfix digest | `sha256:507e76f567c0847a124515f3e2d3b76d698a2c9f4dc9aae9fdf6d099cf966eec` (cosign-signed by that run) |
 | Replaces | `sha256:cd6e19df31f412fe3530c7481af8de1c4263b7ae0830795ab9d392737a0da9f5` (janua#824) |
 | Delta | `app/core/reserved_oauth_boundaries.py` and `app/routers/v1/guest.py` from `main` (janua#826: `reserved.diff`, `guest.diff`) |
 
