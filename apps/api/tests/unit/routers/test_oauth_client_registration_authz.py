@@ -539,6 +539,11 @@ async def _org_admin_client(env: Env, payload=None) -> dict:
         {"audience": "janua-white-label"},
         {"name": "madfam-worker"},
         {"name": "creator-census"},
+        # Product role scopes: on an organization-bound client they become
+        # application roles in its machine token.
+        {"allowed_scopes": ["hcm:hr", "hcm:employee"]},
+        {"allowed_scopes": ["hcm:hr", "tulana:operator"]},
+        {"allowed_scopes": ["hcm:hr", "nauta:platform-admin"]},
     ],
 )
 async def test_update_cannot_introduce_reserved_values(env, change):
@@ -555,10 +560,10 @@ async def test_update_of_ordinary_fields_is_unchanged(env):
     created = await _org_admin_client(env)
     response = await env.http.patch(
         f"{CLIENTS_URL}/{created['id']}",
-        json={"description": "nightly sync", "allowed_scopes": ["hcm:hr", "hcm:employee"]},
+        json={"description": "nightly sync", "allowed_scopes": ["hcm:hr", "acme:sync"]},
     )
     assert response.status_code == 200, response.text
-    assert response.json()["allowed_scopes"] == ["hcm:hr", "hcm:employee"]
+    assert response.json()["allowed_scopes"] == ["hcm:hr", "acme:sync"]
 
 
 async def test_former_org_admin_cannot_change_an_org_clients_grant(env):

@@ -31,6 +31,7 @@ This module is pure (no database, no FastAPI) so any layer can import it.
 
 from __future__ import annotations
 
+import re
 from typing import Iterable, Optional
 
 from app.core.consent_purposes import (
@@ -303,6 +304,65 @@ SHARED_DEFAULT_AUDIENCES: dict[str, str] = {
 #: whether or not the client is organization-bound.
 RESERVED_SCOPE_SUFFIXES: tuple[str, ...] = (":admin",)
 
+#: The namespaces of MADFAM products. A scope shaped ``<namespace>:<role>`` in
+#: one of them is product authority: an organization-bound client's scopes of
+#: that shape travel in its machine token's ``roles`` as application roles
+#: (``_service_client_app_roles``, same pattern as ``APP_ROLE_SCOPE_SHAPE``
+#: below), and products also read ``scope``. So registering a client that
+#: carries one is a platform-admin action like every other reserved value,
+#: except the tenant-bound scopes in ``TENANT_BOUND_MACHINE_SCOPES``. Grants
+#: through the internal-key scope route are unaffected.
+#:
+#: Only that one-colon shape is covered: ``nauta:labor-hours:read`` and other
+#: look-alikes are never an application role, and the consumers refuse them.
+RESERVED_SCOPE_NAMESPACES: frozenset[str] = frozenset(
+    {
+        "asset-shells",
+        "census",
+        "ceq",
+        "converge-dash",
+        "cotiza",
+        "crea-map",
+        "creator-census",
+        "cv",
+        "dhanam",
+        "digifab",
+        "eido",
+        "enclii",
+        "fabrication-prep",
+        "factlas",
+        "forgesight",
+        "hcm",
+        "janua",
+        "kalya",
+        "karafiel",
+        "madfam",
+        "meridian",
+        "nauta",
+        "people",
+        "phynd-crm",
+        "platform",
+        "pravara-mes",
+        "selva",
+        "symbiosis-hcm",
+        "telesia",
+        "tezca",
+        "tlacuilo",
+        "tulana",
+        "voxa",
+        "yantra4d",
+    }
+)
+
+#: The shape ``_service_client_app_roles`` emits as an application role.
+APP_ROLE_SCOPE_SHAPE = re.compile(r"^[a-z][a-z0-9-]*:[a-z][a-z0-9_-]*$")
+
+#: Guest tokens (``routers/v1/guest.py``) carry this audience of their own, not
+#: the platform default ``janua.dev``: a resource server that expects
+#: ``janua.dev`` (or its own audience) never mistakes a guest for a person. It
+#: is reserved through the ``janua-`` prefix.
+GUEST_AUDIENCE = "janua-guest"
+
 #: Client names that the first-party trust predicate treats as MADFAM itself
 #: (silent auth, pre-consented). Compared case-insensitively.
 FIRST_PARTY_NAME_PREFIXES: tuple[str, ...] = ("selva-office", "madfam-")
@@ -327,7 +387,12 @@ def is_reserved_scope(scope: Optional[str]) -> bool:
     if not scope:
         return False
     value = scope.strip()
-    return value in RESERVED_SCOPES or value.endswith(RESERVED_SCOPE_SUFFIXES)
+    if value in RESERVED_SCOPES or value.endswith(RESERVED_SCOPE_SUFFIXES):
+        return True
+    if value in TENANT_BOUND_MACHINE_SCOPES:
+        return False
+    namespace = value.partition(":")[0]
+    return bool(APP_ROLE_SCOPE_SHAPE.match(value)) and namespace in RESERVED_SCOPE_NAMESPACES
 
 
 def is_first_party_name(name: Optional[str]) -> bool:
@@ -375,6 +440,7 @@ def client_is_reserved(client) -> bool:
 
 
 __all__ = [
+    "APP_ROLE_SCOPE_SHAPE",
     "ASSET_SHELLS_SCOPES",
     "BRANDING_AUDIENCE",
     "BRANDING_SCOPE",
@@ -383,6 +449,7 @@ __all__ = [
     "ECOSYSTEM_SERVICE_AUDIENCES",
     "FABRICATION_PREP_SCOPES",
     "FIRST_PARTY_NAME_PREFIXES",
+    "GUEST_AUDIENCE",
     "HCM_PLATFORM_SCOPES",
     "KARAFIEL_SCOPES",
     "MAIL_AUDIENCE",
@@ -395,6 +462,7 @@ __all__ = [
     "RESERVED_AUDIENCE_PREFIXES",
     "RESERVED_CLIENT_NAMES",
     "RESERVED_SCOPES",
+    "RESERVED_SCOPE_NAMESPACES",
     "RESERVED_SCOPE_SUFFIXES",
     "SHARED_DEFAULT_AUDIENCES",
     "SILENT_AUTH_SCOPE",

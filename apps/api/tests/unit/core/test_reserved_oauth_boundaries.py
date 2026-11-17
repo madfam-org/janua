@@ -138,23 +138,18 @@ def test_reserved_scopes(scope):
         "email",
         "offline_access",
         "hcm:hr",
-        "hcm:payroll",
         "selva:infer",
         "legal:other",
         "familia:other",
         "data-api",
         "billing:read",
         # PhyndCRM look-alikes no consumer honours (exact-match scopes).
-        "phynd-crm:read",
         "phynd-crm-engagements:write",
         "engagements:read",
         "phynd-crm-pipeline:write",
         "phynd-crm:pipeline:read",
         "phynd-crm-pipeline:read-all",
         "pipeline:read",
-        "pravara-mes:other",
-        "asset-shells:write",
-        "fabrication-prep:read",
         # COGS look-alikes no consumer honours (exact-match scopes, RFC 0051 M2).
         "cogs:read",
         "dhanam:cogs:read",
@@ -233,3 +228,59 @@ def test_phynd_crm_native_mcp_read_scope_is_reserved_not_tenant_bound():
     assert reserved.client_is_reserved(
         SimpleNamespace(name="some-reader", audience=None, allowed_scopes=[scope])
     )
+
+
+# -- product role scopes ----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "scope",
+    [
+        # Formerly listed as ordinary; covered now by the product namespace
+        # rule. hcm:payroll is honoured by symbiosis-hcm's payroll gate.
+        "phynd-crm:read",
+        "pravara-mes:other",
+        "asset-shells:write",
+        "fabrication-prep:read",
+        "tulana:operator",
+        "tulana:owner",
+        "nauta:platform-admin",
+        "telesia:operator",
+        "hcm:payroll",
+        "hcm:finance",
+        "kalya:manage",
+        "selva:read",
+        "eido:editor",
+        "pravara-mes:operator",
+        " tulana:operator ",
+    ],
+)
+def test_product_role_scopes_are_reserved(scope):
+    """A ``<product>:<role>`` scope becomes an application role on an
+    organization-bound client's machine token, so only a platform admin
+    registers a client that carries one."""
+    assert reserved.is_reserved_scope(scope)
+
+
+@pytest.mark.parametrize("scope", ["hcm:hr", "selva:infer"])
+def test_tenant_bound_product_scopes_stay_registrable(scope):
+    assert scope in reserved.TENANT_BOUND_MACHINE_SCOPES
+    assert not reserved.is_reserved_scope(scope)
+
+
+@pytest.mark.parametrize(
+    "scope",
+    ["acme:read", "openid", "profile", "nauta:labor-hours:read", "Tulana:Operator", "tulana"],
+)
+def test_other_scopes_are_not_reserved_by_namespace(scope):
+    assert not reserved.is_reserved_scope(scope)
+
+
+def test_reserved_namespaces_match_the_app_role_shape():
+    for namespace in reserved.RESERVED_SCOPE_NAMESPACES:
+        assert reserved.APP_ROLE_SCOPE_SHAPE.match(f"{namespace}:role"), namespace
+
+
+def test_guest_audience_is_its_own_and_reserved():
+    assert reserved.GUEST_AUDIENCE != "janua.dev"
+    assert reserved.is_reserved_audience(reserved.GUEST_AUDIENCE)

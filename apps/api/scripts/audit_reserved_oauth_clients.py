@@ -51,6 +51,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from typing import Iterable, Optional
@@ -130,6 +131,57 @@ RESERVED_SCOPES = frozenset(
     }
 )
 RESERVED_SCOPE_SUFFIXES = (":admin",)
+TENANT_BOUND_MACHINE_SCOPES = frozenset({"hcm:hr", "selva:infer"})
+RESERVED_SCOPE_NAMESPACES = frozenset(
+    {
+        "asset-shells",
+        "census",
+        "ceq",
+        "converge-dash",
+        "cotiza",
+        "crea-map",
+        "creator-census",
+        "cv",
+        "dhanam",
+        "digifab",
+        "eido",
+        "enclii",
+        "fabrication-prep",
+        "factlas",
+        "forgesight",
+        "hcm",
+        "janua",
+        "kalya",
+        "karafiel",
+        "madfam",
+        "meridian",
+        "nauta",
+        "people",
+        "phynd-crm",
+        "platform",
+        "pravara-mes",
+        "selva",
+        "symbiosis-hcm",
+        "telesia",
+        "tezca",
+        "tlacuilo",
+        "tulana",
+        "voxa",
+        "yantra4d",
+    }
+)
+APP_ROLE_SCOPE_SHAPE = re.compile(r"^[a-z][a-z0-9-]*:[a-z][a-z0-9_-]*$")
+
+
+def _is_reserved_scope(scope: Optional[str]) -> bool:
+    value = (scope or "").strip()
+    if not value:
+        return False
+    if value in RESERVED_SCOPES or value.endswith(RESERVED_SCOPE_SUFFIXES):
+        return True
+    if value in TENANT_BOUND_MACHINE_SCOPES:
+        return False
+    return bool(APP_ROLE_SCOPE_SHAPE.match(value)) and value.partition(":")[0] in RESERVED_SCOPE_NAMESPACES
 FIRST_PARTY_NAME_PREFIXES = ("selva-office", "madfam-")
 RESERVED_CLIENT_NAMES = frozenset({"creator-census", "creator-census-reauth"})
 
@@ -149,10 +201,7 @@ def reserved_fields(
     aud = (audience or "").strip()
     if aud and (aud in RESERVED_AUDIENCES or aud.startswith(RESERVED_AUDIENCE_PREFIXES)):
         fields.append("audience")
-    if any(
-        s and (s.strip() in RESERVED_SCOPES or s.strip().endswith(RESERVED_SCOPE_SUFFIXES))
-        for s in (scopes or [])
-    ):
+    if any(_is_reserved_scope(s) for s in (scopes or [])):
         fields.append("allowed_scopes")
     return fields
 
