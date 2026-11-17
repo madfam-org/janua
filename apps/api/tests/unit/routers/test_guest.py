@@ -124,3 +124,9 @@ class TestMintGuestJwt:
         assert claims["org_id"] == "org-xyz"
         assert claims["type"] == "guest_access"
         assert claims["exp"] > claims["iat"]
+        # Its own audience, never the platform default a signed-in person's
+        # token carries, so a resource server expecting janua.dev rejects it.
+        from app.core.reserved_oauth_boundaries import GUEST_AUDIENCE
+
+        assert claims["aud"] == GUEST_AUDIENCE
+        assert claims["aud"] != "janua.dev"

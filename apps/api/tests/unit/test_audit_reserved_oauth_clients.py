@@ -35,6 +35,9 @@ def test_script_copy_of_the_registry_has_not_drifted():
     assert audit.RESERVED_AUDIENCES == registry.RESERVED_AUDIENCES
     assert audit.RESERVED_SCOPES == registry.RESERVED_SCOPES
     assert audit.RESERVED_SCOPE_SUFFIXES == registry.RESERVED_SCOPE_SUFFIXES
+    assert audit.RESERVED_SCOPE_NAMESPACES == registry.RESERVED_SCOPE_NAMESPACES
+    assert audit.TENANT_BOUND_MACHINE_SCOPES == frozenset(registry.TENANT_BOUND_MACHINE_SCOPES)
+    assert audit.APP_ROLE_SCOPE_SHAPE.pattern == registry.APP_ROLE_SCOPE_SHAPE.pattern
     assert audit.FIRST_PARTY_NAME_PREFIXES == registry.FIRST_PARTY_NAME_PREFIXES
     assert audit.RESERVED_CLIENT_NAMES == registry.RESERVED_CLIENT_NAMES
     assert audit.PAYMENT_MAIL_AUDIENCE == registry.MAIL_AUDIENCE

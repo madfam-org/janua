@@ -85,6 +85,7 @@ def _mint_guest_jwt(
     """
     from app.config import settings as _settings
     from app.core.jwt_manager import jwt_manager
+    from app.core.reserved_oauth_boundaries import GUEST_AUDIENCE
 
     now = datetime.now(UTC)
     expires_at = now + timedelta(hours=ttl_hours)
@@ -101,7 +102,10 @@ def _mint_guest_jwt(
         "org_id": org_id,
         "type": "guest_access",
         "iss": _settings.JWT_ISSUER,
-        "aud": _settings.JWT_AUDIENCE,
+        # Its own audience, never the platform default: a resource server
+        # expecting ``janua.dev`` or its own audience does not take a guest for
+        # a signed-in person (``reserved_oauth_boundaries.GUEST_AUDIENCE``).
+        "aud": GUEST_AUDIENCE,
         "iat": int(now.timestamp()),
         "exp": int(expires_at.timestamp()),
     }
