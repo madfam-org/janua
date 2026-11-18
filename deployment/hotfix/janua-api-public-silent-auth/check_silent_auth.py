@@ -115,7 +115,7 @@ def _platform_admin_registration_required() -> bool:
     )
 
 
-def _silent_gate_admits_only_trusted_or_applied() -> bool:
+def _silent_gate_admits_only_first_party_or_applied() -> bool:
     return (
         "if silent_auth and not (_is_silent_auth_allowed(client) or public_first_party):"
         in _authorize_source()
@@ -140,7 +140,7 @@ print(
             "marked_public_client_recognised": _marked_public_client_recognised(),
             "request_conditions_enforced": _request_conditions_enforced(),
             "platform_admin_registration_required": _platform_admin_registration_required(),
-            "silent_gate_admits_only_trusted_or_applied": _silent_gate_admits_only_trusted_or_applied(),
+            "silent_gate_admits_only_first_party_or_applied": _silent_gate_admits_only_first_party_or_applied(),
             "reserved_scopes_need_own_consent": _reserved_scopes_need_own_consent(),
         },
         sort_keys=True,
