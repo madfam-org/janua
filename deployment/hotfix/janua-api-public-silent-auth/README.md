@@ -109,8 +109,8 @@ with `interaction_required`, as today.
 | | |
 |---|---|
 | Approved by | Owner, 2026-11-18 (in session): «Go ahead with A and C» (ship janua#833 to production by hotfix); `promote-to-prod.yml` stays held. Scope: this hotfix only (janua#833), on top of the current production digest `sha256:b9396f85…` (janua#831) |
-| Built by | pending: filled in by the pin PR |
-| Hotfix digest | pending: filled in by the pin PR |
+| Built by | [run 44388593537](https://github.com/madfam-org/janua/actions/runs/44388593537) from `main` `85f3e832` (janua#834); every proof step passed |
+| Hotfix digest | `sha256:44c4310d742f4720efca7158872a88497fee6fd910996635109353ba7e098678` (cosign-signed by that run) |
 | Replaces | `sha256:b9396f85e85e6f233cac090a032026f12540881848122e6ddfd68600a3dcae1a` (janua#831) |
 | Delta | production's `app/routers/v1/oauth_provider.py` plus janua#833 (`oauth_provider.diff`) |
 
