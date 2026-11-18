@@ -1,0 +1,203 @@
+@@ -82,7 +82,11 @@ from app.core.protected_resources import (
+ )
+ from app.core.redis import ResilientRedisClient, get_redis
+ from app.core.redis_circuit_breaker import RedisUnavailableError
+-from app.core.reserved_oauth_boundaries import SILENT_AUTH_SCOPE, is_first_party_name
++from app.core.reserved_oauth_boundaries import (
++    SILENT_AUTH_SCOPE,
++    is_first_party_name,
++    is_reserved_scope,
++)
+ from app.core.url_security import (
+     is_safe_redirect_url,
+     validate_oauth_redirect_uri,
+@@ -1251,6 +1255,10 @@ def _is_silent_auth_allowed(client: OAuthClient) -> bool:
+     The implementation is intentionally conservative: silent-auth bypasses
+     the visible consent screen, so we err on the side of "no, show the
+     interactive flow" when a client has not been explicitly trusted.
++
++    PUBLIC clients are never trusted here. A public client the operator marked
++    with `madfam:silent_auth` is decided per request in `authorize_get`
++    (`_is_marked_public_client`, `_public_first_party_refusal`).
+     """
+     if not client.is_active:
+         return False
+@@ -1283,6 +1291,63 @@ def _is_first_party_preconsented(client: OAuthClient) -> bool:
+     return _is_silent_auth_allowed(client)
+ 
+ 
++#: An S256 ``code_challenge`` is BASE64URL(SHA-256(verifier)) without padding:
++#: exactly 43 characters of the base64url alphabet (RFC 7636 §4.2).
++_S256_CHALLENGE_SHAPE = re.compile(r"^[A-Za-z0-9_-]{43}$")
++
++
++def _is_marked_public_client(client: OAuthClient) -> bool:
++    """An active PUBLIC client carrying the operator marker ``madfam:silent_auth``.
++
++    Only the marker counts. The first-party NAME prefixes (`selva-office*`,
++    `madfam-*`) never make a public client first-party: a client without a
++    secret is trusted only when an operator marked it explicitly. Whether the
++    marker is honoured for a given request is `_public_first_party_refusal`.
++    """
++    return bool(
++        client.is_active
++        and not getattr(client, "is_confidential", False)
++        and SILENT_AUTH_SCOPE in (client.allowed_scopes or [])
++    )
++
++
++def _public_first_party_refusal(
++    client: OAuthClient,
++    *,
++    redirect_uri: str,
++    requested_scope: Optional[str],
++    code_challenge: Optional[str],
++    code_challenge_method: Optional[str],
++) -> Optional[tuple[str, str]]:
++    """Why a marked public client's request may NOT skip sign-in or consent.
++
++    ``None`` when every request condition holds; otherwise the OIDC error and
++    a short description for the redirect. The conditions (owner decision
++    2026-11-18), each of which binds a code to the registered app:
++
++    - PKCE S256, stated explicitly (``code_challenge_method=S256``; an omitted
++      method is not accepted here although the token endpoint defaults it) and
++      a challenge of the S256 shape;
++    - ``redirect_uri`` EXACTLY equal to a registered string — no query,
++      trailing-slash or loopback-port leniency of `_validate_redirect_uri`;
++    - every requested scope within the client's registered scopes (nothing was
++      narrowed away by `_narrow_to_allowed_scopes`).
++
++    Reserved scopes (product roles and the other registry values) are handled
++    at the consent step, where the person's own consent row is read. The
++    person's session, invite-only, email verification and MFA gates run for
++    this client exactly as for every other one.
++    """
++    if code_challenge_method != "S256" or not _S256_CHALLENGE_SHAPE.match(code_challenge or ""):
++        return "interaction_required", "pkce_s256_required"
++    if redirect_uri not in (client.redirect_uris or []):
++        return "interaction_required", "redirect_uri_not_exact"
++    _, dropped = _narrow_to_allowed_scopes(requested_scope, client)
++    if dropped:
++        return "consent_required", "scope_not_registered"
++    return None
++
++
+ async def _resolve_held_accounts(held_sids: list[str], db: AsyncSession) -> list[tuple[str, Any]]:
+     """Resolve each held `sid` to `(sid, user)`: live sessions only, one per person.
+ 
+@@ -2176,6 +2241,7 @@ async def authorize_get(
+     # dropped (RFC 6749 §3.3); a request of which nothing is allowed is refused
+     # with `invalid_scope`. redirect_uri is validated above, so redirecting the
+     # error is safe.
++    requested_scope = scope
+     try:
+         scope = _require_grantable_scope(scope, client, grant="authorization_code")
+     except ValueError as exc:
+@@ -2187,19 +2253,56 @@ async def authorize_get(
+             client_validated=True,
+         )
+ 
++    # PUBLIC first-party clients (owner decision 2026-11-18). A public client an
++    # operator marked with `madfam:silent_auth` may use prompt=none and skip the
++    # consent screen, but only when this request binds the code to the
++    # registered app (`_public_first_party_refusal`) and the row was registered
++    # by a platform admin (the trust rule service boundaries use for reserved
++    # values). Unmarked public clients and confidential clients are untouched.
++    public_first_party = False
++    public_refusal: Optional[tuple[str, str]] = None
++    if _is_marked_public_client(client):
++        public_refusal = _public_first_party_refusal(
++            client,
++            redirect_uri=redirect_uri,
++            requested_scope=requested_scope,
++            code_challenge=code_challenge,
++            code_challenge_method=code_challenge_method,
++        )
++        if public_refusal is None and not await client_registered_by_platform_admin(db, client):
++            public_refusal = ("interaction_required", "silent_auth not allowed for this client")
++            logger.warning(
++                "oauth.public_first_party.marker_not_trusted",
++                client_id=client_id,
++                reason="client not registered by a platform admin",
++            )
++        public_first_party = public_refusal is None
++        if public_refusal is not None:
++            logger.info(
++                "oauth.public_first_party.not_applied",
++                client_id=client_id,
++                silent=silent_auth,
++                reason=public_refusal[1],
++            )
++
+     # SECURITY: silent-auth (prompt=none) is restricted to pre-registered
+     # first-party clients. A third-party app cannot use prompt=none to skip
+     # the consent UI even if the user has a Janua session.
+-    if silent_auth and not _is_silent_auth_allowed(client):
++    if silent_auth and not (_is_silent_auth_allowed(client) or public_first_party):
++        error, error_description = public_refusal or (
++            "interaction_required",
++            "silent_auth not allowed for this client",
++        )
+         logger.warning(
+             "Rejected prompt=none from non-first-party client",
+             client_id=client_id,
+             client_name=client.name,
++            error=error,
+         )
+         return _redirect_with_oauth_error(
+             redirect_uri,
+-            error="interaction_required",
+-            error_description="silent_auth not allowed for this client",
++            error=error,
++            error_description=error_description,
+             state=state,
+             client_validated=True,
+         )
+@@ -2444,17 +2547,41 @@ async def authorize_get(
+             user_id=str(current_user.id),
+         )
+         has_consent = True
++    elif not has_consent and public_first_party:
++        # A marked public client is pre-consented for the scopes it is
++        # registered for, EXCEPT reserved ones (product role scopes such as
++        # `<product>:<role>`, `madfam:silent_auth` itself, and the rest of
++        # `core/reserved_oauth_boundaries.py`). Those skip the screen only when
++        # this person already granted them to this client on the consent
++        # screen; otherwise she is asked (interactive) or the caller gets
++        # consent_required (silent).
++        reserved_requested = {s for s in requested_scopes if is_reserved_scope(s)}
++        if not reserved_requested or await ConsentService.has_consent(
++            db, current_user.id, client_id, reserved_requested
++        ):
++            logger.info(
++                "Public first-party client pre-consented — skipping consent screen",
++                client_id=client_id,
++                client_name=client.name,
++                user_id=str(current_user.id),
++            )
++            has_consent = True
++        else:
++            logger.info(
++                "oauth.public_first_party.reserved_scope_needs_consent",
++                client_id=client_id,
++                reserved_scopes=sorted(reserved_requested),
++            )
+ 
+     if not has_consent:
+         # OIDC prompt=none: never show an interactive consent screen. If the
+         # user hasn't pre-consented, signal consent_required to the caller.
+         #
+-        # Since B6 this branch is unreachable on the silent path by
+-        # construction: `silent_auth` already required
++        # For confidential clients this branch is unreachable on the silent
++        # path by construction: `silent_auth` already required
+         # `_is_silent_auth_allowed(client)`, and B6 pre-consents exactly those
+-        # clients. It stays as defense in depth — if the two predicates ever
+-        # diverge, the spec-correct answer is still emitted rather than a
+-        # consent screen a silent caller cannot render.
++        # clients. A marked PUBLIC client reaches it when it asks for a
++        # reserved scope the person has not granted it yet.
+         if silent_auth:
+             logger.info(
+                 "prompt=none but consent missing — emitting consent_required",

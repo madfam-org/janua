@@ -1,0 +1,323 @@
+# Owner exception: build, verify and sign a janua-api image that is the image
+# production runs plus janua#833: a PUBLIC client an operator marked with
+# `madfam:silent_auth` may use prompt=none and skip the consent screen, only on a
+# row a platform admin registered and only for a request with explicit PKCE
+# S256, the exact registered redirect_uri and registered scopes (reserved scopes
+# still need the person's own consent once). Unmarked public clients and every
+# confidential client are unchanged. See
+# deployment/hotfix/janua-api-public-silent-auth/README.md.
+#
+# It builds ONE image and writes nothing to staging, production or this
+# repository. Pinning the result in production is a separate reviewed PR. The
+# promotion hold (scripts/staging/promotion_runtime_guard.py) is untouched.
+# Delete this workflow and that folder once a normal promotion replaces the
+# hotfix in production.
+
+name: Hotfix image (silent sign-in for marked public first-party clients)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why build it now (shown in the run summary; required)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write # cosign keyless signing via OIDC
+
+concurrency:
+  group: hotfix-janua-api-public-silent-auth
+  cancel-in-progress: false
+
+env:
+  # The digest production runs (k8s/overlays/production/kustomization.yaml,
+  # the hosted-locale hotfix of janua#830, pinned by janua#831, run
+  # 44026881218): the contain-roles-guest chain plus the three hosted-locale
+  # files at HOSTED_SOURCE.
+  BASE_IMAGE: ghcr.io/madfam-org/janua-api@sha256:b9396f85e85e6f233cac090a032026f12540881848122e6ddfd68600a3dcae1a
+  BASE_SOURCE: b16869d75bf8e91967b3f8443032f01bc2463417
+  RESERVED_SOURCE: ee7668b894a6445c78a37bb5f5eea9183988777c
+  CHATGPT_SOURCE: ae7a3f504e1965002148fb7f8e86c0a36b5e5922
+  ORG_LOGIN_SOURCE: 6f3b9b1afcfb988c4383619ce3c9325389e748b0
+  ROLE_SHAPE_SOURCE: 0742d02a6d06cc10bb8d945194cd719ef8de788d
+  ENTITLEMENT_SOURCE: 7c6150ffc1226abe0d02ac7a60e40191af97f8e5
+  RES2_SOURCE: 393a95b2fae2cf8f93b0f90e537cb39afe6bc495
+  JSONENC_SOURCE: e9442f2fc099a3d31a8c1c73ea68683a3c3a2d8a
+  WEBHOOKS_SOURCE: 505683db739acccda30e252a1f46b75c0a21ab76
+  PRIMARY_SOURCE: 54fbf9bfb5f98caff887ac3c9640984e85a76728
+  CONTAIN_SOURCE: 35a37b6faf6d60fd3b5d36920683a3767d2dfe8b
+  HOSTED_SOURCE: dbacd84391e9e4d4909ccecfdef499fb73cc7de7
+  PRIMARY_DIR: deployment/hotfix/janua-api-primary-organization
+  HOSTED_DIR: deployment/hotfix/janua-api-hosted-locale
+  # The merge this hotfix ships: its own diff, replayed onto production's copy,
+  # must give exactly the file the image gets.
+  MERGE_833: 878e842857ebcd566be3d47c5a238aa9ef4cf464
+  HOTFIX_DIR: deployment/hotfix/janua-api-public-silent-auth
+  DOCKERFILE: deployment/hotfix/janua-api-public-silent-auth/Dockerfile
+  CHECK: deployment/hotfix/janua-api-public-silent-auth/check_silent_auth.py
+  POLICY_DUMP: deployment/hotfix/janua-api-map-chatgpt/dump_policy.py
+  TARGET: ghcr.io/madfam-org/janua-api
+
+jobs:
+  build:
+    name: Build, verify and sign
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    steps:
+      - name: Refuse anything but main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Build the hotfix from main only, where the Dockerfile and the change were reviewed."
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the source commits must be reachable
+
+      - name: Dockerfile pins the base this workflow verifies
+        run: |
+          set -euo pipefail
+          grep -qxF "FROM ${BASE_IMAGE}" "$DOCKERFILE" || {
+            echo "::error::$DOCKERFILE does not start FROM ${BASE_IMAGE}."
+            exit 1
+          }
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+
+      # Proves the base is what production runs: apps/api/app at BASE_SOURCE
+      # with the files of the eleven earlier hotfixes from their sources, and
+      # the migrations at BASE_SOURCE plus the primary-organization migration.
+      - name: Base image is BASE_SOURCE plus the earlier hotfix files
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hotfix/src /tmp/hotfix/base
+          docker pull --quiet "$BASE_IMAGE"
+          cid=$(docker create "$BASE_IMAGE")
+          docker cp "$cid:/app/app" /tmp/hotfix/base/app
+          docker cp "$cid:/app/alembic/versions" /tmp/hotfix/base/versions
+          docker rm "$cid" >/dev/null
+          git archive "$BASE_SOURCE" apps/api/app apps/api/alembic/versions | tar -x -C /tmp/hotfix/src
+          for f in core/oauth_metadata.py core/reserved_oauth_boundaries.py; do
+            git show "$RESERVED_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          for f in core/protected_resources.py services/client_id_metadata.py; do
+            git show "$CHATGPT_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          for f in auth/tenant_login_context.py auth/hosted_security.py; do
+            git show "$ORG_LOGIN_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          for f in services/org_claims_service.py services/role_service.py services/organization_member_service.py; do
+            git show "$ROLE_SHAPE_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          git show "$ENTITLEMENT_SOURCE:apps/api/app/models/__init__.py" > /tmp/hotfix/src/apps/api/app/models/__init__.py
+          for f in core/reserved_oauth_boundaries.py services/client_privacy_notices.py auth/hosted_locale.py routers/v1/auth.py config.py; do
+            git show "$RES2_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          git show "$JSONENC_SOURCE:apps/api/app/models/types.py" > /tmp/hotfix/src/apps/api/app/models/types.py
+          for f in services/webhooks.py routers/v1/webhooks.py; do
+            git show "$WEBHOOKS_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          for f in models/user_primary_organization.py schemas/primary_organization.py routers/v1/internal_primary_organization.py services/org_claims_service.py services/audit_logger.py; do
+            git show "$PRIMARY_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          git show "$PRIMARY_SOURCE:$PRIMARY_DIR/main.py" > /tmp/hotfix/src/apps/api/app/main.py
+          git show "$PRIMARY_SOURCE:apps/api/alembic/versions/022_user_primary_organization.py" > /tmp/hotfix/src/apps/api/alembic/versions/022_user_primary_organization.py
+          for f in core/reserved_oauth_boundaries.py routers/v1/guest.py; do
+            git show "$CONTAIN_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          for f in auth/hosted_locale.py routers/v1/auth.py; do
+            git show "$HOSTED_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          git show "$HOSTED_SOURCE:$HOSTED_DIR/oauth_provider.py.shipped" > /tmp/hotfix/src/apps/api/app/routers/v1/oauth_provider.py
+          diff -r -x __pycache__ /tmp/hotfix/src/apps/api/app /tmp/hotfix/base/app
+          diff -r -x __pycache__ /tmp/hotfix/src/apps/api/alembic/versions /tmp/hotfix/base/versions
+          echo "Base image application code and migrations match their proven sources."
+
+      # Proves the changed file differs from production's copy by exactly the
+      # reviewed hunks (janua#833), computed the same way as the .diff file was.
+      - name: "The changed file differs from production's only by the reviewed hunks"
+        run: |
+          set -euo pipefail
+          f=routers/v1/oauth_provider.py
+          # git diff, not diff(1): its hunks are the same on every platform.
+          { git diff --no-index --no-color -U3 "/tmp/hotfix/base/app/$f" "$HOTFIX_DIR/oauth_provider.py.shipped" || true; } | sed -n '/^@@/,$p' > /tmp/hotfix/oauth_provider.diff
+          if ! cmp /tmp/hotfix/oauth_provider.diff "$HOTFIX_DIR/oauth_provider.diff"; then
+            echo "::error::$HOTFIX_DIR/oauth_provider.py.shipped differs from production's app/$f by more than the reviewed hunks:"
+            diff /tmp/hotfix/oauth_provider.diff "$HOTFIX_DIR/oauth_provider.diff" || true
+            exit 1
+          fi
+          echo "oauth_provider.py differs from production's by exactly the reviewed hunks."
+
+      # Proves the reviewed hunks are janua#833 and nothing else: replaying the
+      # merge's own diff onto production's copy gives the file the image gets,
+      # byte for byte. main's oauth_provider.py also carries janua#792 and
+      # janua#801, which production does not run, so the image gets
+      # production's oauth_provider.py plus the merge instead.
+      - name: "The shipped file is production's copy plus janua#833"
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hotfix/replay/apps/api/app/routers/v1
+          cp /tmp/hotfix/base/app/routers/v1/oauth_provider.py /tmp/hotfix/replay/apps/api/app/routers/v1/oauth_provider.py
+          git diff --no-color "$MERGE_833^1" "$MERGE_833" -- apps/api/app > /tmp/hotfix/833.patch
+          # The merge touches only the shipped file (its tests and docs stay out of the image).
+          touched=$(git diff --name-only "$MERGE_833^1" "$MERGE_833" -- apps/api/app | LC_ALL=C sort | tr '\n' ' ')
+          if [[ "$touched" != "apps/api/app/routers/v1/oauth_provider.py " ]]; then
+            echo "::error::janua#833 touches unexpected application files: $touched"
+            exit 1
+          fi
+          (cd /tmp/hotfix/replay && git apply /tmp/hotfix/833.patch)
+          cmp /tmp/hotfix/replay/apps/api/app/routers/v1/oauth_provider.py "$HOTFIX_DIR/oauth_provider.py.shipped"
+          echo "Production's copy plus janua#833 is exactly the shipped file."
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: ${{ env.TARGET }}:hotfix-public-silent-auth-${{ github.sha }}
+          provenance: false
+          sbom: false
+
+      # Proves the delta: one added layer, and exactly the one file changed,
+      # byte-identical to the reviewed source.
+      - name: Hotfix differs from the base by one file
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          new="${TARGET}@${DIGEST}"
+          docker pull --quiet "$new"
+          base_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$BASE_IMAGE")
+          new_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$new")
+          if [[ "$new_layers" -ne $((base_layers + 1)) ]]; then
+            echo "::error::Expected exactly one added layer ($base_layers -> $new_layers)."
+            exit 1
+          fi
+          mkdir -p /tmp/hotfix/new
+          cid=$(docker create "$new")
+          docker cp "$cid:/app/app" /tmp/hotfix/new/app
+          docker cp "$cid:/app/alembic/versions" /tmp/hotfix/new/versions
+          docker rm "$cid" >/dev/null
+          changed=$( { diff -rq -x __pycache__ /tmp/hotfix/base/app /tmp/hotfix/new/app; diff -rq -x __pycache__ /tmp/hotfix/base/versions /tmp/hotfix/new/versions; } | sort || true)
+          expected="Files /tmp/hotfix/base/app/routers/v1/oauth_provider.py and /tmp/hotfix/new/app/routers/v1/oauth_provider.py differ"
+          if [[ "$changed" != "$expected" ]]; then
+            echo "::error::Unexpected application-code delta:"
+            echo "$changed"
+            exit 1
+          fi
+          cmp /tmp/hotfix/new/app/routers/v1/oauth_provider.py "$HOTFIX_DIR/oauth_provider.py.shipped"
+          echo "Only the reviewed file changed, and it is the reviewed file."
+
+      # Importing app modules imports the whole application, so these also prove
+      # both images import cleanly. The production image has asyncpg but not
+      # the test-only aiosqlite, so the URL must be PostgreSQL; nothing listens
+      # on it and nothing connects.
+      - name: Discovery, client policy and existing first-party trust unchanged; marked public clients decided per request
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          run_py() {
+            docker run --rm -i --entrypoint python \
+              -e ENVIRONMENT=test \
+              -e DATABASE_URL='postgresql+asyncpg://verify:verify@127.0.0.1:5432/verify' \
+              -e REDIS_URL='redis://localhost:6379/0' \
+              -e SECRET_KEY=hotfix-verification-only \
+              -e JWT_SECRET_KEY=hotfix-verification-only \
+              -e CORS_ORIGINS=http://localhost:3000 \
+              -e JANUA_CUSTOM_DOMAIN=auth.madfam.io \
+              "$@"
+          }
+          metadata() {
+            run_py "$1" -c 'import json; from app.core.oauth_metadata import authorization_server_metadata as m; print("METADATA=" + json.dumps(m(), sort_keys=True))' \
+              | grep '^METADATA=' | tail -1 | cut -d= -f2-
+          }
+          policy() {
+            run_py "$1" - < "$POLICY_DUMP" | grep '^POLICY=' | tail -1 | cut -d= -f2-
+          }
+          new="${TARGET}@${DIGEST}"
+          metadata "$BASE_IMAGE" > /tmp/hotfix/base-metadata.json
+          metadata "$new" > /tmp/hotfix/new-metadata.json
+          cmp /tmp/hotfix/base-metadata.json /tmp/hotfix/new-metadata.json
+          echo "Discovery: identical."
+          policy "$BASE_IMAGE" > /tmp/hotfix/base-policy.json
+          policy "$new" > /tmp/hotfix/new-policy.json
+          cmp /tmp/hotfix/base-policy.json /tmp/hotfix/new-policy.json
+          echo "Client policy: identical."
+          run_py "$BASE_IMAGE" - < "$CHECK" > /tmp/hotfix/base-check.txt
+          run_py "$new" - < "$CHECK" > /tmp/hotfix/new-check.txt
+          for side in base new; do
+            grep '^SILENT=' "/tmp/hotfix/$side-check.txt" | tail -1 | cut -d= -f2- | tee "/tmp/hotfix/$side-silent.json"
+            grep '^UNCHANGED=' "/tmp/hotfix/$side-check.txt" | tail -1 | cut -d= -f2- > "/tmp/hotfix/$side-unchanged.json"
+          done
+          test -s /tmp/hotfix/base-unchanged.json
+          cmp /tmp/hotfix/base-unchanged.json /tmp/hotfix/new-unchanged.json
+          echo "First-party trust of every client shape (marked or not, public or confidential): identical."
+          python3 - <<'PY'
+          import json
+
+          base = json.load(open("/tmp/hotfix/base-silent.json"))
+          new = json.load(open("/tmp/hotfix/new-silent.json"))
+          # Production today: no public client is ever trusted for prompt=none
+          # or the consent skip, whatever it carries.
+          assert base and not any(base.values()), base
+          assert new.keys() == base.keys() and all(new.values()), new
+          print("A marked public client is recognised, its request conditions and the platform-admin "
+                "registration rule are enforced, and reserved scopes still need consent, on the hotfix "
+                "and not on the base.")
+          PY
+
+      # Same retry as docker-publish.yml: a lost signature once cost a deploy.
+      - name: Sign image with cosign
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IMAGE_REF="${TARGET}@${DIGEST}"
+          for attempt in 1 2 3; do
+            if cosign sign --yes "${IMAGE_REF}"; then
+              echo "Signed ${IMAGE_REF}"
+              exit 0
+            fi
+            wait=$((attempt * 15))
+            echo "::warning::cosign sign failed for ${IMAGE_REF}; retrying in ${wait}s..."
+            sleep "$wait"
+          done
+          echo "::error::cosign sign failed 3 times for ${IMAGE_REF}."
+          exit 1
+
+      - name: Summary
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          {
+            echo "## Silent sign-in for marked public first-party clients: hotfix image"
+            echo ""
+            echo "- Digest: \`${DIGEST}\`"
+            echo "- Tag: \`${TARGET}:hotfix-public-silent-auth-${GITHUB_SHA}\`"
+            echo "- Source (main): \`${GITHUB_SHA}\`"
+            echo "- Base: \`${BASE_IMAGE}\` (production, janua#831)"
+            echo "- Delta: production's \`app/routers/v1/oauth_provider.py\` plus janua#833 (oauth_provider.diff)"
+            echo "- Reason: ${REASON}"
+            echo ""
+            echo "Nothing was pinned. Production changes only through the reviewed PR that sets this digest as the production janua-api pin."
+          } >> "$GITHUB_STEP_SUMMARY"
