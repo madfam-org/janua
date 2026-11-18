@@ -281,6 +281,27 @@ async def test_unbound_interactive_client_is_unchanged_for_any_account(env):
     assert response.json()["organization_id"] is None
 
 
+async def test_self_service_cannot_mark_a_public_client_first_party(env):
+    """The self-service path (any signed-in account, no organization) cannot
+    register a public client with `madfam:silent_auth`, nor add it later."""
+    env.act_as(env.outsider)
+    marked = _interactive(is_confidential=False, allowed_scopes=["openid", "madfam:silent_auth"])
+    response = await _create(env, marked)
+    assert response.status_code == 403, response.text
+    await _assert_nothing_written(env)
+
+    response = await _create(env, _interactive(is_confidential=False))
+    assert response.status_code == 201, response.text
+    created = response.json()
+    response = await env.http.patch(
+        f"{CLIENTS_URL}/{created['id']}",
+        json={"allowed_scopes": ["openid", "profile", "email", "madfam:silent_auth"]},
+    )
+    assert response.status_code == 403, response.text
+    row = await env.client_row(created["id"])
+    assert "madfam:silent_auth" not in row.allowed_scopes
+
+
 async def test_unbound_client_credentials_needs_platform_admin(env):
     env.act_as(env.org_admin)
     response = await _create(env, _machine())
@@ -319,6 +340,11 @@ RESERVED_PAYLOADS = {
     "product admin scope": _machine(allowed_scopes=["hcm:admin"]),
     "sibling service scope": _machine(allowed_scopes=["cfdi:issue"]),
     "silent-auth scope": _interactive(allowed_scopes=["openid", "madfam:silent_auth"]),
+    # A public client carrying the marker gets silent sign-in and no consent
+    # screen (oauth_provider._is_marked_public_client): operator-only too.
+    "silent-auth scope, public client": _interactive(
+        allowed_scopes=["openid", "madfam:silent_auth"], is_confidential=False
+    ),
     "first-party name": _interactive("madfam-portal"),
     "first-party name, other case": _interactive("Selva-Office-web"),
     "consent purpose client name": _machine("creator-census-reauth"),
