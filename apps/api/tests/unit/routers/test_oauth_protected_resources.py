@@ -737,6 +737,22 @@ class TestAuthorizeRefusals:
         response = await authorize(env, authorize_params(challenge, prompt="none"), env.director)
         assert_redirect_error(response, "consent_required")
 
+    async def test_a_cimd_document_cannot_mark_itself_first_party(self, env):
+        # The silent-auth marker lives only in a registered row's
+        # `allowed_scopes`, which only a platform admin may write. A document
+        # the client serves itself can claim it in any field; nothing reads it.
+        env.net.documents["/oauth/mcp-oauth-client-metadata"] = dict(
+            CLAUDE_DOC,
+            scope="openid madfam:silent_auth",
+            allowed_scopes=["madfam:silent_auth"],
+            client_name="madfam-claude",
+        )
+        _, challenge = pkce()
+        silent = await authorize(env, authorize_params(challenge, prompt="none"), env.director)
+        assert_redirect_error(silent, "consent_required")
+        page = await authorize(env, authorize_params(challenge), env.director)
+        assert page.status_code == 200 and "Permitir" in page.text
+
 
 class TestConsentScreen:
     async def test_spanish_page_names_resource_host_and_scopes(self, env):

@@ -415,8 +415,13 @@ The short version for operators:
   unknown, expired, issued to another user or already used (a double submit).
 - **First-party clients skip consent.** An active, confidential client named
   `selva-office*` / `madfam-*`, or carrying the `madfam:silent_auth` scope, may
-  use `prompt=none` and is pre-consented. Every other client sees the consent
-  screen. See [`../architecture/SILENT_SSO_SESSION.md`](../architecture/SILENT_SSO_SESSION.md).
+  use `prompt=none` and is pre-consented. A **public** client qualifies only
+  through the `madfam:silent_auth` scope (never its name), only on a row a
+  platform admin registered, and only for a request with explicit PKCE S256, the
+  exact registered `redirect_uri`, registered scopes, and reserved scopes the
+  person already granted it. Every other client sees the consent screen. See
+  [`../architecture/SILENT_SSO_SESSION.md`](../architecture/SILENT_SSO_SESSION.md)
+  (B6, B8).
 - **`POST /api/v1/oauth/revoke` requires client authentication** (RFC 7009),
   the same as the token endpoint: HTTP Basic or form fields, the secret for a
   confidential client, `client_id` for a public one. Without it the answer is

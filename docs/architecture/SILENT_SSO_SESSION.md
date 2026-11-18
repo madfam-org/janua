@@ -38,6 +38,7 @@ land, not a menu.
 | **B1** | Both magic-link paths set the issuer session cookies | Janua `routers/v1/auth.py` | landed |
 | **B2** | `/authorize` accepts every audience Janua mints | Janua `routers/v1/oauth_provider.py` | landed |
 | **B6** | First-party clients are pre-consented | Janua `routers/v1/oauth_provider.py` | landed |
+| **B8** | Marked public first-party clients: silent sign-in and consent skip under strict request conditions | Janua `routers/v1/oauth_provider.py` | in review; no client marked |
 | **B3** | `COOKIE_DOMAIN=.madfam.io` so the cookie is readable estate-wide | `k8s/base/deployments/janua-api.yaml` | landed |
 | **B4** | `madfam:silent_auth` on the client portal's and nauta's OIDC clients | operator (admin API / data) | landed (client rows; not verifiable from this repo) |
 | **B5** | nauta sends `prompt=none` and falls back to interactive login | nauta `sso-launch.ts`, `auth.ts` | landed |
@@ -98,9 +99,88 @@ the clients trusted to authenticate silently are treated as pre-consented, so
 widening one can never quietly widen the other. Third-party clients still see
 the consent screen.
 
-Consequence: `consent_required` is now unreachable on the silent path by
-construction. The branch is kept as defense in depth in case the two predicates
-ever diverge.
+Consequence: for confidential clients `consent_required` is unreachable on the
+silent path by construction. The branch is kept as defense in depth in case the
+two predicates ever diverge. A marked **public** client (B8) can reach it.
+
+### B8 — marked public first-party clients (2026-11-18)
+
+B6 trusts **confidential** clients only. A first-party browser app that is a
+public client (PKCE, no secret) therefore always cost the person a click and a
+first-time consent screen, even with a valid Janua session. Owner decision
+2026-11-18: a public client may use `prompt=none` and skip the consent screen
+when an operator marked it, and for nothing else.
+
+**The marker** is the existing one: `madfam:silent_auth` in the client's
+`allowed_scopes`. On a public client only the marker counts; the
+`selva-office*` / `madfam-*` name prefixes never make a public client
+first-party. The marker is a reserved value
+(`core/reserved_oauth_boundaries.py`), so:
+
+- only a platform admin can put it on a client (`POST`/`PATCH
+  /api/v1/oauth/clients`), or an operator holding the internal API key
+  (`POST /api/v1/oauth/clients/register`, the internal scope-grant route);
+- an organization admin or any other account gets `403` on registration and on
+  edit, and the self-service unbound-client path is refused the same way;
+- Janua has no RFC 7591 dynamic registration endpoint, and a Client ID Metadata
+  Document is never read for it: CIMD clients take the protected-resource path,
+  which asks for consent on every request whatever the document says.
+
+On a public client the marker is honoured only when the row was **registered by
+a platform admin** (`created_by` is an admin,
+`oauth_client_authority.client_registered_by_platform_admin`), the same trust
+rule service boundaries apply to reserved values, so a row written by someone
+else before the registry reserved the marker carries no new authority.
+
+**The conditions.** A marked public client's request skips sign-in interaction
+(`prompt=none`) and the consent screen only when all of these hold
+(`oauth_provider._public_first_party_refusal` and the consent step of
+`authorize_get`):
+
+| Condition | When it fails |
+|---|---|
+| PKCE S256, stated explicitly (`code_challenge_method=S256`), with a 43-character base64url challenge | `interaction_required` (`pkce_s256_required`). A missing challenge or `plain` is refused with `400` and no redirect, as for every public client. |
+| `redirect_uri` is **exactly** one of the registered strings: no extra query, no trailing-slash difference, no loopback-port leniency | `interaction_required` (`redirect_uri_not_exact`). A URI that is not registered at all is `400` with no redirect, as before. |
+| Every requested scope is registered for the client (nothing narrowed away) | `consent_required` (`scope_not_registered`) |
+| A reserved scope in the request (a product role scope such as `tulana:viewer`, `madfam:silent_auth` itself, any registry value) is one this person already granted to this client on the consent screen | `consent_required` |
+| The row was registered by a platform admin | `interaction_required` |
+| A valid Janua session | `login_required` |
+| Invite-only, email verification and MFA (`user_requires_mfa` with the client's organization), exactly as for every other client | `access_denied` / `login_required` |
+
+Errors go back by redirect to the request's `redirect_uri` only after it passed
+the registered-URI check, never anywhere else. On the interactive path the same
+conditions decide whether the consent screen is shown; when one fails the
+person sees the ordinary consent screen. Unmarked public clients and every
+confidential client behave exactly as before.
+
+**Threat model.** A public client's `client_id` is not a secret: anyone can
+build an authorize URL with it and send a signed-in person there, now without a
+click or a consent screen to warn her. Two controls bound what that buys.
+The exact redirect match means the code is delivered only to a URI the platform
+admin registered, byte for byte: the real app's own page, never a look-alike
+query, path or port the attacker controls, so an attacker who starts the flow
+with a verifier of their own never sees the code it was issued for. PKCE S256
+means a code issued to the real app's own flow can be redeemed only with that
+flow's verifier, which never leaves the app, so a code seen in transit (a log,
+a referrer, a browser history entry) is worthless. What the attacker can do is
+make the person's browser land on the real app signed in as herself, which a
+link to the app's sign-in button already does; the app treats an unexpected
+`state` as it does today. Scopes are bounded by the client's registration, and
+reserved ones still need the person's own consent once, so the marker never
+grants authority the client was not already given. The residual risk is a
+registered redirect page that leaks the code to a third party (an open redirect
+or script injection on that page) together with an attacker-started flow: mark
+only clients whose redirect pages the operator trusts.
+
+**How an operator marks a client.** As a platform admin, add
+`madfam:silent_auth` to the client's `allowed_scopes` (`PATCH
+/api/v1/oauth/clients/{id}` with the whole list, or the internal-key
+scope-grant route, which adds one scope and keeps the rest). Before doing so,
+check that the client is public on purpose, that its `redirect_uris` are exact
+HTTPS URLs on the app's own host, and that `created_by` is a platform admin
+(re-register the client as one if not). The app must send
+`code_challenge_method=S256` and the exact registered `redirect_uri`. Unmark by
+removing the scope. No client is marked by the change that introduced B8.
 
 ## Security note: the cookie is readable by JavaScript
 
@@ -479,6 +559,9 @@ reopen it.
   nauta's OIDC clients. Their names do not match the
   `selva-office*` / `madfam-*` prefixes, so the scope is the only way they
   qualify — for `prompt=none` and, since B6, for pre-consent.
+- **B8**: to let a public first-party app sign in silently, follow
+  [How an operator marks a client](#b8--marked-public-first-party-clients-2026-11-18).
+  Nothing to do otherwise; no migration.
 - **R1**: nothing beyond B3. `COOKIE_DOMAIN=.madfam.io` is the single
   prerequisite for `janua_sso` to travel, and it is already set in production.
   Without it the cookie is emitted host-only, the relay refuses it, and the

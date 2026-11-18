@@ -86,8 +86,10 @@ else:
   `apps/api/app/core/reserved_oauth_boundaries.py`: every `janua-*` audience,
   the sibling-service audiences and scopes in the table above, consent-purpose
   client names and subject audiences, `admin` and `<product>:admin`,
-  `madfam:silent_auth`, and the `madfam-*` / `selva-office*` first-party names.
-  It also reserves every machine scope a consumer honours without binding it
+  `madfam:silent_auth` (silent sign-in and no consent screen; on a public
+  client only under the conditions in
+  [SILENT_SSO_SESSION.md → B8](architecture/SILENT_SSO_SESSION.md#b8--marked-public-first-party-clients-2026-11-18)),
+  and the `madfam-*` / `selva-office*` first-party names. It also reserves every machine scope a consumer honours without binding it
   to the token's own organization: all of Karafiel's (`cfdi:issue`,
   `legal:draft`, `legal:employment-draft`, `legal:contractor-draft`,
   `legal:client-profile`, `fiscal:invoice`, `fiscal:csf-intake`,
