@@ -17,7 +17,8 @@ point that stops that from recurring:
   Symbiosis HCM's two labor-cost clients from symbiosis-hcm#232
   (``apps/api/symbiosis/settings.py``, open), Pravara's Dhanam cost-event writer
   (pravara-mes#71, declared in enclii#948) and ``ops-agents-selva-cogs``
-  (enclii#946), each provisioned only after its reservation deploys) and in
+  (enclii#946) and Tulana's read of Dhanam's COGS MCP (``tulana-dhanam-cogs``,
+  enclii#973), each provisioned only after its reservation deploys) and in
   ``docs/reference/PROTECTED_RESOURCES_AND_MCP_CLIENTS.md``.
 - ``CONSUMER_MACHINE_SCOPES`` / ``CONSUMER_AUDIENCES``: what the consumers'
   code authorizes machine tokens on, with the file that does it.
@@ -137,6 +138,10 @@ ECOSYSTEM_MACHINE_EDGES: dict[str, tuple[str, tuple[str, ...], bool]] = {
     # The ops agents reading Selva's own COGS MCP (selva-office#362; client
     # declared in enclii#946). No Selva-fleet client for Selva's own ledger.
     "ops-agents-selva-cogs": ("selva-office", ("selva-cogs:read",), True),
+    # Tulana's API reading Dhanam's COGS MCP (tool ``cogs_sku_floors``) for the
+    # measured cost per offer on its internal catalogue (tulana#151, dhanam#1002;
+    # client declared in enclii#973). Read only, org-bound to madfam-ecosystem.
+    "tulana-dhanam-cogs": ("dhanam-api", ("dhanam-cogs:read",), True),
     # RFC 0051 ruling M3 (enclii#946): Selva's fleet and the ops agents, one
     # client per platform MCP, each org-bound to madfam-ecosystem.
     **{
