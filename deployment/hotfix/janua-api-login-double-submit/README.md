@@ -1,7 +1,6 @@
 # A repeated sign-in POST lands in the app, not on raw JSON: hotfix image (owner exception)
 
-**Status (2026-11-19): not pinned.** janua#841 is merged (`75dd0eea`).
-Production runs row 12 until the owner approves the pin PR. The full list of
+**Status (2026-11-19): pinned** by janua#843 (`janua-api@sha256:2bbee189…`); live once Argo syncs. The full list of
 what production runs is in [`../README.md`](../README.md).
 
 ## Why
@@ -124,9 +123,9 @@ Without script the forms work as before.
 
 | | |
 |---|---|
-| Approved by | Owner, 2026-11-19 (in session): asked for the fix and its hotfix after the production sign-in incident of that day (janua#841). Reason: production incident 2026-11-19. The pin needs the owner's explicit OK, to be recorded here when given; `promote-to-prod.yml` stays held. Scope: this hotfix only (janua#841), on top of the current production digest `sha256:44c4310d…` (janua#835) |
-| Built by | pending (filled by the pin PR) |
-| Hotfix digest | pending (filled by the pin PR) |
+| Approved by | Owner, 2026-11-19 (in session): asked for the fix and its hotfix after the production sign-in incident of that day (janua#841). Reason: production incident 2026-11-19. Pin OK given by the owner in session on 2026-11-19 («Promote the green fixes to production optimally and as soon as possible»); `promote-to-prod.yml` stays held. Scope: this hotfix only (janua#841), on top of the current production digest `sha256:44c4310d…` (janua#835) |
+| Built by | [run 44625358092](https://github.com/madfam-org/janua/actions/runs/44625358092) from `main` `592d61b9` (janua#842); every proof step passed |
+| Hotfix digest | `sha256:2bbee189303b669bb24302ed3437daa59ee2e0979436d79b3b02b887b1eeb361` |
 | Replaces | `sha256:44c4310d742f4720efca7158872a88497fee6fd910996635109353ba7e098678` (janua#835) |
 | Delta | `app/auth/hosted_locale.py`, `app/auth/tenant_login_context.py` and `app/routers/v1/auth.py` from `main`: production's copies plus janua#841 (`hosted_locale.diff`, `tenant_login_context.diff`, `auth.diff`) |
 
