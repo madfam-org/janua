@@ -299,6 +299,29 @@ credentials and `password=` values masked.
 3. Search for `State store unavailable; answering 503` and
    `Strict Redis operation failed`.
 
+## A sign-in that lands on request expired
+
+Since janua#841 (incident
+[2026-11-19](incidents/2026-11-19-hosted-login-double-submit.md)), a hosted
+sign-in POST whose `oauth:pre_login:<id>` is gone never answers the JSON error
+body. Search the API logs for `login_form.redirect_branch`:
+
+- `redis_hit`: the pending request resumed (normal).
+- `redis_miss` followed by `redis_miss_oauth_recovered`: the request was gone
+  (expired, or used by an earlier submit of the same form, which is a double
+  submit). The credentials were checked against the client the form names and
+  the browser went (303) to that client's registered origin. Two POSTs with the
+  same `auth_request_id` a few seconds apart, the first answered 302, is a
+  double submit.
+- `redis_miss_no_recovery`: no registered, active client could restart the
+  flow, or a second factor was required. Nothing was checked or issued; the
+  browser went (303) to `GET /api/v1/auth/login-expired`.
+
+The hosted forms also load `GET /api/v1/auth/hosted-form.js`, which disables
+the submit button after the first press. If people still report the expired
+page, check that this script answers 200 and that the page's CSP allows
+`script-src 'self'`.
+
 ## Follow-up: alerting on the readiness body
 
 Not done in this change, and no monitoring configuration was touched. Because
@@ -324,6 +347,9 @@ decision:
 - `oauth:pre_login:<id>` **reads** in the hosted login and magic-link handlers.
   The write is strict. On a miss the readers rebuild the authorize URL from the
   client registration and lose `state` and PKCE.
+  Since janua#841 the password form reads the key once, through
+  `login_client_context`, and treats a miss as described in
+  [A sign-in that lands on request expired](#a-sign-in-that-lands-on-request-expired).
 - Revocation-list **writes** (`blacklist:*`): best-effort, now logged when lost
   (above).
 - `JWTService` (`app/services/jwt_service.py`) reads `revoked:<jti>`,

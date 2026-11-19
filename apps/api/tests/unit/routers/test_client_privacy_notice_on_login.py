@@ -139,11 +139,19 @@ def test_an_unlisted_page_is_byte_for_byte_what_production_rendered():
     fixtures/hosted_login_unlisted/{en,es}.html are those renders (their SHA-256,
     6eb9f5de… and 44b1b17a…, were taken from that source with the same
     arguments); a hotfix image carrying this file proves the same thing against
-    the running image."""
-    from app.routers.v1.auth import _hosted_login_page_html
+    the running image.
+
+    Since 2026-11-19 the page also carries the one-press busy state (the
+    same-origin script tag and the form's `data-busy-label`): removing exactly
+    those two insertions gives the golden render back, byte for byte."""
+    from app.auth.hosted_locale import hosted_copy
+    from app.routers.v1.auth import HOSTED_FORM_SCRIPT_TAG, _hosted_login_page_html
 
     golden = Path(__file__).parent / "fixtures" / "hosted_login_unlisted"
     common = {"app_name": "MADFAM CV", "hidden_fields": "", "method": "password", "switch_url": None}
     for locale in ("en", "es"):
         page = _hosted_login_page_html(**common, locale=locale)
-        assert page.encode() == (golden / f"{locale}.html").read_bytes(), locale
+        busy = f' data-busy-label="{hosted_copy(locale)["busy_signing_in"]}"'
+        assert page.count(HOSTED_FORM_SCRIPT_TAG) == 1 and page.count(busy) == 1, locale
+        before = page.replace(HOSTED_FORM_SCRIPT_TAG, "").replace(busy, "")
+        assert before.encode() == (golden / f"{locale}.html").read_bytes(), locale

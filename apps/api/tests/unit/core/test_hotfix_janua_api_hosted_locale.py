@@ -31,19 +31,39 @@ COPIED = {
     "apps/api/app/routers/v1/auth.py": "/app/app/routers/v1/",
     "deployment/hotfix/janua-api-hosted-locale/oauth_provider.py.shipped": "/app/app/routers/v1/oauth_provider.py",
 }
-# (production's copy as `source key:path`, the file the image gets, the reviewed hunk)
+# (production's copy as `source key:path`, the file the image gets, the reviewed hunk).
+# The two files copied from main are read at the commit the image was built from
+# (the exception record's "Built by" row), not from this checkout: later merges
+# move main past what this image ships (janua#841 changes both), exactly as the
+# later rows' workflows replay this row from that commit (HOSTED_SOURCE).
 HUNKS = [
     ("RES2_SOURCE", "apps/api/app/auth/hosted_locale.py",
-     ROOT / "apps/api/app/auth/hosted_locale.py", "hosted_locale.diff"),
+     "built:apps/api/app/auth/hosted_locale.py", "hosted_locale.diff"),
     ("RES2_SOURCE", "apps/api/app/routers/v1/auth.py",
-     ROOT / "apps/api/app/routers/v1/auth.py", "auth.diff"),
+     "built:apps/api/app/routers/v1/auth.py", "auth.diff"),
     ("BASE_SOURCE", "apps/api/app/routers/v1/oauth_provider.py",
-     HOTFIX / "oauth_provider.py.shipped", "oauth_provider.diff"),
+     "folder:oauth_provider.py.shipped", "oauth_provider.diff"),
 ]
 
 
 def _git(*args: str) -> bytes:
     return subprocess.run(["git", *args], cwd=ROOT, check=True, capture_output=True).stdout
+
+
+def _built_from() -> str:
+    """The `main` commit the exception record says the image was built from."""
+    built = re.search(r"`main` `([0-9a-f]{7,40})`", _record("Built by"))
+    assert built, "exception record has no `main` commit in its Built by row"
+    return built.group(1)
+
+
+def _shipped(image_file: str) -> bytes:
+    """The bytes the image got for one HUNKS entry."""
+    kind, path = image_file.split(":", 1)
+    if kind == "built":
+        return _git("show", f"{_built_from()}:{path}")
+    assert kind == "folder", image_file
+    return (HOTFIX / path).read_bytes()
 
 
 def _instructions() -> list[str]:
@@ -220,11 +240,12 @@ def test_the_changed_files_differ_from_production_by_exactly_the_reviewed_hunks(
     groups hunks differently on Mac and Linux), bytes end to end."""
     for source_key, prod_path, image_file, diff_name in HUNKS:
         base = _git("show", f"{WORKFLOW['env'][source_key]}:{prod_path}")
-        with tempfile.NamedTemporaryFile("wb", suffix=".py") as handle:
-            handle.write(base)
-            handle.flush()
+        with tempfile.TemporaryDirectory() as tmp:
+            prod_copy, image_copy = Path(tmp) / "prod.py", Path(tmp) / "image.py"
+            prod_copy.write_bytes(base)
+            image_copy.write_bytes(_shipped(image_file))
             out = subprocess.run(
-                ["git", "diff", "--no-index", "--no-color", "-U3", handle.name, str(image_file)],
+                ["git", "diff", "--no-index", "--no-color", "-U3", str(prod_copy), str(image_copy)],
                 capture_output=True,
             ).stdout
         assert out[out.index(b"@@"):] == (HOTFIX / diff_name).read_bytes(), diff_name
@@ -244,9 +265,20 @@ def test_shipped_files_are_production_copies_plus_the_two_merges():
             patch = _git("diff", "--no-color", f"{WORKFLOW['env'][key]}^1", WORKFLOW["env"][key], "--", "apps/api/app")
             subprocess.run(["git", "apply", "-"], cwd=replay, input=patch, check=True, capture_output=True)
         for _, prod_path, image_file, _ in HUNKS:
-            assert (replay / prod_path).read_bytes() == image_file.read_bytes(), prod_path
-    # The two files copied from main are main's; oauth_provider.py is not main's.
-    assert (HOTFIX / "oauth_provider.py.shipped").read_bytes() != (ROOT / "apps/api/app/routers/v1/oauth_provider.py").read_bytes()
+            assert (replay / prod_path).read_bytes() == _shipped(image_file), prod_path
+    # The two files copied from main are main's at the build commit; oauth_provider.py is not main's.
+    built = _built_from()
+    assert (HOTFIX / "oauth_provider.py.shipped").read_bytes() != _git("show", f"{built}:apps/api/app/routers/v1/oauth_provider.py")
+
+
+def test_build_commit_is_the_hosted_locale_merge_later_rows_replay():
+    """The commit the guard reads the shipped files at is the one the exception
+    record names, it is janua#830, and the next row (public silent auth) replays
+    this row from the same commit (its HOSTED_SOURCE)."""
+    built = _built_from()
+    assert "(#830)" in _git("log", "-1", "--format=%s", built).decode()
+    later = yaml.safe_load((ROOT / ".github/workflows/hotfix-janua-api-public-silent-auth.yml").read_text())
+    assert later["env"]["HOSTED_SOURCE"].startswith(built)
 
 
 def test_check_script_passes_in_this_checkout():

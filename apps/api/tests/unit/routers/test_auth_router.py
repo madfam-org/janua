@@ -872,8 +872,9 @@ class TestAuditEventMap:
 
     def test_log_audit_event_function_exists(self):
         """Test log_audit_event function is importable."""
-        from app.routers.v1.auth import log_audit_event
         import asyncio
+
+        from app.routers.v1.auth import log_audit_event
 
         assert asyncio.iscoroutinefunction(log_audit_event)
 
@@ -884,6 +885,7 @@ class TestSignOutResilience:
     def test_sign_out_uses_verify_token_not_decode_token(self):
         """sign_out must use AuthService.verify_token (async), not decode_token (nonexistent)."""
         import inspect
+
         from app.routers.v1.auth import sign_out
 
         source = inspect.getsource(sign_out)
@@ -893,6 +895,7 @@ class TestSignOutResilience:
     def test_sign_out_wraps_log_activity_in_try_except(self):
         """log_activity in sign_out must be wrapped in try/except for resilience."""
         import inspect
+
         from app.routers.v1.auth import sign_out
 
         source = inspect.getsource(sign_out)
@@ -909,6 +912,7 @@ class TestSignOutResilience:
         tests/unit/routers/test_revocation_routes.py.
         """
         import inspect
+
         from app.routers.v1.auth import sign_out
 
         source = inspect.getsource(sign_out)
@@ -918,6 +922,7 @@ class TestSignOutResilience:
     def test_sign_out_revokes_session(self):
         """sign_out must set session.revoked = True in the database."""
         import inspect
+
         from app.routers.v1.auth import sign_out
 
         source = inspect.getsource(sign_out)
@@ -930,6 +935,7 @@ class TestSignInResilience:
     def test_sign_in_wraps_log_activity_in_try_except(self):
         """log_activity in sign_in must be wrapped in try/except for resilience."""
         import inspect
+
         from app.routers.v1.auth import sign_in
 
         source = inspect.getsource(sign_in)
@@ -951,6 +957,7 @@ class TestLoginPageAuthRequestId:
     def test_login_page_accepts_auth_request_id_param(self):
         """login_page must accept auth_request_id as an optional query param."""
         import inspect
+
         from app.routers.v1.auth import login_page
 
         sig = inspect.signature(login_page)
@@ -990,6 +997,7 @@ class TestLoginPageAuthRequestId:
     def test_login_page_still_supports_next_param(self):
         """login_page must retain backward compatibility with the 'next' param."""
         import inspect
+
         from app.routers.v1.auth import login_page
 
         sig = inspect.signature(login_page)
@@ -1004,6 +1012,7 @@ class TestLoginFormAuthRequestId:
     def test_login_form_accepts_auth_request_id_param(self):
         """login_form must accept auth_request_id as an optional form field."""
         import inspect
+
         from app.routers.v1.auth import login_form
 
         sig = inspect.signature(login_form)
@@ -1014,6 +1023,7 @@ class TestLoginFormAuthRequestId:
     def test_login_form_accepts_redis_dependency(self):
         """login_form must accept a Redis dependency for auth request retrieval."""
         import inspect
+
         from app.routers.v1.auth import login_form
 
         sig = inspect.signature(login_form)
@@ -1024,6 +1034,7 @@ class TestLoginFormAuthRequestId:
     def test_login_form_retrieves_params_from_redis(self):
         """login_form must retrieve OAuth params from Redis when auth_request_id is present."""
         import inspect
+
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
@@ -1034,6 +1045,7 @@ class TestLoginFormAuthRequestId:
     def test_login_form_reconstructs_authorize_url(self):
         """login_form must reconstruct the OAuth authorize URL from stored params."""
         import inspect
+
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
@@ -1047,6 +1059,7 @@ class TestLoginFormAuthRequestId:
     def test_login_form_deletes_redis_key_after_success(self):
         """login_form must delete the Redis key after successful login (single-use)."""
         import inspect
+
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
@@ -1057,6 +1070,7 @@ class TestLoginFormAuthRequestId:
     def test_login_form_falls_back_to_next_param(self):
         """login_form must fall back to 'next' param when auth_request_id is absent."""
         import inspect
+
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
@@ -1067,6 +1081,7 @@ class TestLoginFormAuthRequestId:
     def test_login_form_handles_expired_auth_request(self):
         """login_form must handle missing/expired Redis keys gracefully."""
         import inspect
+
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
@@ -1078,6 +1093,7 @@ class TestLoginFormAuthRequestId:
     def test_login_form_preserves_client_id_in_error_page(self):
         """Error pages must preserve client_id for OAuth recovery after retries."""
         import inspect
+
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
@@ -1087,6 +1103,7 @@ class TestLoginFormAuthRequestId:
     def test_login_page_restarts_stale_auth_request(self):
         """Stale auth_request_id bookmarks should restart OAuth when possible."""
         import inspect
+
         from app.routers.v1.auth import login_page
 
         source = inspect.getsource(login_page)
@@ -1100,6 +1117,7 @@ class TestLoginFormAuthRequestId:
         (`app/auth/authorize_resume.py`), so the filter lives there.
         """
         import inspect
+
         from app.auth.authorize_resume import authorize_query
         from app.routers.v1.auth import login_form
 
@@ -1142,6 +1160,7 @@ class TestLoginFormOAuthRecovery:
     def test_login_form_accepts_client_id_param(self):
         """login_form must accept client_id as an optional form field."""
         import inspect
+
         from app.routers.v1.auth import login_form
 
         sig = inspect.signature(login_form)
@@ -1152,6 +1171,7 @@ class TestLoginFormOAuthRecovery:
     def test_login_form_accepts_client_name_param(self):
         """login_form must accept client_name as an optional form field."""
         import inspect
+
         from app.routers.v1.auth import login_form
 
         sig = inspect.signature(login_form)
@@ -1164,6 +1184,7 @@ class TestLoginFormOAuthRecovery:
         present, login_form must attempt to look up the OAuth client and
         reconstruct an authorize URL from its registered redirect_uris."""
         import inspect
+
         from app.routers.v1.auth import _recover_authorize_url_from_client
 
         source = inspect.getsource(_recover_authorize_url_from_client)
@@ -1176,20 +1197,28 @@ class TestLoginFormOAuthRecovery:
 
     def test_login_form_renders_expired_page_on_unrecoverable_oauth_state(self):
         """When neither Redis nor OAuth client lookup yields a redirect target,
-        login_form must render an explicit 'session expired' error page rather
-        than redirecting to JSON `/` (the historical silent-failure UX bug)."""
+        login_form must send the browser to an explicit 'session expired' page
+        rather than redirecting to JSON `/` (the historical silent-failure UX
+        bug) or answering the error body. Since 2026-11-19 that page is a GET
+        (`/login-expired`, reached by a 303), so a refresh does not POST again;
+        the behaviour is exercised in test_login_form_request_gone.py."""
         import inspect
-        from app.routers.v1.auth import login_form
+
+        from app.auth.hosted_locale import hosted_copy
+        from app.routers.v1.auth import login_expired_page, login_form
 
         source = inspect.getsource(login_form)
-        assert "Sign-in session expired" in source, (
-            "login_form must render an explicit expired-session page on unrecoverable OAuth state"
+        assert "_login_expired_url(" in source and "status_code=303" in source, (
+            "login_form must send unrecoverable OAuth state to the expired-session GET page"
         )
+        assert hosted_copy("en")["session_expired_title"] == "Sign-in session expired"
+        assert "session_expired_title" in inspect.getsource(login_expired_page)
 
     def test_login_form_logs_redirect_branch_for_observability(self):
         """Each redirect branch in login_form must emit a structured log so
         future silent-failure reports can be diagnosed from server logs."""
         import inspect
+
         from app.routers.v1.auth import login_form
 
         source = inspect.getsource(login_form)
