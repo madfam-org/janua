@@ -12,8 +12,8 @@ replaced). This page is the index: read it to answer "what code is in
 production?" without walking the chain record by record.
 
 **Current production pin** (`k8s/overlays/production/kustomization.yaml`,
-`janua-api`): `sha256:44c4310d742f4720efca7158872a88497fee6fd910996635109353ba7e098678`,
-the public-silent-auth hotfix, live since 2026-11-18 20:37Z.
+`janua-api`): `sha256:2bbee189303b669bb24302ed3437daa59ee2e0979436d79b3b02b887b1eeb361`,
+the login double-submit hotfix (row 13), pinned 2026-11-19 by PIN_PR. Before it: `sha256:44c4310d…` (row 12).
 
 ## The chain, oldest first
 
@@ -40,7 +40,7 @@ files are taken from (the workflow's `*_SOURCE`); "Files" are paths under
 | 10 | [`janua-api-contain-roles-guest`](janua-api-contain-roles-guest/README.md) | #826 | `35a37b6f` | `core/reserved_oauth_boundaries.py`, `routers/v1/guest.py` | `sha256:507e76f5…` | #828 (2026-11-16) |
 | 11 | [`janua-api-hosted-locale`](janua-api-hosted-locale/README.md) | #814, #820 | `dbacd843` | `auth/hosted_locale.py`, `routers/v1/auth.py`; `routers/v1/oauth_provider.py` from the folder's `oauth_provider.py.shipped` | `sha256:b9396f85…` | #831 (2026-11-17) |
 | 12 | [`janua-api-public-silent-auth`](janua-api-public-silent-auth/README.md) | #833 | `85f3e832` | `routers/v1/oauth_provider.py` from the folder's `oauth_provider.py.shipped` | `sha256:44c4310d…` | #835 (2026-11-18) |
-| 13 | [`janua-api-login-double-submit`](janua-api-login-double-submit/README.md) | #841 | `75dd0eea` | `auth/hosted_locale.py`, `auth/tenant_login_context.py`, `routers/v1/auth.py` | pending | pending |
+| 13 | [`janua-api-login-double-submit`](janua-api-login-double-submit/README.md) | #841 | `75dd0eea` | `auth/hosted_locale.py`, `auth/tenant_login_context.py`, `routers/v1/auth.py` | `sha256:2bbee189…` | PIN_PR (2026-11-19) |
 
 A later row overrides an earlier one for the same path (row 6, then row 10,
 for `core/reserved_oauth_boundaries.py`; row 4, then row 9, for
