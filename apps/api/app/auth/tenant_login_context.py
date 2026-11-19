@@ -7,6 +7,19 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 
+class LoginRequestExpired(HTTPException):
+    """The stored authorization request is gone: expired, or already used.
+
+    The same 400 every caller always answered. Its own type lets the hosted
+    password form tell this case apart (a double submit reaches it once the
+    first submit consumed the request, 2026-11-19) and answer with a page
+    instead of the error body, without matching on the message.
+    """
+
+    def __init__(self):
+        super().__init__(400, "La solicitud de acceso venció. Vuelve al MAP para iniciar.")
+
+
 async def login_client_context(db, redis, *, auth_request_id=None, client_id=None, return_url=None):
     from app.models import OAuthClient
     from app.routers.v1.oauth_provider import _validate_redirect_uri
@@ -15,7 +28,7 @@ async def login_client_context(db, redis, *, auth_request_id=None, client_id=Non
     if auth_request_id:
         raw = await redis.strict_get(f"oauth:pre_login:{auth_request_id}")
         if not raw:
-            raise HTTPException(400, "La solicitud de acceso venció. Vuelve al MAP para iniciar.")
+            raise LoginRequestExpired()
         try:
             context = json.loads(raw)
         except (TypeError, ValueError):

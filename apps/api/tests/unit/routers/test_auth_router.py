@@ -1176,15 +1176,21 @@ class TestLoginFormOAuthRecovery:
 
     def test_login_form_renders_expired_page_on_unrecoverable_oauth_state(self):
         """When neither Redis nor OAuth client lookup yields a redirect target,
-        login_form must render an explicit 'session expired' error page rather
-        than redirecting to JSON `/` (the historical silent-failure UX bug)."""
+        login_form must send the browser to an explicit 'session expired' page
+        rather than redirecting to JSON `/` (the historical silent-failure UX
+        bug) or answering the error body. Since 2026-11-19 that page is a GET
+        (`/login-expired`, reached by a 303), so a refresh does not POST again;
+        the behaviour is exercised in test_login_form_request_gone.py."""
         import inspect
-        from app.routers.v1.auth import login_form
+        from app.auth.hosted_locale import hosted_copy
+        from app.routers.v1.auth import login_expired_page, login_form
 
         source = inspect.getsource(login_form)
-        assert "Sign-in session expired" in source, (
-            "login_form must render an explicit expired-session page on unrecoverable OAuth state"
+        assert "_login_expired_url(" in source and "status_code=303" in source, (
+            "login_form must send unrecoverable OAuth state to the expired-session GET page"
         )
+        assert hosted_copy("en")["session_expired_title"] == "Sign-in session expired"
+        assert "session_expired_title" in inspect.getsource(login_expired_page)
 
     def test_login_form_logs_redirect_branch_for_observability(self):
         """Each redirect branch in login_form must emit a structured log so
