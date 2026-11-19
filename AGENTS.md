@@ -782,6 +782,7 @@ must be rebuilt and checked. Track it as its own change (listed in
 Post-promote reconcile and common blockers (Kyverno, GHCR pull, Argo app name):
 [docs/runbooks/production-gitops-reconcile.md](docs/runbooks/production-gitops-reconcile.md).
 Incident record (2026-06-15 website): [docs/runbooks/incidents/2026-06-15-janua-website-prod-rollout.md](docs/runbooks/incidents/2026-06-15-janua-website-prod-rollout.md).
+Incident record (2026-11-19 hosted sign-in double submit → raw JSON): [docs/runbooks/incidents/2026-11-19-hosted-login-double-submit.md](docs/runbooks/incidents/2026-11-19-hosted-login-double-submit.md).
 
 Canonical operator guide: [docs/PP_3B_STAGING_PIPELINE.md](docs/PP_3B_STAGING_PIPELINE.md).
 
