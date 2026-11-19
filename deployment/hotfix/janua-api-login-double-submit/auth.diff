@@ -1,0 +1,487 @@
+@@ -812,6 +812,63 @@ async def _recover_authorize_url_from_client(client_id: str, db) -> Optional[str
+     return f"{parsed.scheme}://{parsed.netloc}/"
+ 
+ 
++def _login_expired_url(*, client_id: Optional[str], locale: str) -> str:
++    """The GET page a sign-in POST sends the browser to when its request is gone
++    and cannot be restarted from here (see login_form)."""
++    params: dict[str, str] = {}
++    if client_id:
++        params["client_id"] = client_id
++    if locale != DEFAULT_HOSTED_LOCALE:
++        params[UI_LOCALES_PARAM] = locale
++    query = f"?{urlencode(params)}" if params else ""
++    return f"/api/v1/auth/login-expired{query}"
++
++
++@router.get("/login-expired", include_in_schema=False)
++async def login_expired_page(
++    client_id: Optional[str] = None,
++    ui_locales: Optional[str] = None,
++    db=Depends(get_db),
++):
++    """«This sign-in request is no longer valid», as a GET page (2026-11-19).
++
++    The hosted sign-in POST lands here (303) when its pending request is gone
++    and no registered client can restart it, so the person sees a page, not the
++    error body, and a refresh does not submit the form again. The one button
++    opens the client's registered origin (looked up here from the registered
++    client, never taken from the request), which starts a fresh sign-in; an
++    unknown or inactive client gets the words alone.
++    """
++    import html as _html
++
++    from fastapi.responses import HTMLResponse
++
++    locale = page_locale(ui_locales)
++    c = hosted_copy(locale)
++    restart = None
++    if client_id and len(client_id) <= 255:
++        restart = await _recover_authorize_url_from_client(client_id, db)
++    button = ""
++    if restart:
++        button = (
++            f'<p><a href="{_html.escape(restart, quote=True)}" style="display:block;'
++            "text-align:center;padding:14px;border-radius:8px;color:white;"
++            "background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);"
++            f'font-weight:600;text-decoration:none">{c["session_expired_restart"]}</a></p>'
++        )
++    return HTMLResponse(
++        content=_recovery_page_html(
++            f"<h1>{c['session_expired_title']}</h1>"
++            f'<p class="lead">{c["session_expired_body"]}</p>'
++            f"{button}",
++            title=c["sign_in_title"],
++            lang=hosted_html_lang(locale),
++        ),
++        status_code=400,
++        headers={"Cache-Control": "no-store"},
++    )
++
++
+ def _render_mfa_challenge_page(
+     *,
+     mfa_token: str,
+@@ -855,7 +912,7 @@ def _render_mfa_challenge_page(
+ <head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-    <title>Two-factor authentication - Janua</title>
++    <title>Two-factor authentication - Janua</title>{HOSTED_FORM_SCRIPT_TAG}
+     <style>
+         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+         body {{
+@@ -939,7 +996,7 @@ def _render_mfa_challenge_page(
+ 
+         {error_html}
+ 
+-        <form method="POST" action="/api/v1/auth/login-form/mfa">
++        <form method="POST" action="/api/v1/auth/login-form/mfa"{_busy_label_attr(hosted_copy(DEFAULT_HOSTED_LOCALE)["busy_verifying"])}>
+             <input type="hidden" name="mfa_token" value="{html.escape(mfa_token)}">
+             {hidden_fields}
+             <div class="form-group">
+@@ -1056,10 +1113,85 @@ async def _resolve_oauth_redirect_target(
+     return validate_redirect_url(next_url, default_url="/")
+ 
+ 
++# ONE PRESS ON EVERY HOSTED FORM (2026-11-19). A hosted form's POST takes about
++# a second (the password hash) plus the redirect chain after it. Until then the
++# button stayed live, and a second press (or Enter) started a new submission
++# that cancelled the navigation in flight; the browser then showed the answer to
++# the second POST, which found its sign-in request already used. So each hosted
++# form names its busy label (`data-busy-label`) and this script disables the
++# button and says it is working after the first submit. It is a same-origin
++# file, not an inline block: the API's CSP allows `script-src 'self'`, and a
++# file keeps working if `'unsafe-inline'` (there for Swagger UI) is ever
++# dropped. `pageshow` re-enables the button when the browser restores the page
++# from its back/forward cache, and a timer does after 20 s, so a stalled
++# network never leaves a dead button. Without script the forms work exactly as
++# before (the server also answers a repeated POST with a page, see login_form).
++HOSTED_FORM_SCRIPT_PATH = "/api/v1/auth/hosted-form.js"
++HOSTED_FORM_SCRIPT_TAG = f'\n    <script src="{HOSTED_FORM_SCRIPT_PATH}" defer></script>'
++HOSTED_FORM_SCRIPT = """(function () {
++  "use strict";
++  var forms = document.querySelectorAll("form[data-busy-label]");
++  Array.prototype.forEach.call(forms, function (form) {
++    var button = form.querySelector('button[type="submit"]');
++    if (!button) return;
++    var label = button.textContent;
++    var status = document.createElement("span");
++    status.setAttribute("role", "status");
++    status.style.cssText =
++      "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap";
++    form.appendChild(status);
++    var timer = null;
++    function reset() {
++      if (timer) window.clearTimeout(timer);
++      timer = null;
++      form.removeAttribute("data-submitting");
++      form.removeAttribute("aria-busy");
++      button.disabled = false;
++      button.textContent = label;
++      status.textContent = "";
++    }
++    form.addEventListener("submit", function (event) {
++      if (form.getAttribute("data-submitting") === "1") {
++        event.preventDefault();
++        return;
++      }
++      var busy = form.getAttribute("data-busy-label");
++      form.setAttribute("data-submitting", "1");
++      form.setAttribute("aria-busy", "true");
++      button.disabled = true;
++      button.textContent = busy;
++      status.textContent = busy;
++      timer = window.setTimeout(reset, 20000);
++    });
++    window.addEventListener("pageshow", function (event) {
++      if (event.persisted) reset();
++    });
++  });
++})();
++"""
++
++
++def _busy_label_attr(label: str) -> str:
++    """` data-busy-label="…"` for a hosted form tag (the label is our own copy)."""
++    import html as _html
++
++    return f' data-busy-label="{_html.escape(label, quote=True)}"'
++
++
++@router.get("/hosted-form.js", include_in_schema=False)
++async def hosted_form_script() -> Response:
++    """The one-press script every hosted form loads (see HOSTED_FORM_SCRIPT)."""
++    return Response(
++        content=HOSTED_FORM_SCRIPT,
++        media_type="application/javascript",
++        headers={"Cache-Control": "public, max-age=300"},
++    )
++
++
+ def _password_form_html(hidden_fields: str, locale: str = DEFAULT_HOSTED_LOCALE) -> str:
+     """The historical email + password form (in the page's language)."""
+     c = hosted_copy(locale)
+-    return f"""<form id="loginForm" method="POST" action="/api/v1/auth/login-form">
++    return f"""<form id="loginForm" method="POST" action="/api/v1/auth/login-form"{_busy_label_attr(c["busy_signing_in"])}>
+             {hidden_fields}
+             <div class="form-group">
+                 <label for="email">{c["email_label"]}</label>
+@@ -1077,7 +1209,7 @@ def _password_form_html(hidden_fields: str, locale: str = DEFAULT_HOSTED_LOCALE)
+ def _magic_link_form_html(hidden_fields: str, locale: str = DEFAULT_HOSTED_LOCALE) -> str:
+     """Email-only form: Janua mails a sign-in link, no password involved."""
+     c = hosted_copy(locale)
+-    return f"""<form id="magicLinkForm" method="POST" action="/api/v1/auth/login-form/magic-link">
++    return f"""<form id="magicLinkForm" method="POST" action="/api/v1/auth/login-form/magic-link"{_busy_label_attr(c["busy_sending"])}>
+             {hidden_fields}
+             <div class="form-group">
+                 <label for="email">{c["email_label"]}</label>
+@@ -1183,7 +1315,7 @@ def _hosted_login_page_html(
+ <head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-    <title>{c["sign_in_title"]}</title>
++    <title>{c["sign_in_title"]}</title>{HOSTED_FORM_SCRIPT_TAG}
+     <style>
+         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+         body {{
+@@ -1485,82 +1617,60 @@ async def login_form(
+ 
+     from fastapi.responses import HTMLResponse, RedirectResponse
+ 
+-    # Determine the redirect target: prefer Redis-backed auth request over 'next' URL.
+-    # This avoids the double-encoding bug where urlencode(redirect_uri) produced
+-    # mangled query strings that caused infinite redirect loops.
++    from app.auth.tenant_login_context import (
++        LoginRequestExpired,
++        login_client_context,
++        login_user,
++    )
++
++    # Where the browser goes after a successful sign-in. Each outcome is logged
++    # under `login_form.redirect_branch`, so a silent UX failure stays diagnosable:
++    #   - redis_hit → the pending authorize request resumes (happy path)
++    #   - redis_miss_oauth_recovered → the request is gone: it expired, or an
++    #     earlier submit of this same form already used it (a double submit:
++    #     production incident 2026-11-19, docs/runbooks/incidents/). The
++    #     credentials are still checked, against the registered client the form
++    #     names; on success the browser goes (303) to that client's registered
++    #     origin, which starts a fresh request that the new session completes.
++    #   - redis_miss_no_recovery → the request is gone and no registered client
++    #     can restart it: no credential check, no session, and a 303 to the GET
++    #     page that says so (`/login-expired`). Never the error body as JSON, and
++    #     never a page a refresh would POST again.
++    #   - non_oauth → the validated `next` URL
+     #
+-    # Branch outcomes (each emits a structured log so silent UX failures are
+-    # diagnosable post-hoc — track via log line key `login_form.redirect_branch`):
+-    #   - redis_hit             → OAuth flow resumes (happy path)
+-    #   - redis_miss_oauth_recovered → OAuth flow resumes via OAuthClient fallback
+-    #   - redis_miss_no_recovery → renders an "expired session" error page (NOT
+-    #                              a silent redirect to JSON `/`, the historical bug)
+-    #   - redis_miss_parse_error → same as redis_miss_no_recovery
+-    #   - non_oauth             → normal `next` URL flow
++    # The pending request is read once, by login_client_context, which also
++    # enforces its client and redirect_uri binding. Reading it here a second
++    # time let a submit that read it just before another one consumed it fail
++    # with the error body.
+     safe_next = "/"
+-    oauth_recovery_attempted = False
+     redirect_branch = "non_oauth"
++    request_gone = False
++    selected_client = None
+     if auth_request_id:
+-        # Retrieve stored OAuth parameters from Redis
+-        stored_data = await redis.get(f"oauth:pre_login:{auth_request_id}")
+-        if stored_data:
+-            try:
+-                auth_params = json.loads(stored_data)
+-                # Reconstruct the authorize URL fresh from stored parameters
+-                # (the shared list in app/auth/authorize_resume.py, which
+-                # includes the RFC 8707 `resource`). Only non-None parameters.
+-                query_params = authorize_query(auth_params)
+-
+-                safe_next = f"/api/v1/oauth/authorize?{urlencode(query_params)}"
+-                redirect_branch = "redis_hit"
+-                logger.info(
+-                    "login_form.redirect_branch",
+-                    branch=redirect_branch,
+-                    auth_request_id=auth_request_id,
+-                    client_id=auth_params.get("client_id"),
+-                )
+-            except (json.JSONDecodeError, KeyError) as e:
+-                redirect_branch = "redis_miss_parse_error"
+-                logger.warning(
+-                    "login_form.redirect_branch",
+-                    branch=redirect_branch,
+-                    auth_request_id=auth_request_id,
+-                    error=str(e),
+-                )
+-                oauth_recovery_attempted = True
+-        else:
+-            redirect_branch = "redis_miss"
++        try:
++            selected_client, auth_params = await login_client_context(
++                db, redis, auth_request_id=auth_request_id, client_id=client_id
++            )
++        except LoginRequestExpired:
++            request_gone = True
+             logger.warning(
+                 "login_form.redirect_branch",
+-                branch=redirect_branch,
++                branch="redis_miss",
+                 auth_request_id=auth_request_id,
+                 client_id_present=bool(client_id),
+             )
+-            oauth_recovery_attempted = True
+-
+-        # OAuth flow recovery: when Redis lost the params (TTL expired or API
+-        # restart), try to reconstruct a minimal authorize URL from the
+-        # OAuth client's first registered redirect_uri. This avoids the silent
+-        # redirect to `/` (raw JSON) that previously made "Sign In does
+-        # nothing". The user still needs to re-consent / re-grant if scopes
+-        # changed, but they land somewhere meaningful.
+-        if oauth_recovery_attempted and client_id:
+-            recovered = await _recover_authorize_url_from_client(client_id, db)
+-            if recovered:
+-                safe_next = recovered
+-                redirect_branch = "redis_miss_oauth_recovered"
+-                logger.info(
+-                    "login_form.redirect_branch",
+-                    branch=redirect_branch,
+-                    client_id=client_id,
+-                )
+-            else:
+-                logger.warning(
+-                    "login_form.redirect_branch",
+-                    branch="redis_miss_no_recovery",
+-                    client_id=client_id,
+-                )
+-                redirect_branch = "redis_miss_no_recovery"
++        else:
++            # Reconstruct the authorize URL fresh from the stored parameters
++            # (the shared list in app/auth/authorize_resume.py, which includes
++            # the RFC 8707 `resource`). Only non-None parameters.
++            safe_next = f"/api/v1/oauth/authorize?{urlencode(authorize_query(auth_params))}"
++            redirect_branch = "redis_hit"
++            logger.info(
++                "login_form.redirect_branch",
++                branch=redirect_branch,
++                auth_request_id=auth_request_id,
++                client_id=auth_params.get("client_id"),
++            )
+     else:
+         # Fallback: validate the 'next' URL for non-OAuth logins (CWE-601)
+         safe_next = validate_redirect_url(next, default_url="/")
+@@ -1585,7 +1695,7 @@ async def login_form(
+ <head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-    <title>{copy["sign_in_title"]}</title>
++    <title>{copy["sign_in_title"]}</title>{HOSTED_FORM_SCRIPT_TAG}
+     <style>
+         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+         body {{
+@@ -1647,7 +1757,7 @@ async def login_form(
+             <p>{copy["tagline"]}</p>
+         </div>
+         <div class="error">{html.escape(error_message)}</div>
+-        <form method="POST" action="/api/v1/auth/login-form">
++        <form method="POST" action="/api/v1/auth/login-form"{_busy_label_attr(copy["busy_signing_in"])}>
+             {error_hidden_field}
+             <div class="form-group">
+                 <label for="email">{copy["email_label"]}</label>
+@@ -1679,15 +1789,43 @@ async def login_form(
+             )
+         return HTMLResponse(content=error_html, status_code=401)
+ 
++    if not auth_request_id:
++        selected_client, _ = await login_client_context(db, redis, client_id=client_id)
++    elif request_gone:
++        # The request is gone, so nothing binds this POST to a client but the
++        # form's own `client_id`: the same footing as a sign-in that starts
++        # fresh at that client. login_client_context still requires a
++        # registered, active client, and the identity pool below is that
++        # client's; the browser can only be sent to its registered origin.
++        recovered = None
++        if client_id:
++            try:
++                selected_client, _ = await login_client_context(db, redis, client_id=client_id)
++            except HTTPException:
++                selected_client = None
++            if selected_client is not None:
++                recovered = await _recover_authorize_url_from_client(client_id, db)
++        if not recovered:
++            logger.warning(
++                "login_form.redirect_branch",
++                branch="redis_miss_no_recovery",
++                client_id_present=bool(client_id),
++            )
++            return RedirectResponse(
++                url=_login_expired_url(client_id=client_id, locale=locale), status_code=303
++            )
++        safe_next = recovered
++        redirect_branch = "redis_miss_oauth_recovered"
++        logger.info(
++            "login_form.redirect_branch",
++            branch=redirect_branch,
++            client_id=client_id,
++        )
++
+     # Find user by email (without status filter to check lockout first).
+     # Untenanted / staff pool (see /signin note) — this hosted flow is platform.
+     # Audited 2026-09-03 with the magic-link outage: same reasoning as /signin,
+     # password-authenticated and no create branch, so it stays pool-scoped.
+-    from app.auth.tenant_login_context import login_client_context, login_user
+-
+-    selected_client, _ = await login_client_context(
+-        db, redis, auth_request_id=auth_request_id, client_id=client_id
+-    )
+     user = await login_user(db, email, selected_client)
+ 
+     if not user:
+@@ -1719,6 +1857,12 @@ async def login_form(
+     from app.auth.hosted_security import start_factor_flow
+ 
+     if await user_requires_mfa(db, user, getattr(selected_client, "organization_id", None)):
++        if request_gone:
++            # A second factor continues a pending request; this one is gone.
++            # Nothing is issued: the GET page restarts sign-in at the client.
++            return RedirectResponse(
++                url=_login_expired_url(client_id=client_id, locale=locale), status_code=303
++            )
+         return await start_factor_flow(
+             request,
+             db,
+@@ -1752,58 +1896,12 @@ async def login_form(
+         except Exception:
+             pass  # Best-effort cleanup; the key has a TTL anyway
+ 
+-    # If the OAuth context was unrecoverable (Redis expired AND we couldn't
+-    # reconstruct from the OAuthClient registration), render an explicit
+-    # "session expired" page instead of silently redirecting to JSON `/`.
+-    # This was the long-standing UX bug where Sign In appeared to do nothing.
+-    if redirect_branch in ("redis_miss_no_recovery", "redis_miss_parse_error") and (
+-        not auth_request_id or safe_next == "/"
+-    ):
+-        expired_html = f"""
+-<!DOCTYPE html>
+-<html lang="en">
+-<head>
+-    <meta charset="UTF-8">
+-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-    <title>Sign-in session expired - Janua</title>
+-    <style>
+-        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+-        body {{
+-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+-            min-height: 100vh;
+-            display: flex; align-items: center; justify-content: center;
+-            padding: 20px;
+-        }}
+-        .container {{
+-            background: white; border-radius: 16px; padding: 40px;
+-            width: 100%; max-width: 440px;
+-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+-        }}
+-        h1 {{ color: #333; font-size: 22px; margin-bottom: 16px; }}
+-        p {{ color: #555; line-height: 1.55; margin-bottom: 12px; }}
+-        .footer {{ text-align: center; margin-top: 24px; color: #666; font-size: 12px; }}
+-    </style>
+-</head>
+-<body>
+-    <div class="container">
+-        <h1>&#128274; Sign-in session expired</h1>
+-        <p>Your sign-in session for <strong>{html.escape(client_name or "this application")}</strong> expired before you completed login. Your credentials were accepted, but the OAuth flow can't continue from here.</p>
+-        <p>Return to the application and start sign-in again.</p>
+-        <div class="footer">Powered by Janua &bull; Secure Authentication</div>
+-    </div>
+-</body>
+-</html>
+-"""
+-        # Cookies are still set so the next OAuth /authorize will short-circuit
+-        # via get_user_from_cookie_or_header — the user won't have to re-type
+-        # their password.
+-        response = HTMLResponse(content=expired_html, status_code=200)
+-    else:
+-        # SECURITY: Create redirect response with validated URL (CWE-601 mitigation)
+-        # For OAuth flows, safe_next is the freshly-reconstructed authorize URL.
+-        # For non-OAuth flows, safe_next was validated against the redirect allowlist.
+-        response = RedirectResponse(url=safe_next, status_code=302)
++    # SECURITY: Create redirect response with validated URL (CWE-601 mitigation)
++    # For OAuth flows, safe_next is the freshly-reconstructed authorize URL, or
++    # (request gone) the registered origin of the client the credentials were
++    # checked against; for non-OAuth flows it passed the redirect allowlist. A
++    # gone request answers 303 so the browser follows with a GET.
++    response = RedirectResponse(url=safe_next, status_code=303 if request_gone else 302)
+ 
+     # Set session cookies (shared with the second-factor path — see helper).
+     _set_session_cookies(
+@@ -2749,7 +2847,7 @@ def _recovery_page_html(
+ <head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-    <title>{title}</title>
++    <title>{title}</title>{HOSTED_FORM_SCRIPT_TAG}
+     <style>
+         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+         body {{
+@@ -2855,7 +2953,7 @@ def _reset_form_body(token: str, error: Optional[str] = None, locale: str = "en"
+     return f"""
+         <div class="logo"><h1>&#128274; Janua</h1><p>{c["reset_tagline"]}</p></div>
+         {error_html}
+-        <form method="POST" action="/api/v1/auth/reset-password-form">
++        <form method="POST" action="/api/v1/auth/reset-password-form"{_busy_label_attr(c["busy_saving"])}>
+             <input type="hidden" name="token" value="{html_mod.escape(token)}">{hidden_ui_locales_field(locale)}
+             <div class="form-group">
+                 <label for="new_password">{c["reset_new_password_label"]}</label>
+@@ -2899,7 +2997,7 @@ async def forgot_password_page(
+     body = f"""
+         <div class="logo"><h1>&#128274; Janua</h1><p>{c["recovery_tagline"]}</p></div>
+         <p class="lead">{c["recovery_lead"]}</p>
+-        <form method="POST" action="/api/v1/auth/forgot-password-form">
++        <form method="POST" action="/api/v1/auth/forgot-password-form"{_busy_label_attr(c["busy_sending"])}>
+             {hidden_ui_locales_field(locale)}
+             <input type="hidden" name="client_id" value="{__import__("html").escape(client_id or "", quote=True)}">
+             <input type="hidden" name="auth_request_id" value="{__import__("html").escape(auth_request_id or "", quote=True)}">

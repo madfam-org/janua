@@ -1,0 +1,28 @@
+@@ -107,6 +107,15 @@ HOSTED_COPY: Dict[str, Dict[str, str]] = {
+             "This sign-in request is no longer valid. Go back to the "
+             "application and start signing in again."
+         ),
++        # The one button on that page: it opens the application's own address,
++        # which starts a fresh sign-in (2026-11-19).
++        "session_expired_restart": "Start signing in again",
++        # What a hosted form's button says between the first press and the next
++        # page, while it is disabled (a second press used to cancel the first).
++        "busy_signing_in": "Signing in…",
++        "busy_sending": "Sending…",
++        "busy_saving": "Saving…",
++        "busy_verifying": "Verifying…",
+         "inbox_title": "Check your inbox - Janua",
+         "inbox_heading": "Check your inbox",
+         "inbox_sent_to": "We emailed a sign-in link to",
+@@ -219,6 +228,11 @@ HOSTED_COPY: Dict[str, Dict[str, str]] = {
+         "session_expired_body": (
+             "Esta solicitud ya no es válida. Regresa a la aplicación y vuelve a iniciar sesión."
+         ),
++        "session_expired_restart": "Volver a iniciar sesión",
++        "busy_signing_in": "Entrando…",
++        "busy_sending": "Enviando…",
++        "busy_saving": "Guardando…",
++        "busy_verifying": "Verificando…",
+         "inbox_title": "Revisa tu correo - Janua",
+         "inbox_heading": "Revisa tu correo",
+         "inbox_sent_to": "Enviamos un enlace para entrar a",

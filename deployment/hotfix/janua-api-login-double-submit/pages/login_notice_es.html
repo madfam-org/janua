@@ -1,0 +1,184 @@
+
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar sesión - Janua</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo h1 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .logo p {
+            color: #666;
+            font-size: 14px;
+        }
+        .app-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .app-info span {
+            color: #666;
+            font-size: 13px;
+        }
+        .app-info strong {
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        input[type="email"], input[type="password"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5eb;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .error {
+            background: #fee;
+            color: #c00;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        .aux-link {
+            text-align: right;
+            margin-top: 6px;
+        }
+        .aux-link a {
+            color: #667eea;
+            font-size: 13px;
+            text-decoration: none;
+        }
+        .aux-link a:hover {
+            text-decoration: underline;
+        }
+        .hint {
+            color: #666;
+            font-size: 13px;
+            margin: -8px 0 16px;
+        }
+        .switch {
+            text-align: center;
+            margin-top: 18px;
+        }
+        .switch a {
+            color: #667eea;
+            font-size: 14px;
+            text-decoration: none;
+        }
+        .switch a:hover {
+            text-decoration: underline;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            color: #666;
+            font-size: 12px;
+        }
+        .privacy-notice {
+            margin-top: 18px;
+            color: #444;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .privacy-notice a { color: #4c51bf; }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <h1>&#128274; Janua</h1>
+            <p>Plataforma de identidad</p>
+        </div>
+
+        <div class="app-info">
+            <span>Entrando a <strong>MADFAM CV</strong></span>
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <form id="loginForm" method="POST" action="/api/v1/auth/login-form">
+            
+            <div class="form-group">
+                <label for="email">Correo electrónico</label>
+                <input type="email" id="email" name="email" required autocomplete="email" autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">Contraseña</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
+                <div class="aux-link"><a href="/api/v1/auth/forgot-password?ui_locales=es">¿Olvidaste tu contraseña?</a></div>
+            </div>
+            <button type="submit" id="submitBtn">Entrar</button>
+        </form>
+        <p class="privacy-notice">Al continuar, <strong>MADFAM CV</strong> tratará tus datos como explica su <a href="https://app.example.test/privacy" target="_blank" rel="noopener noreferrer">aviso de privacidad</a>: quién es responsable, para qué y cómo ejercer tus derechos.</p>
+
+        <div class="footer">
+            Con tecnología de Janua &bull; Autenticación segura
+        </div>
+    </div>
+</body>
+</html>
