@@ -1,6 +1,6 @@
 # A repeated sign-in POST lands in the app, not on raw JSON: hotfix image (owner exception)
 
-**Status (2026-11-19): pinned** by PIN_PR (`janua-api@sha256:2bbee189…`); live once Argo syncs. The full list of
+**Status (2026-11-19): pinned** by janua#843 (`janua-api@sha256:2bbee189…`); live once Argo syncs. The full list of
 what production runs is in [`../README.md`](../README.md).
 
 ## Why
