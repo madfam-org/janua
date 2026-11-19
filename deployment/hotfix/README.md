@@ -40,13 +40,17 @@ files are taken from (the workflow's `*_SOURCE`); "Files" are paths under
 | 10 | [`janua-api-contain-roles-guest`](janua-api-contain-roles-guest/README.md) | #826 | `35a37b6f` | `core/reserved_oauth_boundaries.py`, `routers/v1/guest.py` | `sha256:507e76f5…` | #828 (2026-11-16) |
 | 11 | [`janua-api-hosted-locale`](janua-api-hosted-locale/README.md) | #814, #820 | `dbacd843` | `auth/hosted_locale.py`, `routers/v1/auth.py`; `routers/v1/oauth_provider.py` from the folder's `oauth_provider.py.shipped` | `sha256:b9396f85…` | #831 (2026-11-17) |
 | 12 | [`janua-api-public-silent-auth`](janua-api-public-silent-auth/README.md) | #833 | `85f3e832` | `routers/v1/oauth_provider.py` from the folder's `oauth_provider.py.shipped` | `sha256:44c4310d…` | #835 (2026-11-18) |
+| 13 | [`janua-api-login-double-submit`](janua-api-login-double-submit/README.md) | #841 | `75dd0eea` | `auth/hosted_locale.py`, `auth/tenant_login_context.py`, `routers/v1/auth.py` | pending | pending |
 
 A later row overrides an earlier one for the same path (row 6, then row 10,
 for `core/reserved_oauth_boundaries.py`; row 4, then row 9, for
-`services/org_claims_service.py`; row 6, then row 11, for
-`routers/v1/auth.py` and `auth/hosted_locale.py`). The exact replay, in this
+`services/org_claims_service.py`; row 6, then row 11, then row 13, for
+`routers/v1/auth.py` and `auth/hosted_locale.py`; row 3, then row 13, for
+`auth/tenant_login_context.py`; row 11, then row 12, for
+`routers/v1/oauth_provider.py`). Row 13 is authored but not built or pinned:
+until its pin PR lands, production runs row 12. The exact replay, in this
 order, is the step "Base image is BASE_SOURCE plus the earlier hotfix files" of
-[`.github/workflows/hotfix-janua-api-public-silent-auth.yml`](../../.github/workflows/hotfix-janua-api-public-silent-auth.yml),
+[`.github/workflows/hotfix-janua-api-login-double-submit.yml`](../../.github/workflows/hotfix-janua-api-login-double-submit.yml),
 which `diff -r`s it against the running image before every build. The next
 hotfix copies that step and adds its own row.
 
