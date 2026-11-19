@@ -280,8 +280,12 @@ jobs:
           policy "$new" > /tmp/hotfix/new-policy.json
           cmp /tmp/hotfix/base-policy.json /tmp/hotfix/new-policy.json
           echo "Client policy: identical."
-          run_py "$BASE_IMAGE" - < "$CHECK" > /tmp/hotfix/base-check.txt
-          run_py "$new" - < "$CHECK" > /tmp/hotfix/new-check.txt
+          # The golden renders of production's source travel on stdin, ahead of
+          # the script: GOLDEN_PAGES = {name: html}.
+          python3 -c 'import json, pathlib, sys; print("GOLDEN_PAGES = " + json.dumps({p.stem: p.read_bytes().decode("utf-8") for p in sorted(pathlib.Path(sys.argv[1]).glob("*.html"))}))' "$HOTFIX_DIR/pages" > /tmp/hotfix/check.py
+          cat "$CHECK" >> /tmp/hotfix/check.py
+          run_py "$BASE_IMAGE" - < /tmp/hotfix/check.py > /tmp/hotfix/base-check.txt
+          run_py "$new" - < /tmp/hotfix/check.py > /tmp/hotfix/new-check.txt
           for side in base new; do
             grep '^FIX=' "/tmp/hotfix/$side-check.txt" | tail -1 | cut -d= -f2- | tee "/tmp/hotfix/$side-fix.json"
             grep '^UNCHANGED=' "/tmp/hotfix/$side-check.txt" | tail -1 | cut -d= -f2- > "/tmp/hotfix/$side-unchanged.json"
@@ -289,6 +293,16 @@ jobs:
           test -s /tmp/hotfix/base-unchanged.json
           cmp /tmp/hotfix/base-unchanged.json /tmp/hotfix/new-unchanged.json
           echo "Hosted pages without janua#841's two insertions, existing copy, the 400 other callers answer and every other auth route: identical."
+          python3 - <<'PY'
+          import json
+
+          unchanged = json.load(open("/tmp/hotfix/base-unchanged.json"))
+          pages = {key: value for key, value in unchanged.items() if key.startswith("page_")}
+          # Both images (equal, above) render every hosted page byte for byte as the
+          # golden renders of production's source in the folder's pages/.
+          assert len(pages) == 7 and all(pages.values()), pages
+          print("Every hosted page, without janua#841's two insertions, is production's render.")
+          PY
           python3 - <<'PY'
           import json
 

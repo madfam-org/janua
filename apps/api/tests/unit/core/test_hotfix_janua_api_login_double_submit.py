@@ -16,7 +16,6 @@ folder cannot be built against a placeholder.
 
 from __future__ import annotations
 
-import hashlib
 import re
 import subprocess
 import tempfile
@@ -351,21 +350,48 @@ def test_shipped_files_are_production_copies_plus_the_merge():
 
 def test_check_script_passes_in_this_checkout():
     """The script the workflow runs in the built image, run here: on this
-    checkout every property janua#841 adds holds, and the password page with
-    janua#841's two insertions removed is the golden production's source
-    rendered (so equal UNCHANGED hashes across the images mean production's
-    page, byte for byte)."""
+    checkout every property janua#841 adds holds, and every hosted page it
+    renders, with janua#841's two insertions removed, is byte for byte the
+    golden in pages/. The workflow requires the same of the base image, so the
+    goldens are production's renders."""
     report = _check_output()
     assert report["FIX"] and all(report["FIX"].values()), report["FIX"]
-    golden = ROOT / "apps/api/tests/unit/routers/fixtures/hosted_login_unlisted"
-    for locale in ("en", "es"):
-        expected = hashlib.sha256((golden / f"{locale}.html").read_bytes()).hexdigest()
-        assert report["UNCHANGED"][f"login_page_password_{locale}"] == expected, locale
+    assert len(report["FIX"]) == 9
+    pages = {k: v for k, v in report["UNCHANGED"].items() if k.startswith("page_")}
+    assert pages == {
+        f"page_{path.stem}_is_production": True for path in (HOTFIX / "pages").glob("*.html")
+    }
+    assert len(pages) == 7
     assert report["UNCHANGED"]["gone_request_answer"] == [
         400,
         "La solicitud de acceso venció. Vuelve al MAP para iniciar.",
     ]
-    assert len(report["FIX"]) == 9
+
+
+def test_password_page_goldens_are_the_production_fixtures():
+    """The two password-page goldens are the renders janua#808's golden test took
+    from production's source (b16869d7), byte for byte: an independent anchor for
+    the folder's goldens."""
+    fixtures = ROOT / "apps/api/tests/unit/routers/fixtures/hosted_login_unlisted"
+    for locale in ("en", "es"):
+        golden = (HOTFIX / "pages" / f"login_password_{locale}.html").read_bytes()
+        assert golden == (fixtures / f"{locale}.html").read_bytes(), locale
+    # The goldens carry neither of janua#841's insertions.
+    for path in (HOTFIX / "pages").glob("*.html"):
+        text = path.read_text(encoding="utf-8")
+        assert "hosted-form.js" not in text and "data-busy-label" not in text, path.name
+
+
+def test_workflow_sends_the_goldens_and_requires_every_page():
+    behaviour = _step(
+        "Discovery, client policy and hosted pages unchanged; a used sign-in request answers with a page"
+    )["run"]
+    assert 'print("GOLDEN_PAGES = " + json.dumps(' in behaviour
+    assert '"$HOTFIX_DIR/pages" > /tmp/hotfix/check.py' in behaviour
+    assert 'cat "$CHECK" >> /tmp/hotfix/check.py' in behaviour
+    assert 'run_py "$BASE_IMAGE" - < /tmp/hotfix/check.py' in behaviour
+    assert 'run_py "$new" - < /tmp/hotfix/check.py' in behaviour
+    assert "assert len(pages) == 7 and all(pages.values()), pages" in behaviour
 
 
 def test_exception_record_names_the_owner_request_and_its_scope():

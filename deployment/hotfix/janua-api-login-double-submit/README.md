@@ -72,10 +72,13 @@ exactly as before (302 to the resumed authorize). A POST whose request is gone
 correct password, or on the GET «expired» page; never on the JSON body, and a
 refresh does not post again. Hosted pages carry one extra `<script>` tag and
 one `data-busy-label` attribute per form; with those two insertions removed
-every page the check renders is byte for byte production's (the password page
-also matches the goldens production's source rendered,
-`apps/api/tests/unit/routers/fixtures/hosted_login_unlisted/`). Without script
-the forms work as before.
+every page the check renders is byte for byte production's. The seven golden
+renders are in [`pages/`](pages/) (the password, magic-link and privacy-notice
+login pages in English and Spanish, and the second-factor page), rendered from
+`main` before janua#841, whose three files are production's; the two password
+pages are also byte for byte the goldens production's source rendered for
+janua#808 (`apps/api/tests/unit/routers/fixtures/hosted_login_unlisted/`).
+Without script the forms work as before.
 
 ## How
 
@@ -90,9 +93,12 @@ the forms work as before.
    - the new image adds three layers and changes only those three files, each
      byte-identical to its reviewed source;
    - discovery and the protected-resource client policy are identical between
-     the images, and so are the hosted pages with janua#841's two insertions
-     removed, the copy production already had, the 400 every other caller
-     answers and every other auth route;
+     the images, and so are the copy production already had, the 400 every
+     other caller answers and every other auth route; in both images every
+     hosted page with janua#841's two insertions removed is byte for byte its
+     golden in `pages/` (sent to the check on stdin and compared inside the
+     image: code scanning reads the login page as credential data, so the
+     pages are neither hashed nor printed);
    - in the new image the gone request raises its own type, the two GET routes
      are registered, the script is served, the login and second-factor pages
      load it and name their busy label, and the «expired» page and its URL have

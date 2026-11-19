@@ -9,18 +9,27 @@ Prints two lines:
 
 - ``FIX=`` the properties janua#841 adds (all true on the hotfix, all false on
   production's image);
-- ``UNCHANGED=`` sha256 of what must be identical in both images: the hosted
-  pages with exactly janua#841's two insertions (the same-origin script tag and
-  the form's ``data-busy-label``) removed, English and Spanish; the copy keys
-  production already had; the 400 every other caller of
-  ``login_client_context`` answers; and every other route of the auth router.
+- ``UNCHANGED=`` what must be identical in both images: whether each hosted
+  page, with exactly janua#841's two insertions (the same-origin script tag and
+  the form's ``data-busy-label``) removed, is byte for byte the golden render
+  of production's source (the folder's ``pages/``; the workflow prepends them
+  to this script on stdin as ``GOLDEN_PAGES``; true on both images); sha256 of the copy keys production already
+  had and of every other route of the auth router; and the 400 every other
+  caller of ``login_client_context`` answers.
+
+The pages are compared inside the image rather than hashed out of it: code
+scanning reads the login page as credential data (its form copy is keyed
+``password_label``) and flags any hash or print of it, although it is public
+HTML.
 """
 
 import asyncio
 import hashlib
 import inspect
 import json
+import os
 import re
+from pathlib import Path
 
 import app.main
 from app.auth import hosted_locale
@@ -54,6 +63,12 @@ BUSY_LABELS = {
 }
 LOCALES = ("en", "es")
 NOTICE = "https://app.example.test/privacy"
+#: The golden pages: prepended by the workflow as GOLDEN_PAGES (name -> HTML);
+#: run from a checkout (the guard test), read from the folder next to this file.
+GOLDEN_DIR = Path(os.environ.get("GOLDEN_DIR") or Path(globals().get("__file__", ".")).parent / "pages")
+GOLDEN = globals().get("GOLDEN_PAGES") or {
+    path.stem: path.read_bytes().decode("utf-8") for path in sorted(GOLDEN_DIR.glob("*.html"))
+}
 
 
 def _sha(text: str) -> str:
@@ -73,7 +88,7 @@ def _login_page(locale: str, method: str = FORM_METHOD, **extra) -> str:
     return auth_router._hosted_login_page_html(**kwargs, locale=locale)
 
 
-def _mfa_page() -> str:
+def _second_factor_page() -> str:
     response = auth_router._render_mfa_challenge_page(
         mfa_token="hotfix-check-token",
         app_name="Hotfix Check App",
@@ -174,8 +189,8 @@ def _login_pages_press_once() -> bool:
     return True
 
 
-def _mfa_page_presses_once() -> bool:
-    page = _mfa_page()
+def _second_factor_page_presses_once() -> bool:
+    page = _second_factor_page()
     return page.count(SCRIPT_TAG) == 1 and page.count(' data-busy-label="Verifying…"') == 1
 
 
@@ -223,22 +238,31 @@ def _login_form_answers_a_gone_request_with_a_page() -> bool:
 # --- UNCHANGED ---------------------------------------------------------------
 
 
+def _pages() -> dict:
+    """Every hosted page the check renders, by golden file name."""
+    pages = {
+        f"login_{method}_{locale}": _login_page(locale, method)
+        for locale in LOCALES
+        for method in METHODS
+    }
+    pages.update(
+        {f"login_notice_{locale}": _login_page(locale, privacy_notice_url=NOTICE) for locale in LOCALES}
+    )
+    pages["second_factor"] = _second_factor_page()
+    return pages
+
+
+def _is_production(name: str, page: str) -> bool:
+    return name in GOLDEN and _strip(page) == GOLDEN[name]
+
+
 def _unchanged() -> dict:
     error = _gone_request_error()
     known_routes = [
         entry for entry in _router_routes() if entry.split(" ", 1)[1] not in NEW_ROUTER_PATHS
     ]
     return {
-        **{
-            f"login_page_{method}_{locale}": _sha(_strip(_login_page(locale, method)))
-            for locale in LOCALES
-            for method in METHODS
-        },
-        **{
-            f"login_page_notice_{locale}": _sha(_strip(_login_page(locale, privacy_notice_url=NOTICE)))
-            for locale in LOCALES
-        },
-        "mfa_page": _sha(_strip(_mfa_page())),
+        **{f"page_{name}_is_production": _is_production(name, page) for name, page in _pages().items()},
         **{
             f"copy_{locale}": _sha(
                 json.dumps(
@@ -267,7 +291,7 @@ print(
             "routes_registered": _routes_registered(),
             "script_served": _script_served(),
             "login_pages_press_once": _login_pages_press_once(),
-            "mfa_page_presses_once": _mfa_page_presses_once(),
+            "second_factor_page_presses_once": _second_factor_page_presses_once(),
             "login_expired_url_shape": _login_expired_url_shape(),
             "login_expired_page": _login_expired_page(),
             "login_form_answers_a_gone_request_with_a_page": _login_form_answers_a_gone_request_with_a_page(),
