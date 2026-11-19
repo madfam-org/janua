@@ -1,5 +1,10 @@
 # Silent sign-in for marked public first-party clients: hotfix image (owner exception)
 
+**Status (2026-11-19): LIVE in production since 2026-11-18 20:37Z**, pinned by
+janua#835. One public client is marked (step 5); what was done and checked is
+in [SILENT_SSO_SESSION.md → B8 in production](../../../docs/architecture/SILENT_SSO_SESSION.md#b8-in-production-2026-11-18).
+The full list of what production runs is in [`../README.md`](../README.md).
+
 ## Why
 
 Owner decision 2026-11-18: ship janua#833 to production now. A first-party
@@ -54,7 +59,7 @@ the reviewed hunks, and that replaying the merge's own diff onto production's
 copy gives exactly the shipped file.
 
 **Effect:** none while no public client carries the marker (step 2 below
-checks that before the pin). For every client that
+checks that before the pin; since 2026-11-18 one does, see the status above). For every client that
 does not carry the marker, and for every confidential client, `prompt=none` and
 the consent skip are decided exactly as before (the workflow compares
 `_is_silent_auth_allowed` and `_is_first_party_preconsented` over a matrix of

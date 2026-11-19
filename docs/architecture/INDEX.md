@@ -10,7 +10,7 @@
 | [API Structure](./API_STRUCTURE.md) | FastAPI router organization and patterns |
 | [Subdomain Architecture](./SUBDOMAIN_ARCHITECTURE.md) | Multi-domain deployment strategy |
 | [Universal Keyring (ADR-002)](./ADR-002_UNIVERSAL_KEYRING.md) | Cross-project authentication design |
-| [Silent SSO Session](./SILENT_SSO_SESSION.md) | Where the browser session comes from on a magic-link login (B1-B7) |
+| [Silent SSO Session](./SILENT_SSO_SESSION.md) | Where the browser session comes from on a magic-link login (B1–B8), the estate cookie, account switching, and silent sign-in for marked public clients (B8) |
 | [Claims de organización y service principals](./CLAIMS_DE_ORGANIZACION_Y_SERVICE_PRINCIPALS.md) | Organization, role and tier claims on session and OIDC tokens (Spanish) |
 | [Issuer, JWKS and audience](../reference/ISSUER_AND_JWKS.md) | How resource servers verify Janua tokens |
 
