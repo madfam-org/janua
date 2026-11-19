@@ -398,7 +398,9 @@ def test_exception_record_names_the_owner_request_and_its_scope():
     approved = _record("Approved by")
     assert "2026-11-19" in approved
     assert "Reason: production incident 2026-11-19." in approved
-    assert "The pin needs the owner's explicit OK" in approved
+    # Pinned: the record quotes the owner's pin OK (before the pin it said the
+    # pin still needed it), as row 12's record quotes «Go ahead with A and C».
+    assert "Pin OK given by the owner in session on 2026-11-19" in approved
     assert "promote-to-prod.yml` stays held" in approved
     assert "this hotfix only (janua#841)" in approved
     assert WORKFLOW["env"]["BASE_IMAGE"].split("@", 1)[1] in _record("Replaces")
