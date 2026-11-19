@@ -950,6 +950,59 @@ HR?" without decoding a JWT. `grants` includes revoked rows, because who removed
 an authority and when is the question the table exists to answer. Scoped to one
 membership, so it never reports another organization's grants.
 
+## Internal API — Primary Organization
+
+Service-to-service, same `X-Internal-API-Key` trust boundary as the application
+roles above. A **primary organization** is the one organization a person's
+tokens speak for when they hold several **active** memberships and
+`users.tenant_id` names none of them. Code:
+`apps/api/app/routers/v1/internal_primary_organization.py`; claim rules:
+[`CLAIMS_DE_ORGANIZACION_Y_SERVICE_PRINCIPALS.md` §2](../architecture/CLAIMS_DE_ORGANIZACION_Y_SERVICE_PRINCIPALS.md).
+
+> **Adding a second membership changes the person's tokens.** With one active
+> membership, `org_id` (and `tenant_id`, `org_slug`, `madfam_org_roles`) and the
+> application roles of that organization are emitted. The moment a second
+> active membership exists and neither `tenant_id` nor a primary organization
+> names one of them, the resolver refuses to guess: the next token carries
+> `orgs` **and nothing else** — no `org_id`, no application role under `roles`
+> — and nothing reports an error. A product that adds a membership through
+> Janua (an invitation, `internal_users` provisioning, a consumer's own
+> onboarding) **must** call `set` in the same flow, or the person loses every
+> application role at their next sign-in or refresh. On 2026-11-18 and 19
+> production had 18 people in that state (two organizations, no primary); each
+> needed `set`. Check with the `GET` below: for a person with several
+> memberships, `primary_organization_id: null` and `token_org_id: null` is the
+> symptom.
+
+| Route | Effect |
+|---|---|
+| `POST /api/v1/internal/primary-organization/set` | Body `{"organization_id", "user_id"}`, both required. `404` with the app-role routes' message when the user has no **active** membership there. Idempotent (`changed: false` and no audit entry when unchanged); replacing a value records the previous one on the audit trail |
+| `POST /api/v1/internal/primary-organization/clear` | Body `{"user_id"}`. Sets the stored value to null (the row is kept). Works without a membership, so a pointer left by a removed membership can be cleared |
+| `GET /api/v1/internal/primary-organization/{user_id}` | The stored value and what the next token resolves to |
+
+Every route answers the same shape:
+
+```json
+{
+  "user_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "primary_organization_id": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
+  "active_membership": true,
+  "token_org_id": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
+  "token_app_roles": ["hcm:hr"],
+  "changed": true
+}
+```
+
+`token_org_id` and `token_app_roles` come from the same resolver every token
+mint calls, so they show `tenant_id` taking precedence when it names an active
+membership. A stored value whose membership is no longer active resolves to
+nothing (fail closed). The choice reaches a live session at its next token
+mint (sign-in or refresh). Needs migration `022_user_primary_organization`
+(applied in production 2026-11-16).
+
+For resource servers reading these tokens, see
+[Integration Guide → People in several organizations](../guides/ECOSYSTEM_INTEGRATION.md#people-in-several-organizations-org_id-and-roles).
+
 ## Delegated Application-Role Administration
 
 The internal surface above is the **operator** path. This one is the

@@ -1,7 +1,8 @@
 # Silent SSO: where the browser session comes from
 
-**Status**: B1, B2, B6, R1, J9, J6 and the account-switching layers L1–L3 landed
-in Janua; B3/B4 are operator steps; B5 lives in nauta and B7 in the client portal. **R1 chose option 3 of the security note
+**Status**: B1, B2, B6, B8, R1, J9, J6 and the account-switching layers L1–L3 landed
+in Janua (B8 is live in production by hotfix image since 2026-11-18; see "B8 in
+production"); B3/B4 are operator steps; B5 lives in nauta and B7 in the client portal. **R1 chose option 3 of the security note
 below** — a separate HttpOnly estate cookie, `janua_sso`; see "R1 — the
 `janua_sso` estate cookie". **J9 makes that cookie outrank a stale
 `janua_access_token` at `/authorize`**; see "J9 — the estate session outranks a
@@ -38,9 +39,9 @@ land, not a menu.
 | **B1** | Both magic-link paths set the issuer session cookies | Janua `routers/v1/auth.py` | landed |
 | **B2** | `/authorize` accepts every audience Janua mints | Janua `routers/v1/oauth_provider.py` | landed |
 | **B6** | First-party clients are pre-consented | Janua `routers/v1/oauth_provider.py` | landed |
-| **B8** | Marked public first-party clients: silent sign-in and consent skip under strict request conditions | Janua `routers/v1/oauth_provider.py` | in review; no client marked |
+| **B8** | Marked public first-party clients: silent sign-in and consent skip under strict request conditions | Janua `routers/v1/oauth_provider.py` | landed (janua#833); live in production by hotfix image since 2026-11-18 20:37Z; one public client marked |
 | **B3** | `COOKIE_DOMAIN=.madfam.io` so the cookie is readable estate-wide | `k8s/base/deployments/janua-api.yaml` | landed |
-| **B4** | `madfam:silent_auth` on the client portal's and nauta's OIDC clients | operator (admin API / data) | landed (client rows; not verifiable from this repo) |
+| **B4** | `madfam:silent_auth` on the client portal's and nauta's (confidential) OIDC clients | operator (admin API / data) | landed (client rows; not verifiable from this repo) |
 | **B5** | nauta sends `prompt=none` and falls back to interactive login | nauta `sso-launch.ts`, `auth.ts` | landed |
 | **B7** | The client portal links to its ERP portal (optionally sends `prompt`) | client portal | landed |
 | **R1** | `janua_sso`: an HttpOnly estate cookie the SDK can relay to the browser | Janua `auth/sso_cookie.py`, `routers/v1/auth.py`, `routers/v1/oauth_provider.py` | landed |
@@ -178,9 +179,53 @@ only clients whose redirect pages the operator trusts.
 scope-grant route, which adds one scope and keeps the rest). Before doing so,
 check that the client is public on purpose, that its `redirect_uris` are exact
 HTTPS URLs on the app's own host, and that `created_by` is a platform admin
-(re-register the client as one if not). The app must send
-`code_challenge_method=S256` and the exact registered `redirect_uri`. Unmark by
-removing the scope. No client is marked by the change that introduced B8.
+(re-register the client as one if not). Remove every redirect URI that is not
+an HTTPS page on the app's own host (a `localhost` development callback, an
+admin host the app does not serve) **before** adding the marker: from the
+moment the marker is on the row, every registered string is a place a silent
+code can be delivered to. The app must send `code_challenge_method=S256` and
+the exact registered `redirect_uri`. Unmark by removing the scope
+(`POST /api/v1/internal/oauth-clients/{client_id}/scopes/revoke`, or `PATCH`
+without it). The change that introduced B8 marked no client.
+
+### B8 in production (2026-11-18)
+
+- **Shipped by hotfix image**, because normal promotion is held: janua#833
+  merged as `878e8428`, built by janua#834
+  ([`deployment/hotfix/janua-api-public-silent-auth`](../../deployment/hotfix/janua-api-public-silent-auth/README.md)),
+  pinned by janua#835 (`janua-api@sha256:44c4310d…`). Live since
+  **2026-11-18 20:37Z**. What else production runs is listed in
+  [`deployment/hotfix/README.md`](../../deployment/hotfix/README.md).
+- **One public client is marked**: Dhanam's browser client (the web app's
+  PKCE client, no secret). It requests `openid profile email`,
+  sends `code_challenge_method=S256` and the exact registered callback. Its
+  declaration in enclii's registry is enclii#977 (draft, owner merges).
+- **The operator steps actually used, in this order:**
+  1. Removed the client's `localhost` development callback. **Gap: Janua has no
+     route that edits only a client's `redirect_uris`.** `PATCH
+     /api/v1/oauth/clients/{id}` needs a platform-admin *human* session and
+     takes whole lists, and the internal-key `POST /api/v1/oauth/clients/register`
+     converges a row by its exact `name` and replaces `allowed_scopes`,
+     `grant_types`, `audience` and the rest wholesale. Neither fitted an
+     operator removing one URI, so the URI was removed with a **direct row
+     update** on `oauth_clients`, outside any audited route (no Janua audit
+     event records it). Until a narrow internal route exists (the shape of
+     `internal_oauth_client_scopes.py`: additive/subtractive, one value,
+     idempotent, audited), a redirect-URI removal on a marked client is a
+     database change the operator must record elsewhere.
+  2. Granted `madfam:silent_auth` with the internal scope route,
+     `POST /api/v1/internal/oauth-clients/{client_id}/scopes` (additive; keeps
+     the other scopes; audited). The marker is honoured only because the row
+     was registered by a platform admin; the silent pass below confirms it (on
+     any other row the marker answers `interaction_required`).
+- **Verified after rollout**: a `prompt=none` request for that client with no
+  Janua session answers `login_required` by redirect to the registered
+  callback (nowhere else); a signed-in person passes silently (observed in a
+  browser).
+- **Known drift, not resolved here**: the live row's name and two declared
+  values (an admin callback and `offline_access`) differ from the enclii
+  registry; enclii#977 records it. A provision run for that platform must not
+  happen without review.
 
 ## Security note: the cookie is readable by JavaScript
 
@@ -560,8 +605,10 @@ reopen it.
   `selva-office*` / `madfam-*` prefixes, so the scope is the only way they
   qualify — for `prompt=none` and, since B6, for pre-consent.
 - **B8**: to let a public first-party app sign in silently, follow
-  [How an operator marks a client](#b8--marked-public-first-party-clients-2026-11-18).
-  Nothing to do otherwise; no migration.
+  [How an operator marks a client](#b8--marked-public-first-party-clients-2026-11-18):
+  remove non-app-host redirect URIs first (today only by a direct row update;
+  see [B8 in production](#b8-in-production-2026-11-18)), then grant the scope
+  through the internal scope route. Nothing to do otherwise; no migration.
 - **R1**: nothing beyond B3. `COOKIE_DOMAIN=.madfam.io` is the single
   prerequisite for `janua_sso` to travel, and it is already set in production.
   Without it the cookie is emitted host-only, the relay refuses it, and the

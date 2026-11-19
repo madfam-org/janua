@@ -80,6 +80,18 @@ emite `orgs` **y nada más** — ningún consumidor debe adivinar un tenant.
 Adivinar el tenant primario de un usuario multi-org es exactamente cómo el
 operador de un tenant termina leyendo la nómina de otro.
 
+> **Aviso para operadores (2026-11-18).** Sumar a una persona a una **segunda**
+> organización sin fijar su primaria le quita, sin ningún error, `org_id`,
+> `tenant_id`, `org_slug`, `madfam_org_roles` y **todos** sus roles de
+> aplicación desde su siguiente inicio de sesión o refresh: el token lleva
+> `orgs` y nada más. En producción había 18 personas así (dos organizaciones,
+> ninguna primaria); a cada una se le fijó con
+> `POST /api/v1/internal/primary-organization/set`. Todo flujo que agregue
+> membresías (invitación, aprovisionamiento por `internal_users`, el alta de un
+> producto consumidor) debe fijar la primaria en el mismo paso. Rutas y forma de
+> la respuesta: [`docs/api/API_REFERENCE.md` → Internal API — Primary
+> Organization](../api/API_REFERENCE.md#internal-api--primary-organization).
+
 Ejemplo (token de sesión de un integrante de una organización cliente,
 `services/auth_service.py`, `AuthService.create_session`):
 
@@ -155,6 +167,17 @@ explícitamente por organización: ver §5. La regla que no cambia es que el
 **vocabulario** de roles lo sigue definiendo el servidor de recursos
 (`symbiosis-hcm/apps/api/core/roles.py`); janua sólo registra **a quién** se le
 concedió **qué**, por quién y cuándo.
+
+Una persona con varias organizaciones (una asesora externa, un despacho que
+atiende a varios clientes) llega con el `org_id` de **su** primaria, que puede no
+ser la organización del espacio que intenta abrir. Ese `org_id` ajeno **no** es
+por sí solo un cruce de tenant: compara la organización del recurso contra
+`orgs[].id` (membresía activa al momento de emitir el token) antes de negar, y
+usa `org_id` / `roles` sólo para lo que esa organización primaria autoriza. Un
+servidor de recursos que comparó el `org_id` de una asesora con la
+organización del espacio de un cliente le negó el acceso aunque era miembro
+activo (2026-11-18). Guía para integradores:
+[`ECOSYSTEM_INTEGRATION.md` → People in several organizations](../guides/ECOSYSTEM_INTEGRATION.md#people-in-several-organizations-org_id-and-roles).
 
 ---
 

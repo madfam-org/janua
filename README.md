@@ -79,6 +79,10 @@ available.
   for destinations outside the estate cookie domain — the link lands on Janua
   for one browser hop so the issuer can set its own first-party cookie, then
   forwards to the product ([`docs/architecture/SILENT_SSO_SESSION.md`](./docs/architecture/SILENT_SSO_SESSION.md))
+- Silent sign-in (`prompt=none`) across the estate for confidential first-party
+  clients and, since 2026-11-18, for a **public** (PKCE) client a platform
+  admin marked, only with explicit S256, the exact registered callback and
+  registered scopes ([B8](./docs/architecture/SILENT_SSO_SESSION.md#b8--marked-public-first-party-clients-2026-11-18))
 - Per-tenant sending identity: a vCTO client's mail can carry its own From line
   and even send on the client's **own provider account**, as a config change
   rather than a migration ([`docs/EMAIL_SENDER_POLICY.md`](./docs/EMAIL_SENDER_POLICY.md))

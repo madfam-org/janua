@@ -183,9 +183,39 @@ Without audience validation, a token issued for one application could be replaye
 |-------|------|-------------|
 | `sub` | string | Unique user identifier |
 | `email` | string | User's email address |
-| `roles` | string[] | Assigned roles |
+| `roles` | string[] | Assigned roles; application roles (`<app>:<role>`) only of the primary organization |
 | `tier` | string | Subscription tier (community, pro, scale, enterprise) |
-| `org_id` | string | Organization ID (if applicable) |
+| `orgs` | object[] | Every **active** membership at mint: `{id, slug, role}` |
+| `org_id` | string | The primary organization; **absent** for a person with several organizations and none chosen (see below) |
+
+### People in several organizations: `org_id` and `roles`
+
+Read this before you compare `org_id` with anything. The full rules are in
+[`CLAIMS_DE_ORGANIZACION_Y_SERVICE_PRINCIPALS.md` §3](../architecture/CLAIMS_DE_ORGANIZACION_Y_SERVICE_PRINCIPALS.md#3-forma-de-los-claims).
+
+- `org_id` (with `tenant_id`, `org_slug`, `madfam_org_roles`) names **one**
+  organization: the only active membership, or, with several, the one
+  `users.tenant_id` names, or the **primary organization** an operator set
+  (`POST /api/v1/internal/primary-organization/set`). With several memberships
+  and none of those, Janua does not guess: the token carries `orgs` and
+  **nothing else** — no `org_id` and no application role.
+- **If your product adds a membership, set the primary in the same flow.**
+  Adding a person to a second organization without it silently strips `org_id`
+  and every application role from their next token (sign-in or refresh). No
+  error is raised anywhere; the person simply stops passing your role checks.
+  In November 2026 eighteen people were in that state at once. See
+  [API Reference → Internal API — Primary Organization](../api/API_REFERENCE.md#internal-api--primary-organization).
+- **A foreign `org_id` is not by itself a tenant mismatch.** An advisor or a
+  firm serving several clients carries the `org_id` of *their own* primary
+  organization. When they open a client's workspace, check the workspace's
+  organization against `orgs[].id` (active membership at mint) before you
+  refuse. Decide what they may do in that organization from your own records
+  for that organization, never from `roles`, which belong to the primary
+  organization only. A resource
+  server that compared a multi-organization advisor's `org_id` with a client
+  workspace's organization refused a legitimate member (2026-11-18).
+- Membership in `orgs` is evidence at mint, not a live check: re-read it at
+  refresh, as for any claim.
 
 ### Code Examples
 
@@ -435,6 +465,17 @@ No manual CORS configuration or admin intervention is needed. If your applicatio
 **Symptom**: Token validation fails with "audience invalid" even though the user authenticated successfully.
 
 **Fix**: Confirm that the `audience` value in your OAuth client registration matches exactly what your token validation code expects. These are case-sensitive strings. Check both the client registration in the Dashboard and your `JANUA_AUDIENCE` environment variable.
+
+### A multi-organization person loses access
+
+**Symptom**: A person who used to pass your role check is refused after being
+added to another organization, or an advisor is refused on a client workspace
+with a "tenant mismatch".
+
+**Fix**: For the first, set their primary organization (see
+[People in several organizations](#people-in-several-organizations-org_id-and-roles));
+their next token carries `org_id` and the roles again. For the second, match the
+workspace's organization against `orgs[].id`, not `org_id`.
 
 ### Expired Tokens
 

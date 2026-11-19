@@ -116,6 +116,13 @@ must never imply a training or MAP role. Namespaced app grants appear under
 `roles` only for an unambiguous primary organization. A multi-organization
 person can have CTM in `orgs` without CTM being primary: match that membership
 explicitly and do not interpret another organization's `roles` as CTM grants.
+Equally, a non-CTM `org_id` on a person who is an active CTM member (an
+external advisor whose primary organization is their own firm) is not a
+tenant mismatch: the `orgs[].id` match above decides, and a refusal based on
+`org_id` alone is the bug. Adding a CTM membership to someone who already has
+one elsewhere strips their `org_id` and application roles until an operator
+sets a primary organization; see
+[Integration Guide → People in several organizations](../guides/ECOSYSTEM_INTEGRATION.md#people-in-several-organizations-org_id-and-roles).
 The training lesson's MAP role remains a separate authorization decision.
 
 The existing authenticated `GET /api/v1/organizations/{org_id}/app-roles`

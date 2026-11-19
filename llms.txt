@@ -25,8 +25,11 @@ Compact LLM context index for this repository.
   gate (no back door). How to run it (`python -m app.mcp`), the generator
   mapping, the auth model, and the drift guard tying tools to the schema.
 - `docs/architecture/SILENT_SSO_SESSION.md` — one browser session across the
-  estate: the `janua_sso` cookie, `prompt=none`, and the hosted hop for hosts
-  outside the cookie domain.
+  estate: the `janua_sso` cookie, `prompt=none`, the hosted hop for hosts
+  outside the cookie domain, and (B8) silent sign-in for a public client a
+  platform admin marked with `madfam:silent_auth`.
+- `deployment/hotfix/README.md` — what production runs while promotion is
+  held: the base promotion and every owner-exception hotfix image, in order.
 - `docs/runbooks/oauth-shared-state-redis.md` — the hub for OAuth consent
   state (Redis only; `503` + `Retry-After` when Redis is down, `403` only for a
   real rejection), first-party clients, the account chooser, what each
@@ -104,7 +107,7 @@ Compact LLM context index for this repository.
 - A tracking host serves only `/e/o/*` and `/e/c/*`; everything else is 404
   and websockets are closed (1008) by `TrackingHostScopeMiddleware`.
 - Production migrations are applied by hand; `PROD_ALEMBIC_STATE.json` records
-  them (at `019_email_first_party_engagement` since 2026-09-25).
+  them (at `022_user_primary_organization` since 2026-11-16).
 
 ## Build and CI facts (2026-10-01)
 
@@ -120,6 +123,24 @@ Compact LLM context index for this repository.
 - Pending work (pnpm 10 in the app images, the skip sweep, the skipped auth
   e2e tests, the audit-log merge window and more) lives in one list:
   AGENTS.md → «Known gaps / Backlog».
+
+## Production by hotfix, silent sign-in, multi-org tokens (2026-11-19)
+
+- `promote-to-prod.yml` is held; production is the 2026-11-03 promotion plus
+  twelve owner-exception hotfix images, listed in order with their files in
+  `deployment/hotfix/README.md`. Current pin: the public-silent-auth image
+  (janua#833), live since 2026-11-18 20:37Z.
+- A public (PKCE) client may use `prompt=none` and skip consent only when it
+  carries `madfam:silent_auth`, a platform admin registered the row, and the
+  request has explicit S256, the exact registered `redirect_uri` and
+  registered scopes. One client is marked. Janua has no route that edits only
+  `redirect_uris` (gap in AGENTS.md backlog).
+- A person with two or more active memberships and no primary organization
+  gets tokens with `orgs` only: no `org_id`, no application roles. Flows that
+  add memberships must call `POST /api/v1/internal/primary-organization/set`.
+  Resource servers must match a workspace against `orgs[].id`, not refuse a
+  multi-org advisor because `org_id` is their own firm's.
+  `docs/guides/ECOSYSTEM_INTEGRATION.md` → «People in several organizations».
 
 ## Production operations
 
