@@ -520,6 +520,28 @@ Runs parallel to Q2 2026 roadmap items below.
 
 ---
 
+## Browser-facing auth flows: edge-case hardening (from the 2026-11-19 incident)
+
+**Origin:** incident [2026-11-19](./runbooks/incidents/2026-11-19-hosted-login-double-submit.md)
+(a double submit on the hosted password form showed raw JSON). janua#841 fixed
+that path: a repeated `POST /api/v1/auth/login-form` lands in the product or on
+`GET /api/v1/auth/login-expired`, and every hosted form disables its button after
+the first press. The same class of edge case remains to be walked, path by path,
+with a test per case:
+
+| Case | Paths to check | Expected |
+|------|----------------|----------|
+| Back or refresh after a POST | magic-link request, second factor, forgot and reset password, consent | a page or a redirect, never a JSON error body; a refresh never re-POSTs a credential |
+| Two tabs on one pending request | `/oauth/authorize` → hosted login, chooser | the second tab lands signed in or on a page that restarts the flow |
+| Page left open past the 10-minute pre-login TTL | password, magic link, second factor | same answer as a used request |
+| Redis loss or restart mid-flow | pending request, MFA challenge, magic-link token | a page that restarts the flow; no 500 |
+| Magic link opened on another device or fetched by a mail scanner | magic-link callback | already scanner-proof (J6, `SILENT_SSO_SESSION.md`); add the other-device case |
+
+No target date; each case ships as its own change with the hotfix process while
+the promotion hold stands (`deployment/hotfix/README.md`).
+
+---
+
 **Last Updated**: May 30, 2026  
 **Next Review**: July 1, 2026  
 **Maintained By**: Janua Core Team

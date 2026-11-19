@@ -32,7 +32,11 @@ import pytest
 
 from app.auth.sessions_cookie import SESSIONS_COOKIE_NAME, mint_sessions_cookie_value
 from app.routers.v1 import oauth_provider
-from app.routers.v1.auth import _switch_page_locale, _switch_refused_html
+from app.routers.v1.auth import (
+    HOSTED_FORM_SCRIPT_TAG,
+    _switch_page_locale,
+    _switch_refused_html,
+)
 from tests.unit.routers.test_account_chooser_switch_form import (
     FORM,
     _authorize_query,
@@ -54,6 +58,21 @@ HOSTILE = [
 
 def _query(url):
     return {k: v[0] for k, v in parse_qs(urlparse(url).query).items()}
+
+
+def _without_the_hosted_form_script(page: str) -> str:
+    """The login page minus its one reviewed script tag.
+
+    Since the 2026-11-19 double-submit fix every hosted form loads exactly one
+    script, the same-origin file ``/api/v1/auth/hosted-form.js`` (no inline
+    code). That exact tag must appear once; everything else on the page is held
+    to the old rule, so any other ``script`` (an injected tag, an inline block, a
+    ``javascript:`` URL) still fails the checks below.
+    """
+    assert page.count(HOSTED_FORM_SCRIPT_TAG) == 1, "the reviewed script tag, exactly once"
+    rest = page.replace(HOSTED_FORM_SCRIPT_TAG, "")
+    assert "<script" not in rest.lower(), "no other script tag, inline or not"
+    return rest
 
 
 # --------------------------------------------------------------------------
@@ -135,17 +154,20 @@ class TestSecondFactorBranch:
         location = resp.headers["location"]
         assert _query(location)["ui_locales"] == "es"
         assert pending["ui_locales"] == "es"
+        page = _without_the_hosted_form_script(login.text)
         for fragment in ("script", "alert", "onmouseover", "evil.example", "es-MX'", 'es-"'):
             assert fragment not in location, fragment
             assert fragment not in json.dumps(pending), fragment
-            assert fragment not in login.text, fragment
+            assert fragment not in page, fragment
 
     async def test_an_unresolvable_value_is_dropped(self):
         resp, pending, login = await _mfa_authorize('fr"><script>alert(1)</script>')
         assert "ui_locales" not in resp.headers["location"]
         assert pending["ui_locales"] is None
         assert '<html lang="en">' in login.text
-        assert "script" not in login.text
+        page = _without_the_hosted_form_script(login.text)
+        assert "script" not in page
+        assert "alert" not in page
 
 
 # --------------------------------------------------------------------------

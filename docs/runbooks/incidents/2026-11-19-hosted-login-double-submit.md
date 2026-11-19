@@ -1,7 +1,8 @@
 # Incident: hosted sign-in answered a double submit with raw JSON (2026-11-19)
 
-> **Status:** Fix in review (janua#841); production fix ships as a hotfix image
-> (`deployment/hotfix/README.md`) once merged and approved.
+> **Status:** Fixed on `main` by janua#841. Production gets it as the hotfix image
+> `deployment/hotfix/janua-api-login-double-submit/` (`deployment/hotfix/README.md`),
+> live only after the owner approves the production pin.
 > **Severity:** P2 (sign-in worked on a later attempt; no data exposure, no outage)
 > **Window observed:** 2026-11-19 18:05–18:07 UTC in production logs; the pattern
 > is older than that window.

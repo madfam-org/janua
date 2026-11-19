@@ -30,6 +30,38 @@ password plus a TOTP or unused backup code, is refused under any required
 membership policy, and strictly revokes existing sessions in the factor-change
 transaction. Password reset also revokes existing sessions; it does not clear MFA.
 
+### A sign-in request that is already used or expired
+
+The hosted password form posts to `POST /api/v1/auth/login-form` with the
+`auth_request_id` of a pending authorization request (`oauth:pre_login:<id>`,
+10-minute TTL). The first successful POST consumes it. A second POST for the
+same id (a double press, Enter after a click, a refresh of the result, or a page
+left open past the TTL) never answers a JSON error body (incident
+[2026-11-19](runbooks/incidents/2026-11-19-hosted-login-double-submit.md),
+janua#841):
+
+- The credentials are checked against the registered, active client the form
+  names, exactly as a fresh sign-in at that client: its identity pool, lockout,
+  account status, password and failed-attempt counting. On success the browser
+  gets a new session and a `303` to that client's registered origin, which starts
+  a new authorization request (new `state`, new PKCE) that the session completes.
+- When a second factor is required, or the form names no registered, active
+  client, nothing is checked and no session is issued. The browser gets a `303`
+  to `GET /api/v1/auth/login-expired`, a page (Spanish with `ui_locales=es`,
+  `Cache-Control: no-store`) with one button to the client's registered origin,
+  looked up server-side. A refresh there is a GET.
+- A live request keeps every binding it had: a different `client_id` is refused
+  (400) and the stored `redirect_uri` is still validated.
+
+Every hosted form (password, magic link, second factor, forgot and reset
+password) carries `data-busy-label` and loads one same-origin script,
+`GET /api/v1/auth/hosted-form.js` (no inline code; the API CSP allows
+`script-src 'self'`). It disables the submit button after the first press,
+announces the busy label in a `role="status"` region, and re-enables the button
+on a back/forward-cache restore or after 20 s. Without script the forms work as
+before and the server behaviour above still holds. Operator log reading:
+[oauth-shared-state-redis.md](runbooks/oauth-shared-state-redis.md#a-sign-in-that-lands-on-request-expired).
+
 ## Technical-direction MFA floor
 
 The product's real staff lifecycle synchronizes the reserved live grant
