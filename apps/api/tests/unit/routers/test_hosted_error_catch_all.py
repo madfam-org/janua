@@ -31,7 +31,6 @@ from app.auth.hosted_errors import HOSTED_ERROR_PATH, is_hosted_route
 from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.database import get_db
 from app.models import Base, OAuthClient, Organization, OrganizationMember, User, UserStatus
-from app.services.auth_service import AuthService
 
 CLIENT = "synthetic-app"
 CALLBACK = "https://app.test/api/auth/callback"
@@ -85,7 +84,7 @@ async def env(monkeypatch):
                 id=user_id,
                 tenant_id=org_id,
                 email="member@example.com",
-                password_hash=AuthService.hash_password("Synthetic-Password-7!"),
+                password_hash=service.AuthService.hash_password("Synthetic-Password-7!"),
                 email_verified=True,
                 status=UserStatus.ACTIVE,
                 is_active=True,

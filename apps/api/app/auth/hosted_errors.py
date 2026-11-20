@@ -268,7 +268,7 @@ def _error_page(
     locale: str,
     restart: Optional[str],
 ) -> HTMLResponse:
-    from app.auth.hosted_security import SECURITY_CSP, SECURITY_CSS
+    from app.auth.hosted_page_style import SECURITY_CSP, SECURITY_CSS
 
     copy = _COPY.get(locale, _COPY[DEFAULT_HOSTED_LOCALE])
     if status_code == 429:
