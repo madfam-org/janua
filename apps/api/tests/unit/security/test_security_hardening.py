@@ -19,6 +19,8 @@ import jwt as pyjwt
 import pytest
 from pydantic import ValidationError
 
+from app.routers.v1 import auth_recovery
+
 pytestmark = pytest.mark.asyncio
 
 
@@ -323,10 +325,11 @@ class TestPasswordResetMethodName:
         pre-existing-bug concern (a misnamed validate_password) stays covered.
         """
         import inspect
+
         from app.routers.v1 import auth
 
         endpoint_source = inspect.getsource(auth.reset_password)
         assert "_consume_password_reset" in endpoint_source
 
-        helper_source = inspect.getsource(auth._consume_password_reset)
+        helper_source = inspect.getsource(auth_recovery._consume_password_reset)
         assert "validate_password_strength" in helper_source

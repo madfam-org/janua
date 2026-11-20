@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from app.routers.v1 import auth_magic_link_issue
 from app.services.email_service import EmailService
 
 
@@ -215,8 +216,12 @@ def test_send_route_refuses_a_disallowed_destination_loudly():
     assert "_issue_magic_link(" in inspect.getsource(auth.send_magic_link), (
         "POST /magic-link must issue through the shared helper"
     )
-    source = inspect.getsource(auth._issue_magic_link)
-    assert "raise HTTPException" in source.split("safe_redirect_url = validate_redirect_url")[1].split(
+    source = inspect.getsource(auth_magic_link_issue._issue_magic_link)
+    # validate_redirect_url is called through auth_shared since the 2026-11-19
+    # split (one patch target for every caller).
+    assert "raise HTTPException" in source.split(
+        "safe_redirect_url = _auth_shared.validate_redirect_url"
+    )[1].split(
         "magic_token"
     )[0], "failed redirect validation must raise, not proceed"
     assert "we simply won't include a redirect" not in source

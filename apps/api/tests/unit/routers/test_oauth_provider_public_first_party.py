@@ -45,6 +45,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.jwt_manager import jwt_manager
 from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import Base, OAuthClient, User, UserStatus
+from app.routers.v1 import auth_shared, oauth_provider_shared
 
 pytestmark = pytest.mark.asyncio
 
@@ -112,8 +113,8 @@ async def env(monkeypatch):
     for dep in {
         core_redis.get_redis,
         dependencies.get_redis,
-        oauth_provider.get_redis,
-        auth_router.get_redis,
+        oauth_provider_shared.get_redis,
+        auth_shared.get_redis,
     }:
         app.dependency_overrides[dep] = lambda: redis
 
@@ -160,7 +161,7 @@ async def env(monkeypatch):
     with (
         patch("app.core.redis.get_redis", get),
         patch("app.services.auth_service.get_redis", get),
-        patch("app.routers.v1.oauth_provider.get_redis", get),
+        patch("app.routers.v1.oauth_provider_shared.get_redis", get),
     ):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
             yield SimpleNamespace(http=http, member=member)
@@ -272,7 +273,7 @@ class TestMarkedPublicClient:
     async def test_mfa_the_session_lacks_is_login_required(self, env, monkeypatch):
         from app.routers.v1 import oauth_provider
 
-        monkeypatch.setattr(oauth_provider, "user_requires_mfa", AsyncMock(return_value=True))
+        monkeypatch.setattr(oauth_provider_shared, "user_requires_mfa", AsyncMock(return_value=True))
         _, challenge = pkce()
         query = assert_error(
             await authorize(env, params(challenge, prompt="none"), env.member), "login_required"

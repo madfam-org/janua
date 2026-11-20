@@ -125,7 +125,7 @@ async def _chooser(ui_locales):
 
     async def run(http):
         with patch(
-            "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+            "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
             AsyncMock(return_value=None),
         ):
             return await http.get("/api/v1/oauth/authorize", params=query)
@@ -216,7 +216,7 @@ class TestThroughAuthorize:
 
         async def run(http):
             with patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=None),
             ):
                 page = await http.get("/api/v1/oauth/authorize", params=query)
@@ -237,7 +237,7 @@ class TestThroughAuthorize:
             # The resumed request still issues the code for the chosen account.
             with (
                 patch(
-                    "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                    "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                     AsyncMock(return_value=alice),
                 ),
                 patch(

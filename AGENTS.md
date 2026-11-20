@@ -1032,12 +1032,12 @@ EOF
 
 | Purpose | Location |
 |---------|----------|
-| Auth router | `apps/api/app/routers/v1/auth.py` |
+| Auth router | `apps/api/app/routers/v1/auth.py` (aggregator since 2026-11-19; routes in `auth_signin`, `auth_hosted_login`, `auth_sessions`, `auth_recovery`, `auth_email_verification`, `auth_magic_link_issue`, `auth_magic_link`; helpers in `auth_shared`, `auth_schemas`, `auth_hosted_pages`, `auth_magic_link_pages`; patch shared names on `auth_shared`) |
 | Auth service | `apps/api/app/services/auth_service.py` |
 | JWT handling | `apps/api/app/core/jwt_manager.py` (`app/services/jwt_service.py` has no mounted caller) |
 | MFA router | `apps/api/app/routers/v1/mfa.py` |
 | Social login (OAuth client side) | `apps/api/app/services/oauth.py`, `apps/api/app/routers/v1/oauth.py` |
-| OAuth/OIDC provider (authorize, consent, token, revoke, introspect, account chooser) | `apps/api/app/routers/v1/oauth_provider.py` |
+| OAuth/OIDC provider (authorize, consent, token, revoke, introspect, account chooser) | `apps/api/app/routers/v1/oauth_provider.py` (aggregator since 2026-11-19; routes in `oauth_provider_resources`, `_authorize`, `_consent`, `_token`, `_userinfo`; helpers in `oauth_provider_shared`, `_schemas`, `_scopes`, `_clients`, `_resource_tokens`, `_grants`; patch shared names on `oauth_provider_shared`) |
 | Discovery metadata (OIDC + RFC 8414, one document) | `apps/api/app/core/oauth_metadata.py` |
 | Protected-resource registry (closed list, RFC 8707) and its client policy | `apps/api/app/core/protected_resources.py`; CIMD fetcher `apps/api/app/services/client_id_metadata.py`; tokens `apps/api/app/services/resource_tokens.py` |
 | Sessions API | `apps/api/app/routers/v1/sessions.py` |

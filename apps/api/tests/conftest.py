@@ -491,7 +491,7 @@ def mock_activity_logging():
     """Mock activity logging to avoid model field mismatches"""
     from unittest.mock import patch
 
-    with patch("app.routers.v1.auth.log_activity", return_value=None):
+    with patch("app.routers.v1.auth_shared.log_activity", return_value=None):
         yield
 
 

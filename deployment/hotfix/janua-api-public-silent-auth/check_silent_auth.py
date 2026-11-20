@@ -16,6 +16,7 @@ Prints two lines:
 
 import inspect
 import json
+import re
 from types import SimpleNamespace
 
 from app.routers.v1 import oauth_provider
@@ -102,8 +103,13 @@ def _request_conditions_enforced() -> bool:
 
 def _authorize_source() -> str:
     # A request handler needs a database to run, so its wiring is read from the
-    # code the image ships.
-    return inspect.getsource(oauth_provider.authorize_get)
+    # code the image ships. On a checkout where oauth_provider.py is split
+    # (2026-11-19, the 800-line limit), names tests patch are called through
+    # their module (`_oauth_provider_shared.X(`); drop that qualifier so the
+    # same lines are recognised. Production's image is not split, so there
+    # this is the source exactly as before.
+    source = inspect.getsource(oauth_provider.authorize_get)
+    return re.sub(r"\b_oauth_provider_[a-z_]+\.", "", source)
 
 
 def _platform_admin_registration_required() -> bool:
