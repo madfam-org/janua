@@ -4,7 +4,7 @@ Kept out of `auth_service.py` (the repository's 800-line pre-commit limit);
 `AuthService.refresh_tokens` calls it.
 
 REFRESH_REUSE_GRACE_SECONDS is owner decision D5 (edge-case roadmap
-2026-11-19; PROPOSED 30 s, same session only). Set it with the environment
+2026-11-19; APPROVED 2026-11-20: 30 s, same session only). Set it with the environment
 variable of the same name; 0 restores strict single use. It is read here and
 not from `app.config.Settings` because config.py is over the 800-line limit
 and not part of the split; move it there when config.py is split.
@@ -25,7 +25,7 @@ from app.services import token_revocation
 
 logger = structlog.get_logger()
 
-#: Owner decision D5 (PROPOSED value). 0 = strict single use, as before.
+#: Owner decision D5 (APPROVED 2026-11-20: 30 s, same session only). 0 = strict single use, as before.
 REFRESH_REUSE_GRACE_SECONDS = max(0, min(120, int(os.getenv("REFRESH_REUSE_GRACE_SECONDS", "30"))))
 
 # REFRESH UNDER CONCURRENCY (edge-case roadmap 1.3, owner decision D5).

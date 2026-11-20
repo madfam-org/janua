@@ -205,7 +205,8 @@ changing policy alone must not be represented as instant revocation.
 
 ### Refresh under concurrency
 
-Roadmap item 1.3 (rule R7; window length = owner decision D5). Two tabs, a
+Roadmap item 1.3 (rule R7; window length = owner decision D5, approved
+2026-11-20: 30 s, the same session only). Two tabs, a
 server render plus the browser, or a client retrying on a slow network refresh
 the same session at once. Before, both rotated, and the loser's next refresh
 revoked the whole family, signing every tab out.
