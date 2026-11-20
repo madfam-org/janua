@@ -207,14 +207,14 @@ async def test_authorize_stores_and_forwards_login_method():
     redis = AsyncMock()
     with (
         patch(
-            "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+            "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
             AsyncMock(return_value=None),
         ),
         patch(
-            "app.routers.v1.oauth_provider._get_oauth_client",
+            "app.routers.v1.oauth_provider_shared._get_oauth_client",
             AsyncMock(return_value=_client_stub()),
         ),
-        patch("app.routers.v1.oauth_provider._validate_redirect_uri", MagicMock(return_value=True)),
+        patch("app.routers.v1.oauth_provider_shared._validate_redirect_uri", MagicMock(return_value=True)),
     ):
         resp = await authorize_get(
             request=MagicMock(),
@@ -252,14 +252,14 @@ async def test_authorize_without_hint_leaves_login_url_unchanged():
     redis = AsyncMock()
     with (
         patch(
-            "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+            "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
             AsyncMock(return_value=None),
         ),
         patch(
-            "app.routers.v1.oauth_provider._get_oauth_client",
+            "app.routers.v1.oauth_provider_shared._get_oauth_client",
             AsyncMock(return_value=_client_stub()),
         ),
-        patch("app.routers.v1.oauth_provider._validate_redirect_uri", MagicMock(return_value=True)),
+        patch("app.routers.v1.oauth_provider_shared._validate_redirect_uri", MagicMock(return_value=True)),
     ):
         resp = await authorize_get(
             request=MagicMock(),

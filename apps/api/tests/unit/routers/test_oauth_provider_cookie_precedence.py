@@ -50,6 +50,7 @@ from app.core.jwt_manager import jwt_manager
 from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import UserStatus
 from app.routers.v1 import oauth_provider as oauth_provider_router
+from app.routers.v1 import oauth_provider_shared
 from app.routers.v1.oauth_provider import get_user_from_cookie_or_header
 
 pytestmark = pytest.mark.asyncio
@@ -59,7 +60,7 @@ pytestmark = pytest.mark.asyncio
 def _empty_revocation_list():
     """The hosted-cookie and bearer reads consult the revocation list; nothing is revoked."""
     redis = ResilientRedisClient(fakeredis.aioredis.FakeRedis(decode_responses=True))
-    with patch("app.routers.v1.oauth_provider.get_redis", AsyncMock(return_value=redis)):
+    with patch("app.routers.v1.oauth_provider_shared.get_redis", AsyncMock(return_value=redis)):
         yield
 
 
@@ -258,7 +259,7 @@ class TestDisagreement:
             estate_started=now - timedelta(minutes=3),
             hosted_started=now - timedelta(minutes=46),
         )
-        with patch.object(oauth_provider_router, "logger") as log:
+        with patch.object(oauth_provider_shared, "logger") as log:
             await get_user_from_cookie_or_header(request, db)
 
         assert log.info.called
@@ -287,7 +288,7 @@ class TestSameUserInBothCookies:
                 "janua_access_token": _hosted_cookie(user),
             }
         )
-        with patch.object(oauth_provider_router, "logger") as log:
+        with patch.object(oauth_provider_shared, "logger") as log:
             resolved = await get_user_from_cookie_or_header(
                 request, _db(sessions=[session], users=[user])
             )
@@ -383,7 +384,7 @@ class TestAuthorizeHonoursThePrecedence:
         # These sessions test identity precedence, not organization policy. Keep
         # real selected-session evidence resolution while declaring no MFA gate.
         monkeypatch.setattr(
-            oauth_provider_router, "user_requires_mfa", AsyncMock(return_value=False)
+            oauth_provider_shared, "user_requires_mfa", AsyncMock(return_value=False)
         )
 
     async def _authorize(self, prompt):
@@ -412,11 +413,11 @@ class TestAuthorizeHonoursThePrecedence:
 
         with (
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=_oauth_client()),
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri",
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri",
                 MagicMock(return_value=True),
             ),
             patch(
@@ -428,11 +429,11 @@ class TestAuthorizeHonoursThePrecedence:
                 AsyncMock(return_value=True),
             ),
             patch(
-                "app.routers.v1.oauth_provider._store_auth_code",
+                "app.routers.v1.oauth_provider_shared._store_auth_code",
                 AsyncMock(side_effect=_capture_code),
             ),
             patch(
-                "app.routers.v1.oauth_provider.settings",
+                "app.routers.v1.oauth_provider_shared.settings",
                 MagicMock(REQUIRE_EMAIL_VERIFICATION=False),
             ),
         ):

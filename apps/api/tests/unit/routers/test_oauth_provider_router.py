@@ -13,6 +13,7 @@ import pytest
 
 # Import the module for patching
 from app.routers.v1 import oauth_provider as oauth_provider_module
+from app.routers.v1 import oauth_provider_shared
 
 pytestmark = pytest.mark.asyncio
 
@@ -162,7 +163,7 @@ class TestRedirectURIValidation:
         allowed = ["https://app.example.com/callback"]
 
         with patch.object(
-            oauth_provider_module, "validate_oauth_redirect_uri", return_value=True
+            oauth_provider_shared, "validate_oauth_redirect_uri", return_value=True
         ):
             result = _validate_redirect_uri("https://app.example.com/callback", allowed)
             assert result is True
@@ -174,7 +175,7 @@ class TestRedirectURIValidation:
         allowed = ["https://app.example.com/callback"]
 
         with patch.object(
-            oauth_provider_module, "validate_oauth_redirect_uri", return_value=False
+            oauth_provider_shared, "validate_oauth_redirect_uri", return_value=False
         ):
             result = _validate_redirect_uri("https://malicious.com/callback", allowed)
             assert result is False
@@ -355,7 +356,7 @@ class TestSafeCallbackURLBuilder:
         """Should build callback URL with params"""
         from app.routers.v1.oauth_provider import _build_safe_callback_url
 
-        with patch.object(oauth_provider_module, "is_safe_redirect_url", return_value=True):
+        with patch.object(oauth_provider_shared, "is_safe_redirect_url", return_value=True):
             result = _build_safe_callback_url(
                 "https://app.example.com/callback", {"code": "abc123", "state": "xyz"}
             )
@@ -368,7 +369,7 @@ class TestSafeCallbackURLBuilder:
         """Should reject unsafe redirect URI"""
         from app.routers.v1.oauth_provider import _build_safe_callback_url
 
-        with patch.object(oauth_provider_module, "is_safe_redirect_url", return_value=False):
+        with patch.object(oauth_provider_shared, "is_safe_redirect_url", return_value=False):
             with pytest.raises(ValueError) as exc_info:
                 _build_safe_callback_url("javascript:alert(1)", {"code": "abc"})
 
@@ -685,7 +686,7 @@ class TestTokenEndpointValidation:
             return_value=("encoded_access_token", "jti", None),
         ) as mock_create:
             with patch.object(
-                oauth_provider_module,
+                oauth_provider_shared,
                 "client_registered_by_platform_admin",
                 AsyncMock(return_value=True),
             ):
@@ -821,9 +822,11 @@ class TestOAuthSchemas:
 
     def test_interactive_oauth_client_requires_redirect_uris(self):
         """Interactive OAuth clients still require registered redirect URIs."""
+        from pydantic import ValidationError
+
         from app.schemas.oauth_client import OAuthClientCreate
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             OAuthClientCreate(
                 name="interactive-app",
                 redirect_uris=[],

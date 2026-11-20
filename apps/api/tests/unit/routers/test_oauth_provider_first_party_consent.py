@@ -20,6 +20,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.routers.v1 import oauth_provider_shared
 from app.routers.v1.oauth_provider import (
     _is_first_party_preconsented,
     _is_silent_auth_allowed,
@@ -35,8 +36,8 @@ def optional_authentication_context(monkeypatch):
     # session evidence are exercised by the signed/session-backed MFA tests.
     from app.routers.v1 import oauth_provider
 
-    monkeypatch.setattr(oauth_provider, "user_requires_mfa", AsyncMock(return_value=False))
-    monkeypatch.setattr(oauth_provider, "assurance_for_request", AsyncMock(return_value={}))
+    monkeypatch.setattr(oauth_provider_shared, "user_requires_mfa", AsyncMock(return_value=False))
+    monkeypatch.setattr(oauth_provider_shared, "assurance_for_request", AsyncMock(return_value={}))
 
 
 def _client(
@@ -125,14 +126,14 @@ class TestInteractiveConsentScreen:
         kwargs = self._kwargs()
         with (
             patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=user),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client", AsyncMock(return_value=client)
+                "app.routers.v1.oauth_provider_shared._get_oauth_client", AsyncMock(return_value=client)
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri", MagicMock(return_value=True)
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri", MagicMock(return_value=True)
             ),
             patch(
                 "app.routers.v1.oauth_provider.ConsentService.parse_scopes",
@@ -142,12 +143,12 @@ class TestInteractiveConsentScreen:
                 "app.routers.v1.oauth_provider.ConsentService.has_consent",
                 AsyncMock(return_value=False),
             ),
-            patch("app.routers.v1.oauth_provider._store_auth_code", AsyncMock()),
+            patch("app.routers.v1.oauth_provider_shared._store_auth_code", AsyncMock()),
             patch(
-                "app.routers.v1.oauth_provider._generate_csrf_token", AsyncMock(return_value="c")
+                "app.routers.v1.oauth_provider_shared._generate_csrf_token", AsyncMock(return_value="c")
             ),
             patch(
-                "app.routers.v1.oauth_provider.settings",
+                "app.routers.v1.oauth_provider_shared.settings",
                 MagicMock(REQUIRE_EMAIL_VERIFICATION=False),
             ),
         ):
@@ -194,14 +195,14 @@ class TestSilentAuthNoLongerBlockedByConsent:
         }
         with (
             patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=user),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client", AsyncMock(return_value=client)
+                "app.routers.v1.oauth_provider_shared._get_oauth_client", AsyncMock(return_value=client)
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri", MagicMock(return_value=True)
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri", MagicMock(return_value=True)
             ),
             patch(
                 "app.routers.v1.oauth_provider.ConsentService.parse_scopes",
@@ -211,9 +212,9 @@ class TestSilentAuthNoLongerBlockedByConsent:
                 "app.routers.v1.oauth_provider.ConsentService.has_consent",
                 AsyncMock(return_value=False),
             ),
-            patch("app.routers.v1.oauth_provider._store_auth_code", AsyncMock()),
+            patch("app.routers.v1.oauth_provider_shared._store_auth_code", AsyncMock()),
             patch(
-                "app.routers.v1.oauth_provider.settings",
+                "app.routers.v1.oauth_provider_shared.settings",
                 MagicMock(REQUIRE_EMAIL_VERIFICATION=False),
             ),
         ):
@@ -243,14 +244,14 @@ class TestSilentAuthNoLongerBlockedByConsent:
         }
         with (
             patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=SimpleNamespace(id=uuid4())),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client", AsyncMock(return_value=client)
+                "app.routers.v1.oauth_provider_shared._get_oauth_client", AsyncMock(return_value=client)
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri", MagicMock(return_value=True)
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri", MagicMock(return_value=True)
             ),
         ):
             resp = await authorize_get(**kwargs)

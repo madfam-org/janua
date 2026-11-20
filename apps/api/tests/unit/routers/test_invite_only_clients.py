@@ -48,7 +48,12 @@ from app.models import (
     UserEntitlement,
     UserStatus,
 )
-from app.routers.v1 import auth_shared, oauth_provider
+from app.routers.v1 import (
+    auth_shared,
+    oauth_provider,
+    oauth_provider_clients,
+    oauth_provider_shared,
+)
 from app.services.entitlements_service import Entitlement
 from app.services.invite_only_clients import (
     has_invited_access,
@@ -183,13 +188,13 @@ def _client(client_id=CLIENT_ID, name="MADFAM CV"):
 async def _authorize(user, client, *, prompt=None, ui_locales=None, entitlements=()):
     with (
         patch.object(
-            oauth_provider, "get_user_from_cookie_or_header", AsyncMock(return_value=user)
+            oauth_provider_shared, "get_user_from_cookie_or_header", AsyncMock(return_value=user)
         ),
-        patch.object(oauth_provider, "_get_oauth_client", AsyncMock(return_value=client)),
-        patch.object(oauth_provider, "_validate_redirect_uri", MagicMock(return_value=True)),
-        patch.object(oauth_provider, "_is_silent_auth_allowed", MagicMock(return_value=True)),
+        patch.object(oauth_provider_shared, "_get_oauth_client", AsyncMock(return_value=client)),
+        patch.object(oauth_provider_shared, "_validate_redirect_uri", MagicMock(return_value=True)),
+        patch.object(oauth_provider_clients, "_is_silent_auth_allowed", MagicMock(return_value=True)),
         # This fixture isolates invitation policy; MFA has its own real DB matrix.
-        patch.object(oauth_provider, "user_requires_mfa", AsyncMock(return_value=False)),
+        patch.object(oauth_provider_shared, "user_requires_mfa", AsyncMock(return_value=False)),
         patch(
             "app.services.entitlements_service.get_user_entitlements",
             AsyncMock(return_value=list(entitlements)),
@@ -274,10 +279,10 @@ async def test_authorize_carries_ui_locales_to_the_login_page(invite_only):
     redis = AsyncMock()
     with (
         patch.object(
-            oauth_provider, "get_user_from_cookie_or_header", AsyncMock(return_value=None)
+            oauth_provider_shared, "get_user_from_cookie_or_header", AsyncMock(return_value=None)
         ),
-        patch.object(oauth_provider, "_get_oauth_client", AsyncMock(return_value=_client())),
-        patch.object(oauth_provider, "_validate_redirect_uri", MagicMock(return_value=True)),
+        patch.object(oauth_provider_shared, "_get_oauth_client", AsyncMock(return_value=_client())),
+        patch.object(oauth_provider_shared, "_validate_redirect_uri", MagicMock(return_value=True)),
     ):
         resp = await oauth_provider.authorize_get(
             request=MagicMock(),

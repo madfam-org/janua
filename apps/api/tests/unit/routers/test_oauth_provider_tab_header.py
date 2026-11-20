@@ -48,7 +48,7 @@ pytestmark = pytest.mark.asyncio
 def _empty_revocation_list():
     """The hosted-cookie and bearer reads consult the revocation list; nothing is revoked."""
     redis = ResilientRedisClient(fakeredis.aioredis.FakeRedis(decode_responses=True))
-    with patch("app.routers.v1.oauth_provider.get_redis", AsyncMock(return_value=redis)):
+    with patch("app.routers.v1.oauth_provider_shared.get_redis", AsyncMock(return_value=redis)):
         yield
 
 

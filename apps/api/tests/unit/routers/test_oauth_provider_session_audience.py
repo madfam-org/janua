@@ -39,7 +39,7 @@ pytestmark = pytest.mark.asyncio
 def _empty_revocation_list():
     """`_verify_own_access_token` reads the revocation list; nothing is revoked here."""
     redis = ResilientRedisClient(fakeredis.aioredis.FakeRedis(decode_responses=True))
-    with patch("app.routers.v1.oauth_provider.get_redis", AsyncMock(return_value=redis)):
+    with patch("app.routers.v1.oauth_provider_shared.get_redis", AsyncMock(return_value=redis)):
         yield
 
 

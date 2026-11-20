@@ -25,6 +25,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.routers.v1 import oauth_provider as op
+from app.routers.v1 import oauth_provider_shared
 from app.routers.v1.oauth_provider import (
     DATA_API_ROLE,
     DATA_API_SCOPE,
@@ -43,8 +44,8 @@ REDIRECT = "https://app.example/cb"
 def optional_authentication_context(monkeypatch):
     # Scope tests deliberately use policy-free legacy sessions. Real required
     # policy, session binding and MFA proof are covered in separate auth tests.
-    monkeypatch.setattr(op, "user_requires_mfa", AsyncMock(return_value=False))
-    monkeypatch.setattr(op, "assurance_for_request", AsyncMock(return_value={}))
+    monkeypatch.setattr(oauth_provider_shared, "user_requires_mfa", AsyncMock(return_value=False))
+    monkeypatch.setattr(oauth_provider_shared, "assurance_for_request", AsyncMock(return_value={}))
 
 
 def _client(
@@ -179,11 +180,11 @@ async def _run_authorize_get(client, scope, *, user=None, prompt=None, has_conse
     kwargs = _authorize_get_kwargs(scope, prompt=prompt)
     store = AsyncMock()
     with (
-        patch(f"{MOD}.get_user_from_cookie_or_header", AsyncMock(return_value=user)),
-        patch(f"{MOD}._get_oauth_client", AsyncMock(return_value=client)),
+        patch("app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header", AsyncMock(return_value=user)),
+        patch("app.routers.v1.oauth_provider_shared._get_oauth_client", AsyncMock(return_value=client)),
         patch(f"{MOD}.ConsentService.has_consent", AsyncMock(return_value=has_consent)),
-        patch(f"{MOD}._store_auth_code", store),
-        patch(f"{MOD}.settings", MagicMock(REQUIRE_EMAIL_VERIFICATION=False)),
+        patch("app.routers.v1.oauth_provider_shared._store_auth_code", store),
+        patch("app.routers.v1.oauth_provider_shared.settings", MagicMock(REQUIRE_EMAIL_VERIFICATION=False)),
     ):
         resp = await op.authorize_get(**kwargs)
     return resp, store, kwargs
@@ -220,11 +221,11 @@ class TestAuthorizeGet:
         kwargs = _authorize_get_kwargs("openid email fh:write")
         has_consent = AsyncMock(return_value=True)
         with (
-            patch(f"{MOD}.get_user_from_cookie_or_header", AsyncMock(return_value=_user())),
-            patch(f"{MOD}._get_oauth_client", AsyncMock(return_value=client)),
+            patch("app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header", AsyncMock(return_value=_user())),
+            patch("app.routers.v1.oauth_provider_shared._get_oauth_client", AsyncMock(return_value=client)),
             patch(f"{MOD}.ConsentService.has_consent", has_consent),
-            patch(f"{MOD}._store_auth_code", AsyncMock()),
-            patch(f"{MOD}.settings", MagicMock(REQUIRE_EMAIL_VERIFICATION=False)),
+            patch("app.routers.v1.oauth_provider_shared._store_auth_code", AsyncMock()),
+            patch("app.routers.v1.oauth_provider_shared.settings", MagicMock(REQUIRE_EMAIL_VERIFICATION=False)),
         ):
             await op.authorize_get(**kwargs)
         assert has_consent.await_args.args[3] == {"openid", "email"}
@@ -284,10 +285,10 @@ async def _run_authorize_post(client, scope):
     store = AsyncMock()
     db = AsyncMock()
     with (
-        patch(f"{MOD}._validate_csrf_token", AsyncMock(return_value=True)),
-        patch(f"{MOD}._get_oauth_client", AsyncMock(return_value=client)),
-        patch(f"{MOD}._store_auth_code", store),
-        patch(f"{MOD}.settings", MagicMock(REQUIRE_EMAIL_VERIFICATION=False)),
+        patch("app.routers.v1.oauth_provider_shared._validate_csrf_token", AsyncMock(return_value=True)),
+        patch("app.routers.v1.oauth_provider_shared._get_oauth_client", AsyncMock(return_value=client)),
+        patch("app.routers.v1.oauth_provider_shared._store_auth_code", store),
+        patch("app.routers.v1.oauth_provider_shared.settings", MagicMock(REQUIRE_EMAIL_VERIFICATION=False)),
     ):
         resp = await op.authorize_post(
             request=MagicMock(),
@@ -336,7 +337,7 @@ def _token_patches(user, *, verify_payload=None):
     db.execute = AsyncMock(return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=user)))
     patches = [
         patch(
-            f"{MOD}._get_user_entitlements",
+            "app.routers.v1.oauth_provider_shared._get_user_entitlements",
             AsyncMock(
                 return_value={
                     "tier": "community",
@@ -346,11 +347,11 @@ def _token_patches(user, *, verify_payload=None):
                 }
             ),
         ),
-        patch(f"{MOD}.get_user_entitlements", AsyncMock(return_value=[])),
-        patch(f"{MOD}.entitlements_to_claim", MagicMock(return_value=[])),
-        patch(f"{MOD}._get_user_org_claims", AsyncMock(return_value={})),
-        patch(f"{MOD}.service_principal_claims", MagicMock(return_value={})),
-        patch(f"{MOD}._generate_id_token", MagicMock(return_value="id-token")),
+        patch("app.routers.v1.oauth_provider_grants.get_user_entitlements", AsyncMock(return_value=[])),
+        patch("app.routers.v1.oauth_provider_grants.entitlements_to_claim", MagicMock(return_value=[])),
+        patch("app.routers.v1.oauth_provider_shared._get_user_org_claims", AsyncMock(return_value={})),
+        patch("app.routers.v1.oauth_provider_grants.service_principal_claims", MagicMock(return_value={})),
+        patch("app.routers.v1.oauth_provider_shared._generate_id_token", MagicMock(return_value="id-token")),
         patch.object(
             op.jwt_manager, "create_access_token", MagicMock(return_value=("at", "j", None))
         ),
@@ -359,7 +360,7 @@ def _token_patches(user, *, verify_payload=None):
         ),
     ]
     if verify_payload is not None:
-        patches.append(patch(f"{MOD}._verify_oauth_token", AsyncMock(return_value=verify_payload)))
+        patches.append(patch("app.routers.v1.oauth_provider_shared._verify_oauth_token", AsyncMock(return_value=verify_payload)))
     return db, patches
 
 
@@ -375,8 +376,8 @@ async def _exchange(client, code_scope, *, with_refresh=False):
     }
     db, patches = _token_patches(user)
     with (
-        patch(f"{MOD}._get_auth_code", AsyncMock(return_value=code_data)),
-        patch(f"{MOD}._delete_auth_code", AsyncMock()),
+        patch("app.routers.v1.oauth_provider_shared._get_auth_code", AsyncMock(return_value=code_data)),
+        patch("app.routers.v1.oauth_provider_shared._delete_auth_code", AsyncMock()),
     ):
         for p in patches:
             p.start()
@@ -436,7 +437,7 @@ async def _token_refresh(client, refresh_payload, *, requested_scope=None):
     db, patches = _token_patches(user, verify_payload=payload)
     request = MagicMock()
     request.headers = {}
-    with patch(f"{MOD}._get_oauth_client", AsyncMock(return_value=client)):
+    with patch("app.routers.v1.oauth_provider_shared._get_oauth_client", AsyncMock(return_value=client)):
         for p in patches:
             p.start()
         try:

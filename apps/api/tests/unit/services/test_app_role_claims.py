@@ -28,6 +28,7 @@ These tests pin the fix and, more importantly, the four ways it must NOT work:
 
 from __future__ import annotations
 
+import importlib
 import inspect
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -475,7 +476,11 @@ def test_oidc_router_merges_rather_than_clobbering_the_legacy_roles_claim():
     """
     from app.routers.v1 import oauth_provider
 
-    source = inspect.getsource(oauth_provider)
+    # The OAuth provider is several modules since the 2026-11-19 split.
+    source = "".join(
+        inspect.getsource(importlib.import_module(f"app.routers.v1.{m}"))
+        for m in oauth_provider.MODULES
+    )
     assert "merge_app_roles_into_claims" in source
     assert 'existing_roles=entitlements["roles"]' in source
 
