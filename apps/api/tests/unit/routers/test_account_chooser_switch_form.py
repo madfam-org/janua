@@ -108,7 +108,7 @@ async def _http(estate, cookies, run, *, db=None, base_url="http://test"):
             # The revocation-list read behind the hosted-cookie/bearer check.
             patch("app.routers.v1.oauth_provider.get_redis", AsyncMock(return_value=redis)),
             patch(
-                "app.routers.v1.auth.resolve_session_by_id", AsyncMock(side_effect=estate.resolve)
+                "app.routers.v1.auth_shared.resolve_session_by_id", AsyncMock(side_effect=estate.resolve)
             ),
             patch(
                 "app.routers.v1.oauth_provider.resolve_session_by_id",
