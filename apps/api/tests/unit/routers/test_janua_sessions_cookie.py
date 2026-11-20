@@ -204,7 +204,7 @@ class TestSwitchSession:
         body = auth_router.SwitchSessionRequest(sid=str(target.id), next="/")
 
         with patch(
-            "app.routers.v1.auth.resolve_session_by_id",
+            "app.routers.v1.auth_shared.resolve_session_by_id",
             AsyncMock(return_value=(user, target)),
         ):
             resp = await auth_router.switch_session(body, req, Response(), db=AsyncMock())
@@ -223,7 +223,7 @@ class TestSwitchSession:
         req = _req({SESSIONS_COOKIE_NAME: mint_sessions_cookie_value([str(target.id)])})
         body = auth_router.SwitchSessionRequest(sid=str(target.id), next="/")
         with patch(
-            "app.routers.v1.auth.resolve_session_by_id",
+            "app.routers.v1.auth_shared.resolve_session_by_id",
             AsyncMock(return_value=(user, target)),
         ):
             resp = await auth_router.switch_session(body, req, Response(), db=AsyncMock())
@@ -242,7 +242,7 @@ class TestSwitchSession:
             sid=str(target.id), next="/", return_sid=True
         )
         with patch(
-            "app.routers.v1.auth.resolve_session_by_id",
+            "app.routers.v1.auth_shared.resolve_session_by_id",
             AsyncMock(return_value=(user, target)),
         ):
             resp = await auth_router.switch_session(body, req, Response(), db=AsyncMock())
@@ -261,7 +261,7 @@ class TestSwitchSession:
         req = _req({SESSIONS_COOKIE_NAME: mint_sessions_cookie_value([dead])})
         body = auth_router.SwitchSessionRequest(sid=dead, next="/")
         with patch(
-            "app.routers.v1.auth.resolve_session_by_id",
+            "app.routers.v1.auth_shared.resolve_session_by_id",
             AsyncMock(return_value=(None, None)),
         ):
             with pytest.raises(HTTPException) as exc:
@@ -292,9 +292,9 @@ class TestSignOut:
         body = auth_router.SwitchSessionRequest(sid=gone_sid)
         db = AsyncMock()
         with (
-            patch("app.routers.v1.auth.revoke_sso_session", AsyncMock(return_value=True)),
+            patch("app.routers.v1.auth_shared.revoke_sso_session", AsyncMock(return_value=True)),
             patch(
-                "app.routers.v1.auth.resolve_session_by_id",
+                "app.routers.v1.auth_shared.resolve_session_by_id",
                 AsyncMock(return_value=(user, stay)),
             ),
         ):
@@ -330,7 +330,7 @@ class TestSignOut:
         )
         response = Response()
         revoke = AsyncMock(return_value=True)
-        with patch("app.routers.v1.auth.revoke_sso_session", revoke):
+        with patch("app.routers.v1.auth_shared.revoke_sso_session", revoke):
             result = await auth_router.sign_out_all_accounts(req, response, db=AsyncMock())
 
         assert result["revoked"] == 2
@@ -348,20 +348,20 @@ class TestSignOut:
 
 class TestSelectAccountChooser:
     def _authorize_kwargs(self, request):
-        return dict(
-            request=request,
-            response_type="code",
-            client_id="madfam-erp",
-            redirect_uri="https://erp.example.test/auth/callback",
-            scope="openid profile",
-            state="csrf",
-            nonce=None,
-            code_challenge="abc",
-            code_challenge_method="S256",
-            prompt="select_account",
-            db=AsyncMock(),
-            redis=AsyncMock(),
-        )
+        return {
+            "request": request,
+            "response_type": "code",
+            "client_id": "madfam-erp",
+            "redirect_uri": "https://erp.example.test/auth/callback",
+            "scope": "openid profile",
+            "state": "csrf",
+            "nonce": None,
+            "code_challenge": "abc",
+            "code_challenge_method": "S256",
+            "prompt": "select_account",
+            "db": AsyncMock(),
+            "redis": AsyncMock(),
+        }
 
     def _client(self):
         return SimpleNamespace(

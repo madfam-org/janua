@@ -54,7 +54,7 @@ async def env(monkeypatch):
     from app.core import redis as core_redis
     from app.core.database import get_db as core_get_db
     from app.main import app
-    from app.routers.v1 import auth, oauth_provider
+    from app.routers.v1 import auth, auth_shared, oauth_provider
 
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
     async with engine.begin() as connection:
@@ -71,12 +71,13 @@ async def env(monkeypatch):
             yield db
 
     get_memory_redis = AsyncMock(return_value=redis)
-    for module in (core_redis, auth, hosted, service, oauth_provider):
+    # auth_shared: the /auth route modules call get_redis through it (2026-11-19 split).
+    for module in (core_redis, auth, auth_shared, hosted, service, oauth_provider):
         monkeypatch.setattr(module, "get_redis", get_memory_redis)
     previous = dict(app.dependency_overrides)
     for key in (get_db, core_get_db):
         app.dependency_overrides[key] = get_session
-    for key in (core_redis.get_redis, dependencies.get_redis, auth.get_redis):
+    for key in (core_redis.get_redis, dependencies.get_redis, auth_shared.get_redis):
         app.dependency_overrides[key] = lambda: redis
     for route in app.routes:
         dependant = getattr(route, "dependant", None)

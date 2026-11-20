@@ -59,6 +59,7 @@ from app.core.protected_resources import (
 )
 from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import Base, OAuthClient, User, UserStatus
+from app.routers.v1 import auth_shared
 from app.services import client_id_metadata as cimd
 from app.services import resource_tokens
 
@@ -210,7 +211,7 @@ async def env(monkeypatch):
         core_redis.get_redis,
         dependencies.get_redis,
         oauth_provider.get_redis,
-        auth_router.get_redis,
+        auth_shared.get_redis,
     }:
         app.dependency_overrides[dep] = lambda: redis
 

@@ -16,6 +16,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
+from app.routers.v1 import auth_shared
+
 
 def _client() -> TestClient:
     from app.main import app
@@ -128,8 +130,8 @@ class TestConsumePasswordReset:
 
         invalidate_mock = AsyncMock(side_effect=invalidate)
         with (
-            patch("app.routers.v1.auth.log_activity", new=AsyncMock()),
-            patch("app.routers.v1.auth.log_audit_event", new=AsyncMock()),
+            patch("app.routers.v1.auth_shared.log_activity", new=AsyncMock()),
+            patch("app.routers.v1.auth_shared.log_audit_event", new=AsyncMock()),
             patch.object(AuthService, "invalidate_user_sessions", new=invalidate_mock),
         ):
             ok, message = await _consume_password_reset("tok", "Sufficient1!Pass", db)
@@ -189,7 +191,7 @@ class TestDispatchPasswordReset:
 
         bg.add_task.assert_called_once()
         args = bg.add_task.call_args.args
-        assert args[0] is auth_module.send_password_reset_email_task
+        assert args[0] is auth_shared.send_password_reset_email_task
         assert args[1] == "known@example.test"
         assert isinstance(args[2], str) and len(args[2]) > 20  # the stored token
         assert args[3] is None  # no redirect_base: default = API-hosted page
@@ -209,8 +211,8 @@ MISMATCHED = {"token": "tok-x", "new_password": "Aa1!Aa1!Aa1!", "confirm_passwor
 def _post_with_outcome(outcome, data):
     """POST the reset form with _consume_password_reset answering `outcome`."""
     with (
-        patch("app.routers.v1.auth._consume_password_reset", new=AsyncMock(return_value=outcome)),
-        patch("app.routers.v1.auth.get_redis", new=AsyncMock(return_value=MagicMock(strict_get=AsyncMock(return_value=None)))),
+        patch("app.routers.v1.auth_recovery._consume_password_reset", new=AsyncMock(return_value=outcome)),
+        patch("app.routers.v1.auth_shared.get_redis", new=AsyncMock(return_value=MagicMock(strict_get=AsyncMock(return_value=None)))),
     ):
         return _client().post(RESET_FORM_URL, data=data)
 

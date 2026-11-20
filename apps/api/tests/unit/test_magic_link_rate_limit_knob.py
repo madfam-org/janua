@@ -46,6 +46,9 @@ class TestMagicLinkRateLimitKnob:
             "settings.MAGIC_LINK_SERVICE_RATE_LIMIT",
         ):
             assert knob in source
-        route = Path("app/routers/v1/auth.py").read_text()
+        from app.routers.v1 import auth
+
+        # The /auth router is several modules since the 2026-11-19 split.
+        route = "".join(Path(f"app/routers/v1/{m}.py").read_text() for m in auth.MODULES)
         anchor = route.index('@router.post("/magic-link")')
         assert '@limiter.limit("5/hour")' not in route[anchor : anchor + 800]
