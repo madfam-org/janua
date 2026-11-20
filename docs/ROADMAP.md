@@ -537,6 +537,10 @@ with a test per case:
 | Redis loss or restart mid-flow | pending request, MFA challenge, magic-link token | a page that restarts the flow; no 500 |
 | Magic link opened on another device or fetched by a mail scanner | magic-link callback | already scanner-proof (J6, `SILENT_SSO_SESSION.md`); add the other-device case |
 
+Done on `main` (not yet in production): an error-page catch-all for every hosted
+route, so no browser navigation answers JSON (the 429 rate-limit body is still
+pending), and one `auth.hosted_refusal` log line per refusal ([authentication-policy.md](./authentication-policy.md#errors-on-hosted-pages-never-answer-json)).
+
 No target date; each case ships as its own change with the hotfix process while
 the promotion hold stands (`deployment/hotfix/README.md`).
 

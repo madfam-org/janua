@@ -322,6 +322,18 @@ the submit button after the first press. If people still report the expired
 page, check that this script answers 200 and that the page's CSP allows
 `script-src 'self'`.
 
+## A refusal on a hosted page
+
+Since roadmap item 0.2, a refused browser navigation on a hosted route lands on
+`GET /api/v1/auth/error`, which shows a reference such as
+`login_request_expired · 3f2a…`. The second part is the request id of the
+refused request. Search the API logs for `auth.hosted_refusal` with that
+`request_id`: the line names the `route`, `reason`, `status_code`, `client_id`
+and whether the answer was the page (`answer=html`) or the JSON envelope
+(`answer=json`, an API caller). A rise of `answer=json` on hosted routes from
+browsers would mean a navigation is not being recognised; check its
+`Sec-Fetch-Mode` and `Accept` headers.
+
 ## Follow-up: alerting on the readiness body
 
 Not done in this change, and no monitoring configuration was touched. Because
