@@ -209,12 +209,24 @@ MISMATCHED = {"token": "tok-x", "new_password": "Aa1!Aa1!Aa1!", "confirm_passwor
 
 
 def _post_with_outcome(outcome, data):
-    """POST the reset form with _consume_password_reset answering `outcome`."""
+    """POST the reset form with _consume_password_reset answering `outcome`.
+
+    A success answers 303 to the GET done page (POST/redirect/GET); the test
+    client follows it, so `resp` is the page a person sees."""
+    import fakeredis.aioredis
+
+    from app.core.redis_circuit_breaker import ResilientRedisClient
+
+    redis = ResilientRedisClient(fakeredis.aioredis.FakeRedis(decode_responses=True))
     with (
         patch("app.routers.v1.auth_recovery._consume_password_reset", new=AsyncMock(return_value=outcome)),
-        patch("app.routers.v1.auth_shared.get_redis", new=AsyncMock(return_value=MagicMock(strict_get=AsyncMock(return_value=None)))),
+        patch("app.routers.v1.auth_shared.get_redis", new=AsyncMock(return_value=redis)),
     ):
-        return _client().post(RESET_FORM_URL, data=data)
+        resp = _client().post(RESET_FORM_URL, data=data)
+    if outcome[0]:
+        assert [r.status_code for r in resp.history] == [303]
+        assert resp.history[0].headers["location"].startswith("/api/v1/auth/reset-password/done?")
+    return resp
 
 
 class TestResetPagesInSpanish:

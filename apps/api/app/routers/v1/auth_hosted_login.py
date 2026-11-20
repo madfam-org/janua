@@ -17,6 +17,13 @@ from sqlalchemy.orm import Session
 from app.auth.authorize_resume import authorize_query
 from app.auth.hosted_locale import hosted_copy, page_locale, ui_locales_query
 from app.auth.hosted_locale import html_lang as hosted_html_lang
+from app.auth.hosted_replay import (
+    browser_binding_hash,
+    ensure_browser_cookie,
+    grant_replay,
+    replay_payload,
+    revoke_replay,
+)
 from app.auth.login_method import (
     LOGIN_METHOD_MAGIC_LINK,
     LOGIN_METHOD_PASSWORD,
@@ -541,6 +548,54 @@ async def login_form(
     return response
 
 
+#: Replay-grant kind for the legacy second-factor form (app/auth/hosted_replay.py).
+LEGACY_MFA_REPLAY_KIND = "mfa_challenge"
+
+
+async def _legacy_mfa_replay(request, db, redis, used_key, binding_hash):
+    """A repeat press from the browser that completed this challenge moments ago:
+    a fresh session and the same destination (the magic-link replay rule)."""
+    from uuid import UUID
+
+    from fastapi.responses import RedirectResponse
+
+    replay = await replay_payload(redis, LEGACY_MFA_REPLAY_KIND, used_key, binding_hash=binding_hash)
+    if replay is None:
+        return None
+    result = await db.execute(
+        select(User).where(
+            User.id == UUID(replay["user_id"]),
+            User.status == UserStatus.ACTIVE,
+            User.is_active.is_(True),
+        )
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        return None
+    access_token, refresh_token, session = await _auth_shared.AuthService.create_session(
+        db,
+        user,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        authentication_methods=["pwd", "otp"],
+        authenticated_at=datetime.utcfromtimestamp(replay["auth_time"]),
+        mfa_verified_at=datetime.utcfromtimestamp(replay["mfa_verified_at"]),
+    )
+    target = await _resolve_oauth_redirect_target(
+        auth_request_id=replay["auth_request_id"],
+        client_id=replay["client_id"],
+        next_url=replay["next"],
+        redis=redis,
+        db=db,
+    )
+    logger.info("login_form_mfa.replay", client_id=replay["client_id"])
+    response = RedirectResponse(url=target, status_code=302)
+    _set_session_cookies(
+        response, access_token, refresh_token, user=user, session=session, request=request
+    )
+    return response
+
+
 @router.post("/login-form/mfa")
 @limiter.limit("5/minute")
 async def login_form_mfa(
@@ -583,7 +638,7 @@ async def login_form_mfa(
                 audience=payload.get("audience"),
                 authenticated_at=payload.get("auth_time", payload.get("iat")),
             )
-        return _render_mfa_challenge_page(
+        page = _render_mfa_challenge_page(
             mfa_token=token_for_retry,
             app_name=client_name or "Application",
             auth_request_id=auth_request_id,
@@ -593,6 +648,9 @@ async def login_form_mfa(
             error_message=msg,
             status_code=401,
         )
+        # The binding a repeat press of this form must present (replay window).
+        ensure_browser_cookie(request, page)
+        return page
 
     try:
         payload = pyjwt.decode(
@@ -627,6 +685,16 @@ async def login_form_mfa(
     if not user or not user.mfa_enabled or not user.mfa_secret:
         return _reject("Invalid verification session. Please sign in again.")
 
+    # A repeat press of a challenge already completed (a double press, or the
+    # second of two presses that waited on the row lock above): never spend a
+    # spent code again or count it as a failed attempt (roadmap 1.1, E-15).
+    binding_hash = browser_binding_hash(request)
+    if await redis.strict_exists(used_key):
+        replayed = await _legacy_mfa_replay(request, db, redis, used_key, binding_hash)
+        if replayed is not None:
+            return replayed
+        return _reject("Esta verificación ya se utilizó. Vuelve a iniciar sesión.")
+
     # Wrong codes count against the same per-account lockout as passwords; a
     # locked account cannot keep guessing with a re-minted challenge.
     is_locked, _ = AccountLockoutService.is_account_locked(user)
@@ -658,19 +726,45 @@ async def login_form_mfa(
         return _reject("Invalid verification code. Please try again.", remint_for=user)
 
     if not await redis.strict_set_nx(used_key, "1", ex=300):
+        replayed = await _legacy_mfa_replay(request, db, redis, used_key, binding_hash)
+        if replayed is not None:
+            return replayed
         return _reject("Esta verificación ya se utilizó. Vuelve a iniciar sesión.")
-    await AccountLockoutService.reset_failed_attempts(db, user)
-
-    # Second factor cleared — create the session and resume the OAuth redirect.
-    access_token, refresh_token, session = await _auth_shared.AuthService.create_session(
-        db,
-        user,
-        ip_address=request.client.host,
-        user_agent=request.headers.get("user-agent"),
-        authentication_methods=["pwd", "otp"],
-        authenticated_at=datetime.utcfromtimestamp(payload.get("auth_time", payload["iat"])),
-        mfa_verified_at=datetime.utcnow(),
+    mfa_verified_at = datetime.utcnow()
+    # Written with the claim, before anything commits: a press waiting on the
+    # row lock finds it as soon as it gets the row.
+    await grant_replay(
+        redis,
+        LEGACY_MFA_REPLAY_KIND,
+        used_key,
+        binding_hash=binding_hash,
+        payload={
+            "user_id": str(user.id),
+            "auth_time": payload.get("auth_time", payload["iat"]),
+            "mfa_verified_at": int(mfa_verified_at.replace(tzinfo=timezone.utc).timestamp()),
+            "auth_request_id": auth_request_id,
+            "client_id": client_id,
+            "next": next,
+        },
     )
+    try:
+        await AccountLockoutService.reset_failed_attempts(db, user)
+
+        # Second factor cleared — create the session and resume the OAuth redirect.
+        access_token, refresh_token, session = await _auth_shared.AuthService.create_session(
+            db,
+            user,
+            ip_address=request.client.host,
+            user_agent=request.headers.get("user-agent"),
+            authentication_methods=["pwd", "otp"],
+            authenticated_at=datetime.utcfromtimestamp(payload.get("auth_time", payload["iat"])),
+            mfa_verified_at=mfa_verified_at,
+        )
+    except Exception:
+        # Consume after commit (R3): nothing committed, so the challenge is not spent.
+        await redis.strict_delete(used_key)
+        await revoke_replay(redis, LEGACY_MFA_REPLAY_KIND, used_key)
+        raise
     await _auth_shared.log_activity(db, str(user.id), "signin", {"method": "oauth_form", "mfa": "totp"}, request)
 
     safe_next = await _resolve_oauth_redirect_target(

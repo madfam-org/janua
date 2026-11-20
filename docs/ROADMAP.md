@@ -538,7 +538,7 @@ with a test per case:
 | Magic link opened on another device or fetched by a mail scanner | magic-link callback | already scanner-proof (J6, `SILENT_SSO_SESSION.md`); add the other-device case |
 
 Done on `main` (not yet in production): an error-page catch-all for every hosted
-route, so no browser navigation answers JSON (rate limits included), and one `auth.hosted_refusal` log line per refusal ([authentication-policy.md](./authentication-policy.md#errors-on-hosted-pages-never-answer-json)).
+route, so no browser navigation answers JSON (rate limits included), and one `auth.hosted_refusal` log line per refusal ([authentication-policy.md](./authentication-policy.md#errors-on-hosted-pages-never-answer-json)). A repeated press on the second-factor, consent and reset forms from the same browser lands where the first press went ([authentication-policy.md](./authentication-policy.md#a-repeated-press-on-a-hosted-form)).
 
 No target date; each case ships as its own change with the hotfix process while
 the promotion hold stands (`deployment/hotfix/README.md`).

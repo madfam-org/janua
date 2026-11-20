@@ -6,6 +6,7 @@ and other modules call them through it (e.g. `_oauth_provider_shared.get_redis`)
 patch target reaches every caller.
 """
 
+import hashlib
 import json
 import secrets
 import time
@@ -17,6 +18,14 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.authentication_assurance import has_mfa_assurance
+from app.auth.hosted_errors import HostedRefusal
+from app.auth.hosted_replay import (
+    browser_binding_hash,
+    grant_replay,
+    revoke_replay,
+    update_replay,
+    wait_for_replay,
+)
 from app.core.database import get_db
 from app.core.redis import ResilientRedisClient
 from app.dependencies import get_current_user
@@ -55,31 +64,94 @@ async def handle_consent(
             detail="Not authenticated",
         )
 
+    binding_hash = browser_binding_hash(request)
+
     # Validate CSRF token
     if not await _oauth_provider_shared._validate_csrf_token(csrf_token, str(current_user.id), redis):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid or expired CSRF token",
+        replayed = await _consent_replay(redis, auth_request_id, binding_hash, current_user)
+        if replayed is not None:
+            return replayed
+        raise HostedRefusal(
+            status.HTTP_403_FORBIDDEN, "Invalid or expired CSRF token", reason="consent_csrf_invalid"
         )
 
     # Retrieve stored authorization request (strict, like the CSRF token)
     auth_request_key = f"oauth:auth_request:{auth_request_id}"
     auth_request_json = await redis.strict_get(auth_request_key)
 
-    if not auth_request_json:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Authorization request expired or invalid",
-        )
-
     # Delete the request to prevent replay; only one submit may consume it.
-    if await redis.strict_delete(auth_request_key) != 1:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Authorization request expired or invalid",
+    if not auth_request_json or await redis.strict_delete(auth_request_key) != 1:
+        replayed = await _consent_replay(redis, auth_request_id, binding_hash, current_user)
+        if replayed is not None:
+            return replayed
+        raise HostedRefusal(
+            status.HTTP_400_BAD_REQUEST,
+            "Authorization request expired or invalid",
+            reason="consent_request_expired",
         )
 
-    auth_request = json.loads(auth_request_json)
+    # The claim is this submit's. A repeat press from this browser (same user)
+    # within the replay window lands on the same callback (roadmap 1.1).
+    await grant_replay(
+        redis,
+        CONSENT_REPLAY_KIND,
+        auth_request_id,
+        binding_hash=binding_hash,
+        payload={"user_id": str(current_user.id), "redirect": None},
+    )
+    try:
+        response = await _consent_after_claim(
+            request=request,
+            current_user=current_user,
+            auth_request=json.loads(auth_request_json),
+            action=action,
+            db=db,
+            redis=redis,
+        )
+    except Exception:
+        await revoke_replay(redis, CONSENT_REPLAY_KIND, auth_request_id)
+        raise
+    location = response.headers.get("location") if 300 <= response.status_code < 400 else None
+    if location:
+        await update_replay(redis, CONSENT_REPLAY_KIND, auth_request_id, redirect=location)
+    else:
+        await revoke_replay(redis, CONSENT_REPLAY_KIND, auth_request_id)
+    return response
+
+
+#: Replay-grant kind for the consent POST (app/auth/hosted_replay.py).
+CONSENT_REPLAY_KIND = "consent"
+
+
+async def _consent_replay(redis, auth_request_id, binding_hash, user):
+    """Where the first press of this consent form went, for a repeat press.
+
+    Only for the browser (binding cookie) and the person that pressed first,
+    within HOSTED_REPLAY_GRACE_SECONDS. A first press still finishing (two
+    presses at once) is waited for, up to about 3 s. Anything else: None.
+    """
+    payload = await wait_for_replay(
+        redis, CONSENT_REPLAY_KIND, auth_request_id, binding_hash=binding_hash, field="redirect"
+    )
+    if payload is None or payload.get("user_id") != str(user.id):
+        return None
+    _oauth_provider_shared.logger.info(
+        "oauth.consent.replay",
+        auth_request_id_hash=hashlib.sha256(auth_request_id.encode()).hexdigest()[:12],
+    )
+    return RedirectResponse(url=payload["redirect"], status_code=302)
+
+
+async def _consent_after_claim(
+    *,
+    request: Request,
+    current_user: User,
+    auth_request: dict,
+    action: str,
+    db: AsyncSession,
+    redis: ResilientRedisClient,
+):
+    """The consent POST after it claimed its stored authorization request."""
     if auth_request.get("resource"):
         # A protected-resource request: its client may be a CIMD document
         # (no row), its code is bound to the resource, and nothing is stored
