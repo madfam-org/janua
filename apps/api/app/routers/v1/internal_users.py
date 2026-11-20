@@ -984,8 +984,16 @@ async def change_user_email(
             },
             severity="info",
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        # Best-effort, as in provision/suspend: a failed trail write must not
+        # block the change. Logged (exception type only, no address) so the gap
+        # is visible.
+        logger.warning(
+            "internal_user_change_email.audit_failed",
+            user_id=str(user_id),
+            organization_id=str(org),
+            error=type(exc).__name__,
+        )
 
     try:
         await db.commit()

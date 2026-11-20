@@ -459,3 +459,22 @@ async def test_no_email_is_sent(provisioning_env, redis):
     send.assert_not_awaited()
     via.assert_not_awaited()
     resend.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_failed_audit_write_does_not_block_and_is_logged(provisioning_env, redis):
+    client, factory = provisioning_env
+    org = await _org(factory, "crea")
+    user_id = await _person(factory, OLD, org)
+
+    with (
+        patch(AUDIT_LOG, AsyncMock(side_effect=RuntimeError(f"boom {OLD}"))),
+        capture_logs() as logs,
+    ):
+        response = await client.post(URL, json=_body(org), headers=AUTH)
+
+    assert response.status_code == 200
+    assert (await _user(factory, user_id)).email == NEW
+    failed = [e for e in logs if e.get("event") == "internal_user_change_email.audit_failed"]
+    assert len(failed) == 1 and failed[0]["error"] == "RuntimeError"
+    assert OLD not in repr(failed) and NEW not in repr(failed)
