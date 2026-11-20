@@ -78,11 +78,11 @@ instead of the JSON envelope:
 - **Navigation:** `Sec-Fetch-Mode: navigate`; without `Sec-Fetch-Mode`, an
   `Accept` that names `text/html`. A `fetch` (`Sec-Fetch-Mode: cors`) and any
   `Accept: application/json` caller keep the envelope exactly as before.
-- **Handlers:** `HTTPException`, request validation (422), `APIException` and
-  `JanuaAPIException`. A Redis outage already had its own HTML 503 page and is
-  unchanged. **Not yet covered:** the rate limit (429, roadmap E-07/E-21)
-  still answers slowapi's own body, because its handler is registered in
-  `app/main.py`; wrapping it is a one-line registration change there.
+- **Handlers:** `HTTPException`, request validation (422), `APIException`,
+  `JanuaAPIException` and the rate limit (429, roadmap E-07/E-21:
+  `rate_limit_exceeded_handler`, which keeps slowapi's body and headers for
+  API callers). A Redis outage already had its own HTML 503 page and is
+  unchanged.
 - **The page:** fixed copy by status class (the request cannot continue; too
   many attempts; something went wrong), in the person's language
   (`ui_locales` from the query or the form, else `Accept-Language`, else
@@ -95,7 +95,7 @@ instead of the JSON envelope:
   `auth.hosted_refusal` line with `reason` (the exception's own reason when it
   declares one, e.g. `login_request_expired`, else one derived from the status:
   `bad_request`, `not_authenticated`, `forbidden`, `invalid_request`,
-  …), `route`, `method`, `status_code`, `client_id`,
+  `rate_limited`, …), `route`, `method`, `status_code`, `client_id`,
   `request_id` and `answer` (`html` or `json`). No email, person id or token.
 
 ### A repeated press on a hosted form

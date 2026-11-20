@@ -46,7 +46,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from passlib.context import CryptContext
 from pydantic import BaseModel
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -79,6 +79,7 @@ from app.core.error_handling import (
     api_exception_handler,
     http_exception_handler,
     janua_exception_handler,
+    rate_limit_exceeded_handler,
     redis_unavailable_handler,
     validation_exception_handler,
 )
@@ -123,7 +124,8 @@ system_monitor = SystemMonitor(metrics_collector)
 
 app = FastAPI(**API_METADATA)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# A browser navigation on a hosted route gets the hosted 429 page, not slowapi's body.
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # Add Janua-specific exception handler
 app.add_exception_handler(JanuaAPIException, janua_exception_handler)
