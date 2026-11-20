@@ -47,6 +47,10 @@ class AuditEventType(str, Enum):
     USER_DELETE = "user.delete"
     USER_SUSPEND = "user.suspend"
     USER_REACTIVATE = "user.reactivate"
+    # The sign-in address changed through the internal change-email API. The
+    # entry carries masked and keyed-hash forms of both addresses, never the
+    # addresses themselves.
+    USER_EMAIL_CHANGE = "user.email_change"
 
     # Organization events
     ORG_CREATE = "org.create"
