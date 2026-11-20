@@ -19,12 +19,9 @@ from app.auth.authentication_assurance import (
 from app.auth.hosted_errors import router as hosted_errors_router
 
 # The fixed issuer-owned CSS and its CSP live in hosted_page_style (shared with
-# the hosted error page); re-exported here for existing importers.
-from app.auth.hosted_page_style import (  # noqa: F401
-    SECURITY_CSP,
-    SECURITY_CSS,
-    SECURITY_STYLE_HASH,
-)
+# the hosted error page). SECURITY_CSP stays importable from here (the
+# security-headers middleware reads it from this module).
+from app.auth.hosted_page_style import SECURITY_CSP, SECURITY_CSS
 from app.auth.tenant_login_context import login_client_context, user_in_client_pool
 from app.core.redis import get_redis
 from app.database import get_db
