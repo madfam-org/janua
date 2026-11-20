@@ -42,6 +42,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import Base, PasswordReset, User, UserStatus
 from app.models import Session as UserSession
+from app.routers.v1 import auth_shared
 from app.services.auth_service import AuthService
 
 pytestmark = pytest.mark.asyncio
@@ -78,7 +79,7 @@ async def env():
     saved = dict(app.dependency_overrides)
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[core_get_db] = override_get_db
-    for dep in {core_redis.get_redis, dependencies.get_redis, auth_router.get_redis}:
+    for dep in {core_redis.get_redis, dependencies.get_redis, auth_shared.get_redis}:
         app.dependency_overrides[dep] = lambda: redis
 
     user = User(
@@ -96,7 +97,7 @@ async def env():
     get = AsyncMock(return_value=redis)
     with (
         patch("app.core.redis.get_redis", get),
-        patch("app.routers.v1.auth.get_redis", get),
+        patch("app.routers.v1.auth_shared.get_redis", get),
         patch("app.services.auth_service.get_redis", get),
     ):
         transport = ASGITransport(app=app)

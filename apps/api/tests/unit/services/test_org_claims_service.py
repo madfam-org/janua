@@ -37,6 +37,7 @@ from uuid import uuid4
 import jwt as pyjwt
 import pytest
 
+from app.routers.v1 import oauth_provider_shared
 from app.services.auth_service import AuthService
 from app.services.org_claims_service import (
     ORG_ROLES_CLAIM,
@@ -427,4 +428,4 @@ def test_oidc_router_imports_the_shared_resolver_rather_than_redefining_it():
     """
     from app.routers.v1 import oauth_provider
 
-    assert oauth_provider._get_user_org_claims is get_user_org_claims
+    assert oauth_provider_shared._get_user_org_claims is get_user_org_claims

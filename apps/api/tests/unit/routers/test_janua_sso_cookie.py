@@ -42,6 +42,7 @@ from app.auth.sso_cookie import (
 from app.core.jwt_manager import jwt_manager
 from app.models import UserStatus
 from app.routers.v1 import auth as auth_router
+from app.routers.v1 import auth_shared, oauth_provider_shared, oauth_provider_userinfo
 from app.routers.v1 import oauth_provider as oauth_provider_router
 
 pytestmark = pytest.mark.asyncio
@@ -202,14 +203,14 @@ class TestEmittingPaths:
         response = Response()
         with (
             patch.object(
-                auth_router.AuthService,
+                auth_shared.AuthService,
                 "create_session",
                 AsyncMock(return_value=("ACCESS-TOK", "REFRESH-TOK", session)),
             ),
             patch.object(
-                auth_router, "_session_audience_for_redirect", AsyncMock(return_value="map")
+                auth_shared, "_session_audience_for_redirect", AsyncMock(return_value="map")
             ),
-            patch.object(auth_router, "log_activity", AsyncMock()),
+            patch.object(auth_shared, "log_activity", AsyncMock()),
             patch("app.auth.mfa_enforcement.mfa_required_for", MagicMock(return_value=False)),
         ):
             body = await auth_router.verify_magic_link(
@@ -227,16 +228,16 @@ class TestEmittingPaths:
         db = _magic_db(_magic_link("https://map.example.test/acceso"), user)
         with (
             patch.object(
-                auth_router.AuthService,
+                auth_shared.AuthService,
                 "create_session",
                 AsyncMock(return_value=("ACCESS-TOK", "REFRESH-TOK", session)),
             ),
             patch.object(
-                auth_router, "_session_audience_for_redirect", AsyncMock(return_value="map")
+                auth_shared, "_session_audience_for_redirect", AsyncMock(return_value="map")
             ),
-            patch.object(auth_router, "log_activity", AsyncMock()),
+            patch.object(auth_shared, "log_activity", AsyncMock()),
             patch.object(
-                auth_router,
+                auth_shared,
                 "validate_redirect_url",
                 MagicMock(return_value="https://map.example.test/acceso"),
             ),
@@ -284,7 +285,7 @@ class TestFailedExchangeSetsNothing:
         db = _magic_db(_magic_link(None), user)
         response = Response()
         with (
-            patch.object(auth_router, "log_activity", AsyncMock()),
+            patch.object(auth_shared, "log_activity", AsyncMock()),
             patch("app.auth.mfa_enforcement.mfa_required_for", MagicMock(return_value=True)),
             patch(
                 "app.auth.mfa_enforcement.mint_mfa_challenge_token",
@@ -311,15 +312,15 @@ class TestFailedExchangeSetsNothing:
         db = _magic_db(_magic_link("https://evil.example/x"), user)
         with (
             patch.object(
-                auth_router.AuthService,
+                auth_shared.AuthService,
                 "create_session",
                 AsyncMock(return_value=("A", "R", _session_row(user.id))),
             ),
             patch.object(
-                auth_router, "_session_audience_for_redirect", AsyncMock(return_value=None)
+                auth_shared, "_session_audience_for_redirect", AsyncMock(return_value=None)
             ),
-            patch.object(auth_router, "log_activity", AsyncMock()),
-            patch.object(auth_router, "validate_redirect_url", MagicMock(return_value=None)),
+            patch.object(auth_shared, "log_activity", AsyncMock()),
+            patch.object(auth_shared, "validate_redirect_url", MagicMock(return_value=None)),
             patch("app.auth.mfa_enforcement.mfa_required_for", MagicMock(return_value=False)),
         ):
             resp = await auth_router.magic_link_callback(token="magic-token", req=_req(), db=db)
@@ -468,17 +469,22 @@ class TestNotABearerCredential:
         }
         request.cookies = {}
         db = SimpleNamespace(execute=AsyncMock())
-        assert await oauth_provider_router.get_user_from_cookie_or_header(request, db) is None
+        assert await oauth_provider_shared.get_user_from_cookie_or_header(request, db) is None
 
     def test_only_the_authorize_flow_reads_the_cookie(self):
         """Source-level pin. `get_user_from_cookie_or_header` is the sole reader,
         and its only callers are `GET /authorize` and its consent continuation
         `POST /consent`. If another endpoint starts calling it, this fails and
         the acceptance scope gets re-argued deliberately."""
+        import importlib
         import inspect
         import re
 
-        src = inspect.getsource(oauth_provider_router)
+        # The OAuth provider is several modules since the 2026-11-19 split.
+        src = "".join(
+            inspect.getsource(importlib.import_module(f"app.routers.v1.{m}"))
+            for m in oauth_provider_router.MODULES
+        )
         assert src.count(SSO_COOKIE_NAME) >= 1
         # Exactly one place reads the cookie off a request.
         readers = re.findall(r"cookies\.get\(SSO_COOKIE_NAME\)", src)
@@ -559,11 +565,11 @@ class TestAuthorizeAcceptsTheEstateCookie:
                 AsyncMock(return_value=False),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=_oauth_client()),
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri",
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri",
                 MagicMock(return_value=True),
             ),
             patch(
@@ -574,9 +580,9 @@ class TestAuthorizeAcceptsTheEstateCookie:
                 "app.routers.v1.oauth_provider.ConsentService.has_consent",
                 AsyncMock(return_value=True),
             ),
-            patch("app.routers.v1.oauth_provider._store_auth_code", AsyncMock()),
+            patch("app.routers.v1.oauth_provider_shared._store_auth_code", AsyncMock()),
             patch(
-                "app.routers.v1.oauth_provider.settings",
+                "app.routers.v1.oauth_provider_shared.settings",
                 MagicMock(REQUIRE_EMAIL_VERIFICATION=False),
             ),
         ):
@@ -719,9 +725,9 @@ class TestLogout:
         # the sso revoke branch looks the session row up.
         db = _lookup_db(session)
         with (
-            patch.object(auth_router.AuthService, "verify_token", AsyncMock(return_value=None)),
-            patch.object(auth_router, "log_activity", AsyncMock()),
-            patch.object(auth_router, "log_audit_event", AsyncMock()),
+            patch.object(auth_shared.AuthService, "verify_token", AsyncMock(return_value=None)),
+            patch.object(auth_shared, "log_activity", AsyncMock()),
+            patch.object(auth_shared, "log_audit_event", AsyncMock()),
         ):
             body = await auth_router.sign_out(
                 current_user=user,
@@ -741,9 +747,9 @@ class TestLogout:
         user = _user()
         response = Response()
         with (
-            patch.object(auth_router.AuthService, "verify_token", AsyncMock(return_value=None)),
-            patch.object(auth_router, "log_activity", AsyncMock()),
-            patch.object(auth_router, "log_audit_event", AsyncMock()),
+            patch.object(auth_shared.AuthService, "verify_token", AsyncMock(return_value=None)),
+            patch.object(auth_shared, "log_activity", AsyncMock()),
+            patch.object(auth_shared, "log_audit_event", AsyncMock()),
         ):
             body = await auth_router.sign_out(
                 current_user=user,
@@ -782,9 +788,9 @@ class TestLogout:
         app.dependency_overrides[auth_router.get_current_user_for_sign_out] = lambda: user
 
         with (
-            patch.object(auth_router.AuthService, "verify_token", AsyncMock(return_value=None)),
-            patch.object(auth_router, "log_activity", AsyncMock()),
-            patch.object(auth_router, "log_audit_event", AsyncMock()),
+            patch.object(auth_shared.AuthService, "verify_token", AsyncMock(return_value=None)),
+            patch.object(auth_shared, "log_activity", AsyncMock()),
+            patch.object(auth_shared, "log_audit_event", AsyncMock()),
         ):
             http = TestClient(app)
             http.cookies.set(SSO_COOKIE_NAME, mint_sso_cookie_value(str(user.id), str(session.id)))
@@ -812,11 +818,11 @@ class TestLogout:
         request.cookies = {SSO_COOKIE_NAME: value}
         with (
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=client),
             ),
             patch(
-                "app.routers.v1.oauth_provider.validate_post_logout_redirect_uri",
+                "app.routers.v1.oauth_provider_userinfo.validate_post_logout_redirect_uri",
                 MagicMock(return_value=True),
             ),
         ):
@@ -862,10 +868,10 @@ class TestLogout:
         )
         with (
             patch.object(
-                oauth_provider_router, "_get_oauth_client", AsyncMock(return_value=client_row)
+                oauth_provider_shared, "_get_oauth_client", AsyncMock(return_value=client_row)
             ),
             patch.object(
-                oauth_provider_router,
+                oauth_provider_userinfo,
                 "validate_post_logout_redirect_uri",
                 MagicMock(return_value=True),
             ),
@@ -901,4 +907,4 @@ def optional_organization_policy(monkeypatch):
     monkeypatch.setattr(
         "app.auth.authentication_assurance.user_policy_requires_mfa", AsyncMock(return_value=False)
     )
-    monkeypatch.setattr(auth_router, "_oauth_client_for_redirect", AsyncMock(return_value=None))
+    monkeypatch.setattr(auth_shared, "_oauth_client_for_redirect", AsyncMock(return_value=None))

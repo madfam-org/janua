@@ -9,7 +9,7 @@ from fastapi import HTTPException, Response
 from starlette.background import BackgroundTasks
 from starlette.requests import Request
 
-from app.routers.v1 import auth
+from app.routers.v1 import auth, auth_magic_link_issue, auth_shared
 from app.services.email_branding import CTM_ORG_ID
 from app.services.email_send_audit import CORRELATION_HEADER
 
@@ -31,7 +31,7 @@ def incoming():
 
 async def test_magic_response_header_never_reveals_account_existence(monkeypatch):
     issue = AsyncMock(return_value=None)
-    monkeypatch.setattr(auth, "_issue_magic_link", issue)
+    monkeypatch.setattr(auth_magic_link_issue, "_issue_magic_link", issue)
     seen = []
     for user in [None, SimpleNamespace(id=uuid.uuid4())]:
         issue.return_value = user
@@ -51,27 +51,27 @@ async def test_magic_response_header_never_reveals_account_existence(monkeypatch
 async def test_map_classification_requires_registered_active_org_bound_destination(monkeypatch):
     registered = SimpleNamespace(organization_id=CTM_ORG_ID)
     resolver = AsyncMock(return_value=registered)
-    monkeypatch.setattr(auth, "_oauth_client_for_redirect", resolver)
+    monkeypatch.setattr(auth_shared, "_oauth_client_for_redirect", resolver)
     assert (
-        await auth._map_mail_client(
+        await auth_shared._map_mail_client(
             object(), "https://map.creatumundo.mx/api/auth/magic-verify", None
         )
         is registered
     )
     resolver.return_value = None
     with pytest.raises(HTTPException) as failure:
-        await auth._map_mail_client(
+        await auth_shared._map_mail_client(
             object(), "https://map.creatumundo.mx/api/auth/magic-verify", None
         )
     assert failure.value.status_code == 503
     resolver.return_value = SimpleNamespace(organization_id=uuid.uuid4())
     with pytest.raises(HTTPException):
-        await auth._map_mail_client(
+        await auth_shared._map_mail_client(
             object(), "https://map.creatumundo.mx/api/auth/magic-verify", None
         )
     resolver.reset_mock()
     assert (
-        await auth._map_mail_client(
+        await auth_shared._map_mail_client(
             object(), "https://map.creatumundo.mx.attacker.invalid/callback", None
         )
         is None
@@ -87,9 +87,9 @@ async def test_map_issuer_never_schedules_before_intent_commits(monkeypatch, aud
 
     monkeypatch.setattr(auth.settings, "ENABLE_MAGIC_LINKS", True)
     monkeypatch.setattr(auth.settings, "EMAIL_ENABLED", True)
-    monkeypatch.setattr(auth, "enforce_magic_link_limits", AsyncMock())
+    monkeypatch.setattr(auth_shared, "enforce_magic_link_limits", AsyncMock())
     monkeypatch.setattr(
-        auth,
+        auth_shared,
         "get_user_by_email",
         AsyncMock(
             return_value=SimpleNamespace(
@@ -100,9 +100,9 @@ async def test_map_issuer_never_schedules_before_intent_commits(monkeypatch, aud
             )
         ),
     )
-    monkeypatch.setattr(auth, "validate_redirect_url", lambda value, **_: value)
+    monkeypatch.setattr(auth_shared, "validate_redirect_url", lambda value, **_: value)
     monkeypatch.setattr(
-        auth,
+        auth_shared,
         "_map_mail_client",
         AsyncMock(return_value=SimpleNamespace(organization_id=CTM_ORG_ID)),
     )
@@ -132,7 +132,7 @@ async def test_map_issuer_never_schedules_before_intent_commits(monkeypatch, aud
         assert error.value.status_code == 503
         tasks.add_task.assert_not_called()
         db.rollback.assert_awaited_once()
-        auth.get_user_by_email.assert_not_awaited()
+        auth_shared.get_user_by_email.assert_not_awaited()
     else:
         await auth.send_magic_link(incoming(), data, tasks, db=db, response=response)
         assert sequence == ["durable", "durable", "scheduled"]
@@ -149,9 +149,9 @@ async def test_registered_platform_pool_map_and_training_bind_mail_without_mutat
     client = SimpleNamespace(
         organization_id=None, is_active=True, redirect_uris=[f"https://{host}/api/auth/callback"]
     )
-    monkeypatch.setattr(auth, "_oauth_client_for_redirect", AsyncMock(return_value=client))
+    monkeypatch.setattr(auth_shared, "_oauth_client_for_redirect", AsyncMock(return_value=client))
     target = f"https://{host}/api/auth/callback"
-    assert await auth._map_mail_client(object(), target, None) is client
+    assert await auth_shared._map_mail_client(object(), target, None) is client
     assert auth._map_mail_organization(client, target) == str(CTM_ORG_ID)
     assert client.organization_id is None
 

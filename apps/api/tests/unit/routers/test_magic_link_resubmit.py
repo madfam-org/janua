@@ -50,6 +50,7 @@ from starlette.requests import Request
 from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import Base, MagicLink, OAuthClient, OrganizationMember, User, UserStatus
 from app.routers.v1 import auth as auth_router
+from app.routers.v1 import auth_shared
 
 pytestmark = pytest.mark.asyncio
 
@@ -117,12 +118,12 @@ def exchange(redis_client):
 
     with (
         patch.object(
-            auth_router.AuthService, "create_session", AsyncMock(side_effect=_create_session)
+            auth_shared.AuthService, "create_session", AsyncMock(side_effect=_create_session)
         ),
-        patch.object(auth_router, "_session_audience_for_redirect", AsyncMock(return_value=None)),
-        patch.object(auth_router, "validate_redirect_url", MagicMock(side_effect=_validate)),
-        patch.object(auth_router, "log_activity", AsyncMock()),
-        patch.object(auth_router, "get_redis", AsyncMock(return_value=redis_client)),
+        patch.object(auth_shared, "_session_audience_for_redirect", AsyncMock(return_value=None)),
+        patch.object(auth_shared, "validate_redirect_url", MagicMock(side_effect=_validate)),
+        patch.object(auth_shared, "log_activity", AsyncMock()),
+        patch.object(auth_shared, "get_redis", AsyncMock(return_value=redis_client)),
         patch("app.auth.mfa_enforcement.mfa_required_for", MagicMock(return_value=False)),
     ):
         yield minted
@@ -328,7 +329,7 @@ class TestOneTimeForEveryoneElse:
 
         broken = MagicMock()
         broken.strict_get = AsyncMock(side_effect=auth_router.RedisUnavailableError("down"))
-        with patch.object(auth_router, "get_redis", AsyncMock(return_value=broken)):
+        with patch.object(auth_shared, "get_redis", AsyncMock(return_value=broken)):
             response = await phone.press_button(token, db)
         assert response.status_code == 400
         assert len(exchange) == 1

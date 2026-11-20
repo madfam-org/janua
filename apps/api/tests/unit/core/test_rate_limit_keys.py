@@ -128,7 +128,7 @@ class TestEveryLimiterUsesTheTrustedKey:
     MODULES = (
         "app/main.py",
         "app/beta_auth.py",
-        "app/routers/v1/auth.py",
+        "app/routers/v1/auth_shared.py",  # the /auth limiter (2026-11-19 split)
         "app/routers/v1/organization_app_roles.py",
     )
 

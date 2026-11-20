@@ -10,6 +10,7 @@ Every fault was invisible to the request path — the API returned 200 and the
 UI said "check your inbox" — so these tests assert the things a 200 cannot.
 """
 
+import importlib
 import inspect
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -79,7 +80,10 @@ class TestSendersExist:
         source = inspect.getsource(inspect.getmodule(EmailService))
         from app.routers.v1 import auth
 
-        auth_source = inspect.getsource(auth)
+        # The /auth router is several modules since the 2026-11-19 split.
+        auth_source = "".join(
+            inspect.getsource(importlib.import_module(f"app.routers.v1.{m}")) for m in auth.MODULES
+        )
         assert "EmailService.send_verification_email," not in auth_source
         assert "EmailService.send_magic_link_email," not in auth_source
         assert source  # module imported cleanly
@@ -377,7 +381,10 @@ class TestSendersAcceptLocale:
         """
         from app.routers.v1 import auth
 
-        source = inspect.getsource(auth)
+        # The /auth router is several modules since the 2026-11-19 split.
+        source = "".join(
+            inspect.getsource(importlib.import_module(f"app.routers.v1.{m}")) for m in auth.MODULES
+        )
         assert 'getattr(user, "locale", None)' in source
         assert 'getattr(current_user, "locale", None)' in source
         assert "user.locale," not in source  # the unguarded read
