@@ -806,7 +806,7 @@ Canonical operator guide: [docs/PP_3B_STAGING_PIPELINE.md](docs/PP_3B_STAGING_PI
        return {"items": []}
    ```
 
-2. **Register router** in `apps/api/app/main.py`
+2. **Register router** in `apps/api/app/main_routers.py` (`include_routers`, called by `apps/api/app/main.py`; middleware lives in `main_middleware.py`, app metadata in `main_openapi.py`)
    ```python
    from app.routers.v1 import my_feature
    app.include_router(my_feature.router, prefix="/api/v1")
