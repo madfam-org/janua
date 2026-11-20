@@ -40,6 +40,7 @@ from app.models import Base, Organization, OrganizationMember, User, UserStatus
 from app.models import Session as UserSession
 from app.models.app_role import OrganizationMemberAppRole
 from app.models.user_primary_organization import UserPrimaryOrganization
+from app.routers.v1 import oauth_provider_shared
 from app.services.auth_service import AuthService
 from app.services.org_claims_service import (
     APP_ROLES_CLAIM,
@@ -329,14 +330,13 @@ async def _mint_oidc(factory, user_id, monkeypatch) -> dict:
     stubbed as tests/unit/routers/test_oauth_provider_scope_enforcement does."""
     from app.routers.v1 import oauth_provider as op
     from tests.unit.routers.test_oauth_provider_scope_enforcement import (
-        MOD,
         REDIRECT,
         _client,
         _token_patches,
     )
 
-    monkeypatch.setattr(op, "user_requires_mfa", AsyncMock(return_value=False))
-    monkeypatch.setattr(op, "assurance_for_request", AsyncMock(return_value={}))
+    monkeypatch.setattr(oauth_provider_shared, "user_requires_mfa", AsyncMock(return_value=False))
+    monkeypatch.setattr(oauth_provider_shared, "assurance_for_request", AsyncMock(return_value={}))
 
     async with factory() as session:
         user = await session.get(User, user_id)
@@ -349,10 +349,10 @@ async def _mint_oidc(factory, user_id, monkeypatch) -> dict:
         replaced = {"_get_user_org_claims", "_get_user_entitlements"}
         patches = [p for p in patches if getattr(p, "attribute", None) not in replaced]
         assert len(patches) == len(_token_patches(user)[1]) - 2
-        patches.append(patch(f"{MOD}._get_user_org_claims", AsyncMock(side_effect=real_resolver)))
+        patches.append(patch("app.routers.v1.oauth_provider_shared._get_user_org_claims", AsyncMock(side_effect=real_resolver)))
         patches.append(
             patch(
-                f"{MOD}._get_user_entitlements",
+                "app.routers.v1.oauth_provider_shared._get_user_entitlements",
                 AsyncMock(
                     return_value={
                         "tier": "community",
@@ -372,8 +372,8 @@ async def _mint_oidc(factory, user_id, monkeypatch) -> dict:
             "code_challenge": None,
         }
         with (
-            patch(f"{MOD}._get_auth_code", AsyncMock(return_value=code_data)),
-            patch(f"{MOD}._delete_auth_code", AsyncMock()),
+            patch("app.routers.v1.oauth_provider_shared._get_auth_code", AsyncMock(return_value=code_data)),
+            patch("app.routers.v1.oauth_provider_shared._delete_auth_code", AsyncMock()),
         ):
             for p in patches:
                 p.start()

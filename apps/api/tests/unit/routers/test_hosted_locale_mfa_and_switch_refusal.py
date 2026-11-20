@@ -31,7 +31,7 @@ from uuid import uuid4
 import pytest
 
 from app.auth.sessions_cookie import SESSIONS_COOKIE_NAME, mint_sessions_cookie_value
-from app.routers.v1 import oauth_provider
+from app.routers.v1 import oauth_provider, oauth_provider_shared
 from app.routers.v1.auth import (
     HOSTED_FORM_SCRIPT_TAG,
     _switch_page_locale,
@@ -95,15 +95,15 @@ async def _mfa_authorize(ui_locales):
     async def run(http):
         # The harness's fakeredis (it patches this name for the run), the same
         # store the /authorize and login-page dependencies are given.
-        redis = await oauth_provider.get_redis()
+        redis = await oauth_provider_shared.get_redis()
         with (
             patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=alice),
             ),
-            patch("app.routers.v1.oauth_provider.user_requires_mfa", AsyncMock(return_value=True)),
+            patch("app.routers.v1.oauth_provider_shared.user_requires_mfa", AsyncMock(return_value=True)),
             patch(
-                "app.routers.v1.oauth_provider.assurance_for_request", AsyncMock(return_value={})
+                "app.routers.v1.oauth_provider_shared.assurance_for_request", AsyncMock(return_value={})
             ),
         ):
             resp = await http.get("/api/v1/oauth/authorize", params=query)

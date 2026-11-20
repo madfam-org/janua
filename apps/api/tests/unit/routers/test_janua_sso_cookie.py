@@ -43,6 +43,7 @@ from app.core.jwt_manager import jwt_manager
 from app.models import UserStatus
 from app.routers.v1 import auth as auth_router
 from app.routers.v1 import oauth_provider as oauth_provider_router
+from app.routers.v1 import oauth_provider_shared, oauth_provider_userinfo
 
 pytestmark = pytest.mark.asyncio
 
@@ -468,17 +469,22 @@ class TestNotABearerCredential:
         }
         request.cookies = {}
         db = SimpleNamespace(execute=AsyncMock())
-        assert await oauth_provider_router.get_user_from_cookie_or_header(request, db) is None
+        assert await oauth_provider_shared.get_user_from_cookie_or_header(request, db) is None
 
     def test_only_the_authorize_flow_reads_the_cookie(self):
         """Source-level pin. `get_user_from_cookie_or_header` is the sole reader,
         and its only callers are `GET /authorize` and its consent continuation
         `POST /consent`. If another endpoint starts calling it, this fails and
         the acceptance scope gets re-argued deliberately."""
+        import importlib
         import inspect
         import re
 
-        src = inspect.getsource(oauth_provider_router)
+        # The OAuth provider is several modules since the 2026-11-19 split.
+        src = "".join(
+            inspect.getsource(importlib.import_module(f"app.routers.v1.{m}"))
+            for m in oauth_provider_router.MODULES
+        )
         assert src.count(SSO_COOKIE_NAME) >= 1
         # Exactly one place reads the cookie off a request.
         readers = re.findall(r"cookies\.get\(SSO_COOKIE_NAME\)", src)
@@ -559,11 +565,11 @@ class TestAuthorizeAcceptsTheEstateCookie:
                 AsyncMock(return_value=False),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=_oauth_client()),
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri",
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri",
                 MagicMock(return_value=True),
             ),
             patch(
@@ -574,9 +580,9 @@ class TestAuthorizeAcceptsTheEstateCookie:
                 "app.routers.v1.oauth_provider.ConsentService.has_consent",
                 AsyncMock(return_value=True),
             ),
-            patch("app.routers.v1.oauth_provider._store_auth_code", AsyncMock()),
+            patch("app.routers.v1.oauth_provider_shared._store_auth_code", AsyncMock()),
             patch(
-                "app.routers.v1.oauth_provider.settings",
+                "app.routers.v1.oauth_provider_shared.settings",
                 MagicMock(REQUIRE_EMAIL_VERIFICATION=False),
             ),
         ):
@@ -812,11 +818,11 @@ class TestLogout:
         request.cookies = {SSO_COOKIE_NAME: value}
         with (
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=client),
             ),
             patch(
-                "app.routers.v1.oauth_provider.validate_post_logout_redirect_uri",
+                "app.routers.v1.oauth_provider_userinfo.validate_post_logout_redirect_uri",
                 MagicMock(return_value=True),
             ),
         ):
@@ -862,10 +868,10 @@ class TestLogout:
         )
         with (
             patch.object(
-                oauth_provider_router, "_get_oauth_client", AsyncMock(return_value=client_row)
+                oauth_provider_shared, "_get_oauth_client", AsyncMock(return_value=client_row)
             ),
             patch.object(
-                oauth_provider_router,
+                oauth_provider_userinfo,
                 "validate_post_logout_redirect_uri",
                 MagicMock(return_value=True),
             ),

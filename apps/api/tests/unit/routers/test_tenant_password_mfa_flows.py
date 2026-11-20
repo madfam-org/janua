@@ -40,6 +40,7 @@ from app.models import (
 )
 from app.models import Session as UserSession
 from app.models.organization_authentication_policy import OrganizationAuthenticationPolicy
+from app.routers.v1 import oauth_provider_shared
 from app.services.auth_service import AuthService
 
 PASSWORD = "Synthetic-Password-7!"
@@ -54,7 +55,7 @@ async def env(monkeypatch):
     from app.core import redis as core_redis
     from app.core.database import get_db as core_get_db
     from app.main import app
-    from app.routers.v1 import auth, oauth_provider
+    from app.routers.v1 import auth, oauth_provider, oauth_provider_shared
 
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
     async with engine.begin() as connection:
@@ -73,7 +74,9 @@ async def env(monkeypatch):
             yield db
 
     get_memory_redis = AsyncMock(return_value=redis)
-    for module in (core_redis, auth, hosted, service, oauth_provider):
+    # oauth_provider_shared: the OAuth provider modules call get_redis through it
+    # (2026-11-19 split).
+    for module in (core_redis, auth, hosted, service, oauth_provider, oauth_provider_shared):
         monkeypatch.setattr(module, "get_redis", get_memory_redis)
     monkeypatch.setattr(auth, "send_password_reset_email_task", AsyncMock())
     previous = dict(app.dependency_overrides)
@@ -440,7 +443,7 @@ async def test_mfa_oauth_does_not_loop_and_code_refresh_keep_same_session_proof(
         client = (await db.execute(select(OAuthClient))).scalar_one()
         # A real verifier is checked at /token; replace only the test's fixed
         # challenge with SHA256(verifier) in its already-issued synthetic record.
-        record = await oauth_provider._get_auth_code(code, env.redis)
+        record = await oauth_provider_shared._get_auth_code(code, env.redis)
         import base64
 
         verifier = "verifier-value-with-at-least-forty-three-characters"
@@ -449,7 +452,7 @@ async def test_mfa_oauth_does_not_loop_and_code_refresh_keep_same_session_proof(
             .rstrip(b"=")
             .decode()
         )
-        await oauth_provider._store_auth_code(code, record, env.redis)
+        await oauth_provider_shared._store_auth_code(code, record, env.redis)
         tokens = await oauth_provider._handle_authorization_code_grant(
             code, "https://map.test/api/auth/callback", client, verifier, db, env.redis
         )
@@ -473,7 +476,7 @@ async def test_policy_change_between_authorize_and_token_refuses_weak_code(
     assert (await _login(env)).status_code == 302
     code = await _oauth_code(env, monkeypatch)
     await _require(env, requirement)
-    monkeypatch.setattr(oauth_provider, "_verify_pkce", lambda *args: True)
+    monkeypatch.setattr(oauth_provider_shared, "_verify_pkce", lambda *args: True)
     async with env.factory() as db:
         client = (await db.execute(select(OAuthClient))).scalar_one()
         with pytest.raises(HTTPException) as error:

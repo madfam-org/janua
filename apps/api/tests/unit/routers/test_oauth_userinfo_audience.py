@@ -35,7 +35,7 @@ class TestAudienceHelpers:
     def test_accepted_audiences_for_karafiel_client(self):
         client = MagicMock()
         client.audience = "karafiel-api"
-        with patch("app.routers.v1.oauth_provider.settings") as mock_settings:
+        with patch("app.routers.v1.oauth_provider_shared.settings") as mock_settings:
             mock_settings.JWT_AUDIENCE = "janua.dev"
             assert _accepted_audiences_for_client(client) == [
                 "karafiel-api",
@@ -65,7 +65,7 @@ class TestVerifyOAuthToken:
                 return_value=claims,
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 new=AsyncMock(return_value=client),
             ),
             patch(
@@ -97,14 +97,14 @@ class TestVerifyOAuthToken:
                 return_value=claims,
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 new=AsyncMock(return_value=None),
             ),
             patch(
                 "app.routers.v1.oauth_provider.jwt_manager.verify_token",
                 return_value=claims,
             ) as mock_verify,
-            patch("app.routers.v1.oauth_provider.settings") as mock_settings,
+            patch("app.routers.v1.oauth_provider_shared.settings") as mock_settings,
         ):
             mock_settings.JWT_AUDIENCE = "janua.dev"
             payload = await _verify_oauth_token(token, "access", db)
@@ -143,7 +143,7 @@ class TestUserinfoEndpoint:
         }
 
         with patch(
-            "app.routers.v1.oauth_provider._verify_oauth_token",
+            "app.routers.v1.oauth_provider_shared._verify_oauth_token",
             new=AsyncMock(return_value=payload),
         ):
             response = await userinfo(request, db)
@@ -161,7 +161,7 @@ class TestUserinfoEndpoint:
         db = AsyncMock()
 
         with patch(
-            "app.routers.v1.oauth_provider._verify_oauth_token",
+            "app.routers.v1.oauth_provider_shared._verify_oauth_token",
             new=AsyncMock(return_value=None),
         ):
             with pytest.raises(HTTPException) as exc:

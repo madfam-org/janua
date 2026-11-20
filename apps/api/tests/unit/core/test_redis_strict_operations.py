@@ -30,6 +30,7 @@ from app.core.redis_circuit_breaker import (
     RedisUnavailableError,
     ResilientRedisClient,
 )
+from app.routers.v1 import oauth_provider_shared
 
 pytestmark = pytest.mark.asyncio
 
@@ -274,11 +275,11 @@ class TestUnavailableAnswer:
         user = MagicMock(id="u-1")
         saved = dict(main.app.dependency_overrides)
         # The dependency object the router captured at import time.
-        main.app.dependency_overrides[oauth_provider.get_redis] = lambda: down
+        main.app.dependency_overrides[oauth_provider_shared.get_redis] = lambda: down
         main.app.dependency_overrides[get_db] = lambda: AsyncMock()
         try:
             with patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=user),
             ):
                 transport = ASGITransport(app=main.app)

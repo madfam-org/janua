@@ -32,7 +32,7 @@ from app.core.jwt_manager import jwt_manager
 from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import UserStatus
 from app.routers.v1 import auth as auth_router
-from app.routers.v1 import oauth_provider
+from app.routers.v1 import oauth_provider, oauth_provider_shared
 
 pytestmark = pytest.mark.asyncio
 
@@ -96,7 +96,7 @@ async def _http(estate, cookies, run, *, db=None, base_url="http://test"):
 
     redis = ResilientRedisClient(fakeredis.aioredis.FakeRedis(decode_responses=True))
     saved = dict(main.app.dependency_overrides)
-    main.app.dependency_overrides[oauth_provider.get_redis] = lambda: redis
+    main.app.dependency_overrides[oauth_provider_shared.get_redis] = lambda: redis
     main.app.dependency_overrides[oauth_provider.get_db] = lambda: (
         db if db is not None else AsyncMock()
     )
@@ -106,20 +106,20 @@ async def _http(estate, cookies, run, *, db=None, base_url="http://test"):
     try:
         with (
             # The revocation-list read behind the hosted-cookie/bearer check.
-            patch("app.routers.v1.oauth_provider.get_redis", AsyncMock(return_value=redis)),
+            patch("app.routers.v1.oauth_provider_shared.get_redis", AsyncMock(return_value=redis)),
             patch(
                 "app.routers.v1.auth.resolve_session_by_id", AsyncMock(side_effect=estate.resolve)
             ),
             patch(
-                "app.routers.v1.oauth_provider.resolve_session_by_id",
+                "app.routers.v1.oauth_provider_shared.resolve_session_by_id",
                 AsyncMock(side_effect=estate.resolve),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=_client()),
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri",
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri",
                 MagicMock(return_value=True),
             ),
         ):
@@ -177,7 +177,7 @@ class TestChooserSwitchesByForm:
 
         async def run(http):
             with patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=None),
             ):
                 page = await http.get(
@@ -209,7 +209,7 @@ class TestChooserSwitchesByForm:
             # Resume: /authorize now sees the chosen account and issues a code.
             with (
                 patch(
-                    "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                    "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                     AsyncMock(return_value=alice),
                 ),
                 patch(
@@ -342,7 +342,7 @@ class TestChooserListsEachPersonOnce:
 
         async def run(http):
             with patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=None),
             ):
                 page = await http.get(
@@ -364,7 +364,7 @@ class TestChooserListsEachPersonOnce:
         newest_dead = str(uuid4())  # not resolvable: revoked or expired
         estate = _Estate([(alice, old), (alice, newer)])
         with patch(
-            "app.routers.v1.oauth_provider.resolve_session_by_id",
+            "app.routers.v1.oauth_provider_shared.resolve_session_by_id",
             AsyncMock(side_effect=estate.resolve),
         ):
             accounts = await oauth_provider._resolve_held_accounts(
@@ -379,7 +379,7 @@ class TestChooserListsEachPersonOnce:
         second.created_at = None
         estate = _Estate([(alice, first), (alice, second)])
         with patch(
-            "app.routers.v1.oauth_provider.resolve_session_by_id",
+            "app.routers.v1.oauth_provider_shared.resolve_session_by_id",
             AsyncMock(side_effect=estate.resolve),
         ):
             accounts = await oauth_provider._resolve_held_accounts(
@@ -396,7 +396,7 @@ class TestChooserListsEachPersonOnce:
         )
         estate = _Estate([(alice, a_old), (bob, b), (alice, a_new)])
         with patch(
-            "app.routers.v1.oauth_provider.resolve_session_by_id",
+            "app.routers.v1.oauth_provider_shared.resolve_session_by_id",
             AsyncMock(side_effect=estate.resolve),
         ):
             accounts = await oauth_provider._resolve_held_accounts(
@@ -451,7 +451,7 @@ async def test_explicit_older_account_beats_newer_hosted_cookie(monkeypatch, coo
     }.items():
         cookies.set(key, value, domain=domain, path="/")
     resolved = []
-    resolver = oauth_provider.get_user_from_cookie_or_header
+    resolver = oauth_provider_shared.get_user_from_cookie_or_header
 
     async def observe(request, actual_db):
         user = await resolver(request, actual_db)
@@ -481,7 +481,7 @@ async def test_explicit_older_account_beats_newer_hosted_cookie(monkeypatch, coo
         assert newer.is_active
         assert http.cookies.get(SESSIONS_COOKIE_NAME) == held
 
-    with patch("app.routers.v1.oauth_provider.get_user_from_cookie_or_header", side_effect=observe):
+    with patch("app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header", side_effect=observe):
         await _http(estate, cookies, run, db=db, base_url="https://auth.janua.dev")
 
 

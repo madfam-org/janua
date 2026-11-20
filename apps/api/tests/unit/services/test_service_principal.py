@@ -141,11 +141,16 @@ def test_oidc_mint_paths_stamp_the_claim_too():
     """Both OIDC seams (auth-code and refresh) must carry it, or a technical
     login looks like a person to any app that arrives by OIDC rather than by
     magic link."""
+    import importlib
     import inspect
 
     from app.routers.v1 import oauth_provider
 
-    source = inspect.getsource(oauth_provider)
+    # The OAuth provider is several modules since the 2026-11-19 split.
+    source = "".join(
+        inspect.getsource(importlib.import_module(f"app.routers.v1.{m}"))
+        for m in oauth_provider.MODULES
+    )
     assert source.count("service_principal_claims(user)") == 2
 
 

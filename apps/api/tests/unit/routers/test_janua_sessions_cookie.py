@@ -348,20 +348,20 @@ class TestSignOut:
 
 class TestSelectAccountChooser:
     def _authorize_kwargs(self, request):
-        return dict(
-            request=request,
-            response_type="code",
-            client_id="madfam-erp",
-            redirect_uri="https://erp.example.test/auth/callback",
-            scope="openid profile",
-            state="csrf",
-            nonce=None,
-            code_challenge="abc",
-            code_challenge_method="S256",
-            prompt="select_account",
-            db=AsyncMock(),
-            redis=AsyncMock(),
-        )
+        return {
+            "request": request,
+            "response_type": "code",
+            "client_id": "madfam-erp",
+            "redirect_uri": "https://erp.example.test/auth/callback",
+            "scope": "openid profile",
+            "state": "csrf",
+            "nonce": None,
+            "code_challenge": "abc",
+            "code_challenge_method": "S256",
+            "prompt": "select_account",
+            "db": AsyncMock(),
+            "redis": AsyncMock(),
+        }
 
     def _client(self):
         return SimpleNamespace(
@@ -396,19 +396,19 @@ class TestSelectAccountChooser:
 
         with (
             patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=self._client()),
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri",
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri",
                 MagicMock(return_value=True),
             ),
             patch(
-                "app.routers.v1.oauth_provider.resolve_session_by_id",
+                "app.routers.v1.oauth_provider_shared.resolve_session_by_id",
                 AsyncMock(side_effect=_resolve),
             ),
         ):
@@ -427,15 +427,15 @@ class TestSelectAccountChooser:
         kwargs = self._authorize_kwargs(request)
         with (
             patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=self._client()),
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri",
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri",
                 MagicMock(return_value=True),
             ),
         ):

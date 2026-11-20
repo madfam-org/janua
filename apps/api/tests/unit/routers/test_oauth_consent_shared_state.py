@@ -89,17 +89,17 @@ def _user():
 def _patches(client):
     return (
         patch(
-            "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+            "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
             AsyncMock(return_value=_user()),
         ),
-        patch("app.routers.v1.oauth_provider._get_oauth_client", AsyncMock(return_value=client)),
+        patch("app.routers.v1.oauth_provider_shared._get_oauth_client", AsyncMock(return_value=client)),
         patch(
             "app.routers.v1.oauth_provider.ConsentService.has_consent",
             AsyncMock(return_value=False),
         ),
         patch("app.routers.v1.oauth_provider.ConsentService.grant_consent", AsyncMock()),
         patch(
-            "app.routers.v1.oauth_provider.settings",
+            "app.routers.v1.oauth_provider_shared.settings",
             MagicMock(REQUIRE_EMAIL_VERIFICATION=False),
         ),
     )
@@ -371,7 +371,7 @@ class TestAuthCodeLogging:
         pod = _replica(server)
         code = "secret-code-value-1234567890"
         log = MagicMock()
-        with patch("app.routers.v1.oauth_provider.logger", log):
+        with patch("app.routers.v1.oauth_provider_shared.logger", log):
             await _store_auth_code(code, {"client_id": "x"}, pod)
             await _get_auth_code(code, pod)
             await _delete_auth_code(code, pod)

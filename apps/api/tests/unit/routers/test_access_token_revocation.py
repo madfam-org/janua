@@ -36,6 +36,7 @@ from app.core.jwt_manager import jwt_manager
 from app.core.redis_circuit_breaker import RedisUnavailableError, ResilientRedisClient
 from app.models import Base, User, UserStatus
 from app.models import Session as UserSession
+from app.routers.v1 import oauth_provider_shared
 from app.services.auth_service import AuthService
 
 pytestmark = pytest.mark.asyncio
@@ -76,7 +77,7 @@ async def env():
     for dep in {
         core_redis.get_redis,
         dependencies.get_redis,
-        oauth_provider.get_redis,
+        oauth_provider_shared.get_redis,
         auth_router.get_redis,
     }:
         app.dependency_overrides[dep] = lambda: redis
@@ -103,7 +104,7 @@ async def env():
     with (
         patch("app.core.redis.get_redis", get),
         patch("app.services.auth_service.get_redis", get),
-        patch("app.routers.v1.oauth_provider.get_redis", get),
+        patch("app.routers.v1.oauth_provider_shared.get_redis", get),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as http:

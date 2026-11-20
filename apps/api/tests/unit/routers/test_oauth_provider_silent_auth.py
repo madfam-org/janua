@@ -18,6 +18,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.routers.v1 import oauth_provider_shared
 from app.routers.v1.oauth_provider import (
     _build_safe_callback_url,
     _is_silent_auth_allowed,
@@ -34,8 +35,8 @@ def optional_authentication_context(monkeypatch):
     # Live signed-session and mandatory MFA behavior have dedicated regressions.
     from app.routers.v1 import oauth_provider
 
-    monkeypatch.setattr(oauth_provider, "user_requires_mfa", AsyncMock(return_value=False))
-    monkeypatch.setattr(oauth_provider, "assurance_for_request", AsyncMock(return_value={}))
+    monkeypatch.setattr(oauth_provider_shared, "user_requires_mfa", AsyncMock(return_value=False))
+    monkeypatch.setattr(oauth_provider_shared, "assurance_for_request", AsyncMock(return_value={}))
 
 
 def _client(
@@ -137,15 +138,15 @@ class TestAuthorizeGetSilentAuth:
         client = _client()
         with (
             patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=client),
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri",
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri",
                 MagicMock(return_value=True),
             ),
         ):
@@ -159,15 +160,15 @@ class TestAuthorizeGetSilentAuth:
         third_party = _client(name="random-thirdparty")
         with (
             patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=SimpleNamespace(id=uuid4())),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=third_party),
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri",
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri",
                 MagicMock(return_value=True),
             ),
         ):
@@ -190,15 +191,15 @@ class TestAuthorizeGetSilentAuth:
         )
         with (
             patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=user),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=client),
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri",
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri",
                 MagicMock(return_value=True),
             ),
             patch(
@@ -210,11 +211,11 @@ class TestAuthorizeGetSilentAuth:
                 AsyncMock(return_value=False),
             ),
             patch(
-                "app.routers.v1.oauth_provider._store_auth_code",
+                "app.routers.v1.oauth_provider_shared._store_auth_code",
                 AsyncMock(),
             ),
             patch(
-                "app.routers.v1.oauth_provider.settings",
+                "app.routers.v1.oauth_provider_shared.settings",
                 MagicMock(REQUIRE_EMAIL_VERIFICATION=False),
             ),
         ):
@@ -236,15 +237,15 @@ class TestAuthorizeGetSilentAuth:
         )
         with (
             patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=user),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=client),
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri",
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri",
                 MagicMock(return_value=True),
             ),
             patch(
@@ -256,11 +257,11 @@ class TestAuthorizeGetSilentAuth:
                 AsyncMock(return_value=True),
             ),
             patch(
-                "app.routers.v1.oauth_provider._store_auth_code",
+                "app.routers.v1.oauth_provider_shared._store_auth_code",
                 AsyncMock(),
             ),
             patch(
-                "app.routers.v1.oauth_provider.settings",
+                "app.routers.v1.oauth_provider_shared.settings",
                 MagicMock(REQUIRE_EMAIL_VERIFICATION=False),
             ),
         ):
@@ -278,15 +279,15 @@ class TestAuthorizeGetSilentAuth:
         base_kwargs["prompt"] = None
         with (
             patch(
-                "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+                "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
                 AsyncMock(return_value=None),
             ),
             patch(
-                "app.routers.v1.oauth_provider._get_oauth_client",
+                "app.routers.v1.oauth_provider_shared._get_oauth_client",
                 AsyncMock(return_value=_client()),
             ),
             patch(
-                "app.routers.v1.oauth_provider._validate_redirect_uri",
+                "app.routers.v1.oauth_provider_shared._validate_redirect_uri",
                 MagicMock(return_value=True),
             ),
         ):
