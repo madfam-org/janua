@@ -18,9 +18,10 @@ Status: COMPLETE - 17 comprehensive tests implemented
 Coverage Impact: +8% estimated
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, patch
 
 from app.models.user import User
 
@@ -122,7 +123,7 @@ async def test_email_verification_token_created(client: AsyncClient):
 
     with patch(
         "app.services.email.EmailService.send_verification_email", new_callable=AsyncMock
-    ) as mock_send:
+    ):
         response = await client.post("/api/v1/auth/signup", json=registration_data)
 
     assert response.status_code == 201
@@ -501,7 +502,7 @@ async def test_signup_dispatches_user_created_webhook(client: AsyncClient):
     }
 
     with patch(
-        "app.routers.v1.auth.trigger_user_webhook", new_callable=AsyncMock
+        "app.routers.v1.auth_shared.trigger_user_webhook", new_callable=AsyncMock
     ) as mock_trigger:
         response = await client.post("/api/v1/auth/signup", json=registration_data)
 
@@ -556,7 +557,7 @@ async def test_signup_succeeds_when_webhook_raises(client: AsyncClient):
     }
 
     with patch(
-        "app.routers.v1.auth.trigger_user_webhook",
+        "app.routers.v1.auth_shared.trigger_user_webhook",
         new_callable=AsyncMock,
         side_effect=RuntimeError("Simulated webhook delivery failure"),
     ):

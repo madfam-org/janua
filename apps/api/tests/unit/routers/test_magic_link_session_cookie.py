@@ -25,6 +25,7 @@ import pytest
 from fastapi import Response
 
 from app.routers.v1 import auth as auth_router
+from app.routers.v1 import auth_shared
 
 pytestmark = pytest.mark.asyncio
 
@@ -32,7 +33,7 @@ pytestmark = pytest.mark.asyncio
 @pytest.fixture(autouse=True)
 def no_bound_client(monkeypatch):
     # Cookie transport fixtures have no registered product identity pool.
-    monkeypatch.setattr(auth_router, "_oauth_client_for_redirect", AsyncMock(return_value=None))
+    monkeypatch.setattr(auth_shared, "_oauth_client_for_redirect", AsyncMock(return_value=None))
 
 
 def _user():
@@ -93,14 +94,14 @@ class TestVerifyMagicLinkPost:
         response = Response()
         with (
             patch.object(
-                auth_router.AuthService,
+                auth_shared.AuthService,
                 "create_session",
                 AsyncMock(return_value=("ACCESS-TOK", "REFRESH-TOK", SimpleNamespace())),
             ),
             patch.object(
-                auth_router, "_session_audience_for_redirect", AsyncMock(return_value="crea-map")
+                auth_shared, "_session_audience_for_redirect", AsyncMock(return_value="crea-map")
             ),
-            patch.object(auth_router, "log_activity", AsyncMock()),
+            patch.object(auth_shared, "log_activity", AsyncMock()),
             patch(
                 "app.auth.authentication_assurance.user_requires_mfa", AsyncMock(return_value=False)
             ),
@@ -130,7 +131,7 @@ class TestVerifyMagicLinkPost:
         db = _db(_magic_link(None), user)
         response = Response()
         with (
-            patch.object(auth_router, "log_activity", AsyncMock()),
+            patch.object(auth_shared, "log_activity", AsyncMock()),
             patch(
                 "app.auth.authentication_assurance.user_requires_mfa", AsyncMock(return_value=True)
             ),
@@ -152,16 +153,16 @@ class TestMagicLinkCallbackGet:
         db = _db(_magic_link("https://crea-map.madfam.io/acceso/verificar"), user)
         with (
             patch.object(
-                auth_router.AuthService,
+                auth_shared.AuthService,
                 "create_session",
                 AsyncMock(return_value=("ACCESS-TOK", "REFRESH-TOK", SimpleNamespace())),
             ),
             patch.object(
-                auth_router, "_session_audience_for_redirect", AsyncMock(return_value="crea-map")
+                auth_shared, "_session_audience_for_redirect", AsyncMock(return_value="crea-map")
             ),
-            patch.object(auth_router, "log_activity", AsyncMock()),
+            patch.object(auth_shared, "log_activity", AsyncMock()),
             patch.object(
-                auth_router,
+                auth_shared,
                 "validate_redirect_url",
                 MagicMock(return_value="https://crea-map.madfam.io/acceso/verificar"),
             ),
@@ -189,15 +190,15 @@ class TestMagicLinkCallbackGet:
         db = _db(_magic_link("https://evil.example/x"), user)
         with (
             patch.object(
-                auth_router.AuthService,
+                auth_shared.AuthService,
                 "create_session",
                 AsyncMock(return_value=("ACCESS-TOK", "REFRESH-TOK", SimpleNamespace())),
             ),
             patch.object(
-                auth_router, "_session_audience_for_redirect", AsyncMock(return_value=None)
+                auth_shared, "_session_audience_for_redirect", AsyncMock(return_value=None)
             ),
-            patch.object(auth_router, "log_activity", AsyncMock()),
-            patch.object(auth_router, "validate_redirect_url", MagicMock(return_value=None)),
+            patch.object(auth_shared, "log_activity", AsyncMock()),
+            patch.object(auth_shared, "validate_redirect_url", MagicMock(return_value=None)),
             patch(
                 "app.auth.authentication_assurance.user_requires_mfa", AsyncMock(return_value=False)
             ),

@@ -45,7 +45,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.jwt_manager import jwt_manager
 from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import Base, OAuthClient, User, UserStatus
-from app.routers.v1 import oauth_provider_shared
+from app.routers.v1 import auth_shared, oauth_provider_shared
 
 pytestmark = pytest.mark.asyncio
 
@@ -114,7 +114,7 @@ async def env(monkeypatch):
         core_redis.get_redis,
         dependencies.get_redis,
         oauth_provider_shared.get_redis,
-        auth_router.get_redis,
+        auth_shared.get_redis,
     }:
         app.dependency_overrides[dep] = lambda: redis
 

@@ -16,6 +16,9 @@ class LoginRequestExpired(HTTPException):
     instead of the error body, without matching on the message.
     """
 
+    #: Stable reason code for the `auth.hosted_refusal` log line (hosted_errors).
+    reason = "login_request_expired"
+
     def __init__(self):
         super().__init__(400, "La solicitud de acceso venció. Vuelve al MAP para iniciar.")
 

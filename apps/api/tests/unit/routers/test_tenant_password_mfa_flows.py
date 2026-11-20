@@ -40,7 +40,7 @@ from app.models import (
 )
 from app.models import Session as UserSession
 from app.models.organization_authentication_policy import OrganizationAuthenticationPolicy
-from app.routers.v1 import oauth_provider_shared
+from app.routers.v1 import auth_shared, oauth_provider_shared
 from app.services.auth_service import AuthService
 
 PASSWORD = "Synthetic-Password-7!"
@@ -55,7 +55,7 @@ async def env(monkeypatch):
     from app.core import redis as core_redis
     from app.core.database import get_db as core_get_db
     from app.main import app
-    from app.routers.v1 import auth, oauth_provider, oauth_provider_shared
+    from app.routers.v1 import auth, auth_shared, oauth_provider, oauth_provider_shared
 
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
     async with engine.begin() as connection:
@@ -74,15 +74,23 @@ async def env(monkeypatch):
             yield db
 
     get_memory_redis = AsyncMock(return_value=redis)
-    # oauth_provider_shared: the OAuth provider modules call get_redis through it
-    # (2026-11-19 split).
-    for module in (core_redis, auth, hosted, service, oauth_provider, oauth_provider_shared):
+    # auth_shared / oauth_provider_shared: the split route modules call
+    # get_redis through them (2026-11-19 split).
+    for module in (
+        core_redis,
+        auth,
+        auth_shared,
+        hosted,
+        service,
+        oauth_provider,
+        oauth_provider_shared,
+    ):
         monkeypatch.setattr(module, "get_redis", get_memory_redis)
-    monkeypatch.setattr(auth, "send_password_reset_email_task", AsyncMock())
+    monkeypatch.setattr(auth_shared, "send_password_reset_email_task", AsyncMock())
     previous = dict(app.dependency_overrides)
     for key in (get_db, core_get_db):
         app.dependency_overrides[key] = get_session
-    for key in (core_redis.get_redis, dependencies.get_redis, auth.get_redis):
+    for key in (core_redis.get_redis, dependencies.get_redis, auth_shared.get_redis):
         app.dependency_overrides[key] = lambda: redis
     # Production DI captures the original function before the test monkeypatch.
     for route in app.routes:
@@ -131,7 +139,7 @@ async def env(monkeypatch):
             redis=redis,
             user=user,
             org_id=org_id,
-            mail=auth.send_password_reset_email_task,
+            mail=auth_shared.send_password_reset_email_task,
         )
     app.dependency_overrides.clear()
     app.dependency_overrides.update(previous)
@@ -801,7 +809,7 @@ async def test_map_recovery_audit_outage_fails_before_identity_lookup(env, monke
     await _registered_map_platform(env)
     lookup = AsyncMock()
     monkeypatch.setattr(tenant_login_context, "login_user", lookup)
-    monkeypatch.setattr(auth, "add_intent", AsyncMock(side_effect=RuntimeError("synthetic refusal")))
+    monkeypatch.setattr(auth_shared, "add_intent", AsyncMock(side_effect=RuntimeError("synthetic refusal")))
     response = await env.http.post("/api/v1/auth/password/forgot", json={
         "email": email, "client_id": "synthetic-map",
         "return_url": "https://map.creatumundo.mx/api/auth/login",

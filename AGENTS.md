@@ -806,7 +806,7 @@ Canonical operator guide: [docs/PP_3B_STAGING_PIPELINE.md](docs/PP_3B_STAGING_PI
        return {"items": []}
    ```
 
-2. **Register router** in `apps/api/app/main.py`
+2. **Register router** in `apps/api/app/main_routers.py` (`include_routers`, called by `apps/api/app/main.py`; middleware lives in `main_middleware.py`, app metadata in `main_openapi.py`)
    ```python
    from app.routers.v1 import my_feature
    app.include_router(my_feature.router, prefix="/api/v1")
@@ -1032,7 +1032,7 @@ EOF
 
 | Purpose | Location |
 |---------|----------|
-| Auth router | `apps/api/app/routers/v1/auth.py` |
+| Auth router | `apps/api/app/routers/v1/auth.py` (aggregator since 2026-11-19; routes in `auth_signin`, `auth_hosted_login`, `auth_sessions`, `auth_recovery`, `auth_email_verification`, `auth_magic_link_issue`, `auth_magic_link`; helpers in `auth_shared`, `auth_schemas`, `auth_hosted_pages`, `auth_magic_link_pages`; patch shared names on `auth_shared`) |
 | Auth service | `apps/api/app/services/auth_service.py` |
 | JWT handling | `apps/api/app/core/jwt_manager.py` (`app/services/jwt_service.py` has no mounted caller) |
 | MFA router | `apps/api/app/routers/v1/mfa.py` |

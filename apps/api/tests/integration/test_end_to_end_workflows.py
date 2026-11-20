@@ -7,13 +7,14 @@ Comprehensive end-to-end workflow integration tests
 Tests complete user journeys and business processes
 """
 
+import asyncio
+import uuid
+from unittest.mock import MagicMock, patch
+
 import pytest
 from httpx import AsyncClient
-from unittest.mock import MagicMock, patch
-import uuid
-import asyncio
 
-from app.models import UserStatus, OrganizationRole
+from app.models import OrganizationRole, UserStatus
 
 
 @pytest.mark.asyncio
@@ -48,7 +49,7 @@ class TestCompleteUserOnboardingWorkflow:
         # Step 2: User verifies email
         verification_data = {"token": "verification_token_123"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_auth_service.return_value.verify_email.return_value = True
 
             verify_response = await test_client.post(
@@ -59,7 +60,7 @@ class TestCompleteUserOnboardingWorkflow:
         # Step 3: User signs in
         signin_data = {"email": signup_data["email"], "password": signup_data["password"]}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.id = user_id
             mock_user.email = signup_data["email"]
@@ -182,7 +183,7 @@ class TestCompleteUserOnboardingWorkflow:
             "password": existing_user_signup["password"],
         }
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = existing_user_signup["email"]
@@ -241,7 +242,7 @@ class TestAuthenticationAuthorizationWorkflow:
         # Step 1: User authentication
         signin_data = {"email": "authtest@company.com", "password": "AuthPassword123!"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = signin_data["email"]
@@ -306,7 +307,7 @@ class TestAuthenticationAuthorizationWorkflow:
         # Step 1: Initial authentication
         signin_data = {"email": "refresh@company.com", "password": "RefreshPassword123!"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = signin_data["email"]
@@ -324,7 +325,7 @@ class TestAuthenticationAuthorizationWorkflow:
         # Step 2: Use refresh token to get new access token
         refresh_data = {"refresh_token": initial_tokens["refresh_token"]}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_auth_service.return_value.refresh_access_token.return_value = (
                 "new_access_token",
                 "new_refresh_token",
@@ -357,7 +358,7 @@ class TestMultiFactorAuthenticationWorkflow:
         # Step 1: User signs in normally
         signin_data = {"email": "mfa@company.com", "password": "MfaPassword123!"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = signin_data["email"]
@@ -404,7 +405,7 @@ class TestMultiFactorAuthenticationWorkflow:
         # Step 4: User signs in again (should require MFA)
         mock_user.mfa_enabled = True
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_auth_service.return_value.authenticate_user.return_value = mock_user
             # Should return partial session requiring MFA
             mock_auth_service.return_value.create_session.return_value = (
@@ -423,7 +424,7 @@ class TestMultiFactorAuthenticationWorkflow:
         with patch("app.routers.v1.mfa.MFAService") as mock_mfa_service:
             mock_mfa_service.return_value.verify_totp.return_value = True
 
-            with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+            with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
                 mock_auth_service.return_value.complete_mfa_login.return_value = (
                     "mfa_verified_token",
                     "mfa_verified_refresh",
@@ -594,7 +595,7 @@ class TestWorkflowErrorHandling:
         # Step 2: User tries to sign in before email verification
         signin_data = {"email": signup_data["email"], "password": signup_data["password"]}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.email_verified = False
             mock_auth_service.return_value.authenticate_user.return_value = mock_user
@@ -705,7 +706,7 @@ class TestWorkflowErrorHandling:
         # Simulate slow email verification process
         verification_data = {"token": "slow_verification_token"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             # Simulate slow operation
             async def slow_verify_email(token):
                 await asyncio.sleep(0.1)  # Simulate delay

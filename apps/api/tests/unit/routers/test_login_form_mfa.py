@@ -26,6 +26,7 @@ from app.core.redis import get_redis
 from app.database import get_db
 from app.main import app
 from app.models import Base, User, UserStatus
+from app.routers.v1 import auth_shared
 
 MFA_FORM_URL = "/api/v1/auth/login-form/mfa"
 TEST_SECRET = pyotp.random_base32()
@@ -86,7 +87,7 @@ async def mfa_form_client(monkeypatch):
     from app.routers.v1 import auth as auth_router
 
     monkeypatch.setattr(hosted_security, "get_redis", _fake_get_redis)
-    app.dependency_overrides[auth_router.get_redis] = _fake_get_redis
+    app.dependency_overrides[auth_shared.get_redis] = _fake_get_redis
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_redis] = _fake_get_redis
     _orig_get_redis = auth_service_module.get_redis

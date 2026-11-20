@@ -205,7 +205,21 @@ def test_main_diff_is_only_the_registration_main_carries():
     assert not [line for line in hunk if line.startswith("-")], "main.diff removes production lines"
     added = "\n".join(line[1:] for line in hunk if line.startswith("+")) + "\n"
     assert "internal_primary_organization" in added
-    assert added in (ROOT / "apps/api/app/main.py").read_text()
+    assert added in _main_registration_source()
+
+
+def _main_registration_source() -> str:
+    """app/main.py, plus the router registration that moved to
+    app/main_routers.py on 2026-11-19 (the 800-line split): there it is the
+    body of include_routers(app), indented one level, so it is read dedented."""
+    source = (ROOT / "apps/api/app/main.py").read_text()
+    routers = ROOT / "apps/api/app/main_routers.py"
+    if routers.is_file():
+        source += "".join(
+            line[4:] if line.startswith("    ") else line
+            for line in routers.read_text().splitlines(keepends=True)
+        )
+    return source
 
 
 def test_check_script_passes_in_this_checkout():
