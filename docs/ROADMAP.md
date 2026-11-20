@@ -1,33 +1,5 @@
 # Janua Development Roadmap
 
-## 2026-11-19: Edge-case hardening of browser-facing flows (current)
-
-A hosted sign-in on 2026-11-19 ended on a raw JSON page after a double submit
-of the login form. The plan that generalises that bug lives in the private
-operations repo as `roadmaps/2026-11-19-janua-edge-case-hardening.md`
-(internal-devops, named here, not linked). Its public outline:
-
-- **Rules:** no raw JSON on a browser-navigated route; every browser POST is
-  idempotent or POST/redirect/GET; single-use state is consumed after commit and
-  a same-browser replay continues; one structured log line per refusal with a
-  reason code; audited internal routes for operator fixes; membership writes
-  that change token context warn or refuse; concurrency tested; no product copy
-  in shared pages; no source-string tests for flows.
-- **Phase 0:** the incident fix, an HTML error-page catch-all for hosted routes,
-  refusal metrics and alerts, a synthetic sign-in probe.
-- **Phase 1:** idempotency and replay-safety across login, second factor,
-  consent and password reset; session refresh under concurrency.
-- **Phase 2:** identity-context guards (primary organization, email change,
-  narrow redirect-URI edits, 401 reason codes).
-- **Phase 3:** a browser chaos e2e suite in CI.
-- **Phase 4:** consumer guidance and a shared token library.
-
-Owner decisions are pending. The sections below are the 2025 roadmap, kept as
-history.
-
----
-
-
 **Last Updated**: November 17, 2025  
 **Based On**: Strategic Positioning Audit (November 2025)
 
