@@ -168,6 +168,9 @@ EXEMPTIONS: tuple[Exemption, ...] = (
     Exemption("POST", f"{INTERNAL_PREFIX}/users/provision", _DESTRUCTIVE),
     Exemption("POST", f"{INTERNAL_PREFIX}/users/suspend", _DESTRUCTIVE),
     Exemption("POST", f"{INTERNAL_PREFIX}/users/reactivate", _DESTRUCTIVE),
+    # Re-addressing a person's sign-in revokes every session they hold and
+    # moves where their sign-in links go: a credentialed identity write.
+    Exemption("POST", f"{INTERNAL_PREFIX}/users/change-email", _DESTRUCTIVE),
     # A product relaying a person's tú/usted answer -- a credentialed write to
     # their profile that every later email and token honours.
     Exemption("POST", f"{INTERNAL_PREFIX}/users/spanish-formality", _READ_OR_GRANT),

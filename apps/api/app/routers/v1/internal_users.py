@@ -48,6 +48,22 @@ it is the only record of which product relayed the answer), NULL is refused
 (it means "never asked"), and repeating the stored answer is a no-op. See
 ``app/services/spanish_formality.py``.
 
+Sign-in address change
+----------------------
+``POST /change-email`` re-addresses a person the calling organization holds
+(``organization_id``, ``current_email``, ``new_email``; optional ``user_id``).
+The user id, password and second factor stay; the new address starts
+unverified; every session and its refresh-token family is revoked; links mailed
+to the old address are spent; nothing is mailed. The new address must be free
+in EVERY pool, not only the person's own: an address held in two pools makes
+magic link and password reset refuse it as ambiguous. Refused, each with one
+``internal_user_change_email.refused`` log line naming the reason: platform
+administrators, technical accounts, people who also hold an active membership
+in another organization (the address is theirs across organizations), and
+people the organization does not hold. A repeat after success is a no-op
+(``changed: false``). The audit entry (``user.update``, ``field: "email"``)
+carries masked and keyed-hash forms of both addresses, never the addresses.
+
 Scope guarantee
 ---------------
 This surface provisions and toggles lifecycle state. It has NO delete/purge
@@ -57,19 +73,33 @@ identity terms, never a destruction of the identity record or its audit trail.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 from datetime import datetime
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.database import get_db
 from app.dependencies import verify_internal_api_key
-from app.models import OrganizationMember, User, UserStatus
+from app.models import (
+    EmailVerification,
+    MagicLink,
+    OrganizationMember,
+    PasswordReset,
+    User,
+    UserStatus,
+)
 from app.models import Session as UserSession
 from app.routers.v1.oauth_clients import INTERNAL_API_KEY_PRINCIPAL
 from app.schemas.internal import (
+    ChangeEmailRequest,
+    ChangeEmailResponse,
     ProvisionUserRequest,
     ProvisionUserResponse,
     SpanishFormalityWriteRequest,
@@ -78,11 +108,13 @@ from app.schemas.internal import (
     UserLifecycleResponse,
 )
 from app.services.audit_logger import AuditEventType, AuditLogger
+from app.services.auth_service import AuthService
 from app.services.spanish_formality import SOURCE_PRODUCT, record_spanish_formality
 from app.services.user_lookup import (
     AmbiguousEmailAcrossPools,
     get_user_by_email,
     log_ambiguous_email,
+    redact_email,
     resolve_user_by_email_across_pools,
 )
 
@@ -664,3 +696,323 @@ async def relay_spanish_formality(
         previous_spanish_formality=change.previous,
         changed=change.changed,
     )
+
+
+# ---------------------------------------------------------------------------
+# Sign-in address change
+# ---------------------------------------------------------------------------
+
+#: The one structured event every refusal of ``change-email`` emits, with a
+#: ``reason`` discriminator, so an operator can alert or count with one query.
+CHANGE_EMAIL_REFUSED_EVENT = "internal_user_change_email.refused"
+
+#: The 409 for "the new address already belongs to someone". One text whatever
+#: the pool, so the response does not say where the address lives.
+EMAIL_IN_USE_DETAIL = "That address already belongs to another janua user"
+
+#: Membership statuses that still count as "this organization's person".
+#: ``removed`` is history: the organization let the person go.
+_FORMER_MEMBERSHIP_STATUS = "removed"
+
+
+def _email_fingerprint(email: str) -> str | None:
+    """A keyed hash of an address, for correlating audit entries without it.
+
+    HMAC-SHA256 under the deployment's ``SECRET_KEY`` (the key
+    ``payment_mail_dispatch`` already uses for credential fingerprints): an
+    unkeyed hash of an email address is reversible by dictionary, a keyed one
+    is only comparable by someone who holds the key. None when no key is set.
+    """
+    key = settings.SECRET_KEY or settings.JWT_SECRET_KEY
+    if not key:
+        return None
+    digest = hmac.new(key.encode(), email.encode(), hashlib.sha256).hexdigest()
+    return f"hmac-sha256:{digest[:32]}"
+
+
+def _refuse(
+    reason: str,
+    status_code: int,
+    detail: str,
+    *,
+    organization_id,
+    user_id=None,
+) -> HTTPException:
+    """Log the refusal (one line, one reason) and build the HTTP error."""
+    logger.warning(
+        CHANGE_EMAIL_REFUSED_EVENT,
+        reason=reason,
+        status_code=status_code,
+        organization_id=str(organization_id),
+        user_id=str(user_id) if user_id is not None else None,
+    )
+    return HTTPException(status_code=status_code, detail=detail)
+
+
+async def _users_with_address(db: AsyncSession, email: str) -> list[User]:
+    """Every row holding ``email``, case-insensitively, in ANY pool.
+
+    ``provision`` stores addresses lower-cased, but other writers store what
+    they were handed, so the comparison folds the stored side too.
+    """
+    result = await db.execute(select(User).where(func.lower(User.email) == email))
+    return list(result.scalars().all())
+
+
+async def _member_of(db: AsyncSession, users: list[User], organization_id) -> list[User]:
+    """The subset of ``users`` the organization still holds (any status but removed)."""
+    members: list[User] = []
+    for user in users:
+        if user.status == UserStatus.DELETED:
+            continue
+        result = await db.execute(
+            select(OrganizationMember.id).where(
+                OrganizationMember.user_id == user.id,
+                OrganizationMember.organization_id == organization_id,
+                OrganizationMember.status != _FORMER_MEMBERSHIP_STATUS,
+            )
+        )
+        if result.first() is not None:
+            members.append(user)
+    return members
+
+
+async def _has_active_membership_elsewhere(db: AsyncSession, user_id, organization_id) -> bool:
+    result = await db.execute(
+        select(OrganizationMember.id).where(
+            OrganizationMember.user_id == user_id,
+            OrganizationMember.organization_id != organization_id,
+            OrganizationMember.status == "active",
+        )
+    )
+    return result.first() is not None
+
+
+async def _guard_change_target(db: AsyncSession, user: User, body: ChangeEmailRequest) -> None:
+    """Refuse identities an organization must not re-address."""
+    org = body.organization_id
+    if body.user_id is not None and str(user.id) != str(body.user_id):
+        raise _refuse(
+            "user_id_mismatch",
+            status.HTTP_409_CONFLICT,
+            "The address does not belong to the user_id sent",
+            organization_id=org,
+            user_id=user.id,
+        )
+    if user.is_admin:
+        raise _refuse(
+            "platform_admin",
+            status.HTTP_403_FORBIDDEN,
+            "A platform administrator's address cannot be changed through this route",
+            organization_id=org,
+            user_id=user.id,
+        )
+    if user.is_service_account:
+        raise _refuse(
+            "service_account",
+            status.HTTP_403_FORBIDDEN,
+            "A technical account's address cannot be changed through this route",
+            organization_id=org,
+            user_id=user.id,
+        )
+    if await _has_active_membership_elsewhere(db, user.id, org):
+        # The address is the person's sign-in for EVERY organization they
+        # belong to; one organization does not get to change it for the others.
+        raise _refuse(
+            "member_of_other_organization",
+            status.HTTP_403_FORBIDDEN,
+            "This person also belongs to another organization; "
+            "their address cannot be changed by one of them",
+            organization_id=org,
+            user_id=user.id,
+        )
+
+
+def _change_response(user: User, *, changed: bool, sessions_revoked: int) -> ChangeEmailResponse:
+    return ChangeEmailResponse(
+        id=str(user.id),
+        email=user.email,
+        email_verified=bool(user.email_verified),
+        changed=changed,
+        sessions_revoked=sessions_revoked,
+    )
+
+
+async def _retire_address_bound_tokens(db: AsyncSession, user_id, now: datetime) -> None:
+    """Spend every outstanding link that was mailed to the OLD address.
+
+    A password-reset link, magic link or verification link sitting in the old
+    mailbox would otherwise still act on an account that no longer answers to
+    that address.
+    """
+    await db.execute(
+        update(PasswordReset)
+        .where(PasswordReset.user_id == user_id, PasswordReset.used.isnot(True))
+        .values(used=True, used_at=now)
+    )
+    await db.execute(
+        update(MagicLink)
+        .where(MagicLink.user_id == user_id, MagicLink.used_at.is_(None))
+        .values(used_at=now)
+    )
+    await db.execute(
+        update(EmailVerification)
+        .where(
+            EmailVerification.user_id == user_id,
+            EmailVerification.verified_at.is_(None),
+            EmailVerification.expires_at > now,
+        )
+        .values(expires_at=now)
+    )
+
+
+@router.post("/change-email", response_model=ChangeEmailResponse)
+async def change_user_email(
+    body: ChangeEmailRequest,
+    _auth: bool = Depends(verify_internal_api_key),
+    db: AsyncSession = Depends(get_db),
+) -> ChangeEmailResponse:
+    """Change the sign-in address of a person the organization holds. Idempotent.
+
+    The person keeps the same user id, password and second factor. The new
+    address starts unverified, every open session is revoked (with its
+    refresh-token family), and links mailed to the old address stop working.
+    No email is sent.
+
+    200 with ``changed: true`` when this call changed the address; 200 with
+    ``changed: false`` when the person already has the new address (a retry).
+    404 when the organization holds no such person; 403 for a platform
+    administrator, a technical account, or a person who also belongs to
+    another organization; 409 when the new address belongs to someone else, the
+    current address is ambiguous, or ``user_id`` does not match; 503 when the
+    revocation list cannot be written (nothing is changed).
+    """
+    org = body.organization_id
+    current = _normalize_email(str(body.current_email))
+    new = _normalize_email(str(body.new_email))
+
+    holders_of_current = await _users_with_address(db, current)
+    targets = await _member_of(db, holders_of_current, org)
+
+    if len(targets) > 1:
+        raise _refuse(
+            "ambiguous_current_email",
+            status.HTTP_409_CONFLICT,
+            "More than one of this organization's people holds that address",
+            organization_id=org,
+        )
+
+    if not targets:
+        # A retry after a successful change: the organization's person already
+        # answers to the new address.
+        already = await _member_of(db, await _users_with_address(db, new), org)
+        if len(already) == 1 and (body.user_id is None or str(already[0].id) == str(body.user_id)):
+            await _guard_change_target(db, already[0], body)
+            return _change_response(already[0], changed=False, sessions_revoked=0)
+        raise _refuse(
+            "not_a_member" if holders_of_current else "not_found",
+            status.HTTP_404_NOT_FOUND,
+            NO_USER_DETAIL,
+            organization_id=org,
+        )
+
+    user = targets[0]
+    await _guard_change_target(db, user, body)
+
+    if current == new:
+        return _change_response(user, changed=False, sessions_revoked=0)
+
+    # Free in the person's own pool (the unique index would refuse it anyway)
+    # AND in every other pool: an address held in two pools makes the bare-email
+    # sign-in paths (magic link, password reset) refuse as ambiguous.
+    for other in await _users_with_address(db, new):
+        if other.id == user.id:
+            continue
+        same_pool = other.tenant_id == user.tenant_id
+        raise _refuse(
+            "email_in_use" if same_pool else "email_in_use_other_pool",
+            status.HTTP_409_CONFLICT,
+            EMAIL_IN_USE_DETAIL,
+            organization_id=org,
+            user_id=user.id,
+        )
+
+    user_id = user.id
+    now = datetime.utcnow()
+
+    try:
+        # Strict: when Redis cannot take the revocations, refuse before
+        # anything is committed, as password reset does.
+        sessions_revoked = await AuthService.invalidate_user_sessions(
+            db, user_id, reason="email_changed", strict=True, commit=False
+        )
+    except RedisUnavailableError as exc:
+        await db.rollback()
+        raise _refuse(
+            "revocation_unavailable",
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Sessions cannot be revoked right now; nothing was changed. Retry shortly",
+            organization_id=org,
+            user_id=user_id,
+        ) from exc
+
+    user.email = new
+    user.email_verified = False
+    user.email_verified_at = None
+    user.updated_at = now
+    await _retire_address_bound_tokens(db, user_id, now)
+
+    try:
+        # `user.update` with `field: "email"`, the shape the Spanish-register
+        # relay uses for a field change: no new event name, so `audit_logger.py`
+        # (pinned by the hotfix images) stays as it is.
+        await AuditLogger(db).log(
+            event_type=AuditEventType.USER_UPDATE,
+            tenant_id=str(org),
+            identity_id=None,
+            resource_type="user",
+            resource_id=str(user_id),
+            details={
+                "actor": INTERNAL_API_KEY_PRINCIPAL,
+                "via": "internal.users.change_email",
+                "field": "email",
+                "previous_email_masked": redact_email(current),
+                "previous_email_hash": _email_fingerprint(current),
+                "new_email_masked": redact_email(new),
+                "new_email_hash": _email_fingerprint(new),
+                "sessions_revoked": sessions_revoked,
+            },
+            severity="info",
+        )
+    except Exception as exc:
+        # Best-effort, as in provision/suspend: a failed trail write must not
+        # block the change. Logged (exception type only, no address) so the gap
+        # is visible.
+        logger.warning(
+            "internal_user_change_email.audit_failed",
+            user_id=str(user_id),
+            organization_id=str(org),
+            error=type(exc).__name__,
+        )
+
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        # Another writer took the address between the check and the commit.
+        await db.rollback()
+        raise _refuse(
+            "email_in_use",
+            status.HTTP_409_CONFLICT,
+            EMAIL_IN_USE_DETAIL,
+            organization_id=org,
+            user_id=user_id,
+        ) from exc
+    await db.refresh(user)
+
+    logger.info(
+        "Changed user email via internal API",
+        user_id=str(user_id),
+        organization_id=str(org),
+        sessions_revoked=sessions_revoked,
+    )
+    return _change_response(user, changed=True, sessions_revoked=sessions_revoked)

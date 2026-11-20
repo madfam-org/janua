@@ -237,3 +237,30 @@ class SpanishFormalityWriteResponse(BaseModel):
     # What was stored before this call; None when the person had never been asked.
     previous_spanish_formality: Optional[str] = None
     changed: bool
+
+
+class ChangeEmailRequest(BaseModel):
+    """Change the sign-in address of a person an organization holds.
+
+    The person keeps their janua user id (the ``sub`` relying parties store),
+    their password and their second factor. Both addresses are compared
+    case-insensitively and validated as email addresses; ``user_id`` is
+    optional and, when sent, must be the id the call resolves (a guard for a
+    caller that already stores the ``sub``).
+    """
+
+    organization_id: UUID
+    current_email: EmailStr
+    new_email: EmailStr
+    user_id: Optional[UUID] = None
+
+
+class ChangeEmailResponse(BaseModel):
+    """Result of a change. ``changed`` is False when the address was already the new one."""
+
+    id: str
+    email: str
+    email_verified: bool
+    changed: bool
+    # Sessions this call revoked (0 on an idempotent repeat).
+    sessions_revoked: int

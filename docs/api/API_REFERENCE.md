@@ -844,6 +844,87 @@ Access tokens pick up a change at their next refresh; `/oauth/userinfo` and
 
 ---
 
+## Internal API — Sign-in Address Change
+
+Changes the address a person signs in with, for a person the calling
+organization holds, without changing who they are: the user id (the `sub`
+relying parties store) stays. Same `X-Internal-API-Key` authentication as every
+`/api/v1/internal/*` endpoint (missing header `422`, wrong key `401`,
+unconfigured key `503`).
+
+```http
+POST /api/v1/internal/users/change-email
+```
+
+```json
+{
+  "organization_id": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0",
+  "current_email": "persona@example.com",
+  "new_email": "persona.nueva@example.com",
+  "user_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+}
+```
+
+| Field | Rule |
+|---|---|
+| `organization_id` | required. The person must hold a membership there whose status is not `removed`. |
+| `current_email`, `new_email` | required, validated as addresses (`422` otherwise), compared trimmed and case-insensitively; the new one is stored lower-cased. |
+| `user_id` | optional. When sent, the resolved person must have this id (`409` otherwise). Callers that store the `sub` should send it. |
+
+**What a change does**, in one transaction:
+
+- `email` becomes the new address; `email_verified` becomes `false` and
+  `email_verified_at` NULL. Password, MFA, passkeys and linked social accounts
+  are not touched.
+- Every open session is revoked (`revoked_reason = "email_changed"`), with its
+  refresh-token family and current access/refresh JTIs on the revocation list,
+  so first-party and OIDC refresh tokens bound to those sessions stop working.
+  The revocation-list writes are strict: when Redis cannot take them the call
+  answers `503` and nothing is changed.
+- Outstanding password-reset links, magic links and verification links are
+  spent: they were mailed to the old address.
+- **No email is sent**, to either address.
+- One `audit_logs` row: `event_type` `user.update`, `resource_id` the person,
+  `details` = `field: "email"`, `actor: "internal-api-key"`,
+  `via: "internal.users.change_email"`, masked forms
+  (`pe***@example.com`) and keyed hashes (`hmac-sha256:` under `SECRET_KEY`) of
+  both addresses, `sessions_revoked`. The addresses themselves are never
+  written to the trail or the logs.
+
+**Response** `200`:
+```json
+{
+  "id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "email": "persona.nueva@example.com",
+  "email_verified": false,
+  "changed": true,
+  "sessions_revoked": 2
+}
+```
+
+Idempotent: when the organization's person already has `new_email` (a retry
+after success, or `current_email` equal to `new_email`) the answer is `200` with
+`changed: false`, `sessions_revoked: 0`, no audit row and no revocation.
+
+**Refusals.** Each writes one `internal_user_change_email.refused` log line
+with a `reason` (and the organization and user ids, never an address):
+
+| Status | `reason` | When |
+|---|---|---|
+| `404` | `not_found` / `not_a_member` | No such address, or its holder is not this organization's person (same body for both). |
+| `403` | `platform_admin` | The person is a platform administrator (`is_admin`). |
+| `403` | `service_account` | The identity is a technical account (`is_service_account`). |
+| `403` | `member_of_other_organization` | The person also holds an active membership in another organization: the address is their sign-in there too. |
+| `409` | `email_in_use` / `email_in_use_other_pool` | Another identity holds `new_email`, in the person's pool or in any other (an address in two pools makes magic link and password reset refuse it as ambiguous). Same body for both. |
+| `409` | `ambiguous_current_email` | More than one of the organization's people holds `current_email`. |
+| `409` | `user_id_mismatch` | `user_id` was sent and is not the person's id. |
+| `503` | `revocation_unavailable` | Redis could not record the revocations; nothing changed, retry. |
+
+The person signs in next with the new address (magic link, or password if they
+have one). Telling them is the caller's job: Janua sends nothing.
+
+---
+
 ## Internal API — Application Roles
 
 Service-to-service surface for sibling MADFAM apps. Authenticated with the

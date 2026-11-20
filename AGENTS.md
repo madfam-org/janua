@@ -576,6 +576,7 @@ pnpm test:e2e                    # Playwright E2E
 | Architecture | `docs/architecture/` |
 | Silent SSO, estate cookie, account switching; silent sign-in for marked public clients (B8, live 2026-11-18) | `docs/architecture/SILENT_SSO_SESSION.md` |
 | What production runs while promotion is held (base promotion + ordered hotfix images) | `deployment/hotfix/README.md` |
+| Change a person's sign-in address from a roster app (same user id, sessions revoked, no email sent): `POST /api/v1/internal/users/change-email` | `docs/api/API_REFERENCE.md#internal-api--sign-in-address-change` |
 | People in several organizations: `org_id`, application roles and the primary organization (set it whenever a membership is added) | `docs/guides/ECOSYSTEM_INTEGRATION.md#people-in-several-organizations-org_id-and-roles`, `docs/api/API_REFERENCE.md#internal-api--primary-organization` |
 | OAuth consent, revocation, passkeys, health and readiness (runbook hub) | `docs/runbooks/oauth-shared-state-redis.md` |
 | Protected resources (RFC 8707), CIMD, MCP clients such as Claude | `docs/reference/PROTECTED_RESOURCES_AND_MCP_CLIENTS.md`; after promote: `docs/runbooks/mcp-connector-post-promote.md` |
