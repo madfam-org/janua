@@ -884,8 +884,9 @@ POST /api/v1/internal/users/change-email
 - Outstanding password-reset links, magic links and verification links are
   spent: they were mailed to the old address.
 - **No email is sent**, to either address.
-- One `audit_logs` row: `event_type` `user.email_change`, `resource_id` the person,
-  `details` = `actor: "internal-api-key"`, `via`, masked forms
+- One `audit_logs` row: `event_type` `user.update`, `resource_id` the person,
+  `details` = `field: "email"`, `actor: "internal-api-key"`,
+  `via: "internal.users.change_email"`, masked forms
   (`pe***@example.com`) and keyed hashes (`hmac-sha256:` under `SECRET_KEY`) of
   both addresses, `sessions_revoked`. The addresses themselves are never
   written to the trail or the logs.

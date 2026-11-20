@@ -61,8 +61,8 @@ magic link and password reset refuse it as ambiguous. Refused, each with one
 administrators, technical accounts, people who also hold an active membership
 in another organization (the address is theirs across organizations), and
 people the organization does not hold. A repeat after success is a no-op
-(``changed: false``). The audit entry carries masked and keyed-hash forms of
-both addresses, never the addresses.
+(``changed: false``). The audit entry (``user.update``, ``field: "email"``)
+carries masked and keyed-hash forms of both addresses, never the addresses.
 
 Scope guarantee
 ---------------
@@ -963,8 +963,11 @@ async def change_user_email(
     await _retire_address_bound_tokens(db, user_id, now)
 
     try:
+        # `user.update` with `field: "email"`, the shape the Spanish-register
+        # relay uses for a field change: no new event name, so `audit_logger.py`
+        # (pinned by the hotfix images) stays as it is.
         await AuditLogger(db).log(
-            event_type=AuditEventType.USER_EMAIL_CHANGE,
+            event_type=AuditEventType.USER_UPDATE,
             tenant_id=str(org),
             identity_id=None,
             resource_type="user",
@@ -972,6 +975,7 @@ async def change_user_email(
             details={
                 "actor": INTERNAL_API_KEY_PRINCIPAL,
                 "via": "internal.users.change_email",
+                "field": "email",
                 "previous_email_masked": redact_email(current),
                 "previous_email_hash": _email_fingerprint(current),
                 "new_email_masked": redact_email(new),

@@ -152,7 +152,9 @@ async def test_change_keeps_the_user_id_and_unverifies_the_new_address(provision
 
     audit.assert_awaited_once()
     kwargs = audit.await_args.kwargs
-    assert kwargs["event_type"] == AuditEventType.USER_EMAIL_CHANGE
+    assert kwargs["event_type"] == AuditEventType.USER_UPDATE
+    assert kwargs["details"]["field"] == "email"
+    assert kwargs["details"]["via"] == "internal.users.change_email"
     assert kwargs["tenant_id"] == str(org)
     assert kwargs["resource_id"] == str(user_id)
     details = kwargs["details"]
