@@ -14,8 +14,8 @@ path. This module removes the class at the surface:
   the person's language, and when the request named a registered client it
   offers one button to that client's registered origin, which starts a fresh
   sign-in (the same restart as ``/login-expired``).
-- slowapi's 429 is not covered yet: its handler is registered in
-  ``app/main.py`` and is deferred (see docs/authentication-policy.md).
+- slowapi's 429 too (``rate_limit_exceeded_handler`` in core/error_handling):
+  a navigation gets the "Too many attempts" page.
 - API and JSON clients (``Accept: application/json``, ``fetch`` with
   ``Sec-Fetch-Mode: cors``, server-side callers) get exactly the envelope they
   got before, from the same handlers.

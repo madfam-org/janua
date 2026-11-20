@@ -10,7 +10,7 @@ logs one `auth.hosted_refusal` line with a reason code (rule R4).
 
 These run the real app against SQLite and an in-memory Redis, walking the
 roadmap rows that answered JSON: E-12/E-14 (second factor), E-19 (recovery on a
-gone request), E-22 (consent), E-23 (authorize with an unknown
+gone request), E-21 (rate limit), E-22 (consent), E-23 (authorize with an unknown
 client), E-26 (logout with an unknown client), plus a validation error.
 """
 
@@ -25,6 +25,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
+from starlette.requests import Request
 from structlog.testing import capture_logs
 
 from app.auth.hosted_errors import HOSTED_ERROR_PATH, is_hosted_route
@@ -329,6 +330,73 @@ async def test_validation_error_on_a_hosted_form_json_unchanged(env):
     response = await env.http.post("/api/v1/auth/login-form", data={}, headers=JSON)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+# --- E-21 / E-07: rate limit ---------------------------------------------------
+
+
+def _request(path, headers, method="POST"):
+    # tests/conftest.py replaces slowapi.Limiter with a mock that has no
+    # _inject_headers; slowapi's handler only needs that one method.
+    limiter = SimpleNamespace(_inject_headers=lambda response, _limit: response)
+    app = SimpleNamespace(state=SimpleNamespace(limiter=limiter))
+    return Request(
+        {
+            "type": "http",
+            "app": app,
+            "method": method,
+            "path": path,
+            "raw_path": path.encode(),
+            "query_string": b"",
+            "headers": [(k.encode(), v.encode()) for k, v in headers.items()],
+            "state": {"view_rate_limit": None},
+        }
+    )
+
+
+class _Limit:
+    error_message = None
+    limit = "3 per 1 hour"
+
+
+async def test_rate_limit_on_a_hosted_navigation_gets_the_page(env):
+    from slowapi.errors import RateLimitExceeded
+
+    from app.core.error_handling import rate_limit_exceeded_handler
+
+    response = await rate_limit_exceeded_handler(
+        _request("/api/v1/auth/forgot-password-form", NAVIGATE),
+        RateLimitExceeded(_Limit()),
+    )
+    _assert_page_redirect(response, reason="rate_limited", status=429)
+    page = await env.http.get(response.headers["location"], headers=NAVIGATE)
+    _assert_html_page(page, 429)
+    assert "Too many attempts" in page.text
+
+
+async def test_rate_limit_for_an_api_client_keeps_slowapis_body(env):
+    from slowapi.errors import RateLimitExceeded
+
+    from app.core.error_handling import rate_limit_exceeded_handler
+
+    for path, headers in (
+        ("/api/v1/auth/forgot-password-form", JSON),
+        ("/api/v1/auth/signin", NAVIGATE),
+    ):
+        response = await rate_limit_exceeded_handler(
+            _request(path, headers), RateLimitExceeded(_Limit())
+        )
+        assert response.status_code == 429
+        assert json.loads(response.body) == {"error": "Rate limit exceeded: 3 per 1 hour"}
+
+
+def test_the_app_registers_the_hosted_429_handler():
+    from slowapi.errors import RateLimitExceeded
+
+    from app.core.error_handling import rate_limit_exceeded_handler
+    from app.main import app
+
+    assert app.exception_handlers[RateLimitExceeded] is rate_limit_exceeded_handler
 
 
 # --- Scope and the page itself -------------------------------------------------
