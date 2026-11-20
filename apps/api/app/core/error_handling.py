@@ -289,6 +289,22 @@ def hosted_refusal_response(request: Request, exc: Any, status_code: int) -> Opt
     return _hosted(request, exc, status_code)
 
 
+async def rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
+    """slowapi's 429, except on a browser navigation of a hosted route (page).
+
+    A person double-pressing a hosted form, or an office behind one address,
+    used to get slowapi's JSON body (roadmap E-07/E-21). The navigation now
+    lands on the hosted error page ("Too many attempts", reason
+    `rate_limited`); API callers keep slowapi's body and headers.
+    """
+    from slowapi import _rate_limit_exceeded_handler
+
+    hosted = hosted_refusal_response(request, exc, status.HTTP_429_TOO_MANY_REQUESTS)
+    if hosted is not None:
+        return hosted
+    return _rate_limit_exceeded_handler(request, exc)
+
+
 # Custom exception handlers for FastAPI
 async def api_exception_handler(request: Request, exc: APIException) -> Response:
     """Handler for custom API exceptions"""
