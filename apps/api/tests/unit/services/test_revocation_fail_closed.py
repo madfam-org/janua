@@ -37,6 +37,7 @@ from app.core.redis_circuit_breaker import (
     RedisUnavailableError,
     ResilientRedisClient,
 )
+from app.services import refresh_grace
 from app.services.auth_service import AuthService
 
 pytestmark = pytest.mark.asyncio
@@ -209,7 +210,10 @@ class TestRefreshTokens:
         assert await client.strict_get(f"blacklist:{jti}") == "1"
         db.commit.assert_awaited()
 
-    async def test_reused_refresh_token_stays_refused(self):
+    async def test_reused_refresh_token_stays_refused(self, monkeypatch):
+        # Strict single use, as with the D5 grace window off or past it (the
+        # window itself: tests/unit/routers/test_refresh_rotation_grace.py).
+        monkeypatch.setattr(refresh_grace, "REFRESH_REUSE_GRACE_SECONDS", 0)
         _, client = _redis()
         token, _, _, session = _refresh_token()
         p = _refresh_patches()

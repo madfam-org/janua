@@ -6,14 +6,14 @@ from uuid import UUID, uuid4
 
 import jwt
 import structlog
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.redis import SessionStore, get_redis
 from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import AuditLog, Session, User
-from app.services import token_revocation
+from app.services import refresh_grace, token_revocation
 from app.services.auth_account_methods import AuthAccountMethods, pwd_context  # noqa: F401
 
 logger = structlog.get_logger()
@@ -510,19 +510,36 @@ class AuthService(AuthAccountMethods):
         or deactivated by family revocation. The row check is what makes a
         revocation stick even when the Redis write behind it was lost.
         """
+        # A repeat of the token a concurrent refresh just rotated away: the pair
+        # that rotation issued (D5). Checked before the revocation list, which
+        # already holds the rotated-away JTI.
+        repeated = await AuthService._refresh_grace_answer(db, refresh_token)
+        if repeated is not None:
+            return repeated
+
         # Verify refresh token
         payload = await AuthService.verify_token(refresh_token, token_type="refresh")
         if not payload:
-            return None
+            # Rotated away by a concurrent refresh since the check above (its
+            # grace record is written before its blacklist entry).
+            return await AuthService._refresh_grace_answer(db, refresh_token)
 
         # The row this refresh token is the current token of. Looked up by JTI
-        # alone: a revoked row must be told apart from a JTI no row holds.
+        # alone: a revoked row must be told apart from a JTI no row holds. Read
+        # under a lock, so of two concurrent refreshes one waits for the other.
         result = await db.execute(
-            select(Session).where(Session.refresh_token_jti == payload.get("jti"))
+            select(Session)
+            .where(Session.refresh_token_jti == payload.get("jti"))
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         session = result.scalar_one_or_none()
 
         if not session:
+            # The concurrent refresh that held the lock rotated it meanwhile.
+            repeated = await AuthService._refresh_grace_answer(db, refresh_token, wait=True)
+            if repeated is not None:
+                return repeated
             logger.warning(
                 "Refresh token is not the current token of any session", jti=payload.get("jti")
             )
@@ -614,7 +631,7 @@ class AuthService(AuthAccountMethods):
             },
         )
 
-        refresh_token, refresh_jti, family, refresh_expires = AuthService.create_refresh_token(
+        refresh_token_new, refresh_jti, family, refresh_expires = AuthService.create_refresh_token(
             user_id=str(user.id),
             tenant_id=str(user.tenant_id),
             family=payload.get("family"),  # Keep same family for rotation tracking
@@ -622,14 +639,52 @@ class AuthService(AuthAccountMethods):
             audience=payload.get("session_audience"),
         )
 
-        # Update session
+        # Rotate with a compare-and-set on the JTI this request presented, so
+        # exactly one of two concurrent refreshes rotates (the row lock above
+        # already serializes them on PostgreSQL; this also holds without it).
+        now = datetime.utcnow()
+        rotated = await db.execute(
+            update(Session)
+            .where(Session.id == session.id, Session.refresh_token_jti == payload.get("jti"))
+            .values(
+                access_token_jti=access_jti,
+                refresh_token_jti=refresh_jti,
+                last_activity=now,
+                expires_at=refresh_expires,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if rotated.rowcount == 0:
+            # Nothing was written here; the winner's rotation is committing.
+            repeated = await AuthService._refresh_grace_answer(db, refresh_token, wait=True)
+            if repeated is not None:
+                return repeated
+            logger.warning("Refresh lost a concurrent rotation", session_id=str(session.id))
+            return None
+        # Keep the loaded row in step with what was written.
         session.access_token_jti = access_jti
         session.refresh_token_jti = refresh_jti
-        session.last_activity = datetime.utcnow()
+        session.last_activity = now
         session.expires_at = refresh_expires
 
-        # Blacklist old refresh token
         redis = await get_redis()
+        # The grace record goes first, before the blacklist and the commit: a
+        # refresh refused by the blacklist, or waiting on the row lock, finds
+        # it as soon as either is visible.
+        await refresh_grace.remember(
+            redis,
+            refresh_token,
+            payload.get("jti"),
+            {
+                "session_id": str(session.id),
+                "family": payload.get("family"),
+                "refresh_jti": refresh_jti,
+                "access_token": access_token,
+                "refresh_token": refresh_token_new,
+            },
+        )
+
+        # Blacklist old refresh token
         await _blacklist_jti(
             redis,
             payload.get("jti"),
@@ -640,7 +695,19 @@ class AuthService(AuthAccountMethods):
         await db.commit()
 
         logger.info("Tokens refreshed", session_id=str(session.id), user_id=str(user.id))
-        return access_token, refresh_token
+        return access_token, refresh_token_new
+
+    @staticmethod
+    async def _refresh_grace_answer(
+        db: AsyncSession, refresh_token: str, *, wait: bool = False
+    ) -> Optional[Tuple[str, str]]:
+        """The pair a rotation of THIS token issued moments ago (see refresh_grace)."""
+        if refresh_grace.REFRESH_REUSE_GRACE_SECONDS <= 0:
+            return None
+        claims = AuthService._decode_token(refresh_token, "refresh")
+        return await refresh_grace.grace_answer(
+            db, refresh_token, claims, await get_redis(), wait=wait
+        )
 
     @staticmethod
     async def revoke_token_family(db: AsyncSession, family: str):

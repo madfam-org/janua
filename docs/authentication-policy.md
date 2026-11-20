@@ -166,6 +166,30 @@ JWTs validated offline by a relying party remain valid until their expiration.
 An immediate cutover requires a separately reviewed session-expiry strategy;
 changing policy alone must not be represented as instant revocation.
 
+### Refresh under concurrency
+
+Roadmap item 1.3 (rule R7; window length = owner decision D5). Two tabs, a
+server render plus the browser, or a client retrying on a slow network refresh
+the same session at once. Before, both rotated, and the loser's next refresh
+revoked the whole family, signing every tab out.
+
+- `AuthService.refresh_tokens` reads the session row `FOR UPDATE` and rotates
+  with `UPDATE … WHERE id = :id AND refresh_token_jti = :presented`. Exactly
+  one concurrent request rotates.
+- The rotation stores the pair it issued under
+  `auth:refresh:grace:<sha256(old jti)>` for `REFRESH_REUSE_GRACE_SECONDS`
+  (environment variable read by `app/services/refresh_grace.py`; default 30,
+  `0` restores strict single use). It is encrypted (Fernet) with a key derived
+  from the rotated-away token, so only a holder of that exact token can read
+  it. It is written before the rotation blacklist and the commit.
+- A repeat of the rotated-away token within the window gets that same pair
+  when its signature and family check out, the session row is live, and the row
+  still holds the JTI that rotation issued. Otherwise the old rules apply: the
+  blacklist refuses it, and a JTI no session holds revokes the family.
+- Not covered: the protected-resource (MCP connector) refresh, which keeps strict
+  single use (`oauth.resource_refresh.reuse_detected`), and the OIDC
+  `refresh_token` grant (roadmap 1.4).
+
 ## Schema and rollout
 
 Migration `020_org_authentication_policy` adds policy/history tables and session
