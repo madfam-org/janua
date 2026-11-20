@@ -62,6 +62,42 @@ on a back/forward-cache restore or after 20 s. Without script the forms work as
 before and the server behaviour above still holds. Operator log reading:
 [oauth-shared-state-redis.md](runbooks/oauth-shared-state-redis.md#a-sign-in-that-lands-on-request-expired).
 
+### Errors on hosted pages never answer JSON
+
+Roadmap item 0.2 (rule R1) generalises janua#841 to every hosted route. When
+a request to a hosted page or form POST fails and the request is a browser
+navigation, the global error handlers answer `303` to `GET /api/v1/auth/error`
+instead of the JSON envelope:
+
+- **Hosted routes:** `GET /api/v1/auth/login`, `POST /auth/login-form`,
+  `/auth/login-form/mfa`, `/auth/login-form/magic-link`, `/auth/login-expired`,
+  `/auth/factor/*`, `/auth/security`, `/auth/forgot-password[-form]`,
+  `/auth/reset-password[-form]`, `/auth/magic-link/callback`,
+  `/auth/switch-session/form`, `/api/v1/oauth/authorize[/resume]`,
+  `/oauth/consent` and `/logout`. Exact paths (`app/auth/hosted_errors.py`).
+- **Navigation:** `Sec-Fetch-Mode: navigate`; without `Sec-Fetch-Mode`, an
+  `Accept` that names `text/html`. A `fetch` (`Sec-Fetch-Mode: cors`) and any
+  `Accept: application/json` caller keep the envelope exactly as before.
+- **Handlers:** `HTTPException`, request validation (422), `APIException` and
+  `JanuaAPIException`. A Redis outage already had its own HTML 503 page and is
+  unchanged. **Not yet covered:** the rate limit (429, roadmap E-07/E-21)
+  still answers slowapi's own body, because its handler is registered in
+  `app/main.py`; wrapping it is a one-line registration change there.
+- **The page:** fixed copy by status class (the request cannot continue; too
+  many attempts; something went wrong), in the person's language
+  (`ui_locales` from the query or the form, else `Accept-Language`, else
+  English), with the reason code and request id as a reference. It never
+  prints the exception's message or any other request value. When the request
+  named a client, the one button opens that client's registered origin, looked
+  up server-side (the same restart as `/login-expired`). Strict CSP,
+  `Cache-Control: no-store`, and a refresh is a GET.
+- **Log:** every refusal on a hosted route, page or JSON, logs one
+  `auth.hosted_refusal` line with `reason` (the exception's own reason when it
+  declares one, e.g. `login_request_expired`, else one derived from the status:
+  `bad_request`, `not_authenticated`, `forbidden`, `invalid_request`,
+  …), `route`, `method`, `status_code`, `client_id`,
+  `request_id` and `answer` (`html` or `json`). No email, person id or token.
+
 ## Technical-direction MFA floor
 
 The product's real staff lifecycle synchronizes the reserved live grant

@@ -17,6 +17,7 @@ from app.auth.authentication_assurance import (
     assurance_for_request,
     user_requires_mfa,
 )
+from app.auth.hosted_errors import router as hosted_errors_router
 from app.auth.tenant_login_context import login_client_context, user_in_client_pool
 from app.core.redis import get_redis
 from app.database import get_db
@@ -25,6 +26,8 @@ from app.services.account_lockout_service import AccountLockoutService
 from app.services.auth_service import AuthService
 
 router = APIRouter()
+# GET /api/v1/auth/error, the page refused browser navigations land on (roadmap 0.2).
+router.include_router(hosted_errors_router)
 COOKIE = "__Host-janua_factor_flow"
 TTL = 600
 
