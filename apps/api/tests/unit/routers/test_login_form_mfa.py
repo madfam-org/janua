@@ -204,3 +204,51 @@ async def test_password_form_challenges_enrolled_user_with_flag_off(mfa_form_cli
     assert resp.status_code != 302
     assert "Confirma tu segundo factor" in resp.text
     assert "janua_access_token=" not in " ".join(resp.headers.get_list("set-cookie"))
+
+
+# --- Replay safety (roadmap 1.1, E-15) -----------------------------------------
+
+
+async def _failed_attempts(client):
+    async with client.__dict__["_session_factory"]() as session:
+        user = await session.get(User, uuid.UUID(client.__dict__["_seeded_user_id"]))
+        return user.failed_login_attempts or 0
+
+
+@pytest.mark.asyncio
+async def test_double_submit_from_the_same_browser_lands_where_the_first_went(mfa_form_client):
+    from app.auth.hosted_replay import BROWSER_COOKIE
+
+    user_id = mfa_form_client.__dict__["_seeded_user_id"]
+    form = {
+        "mfa_token": _mint_challenge(user_id),
+        "code": pyotp.TOTP(TEST_SECRET).now(),
+        "next": "/dashboard",
+    }
+    browser = {"cookie": f"{BROWSER_COOKIE}={'b' * 43}"}
+    first = await mfa_form_client.post(MFA_FORM_URL, data=form, headers=browser)
+    second = await mfa_form_client.post(MFA_FORM_URL, data=form, headers=browser)
+    assert first.status_code == second.status_code == 302, second.text
+    assert second.headers["location"] == first.headers["location"] == "/dashboard"
+    assert "janua_access_token=" in " ".join(second.headers.get_list("set-cookie"))
+    # The spent code was never checked again, so nothing counts as a failure.
+    assert await _failed_attempts(mfa_form_client) == 0
+
+
+@pytest.mark.asyncio
+async def test_double_submit_without_the_binding_is_refused_without_a_failed_attempt(
+    mfa_form_client,
+):
+    user_id = mfa_form_client.__dict__["_seeded_user_id"]
+    form = {
+        "mfa_token": _mint_challenge(user_id),
+        "code": pyotp.TOTP(TEST_SECRET).now(),
+        "next": "/dashboard",
+    }
+    assert (await mfa_form_client.post(MFA_FORM_URL, data=form)).status_code == 302
+    second = await mfa_form_client.post(MFA_FORM_URL, data=form)
+    assert second.status_code == 401
+    assert "Esta verificación ya se utilizó" in second.text
+    assert "janua_access_token=" not in " ".join(second.headers.get_list("set-cookie"))
+    # Before: the spent code went through the TOTP check and counted as a failure.
+    assert await _failed_attempts(mfa_form_client) == 0

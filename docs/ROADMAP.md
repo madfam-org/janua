@@ -539,7 +539,7 @@ with a test per case:
 
 Done on `main` (not yet in production): an error-page catch-all for every hosted
 route, so no browser navigation answers JSON (the 429 rate-limit body is still
-pending), and one `auth.hosted_refusal` log line per refusal ([authentication-policy.md](./authentication-policy.md#errors-on-hosted-pages-never-answer-json)).
+pending), and one `auth.hosted_refusal` log line per refusal ([authentication-policy.md](./authentication-policy.md#errors-on-hosted-pages-never-answer-json)). A repeated press on the second-factor, consent and reset forms from the same browser lands where the first press went ([authentication-policy.md](./authentication-policy.md#a-repeated-press-on-a-hosted-form)).
 
 No target date; each case ships as its own change with the hotfix process while
 the promotion hold stands (`deployment/hotfix/README.md`).

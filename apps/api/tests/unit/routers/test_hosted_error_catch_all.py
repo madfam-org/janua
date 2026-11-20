@@ -162,7 +162,7 @@ async def test_factor_double_submit_navigation_gets_the_page_not_json(env):
             data={"flow_id": "gone", "code": "123456"},
             headers={**NAVIGATE, "accept-language": "es-MX,es;q=0.9,en;q=0.5"},
         )
-    location = _assert_page_redirect(response, reason="bad_request", status=400, locale="es")
+    location = _assert_page_redirect(response, reason="factor_expired", status=400, locale="es")
     page = await env.http.get(location, headers=NAVIGATE)
     _assert_html_page(page, 400)
     assert '<html lang="es-MX">' in page.text
@@ -170,7 +170,7 @@ async def test_factor_double_submit_navigation_gets_the_page_not_json(env):
     # Never the exception's own message, only fixed copy.
     assert "La verificación venció" not in page.text
     [line] = _refusals(logs)
-    assert line["reason"] == "bad_request"
+    assert line["reason"] == "factor_expired"
     assert line["route"] == "/api/v1/auth/factor/complete"
     assert line["status_code"] == 400 and line["answer"] == "html"
     assert "member@example.com" not in json.dumps(line, default=str)
@@ -187,7 +187,7 @@ async def test_factor_from_another_browser_navigation_gets_the_page(env):
         data={"flow_id": "flow-1", "code": "123456"},
         headers=HTML,
     )
-    _assert_page_redirect(response, reason="forbidden", status=403)
+    _assert_page_redirect(response, reason="factor_other_browser", status=403)
 
 
 async def test_factor_json_client_keeps_the_envelope_byte_for_byte(env):
