@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.authentication_assurance import has_mfa_assurance
 from app.auth.hosted_locale import UI_LOCALES_PARAM, hosted_locale, page_locale, with_ui_locales
+from app.auth.hosted_replay import ensure_browser_cookie
 from app.auth.invite_only_page import render_invite_only_refusal
 from app.auth.login_method import normalize_login_method
 from app.auth.sessions_cookie import SESSIONS_COOKIE_NAME, read_sessions_cookie
@@ -761,7 +762,9 @@ async def authorize_get(
 </body>
 </html>
 """
-        return HTMLResponse(content=consent_html)
+        consent_page = HTMLResponse(content=consent_html)
+        ensure_browser_cookie(request, consent_page)  # binding for a repeat press
+        return consent_page
 
     # User has consented - generate authorization code
     auth_code = secrets.token_urlsafe(32)

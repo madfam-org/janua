@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 import pyotp
+import structlog
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
@@ -16,12 +17,14 @@ from app.auth.authentication_assurance import (
     assurance_for_request,
     user_requires_mfa,
 )
+from app.auth.hosted_errors import HostedRefusal
 from app.auth.hosted_errors import router as hosted_errors_router
 
 # The fixed issuer-owned CSS and its CSP live in hosted_page_style (shared with
 # the hosted error page). SECURITY_CSP stays importable from here (the
 # security-headers middleware reads it from this module).
 from app.auth.hosted_page_style import SECURITY_CSP, SECURITY_CSS
+from app.auth.hosted_replay import grant_replay, replay_payload, revoke_replay
 from app.auth.tenant_login_context import login_client_context, user_in_client_pool
 from app.core.redis import get_redis
 from app.database import get_db
@@ -29,6 +32,7 @@ from app.models import User, UserStatus
 from app.services.account_lockout_service import AccountLockoutService
 from app.services.auth_service import AuthService
 
+logger = structlog.get_logger()
 router = APIRouter()
 # GET /api/v1/auth/error, the page refused browser navigations land on (roadmap 0.2).
 router.include_router(hosted_errors_router)
@@ -141,30 +145,88 @@ async def start_factor_flow(
     return response
 
 
+#: Replay-grant kind for this flow (app/auth/hosted_replay.py).
+REPLAY_KIND = "factor"
+
+
+def _binding_hash(request):
+    binding = request.cookies.get(COOKIE, "")
+    return hashlib.sha256(binding.encode()).hexdigest() if binding else None
+
+
+async def _replay_factor(request, db, redis, payload):
+    """A repeat press from the browser that completed this flow moments ago.
+
+    It lands where the first press went, with a fresh session, like the
+    magic-link replay: the first answer may never have reached the screen (a
+    double press cancels the navigation in flight, 2026-11-19). The code is not
+    checked again (its time step is spent); the replay grant, the browser
+    binding and the window are the proof. Nothing else is issued: no factor is
+    enrolled twice and no recovery codes are shown again.
+    """
+    from app.routers.v1.auth import _resolve_oauth_redirect_target, _set_session_cookies
+
+    result = await db.execute(select(User).where(User.id == payload["user_id"]))
+    user = result.scalar_one_or_none()
+    if user is None or user.status != UserStatus.ACTIVE or not user.is_active:
+        raise HostedRefusal(403, "Esta cuenta no está activa", reason="account_inactive")
+    access, refresh, session = await AuthService.create_session(
+        db,
+        user,
+        authentication_methods=payload["methods"],
+        authenticated_at=datetime.utcfromtimestamp(payload["auth_time"]),
+        mfa_verified_at=datetime.utcfromtimestamp(payload["mfa_verified_at"]),
+        audience=payload.get("audience"),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    target = await _resolve_oauth_redirect_target(
+        auth_request_id=payload["auth_request_id"],
+        client_id=payload["client_id"],
+        next_url=payload["next"],
+        redis=redis,
+        db=db,
+    )
+    logger.info("auth.factor.replay", client_id=payload["client_id"])
+    response = RedirectResponse(target, 303)
+    _set_session_cookies(response, access, refresh, user=user, session=session, request=request)
+    return response
+
+
+async def _replay_or_used(request, db, redis, flow_id, binding_hash):
+    payload = await replay_payload(redis, REPLAY_KIND, flow_id, binding_hash=binding_hash)
+    if payload is not None:
+        return await _replay_factor(request, db, redis, payload)
+    raise HostedRefusal(400, "La verificación ya se utilizó", reason="factor_already_used")
+
+
 @router.post("/factor/complete")
 async def complete_factor(
     request: Request, flow_id: str = Form(...), code: str = Form(...), db=Depends(get_db)
 ):
-    from app.routers.v1.auth import _resolve_oauth_redirect_target, _set_session_cookies
     from app.routers.v1.mfa import (
         consume_backup_code,
         consume_totp,
-        generate_backup_codes,
-        hash_backup_code,
     )
 
     redis = await get_redis()
+    binding_hash = _binding_hash(request)
     raw = await redis.strict_get("auth:factor:" + flow_id)
     if not raw:
-        raise HTTPException(400, "La verificación venció. Vuelve a iniciar sesión.")
+        # Completed moments ago by THIS browser: land where that press went.
+        payload = await replay_payload(redis, REPLAY_KIND, flow_id, binding_hash=binding_hash)
+        if payload is not None:
+            return await _replay_factor(request, db, redis, payload)
+        raise HostedRefusal(
+            400, "La verificación venció. Vuelve a iniciar sesión.", reason="factor_expired"
+        )
     data = json.loads(raw)
-    binding = request.cookies.get(COOKIE, "")
-    if not binding or not secrets.compare_digest(
-        data["binding"], hashlib.sha256(binding.encode()).hexdigest()
-    ):
-        raise HTTPException(403, "La verificación pertenece a otro navegador")
+    if not binding_hash or not secrets.compare_digest(data["binding"], binding_hash):
+        raise HostedRefusal(
+            403, "La verificación pertenece a otro navegador", reason="factor_other_browser"
+        )
     if await redis.strict_exists("auth:factor:used:" + flow_id):
-        raise HTTPException(400, "La verificación ya se utilizó")
+        return await _replay_or_used(request, db, redis, flow_id, binding_hash)
     # A bounded, atomic attempt budget independent of IP and token reminting.
     admitted = False
     for attempt in range(5):
@@ -187,6 +249,11 @@ async def complete_factor(
         .execution_options(populate_existing=True)
     )
     user = result.scalar_one_or_none()
+    # A concurrent press of the same form waited on the row lock above until the
+    # first press committed; it finds the claim now and replays instead of
+    # spending a code that is already spent.
+    if await redis.strict_exists("auth:factor:used:" + flow_id):
+        return await _replay_or_used(request, db, redis, flow_id, binding_hash)
     if user is None or user.status != UserStatus.ACTIVE or not user.is_active:
         raise HTTPException(403, "Esta cuenta no está activa")
     org_id = getattr(client, "organization_id", None) or user.tenant_id
@@ -222,7 +289,43 @@ async def complete_factor(
             _form(flow_id, data["setup_secret"], "El código no es válido.", account=user.email), 401
         )
     if not await redis.strict_set_nx("auth:factor:used:" + flow_id, "1", ex=TTL):
-        raise HTTPException(400, "La verificación ya se utilizó")
+        return await _replay_or_used(request, db, redis, flow_id, binding_hash)
+    now = datetime.utcnow()
+    methods = list(dict.fromkeys([*data["methods"], "otp"]))
+    # The replay grant is written with the claim, before anything commits, so
+    # a press waiting on the row lock finds it as soon as it gets the row.
+    await grant_replay(
+        redis,
+        REPLAY_KIND,
+        flow_id,
+        binding_hash=binding_hash,
+        payload={
+            "user_id": str(user.id),
+            "methods": methods,
+            "auth_time": data["auth_time"],
+            "mfa_verified_at": int(now.replace(tzinfo=timezone.utc).timestamp()),
+            "auth_request_id": data["auth_request_id"],
+            "client_id": data["client_id"],
+            "next": data["next"],
+            "audience": getattr(client, "audience", None),
+        },
+    )
+    try:
+        return await _finish_factor(
+            request, db, redis, user, data, flow_id, secret, client, methods, now
+        )
+    except Exception:
+        # Consume after commit (R3): a failure before the session committed
+        # leaves the flow usable with a new code, and nothing to replay.
+        await redis.strict_delete("auth:factor:used:" + flow_id)
+        await revoke_replay(redis, REPLAY_KIND, flow_id)
+        raise
+
+
+async def _finish_factor(request, db, redis, user, data, flow_id, secret, client, methods, now):
+    from app.routers.v1.auth import _resolve_oauth_redirect_target, _set_session_cookies
+    from app.routers.v1.mfa import generate_backup_codes, hash_backup_code
+
     backup_codes = []
     if data["setup_secret"]:
         backup_codes = generate_backup_codes()
@@ -235,8 +338,6 @@ async def complete_factor(
             }
             for value in backup_codes
         ]
-    now = datetime.utcnow()
-    methods = list(dict.fromkeys([*data["methods"], "otp"]))
     access, refresh, session = await AuthService.create_session(
         db,
         user,
@@ -272,7 +373,8 @@ async def complete_factor(
     else:
         response = RedirectResponse(target, 303)
     _set_session_cookies(response, access, refresh, user=user, session=session, request=request)
-    response.delete_cookie(COOKIE, path="/")
+    # The binding cookie stays until its max-age (the flow's TTL): a repeat press
+    # within the replay window must still prove it is this browser.
     return response
 
 

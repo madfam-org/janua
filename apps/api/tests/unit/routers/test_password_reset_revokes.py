@@ -206,7 +206,9 @@ class TestResetRevokesEverySession:
             },
         )
 
-        assert resp.status_code == 200, resp.text
+        # POST/redirect/GET: the done page is a GET (roadmap 1.1).
+        assert resp.status_code == 303, resp.text
+        assert resp.headers["location"].startswith("/api/v1/auth/reset-password/done?")
         assert (await _refresh(env, refresh)).status_code == 401
 
     async def test_a_user_signed_in_nowhere_resets(self, env):
@@ -259,3 +261,57 @@ class TestResetFailsClosedWhenRedisIsDown:
         assert resp.headers["retry-after"].isdigit()
         assert "text/html" in resp.headers["content-type"]
         assert (await _reset_row(env, token)).used is False
+
+
+class TestResetFormReplay:
+    """Roadmap 1.1: the hosted reset form is POST/redirect/GET, and a repeat
+    submit from the browser that just saved the password lands on the same
+    done page instead of «this link is invalid or has expired» (E-20)."""
+
+    @staticmethod
+    def _form(token):
+        return {"token": token, "new_password": NEW_PASSWORD, "confirm_password": NEW_PASSWORD}
+
+    async def test_the_form_page_gives_the_browser_a_binding(self, env):
+        from app.auth.hosted_replay import BROWSER_COOKIE
+
+        page = await env.http.get("/api/v1/auth/reset-password", params={"token": "t" * 32})
+        assert page.headers["set-cookie"].startswith(BROWSER_COOKIE + "=")
+
+    async def test_double_submit_from_the_same_browser_lands_on_the_done_page(self, env):
+        from app.auth.hosted_replay import BROWSER_COOKIE
+
+        token = await _reset_token(env)
+        browser = {"cookie": f"{BROWSER_COOKIE}={'b' * 43}"}
+        url = "/api/v1/auth/reset-password-form"
+        first = await env.http.post(url, data=self._form(token), headers=browser)
+        second = await env.http.post(url, data=self._form(token), headers=browser)
+        assert first.status_code == second.status_code == 303, second.text
+        assert second.headers["location"] == first.headers["location"]
+        done = await env.http.get(first.headers["location"])
+        assert done.status_code == 200
+        assert "Your password has been updated" in done.text
+        # A refresh of the result is a GET of the same page.
+        assert (await env.http.get(first.headers["location"])).status_code == 200
+
+    async def test_double_submit_from_another_browser_gets_the_honest_page(self, env):
+        from app.auth.hosted_replay import BROWSER_COOKIE
+
+        token = await _reset_token(env)
+        url = "/api/v1/auth/reset-password-form"
+        first = await env.http.post(
+            url, data=self._form(token), headers={"cookie": f"{BROWSER_COOKIE}={'b' * 43}"}
+        )
+        assert first.status_code == 303
+        other = await env.http.post(
+            url, data=self._form(token), headers={"cookie": f"{BROWSER_COOKIE}={'c' * 43}"}
+        )
+        assert other.status_code == 400
+        assert "This reset link is invalid or has expired" in other.text
+
+    async def test_a_gone_done_page_still_says_the_password_was_saved(self, env):
+        page = await env.http.get(
+            "/api/v1/auth/reset-password/done", params={"ref": "x" * 22, "ui_locales": "es"}
+        )
+        assert page.status_code == 200
+        assert '<html lang="es-MX">' in page.text

@@ -37,7 +37,7 @@ from typing import Any, Optional
 from urllib.parse import urlencode
 
 import structlog
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.auth.hosted_locale import (
@@ -54,6 +54,19 @@ logger = structlog.get_logger()
 #: Included by app/auth/hosted_security.py's router, which the /auth router
 #: includes, so "/error" here is GET /api/v1/auth/error.
 router = APIRouter()
+
+
+class HostedRefusal(HTTPException):
+    """An HTTPException with a stable `reason` code for the refusal log line.
+
+    Same status and detail as before for API callers (the JSON envelope is
+    unchanged); a browser navigation gets the hosted error page.
+    """
+
+    def __init__(self, status_code: int, detail: str, *, reason: str):
+        super().__init__(status_code, detail)
+        self.reason = reason
+
 
 #: The GET page every refused navigation on a hosted route lands on.
 HOSTED_ERROR_PATH = "/api/v1/auth/error"

@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.authentication_assurance import has_mfa_assurance
 from app.auth.authorize_resume import authorize_query
+from app.auth.hosted_replay import ensure_browser_cookie
 from app.auth.login_method import normalize_login_method
 from app.auth.resource_consent_page import render_resource_consent_page
 from app.core.protected_resources import (
@@ -464,7 +465,9 @@ async def _authorize_protected_resource(
         auth_request_id=auth_request_id,
         csrf_token=csrf_token,
     )
-    return HTMLResponse(content=page, headers={"Cache-Control": "no-store"})
+    response = HTMLResponse(content=page, headers={"Cache-Control": "no-store"})
+    ensure_browser_cookie(request, response)  # binding for a repeat press
+    return response
 
 
 async def _complete_protected_resource_consent(

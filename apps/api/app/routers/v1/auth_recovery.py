@@ -8,6 +8,7 @@ patch target reaches every caller.
 
 import hashlib
 import json
+import re
 import secrets
 import uuid
 from datetime import datetime, timedelta
@@ -20,6 +21,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.hosted_locale import (
+    DEFAULT_HOSTED_LOCALE,
+    UI_LOCALES_PARAM,
     hidden_ui_locales_field,
     hosted_copy,
     hosted_locale,
@@ -28,6 +31,14 @@ from app.auth.hosted_locale import (
     ui_locales_query,
 )
 from app.auth.hosted_locale import html_lang as hosted_html_lang
+from app.auth.hosted_replay import (
+    browser_binding_hash,
+    ensure_browser_cookie,
+    grant_replay,
+    revoke_replay,
+    update_replay,
+    wait_for_replay,
+)
 from app.config import settings
 from app.core.redis_circuit_breaker import RedisUnavailableError
 from app.database import get_db
@@ -455,7 +466,9 @@ async def forgot_password_form(
 
 
 @router.get("/reset-password")
-async def reset_password_page(token: Optional[str] = None, ui_locales: Optional[str] = None):
+async def reset_password_page(
+    request: Request, token: Optional[str] = None, ui_locales: Optional[str] = None
+):
     """Hosted reset page — the reset email's default landing since 2026-08-13.
 
     The previous default pointed at the product frontend, whose
@@ -479,9 +492,66 @@ async def reset_password_page(token: Optional[str] = None, ui_locales: Optional[
         <div class="footer">{c["footer"]}</div>
         """
         return HTMLResponse(content=_reset_page_html(body, locale), status_code=400)
-    return HTMLResponse(
+    form_page = HTMLResponse(
         content=_reset_page_html(_reset_form_body(token, locale=locale), locale),
         headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+    )
+    # The binding a repeat submit of this form must present (replay window).
+    ensure_browser_cookie(request, form_page)
+    return form_page
+
+
+#: Replay-grant kind for the reset POST, and how long its done page is readable.
+RESET_REPLAY_KIND = "reset"
+_RESET_DONE_TTL_SECONDS = 600
+_RESET_DONE_REF = re.compile(r"^[A-Za-z0-9_-]{16,64}$")
+
+
+def _reset_done_url(ref: str, locale: str) -> str:
+    params = {"ref": ref}
+    if locale != DEFAULT_HOSTED_LOCALE:
+        params[UI_LOCALES_PARAM] = locale
+    return f"/api/v1/auth/reset-password/done?{urlencode(params)}"
+
+
+@router.get("/reset-password/done", include_in_schema=False)
+async def reset_password_done_page(ref: Optional[str] = None, ui_locales: Optional[str] = None):
+    """«Password saved», as a GET page (POST/redirect/GET, roadmap 1.1).
+
+    The reset POST stores what this page shows under a random `ref` and answers
+    303 here, so a refresh never submits the form again. A gone or unknown
+    `ref` still says the password was saved, without a return link.
+    """
+    import html
+
+    from fastapi.responses import HTMLResponse
+
+    page = None
+    if ref and _RESET_DONE_REF.match(ref):
+        redis = await _auth_shared.get_redis()
+        raw = await redis.strict_get("auth:reset:done:" + ref)
+        if raw:
+            page = json.loads(raw)
+    if page and page.get("target"):
+        return HTMLResponse(
+            content=_recovery_page_html(
+                "<h1>Contraseña guardada</h1><p>Tu contraseña ya está lista. Tus sesiones anteriores se cerraron.</p>"
+                '<a href="'
+                + html.escape(page["target"], quote=True)
+                + '">Volver a entrar al MAP</a>',
+                lang="es",
+            ),
+            headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+        )
+    locale = page_locale(page.get("locale") if page else ui_locales)
+    c = hosted_copy(locale)
+    body = f"""
+        <div class="logo"><h1>&#128274; Janua</h1><p>{c["reset_done_tagline"]}</p></div>
+        <div class="alert-ok">{c["reset_done"]}</div>
+        <div class="footer">{c["footer"]}</div>
+        """
+    return HTMLResponse(
+        content=_reset_page_html(body, locale), headers={"Cache-Control": "no-store"}
     )
 
 
@@ -510,9 +580,28 @@ async def reset_password_form(
             status_code=400,
         )
 
-    ok, message = await _consume_password_reset(token, new_password, db)
+    from fastapi.responses import RedirectResponse
+
+    redis = await _auth_shared.get_redis()
+    binding_hash = browser_binding_hash(request)
+    # Written before the claim (the consume commits inside), so only the first
+    # submit's grant is kept; a concurrent repeat waits for its done page.
+    granted = await grant_replay(
+        redis,
+        RESET_REPLAY_KIND,
+        token,
+        binding_hash=binding_hash,
+        payload={"ref": None},
+        only_if_absent=True,
+    )
+    try:
+        ok, message = await _consume_password_reset(token, new_password, db)
+    except Exception:
+        if granted:
+            await revoke_replay(redis, RESET_REPLAY_KIND, token)
+        raise
     if ok:
-        redis = await _auth_shared.get_redis()
+        done = {"locale": locale, "target": None}
         context_key = "auth:reset-context:" + hashlib.sha256(token.encode()).hexdigest()
         raw_context = await redis.strict_get(context_key)
         if raw_context:
@@ -532,24 +621,30 @@ async def reset_password_form(
                         "ui_locales": "es",
                     }
                 )
-            import html
+            done["target"] = target
+        ref = secrets.token_urlsafe(16)
+        await redis.strict_set("auth:reset:done:" + ref, json.dumps(done), ex=_RESET_DONE_TTL_SECONDS)
+        if granted:
+            await update_replay(redis, RESET_REPLAY_KIND, token, ref=ref)
+        return RedirectResponse(
+            _reset_done_url(ref, locale), status_code=303, headers={"Cache-Control": "no-store"}
+        )
 
-            return HTMLResponse(
-                content=_recovery_page_html(
-                    "<h1>Contraseña guardada</h1><p>Tu contraseña ya está lista. Tus sesiones anteriores se cerraron.</p>"
-                    '<a href="' + html.escape(target, quote=True) + '">Volver a entrar al MAP</a>',
-                    lang="es",
-                ),
-                headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
-            )
-        body = f"""
-        <div class="logo"><h1>&#128274; Janua</h1><p>{c["reset_done_tagline"]}</p></div>
-        <div class="alert-ok">{c["reset_done"]}</div>
-        <div class="footer">{c["footer"]}</div>
-        """
-        return HTMLResponse(content=_reset_page_html(body, locale))
-
+    if granted:
+        # Not a success: nothing for a repeat to land on.
+        await revoke_replay(redis, RESET_REPLAY_KIND, token)
     if message == "Invalid or expired reset token":
+        # A repeat submit from the browser that just saved this password (a
+        # double press, or a refresh of the result) lands on the same page.
+        replay = await wait_for_replay(
+            redis, RESET_REPLAY_KIND, token, binding_hash=binding_hash, field="ref"
+        )
+        if replay is not None:
+            return RedirectResponse(
+                _reset_done_url(replay["ref"], locale),
+                status_code=303,
+                headers={"Cache-Control": "no-store"},
+            )
         forgot_url = f"/api/v1/auth/forgot-password{ui_locales_query(locale)}"
         body = f"""
         <div class="logo"><h1>&#128274; Janua</h1><p>{c["reset_tagline"]}</p></div>
