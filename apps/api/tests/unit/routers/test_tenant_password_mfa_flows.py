@@ -40,6 +40,7 @@ from app.models import (
 )
 from app.models import Session as UserSession
 from app.models.organization_authentication_policy import OrganizationAuthenticationPolicy
+from app.routers.v1 import auth_shared, oauth_provider_shared
 from app.services.auth_service import AuthService
 
 PASSWORD = "Synthetic-Password-7!"
@@ -54,7 +55,7 @@ async def env(monkeypatch):
     from app.core import redis as core_redis
     from app.core.database import get_db as core_get_db
     from app.main import app
-    from app.routers.v1 import auth, oauth_provider
+    from app.routers.v1 import auth, auth_shared, oauth_provider, oauth_provider_shared
 
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
     async with engine.begin() as connection:
@@ -73,13 +74,23 @@ async def env(monkeypatch):
             yield db
 
     get_memory_redis = AsyncMock(return_value=redis)
-    for module in (core_redis, auth, hosted, service, oauth_provider):
+    # auth_shared / oauth_provider_shared: the split route modules call
+    # get_redis through them (2026-11-19 split).
+    for module in (
+        core_redis,
+        auth,
+        auth_shared,
+        hosted,
+        service,
+        oauth_provider,
+        oauth_provider_shared,
+    ):
         monkeypatch.setattr(module, "get_redis", get_memory_redis)
-    monkeypatch.setattr(auth, "send_password_reset_email_task", AsyncMock())
+    monkeypatch.setattr(auth_shared, "send_password_reset_email_task", AsyncMock())
     previous = dict(app.dependency_overrides)
     for key in (get_db, core_get_db):
         app.dependency_overrides[key] = get_session
-    for key in (core_redis.get_redis, dependencies.get_redis, auth.get_redis):
+    for key in (core_redis.get_redis, dependencies.get_redis, auth_shared.get_redis):
         app.dependency_overrides[key] = lambda: redis
     # Production DI captures the original function before the test monkeypatch.
     for route in app.routes:
@@ -128,7 +139,7 @@ async def env(monkeypatch):
             redis=redis,
             user=user,
             org_id=org_id,
-            mail=auth.send_password_reset_email_task,
+            mail=auth_shared.send_password_reset_email_task,
         )
     app.dependency_overrides.clear()
     app.dependency_overrides.update(previous)
@@ -252,6 +263,8 @@ async def test_scoped_recovery_targets_passwordless_same_subject(env, monkeypatc
             "confirm_password": PASSWORD,
         },
     )
+    assert response.status_code == 303  # POST/redirect/GET (roadmap 1.1)
+    response = await env.http.get(response.headers["location"])
     assert response.status_code == 200 and "Contraseña guardada" in response.text
     assert "https://map.test/api/auth/login" in response.text
     assert (await _login(env)).status_code == 302
@@ -288,6 +301,9 @@ async def test_required_unenrolled_has_no_session_until_factor_and_flow_is_one_u
             == data["auth_time"]
         )
         assert has_mfa_assurance(session_assurance(session))
+    # One use: another browser (no binding cookie) cannot spend it again. The
+    # same browser's repeat press is the replay window (tests below).
+    env.http.cookies.clear()
     replay = await env.http.post(
         "/api/v1/auth/factor/complete", data={"flow_id": flow, "code": code}
     )
@@ -440,7 +456,7 @@ async def test_mfa_oauth_does_not_loop_and_code_refresh_keep_same_session_proof(
         client = (await db.execute(select(OAuthClient))).scalar_one()
         # A real verifier is checked at /token; replace only the test's fixed
         # challenge with SHA256(verifier) in its already-issued synthetic record.
-        record = await oauth_provider._get_auth_code(code, env.redis)
+        record = await oauth_provider_shared._get_auth_code(code, env.redis)
         import base64
 
         verifier = "verifier-value-with-at-least-forty-three-characters"
@@ -449,7 +465,7 @@ async def test_mfa_oauth_does_not_loop_and_code_refresh_keep_same_session_proof(
             .rstrip(b"=")
             .decode()
         )
-        await oauth_provider._store_auth_code(code, record, env.redis)
+        await oauth_provider_shared._store_auth_code(code, record, env.redis)
         tokens = await oauth_provider._handle_authorization_code_grant(
             code, "https://map.test/api/auth/callback", client, verifier, db, env.redis
         )
@@ -473,7 +489,7 @@ async def test_policy_change_between_authorize_and_token_refuses_weak_code(
     assert (await _login(env)).status_code == 302
     code = await _oauth_code(env, monkeypatch)
     await _require(env, requirement)
-    monkeypatch.setattr(oauth_provider, "_verify_pkce", lambda *args: True)
+    monkeypatch.setattr(oauth_provider_shared, "_verify_pkce", lambda *args: True)
     async with env.factory() as db:
         client = (await db.execute(select(OAuthClient))).scalar_one()
         with pytest.raises(HTTPException) as error:
@@ -798,7 +814,7 @@ async def test_map_recovery_audit_outage_fails_before_identity_lookup(env, monke
     await _registered_map_platform(env)
     lookup = AsyncMock()
     monkeypatch.setattr(tenant_login_context, "login_user", lookup)
-    monkeypatch.setattr(auth, "add_intent", AsyncMock(side_effect=RuntimeError("synthetic refusal")))
+    monkeypatch.setattr(auth_shared, "add_intent", AsyncMock(side_effect=RuntimeError("synthetic refusal")))
     response = await env.http.post("/api/v1/auth/password/forgot", json={
         "email": email, "client_id": "synthetic-map",
         "return_url": "https://map.creatumundo.mx/api/auth/login",
@@ -1033,3 +1049,151 @@ async def test_scoped_recovery_ignores_platform_user_without_membership(env, mon
     async with env.factory() as db:
         assert not (await db.execute(select(PasswordReset))).scalars().all()
     env.mail.assert_not_awaited()
+
+
+# --- Replay safety (roadmap 1.1 / 1.2, after the 2026-11-19 double submit) ----
+
+NAVIGATE = {"accept": "text/html", "sec-fetch-mode": "navigate"}
+
+
+async def _sessions(env):
+    async with env.factory() as db:
+        return (await db.execute(select(UserSession))).scalars().all()
+
+
+async def _failed_attempts(env):
+    async with env.factory() as db:
+        return (await db.get(User, env.user.id)).failed_login_attempts or 0
+
+
+async def test_factor_double_submit_from_the_same_browser_lands_in_the_app(env):
+    await _require(env)
+    flow, data, _ = await _flow(env)
+    code = pyotp.TOTP(data["setup_secret"]).now()
+    first = await env.http.post(
+        "/api/v1/auth/factor/complete", data={"flow_id": flow, "code": code}
+    )
+    assert first.status_code == 200 and "códigos de recuperación" in first.text
+    # The second press (its first answer was never seen): same flow, same code.
+    second = await env.http.post(
+        "/api/v1/auth/factor/complete",
+        data={"flow_id": flow, "code": code},
+        headers=NAVIGATE,
+    )
+    assert second.status_code == 303, second.text
+    assert not second.headers["location"].startswith("/api/v1/auth/error")
+    assert "códigos de recuperación" not in second.text  # never shown twice
+    cookies = second.headers.get_list("set-cookie")
+    assert any(c.startswith("janua_access_token=") for c in cookies)
+    sessions = await _sessions(env)
+    assert len(sessions) == 2 and {s.user_id for s in sessions} == {env.user.id}
+    assert all(has_mfa_assurance(session_assurance(s)) for s in sessions)
+    assert await _failed_attempts(env) == 0
+
+
+async def test_factor_replay_from_another_browser_gets_the_page(env):
+    await _require(env)
+    flow, data, _ = await _flow(env)
+    code = pyotp.TOTP(data["setup_secret"]).now()
+    assert (
+        await env.http.post("/api/v1/auth/factor/complete", data={"flow_id": flow, "code": code})
+    ).status_code == 200
+    env.http.cookies.clear()
+    env.http.cookies.set(COOKIE, "another-browser-binding-value", domain="test")
+    replay = await env.http.post(
+        "/api/v1/auth/factor/complete",
+        data={"flow_id": flow, "code": code},
+        headers=NAVIGATE,
+    )
+    assert replay.status_code == 303
+    assert replay.headers["location"].startswith("/api/v1/auth/error?reason=factor_expired")
+    assert len(await _sessions(env)) == 1
+
+
+async def test_factor_replay_after_the_window_gets_the_page(env):
+    from app.auth.hosted_replay import _key
+
+    await _require(env)
+    flow, data, _ = await _flow(env)
+    code = pyotp.TOTP(data["setup_secret"]).now()
+    assert (
+        await env.http.post("/api/v1/auth/factor/complete", data={"flow_id": flow, "code": code})
+    ).status_code == 200
+    await env.redis.strict_delete(_key("factor", flow))  # the grant's TTL ran out
+    replay = await env.http.post(
+        "/api/v1/auth/factor/complete",
+        data={"flow_id": flow, "code": code},
+        headers=NAVIGATE,
+    )
+    assert replay.status_code == 303
+    assert "reason=factor_expired" in replay.headers["location"]
+    assert len(await _sessions(env)) == 1
+
+
+async def test_a_press_that_waited_on_the_lock_replays_without_spending_a_code(env):
+    """The second of two concurrent presses: in PostgreSQL it waits on the user
+    row lock until the first commits, then finds the claim and the grant. Here
+    that moment is set up directly: the flow is still stored, the claim and the
+    grant exist, and the code it carries is not valid any more."""
+    from app.auth.hosted_replay import grant_replay
+
+    await _require(env)
+    flow, data, _ = await _flow(env)
+    await env.redis.strict_set("auth:factor:used:" + flow, "1", ex=600)
+    await grant_replay(
+        env.redis,
+        "factor",
+        flow,
+        binding_hash=data["binding"],
+        payload={
+            "user_id": str(env.user.id),
+            "methods": ["pwd", "otp"],
+            "auth_time": data["auth_time"],
+            "mfa_verified_at": data["auth_time"],
+            "auth_request_id": None,
+            "client_id": "synthetic-map",
+            "next": "/",
+            "audience": None,
+        },
+    )
+    response = await env.http.post(
+        "/api/v1/auth/factor/complete",
+        data={"flow_id": flow, "code": "000000"},
+        headers=NAVIGATE,
+    )
+    assert response.status_code == 303, response.text
+    assert not response.headers["location"].startswith("/api/v1/auth/error")
+    assert len(await _sessions(env)) == 1
+    assert await _failed_attempts(env) == 0
+
+
+async def test_a_failure_before_the_commit_leaves_the_flow_usable(env, monkeypatch):
+    from app.auth.hosted_replay import _key
+
+    await _require(env)
+    flow, data, _ = await _flow(env)
+    totp = pyotp.TOTP(data["setup_secret"])
+    real_create_session = AuthService.create_session
+    calls = {"n": 0}
+
+    async def failing_once(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("synthetic failure before commit")
+        return await real_create_session(*args, **kwargs)
+
+    monkeypatch.setattr(AuthService, "create_session", staticmethod(failing_once))
+    failed = await env.http.post(
+        "/api/v1/auth/factor/complete", data={"flow_id": flow, "code": totp.now()}
+    )
+    assert failed.status_code == 500  # ErrorHandlingMiddleware's answer
+    # Not consumed: no claim, nothing to replay.
+    assert not await env.redis.strict_exists("auth:factor:used:" + flow)
+    assert await env.redis.strict_get(_key("factor", flow)) is None
+    # The next code (the next time step) completes the same flow.
+    retry = await env.http.post(
+        "/api/v1/auth/factor/complete",
+        data={"flow_id": flow, "code": totp.at(int(__import__("time").time()) + 30)},
+    )
+    assert retry.status_code == 200 and "códigos de recuperación" in retry.text
+    assert len(await _sessions(env)) == 1

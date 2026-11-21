@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app.routers.v1 import oauth_provider_grants
 from app.routers.v1.oauth_provider import (
     _get_client_credentials_claims,
     _service_client_app_roles,
@@ -279,7 +280,7 @@ class TestClientCredentialsGrantHandler:
                 "create_access_token",
                 return_value=("t", "jti", None),
             ),
-            patch.object(oauth_provider_module, "AuditLogger", return_value=audit_logger),
+            patch.object(oauth_provider_grants, "AuditLogger", return_value=audit_logger),
         ):
             await _handle_client_credentials_grant(client=client, requested_scope="hcm:hr", db=db)
 
@@ -310,7 +311,7 @@ class TestClientCredentialsGrantHandler:
                 "create_access_token",
                 return_value=("t", "jti", None),
             ),
-            patch.object(oauth_provider_module, "AuditLogger", return_value=audit_logger),
+            patch.object(oauth_provider_grants, "AuditLogger", return_value=audit_logger),
         ):
             await _handle_client_credentials_grant(client=client, requested_scope="openid", db=db)
 

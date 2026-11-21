@@ -48,7 +48,12 @@ from app.models import (
     UserEntitlement,
     UserStatus,
 )
-from app.routers.v1 import oauth_provider
+from app.routers.v1 import (
+    auth_shared,
+    oauth_provider,
+    oauth_provider_clients,
+    oauth_provider_shared,
+)
 from app.services.entitlements_service import Entitlement
 from app.services.invite_only_clients import (
     has_invited_access,
@@ -119,7 +124,7 @@ async def env(invite_only):
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_redis] = _fake_get_redis
-    app.dependency_overrides[auth_router.get_redis] = _fake_get_redis
+    app.dependency_overrides[auth_shared.get_redis] = _fake_get_redis
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield SimpleNamespace(http=client, sessions=sessions, redis=fake_redis)
@@ -183,13 +188,13 @@ def _client(client_id=CLIENT_ID, name="MADFAM CV"):
 async def _authorize(user, client, *, prompt=None, ui_locales=None, entitlements=()):
     with (
         patch.object(
-            oauth_provider, "get_user_from_cookie_or_header", AsyncMock(return_value=user)
+            oauth_provider_shared, "get_user_from_cookie_or_header", AsyncMock(return_value=user)
         ),
-        patch.object(oauth_provider, "_get_oauth_client", AsyncMock(return_value=client)),
-        patch.object(oauth_provider, "_validate_redirect_uri", MagicMock(return_value=True)),
-        patch.object(oauth_provider, "_is_silent_auth_allowed", MagicMock(return_value=True)),
+        patch.object(oauth_provider_shared, "_get_oauth_client", AsyncMock(return_value=client)),
+        patch.object(oauth_provider_shared, "_validate_redirect_uri", MagicMock(return_value=True)),
+        patch.object(oauth_provider_clients, "_is_silent_auth_allowed", MagicMock(return_value=True)),
         # This fixture isolates invitation policy; MFA has its own real DB matrix.
-        patch.object(oauth_provider, "user_requires_mfa", AsyncMock(return_value=False)),
+        patch.object(oauth_provider_shared, "user_requires_mfa", AsyncMock(return_value=False)),
         patch(
             "app.services.entitlements_service.get_user_entitlements",
             AsyncMock(return_value=list(entitlements)),
@@ -274,10 +279,10 @@ async def test_authorize_carries_ui_locales_to_the_login_page(invite_only):
     redis = AsyncMock()
     with (
         patch.object(
-            oauth_provider, "get_user_from_cookie_or_header", AsyncMock(return_value=None)
+            oauth_provider_shared, "get_user_from_cookie_or_header", AsyncMock(return_value=None)
         ),
-        patch.object(oauth_provider, "_get_oauth_client", AsyncMock(return_value=_client())),
-        patch.object(oauth_provider, "_validate_redirect_uri", MagicMock(return_value=True)),
+        patch.object(oauth_provider_shared, "_get_oauth_client", AsyncMock(return_value=_client())),
+        patch.object(oauth_provider_shared, "_validate_redirect_uri", MagicMock(return_value=True)),
     ):
         resp = await oauth_provider.authorize_get(
             request=MagicMock(),
@@ -352,7 +357,7 @@ async def _pre_login(redis, request_id="req-1", client_id=CLIENT_ID, ui_locales=
 async def test_hosted_form_does_not_create_a_stranger_and_says_the_same_thing(env):
     await _pre_login(env.redis)
     mailer = MagicMock()
-    with patch("app.routers.v1.auth.send_magic_link_email_task", mailer):
+    with patch("app.routers.v1.auth_shared.send_magic_link_email_task", mailer):
         resp = await env.http.post(
             MAGIC_FORM_URL,
             data={
@@ -374,7 +379,7 @@ async def test_hosted_form_does_not_create_a_stranger_and_says_the_same_thing(en
     async with env.sessions() as session:
         session.add(User(email=INVITEE, status=UserStatus.ACTIVE, user_metadata={}))
         await session.commit()
-    with patch("app.routers.v1.auth.send_magic_link_email_task", mailer):
+    with patch("app.routers.v1.auth_shared.send_magic_link_email_task", mailer):
         resp = await env.http.post(
             MAGIC_FORM_URL,
             data={
@@ -396,7 +401,7 @@ async def test_hosted_form_does_not_create_a_stranger_and_says_the_same_thing(en
 async def test_open_client_still_creates_on_first_contact(env):
     await _pre_login(env.redis, client_id=OPEN_CLIENT_ID, ui_locales=None)
     mailer = MagicMock()
-    with patch("app.routers.v1.auth.send_magic_link_email_task", mailer):
+    with patch("app.routers.v1.auth_shared.send_magic_link_email_task", mailer):
         resp = await env.http.post(
             MAGIC_FORM_URL,
             data={
@@ -415,7 +420,7 @@ async def test_open_client_still_creates_on_first_contact(env):
 @pytest.mark.asyncio
 async def test_api_magic_link_for_an_invite_only_host_creates_nobody(env):
     mailer = MagicMock()
-    with patch("app.routers.v1.auth.send_magic_link_email_task", mailer):
+    with patch("app.routers.v1.auth_shared.send_magic_link_email_task", mailer):
         resp = await env.http.post(
             "/api/v1/auth/magic-link",
             json={"email": STRANGER, "redirect_url": f"https://{CLIENT_ID}.example.com/"},

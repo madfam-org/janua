@@ -7,11 +7,12 @@ Comprehensive integration tests for authentication endpoints
 Tests complete auth flows, JWT handling, MFA, and session management
 """
 
+import uuid
+from datetime import datetime
+from unittest.mock import MagicMock, patch
+
 import pytest
 from httpx import AsyncClient
-from unittest.mock import MagicMock, patch
-from datetime import datetime
-import uuid
 
 from app.models import UserStatus
 
@@ -55,7 +56,7 @@ class TestAuthenticationEndpoints:
         signin_data = {"email": "test@example.com", "password": "TestPassword123!"}
 
         # Mock user in database
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = signin_data["email"]
@@ -83,7 +84,7 @@ class TestAuthenticationEndpoints:
         """Test signin with invalid credentials"""
         signin_data = {"email": "test@example.com", "password": "wrongpassword"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_auth_service.return_value.authenticate_user.return_value = None
 
             response = await test_client.post("/api/v1/auth/signin", json=signin_data)
@@ -97,7 +98,7 @@ class TestAuthenticationEndpoints:
         """Test signin with inactive user"""
         signin_data = {"email": "inactive@example.com", "password": "TestPassword123!"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.status = UserStatus.INACTIVE
             mock_auth_service.return_value.authenticate_user.return_value = mock_user
@@ -113,7 +114,7 @@ class TestAuthenticationEndpoints:
         """Test refresh token endpoint"""
         refresh_data = {"refresh_token": "valid_refresh_token_123"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_auth_service.return_value.refresh_access_token.return_value = (
                 "new_access_token_123",
                 "new_refresh_token_123",
@@ -137,7 +138,7 @@ class TestAuthenticationEndpoints:
             mock_user.id = str(uuid.uuid4())
             mock_get_user.return_value = mock_user
 
-            with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+            with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
                 mock_auth_service.return_value.logout_user.return_value = True
 
                 response = await test_client.post("/api/v1/auth/logout", headers=headers)
@@ -151,7 +152,7 @@ class TestAuthenticationEndpoints:
         """Test email verification process"""
         verification_data = {"token": "verification_token_123"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_auth_service.return_value.verify_email.return_value = True
 
             response = await test_client.post("/api/v1/auth/verify-email", json=verification_data)
@@ -181,7 +182,7 @@ class TestAuthenticationEndpoints:
         """Test password reset confirmation"""
         reset_data = {"token": "reset_token_123", "new_password": "NewSecurePassword123!"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_auth_service.return_value.reset_password.return_value = True
 
             response = await test_client.post("/api/v1/auth/confirm-reset", json=reset_data)
@@ -209,7 +210,7 @@ class TestAuthenticationEndpoints:
         """Test magic link verification"""
         magic_data = {"token": "magic_token_123"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = "user@example.com"
@@ -321,7 +322,7 @@ class TestAuthenticationEndpoints:
 
         signin_data = {"email": "test@example.com", "password": "TestPassword123!"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_user = MagicMock()
             mock_user.id = str(uuid.uuid4())
             mock_user.email = signin_data["email"]
@@ -398,7 +399,7 @@ class TestAuthenticationSecurity:
         """Test protection against password brute force attacks"""
         signin_data = {"email": "test@example.com", "password": "wrongpassword"}
 
-        with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+        with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
             mock_auth_service.return_value.authenticate_user.return_value = None
 
             # Attempt multiple failed logins
@@ -448,7 +449,7 @@ class TestAuthenticationSecurity:
             mock_get_user.return_value = mock_user
 
             # Test that logout invalidates the session
-            with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+            with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
                 mock_auth_service.return_value.logout_user.return_value = True
 
                 logout_response = await test_client.post("/api/v1/auth/logout", headers=headers)
@@ -473,7 +474,7 @@ class TestAuthenticationEdgeCases:
         }
 
         with patch("app.services.email_service.EmailService.send_verification_email"):
-            with patch("app.routers.v1.auth.AuthService") as mock_auth_service:
+            with patch("app.routers.v1.auth_shared.AuthService") as mock_auth_service:
                 # First signup succeeds
                 mock_user = MagicMock()
                 mock_auth_service.return_value.create_user.return_value = mock_user

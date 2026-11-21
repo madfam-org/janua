@@ -14,6 +14,7 @@ This file pins the parts every surface shares:
 
 from __future__ import annotations
 
+import importlib
 import inspect
 from types import SimpleNamespace
 from typing import get_args
@@ -24,6 +25,7 @@ import jwt as pyjwt
 import pytest
 
 from app.models import AuditLog
+from app.routers.v1 import oauth_provider_shared
 from app.services.audit_logger import AuditEventType
 from app.services.email_i18n import (
     SPANISH_FORMALITIES,
@@ -263,10 +265,14 @@ def test_oidc_access_token_paths_stamp_the_claim():
     """Both OIDC access-token seams (auth-code and refresh) plus the ID token."""
     from app.routers.v1 import oauth_provider
 
-    source = inspect.getsource(oauth_provider)
+    # The OAuth provider is several modules since the 2026-11-19 split.
+    source = "".join(
+        inspect.getsource(importlib.import_module(f"app.routers.v1.{m}"))
+        for m in oauth_provider.MODULES
+    )
     assert source.count("**spanish_formality_claims(user)") == 2
     assert "claims.update(spanish_formality_claims(user))" in inspect.getsource(
-        oauth_provider._generate_id_token
+        oauth_provider_shared._generate_id_token
     )
 
 
@@ -296,7 +302,7 @@ async def _userinfo(user, scope: str):
     redis = AsyncMock()
     with (
         patch(
-            "app.routers.v1.oauth_provider._verify_oauth_token",
+            "app.routers.v1.oauth_provider_shared._verify_oauth_token",
             new=AsyncMock(return_value=payload),
         ),
         patch(

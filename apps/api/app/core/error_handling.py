@@ -277,9 +277,40 @@ def _get_request_id(request: Request) -> str:
     return getattr(request.state, "request_id", None) or str(uuid.uuid4())
 
 
+def hosted_refusal_response(request: Request, exc: Any, status_code: int) -> Optional[Response]:
+    """Browser navigations on hosted routes get the hosted error page, not JSON.
+
+    Logs one `auth.hosted_refusal` line for every refusal on a hosted route and
+    returns the 303 to the page for a navigation; None leaves the answer to the
+    handler (its JSON envelope, unchanged). See app/auth/hosted_errors.py.
+    """
+    from app.auth.hosted_errors import hosted_refusal_response as _hosted
+
+    return _hosted(request, exc, status_code)
+
+
+async def rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
+    """slowapi's 429, except on a browser navigation of a hosted route (page).
+
+    A person double-pressing a hosted form, or an office behind one address,
+    used to get slowapi's JSON body (roadmap E-07/E-21). The navigation now
+    lands on the hosted error page ("Too many attempts", reason
+    `rate_limited`); API callers keep slowapi's body and headers.
+    """
+    from slowapi import _rate_limit_exceeded_handler
+
+    hosted = hosted_refusal_response(request, exc, status.HTTP_429_TOO_MANY_REQUESTS)
+    if hosted is not None:
+        return hosted
+    return _rate_limit_exceeded_handler(request, exc)
+
+
 # Custom exception handlers for FastAPI
-async def api_exception_handler(request: Request, exc: APIException) -> JSONResponse:
+async def api_exception_handler(request: Request, exc: APIException) -> Response:
     """Handler for custom API exceptions"""
+    hosted = hosted_refusal_response(request, exc, exc.status_code)
+    if hosted is not None:
+        return hosted
     error_data = {
         "error": {
             "code": exc.error_code,
@@ -292,10 +323,11 @@ async def api_exception_handler(request: Request, exc: APIException) -> JSONResp
     return JSONResponse(status_code=exc.status_code, content=error_data)
 
 
-async def validation_exception_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> Response:
     """Handler for validation errors"""
+    hosted = hosted_refusal_response(request, exc, status.HTTP_422_UNPROCESSABLE_ENTITY)
+    if hosted is not None:
+        return hosted
     validation_errors = []
     for error in exc.errors():
         validation_errors.append(
@@ -318,8 +350,11 @@ async def validation_exception_handler(
     return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=error_data)
 
 
-async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> Response:
     """Handler for HTTP exceptions"""
+    hosted = hosted_refusal_response(request, exc, exc.status_code)
+    if hosted is not None:
+        return hosted
     error_data = {
         "error": {
             "code": "HTTP_ERROR",
@@ -331,8 +366,11 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
     return JSONResponse(status_code=exc.status_code, content=error_data)
 
 
-async def janua_exception_handler(request: Request, exc: JanuaAPIException) -> JSONResponse:
+async def janua_exception_handler(request: Request, exc: JanuaAPIException) -> Response:
     """Handler for unified Janua exceptions"""
+    hosted = hosted_refusal_response(request, exc, exc.status_code)
+    if hosted is not None:
+        return hosted
     request_id = _get_request_id(request)
     error_data = {
         "error": {

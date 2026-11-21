@@ -6,27 +6,17 @@ from uuid import UUID, uuid4
 
 import jwt
 import structlog
-from jwt.exceptions import InvalidTokenError
-from passlib.context import CryptContext
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.redis import SessionStore, get_redis
-from app.core.redis_circuit_breaker import RedisUnavailableError, ResilientRedisClient
+from app.core.redis_circuit_breaker import ResilientRedisClient
 from app.models import AuditLog, Session, User
-from app.services import token_revocation
-from app.services.user_lookup import get_user_by_email
+from app.services import refresh_grace, token_revocation
+from app.services.auth_account_methods import AuthAccountMethods, pwd_context  # noqa: F401
 
 logger = structlog.get_logger()
-
-# Password hashing - using bcrypt 2b to avoid passlib wrap bug detection issue
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__ident="2b",
-    bcrypt__rounds=settings.BCRYPT_ROUNDS,
-)
 
 
 async def _blacklist_jti(redis: ResilientRedisClient, jti: Any, ttl: int, *, reason: str) -> None:
@@ -39,148 +29,9 @@ async def _blacklist_jti(redis: ResilientRedisClient, jti: Any, ttl: int, *, rea
     await token_revocation.revoke_jti(redis, jti, ttl, reason=reason)
 
 
-class AuthService:
+class AuthService(AuthAccountMethods):
     """Core authentication service with real implementation"""
 
-    @staticmethod
-    def hash_password(password: str) -> str:
-        """Hash a password using bcrypt"""
-        return pwd_context.hash(password)
-
-    @staticmethod
-    def verify_password(plain_password: str, hashed_password: str) -> bool:
-        """Verify a password against its hash"""
-        return pwd_context.verify(plain_password, hashed_password)
-
-    @staticmethod
-    def validate_password_strength(password: str) -> Tuple[bool, Optional[str]]:
-        """Validate password meets security requirements"""
-        if len(password) < 12:  # Increased from 8 for better security
-            return False, "Password must be at least 12 characters long"
-
-        if len(password.encode("utf-8")) > 72:
-            return False, "Password must not exceed 72 UTF-8 bytes"
-
-        if not any(c.isupper() for c in password):
-            return False, "Password must contain at least one uppercase letter"
-
-        if not any(c.islower() for c in password):
-            return False, "Password must contain at least one lowercase letter"
-
-        if not any(c.isdigit() for c in password):
-            return False, "Password must contain at least one number"
-
-        if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password):
-            return False, "Password must contain at least one special character"
-
-        return True, None
-
-    @staticmethod
-    async def create_user(
-        db: AsyncSession,
-        email: str,
-        password: str,
-        name: Optional[str] = None,
-        tenant_id: Optional[UUID] = None,
-    ) -> User:
-        """Create a new user with hashed password"""
-        # Validate password strength
-        is_valid, error_msg = AuthService.validate_password_strength(password)
-        if not is_valid:
-            raise ValueError(error_msg)
-
-        # Use default tenant_id if not provided (simplified for testing)
-        if not tenant_id:
-            # For testing purposes, use a default UUID if no tenant is provided
-            # In production, this would be managed by proper tenant creation
-            from uuid import uuid4
-
-            tenant_id = uuid4()
-
-        # Check if user already exists IN THIS TENANT's pool. Email uniqueness is
-        # per-tenant (migration 013), and this method sets `tenant_id=tenant_id`
-        # on the created row below, so the existence check must scope to the same
-        # tenant — else it would spuriously conflict on another tenant's user.
-        if await get_user_by_email(db, email, tenant_id=tenant_id):
-            from app.exceptions import ConflictError
-
-            raise ConflictError("User with this email already exists")
-
-        # Create user
-        user = User(
-            email=email,
-            password_hash=AuthService.hash_password(password),
-            first_name=name,  # Use first_name field from User model
-            tenant_id=tenant_id,
-        )
-        db.add(user)
-
-        # Create audit log
-        await AuthService.create_audit_log(
-            db=db,
-            user_id=user.id,
-            tenant_id=tenant_id,
-            event_type="user_created",
-            event_data={"email": email},
-        )
-
-        await db.commit()
-        await db.refresh(user)
-
-        logger.info("User created", user_id=str(user.id), email=email)
-        return user
-
-    @staticmethod
-    async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[User]:
-        """Authenticate user with email and password"""
-        # Get user from the untenanted / staff pool. This signature carries no
-        # tenant, and it is the platform password-auth path; end-user (tenanted)
-        # auth resolves its tenant from the OAuth client context, not here. Pool-
-        # scoping also keeps the lookup single-row now that email is per-tenant.
-        user = await get_user_by_email(db, email, tenant_id=None)
-
-        if not user:
-            logger.warning("Authentication failed - user not found", email=email)
-            return None
-
-        if not user.is_active:
-            logger.warning("Authentication failed - user inactive", user_id=str(user.id))
-            return None
-
-        if user.is_suspended:
-            logger.warning("Authentication failed - user suspended", user_id=str(user.id))
-            return None
-
-        # Verify password
-        if not AuthService.verify_password(password, user.password_hash):
-            logger.warning("Authentication failed - invalid password", user_id=str(user.id))
-
-            # Log failed attempt
-            await AuthService.create_audit_log(
-                db=db,
-                user_id=user.id,
-                tenant_id=user.tenant_id,
-                event_type="login_failed",
-                event_data={"reason": "invalid_password"},
-            )
-            return None
-
-        # Update last login
-        user.last_login_at = datetime.utcnow()
-
-        # Log successful login
-        await AuthService.create_audit_log(
-            db=db,
-            user_id=user.id,
-            tenant_id=user.tenant_id,
-            event_type="login_success",
-            event_data={},
-        )
-
-        await db.commit()
-
-        logger.info("User authenticated", user_id=str(user.id))
-        return user
 
     @staticmethod
     def create_access_token(
@@ -406,63 +257,6 @@ class AuthService:
             strict=strict,
         )
 
-    @staticmethod
-    async def invalidate_user_sessions(
-        db: AsyncSession,
-        user_id: UUID,
-        exclude_session_id: Optional[UUID] = None,
-        reason: str = "sessions_invalidated",
-        *,
-        strict: bool = False,
-        commit: bool = True,
-    ) -> int:
-        """Revoke every live session of a user, optionally keeping one.
-
-        Used by password change (keeping the session that changed it), by
-        password reset (keeping none) and by security events that sign a user
-        out everywhere. Each revoked row's refresh-token family stops
-        refreshing (see `revoke_sessions`).
-
-        Args:
-            db: Database session
-            user_id: User whose sessions to invalidate
-            exclude_session_id: Optional session ID to keep valid (for current session)
-            reason: Recorded in `sessions.revoked_reason`
-            strict: Raise `RedisUnavailableError` when a revocation-list write
-                cannot be stored (see `revoke_sessions`)
-            commit: Commit the revoked rows here. Pass False to commit them
-                in the caller's own transaction (password reset commits the
-                revoked rows and the new password together)
-
-        Returns:
-            Number of sessions revoked
-        """
-        query = select(Session).where(
-            and_(
-                Session.user_id == user_id,
-                Session.revoked == False,  # noqa: E712 - SQL expression
-            )
-        )
-
-        if exclude_session_id:
-            query = query.where(Session.id != exclude_session_id)
-
-        result = await db.execute(query)
-        sessions = result.scalars().all()
-
-        revoked_count = await AuthService.revoke_sessions(sessions, reason=reason, strict=strict)
-
-        if revoked_count > 0:
-            if commit:
-                await db.commit()
-            logger.info(
-                "Invalidated user sessions",
-                user_id=str(user_id),
-                sessions_revoked=revoked_count,
-                reason=reason,
-            )
-
-        return revoked_count
 
     @staticmethod
     async def create_session(
@@ -675,65 +469,6 @@ class AuthService:
         logger.info("Session created", session_id=str(session.id), user_id=str(user.id))
         return access_token, refresh_token, session
 
-    @staticmethod
-    def _decode_token(token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
-        """Signature, issuer, expiry, audience and type checks only. No Redis.
-
-        Answers whether Janua minted this token and it has not expired. It does
-        NOT answer whether the token was revoked; `verify_token` does that.
-        """
-        try:
-            # Determine verification key based on algorithm
-            algorithm = settings.JWT_ALGORITHM
-            verify_key = settings.JWT_SECRET_KEY
-
-            if algorithm == "RS256" and settings.JWT_PUBLIC_KEY:
-                # Use PEM public key for RS256 verification
-                verify_key = settings.JWT_PUBLIC_KEY.replace("\\n", "\n")
-            elif algorithm == "RS256":
-                # RS256 requested but no public key, fall back to HS256
-                algorithm = "HS256"
-
-            try:
-                payload = jwt.decode(
-                    token,
-                    verify_key,
-                    algorithms=[algorithm],
-                    audience=settings.JWT_AUDIENCE,
-                    issuer=settings.JWT_ISSUER,
-                )
-            except jwt.InvalidAudienceError:
-                # Janua is the ISSUER validating its own tokens here, and it
-                # mints more than one audience: magic-link sessions carry the
-                # audience of the product they forward to (per-client, e.g.
-                # nauta-portal) — see _session_audience_for_redirect. Audience
-                # restriction exists for RESOURCE SERVERS deciding which
-                # tokens to accept; the issuer accepts every audience it
-                # minted, still enforcing signature, issuer, expiry and type.
-                payload = jwt.decode(
-                    token,
-                    verify_key,
-                    algorithms=[algorithm],
-                    issuer=settings.JWT_ISSUER,
-                    options={"verify_aud": False},
-                )
-                if not isinstance(payload.get("aud"), str) or not payload.get("aud"):
-                    logger.warning("Token carries no usable audience claim")
-                    return None
-
-            if payload.get("type") != token_type:
-                logger.warning("Token type mismatch", expected=token_type, got=payload.get("type"))
-                return None
-
-            return payload
-
-        except (
-            jwt.exceptions.DecodeError,
-            jwt.exceptions.ExpiredSignatureError,
-            InvalidTokenError,
-        ) as e:
-            logger.warning("Token verification failed", error=str(e))
-            return None
 
     @staticmethod
     async def verify_token(token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
@@ -763,27 +498,6 @@ class AuthService:
 
         return payload
 
-    @staticmethod
-    async def identify_token(token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
-        """Claims of a token the request has ALREADY been authenticated with.
-
-        For bookkeeping only (which session is "this" one: sign-out, password
-        change, the sessions list), never to decide whether to accept a
-        request. With a healthy Redis it is exactly `verify_token`. When Redis
-        cannot answer it falls back to the signature-checked claims, because
-        failing these callers would not protect anything: sign-out must still
-        revoke the session row and clear cookies, and the sessions list must
-        still render. Revoking an already-revoked session again is harmless.
-        """
-        try:
-            return await AuthService.verify_token(token, token_type)
-        except RedisUnavailableError:
-            logger.warning(
-                "Revocation list unavailable; identifying the current session "
-                "from signature-checked claims",
-                token_type=token_type,
-            )
-            return AuthService._decode_token(token, token_type)
 
     @staticmethod
     async def refresh_tokens(db: AsyncSession, refresh_token: str) -> Optional[Tuple[str, str]]:
@@ -796,19 +510,36 @@ class AuthService:
         or deactivated by family revocation. The row check is what makes a
         revocation stick even when the Redis write behind it was lost.
         """
+        # A repeat of the token a concurrent refresh just rotated away: the pair
+        # that rotation issued (D5). Checked before the revocation list, which
+        # already holds the rotated-away JTI.
+        repeated = await AuthService._refresh_grace_answer(db, refresh_token)
+        if repeated is not None:
+            return repeated
+
         # Verify refresh token
         payload = await AuthService.verify_token(refresh_token, token_type="refresh")
         if not payload:
-            return None
+            # Rotated away by a concurrent refresh since the check above (its
+            # grace record is written before its blacklist entry).
+            return await AuthService._refresh_grace_answer(db, refresh_token)
 
         # The row this refresh token is the current token of. Looked up by JTI
-        # alone: a revoked row must be told apart from a JTI no row holds.
+        # alone: a revoked row must be told apart from a JTI no row holds. Read
+        # under a lock, so of two concurrent refreshes one waits for the other.
         result = await db.execute(
-            select(Session).where(Session.refresh_token_jti == payload.get("jti"))
+            select(Session)
+            .where(Session.refresh_token_jti == payload.get("jti"))
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
         session = result.scalar_one_or_none()
 
         if not session:
+            # The concurrent refresh that held the lock rotated it meanwhile.
+            repeated = await AuthService._refresh_grace_answer(db, refresh_token, wait=True)
+            if repeated is not None:
+                return repeated
             logger.warning(
                 "Refresh token is not the current token of any session", jti=payload.get("jti")
             )
@@ -900,7 +631,7 @@ class AuthService:
             },
         )
 
-        refresh_token, refresh_jti, family, refresh_expires = AuthService.create_refresh_token(
+        refresh_token_new, refresh_jti, family, refresh_expires = AuthService.create_refresh_token(
             user_id=str(user.id),
             tenant_id=str(user.tenant_id),
             family=payload.get("family"),  # Keep same family for rotation tracking
@@ -908,14 +639,52 @@ class AuthService:
             audience=payload.get("session_audience"),
         )
 
-        # Update session
+        # Rotate with a compare-and-set on the JTI this request presented, so
+        # exactly one of two concurrent refreshes rotates (the row lock above
+        # already serializes them on PostgreSQL; this also holds without it).
+        now = datetime.utcnow()
+        rotated = await db.execute(
+            update(Session)
+            .where(Session.id == session.id, Session.refresh_token_jti == payload.get("jti"))
+            .values(
+                access_token_jti=access_jti,
+                refresh_token_jti=refresh_jti,
+                last_activity=now,
+                expires_at=refresh_expires,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if rotated.rowcount == 0:
+            # Nothing was written here; the winner's rotation is committing.
+            repeated = await AuthService._refresh_grace_answer(db, refresh_token, wait=True)
+            if repeated is not None:
+                return repeated
+            logger.warning("Refresh lost a concurrent rotation", session_id=str(session.id))
+            return None
+        # Keep the loaded row in step with what was written.
         session.access_token_jti = access_jti
         session.refresh_token_jti = refresh_jti
-        session.last_activity = datetime.utcnow()
+        session.last_activity = now
         session.expires_at = refresh_expires
 
-        # Blacklist old refresh token
         redis = await get_redis()
+        # The grace record goes first, before the blacklist and the commit: a
+        # refresh refused by the blacklist, or waiting on the row lock, finds
+        # it as soon as either is visible.
+        await refresh_grace.remember(
+            redis,
+            refresh_token,
+            payload.get("jti"),
+            {
+                "session_id": str(session.id),
+                "family": payload.get("family"),
+                "refresh_jti": refresh_jti,
+                "access_token": access_token,
+                "refresh_token": refresh_token_new,
+            },
+        )
+
+        # Blacklist old refresh token
         await _blacklist_jti(
             redis,
             payload.get("jti"),
@@ -926,7 +695,19 @@ class AuthService:
         await db.commit()
 
         logger.info("Tokens refreshed", session_id=str(session.id), user_id=str(user.id))
-        return access_token, refresh_token
+        return access_token, refresh_token_new
+
+    @staticmethod
+    async def _refresh_grace_answer(
+        db: AsyncSession, refresh_token: str, *, wait: bool = False
+    ) -> Optional[Tuple[str, str]]:
+        """The pair a rotation of THIS token issued moments ago (see refresh_grace)."""
+        if refresh_grace.REFRESH_REUSE_GRACE_SECONDS <= 0:
+            return None
+        claims = AuthService._decode_token(refresh_token, "refresh")
+        return await refresh_grace.grace_answer(
+            db, refresh_token, claims, await get_redis(), wait=wait
+        )
 
     @staticmethod
     async def revoke_token_family(db: AsyncSession, family: str):
@@ -945,48 +726,6 @@ class AuthService:
         await db.commit()
         logger.warning("Token family revoked", family=family, count=len(sessions))
 
-    @staticmethod
-    async def revoke_session(
-        db: AsyncSession, session_id: Any, *, reason: str = "user_revoked"
-    ) -> bool:
-        """Revoke one `sessions` row by id. Returns whether a row was found.
-
-        The caller decides who may revoke it (owner or admin) and commits.
-        """
-        try:
-            session_uuid = session_id if isinstance(session_id, UUID) else UUID(str(session_id))
-        except (ValueError, AttributeError, TypeError):
-            return False
-        result = await db.execute(select(Session).where(Session.id == session_uuid))
-        session = result.scalar_one_or_none()
-        if session is None:
-            return False
-        await AuthService.revoke_sessions([session], reason=reason)
-        return True
-
-    @staticmethod
-    async def logout(db: AsyncSession, session_id: UUID, user_id: UUID):
-        """Logout user by revoking session"""
-        # Get session
-        session = await db.get(Session, session_id)
-        if not session or session.user_id != user_id:
-            return False
-
-        await AuthService.revoke_sessions([session], reason="user_logout")
-
-        # Create audit log
-        await AuthService.create_audit_log(
-            db=db,
-            user_id=user_id,
-            tenant_id=session.user.tenant_id,
-            event_type="logout",
-            event_data={"session_id": str(session_id)},
-        )
-
-        await db.commit()
-
-        logger.info("User logged out", session_id=str(session_id), user_id=str(user_id))
-        return True
 
     @staticmethod
     async def create_audit_log(
@@ -1029,85 +768,4 @@ class AuthService:
         db.add(log)
         # Don't commit here - let caller handle transaction
 
-    @staticmethod
-    def update_user(db, user_id: str, user_data: dict) -> dict:
-        """Update user information"""
-        # Placeholder implementation for testing
-        return {"updated": True}
 
-    @staticmethod
-    def delete_user(db, user_id: str) -> dict:
-        """Delete a user account"""
-        # Placeholder implementation for testing
-        return {"deleted": True}
-
-    @staticmethod
-    def get_user_sessions(db, user_id: str) -> list:
-        """Get all user sessions"""
-        # Placeholder implementation for testing
-        return [
-            {"session_id": "session_1", "created_at": "2025-01-01T00:00:00"},
-            {"session_id": "session_2", "created_at": "2025-01-01T01:00:00"},
-        ]
-
-    @staticmethod
-    def create_organization(db, user_id: str, org_data: dict) -> dict:
-        """Create a new organization"""
-        # Placeholder implementation for testing
-        return {
-            "id": "org_123",
-            "name": org_data.get("name", "Test Organization"),
-            "slug": org_data.get("slug", "test-org"),
-        }
-
-    @staticmethod
-    def get_user_organizations(db, user_id: str) -> list:
-        """Get user's organizations"""
-        # Placeholder implementation for testing
-        return [
-            {"id": "org_1", "name": "Org 1", "role": "admin"},
-            {"id": "org_2", "name": "Org 2", "role": "member"},
-        ]
-
-    @staticmethod
-    def get_organization(db, org_id: str) -> dict:
-        """Get specific organization details"""
-        # Placeholder implementation for testing
-        return {"id": org_id, "name": "Test Organization", "members_count": 5}
-
-    @staticmethod
-    def update_organization(db, org_id: str, org_data: dict) -> dict:
-        """Update organization details"""
-        # Placeholder implementation for testing
-        return {"updated": True}
-
-    @staticmethod
-    def delete_organization(db, org_id: str) -> dict:
-        """Delete an organization"""
-        # Placeholder implementation for testing
-        return {"deleted": True}
-
-    @staticmethod
-    def get_active_sessions(db, user_id: str) -> list:
-        """Get active user sessions"""
-        # Placeholder implementation for testing
-        return [
-            {
-                "session_id": "session_1",
-                "device": "Chrome on Windows",
-                "last_active": "2025-01-01T00:00:00",
-                "current": True,
-            }
-        ]
-
-    @staticmethod
-    def revoke_all_sessions(db, user_id: str) -> dict:
-        """Revoke all user sessions except current"""
-        # Placeholder implementation for testing
-        return {"revoked_count": 3}
-
-    @staticmethod
-    def extend_session(db, session_id: str, extend_data: dict) -> dict:
-        """Extend current session"""
-        # Placeholder implementation for testing
-        return {"extended": True, "new_expiry": "2025-01-02T00:00:00"}

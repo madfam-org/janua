@@ -192,6 +192,7 @@ client portal's member registration). Auth is `X-Internal-API-Key`, not a user t
 | POST | `/provision` | Ensure a janua user exists for a roster member (idempotent; 201 created / 200 existed) | Internal API key |
 | POST | `/suspend` | Suspend a roster member's access (idempotent) | Internal API key |
 | POST | `/reactivate` | Restore a suspended member's access (idempotent) | Internal API key |
+| POST | `/change-email` | Change the sign-in address of a person the organization holds; same user id, sessions revoked, no email sent (idempotent). See [API Reference → Internal API — Sign-in Address Change](/docs/api/API_REFERENCE.md#internal-api--sign-in-address-change) | Internal API key |
 
 #### Identity pool vs. organization
 

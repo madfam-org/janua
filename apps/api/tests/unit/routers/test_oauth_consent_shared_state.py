@@ -89,17 +89,17 @@ def _user():
 def _patches(client):
     return (
         patch(
-            "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+            "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
             AsyncMock(return_value=_user()),
         ),
-        patch("app.routers.v1.oauth_provider._get_oauth_client", AsyncMock(return_value=client)),
+        patch("app.routers.v1.oauth_provider_shared._get_oauth_client", AsyncMock(return_value=client)),
         patch(
             "app.routers.v1.oauth_provider.ConsentService.has_consent",
             AsyncMock(return_value=False),
         ),
         patch("app.routers.v1.oauth_provider.ConsentService.grant_consent", AsyncMock()),
         patch(
-            "app.routers.v1.oauth_provider.settings",
+            "app.routers.v1.oauth_provider_shared.settings",
             MagicMock(REQUIRE_EMAIL_VERIFICATION=False),
         ),
     )
@@ -146,11 +146,29 @@ async def _post_consent(redis: ResilientRedisClient, auth_request_id: str, csrf_
     )
 
 
-async def _submit_consent(redis: ResilientRedisClient, auth_request_id: str, csrf_token: str):
+async def _submit_consent(
+    redis: ResilientRedisClient, auth_request_id: str, csrf_token: str, request=None
+):
     """POST /oauth/consent (Allow) on one replica."""
     p = _patches(_third_party_client())
     with p[0], p[1], p[2], p[3], p[4]:
-        return await _post_consent(redis, auth_request_id, csrf_token)
+        if request is None:
+            return await _post_consent(redis, auth_request_id, csrf_token)
+        return await handle_consent(
+            request=request,
+            auth_request_id=auth_request_id,
+            csrf_token=csrf_token,
+            action="allow",
+            db=AsyncMock(),
+            redis=redis,
+        )
+
+
+def _browser(value: str):
+    """A request from a browser holding the hosted binding cookie."""
+    from app.auth.hosted_replay import BROWSER_COOKIE
+
+    return MagicMock(cookies={BROWSER_COOKIE: value})
 
 
 class TestMechanism:
@@ -313,6 +331,69 @@ class TestRealRejectionsStay403:
             await _submit_consent(pod_b, auth_request_id, csrf_token)
         assert exc.value.status_code == 403
 
+    async def test_second_submit_from_the_same_browser_lands_on_the_same_callback(self):
+        """Roadmap 1.1: the double-clicked Allow, from the browser that pressed
+        first (binding cookie), lands where the first press went (one code)."""
+        server = fakeredis.FakeServer()
+        pod_a, pod_b = _replica(server), _replica(server)
+        page = await _render_consent(pod_a)
+        auth_request_id, csrf_token = _form_fields(page.body.decode())
+        browser = _browser("b" * 43)
+
+        first = await _submit_consent(pod_a, auth_request_id, csrf_token, browser)
+        second = await _submit_consent(pod_b, auth_request_id, csrf_token, browser)
+        assert first.status_code == second.status_code == 302
+        assert second.headers["location"] == first.headers["location"]
+        assert "code=" in first.headers["location"]
+
+    async def test_second_submit_from_another_browser_is_still_forbidden(self):
+        server = fakeredis.FakeServer()
+        pod = _replica(server)
+        page = await _render_consent(pod)
+        auth_request_id, csrf_token = _form_fields(page.body.decode())
+
+        first = await _submit_consent(pod, auth_request_id, csrf_token, _browser("b" * 43))
+        assert first.status_code == 302
+        with pytest.raises(HTTPException) as exc:
+            await _submit_consent(pod, auth_request_id, csrf_token, _browser("c" * 43))
+        assert exc.value.status_code == 403
+        assert exc.value.reason == "consent_csrf_invalid"
+
+    async def test_concurrent_submits_from_the_same_browser_both_land(self):
+        server = fakeredis.FakeServer()
+        pod_a, pod_b = _replica(server), _replica(server)
+        page = await _render_consent(pod_a)
+        auth_request_id, csrf_token = _form_fields(page.body.decode())
+        browser = _browser("b" * 43)
+
+        p = _patches(_third_party_client())
+        with p[0], p[1], p[2], p[3], p[4]:
+            results = await asyncio.gather(
+                *(
+                    handle_consent(
+                        request=browser,
+                        auth_request_id=auth_request_id,
+                        csrf_token=csrf_token,
+                        action="allow",
+                        db=AsyncMock(),
+                        redis=pod,
+                    )
+                    for pod in (pod_a, pod_b)
+                ),
+                return_exceptions=True,
+            )
+        assert all(not isinstance(r, Exception) for r in results), results
+        assert {r.status_code for r in results} == {302}
+        assert len({r.headers["location"] for r in results}) == 1  # one code
+
+    async def test_consent_page_gives_the_browser_a_binding(self):
+        from app.auth.hosted_replay import BROWSER_COOKIE
+
+        page = await _render_consent(_replica(fakeredis.FakeServer()))
+        cookie = page.headers["set-cookie"]
+        assert cookie.startswith(BROWSER_COOKIE + "=")
+        assert "HttpOnly" in cookie and "Secure" in cookie and "Path=/" in cookie
+
     async def test_concurrent_submits_issue_exactly_one_code(self):
         server = fakeredis.FakeServer()
         pod_a, pod_b = _replica(server), _replica(server)
@@ -371,7 +452,7 @@ class TestAuthCodeLogging:
         pod = _replica(server)
         code = "secret-code-value-1234567890"
         log = MagicMock()
-        with patch("app.routers.v1.oauth_provider.logger", log):
+        with patch("app.routers.v1.oauth_provider_shared.logger", log):
             await _store_auth_code(code, {"client_id": "x"}, pod)
             await _get_auth_code(code, pod)
             await _delete_auth_code(code, pod)

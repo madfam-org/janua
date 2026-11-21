@@ -189,14 +189,26 @@ def test_trusted_context_reaches_existing_call_sites_without_executing_them():
             in {"send_invitation_email", "send_mfa_recovery_email"}
         ]
         assert calls and all("org_id" in {kw.arg for kw in node.keywords} for node in calls), file
-    tree = ast.parse((API / "app/routers/v1/auth.py").read_text())
+    from app.routers.v1 import auth
+
+    # The /auth router is several modules since the 2026-11-19 split; a task
+    # tests patch is scheduled as `_auth_shared.<task>` there, so read the name
+    # from either form.
+    tree = ast.Module(
+        body=[
+            node
+            for m in auth.MODULES
+            for node in ast.parse((API / f"app/routers/v1/{m}.py").read_text()).body
+        ],
+        type_ignores=[],
+    )
     schedules = [
         node
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         and getattr(node.func, "attr", "") == "add_task"
         and node.args
-        and getattr(node.args[0], "id", "")
+        and getattr(node.args[0], "id", getattr(node.args[0], "attr", ""))
         in {"send_verification_email_task", "send_password_reset_email_task"}
     ]
     assert len(schedules) == 3

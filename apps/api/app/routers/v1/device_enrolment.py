@@ -58,16 +58,15 @@ import ipaddress
 import time
 import uuid
 from datetime import datetime, timedelta
-from typing import Literal, Optional
+from typing import Optional
 
 import bcrypt
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.device_admin import require_org_admin, require_person
 from app.auth.magic_link_limits import _ip_bucket_key, trusted_client_ip
 from app.config import settings
 from app.core.database import get_db
@@ -80,10 +79,9 @@ from app.core.device_clients import (
     get_device_template,
     normalize_user_code,
 )
-from app.core.jwt_manager import jwt_manager
 from app.core.redis import ResilientRedisClient, get_redis
 from app.core.redis_circuit_breaker import RedisUnavailableError
-from app.models import OAuthClient, Organization, OrganizationMember, User, UserStatus
+from app.models import OAuthClient, Organization, User
 from app.models.device_client import (
     DEVICE_STATUS_ACTIVE,
     DEVICE_STATUS_DISABLED,
@@ -91,6 +89,20 @@ from app.models.device_client import (
     ENROLMENT_STATUS_PENDING,
     DeviceClient,
     DeviceEnrolment,
+)
+from app.schemas.device_enrolment import (
+    ApproveRequest,
+    ApproveResponse,
+    DeviceList,
+    DeviceView,
+    DisableRequest,
+    DisableResponse,
+    EnrolmentCreated,
+    EnrolmentRequest,
+    EnrolmentStatus,
+    PendingEnrolment,
+    PendingEnrolmentList,
+    ReplacedDevice,
 )
 from app.services.device_audit import (
     DEVICE_DISABLED,
@@ -106,8 +118,6 @@ logger = structlog.get_logger()
 public_router = APIRouter(prefix="/device-enrolments", tags=["Device Enrolment"])
 admin_router = APIRouter(prefix="/organizations/{org_id}/devices", tags=["Devices"])
 
-bearer = HTTPBearer(auto_error=False)
-
 #: Seconds a device should wait between polls.
 POLL_INTERVAL_SECONDS = 5
 #: Shown in place of a secret prefix on a device client: Janua never had the
@@ -117,117 +127,6 @@ DEVICE_SECRET_PREFIX_PLACEHOLDER = "(device)"
 USER_CODE_ATTEMPTS = 5
 
 UNKNOWN_ORGANIZATION_DETAIL = "This organization does not enrol devices"
-NO_MEMBERSHIP_DETAIL = "Organization not found"
-NOT_ADMIN_DETAIL = "Requires the owner or admin role in this organization"
-PERSON_REQUIRED_DETAIL = "A person's own sign-in is required"
-
-
-# --------------------------------------------------------------------- schemas
-
-
-class EnrolmentRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    organization: str = Field(min_length=1, max_length=255, description="Organization slug")
-    label: str = Field(min_length=1, max_length=100, description="Shown to the approver as sent")
-    secret: str = Field(
-        min_length=43,
-        max_length=64,
-        description="32 random bytes the device generated: 64 hex chars or 43 base64url chars",
-    )
-    template: Optional[str] = Field(default=None, max_length=64)
-    device_client_id: Optional[str] = Field(
-        default=None, max_length=255, description="Set when re-enrolling an existing device"
-    )
-
-    @field_validator("label")
-    @classmethod
-    def _printable_label(cls, value: str) -> str:
-        cleaned = " ".join(value.split())
-        if not cleaned or not cleaned.isprintable():
-            raise ValueError("label must be printable text")
-        return cleaned
-
-
-class EnrolmentCreated(BaseModel):
-    enrolment_id: uuid.UUID
-    status: Literal["pending"]
-    user_code: str
-    expires_at: datetime
-    poll_interval_seconds: int
-
-
-class EnrolmentStatus(BaseModel):
-    enrolment_id: uuid.UUID
-    status: Literal["pending", "approved", "expired"]
-    expires_at: datetime
-    client_id: Optional[str] = None
-
-
-class ReplacedDevice(BaseModel):
-    id: uuid.UUID
-    client_id: Optional[str]
-    label: str
-
-
-class PendingEnrolment(BaseModel):
-    id: uuid.UUID
-    user_code: str
-    label: str
-    label_is_unverified: bool = True
-    template: str
-    requested_at: datetime
-    expires_at: datetime
-    requested_from: Optional[str]
-    requested_user_agent: Optional[str]
-    replaces_device: Optional[ReplacedDevice]
-
-
-class PendingEnrolmentList(BaseModel):
-    data: list[PendingEnrolment]
-
-
-class ApproveRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    user_code: str = Field(min_length=8, max_length=16)
-
-
-class DeviceView(BaseModel):
-    id: uuid.UUID
-    client_id: Optional[str]
-    label: str
-    template: str
-    status: str
-    approved_by: Optional[uuid.UUID]
-    approved_at: datetime
-    disabled_by: Optional[uuid.UUID]
-    disabled_at: Optional[datetime]
-    disabled_reason: Optional[str]
-    last_token_at: Optional[datetime]
-    clone_suspected_at: Optional[datetime]
-    boot_alternations: int
-    created_at: datetime
-
-
-class DeviceList(BaseModel):
-    data: list[DeviceView]
-
-
-class ApproveResponse(BaseModel):
-    re_enrolment: bool
-    device: DeviceView
-
-
-class DisableRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    reason: Optional[str] = Field(default=None, max_length=300)
-
-
-class DisableResponse(BaseModel):
-    changed: bool
-    device: DeviceView
 
 
 # --------------------------------------------------------------------- helpers
@@ -278,91 +177,6 @@ async def _enforce_limit(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many requests; try again later",
         )
-
-
-def _is_machine_payload(payload: dict) -> bool:
-    return bool(
-        payload.get("token_use")
-        or payload.get("actor_type")
-        or payload.get("client_kind")
-        or payload.get("is_service_account") is True
-        or str(payload.get("sub", "")).startswith("service-account:")
-    )
-
-
-async def require_person(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer),
-    db: AsyncSession = Depends(get_db),
-    redis: ResilientRedisClient = Depends(get_redis),
-) -> User:
-    """A person, signed in to Janua with their own access token. Never a machine.
-
-    Signature, issuer, Janua's own audience, expiry and the revocation list are
-    checked (strictly: 503 when Redis cannot say). A token with any machine
-    marker, and a user flagged as a service account, are refused with 403.
-    """
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED,
-            "Bearer authentication required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    payload = await jwt_manager.verify_unrevoked_token(
-        credentials.credentials, token_type="access", redis=redis
-    )
-    if not payload:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
-    if _is_machine_payload(payload):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, PERSON_REQUIRED_DETAIL)
-    try:
-        user_id = uuid.UUID(str(payload.get("sub")))
-    except ValueError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
-    user = (
-        await db.execute(
-            select(User).where(
-                User.id == user_id, User.status == UserStatus.ACTIVE, User.is_active.is_(True)
-            )
-        )
-    ).scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
-    if getattr(user, "is_service_account", False):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, PERSON_REQUIRED_DETAIL)
-    return user
-
-
-async def _require_org_admin(db: AsyncSession, org_id: uuid.UUID, user: User) -> Organization:
-    """The organization, when ``user`` owns it or is an active owner/admin member.
-
-    404 for a person with no active membership (the answer a missing
-    organization gets too), 403 for a member without the role.
-    """
-    organization = (
-        await db.execute(select(Organization).where(Organization.id == org_id))
-    ).scalar_one_or_none()
-    if organization is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_MEMBERSHIP_DETAIL)
-    if organization.owner_id == user.id:
-        return organization
-    membership = (
-        (
-            await db.execute(
-                select(OrganizationMember).where(
-                    OrganizationMember.organization_id == org_id,
-                    OrganizationMember.user_id == user.id,
-                    OrganizationMember.status == "active",
-                )
-            )
-        )
-        .scalars()
-        .first()
-    )
-    if membership is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, NO_MEMBERSHIP_DETAIL)
-    if membership.role not in ("owner", "admin"):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, NOT_ADMIN_DETAIL)
-    return organization
 
 
 def _device_view(device: DeviceClient, client_id: Optional[str]) -> DeviceView:
@@ -614,7 +428,7 @@ async def list_pending_enrolments(
     db: AsyncSession = Depends(get_db),
 ) -> PendingEnrolmentList:
     """Enrolments of this organization waiting for approval (not yet expired)."""
-    await _require_org_admin(db, org_id, current_user)
+    await require_org_admin(db, org_id, current_user)
     now = _now()
     enrolments = (
         (
@@ -669,7 +483,7 @@ async def approve_enrolment(
     db: AsyncSession = Depends(get_db),
 ) -> ApproveResponse:
     """Approve the code a device of this organization shows. Creates or rotates its client."""
-    organization = await _require_org_admin(db, org_id, current_user)
+    organization = await require_org_admin(db, org_id, current_user)
     code = normalize_user_code(body.user_code)
     if code is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No pending enrolment with this code")
@@ -817,7 +631,7 @@ async def list_devices(
     db: AsyncSession = Depends(get_db),
 ) -> DeviceList:
     """Every device of this organization, active and disabled, with its clone flag."""
-    await _require_org_admin(db, org_id, current_user)
+    await require_org_admin(db, org_id, current_user)
     rows = (
         await db.execute(
             select(DeviceClient, OAuthClient.client_id)
@@ -839,7 +653,7 @@ async def disable_device(
     db: AsyncSession = Depends(get_db),
 ) -> DisableResponse:
     """Disable a device in one action. Idempotent: disabling a disabled device changes nothing."""
-    organization = await _require_org_admin(db, org_id, current_user)
+    organization = await require_org_admin(db, org_id, current_user)
     device = (
         await db.execute(
             select(DeviceClient)

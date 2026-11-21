@@ -115,6 +115,22 @@ NAUTA_EDGE_TERMINAL = DeviceTemplate(
 DEVICE_TEMPLATES: dict[str, DeviceTemplate] = {NAUTA_EDGE_TERMINAL.name: NAUTA_EDGE_TERMINAL}
 DEFAULT_DEVICE_TEMPLATE = NAUTA_EDGE_TERMINAL.name
 
+#: Scopes that reach a client ONLY through an approved device enrolment. No
+#: ordinary client path may write one onto a client, platform admins and the
+#: internal key included (`schemas/oauth_client.py`,
+#: `routers/v1/internal_oauth_client_scopes.py`), and the token endpoint never
+#: grants one to a client that is not of kind ``device``
+#: (`oauth_provider_scopes._client_allowed_scopes`), whatever its row holds.
+DEVICE_ONLY_SCOPES: frozenset[str] = frozenset(
+    scope for template in DEVICE_TEMPLATES.values() for scope in template.scopes
+)
+DEVICE_ONLY_SCOPE_DETAIL = "reaches a client only through device enrolment"
+
+
+def device_only_scopes_in(scopes) -> list[str]:
+    """The device-only scopes among ``scopes`` (sorted; empty when none)."""
+    return sorted({str(scope).strip() for scope in (scopes or [])} & DEVICE_ONLY_SCOPES)
+
 
 def get_device_template(name: Optional[str]) -> Optional[DeviceTemplate]:
     return DEVICE_TEMPLATES.get(name or "")
@@ -238,6 +254,8 @@ __all__ = [
     "CLIENT_KIND_SERVICE",
     "DEFAULT_DEVICE_TEMPLATE",
     "DEVICE_CLIENT_ID_PREFIX",
+    "DEVICE_ONLY_SCOPES",
+    "DEVICE_ONLY_SCOPE_DETAIL",
     "DEVICE_SECRET_BYTES",
     "DEVICE_TEMPLATES",
     "NAUTA_EDGE_TERMINAL",
@@ -249,6 +267,7 @@ __all__ = [
     "boot_id_digest",
     "boot_id_is_valid",
     "client_kind_for",
+    "device_only_scopes_in",
     "device_secret_is_valid",
     "generate_device_client_id",
     "generate_user_code",

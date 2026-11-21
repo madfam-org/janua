@@ -576,6 +576,7 @@ pnpm test:e2e                    # Playwright E2E
 | Architecture | `docs/architecture/` |
 | Silent SSO, estate cookie, account switching; silent sign-in for marked public clients (B8, live 2026-11-18) | `docs/architecture/SILENT_SSO_SESSION.md` |
 | What production runs while promotion is held (base promotion + ordered hotfix images) | `deployment/hotfix/README.md` |
+| Change a person's sign-in address from a roster app (same user id, sessions revoked, no email sent): `POST /api/v1/internal/users/change-email` | `docs/api/API_REFERENCE.md#internal-api--sign-in-address-change` |
 | People in several organizations: `org_id`, application roles and the primary organization (set it whenever a membership is added) | `docs/guides/ECOSYSTEM_INTEGRATION.md#people-in-several-organizations-org_id-and-roles`, `docs/api/API_REFERENCE.md#internal-api--primary-organization` |
 | OAuth consent, revocation, passkeys, health and readiness (runbook hub) | `docs/runbooks/oauth-shared-state-redis.md` |
 | Protected resources (RFC 8707), CIMD, MCP clients such as Claude | `docs/reference/PROTECTED_RESOURCES_AND_MCP_CLIENTS.md`; after promote: `docs/runbooks/mcp-connector-post-promote.md` |
@@ -805,7 +806,7 @@ Canonical operator guide: [docs/PP_3B_STAGING_PIPELINE.md](docs/PP_3B_STAGING_PI
        return {"items": []}
    ```
 
-2. **Register router** in `apps/api/app/main.py`
+2. **Register router** in `apps/api/app/main_routers.py` (`include_routers`, called by `apps/api/app/main.py`; middleware lives in `main_middleware.py`, app metadata in `main_openapi.py`)
    ```python
    from app.routers.v1 import my_feature
    app.include_router(my_feature.router, prefix="/api/v1")
@@ -1031,12 +1032,12 @@ EOF
 
 | Purpose | Location |
 |---------|----------|
-| Auth router | `apps/api/app/routers/v1/auth.py` |
+| Auth router | `apps/api/app/routers/v1/auth.py` (aggregator since 2026-11-19; routes in `auth_signin`, `auth_hosted_login`, `auth_sessions`, `auth_recovery`, `auth_email_verification`, `auth_magic_link_issue`, `auth_magic_link`; helpers in `auth_shared`, `auth_schemas`, `auth_hosted_pages`, `auth_magic_link_pages`; patch shared names on `auth_shared`) |
 | Auth service | `apps/api/app/services/auth_service.py` |
 | JWT handling | `apps/api/app/core/jwt_manager.py` (`app/services/jwt_service.py` has no mounted caller) |
 | MFA router | `apps/api/app/routers/v1/mfa.py` |
 | Social login (OAuth client side) | `apps/api/app/services/oauth.py`, `apps/api/app/routers/v1/oauth.py` |
-| OAuth/OIDC provider (authorize, consent, token, revoke, introspect, account chooser) | `apps/api/app/routers/v1/oauth_provider.py` |
+| OAuth/OIDC provider (authorize, consent, token, revoke, introspect, account chooser) | `apps/api/app/routers/v1/oauth_provider.py` (aggregator since 2026-11-19; routes in `oauth_provider_resources`, `_authorize`, `_consent`, `_token`, `_userinfo`; helpers in `oauth_provider_shared`, `_schemas`, `_scopes`, `_clients`, `_resource_tokens`, `_grants`; patch shared names on `oauth_provider_shared`) |
 | Discovery metadata (OIDC + RFC 8414, one document) | `apps/api/app/core/oauth_metadata.py` |
 | Protected-resource registry (closed list, RFC 8707) and its client policy | `apps/api/app/core/protected_resources.py`; CIMD fetcher `apps/api/app/services/client_id_metadata.py`; tokens `apps/api/app/services/resource_tokens.py` |
 | Sessions API | `apps/api/app/routers/v1/sessions.py` |
@@ -1298,6 +1299,7 @@ is tracked privately and appears here only by name.
 | Login-double-submit hotfix image (owner exception) | Ships janua#841 (production incident 2026-11-19: a second press on the hosted password form showed the raw JSON «La solicitud de acceso venció…») before isolated staging is proven: production's image plus `auth/hosted_locale.py`, `auth/tenant_login_context.py` and `routers/v1/auth.py` from `main` (production's copies plus only janua#841's hunks), verified to change only the reviewed hunks. A sign-in POST whose pending request is gone lands in the client after a correct password or on `GET /api/v1/auth/login-expired`, never on JSON; every hosted form loads the same-origin one-press script `/api/v1/auth/hosted-form.js`. The production pin waits for the owner's OK. Delete the folder, workflow and test in the first normal promotion | P1 | owner decision | [`deployment/hotfix/janua-api-login-double-submit`](deployment/hotfix/janua-api-login-double-submit/README.md) |
 | A narrow internal route to edit an OAuth client's `redirect_uris` | Marking a public client for silent sign-in (B8) requires removing every callback that is not an HTTPS page on the app's own host first. No route does only that: `PATCH /api/v1/oauth/clients/{id}` needs a platform-admin human session and takes whole lists, and the internal-key `/register` converge replaces `allowed_scopes`, `grant_types` and `audience` wholesale by exact name. On 2026-11-18 a callback was removed by a direct row update, which no Janua audit event records. Shape it like `internal_oauth_client_scopes.py` (one value, idempotent, audited) | P2 | engineering | [SILENT_SSO_SESSION.md → B8 in production](docs/architecture/SILENT_SSO_SESSION.md#b8-in-production-2026-11-18) |
 | A second active membership silently strips `org_id` and application roles | With several active memberships and no `tenant_id` match or primary organization, tokens carry `orgs` only. On 2026-11-18/19 eighteen people had lost every application role this way and each needed `POST /api/v1/internal/primary-organization/set`. Consumers that add memberships must set the primary (documented); whether Janua should refuse, warn on, or report a membership write that creates the ambiguity is undecided | P1 | owner decision | [API Reference → Internal API — Primary Organization](docs/api/API_REFERENCE.md#internal-api--primary-organization) |
+| Edge-case hardening of browser-facing flows (roadmap 2026-11-19, tracked privately as internal-devops `roadmaps/2026-11-19-janua-edge-case-hardening.md`) | A double submit of the hosted login form ended on a raw JSON page (2026-11-19). Phases: 0 incident fix, HTML error catch-all for hosted routes, refusal metrics and alerts, synthetic sign-in probe; 1 idempotency and replay-safety across flows, refresh under concurrency; 2 identity-context guards (primary organization, email change, redirect-URI route, 401 reasons); 3 browser chaos e2e suite in CI; 4 consumer guidance and shared token library. Owner decisions D1–D10 pending | P1 | owner decision | [`docs/ROADMAP.md` → edge-case hardening](docs/ROADMAP.md#browser-facing-auth-flows-edge-case-hardening-from-the-2026-11-19-incident) |
 | Merge and deploy window for the audit-log fixes | Both PRs change the audit logger and add migration `020`; they need a scheduled window and a migration run | P1 | owner decision | #673, #676 |
 | Next.js hardening checklist for `apps/admin`, `apps/dashboard`, `apps/docs` and `apps/website` (tracked privately) | Brings the four Next apps to the posture the rest of the estate already ships | P1 | engineering | — |
 | Un-skip the 11 core auth e2e tests in `tests/e2e/auth-flows.spec.ts` and run them in CI | Every `test.skip` there (invalid credentials, password reset, MFA enrollment, session persistence, logout, protected-route redirect, Google OAuth, lockout, email verification, concurrent sessions, inactivity timeout) leaves a core auth journey without an E2E proof | P1 | engineering | — |

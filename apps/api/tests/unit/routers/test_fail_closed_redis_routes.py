@@ -188,8 +188,8 @@ class TestSignOutDuringAnOutage:
         with (
             patch("app.services.auth_service.get_redis", AsyncMock(return_value=down)),
             patch("app.core.redis.get_redis", AsyncMock(return_value=down)),
-            patch("app.routers.v1.auth.log_activity", AsyncMock()),
-            patch("app.routers.v1.auth.log_audit_event", AsyncMock()),
+            patch("app.routers.v1.auth_shared.log_activity", AsyncMock()),
+            patch("app.routers.v1.auth_shared.log_audit_event", AsyncMock()),
         ):
             await sign_out(
                 current_user=SimpleNamespace(id=user_id),

@@ -158,12 +158,22 @@ def _gone_request_raises_its_own_type() -> bool:
     return expired is not None and type(_gone_request_error()) is expired
 
 
+def _main_source() -> str:
+    """The code that mounts the routers: app/main.py, plus app/main_routers.py
+    on a checkout where the registration moved there (the 800-line split of
+    2026-11-19). Production's image has no app/main_routers.py, so in the image
+    this is app/main.py alone, exactly as before."""
+    source = inspect.getsource(app.main)
+    try:
+        import app.main_routers as main_routers
+    except ImportError:
+        return source
+    return source + inspect.getsource(main_routers)
+
+
 def _routes_registered() -> bool:
     routes = _router_routes()
-    return (
-        MOUNT in inspect.getsource(app.main)
-        and all(f"GET {path}" in routes for path in NEW_ROUTER_PATHS)
-    )
+    return MOUNT in _main_source() and all(f"GET {path}" in routes for path in NEW_ROUTER_PATHS)
 
 
 def _script_served() -> bool:

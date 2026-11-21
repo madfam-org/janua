@@ -46,7 +46,7 @@ from app.core.redis_circuit_breaker import (
 )
 from app.models import Base, User, UserStatus
 from app.models import Session as UserSession
-from app.services import token_revocation
+from app.services import refresh_grace, token_revocation
 from app.services.auth_service import AuthService
 
 pytestmark = pytest.mark.asyncio
@@ -107,7 +107,10 @@ async def _row(db, session_id) -> UserSession:
 
 
 class TestHealthyRefreshStillWorks:
-    async def test_a_live_session_refreshes_and_rotates(self, db, redis):
+    async def test_a_live_session_refreshes_and_rotates(self, db, redis, monkeypatch):
+        # Strict single use, as with the D5 grace window off or past it (the
+        # window itself: tests/unit/routers/test_refresh_rotation_grace.py).
+        monkeypatch.setattr(refresh_grace, "REFRESH_REUSE_GRACE_SECONDS", 0)
         user = await _user(db)
         _, refresh, _ = await _sign_in(db, user)
         rotated = await AuthService.refresh_tokens(db, refresh)

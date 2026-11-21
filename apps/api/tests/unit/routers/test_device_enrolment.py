@@ -38,6 +38,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+from app.auth import device_admin
 from app.config import settings
 from app.core import redis as core_redis
 from app.core.database import get_db as core_get_db
@@ -57,7 +58,7 @@ from app.models import (
 )
 from app.models.device_client import DeviceClient, DeviceEnrolment
 from app.routers.v1 import device_enrolment as enrolment_router
-from app.routers.v1 import oauth_provider
+from app.routers.v1 import oauth_provider_device_grant, oauth_provider_shared
 
 REGISTER_URL = "/api/v1/device-enrolments"
 TOKEN_URL = "/api/v1/oauth/token"
@@ -222,7 +223,8 @@ async def world(monkeypatch):
         get_redis,
         core_redis.get_redis,
         enrolment_router.get_redis,
-        oauth_provider.get_redis,
+        device_admin.get_redis,
+        oauth_provider_shared.get_redis,
     }:
         app.dependency_overrides[dependency] = override_get_redis
 
@@ -234,7 +236,7 @@ async def world(monkeypatch):
     async def fake_send(notice):
         sent.append(notice)
 
-    monkeypatch.setattr(oauth_provider, "send_clone_suspicion_notice", fake_send)
+    monkeypatch.setattr(oauth_provider_device_grant, "send_clone_suspicion_notice", fake_send)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         w = World(client, session_factory, redis_holder)

@@ -62,6 +62,79 @@ on a back/forward-cache restore or after 20 s. Without script the forms work as
 before and the server behaviour above still holds. Operator log reading:
 [oauth-shared-state-redis.md](runbooks/oauth-shared-state-redis.md#a-sign-in-that-lands-on-request-expired).
 
+### Errors on hosted pages never answer JSON
+
+Roadmap item 0.2 (rule R1) generalises janua#841 to every hosted route. When
+a request to a hosted page or form POST fails and the request is a browser
+navigation, the global error handlers answer `303` to `GET /api/v1/auth/error`
+instead of the JSON envelope:
+
+- **Hosted routes:** `GET /api/v1/auth/login`, `POST /auth/login-form`,
+  `/auth/login-form/mfa`, `/auth/login-form/magic-link`, `/auth/login-expired`,
+  `/auth/factor/*`, `/auth/security`, `/auth/forgot-password[-form]`,
+  `/auth/reset-password[-form]`, `/auth/magic-link/callback`,
+  `/auth/switch-session/form`, `/api/v1/oauth/authorize[/resume]`,
+  `/oauth/consent` and `/logout`. Exact paths (`app/auth/hosted_errors.py`).
+- **Navigation:** `Sec-Fetch-Mode: navigate`; without `Sec-Fetch-Mode`, an
+  `Accept` that names `text/html`. A `fetch` (`Sec-Fetch-Mode: cors`) and any
+  `Accept: application/json` caller keep the envelope exactly as before.
+- **Handlers:** `HTTPException`, request validation (422), `APIException`,
+  `JanuaAPIException` and the rate limit (429, roadmap E-07/E-21:
+  `rate_limit_exceeded_handler`, which keeps slowapi's body and headers for
+  API callers). A Redis outage already had its own HTML 503 page and is
+  unchanged.
+- **The page:** fixed copy by status class (the request cannot continue; too
+  many attempts; something went wrong), in the person's language
+  (`ui_locales` from the query or the form, else `Accept-Language`, else
+  English), with the reason code and request id as a reference. It never
+  prints the exception's message or any other request value. When the request
+  named a client, the one button opens that client's registered origin, looked
+  up server-side (the same restart as `/login-expired`). Strict CSP,
+  `Cache-Control: no-store`, and a refresh is a GET.
+- **Log:** every refusal on a hosted route, page or JSON, logs one
+  `auth.hosted_refusal` line with `reason` (the exception's own reason when it
+  declares one, e.g. `login_request_expired`, else one derived from the status:
+  `bad_request`, `not_authenticated`, `forbidden`, `invalid_request`,
+  `rate_limited`, …), `route`, `method`, `status_code`, `client_id`,
+  `request_id` and `answer` (`html` or `json`). No email, person id or token.
+
+### A repeated press on a hosted form
+
+Roadmap items 1.1 and 1.2 (rules R2 and R3) extend the magic-link replay rule
+(2026-10-07) to the other single-use hosted POSTs. A double press, Enter after a
+click, a refresh of the result or Back-then-submit sends the same form again,
+and the browser shows the answer to the last one.
+
+| Form | Single-use state | A repeat from the same browser within 120 s |
+|---|---|---|
+| `POST /api/v1/auth/factor/complete` | the factor flow (`__Host-janua_factor_flow` binds it) | a fresh session, same destination; recovery codes are never shown again |
+| `POST /api/v1/auth/login-form/mfa` | the challenge's `jti` | a fresh session, same destination |
+| `POST /api/v1/oauth/consent` | the CSRF token and the stored request | the same callback URL (one authorization code) |
+| `POST /api/v1/auth/reset-password-form` | the reset token | the same `GET /api/v1/auth/reset-password/done` page |
+
+- **The same browser** is an HttpOnly, Secure binding cookie
+  (`__Host-janua_browser`, set by the consent, second-factor retry and reset
+  pages; the factor flow keeps its own cookie), compared by SHA-256 digest
+  against a replay grant in Redis (`auth:replay:<kind>:<digest>`,
+  `HOSTED_REPLAY_GRACE_SECONDS` = 120, `app/auth/hosted_replay.py`). No
+  grant, another browser or a later repeat gets the honest page (the hosted
+  error page for a navigation). A form still completes for exactly one browser.
+- **Concurrent presses.** The grant is written with the claim, before anything
+  commits. A second press waiting on the user row lock finds it when it gets
+  the row; a consent or reset repeat that arrives while the first is still
+  finishing waits up to about 3 s for its destination.
+- **Consume after commit.** If the second factor's session cannot be created,
+  the claim and the grant are removed and the flow accepts a new code. A spent
+  code is never checked again, so a repeat no longer counts as a failed attempt
+  towards the lockout.
+- **POST/redirect/GET.** The reset form answers `303` to a done page stored
+  under a random reference for 10 minutes; a refresh is a GET.
+- **Known limit.** The second-factor replay mints a second session for the same
+  person and browser (as the magic-link and janua#841 replays do), because the
+  first answer may never have reached the browser. Recovery codes from a first
+  enrollment are shown only by the first press; if it was cancelled, the person
+  regenerates them from the security page.
+
 ## Technical-direction MFA floor
 
 The product's real staff lifecycle synchronizes the reserved live grant
@@ -129,6 +202,31 @@ Enforcement begins at the next issuer authorization or refresh. Already-issued
 JWTs validated offline by a relying party remain valid until their expiration.
 An immediate cutover requires a separately reviewed session-expiry strategy;
 changing policy alone must not be represented as instant revocation.
+
+### Refresh under concurrency
+
+Roadmap item 1.3 (rule R7; window length = owner decision D5, approved
+2026-11-20: 30 s, the same session only). Two tabs, a
+server render plus the browser, or a client retrying on a slow network refresh
+the same session at once. Before, both rotated, and the loser's next refresh
+revoked the whole family, signing every tab out.
+
+- `AuthService.refresh_tokens` reads the session row `FOR UPDATE` and rotates
+  with `UPDATE … WHERE id = :id AND refresh_token_jti = :presented`. Exactly
+  one concurrent request rotates.
+- The rotation stores the pair it issued under
+  `auth:refresh:grace:<sha256(old jti)>` for `REFRESH_REUSE_GRACE_SECONDS`
+  (environment variable read by `app/services/refresh_grace.py`; default 30,
+  `0` restores strict single use). It is encrypted (Fernet) with a key derived
+  from the rotated-away token, so only a holder of that exact token can read
+  it. It is written before the rotation blacklist and the commit.
+- A repeat of the rotated-away token within the window gets that same pair
+  when its signature and family check out, the session row is live, and the row
+  still holds the JTI that rotation issued. Otherwise the old rules apply: the
+  blacklist refuses it, and a JTI no session holds revokes the family.
+- Not covered: the protected-resource (MCP connector) refresh, which keeps strict
+  single use (`oauth.resource_refresh.reuse_detected`), and the OIDC
+  `refresh_token` grant (roadmap 1.4).
 
 ## Schema and rollout
 

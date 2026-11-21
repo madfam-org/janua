@@ -35,6 +35,7 @@ from app.core.redis import get_redis
 from app.database import get_db
 from app.main import app
 from app.models import Base, MagicLink, User
+from app.routers.v1 import auth_shared
 from app.routers.v1.oauth_provider import authorize_get
 
 LOGIN_URL = "/api/v1/auth/login"
@@ -83,7 +84,7 @@ async def hosted_client(mail_enabled):
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_redis] = _fake_get_redis
-    app.dependency_overrides[auth_router.get_redis] = _fake_get_redis
+    app.dependency_overrides[auth_shared.get_redis] = _fake_get_redis
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         client.__dict__["_redis"] = fake_redis
@@ -206,14 +207,14 @@ async def test_authorize_stores_and_forwards_login_method():
     redis = AsyncMock()
     with (
         patch(
-            "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+            "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
             AsyncMock(return_value=None),
         ),
         patch(
-            "app.routers.v1.oauth_provider._get_oauth_client",
+            "app.routers.v1.oauth_provider_shared._get_oauth_client",
             AsyncMock(return_value=_client_stub()),
         ),
-        patch("app.routers.v1.oauth_provider._validate_redirect_uri", MagicMock(return_value=True)),
+        patch("app.routers.v1.oauth_provider_shared._validate_redirect_uri", MagicMock(return_value=True)),
     ):
         resp = await authorize_get(
             request=MagicMock(),
@@ -251,14 +252,14 @@ async def test_authorize_without_hint_leaves_login_url_unchanged():
     redis = AsyncMock()
     with (
         patch(
-            "app.routers.v1.oauth_provider.get_user_from_cookie_or_header",
+            "app.routers.v1.oauth_provider_shared.get_user_from_cookie_or_header",
             AsyncMock(return_value=None),
         ),
         patch(
-            "app.routers.v1.oauth_provider._get_oauth_client",
+            "app.routers.v1.oauth_provider_shared._get_oauth_client",
             AsyncMock(return_value=_client_stub()),
         ),
-        patch("app.routers.v1.oauth_provider._validate_redirect_uri", MagicMock(return_value=True)),
+        patch("app.routers.v1.oauth_provider_shared._validate_redirect_uri", MagicMock(return_value=True)),
     ):
         resp = await authorize_get(
             request=MagicMock(),
@@ -302,7 +303,7 @@ async def test_form_issues_link_whose_destination_resumes_the_authorize_request(
         ),
     )
     mailer = MagicMock()
-    with patch("app.routers.v1.auth.send_magic_link_email_task", mailer):
+    with patch("app.routers.v1.auth_shared.send_magic_link_email_task", mailer):
         resp = await hosted_client.post(
             MAGIC_FORM_URL,
             # A deliverable-looking domain: the validator rejects reserved names such as .test
@@ -354,7 +355,7 @@ async def test_form_issues_link_whose_destination_resumes_the_authorize_request(
 
 @pytest.mark.asyncio
 async def test_form_with_expired_context_says_so(hosted_client):
-    with patch("app.routers.v1.auth.send_magic_link_email_task", MagicMock()) as mailer:
+    with patch("app.routers.v1.auth_shared.send_magic_link_email_task", MagicMock()) as mailer:
         resp = await hosted_client.post(
             MAGIC_FORM_URL, data={"email": "a@studio-test.io", "auth_request_id": "gone"}
         )
@@ -365,7 +366,7 @@ async def test_form_with_expired_context_says_so(hosted_client):
 
 @pytest.mark.asyncio
 async def test_form_rejects_a_bad_email_and_keeps_the_magic_form(hosted_client):
-    with patch("app.routers.v1.auth.send_magic_link_email_task", MagicMock()) as mailer:
+    with patch("app.routers.v1.auth_shared.send_magic_link_email_task", MagicMock()) as mailer:
         resp = await hosted_client.post(MAGIC_FORM_URL, data={"email": "not-an-email", "next": "/"})
     assert resp.status_code == 400
     assert MAGIC_FORM_ACTION in resp.text
@@ -405,7 +406,7 @@ async def test_login_page_escapes_the_client_name(hosted_client):
 
 @pytest.mark.asyncio
 async def test_magic_form_error_page_escapes_the_client_name(hosted_client):
-    with patch("app.routers.v1.auth.send_magic_link_email_task", MagicMock()):
+    with patch("app.routers.v1.auth_shared.send_magic_link_email_task", MagicMock()):
         resp = await hosted_client.post(
             MAGIC_FORM_URL,
             data={"email": "not-an-email", "next": "/", "client_name": HOSTILE_NAME},
@@ -417,7 +418,7 @@ async def test_magic_form_error_page_escapes_the_client_name(hosted_client):
 
 @pytest.mark.asyncio
 async def test_check_inbox_page_escapes_the_client_name_once(hosted_client):
-    with patch("app.routers.v1.auth.send_magic_link_email_task", MagicMock()):
+    with patch("app.routers.v1.auth_shared.send_magic_link_email_task", MagicMock()):
         resp = await hosted_client.post(
             MAGIC_FORM_URL,
             data={"email": "a@studio-test.io", "next": "/", "client_name": HOSTILE_NAME},
@@ -514,7 +515,7 @@ async def test_wrong_password_rerender_in_spanish(hosted_client):
 
 @pytest.mark.asyncio
 async def test_check_inbox_and_bad_email_in_spanish(hosted_client):
-    with patch("app.routers.v1.auth.send_magic_link_email_task", MagicMock()) as mailer:
+    with patch("app.routers.v1.auth_shared.send_magic_link_email_task", MagicMock()) as mailer:
         bad = await hosted_client.post(
             "/api/v1/auth/login-form/magic-link",
             data={"email": "nope", "next": "/", "ui_locales": "es"},

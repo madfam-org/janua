@@ -54,8 +54,8 @@ async def test_valid_token_marks_user_and_verification():
     user.email_verified = False
     db = _session_returning(verification, user)
 
-    with patch("app.routers.v1.auth.log_activity", new=AsyncMock()), patch(
-        "app.routers.v1.auth.log_audit_event", new=AsyncMock()
+    with patch("app.routers.v1.auth_shared.log_activity", new=AsyncMock()), patch(
+        "app.routers.v1.auth_shared.log_audit_event", new=AsyncMock()
     ):
         response = await verify_email(VerifyEmailRequest(token="valid-token"), db)
 
