@@ -1,0 +1,433 @@
+# Owner exception: build, verify and sign a janua-api image that is the image
+# production runs plus the nine merges after row 13 (janua#844, #845, #846,
+# #847, #848, #850, #851, #852, #853): the internal route that changes a
+# person's sign-in address, the hosted error page for refused browser
+# navigations (rate limits included), a repeated press on the second-factor,
+# consent and reset forms, the 30 s refresh grace window, and four
+# no-behaviour-change splits under the 800-line limit. apps/api/app at SOURCE,
+# except seven files that keep production's copies and oauth_provider_shared.py
+# without janua#801's roles filter. See
+# deployment/hotfix/janua-api-edge-hardening/README.md.
+#
+# It builds ONE image and writes nothing to staging, production or this
+# repository. Pinning the result in production is a separate reviewed PR. The
+# promotion hold (scripts/staging/promotion_runtime_guard.py) is untouched.
+# Delete this workflow and that folder once a normal promotion replaces the
+# hotfix in production.
+
+name: Hotfix image (hosted error page, repeated presses, refresh grace, change of sign-in address)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why build it now (shown in the run summary; required)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write # cosign keyless signing via OIDC
+
+concurrency:
+  group: hotfix-janua-api-edge-hardening
+  cancel-in-progress: false
+
+env:
+  # The digest production runs (k8s/overlays/production/kustomization.yaml,
+  # the login double-submit hotfix of janua#842, pinned by janua#843, run
+  # 44625358092): the public-silent-auth chain plus row 13's three files at
+  # DOUBLE_SUBMIT_SOURCE.
+  BASE_IMAGE: ghcr.io/madfam-org/janua-api@sha256:2bbee189303b669bb24302ed3437daa59ee2e0979436d79b3b02b887b1eeb361
+  BASE_SOURCE: b16869d75bf8e91967b3f8443032f01bc2463417
+  RESERVED_SOURCE: ee7668b894a6445c78a37bb5f5eea9183988777c
+  CHATGPT_SOURCE: ae7a3f504e1965002148fb7f8e86c0a36b5e5922
+  ORG_LOGIN_SOURCE: 6f3b9b1afcfb988c4383619ce3c9325389e748b0
+  ROLE_SHAPE_SOURCE: 0742d02a6d06cc10bb8d945194cd719ef8de788d
+  ENTITLEMENT_SOURCE: 7c6150ffc1226abe0d02ac7a60e40191af97f8e5
+  RES2_SOURCE: 393a95b2fae2cf8f93b0f90e537cb39afe6bc495
+  JSONENC_SOURCE: e9442f2fc099a3d31a8c1c73ea68683a3c3a2d8a
+  WEBHOOKS_SOURCE: 505683db739acccda30e252a1f46b75c0a21ab76
+  PRIMARY_SOURCE: 54fbf9bfb5f98caff887ac3c9640984e85a76728
+  CONTAIN_SOURCE: 35a37b6faf6d60fd3b5d36920683a3767d2dfe8b
+  HOSTED_SOURCE: dbacd84391e9e4d4909ccecfdef499fb73cc7de7
+  SILENT_SOURCE: 85f3e83217f02fb88fb9e684c2e52bd460b3175f
+  DOUBLE_SUBMIT_SOURCE: 592d61b97fad60e5176dfe406f507ef9555d7823
+  PRIMARY_DIR: deployment/hotfix/janua-api-primary-organization
+  HOSTED_DIR: deployment/hotfix/janua-api-hosted-locale
+  SILENT_DIR: deployment/hotfix/janua-api-public-silent-auth
+  DOUBLE_SUBMIT_DIR: deployment/hotfix/janua-api-login-double-submit
+  # The commit the shipped application code is taken from: janua#852's merge,
+  # the last of the nine. The checkout's apps/api/app must be exactly this.
+  SOURCE: ae191e8669efad2a86f54e3513361969c2d75679
+  HOTFIX_DIR: deployment/hotfix/janua-api-edge-hardening
+  DOCKERFILE: deployment/hotfix/janua-api-edge-hardening/Dockerfile
+  CHECK: deployment/hotfix/janua-api-edge-hardening/check_edge_hardening.py
+  DOUBLE_SUBMIT_CHECK: deployment/hotfix/janua-api-login-double-submit/check_double_submit.py
+  POLICY_DUMP: deployment/hotfix/janua-api-map-chatgpt/dump_policy.py
+  TARGET: ghcr.io/madfam-org/janua-api
+
+jobs:
+  build:
+    name: Build, verify and sign
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    steps:
+      - name: Refuse anything but main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Build the hotfix from main only, where the Dockerfile and the change were reviewed."
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the source commits must be reachable
+
+      - name: Dockerfile pins the base this workflow verifies
+        run: |
+          set -euo pipefail
+          grep -qxF "FROM ${BASE_IMAGE}" "$DOCKERFILE" || {
+            echo "::error::$DOCKERFILE does not start FROM ${BASE_IMAGE}."
+            exit 1
+          }
+          # Every file taken back from an image is taken from this base.
+          if grep -E -- '--from=' "$DOCKERFILE" | grep -vF -- "--from=${BASE_IMAGE} "; then
+            echo "::error::$DOCKERFILE copies from an image other than ${BASE_IMAGE}."
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+
+      # Proves the base is what production runs: apps/api/app at BASE_SOURCE
+      # with the files of the thirteen earlier hotfixes from their sources, and
+      # the migrations at BASE_SOURCE plus the primary-organization migration.
+      - name: Base image is BASE_SOURCE plus the earlier hotfix files
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hotfix/src /tmp/hotfix/base
+          docker pull --quiet "$BASE_IMAGE"
+          cid=$(docker create "$BASE_IMAGE")
+          docker cp "$cid:/app/app" /tmp/hotfix/base/app
+          docker cp "$cid:/app/alembic/versions" /tmp/hotfix/base/versions
+          docker rm "$cid" >/dev/null
+          git archive "$BASE_SOURCE" apps/api/app apps/api/alembic/versions | tar -x -C /tmp/hotfix/src
+          for f in core/oauth_metadata.py core/reserved_oauth_boundaries.py; do
+            git show "$RESERVED_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          for f in core/protected_resources.py services/client_id_metadata.py; do
+            git show "$CHATGPT_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          for f in auth/tenant_login_context.py auth/hosted_security.py; do
+            git show "$ORG_LOGIN_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          for f in services/org_claims_service.py services/role_service.py services/organization_member_service.py; do
+            git show "$ROLE_SHAPE_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          git show "$ENTITLEMENT_SOURCE:apps/api/app/models/__init__.py" > /tmp/hotfix/src/apps/api/app/models/__init__.py
+          for f in core/reserved_oauth_boundaries.py services/client_privacy_notices.py auth/hosted_locale.py routers/v1/auth.py config.py; do
+            git show "$RES2_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          git show "$JSONENC_SOURCE:apps/api/app/models/types.py" > /tmp/hotfix/src/apps/api/app/models/types.py
+          for f in services/webhooks.py routers/v1/webhooks.py; do
+            git show "$WEBHOOKS_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          for f in models/user_primary_organization.py schemas/primary_organization.py routers/v1/internal_primary_organization.py services/org_claims_service.py services/audit_logger.py; do
+            git show "$PRIMARY_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          git show "$PRIMARY_SOURCE:$PRIMARY_DIR/main.py" > /tmp/hotfix/src/apps/api/app/main.py
+          git show "$PRIMARY_SOURCE:apps/api/alembic/versions/022_user_primary_organization.py" > /tmp/hotfix/src/apps/api/alembic/versions/022_user_primary_organization.py
+          for f in core/reserved_oauth_boundaries.py routers/v1/guest.py; do
+            git show "$CONTAIN_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          for f in auth/hosted_locale.py routers/v1/auth.py; do
+            git show "$HOSTED_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          git show "$HOSTED_SOURCE:$HOSTED_DIR/oauth_provider.py.shipped" > /tmp/hotfix/src/apps/api/app/routers/v1/oauth_provider.py
+          git show "$SILENT_SOURCE:$SILENT_DIR/oauth_provider.py.shipped" > /tmp/hotfix/src/apps/api/app/routers/v1/oauth_provider.py
+          for f in auth/hosted_locale.py auth/tenant_login_context.py routers/v1/auth.py; do
+            git show "$DOUBLE_SUBMIT_SOURCE:apps/api/app/$f" > "/tmp/hotfix/src/apps/api/app/$f"
+          done
+          diff -r -x __pycache__ /tmp/hotfix/src/apps/api/app /tmp/hotfix/base/app
+          diff -r -x __pycache__ /tmp/hotfix/src/apps/api/alembic/versions /tmp/hotfix/base/versions
+          echo "Base image application code and migrations match their proven sources."
+
+      # Proves what the image will ship: the checkout's apps/api/app is SOURCE's
+      # (a later merge to main would otherwise travel in the COPY), SOURCE is
+      # row 13's source plus exactly the nine reviewed merges, and the files
+      # they change relative to production are exactly shipped_files.txt.
+      - name: The shipped tree is SOURCE, and SOURCE is row 13 plus the nine merges
+        run: |
+          set -euo pipefail
+          if [[ ! "$SOURCE" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::SOURCE is '$SOURCE', not a full commit id."
+            exit 1
+          fi
+          if ! git diff --quiet "$SOURCE" HEAD -- apps/api/app; then
+            echo "::error::apps/api/app on this main differs from SOURCE ($SOURCE); a later merge would ship unreviewed:"
+            git diff --stat "$SOURCE" HEAD -- apps/api/app
+            exit 1
+          fi
+          git merge-base --is-ancestor "$DOUBLE_SUBMIT_SOURCE" "$SOURCE"
+          merges=$(git log --format=%s "$DOUBLE_SUBMIT_SOURCE..$SOURCE" -- apps/api/app | grep -oE '\(#[0-9]+\)$' | LC_ALL=C sort | tr '\n' ' ')
+          if [[ "$merges" != "(#844) (#845) (#846) (#847) (#848) (#850) (#851) (#852) (#853) " ]]; then
+            echo "::error::The application commits between row 13 and SOURCE are not exactly the nine reviewed merges: $merges"
+            git log --oneline "$DOUBLE_SUBMIT_SOURCE..$SOURCE" -- apps/api/app
+            exit 1
+          fi
+          mkdir -p /tmp/hotfix/source
+          git archive "$SOURCE" apps/api/app | tar -x -C /tmp/hotfix/source
+          python3 - /tmp/hotfix/base/app /tmp/hotfix/source/apps/api/app "$HOTFIX_DIR/kept_files.txt" > /tmp/hotfix/source-delta.txt <<'PY'
+          import filecmp, pathlib, sys
+
+          base, source = map(pathlib.Path, sys.argv[1:3])
+          kept = set(pathlib.Path(sys.argv[3]).read_text().split())
+
+          def files(root):
+              return {p.relative_to(root).as_posix() for p in root.rglob("*")
+                      if p.is_file() and "__pycache__" not in p.parts}
+
+          b, s = files(base), files(source)
+          rows = [("A", p) for p in s - b] + [("D", p) for p in b - s]
+          rows += [("M", p) for p in b & s if not filecmp.cmp(base / p, source / p, shallow=False)]
+          # The seven kept files are the base's copies in the image, not SOURCE's.
+          missing = sorted(k for k in kept if k not in b)
+          assert not missing, f"kept files absent from the base: {missing}"
+          for status, path in sorted((r for r in rows if r[1] not in kept), key=lambda r: r[1]):
+              print(status, path)
+          PY
+          if ! diff /tmp/hotfix/source-delta.txt "$HOTFIX_DIR/shipped_files.txt"; then
+            echo "::error::SOURCE differs from production by other files than shipped_files.txt (left: actual)."
+            exit 1
+          fi
+          # The seven kept files really are files main changed that no row shipped,
+          # and the nine merges never touched them.
+          while read -r f; do
+            if cmp -s "/tmp/hotfix/base/app/$f" "/tmp/hotfix/source/apps/api/app/$f"; then
+              echo "::error::$f is the same in the base and SOURCE; it does not belong in kept_files.txt."
+              exit 1
+            fi
+            if ! git diff --quiet "$DOUBLE_SUBMIT_SOURCE" "$SOURCE" -- "apps/api/app/$f"; then
+              echo "::error::one of the nine merges changed $f; keeping production's copy would drop it."
+              exit 1
+            fi
+          done < "$HOTFIX_DIR/kept_files.txt"
+          echo "apps/api/app is SOURCE; SOURCE is row 13's source plus the nine merges; $(grep -c '^A' "$HOTFIX_DIR/shipped_files.txt") added and $(grep -c '^M' "$HOTFIX_DIR/shipped_files.txt") modified files, seven kept."
+
+      # Proves the one module shipped from the folder differs from SOURCE's by
+      # exactly the reviewed hunk: production's roles collection in
+      # _get_user_entitlements instead of janua#801's filter.
+      - name: "oauth_provider_shared.py.shipped is SOURCE's minus janua#801's roles filter"
+        run: |
+          set -euo pipefail
+          f=routers/v1/oauth_provider_shared.py
+          { git diff --no-index --no-color -U3 "/tmp/hotfix/source/apps/api/app/$f" "$HOTFIX_DIR/oauth_provider_shared.py.shipped" || true; } | sed -n '/^@@/,$p' > /tmp/hotfix/oauth_provider_shared.diff
+          if ! cmp /tmp/hotfix/oauth_provider_shared.diff "$HOTFIX_DIR/oauth_provider_shared.diff"; then
+            echo "::error::$HOTFIX_DIR/oauth_provider_shared.py.shipped differs from SOURCE's app/$f by more than the reviewed hunk:"
+            diff /tmp/hotfix/oauth_provider_shared.diff "$HOTFIX_DIR/oauth_provider_shared.diff" || true
+            exit 1
+          fi
+          # The hunk puts back production's own lines (the base's oauth_provider.py).
+          grep -qF 'roles = list({m.role for m in memberships if m.role})' /tmp/hotfix/base/app/routers/v1/oauth_provider.py
+          grep -qF '+            roles = list({m.role for m in memberships if m.role})' "$HOTFIX_DIR/oauth_provider_shared.diff"
+          echo "The shipped module is SOURCE's with production's roles collection, nothing else."
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: ${{ env.TARGET }}:hotfix-edge-hardening-${{ github.sha }}
+          provenance: false
+          sbom: false
+
+      # Proves the image: nine added layers; /app/app is SOURCE's tree with the
+      # seven kept files byte-equal to the base's and the shipped module equal
+      # to the folder's copy, nothing more or less in either direction; the
+      # migrations are the base's.
+      - name: Hotfix is SOURCE's application code with the kept files and the shipped module
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          new="${TARGET}@${DIGEST}"
+          docker pull --quiet "$new"
+          base_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$BASE_IMAGE")
+          new_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$new")
+          if [[ "$new_layers" -ne $((base_layers + 9)) ]]; then
+            echo "::error::Expected exactly nine added layers ($base_layers -> $new_layers)."
+            exit 1
+          fi
+          mkdir -p /tmp/hotfix/new /tmp/hotfix/expected
+          cid=$(docker create "$new")
+          docker cp "$cid:/app/app" /tmp/hotfix/new/app
+          docker cp "$cid:/app/alembic/versions" /tmp/hotfix/new/versions
+          docker rm "$cid" >/dev/null
+          cp -a /tmp/hotfix/source/apps/api/app /tmp/hotfix/expected/app
+          while read -r f; do
+            cp "/tmp/hotfix/base/app/$f" "/tmp/hotfix/expected/app/$f"
+          done < "$HOTFIX_DIR/kept_files.txt"
+          cp "$HOTFIX_DIR/oauth_provider_shared.py.shipped" /tmp/hotfix/expected/app/routers/v1/oauth_provider_shared.py
+          diff -r -x __pycache__ /tmp/hotfix/expected/app /tmp/hotfix/new/app
+          diff -r -x __pycache__ /tmp/hotfix/base/versions /tmp/hotfix/new/versions
+          while read -r f; do
+            cmp "/tmp/hotfix/base/app/$f" "/tmp/hotfix/new/app/$f"
+          done < "$HOTFIX_DIR/kept_files.txt"
+          cmp "$HOTFIX_DIR/oauth_provider_shared.py.shipped" /tmp/hotfix/new/app/routers/v1/oauth_provider_shared.py
+          echo "The image's application code is exactly SOURCE's, the seven kept files are the base's, the shipped module is the folder's, and the migrations are the base's."
+
+      # Importing app modules imports the whole application, so these also prove
+      # both images import cleanly. The production image has asyncpg but not
+      # the test-only aiosqlite, so the URL must be PostgreSQL; nothing listens
+      # on it and nothing connects.
+      - name: Discovery, client policy and hosted pages unchanged; refused navigations get the page; routes are the base's plus three
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          run_py() {
+            docker run --rm -i --entrypoint python \
+              -e ENVIRONMENT=test \
+              -e DATABASE_URL='postgresql+asyncpg://verify:verify@127.0.0.1:5432/verify' \
+              -e REDIS_URL='redis://localhost:6379/0' \
+              -e SECRET_KEY=hotfix-verification-only \
+              -e JWT_SECRET_KEY=hotfix-verification-only \
+              -e CORS_ORIGINS=http://localhost:3000 \
+              -e JANUA_CUSTOM_DOMAIN=auth.madfam.io \
+              "$@"
+          }
+          metadata() {
+            run_py "$1" -c 'import json; from app.core.oauth_metadata import authorization_server_metadata as m; print("METADATA=" + json.dumps(m(), sort_keys=True))' \
+              | grep '^METADATA=' | tail -1 | cut -d= -f2-
+          }
+          policy() {
+            run_py "$1" - < "$POLICY_DUMP" | grep '^POLICY=' | tail -1 | cut -d= -f2-
+          }
+          new="${TARGET}@${DIGEST}"
+          metadata "$BASE_IMAGE" > /tmp/hotfix/base-metadata.json
+          metadata "$new" > /tmp/hotfix/new-metadata.json
+          test -s /tmp/hotfix/base-metadata.json
+          cmp /tmp/hotfix/base-metadata.json /tmp/hotfix/new-metadata.json
+          echo "Discovery: identical."
+          policy "$BASE_IMAGE" > /tmp/hotfix/base-policy.json
+          policy "$new" > /tmp/hotfix/new-policy.json
+          test -s /tmp/hotfix/base-policy.json
+          cmp /tmp/hotfix/base-policy.json /tmp/hotfix/new-policy.json
+          echo "Client policy: identical."
+          # Row 13's check, with its goldens on stdin (GOLDEN_PAGES = {name: html}):
+          # every hosted page, the copy, the 400 for a used sign-in request and
+          # row 13's own properties, in both images.
+          python3 -c 'import json, pathlib, sys; print("GOLDEN_PAGES = " + json.dumps({p.stem: p.read_bytes().decode("utf-8") for p in sorted(pathlib.Path(sys.argv[1]).glob("*.html"))}))' "$DOUBLE_SUBMIT_DIR/pages" > /tmp/hotfix/double-submit-check.py
+          cat "$DOUBLE_SUBMIT_CHECK" >> /tmp/hotfix/double-submit-check.py
+          run_py "$BASE_IMAGE" - < /tmp/hotfix/double-submit-check.py > /tmp/hotfix/base-ds.txt
+          run_py "$new" - < /tmp/hotfix/double-submit-check.py > /tmp/hotfix/new-ds.txt
+          # This row's check: routes, refused navigations, the error page, the
+          # JSON every API caller keeps, the refresh grace window.
+          run_py "$BASE_IMAGE" - < "$CHECK" > /tmp/hotfix/base-eh.txt
+          run_py "$new" - < "$CHECK" > /tmp/hotfix/new-eh.txt
+          for side in base new; do
+            for key in FIX UNCHANGED; do
+              grep "^$key=" "/tmp/hotfix/$side-ds.txt" | tail -1 | cut -d= -f2- > "/tmp/hotfix/$side-ds-$key.json"
+            done
+            for key in ROUTES FIX UNCHANGED; do
+              grep "^$key=" "/tmp/hotfix/$side-eh.txt" | tail -1 | cut -d= -f2- > "/tmp/hotfix/$side-eh-$key.json"
+            done
+          done
+          cmp /tmp/hotfix/base-eh-UNCHANGED.json /tmp/hotfix/new-eh-UNCHANGED.json
+          echo "The JSON an API caller gets on a hosted route, and a navigation on any other route: identical."
+          cat /tmp/hotfix/new-eh-FIX.json
+          python3 - <<'PY'
+          import json
+
+          def load(name):
+              return json.load(open(f"/tmp/hotfix/{name}.json"))
+
+          # Row 13's check: every UNCHANGED value but the auth router's route hash
+          # (this row adds two auth routes; the whole route table is checked
+          # below) is identical, all seven hosted pages are production's renders,
+          # and row 13's properties hold in both images.
+          base_ds, new_ds = load("base-ds-UNCHANGED"), load("new-ds-UNCHANGED")
+          assert base_ds and set(base_ds) == set(new_ds), (base_ds, new_ds)
+          differing = sorted(k for k in base_ds if base_ds[k] != new_ds[k])
+          assert differing in ([], ["auth_routes"]), differing
+          pages = {k: v for k, v in new_ds.items() if k.startswith("page_")}
+          assert len(pages) == 7 and all(pages.values()), pages
+          for side in ("base", "new"):
+              fix = load(f"{side}-ds-FIX")
+              assert len(fix) == 9 and all(fix.values()), (side, fix)
+          print("Hosted pages, copy and the used-request answer: identical; row 13's properties hold in both images.")
+
+          # This row's properties: all false on the base, all true on the hotfix.
+          base_fix, new_fix = load("base-eh-FIX"), load("new-eh-FIX")
+          assert base_fix and not any(base_fix.values()), base_fix
+          assert new_fix.keys() == base_fix.keys() and all(new_fix.values()), new_fix
+          print("Refused navigations on hosted routes get the hosted page, the page renders without echoing, "
+                "and the refresh grace window is 30 s, on the hotfix and not on the base.")
+
+          # The route table: the base's plus exactly the routes the nine merges add.
+          added = {
+              "GET /api/v1/auth/error",  # janua#845: the hosted error page
+              "GET /api/v1/auth/reset-password/done",  # janua#853: where a repeated reset lands
+              "POST /api/v1/internal/users/change-email",  # janua#844
+          }
+          base_routes, new_routes = set(load("base-eh-ROUTES")), set(load("new-eh-ROUTES"))
+          assert len(base_routes) > 300, len(base_routes)
+          assert not base_routes & added, base_routes & added
+          assert new_routes == base_routes | added, {
+              "unexpected": sorted(new_routes - base_routes - added),
+              "missing": sorted((base_routes | added) - new_routes),
+          }
+          print(f"Routes: the base's {len(base_routes)} plus exactly {sorted(added)}.")
+          PY
+
+      # Same retry as docker-publish.yml: a lost signature once cost a deploy.
+      - name: Sign image with cosign
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IMAGE_REF="${TARGET}@${DIGEST}"
+          for attempt in 1 2 3; do
+            if cosign sign --yes "${IMAGE_REF}"; then
+              echo "Signed ${IMAGE_REF}"
+              exit 0
+            fi
+            wait=$((attempt * 15))
+            echo "::warning::cosign sign failed for ${IMAGE_REF}; retrying in ${wait}s..."
+            sleep "$wait"
+          done
+          echo "::error::cosign sign failed 3 times for ${IMAGE_REF}."
+          exit 1
+
+      - name: Summary
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          {
+            echo "## Hosted error page, repeated presses, refresh grace, change of sign-in address: hotfix image"
+            echo ""
+            echo "- Digest: \`${DIGEST}\`"
+            echo "- Tag: \`${TARGET}:hotfix-edge-hardening-${GITHUB_SHA}\`"
+            echo "- Source (main): \`${GITHUB_SHA}\`; application code from \`${SOURCE}\` (janua#852's merge)"
+            echo "- Base: \`${BASE_IMAGE}\` (production, janua#843)"
+            echo "- Delta: janua#844, #845, #846, #847, #848, #850, #851, #852, #853 ($(grep -c '^A' "$HOTFIX_DIR/shipped_files.txt") files added, $(grep -c '^M' "$HOTFIX_DIR/shipped_files.txt") modified; shipped_files.txt); seven files keep production's copies (kept_files.txt); oauth_provider_shared.py without janua#801's roles filter (oauth_provider_shared.diff)"
+            echo "- Reason: ${REASON}"
+            echo ""
+            echo "Nothing was pinned. Production changes only through the reviewed PR that sets this digest as the production janua-api pin."
+          } >> "$GITHUB_STEP_SUMMARY"
