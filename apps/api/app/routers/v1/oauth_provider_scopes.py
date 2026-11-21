@@ -13,6 +13,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.device_clients import DEVICE_ONLY_SCOPES, is_device_client_id
 from app.models import OAuthClient, Organization
 from app.routers.v1 import oauth_provider_shared as _oauth_provider_shared
 from app.services.org_claims_service import ORG_ROLES_CLAIM
@@ -36,8 +37,16 @@ def _client_grant_types(client: OAuthClient) -> set:
 
 
 def _client_allowed_scopes(client: OAuthClient) -> set:
-    """The scopes a token grant may request for ``client`` (same rules as above)."""
-    return set(client.allowed_scopes or DEFAULT_CLIENT_SCOPES)
+    """The scopes a token grant may request for ``client`` (same rules as above).
+
+    A device-only scope (`core/device_clients.DEVICE_ONLY_SCOPES`) counts only
+    for a client of kind ``device``: whatever an ordinary client's row holds,
+    no grant gives it one.
+    """
+    allowed = set(client.allowed_scopes or DEFAULT_CLIENT_SCOPES)
+    if not is_device_client_id(client.client_id):
+        allowed -= DEVICE_ONLY_SCOPES
+    return allowed
 
 
 def _parse_requested_scopes(scope: Optional[str], client: OAuthClient) -> str:
@@ -307,7 +316,9 @@ async def _get_client_credentials_claims(
     # Any other client gets no tier claim for a product its organization is
     # not entitled to. Consumers read an absent claim as their lowest
     # authenticated tier.
-    if scoped_products and await _oauth_provider_shared.client_registered_by_platform_admin(db, client):
+    if scoped_products and await _oauth_provider_shared.client_registered_by_platform_admin(
+        db, client
+    ):
         for product in scoped_products:
             claim_key = re.sub(r"[^a-z0-9_]", "_", str(product).lower())
             if claim_key:

@@ -28,6 +28,7 @@ them; `router.routes` and `logout_router.routes` are the same lists.
 | `oauth_provider_consent` | POST /consent, POST /authorize |
 | `oauth_provider_resource_tokens` | token client authentication, protected-resource exchange and refresh |
 | `oauth_provider_grants` | client credentials, authorization code and refresh token grants |
+| `oauth_provider_device_grant` | client credentials for a shared device (client kind `device`) |
 | `oauth_provider_token` | POST /token |
 | `oauth_provider_userinfo` | /userinfo, /introspect, /revoke, GET/POST /logout |
 
@@ -56,6 +57,7 @@ MODULES = (
     "oauth_provider_consent",
     "oauth_provider_resource_tokens",
     "oauth_provider_grants",
+    "oauth_provider_device_grant",
     "oauth_provider_token",
     "oauth_provider_userinfo",
 )
@@ -103,6 +105,9 @@ from app.routers.v1.oauth_provider_clients import (  # noqa: E402,F401
 from app.routers.v1.oauth_provider_consent import (  # noqa: E402,F401
     authorize_post,
     handle_consent,
+)
+from app.routers.v1.oauth_provider_device_grant import (  # noqa: E402,F401
+    _handle_device_client_credentials_grant,
 )
 from app.routers.v1.oauth_provider_grants import (  # noqa: E402,F401
     _audit_service_token_app_roles,
@@ -172,6 +177,7 @@ from app.routers.v1.oauth_provider_shared import (  # noqa: E402,F401
     AUTH_CODE_PREFIX,
     AUTH_CODE_TTL,
     CSRF_TOKEN_TTL,
+    DEVICE_TOKEN_TTL_SECONDS,
     SERVICE_TOKEN_TTL_SECONDS,
     _accepted_audiences_for_client,
     _audiences_from_claims,

@@ -27,6 +27,7 @@ from app.auth.authentication_assurance import (
 from app.auth.sessions_cookie import SESSIONS_COOKIE_NAME, TAB_SESSION_HEADER, read_sessions_cookie
 from app.auth.sso_cookie import SSO_COOKIE_NAME, resolve_session_by_id, resolve_sso_cookie_session
 from app.config import settings
+from app.core.device_clients import CLIENT_KIND_DEVICE, CLIENT_KIND_SERVICE, token_ttl_seconds
 from app.core.jwt_manager import jwt_manager
 from app.core.oauth_metadata import oauth_issuer
 from app.core.redis import ResilientRedisClient, get_redis
@@ -56,8 +57,11 @@ CSRF_TOKEN_TTL = 600
 # Lifetime of client_credentials (service) access tokens. Machine tokens are
 # deliberately short-lived: services re-request tokens instead of refreshing,
 # so this must match the `expires_in` advertised in the token response rather
-# than inheriting the (much longer) human-session access-token TTL.
-SERVICE_TOKEN_TTL_SECONDS = 3600
+# than inheriting the (much longer) human-session access-token TTL. Each client
+# kind has its own lifetime (`core/device_clients.TOKEN_TTL_SECONDS_BY_KIND`):
+# a shared device's token lives fifteen minutes.
+SERVICE_TOKEN_TTL_SECONDS = token_ttl_seconds(CLIENT_KIND_SERVICE)
+DEVICE_TOKEN_TTL_SECONDS = token_ttl_seconds(CLIENT_KIND_DEVICE)
 
 
 def _audiences_from_claims(claims: dict) -> list[str]:
