@@ -1,0 +1,18 @@
+@@ -242,14 +242,9 @@ async def _get_user_entitlements(
+         memberships = result.scalars().all()
+ 
+         if memberships:
+-            # Collect the organization roles across active organizations.
+-            # A string shaped like an application role (`<app>:<role>`) is NOT
+-            # published: organization admins name these strings freely, and
+-            # under `roles` nothing would tell it from an audited grant. See
+-            # `organization_roles_for_roles_claim`.
+-            entitlements["roles"] = organization_roles_for_roles_claim(
+-                (m.role for m in memberships), user_id=user.id
+-            )
++            # Collect all roles across active organizations
++            roles = list({m.role for m in memberships if m.role})
++            entitlements["roles"] = roles
+ 
+             # Get primary organization (tenant, or first ACTIVE membership).
+             primary_org_id = memberships[0].organization_id
