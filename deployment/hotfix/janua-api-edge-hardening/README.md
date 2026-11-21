@@ -1,7 +1,7 @@
 # Hosted error page, repeated presses, refresh grace, change of sign-in address: hotfix image (owner exception)
 
 **Status (2026-11-21): built and pinned.** Production runs this image
-(`janua-api@sha256:baf6138e…`); before it, row 13 (`sha256:2bbee189…`, janua#843). The full list of what production
+(`janua-api@sha256:046d4686…`); before it, row 13 (`sha256:2bbee189…`, janua#843). The full list of what production
 runs is in [`../README.md`](../README.md).
 
 ## Why
@@ -149,7 +149,7 @@ request named a registered client). Three routes are added:
 |---|---|
 | Approved by | Owner, 2026-11-20 (in session): asked whether to run the Janua production release this weekend, answered «Yes, go ahead». Scope: this hotfix only (janua#844, #845, #846, #847, #848, #850, #851, #852, #853, without janua#801's `roles` filter), on top of the current production digest `sha256:2bbee189…` (janua#843); `promote-to-prod.yml` stays held |
 | Built by | [run 44883274338](https://github.com/madfam-org/janua/actions/runs/44883274338) from `main` `572789d6` (janua#855); every proof step passed |
-| Hotfix digest | `sha256:baf6138eb8c37644800c7c913fba051e840ebb9ba13eaf92d92ef9a1712d0b4c` |
+| Hotfix digest | `sha256:046d4686480e0eb73b6a5e8e1674b15936840eafcbc36fa1c5ee17ae702b0b2e` |
 | Replaces | `sha256:2bbee189303b669bb24302ed3437daa59ee2e0979436d79b3b02b887b1eeb361` (janua#843) |
 | Delta | `apps/api/app` at `ae191e86` (40 files: 30 added, 10 modified, `shipped_files.txt`), seven files kept at production's copies (`kept_files.txt`), `routers/v1/oauth_provider_shared.py` from `oauth_provider_shared.py.shipped` (`oauth_provider_shared.diff`) |
 
