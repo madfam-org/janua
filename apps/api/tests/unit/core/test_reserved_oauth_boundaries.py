@@ -107,6 +107,7 @@ def test_consent_purpose_audiences_and_names_are_reserved_by_construction():
         "pravara-mes:nodes",
         "pravara-mes:passports",
         "pravara-mes:read",
+        "pravara-mes:terminal",
         "pravara-mes:admin",
         "asset-shells:read",
         "asset-shells:publish-types",

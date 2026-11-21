@@ -26,7 +26,16 @@ from typing import Any, List, Optional
 from urllib.parse import urlencode
 
 import structlog
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    status,
+)
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -65,6 +74,17 @@ from app.auth.sso_cookie import (
 )
 from app.config import settings
 from app.core.database import get_db
+from app.core.device_clients import (
+    CLIENT_KIND_DEVICE,
+    CLIENT_KIND_SERVICE,
+    boot_id_is_valid,
+    get_device_template,
+    is_device_client_id,
+    observe_boot_id,
+    parse_recent_boot_ids,
+    serialize_recent_boot_ids,
+    token_ttl_seconds,
+)
 from app.core.jwt_manager import jwt_manager
 from app.core.oauth_metadata import oauth_issuer
 from app.core.protected_resources import (
@@ -95,6 +115,7 @@ from app.core.url_security import (
 from app.dependencies import get_current_user
 from app.models import OAuthClient, Organization, OrganizationMember, User, UserStatus
 from app.models import Session as UserSession
+from app.models.device_client import DEVICE_STATUS_ACTIVE, DeviceClient
 from app.services import resource_tokens, token_revocation
 from app.services.audit_logger import AuditEventType, AuditLogger
 from app.services.client_id_metadata import (
@@ -104,6 +125,16 @@ from app.services.client_id_metadata import (
     resolve_client_metadata,
 )
 from app.services.consent_service import ConsentService
+from app.services.device_audit import (
+    DEVICE_CLONE_SUSPECTED,
+    RESOURCE_DEVICE,
+    stage_device_audit,
+)
+from app.services.device_notifications import (
+    build_clone_suspicion_notice,
+    organization_admin_emails,
+    send_clone_suspicion_notice,
+)
 from app.services.entitlements_service import (
     entitlements_to_claim,
     get_product_tier_claims,
@@ -131,8 +162,11 @@ CSRF_TOKEN_TTL = 600
 # Lifetime of client_credentials (service) access tokens. Machine tokens are
 # deliberately short-lived: services re-request tokens instead of refreshing,
 # so this must match the `expires_in` advertised in the token response rather
-# than inheriting the (much longer) human-session access-token TTL.
-SERVICE_TOKEN_TTL_SECONDS = 3600
+# than inheriting the (much longer) human-session access-token TTL. Each client
+# kind has its own lifetime (`core/device_clients.TOKEN_TTL_SECONDS_BY_KIND`):
+# a shared device's token lives fifteen minutes.
+SERVICE_TOKEN_TTL_SECONDS = token_ttl_seconds(CLIENT_KIND_SERVICE)
+DEVICE_TOKEN_TTL_SECONDS = token_ttl_seconds(CLIENT_KIND_DEVICE)
 
 
 def _audiences_from_claims(claims: dict) -> list[str]:
@@ -3109,6 +3143,8 @@ async def token(
     code_verifier: Optional[str] = Form(None),
     scope: Optional[str] = Form(None),
     resource: Optional[List[str]] = Form(None),
+    boot_id: Optional[str] = Form(None),
+    background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(get_redis),
 ):
@@ -3120,7 +3156,9 @@ async def token(
     Supports:
     - authorization_code: Exchange auth code for access/refresh/id tokens
     - refresh_token: Get new access token using refresh token
-    - client_credentials: Get short-lived machine tokens for service accounts
+    - client_credentials: Get short-lived machine tokens for service accounts.
+      A shared device (client kind ``device``) also sends ``boot_id``, the
+      random value it drew at its last start; its token lives fifteen minutes.
 
     Protected resources (RFC 8707): a request with `resource`, from an https
     `client_id` (CIMD), or presenting a resource refresh token is handled by
@@ -3224,6 +3262,14 @@ async def token(
             redis=redis,
         )
     elif grant_type == "client_credentials":
+        if is_device_client_id(client.client_id):
+            return await _handle_device_client_credentials_grant(
+                client=client,
+                requested_scope=scope,
+                boot_id=boot_id,
+                db=db,
+                background_tasks=background_tasks,
+            )
         return await _handle_client_credentials_grant(
             client=client,
             requested_scope=scope,
@@ -3782,6 +3828,143 @@ async def _handle_client_credentials_grant(
         access_token=access_token,
         token_type="Bearer",
         expires_in=SERVICE_TOKEN_TTL_SECONDS,
+        refresh_token=None,
+        id_token=None,
+        scope=scope,
+    )
+
+
+def _device_token_refused(detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED, detail=f"invalid_client: {detail}"
+    )
+
+
+async def _handle_device_client_credentials_grant(
+    client: OAuthClient,
+    requested_scope: Optional[str],
+    boot_id: Optional[str],
+    db: AsyncSession,
+    background_tasks: Optional[BackgroundTasks],
+) -> TokenResponse:
+    """client_credentials for a shared device (client kind ``device``).
+
+    The same grant and the same machine claims as a service client, so every
+    verifier classifies the token as a machine and holds it to its scope, plus
+    ``client_kind: "device"``. The differences:
+
+    - the device's record must exist and be active; it is read under a row lock,
+      and a device client is never served without it;
+    - scope and audience come from the device's template, whatever else the
+      client row holds;
+    - the token lives ``DEVICE_TOKEN_TTL_SECONDS`` and carries no email;
+    - ``boot_id`` is required. When an earlier boot identifier comes back (two
+      holders of one credential taking turns), Janua flags the device, records
+      it, and notifies the organization's administrators once. The token is
+      still issued: a person decides whether to disable the device.
+    """
+    if not getattr(client, "is_confidential", False):
+        raise _device_token_refused("client_credentials requires a confidential client")
+
+    device = (
+        await db.execute(
+            select(DeviceClient).where(DeviceClient.oauth_client_id == client.id).with_for_update()
+        )
+    ).scalar_one_or_none()
+    if device is None or device.status != DEVICE_STATUS_ACTIVE:
+        raise _device_token_refused("Client disabled")
+    template = get_device_template(device.template)
+    if template is None:
+        raise _device_token_refused("Client disabled")
+    if not boot_id_is_valid(boot_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid_request: a device must send boot_id (16-128 URL-safe characters)",
+        )
+
+    scope = _parse_requested_scopes(requested_scope, client)
+    outside_template = set(scope.split()) - template.scopes
+    if outside_template:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"invalid_scope: {', '.join(sorted(outside_template))}",
+        )
+
+    now = datetime.utcnow()
+    observation = observe_boot_id(parse_recent_boot_ids(device.recent_boot_ids), boot_id)
+    device.recent_boot_ids = serialize_recent_boot_ids(observation.recent)
+    device.last_token_at = now
+    client.last_used_at = now
+
+    newly_flagged = False
+    if observation.alternated:
+        device.boot_alternations = (device.boot_alternations or 0) + 1
+        if device.clone_suspected_at is None:
+            device.clone_suspected_at = now
+            newly_flagged = True
+
+    claims = await _get_client_credentials_claims(client, scope, db)
+    issued_at = int(now.replace(tzinfo=timezone.utc).timestamp())
+    claims.update(
+        {
+            "sub": f"service-account:{client.client_id}",
+            "jti": secrets.token_urlsafe(32),
+            "iat": issued_at,
+            "exp": issued_at + DEVICE_TOKEN_TTL_SECONDS,
+            "type": "access",
+            "iss": jwt_manager.issuer,
+            "aud": template.audience,
+            "client_kind": CLIENT_KIND_DEVICE,
+        }
+    )
+    access_token = jwt_manager.encode_token(claims)
+
+    notice = None
+    if newly_flagged:
+        stage_device_audit(
+            db,
+            action=DEVICE_CLONE_SUSPECTED,
+            resource_type=RESOURCE_DEVICE,
+            resource_id=device.id,
+            actor_id=None,
+            details={
+                "org_id": str(device.organization_id),
+                "client_id": client.client_id,
+                "label": device.label,
+                "boot_alternations": device.boot_alternations,
+                "disabled": False,
+            },
+        )
+        organization_name = (
+            await db.execute(
+                select(Organization.name).where(Organization.id == device.organization_id)
+            )
+        ).scalar_one_or_none()
+        notice = build_clone_suspicion_notice(
+            recipients=await organization_admin_emails(db, device.organization_id),
+            organization_name=organization_name,
+            device_label=device.label,
+            client_id=client.client_id,
+        )
+        logger.warning(
+            "Device flagged: boot identifiers alternate",
+            client_id=client.client_id,
+            org_id=str(device.organization_id),
+            boot_alternations=device.boot_alternations,
+        )
+
+    await db.commit()
+
+    if notice is not None:
+        if background_tasks is not None:
+            background_tasks.add_task(send_clone_suspicion_notice, notice)
+        else:
+            await send_clone_suspicion_notice(notice)
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="Bearer",
+        expires_in=DEVICE_TOKEN_TTL_SECONDS,
         refresh_token=None,
         id_token=None,
         scope=scope,

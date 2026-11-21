@@ -247,6 +247,7 @@ admin can register a client that carries them:
 | `pravara-api` | `pravara-mes:nodes` | Producer-node registry, heartbeats and telemetry. |
 | `pravara-api` | `pravara-mes:passports` | Passport and genealogy writes. |
 | `pravara-api` | `pravara-mes:read` | Read-only access to Pravara's machine-facing resources. |
+| `pravara-api` | `pravara-mes:terminal` | A shared shop-floor terminal's own token. Held only by device clients (see [Shared devices](#shared-devices-client-kind-device)). |
 | `asset-shells-api` | `asset-shells:publish-types` | Publish tenant-less type shells. |
 | `asset-shells-api` | `asset-shells:publish-instances` | Publish one tenant's instance shells and passport events. |
 | `asset-shells-api` | `asset-shells:read` | Read one tenant's instance shells and passport events. |
@@ -298,6 +299,55 @@ python scripts/seed_service_clients.py --org-bound forj-pravara-intake --organiz
 The organization is looked up by slug and must exist. Re-running converges
 non-secret fields; a client whose stored organization differs from the
 requested one is never re-bound (the run stops instead).
+
+## Shared devices (client kind `device`)
+
+A shared shop-floor terminal is a confidential client of kind `device`
+(`apps/api/app/core/device_clients.py`). Nobody provisions it: the device
+enrols itself and a person approves it.
+
+1. The device generates 32 random bytes (64 hex or 43 base64url characters),
+   keeps them, and sends them once:
+   `POST /api/v1/device-enrolments` with `{"organization": "<slug>", "label":
+   "...", "secret": "..."}`. Janua stores a bcrypt hash and answers with an
+   `enrolment_id` and an eight-letter `user_code` for the device's screen.
+   Public, limited per address and per organization in Redis (refused with
+   503 when the counters cannot be read), with a cap on pending enrolments.
+   Only organizations listed in `DEVICE_ENROLMENT_ORGANIZATIONS` enrol devices.
+2. An owner or admin of that organization, signed in as a person, approves
+   the code: `POST /api/v1/organizations/{org_id}/devices/enrolments/approve`
+   with `{"user_code": "..."}`. Janua creates the client from a
+   platform-defined template (`nauta-edge-terminal`: audience `pravara-api`,
+   scope `pravara-mes:terminal`, `client_credentials` only).
+3. The device polls `GET /api/v1/device-enrolments/{enrolment_id}` until it
+   reads `approved` and its `client_id` (`jnd_…`). Never a secret.
+4. It asks for tokens with its own secret and a `boot_id`, a random value it
+   draws at every start and keeps in memory:
+
+```bash
+curl -s -X POST https://auth.madfam.io/api/v1/oauth/token \
+  -d grant_type=client_credentials \
+  -d client_id="$DEVICE_CLIENT_ID" -d client_secret="$DEVICE_SECRET" \
+  -d boot_id="$BOOT_ID"
+```
+
+The token has the same claims as any service token (`token_use:
+client_credentials`, `actor_type: service_account`, `sub:
+service-account:<client_id>`, `org_id`/`tenant_id`), plus `client_kind:
+"device"`, and no email. It lives **fifteen minutes** (`expires_in: 900`).
+Scope and audience always come from the template.
+
+Organization administrators list pending enrolments
+(`GET …/devices/enrolments`), list devices (`GET …/devices`) and disable one
+(`POST …/devices/{device_id}/disable`): it then gets no new token, and the one
+it holds expires within fifteen minutes. Enrolling again with
+`device_client_id` set and approving it rotates that device's secret under the
+same `client_id`.
+
+If a device's token requests alternate between boot identifiers, which one
+device that restarts never does, Janua flags the device, writes an audit row
+and emails the organization's administrators once. It keeps issuing tokens: a
+person decides whether to disable the device.
 
 ## How Zavlo / RouteCraft obtain tokens
 

@@ -112,6 +112,9 @@ from app.routers.v1 import (
     connections_consent as connections_consent_v1,
 )
 from app.routers.v1 import (
+    device_enrolment as device_enrolment_v1,
+)
+from app.routers.v1 import (
     devices as devices_v1,
 )
 from app.routers.v1 import (
@@ -958,6 +961,12 @@ app.include_router(oauth_on_behalf_v1.router, prefix="/api/v1")
 app.include_router(users_v1.router, prefix="/api/v1")
 app.include_router(sessions_v1.router, prefix="/api/v1")
 app.include_router(devices_v1.router, prefix="/api/v1")
+# Shared devices (OAuth clients of kind "device"): the public register/poll
+# routes a device calls before it has a credential, and the organization
+# administrators' approve/list/disable routes. Imported at module top, so a
+# broken router fails startup instead of silently dropping the surface.
+app.include_router(device_enrolment_v1.public_router, prefix="/api/v1")
+app.include_router(device_enrolment_v1.admin_router, prefix="/api/v1")
 app.include_router(organizations_v1.router, prefix="/api/v1")
 app.include_router(organization_members_v1.router, prefix="/api/v1")
 # Delegated app-role administration: an `<app>:admin` manages that app's roles
