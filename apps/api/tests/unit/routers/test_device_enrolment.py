@@ -401,7 +401,9 @@ async def test_a_wrong_secret_gets_no_token(world):
     assert refused.status_code == 401
 
 
-@pytest.mark.parametrize("secret", ["00" * 32, "not-a-secret-" * 4, secrets.token_hex(16)])
+@pytest.mark.parametrize(
+    "secret", ["00" * 32, "not-a-secret-" * 4, "ab" * 16], ids=["zeros", "text", "16-bytes"]
+)
 async def test_a_malformed_or_constant_secret_is_refused(world, secret):
     refused = await world.register(secret=secret)
     assert refused.status_code == 422

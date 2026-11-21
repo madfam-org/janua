@@ -7,6 +7,10 @@ import secrets
 
 import pytest
 
+# Fixed values, never random ones: test ids must be the same in every
+# collection (pytest-xdist workers and CI's test-split check compare them).
+SAMPLE = bytes(range(1, 33))
+
 from app.core import device_clients as dc
 from app.core import reserved_oauth_boundaries as reserved
 
@@ -44,10 +48,11 @@ def test_the_terminal_template_carries_the_terminal_scope_on_pravaras_audience()
 @pytest.mark.parametrize(
     "secret",
     [
-        secrets.token_hex(32),
-        secrets.token_hex(32).upper(),
-        base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("="),
+        SAMPLE.hex(),
+        SAMPLE.hex().upper(),
+        base64.urlsafe_b64encode(SAMPLE).decode().rstrip("="),
     ],
+    ids=["hex", "hex-upper", "base64url"],
 )
 def test_a_32_byte_secret_is_accepted_as_hex_or_base64url(secret):
     assert dc.device_secret_is_valid(secret)
@@ -58,13 +63,14 @@ def test_a_32_byte_secret_is_accepted_as_hex_or_base64url(secret):
     [
         None,
         "",
-        secrets.token_hex(31),
-        secrets.token_hex(33),
+        SAMPLE[:31].hex(),
+        (SAMPLE + b"!").hex(),
         "00" * 32,
         base64.urlsafe_b64encode(bytes(32)).decode().rstrip("="),
-        base64.urlsafe_b64encode(secrets.token_bytes(32)).decode(),  # padded
+        base64.urlsafe_b64encode(SAMPLE).decode(),  # padded
         "z" * 64,
     ],
+    ids=["none", "empty", "31-bytes", "33-bytes", "zeros", "zeros-b64", "padded", "not-hex"],
 )
 def test_anything_else_is_refused(secret):
     assert not dc.device_secret_is_valid(secret)
