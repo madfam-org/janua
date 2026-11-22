@@ -1,0 +1,222 @@
+# Builds the owner-exception hotfix image of row 15: the image production runs
+# (row 14) plus janua#801's `roles` filter in the OIDC handler's
+# _get_user_entitlements, the one hunk row 14 left out. One file:
+# apps/api/app/routers/v1/oauth_provider_shared.py at SOURCE. See
+# deployment/hotfix/janua-api-roles-filter/README.md.
+name: Hotfix image (OIDC roles claim without organization strings shaped like application roles)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why build it now (shown in the run summary; required)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write # cosign keyless signing via OIDC
+
+concurrency:
+  group: hotfix-janua-api-roles-filter
+  cancel-in-progress: false
+
+env:
+  # The digest production runs (row 14, the edge-hardening hotfix of janua#855,
+  # pinned by janua#857, run 44883274338).
+  BASE_IMAGE: ghcr.io/madfam-org/janua-api@sha256:046d4686480e0eb73b6a5e8e1674b15936840eafcbc36fa1c5ee17ae702b0b2e
+  # The workflow that built and signed BASE_IMAGE.
+  BASE_SIGNER: https://github.com/madfam-org/janua/.github/workflows/hotfix-janua-api-edge-hardening.yml@refs/heads/main
+  # Row 14's application code commit; apps/api/app on main is still exactly this.
+  SOURCE: ae191e8669efad2a86f54e3513361969c2d75679
+  MODULE: routers/v1/oauth_provider_shared.py
+  ROW14_DIR: deployment/hotfix/janua-api-edge-hardening
+  HOTFIX_DIR: deployment/hotfix/janua-api-roles-filter
+  DOCKERFILE: deployment/hotfix/janua-api-roles-filter/Dockerfile
+  TARGET: ghcr.io/madfam-org/janua-api
+
+jobs:
+  build:
+    name: Build, verify and sign
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    steps:
+      - name: Refuse anything but main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Build the hotfix from main only, where the Dockerfile and the change were reviewed."
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # SOURCE must be reachable
+
+      - name: Dockerfile is the base plus the one module
+        run: |
+          set -euo pipefail
+          grep -qxF "FROM ${BASE_IMAGE}" "$DOCKERFILE" || { echo "::error::$DOCKERFILE does not start FROM ${BASE_IMAGE}."; exit 1; }
+          instructions=$(grep -vE '^\s*(#|$)' "$DOCKERFILE")
+          expected="FROM ${BASE_IMAGE}
+          COPY --chown=janua:python apps/api/app/${MODULE} /app/app/${MODULE}"
+          expected=$(printf '%s\n' "$expected" | sed 's/^ *//')
+          if [[ "$instructions" != "$expected" ]]; then
+            echo "::error::$DOCKERFILE must hold exactly the FROM and the one COPY:"
+            echo "$instructions"
+            exit 1
+          fi
+
+      - name: The shipped module is SOURCE's, and apps/api/app on main is SOURCE
+        run: |
+          set -euo pipefail
+          git diff --quiet "$SOURCE" HEAD -- apps/api/app || {
+            echo "::error::apps/api/app on this main differs from SOURCE ($SOURCE); a later merge would ship unreviewed:"
+            git diff --stat "$SOURCE" HEAD -- apps/api/app
+            exit 1
+          }
+          git show "$SOURCE:apps/api/app/$MODULE" | cmp - "apps/api/app/$MODULE"
+          # The change this row ships is exactly the reverse of row 14's reviewed hunk.
+          { git diff --no-index --no-color -U3 "apps/api/app/$MODULE" "$ROW14_DIR/oauth_provider_shared.py.shipped" || true; } | sed -n '/^@@/,$p' > /tmp/row14.diff
+          cmp /tmp/row14.diff "$ROW14_DIR/oauth_provider_shared.diff"
+          grep -qF 'entitlements["roles"] = organization_roles_for_roles_claim(' "apps/api/app/$MODULE"
+          echo "The module is SOURCE's; against production's copy it differs by exactly row 14's reviewed hunk, reversed."
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+
+      # Proves the base is row 14: signed by row 14's workflow on main, and its
+      # copy of the module is row 14's .shipped file.
+      - name: Base image is row 14
+        run: |
+          set -euo pipefail
+          cosign verify "$BASE_IMAGE" \
+            --certificate-identity "$BASE_SIGNER" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          docker pull --quiet "$BASE_IMAGE"
+          mkdir -p /tmp/hotfix/base
+          cid=$(docker create "$BASE_IMAGE")
+          docker cp "$cid:/app/app" /tmp/hotfix/base/app
+          docker cp "$cid:/app/alembic/versions" /tmp/hotfix/base/versions
+          docker rm "$cid" >/dev/null
+          cmp "/tmp/hotfix/base/app/$MODULE" "$ROW14_DIR/oauth_provider_shared.py.shipped"
+          echo "The base is signed by row 14's workflow and carries row 14's copy of the module."
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: ${{ env.TARGET }}:hotfix-roles-filter-${{ github.sha }}
+          provenance: false
+          sbom: false
+
+      - name: Hotfix differs from the base by the one module
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          new="${TARGET}@${DIGEST}"
+          docker pull --quiet "$new"
+          base_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$BASE_IMAGE")
+          new_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$new")
+          [[ "$new_layers" -eq $((base_layers + 1)) ]] || { echo "::error::Expected exactly one added layer ($base_layers -> $new_layers)."; exit 1; }
+          mkdir -p /tmp/hotfix/new
+          cid=$(docker create "$new")
+          docker cp "$cid:/app/app" /tmp/hotfix/new/app
+          docker cp "$cid:/app/alembic/versions" /tmp/hotfix/new/versions
+          docker rm "$cid" >/dev/null
+          changed=$(diff -rq -x __pycache__ /tmp/hotfix/base/app /tmp/hotfix/new/app | sort || true)
+          [[ "$changed" == "Files /tmp/hotfix/base/app/${MODULE} and /tmp/hotfix/new/app/${MODULE} differ" ]] || {
+            echo "::error::The hotfix must differ from the base by exactly $MODULE:"; echo "$changed"; exit 1; }
+          diff -r -x __pycache__ /tmp/hotfix/base/versions /tmp/hotfix/new/versions
+          cmp "/tmp/hotfix/new/app/$MODULE" "apps/api/app/$MODULE"
+          echo "One file differs from the base: $MODULE, now SOURCE's. Migrations unchanged."
+
+      # Importing app.main imports the whole application, so this also proves
+      # both images import cleanly. Nothing listens on the database URL.
+      - name: Discovery unchanged; the OIDC handler filters on the hotfix and not on the base
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          run_py() {
+            docker run --rm -i --entrypoint python \
+              -e ENVIRONMENT=test \
+              -e DATABASE_URL='postgresql+asyncpg://verify:verify@127.0.0.1:5432/verify' \
+              -e REDIS_URL='redis://localhost:6379/0' \
+              -e SECRET_KEY=hotfix-verification-only \
+              -e JWT_SECRET_KEY=hotfix-verification-only \
+              -e CORS_ORIGINS=http://localhost:3000 \
+              -e JANUA_CUSTOM_DOMAIN=auth.madfam.io \
+              "$@"
+          }
+          check='import inspect, json
+          import app.main  # the whole application imports
+          from app.core.oauth_metadata import authorization_server_metadata as m
+          from app.routers.v1 import oauth_provider_shared as s
+          src = inspect.getsource(s._get_user_entitlements)
+          print("METADATA=" + json.dumps(m(), sort_keys=True))
+          print("FILTERS=" + json.dumps("organization_roles_for_roles_claim(" in src))'
+          check=$(printf '%s\n' "$check" | sed 's/^          //')
+          new="${TARGET}@${DIGEST}"
+          run_py "$BASE_IMAGE" -c "$check" > /tmp/hotfix/base-check.txt
+          run_py "$new" -c "$check" > /tmp/hotfix/new-check.txt
+          for side in base new; do
+            grep '^METADATA=' "/tmp/hotfix/$side-check.txt" | tail -1 > "/tmp/hotfix/$side-metadata.txt"
+            grep '^FILTERS=' "/tmp/hotfix/$side-check.txt" | tail -1 > "/tmp/hotfix/$side-filters.txt"
+          done
+          test -s /tmp/hotfix/base-metadata.txt
+          cmp /tmp/hotfix/base-metadata.txt /tmp/hotfix/new-metadata.txt
+          [[ "$(cat /tmp/hotfix/base-filters.txt)" == "FILTERS=false" ]]
+          [[ "$(cat /tmp/hotfix/new-filters.txt)" == "FILTERS=true" ]]
+          echo "Discovery identical; _get_user_entitlements uses organization_roles_for_roles_claim on the hotfix only."
+
+      # Same retry as docker-publish.yml: a lost signature once cost a deploy.
+      - name: Sign image with cosign
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IMAGE_REF="${TARGET}@${DIGEST}"
+          for attempt in 1 2 3; do
+            if cosign sign --yes "${IMAGE_REF}"; then
+              echo "Signed ${IMAGE_REF}"
+              exit 0
+            fi
+            wait=$((attempt * 15))
+            echo "::warning::cosign sign failed for ${IMAGE_REF}; retrying in ${wait}s..."
+            sleep "$wait"
+          done
+          echo "::error::cosign sign failed 3 times for ${IMAGE_REF}."
+          exit 1
+
+      - name: Summary
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          {
+            echo "## OIDC roles claim filter: hotfix image (row 15)"
+            echo ""
+            echo "- Digest: \`${DIGEST}\`"
+            echo "- Tag: \`${TARGET}:hotfix-roles-filter-${GITHUB_SHA}\`"
+            echo "- Base: \`${BASE_IMAGE}\` (production, row 14, janua#857)"
+            echo "- Delta: \`apps/api/app/${MODULE}\` at \`${SOURCE}\` (janua#801's filter in _get_user_entitlements)"
+            echo "- Reason: ${REASON}"
+            echo ""
+            echo "Nothing was pinned. Production changes only through the reviewed PR that sets this digest as the production janua-api pin."
+          } >> "$GITHUB_STEP_SUMMARY"
