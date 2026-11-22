@@ -12,8 +12,8 @@ replaced). This page is the index: read it to answer "what code is in
 production?" without walking the chain record by record.
 
 **Current production pin** (`k8s/overlays/production/kustomization.yaml`,
-`janua-api`): `sha256:046d4686480e0eb73b6a5e8e1674b15936840eafcbc36fa1c5ee17ae702b0b2e`,
-the edge-hardening hotfix (row 14), pinned 2026-11-21. Before it: `sha256:2bbee189…` (row 13).
+`janua-api`): `sha256:0b8b5cfd91e95a82ab4508c083e34edc364338a61df8b2af19a76babda521989`,
+the roles-filter hotfix (row 15), pinned 2026-11-21. Before it: `sha256:046d4686…` (row 14).
 
 ## The chain, oldest first
 
@@ -42,7 +42,7 @@ files are taken from (the workflow's `*_SOURCE`); "Files" are paths under
 | 12 | [`janua-api-public-silent-auth`](janua-api-public-silent-auth/README.md) | #833 | `85f3e832` | `routers/v1/oauth_provider.py` from the folder's `oauth_provider.py.shipped` | `sha256:44c4310d…` | #835 (2026-11-18) |
 | 13 | [`janua-api-login-double-submit`](janua-api-login-double-submit/README.md) | #841 | `75dd0eea` | `auth/hosted_locale.py`, `auth/tenant_login_context.py`, `routers/v1/auth.py` | `sha256:2bbee189…` | janua#843 (2026-11-19) |
 | 14 | [`janua-api-edge-hardening`](janua-api-edge-hardening/README.md) | #844, #845, #846, #847, #848, #850, #851, #852, #853 | `ae191e86` | `apps/api/app` at the source (40 files: 30 added, 10 modified, the folder's `shipped_files.txt`) except seven files kept at production's copies (`kept_files.txt`); `routers/v1/oauth_provider_shared.py` from the folder's `oauth_provider_shared.py.shipped` (without janua#801's `roles` filter) | `sha256:046d4686…` | pin PR of 2026-11-21 |
-| 15 | [`janua-api-roles-filter`](janua-api-roles-filter/README.md) | janua#801's filter in the OIDC handler (the hunk row 14 left out) | `ae191e86` | `routers/v1/oauth_provider_shared.py` | authored, not built or pinned | — |
+| 15 | [`janua-api-roles-filter`](janua-api-roles-filter/README.md) | janua#801's filter in the OIDC handler (the hunk row 14 left out) | `ae191e86` | `routers/v1/oauth_provider_shared.py` | `sha256:0b8b5cfd…` | pin PR of 2026-11-21 |
 
 A later row overrides an earlier one for the same path (row 6, then row 10,
 for `core/reserved_oauth_boundaries.py`; row 4, then row 9, for
