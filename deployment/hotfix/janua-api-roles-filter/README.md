@@ -1,7 +1,7 @@
 # OIDC `roles` claim without organization strings shaped like application roles: hotfix image (owner exception)
 
-**Status (2026-11-21): authored, not built or pinned.** Production runs row 14
-(`janua-api@sha256:046d4686…`, janua#857). The full list of what production
+**Status (2026-11-21): built and pinned.** Production runs this image
+(`janua-api@sha256:0b8b5cfd…`); before it, row 14 (`sha256:046d4686…`, janua#857). The full list of what production
 runs is in [`../README.md`](../README.md).
 
 ## Why
@@ -65,8 +65,8 @@ Nothing else changes: no other file, package, migration or setting.
 | | |
 |---|---|
 | Approved by | Owner, 2026-11-21 (in session): after the read-only query was proposed, answered «you have my OK for the roles actionable». Scope: this one hunk, on top of production's row 14 |
-| Built by | pending |
-| Hotfix digest | pending |
+| Built by | [run 44972168106](https://github.com/madfam-org/janua/actions/runs/44972168106) from `main` `fcdb8a2f` (janua#858); every proof step passed |
+| Hotfix digest | `sha256:0b8b5cfd91e95a82ab4508c083e34edc364338a61df8b2af19a76babda521989` |
 | Replaces | `sha256:046d4686480e0eb73b6a5e8e1674b15936840eafcbc36fa1c5ee17ae702b0b2e` (janua#857) |
 | Delta | `apps/api/app/routers/v1/oauth_provider_shared.py` at `ae191e86` |
 
