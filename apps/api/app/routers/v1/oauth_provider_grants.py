@@ -45,6 +45,20 @@ from app.services.service_principal import service_principal_claims
 from app.services.spanish_formality import spanish_formality_claims
 
 
+def _access_token_expires_in(expires_at: Optional[datetime]) -> int:
+    """Seconds until the access token just minted really expires (RFC 6749 §5.1).
+
+    `expires_in` used to be a literal 3600 while the token's own `exp` follows
+    `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` (480 by default). A client that trusts
+    the advertised value dropped a token with seven valid hours left, so any
+    refused refresh became a forced sign-in after one hour. The value is read
+    from the `exp` the mint returned, so the two cannot drift again.
+    """
+    if isinstance(expires_at, datetime):
+        return max(1, round((expires_at - datetime.utcnow()).total_seconds()))
+    return int(jwt_manager.access_token_expire_minutes) * 60
+
+
 async def _audit_service_token_app_roles(
     client: OAuthClient,
     claims: dict,
@@ -340,7 +354,7 @@ async def _handle_authorization_code_grant(
         scope = _require_grantable_scope(code_data.get("scope"), client, grant="authorization_code")
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
-    access_token, _, _ = jwt_manager.create_access_token(
+    access_token, _, access_expires_at = jwt_manager.create_access_token(
         user_id=str(user.id),
         email=user.email,
         additional_claims={
@@ -407,7 +421,7 @@ async def _handle_authorization_code_grant(
     return TokenResponse(
         access_token=access_token,
         token_type="Bearer",
-        expires_in=3600,  # 1 hour
+        expires_in=_access_token_expires_in(access_expires_at),
         refresh_token=refresh_token,
         id_token=id_token,
         scope=scope,
@@ -537,7 +551,7 @@ async def _handle_refresh_token_grant(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
-    access_token, _, _ = jwt_manager.create_access_token(
+    access_token, _, access_expires_at = jwt_manager.create_access_token(
         user_id=str(user.id),
         email=user.email,
         additional_claims={
@@ -595,7 +609,7 @@ async def _handle_refresh_token_grant(
     return TokenResponse(
         access_token=access_token,
         token_type="Bearer",
-        expires_in=3600,
+        expires_in=_access_token_expires_in(access_expires_at),
         refresh_token=new_refresh_token,
         scope=scope,
     )
