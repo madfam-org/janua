@@ -1,7 +1,7 @@
 # OAuth `expires_in` matches the access token's real expiry: hotfix image (owner exception)
 
-**Status (2026-11-23): not built, not pinned.** Production runs row 15
-(`janua-api@sha256:0b8b5cfd…`, janua#859). The full list of what production
+**Status (2026-11-24): built and pinned.** Production runs this image
+(`janua-api@sha256:a5671007…`); before it, row 15 (`sha256:0b8b5cfd…`, janua#859). The full list of what production
 runs is in [`../README.md`](../README.md).
 
 ## Why
@@ -69,7 +69,8 @@ Nothing else changes: no other file, package, migration or setting.
 | | |
 |---|---|
 | Approved by | Owner, 2026-11-23 (in session): asked whether to promote the new image, answered «Yes, promote it»; told the promote workflow is held and offered this row instead, answered «Yes, prepare row 16». Scope: janua#860's one file, on top of production's row 15 |
-| Built by | not built yet |
+| Built by | [run 45305748557](https://github.com/madfam-org/janua/actions/runs/45305748557) from `main` `aa6fa779` (janua#861); every proof step passed |
+| Hotfix digest | `sha256:a56710072741383901904b79d35ac08367e7afaf3e94337b5d86d9a21ac00337` |
 | Replaces | `sha256:0b8b5cfd91e95a82ab4508c083e34edc364338a61df8b2af19a76babda521989` (janua#859) |
 | Delta | `apps/api/app/routers/v1/oauth_provider_grants.py` at `2dc62eeb` |
 

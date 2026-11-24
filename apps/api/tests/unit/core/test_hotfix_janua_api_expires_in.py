@@ -37,6 +37,25 @@ def _recorded_digest(folder: Path) -> str | None:
     return found.group(1) if found else None
 
 
+def _reaches_the_production_pin(digest: str, block: str) -> bool:
+    """Whether `digest` is the production pin, or a later hotfix reached from it
+    through the exception records (each names the digest it `Replaces`)."""
+    successors: dict[str, str] = {}
+    for readme in sorted((ROOT / "deployment/hotfix").glob("*/README.md")):
+        text = readme.read_text()
+        replaces = re.search(r"^\| Replaces \| `(sha256:[0-9a-f]{64})`", text, re.M)
+        successor = re.search(r"^\| Hotfix digest \| `(sha256:[0-9a-f]{64})`", text, re.M)
+        if replaces and successor:
+            successors[replaces.group(1)] = successor.group(1)
+    seen: set[str] = set()
+    while digest not in block:
+        if digest not in successors or digest in seen:
+            return False
+        seen.add(digest)
+        digest = successors[digest]
+    return True
+
+
 def test_base_is_row_15():
     row15 = _recorded_digest(ROW15)
     assert row15, "row 15's record names no hotfix digest"
@@ -114,4 +133,4 @@ def test_production_pin_is_untouched_by_this_folder():
     block = re.search(r"name: ghcr\.io/madfam-org/janua-api\n(?:\s+\S.*\n){1,3}", kustomization)
     assert block
     expected = _recorded_digest(HOTFIX) or _recorded_digest(ROW15)
-    assert expected in block.group(0)
+    assert _reaches_the_production_pin(expected, block.group(0))
