@@ -534,6 +534,30 @@ class Settings(BaseSettings):
     GUEST_DEFAULT_TTL_HOURS: int = Field(
         default=4, description="Default TTL for guest tokens in hours"
     )
+    # Shared-device enrolment (routers/v1/device_enrolment.py). Which
+    # organizations may enrol devices is configuration, never code: a
+    # comma-separated list of organization slugs. Empty (the default) turns the
+    # public enrolment routes off; approving, listing and disabling devices
+    # that already exist keep working.
+    DEVICE_ENROLMENT_ORGANIZATIONS: str = Field(
+        default="",
+        description="Comma-separated organization slugs whose devices may enrol (empty = off)",
+    )
+    DEVICE_ENROLMENT_TTL_SECONDS: int = Field(
+        default=900, ge=60, le=3600, description="How long an enrolment code waits for approval"
+    )
+    DEVICE_ENROLMENT_MAX_PENDING: int = Field(
+        default=5, ge=1, le=100, description="Pending enrolments one organization may hold"
+    )
+    DEVICE_ENROLMENT_REGISTER_PER_ADDRESS_PER_HOUR: int = Field(
+        default=10, ge=1, description="Enrolment requests per client address per hour"
+    )
+    DEVICE_ENROLMENT_REGISTER_PER_ORGANIZATION_PER_HOUR: int = Field(
+        default=30, ge=1, description="Enrolment requests per organization per hour"
+    )
+    DEVICE_ENROLMENT_POLL_PER_ADDRESS_PER_MINUTE: int = Field(
+        default=120, ge=1, description="Enrolment status polls per client address per minute"
+    )
     # Beta endpoints - SECURITY: Disabled by default in production
     # These bypass standard auth flows and should only be enabled for development/testing
     ENABLE_BETA_ENDPOINTS: bool = Field(

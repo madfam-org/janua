@@ -8,12 +8,14 @@ patch target reaches every caller.
 
 from typing import List, Optional
 
-from fastapi import Depends, Form, HTTPException, Request, status
+from fastapi import BackgroundTasks, Depends, Form, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.device_clients import is_device_client_id
 from app.core.redis import ResilientRedisClient
 from app.routers.v1 import oauth_provider_shared as _oauth_provider_shared
+from app.routers.v1.oauth_provider_device_grant import _handle_device_client_credentials_grant
 from app.routers.v1.oauth_provider_grants import (
     _handle_authorization_code_grant,
     _handle_client_credentials_grant,
@@ -40,6 +42,8 @@ async def token(
     code_verifier: Optional[str] = Form(None),
     scope: Optional[str] = Form(None),
     resource: Optional[List[str]] = Form(None),
+    boot_id: Optional[str] = Form(None),
+    background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db),
     redis: ResilientRedisClient = Depends(_oauth_provider_shared.get_redis),
 ):
@@ -51,7 +55,9 @@ async def token(
     Supports:
     - authorization_code: Exchange auth code for access/refresh/id tokens
     - refresh_token: Get new access token using refresh token
-    - client_credentials: Get short-lived machine tokens for service accounts
+    - client_credentials: Get short-lived machine tokens for service accounts.
+      A shared device (client kind ``device``) also sends ``boot_id``, the
+      random value it drew at its last start; its token lives fifteen minutes.
 
     Protected resources (RFC 8707): a request with `resource`, from an https
     `client_id` (CIMD), or presenting a resource refresh token is handled by
@@ -155,6 +161,14 @@ async def token(
             redis=redis,
         )
     elif grant_type == "client_credentials":
+        if is_device_client_id(client.client_id):
+            return await _handle_device_client_credentials_grant(
+                client=client,
+                requested_scope=scope,
+                boot_id=boot_id,
+                db=db,
+                background_tasks=background_tasks,
+            )
         return await _handle_client_credentials_grant(
             client=client,
             requested_scope=scope,

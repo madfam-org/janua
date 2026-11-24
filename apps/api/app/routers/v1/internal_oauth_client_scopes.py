@@ -51,6 +51,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.device_clients import DEVICE_ONLY_SCOPE_DETAIL, device_only_scopes_in
 from app.database import get_db
 from app.dependencies import verify_internal_api_key
 from app.models import AuditLog, OAuthClient
@@ -195,6 +196,11 @@ async def grant_client_scope(
     404 for an unknown client. A grant that could never feed a token is an
     operator error worth surfacing, not a row written into nowhere.
     """
+    if device_only_scopes_in([body.scope]):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"{body.scope} {DEVICE_ONLY_SCOPE_DETAIL}",
+        )
     client = await _get_client(db, client_id)
 
     current = list(client.allowed_scopes or [])

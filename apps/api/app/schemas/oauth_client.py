@@ -12,6 +12,15 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.core.device_clients import DEVICE_ONLY_SCOPE_DETAIL, device_only_scopes_in
+
+
+def _refuse_device_only_scopes(scopes: Optional[List[str]]) -> None:
+    """A device-only scope is never written onto a client by these paths."""
+    device_only = device_only_scopes_in(scopes)
+    if device_only:
+        raise ValueError(f"{', '.join(device_only)} {DEVICE_ONLY_SCOPE_DETAIL}")
+
 
 class OAuthClientCreate(BaseModel):
     """Schema for creating a new OAuth2 client"""
@@ -118,6 +127,7 @@ class OAuthClientCreate(BaseModel):
         base_scopes = {"openid", "profile", "email", "offline_access", "api", "admin"}
         if v is None:
             return ["openid", "profile", "email"]
+        _refuse_device_only_scopes(v)
         for scope in v:
             if scope in base_scopes:
                 continue
@@ -176,6 +186,12 @@ class OAuthClientUpdate(BaseModel):
     logo_url: Optional[str] = Field(None, max_length=500)
     website_url: Optional[str] = Field(None, max_length=500)
     is_active: Optional[bool] = None
+
+    @field_validator("allowed_scopes")
+    @classmethod
+    def refuse_device_only_scopes(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        _refuse_device_only_scopes(v)
+        return v
 
     @field_validator("redirect_uris")
     @classmethod

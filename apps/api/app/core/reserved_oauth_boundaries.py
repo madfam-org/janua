@@ -166,6 +166,13 @@ HCM_PLATFORM_SCOPES: frozenset[str] = frozenset({"hcm-benchmarks:read"})
 #: ``RESERVED_SCOPE_SUFFIXES``.
 TLACUILO_SCOPES: frozenset[str] = frozenset({"tlacuilo:extract"})
 
+#: The scope of a shared shop-floor terminal's own token (audience
+#: ``pravara-api``), named by Pravara's lane. It reaches a client only through
+#: the device template (``core/device_clients.py``), never by hand: a device
+#: client is created by Janua when an organization administrator approves its
+#: enrolment.
+PRAVARA_TERMINAL_SCOPE = "pravara-mes:terminal"
+
 #: Pravara MES machine scopes (audience ``pravara-api``). Pravara reads
 #: ``tenant_id`` from the token, so clients holding these are org-bound.
 PRAVARA_SCOPES: frozenset[str] = frozenset(
@@ -174,6 +181,7 @@ PRAVARA_SCOPES: frozenset[str] = frozenset(
         "pravara-mes:nodes",
         "pravara-mes:passports",
         "pravara-mes:read",
+        PRAVARA_TERMINAL_SCOPE,
     }
 )
 
@@ -458,6 +466,7 @@ __all__ = [
     "PHYND_CRM_SCOPES",
     "PLATFORM_ADMIN_SCOPE",
     "PRAVARA_SCOPES",
+    "PRAVARA_TERMINAL_SCOPE",
     "RESERVED_AUDIENCES",
     "RESERVED_AUDIENCE_PREFIXES",
     "RESERVED_CLIENT_NAMES",
