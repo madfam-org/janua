@@ -43,6 +43,7 @@ files are taken from (the workflow's `*_SOURCE`); "Files" are paths under
 | 13 | [`janua-api-login-double-submit`](janua-api-login-double-submit/README.md) | #841 | `75dd0eea` | `auth/hosted_locale.py`, `auth/tenant_login_context.py`, `routers/v1/auth.py` | `sha256:2bbee189…` | janua#843 (2026-11-19) |
 | 14 | [`janua-api-edge-hardening`](janua-api-edge-hardening/README.md) | #844, #845, #846, #847, #848, #850, #851, #852, #853 | `ae191e86` | `apps/api/app` at the source (40 files: 30 added, 10 modified, the folder's `shipped_files.txt`) except seven files kept at production's copies (`kept_files.txt`); `routers/v1/oauth_provider_shared.py` from the folder's `oauth_provider_shared.py.shipped` (without janua#801's `roles` filter) | `sha256:046d4686…` | pin PR of 2026-11-21 |
 | 15 | [`janua-api-roles-filter`](janua-api-roles-filter/README.md) | janua#801's filter in the OIDC handler (the hunk row 14 left out) | `ae191e86` | `routers/v1/oauth_provider_shared.py` | `sha256:0b8b5cfd…` | pin PR of 2026-11-21 |
+| 16 | [`janua-api-expires-in`](janua-api-expires-in/README.md) | #860 | `2dc62eeb` | `routers/v1/oauth_provider_grants.py` | not built | not pinned |
 
 A later row overrides an earlier one for the same path (row 6, then row 10,
 for `core/reserved_oauth_boundaries.py`; row 4, then row 9, for
