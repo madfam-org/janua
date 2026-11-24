@@ -119,9 +119,9 @@ line means something other than the secret was pasted: repeat step 1.
 Enclii (preferred; mutating verbs are a dry-run plan until `--apply --reason`):
 
 ```bash
-enclii ops secrets sync janua-secrets -n janua --apply --reason "Resend webhook secret (<account>) rotated"
+enclii ops secrets sync janua-secrets -n janua --apply --reason "Resend webhook signing secret rotated"
 enclii ops secrets external janua-secrets -n janua   # Ready, and resend-webhook-secret-<account> among the keys
-enclii ops pods restart janua-api -n janua --apply --reason "Pick up RESEND_WEBHOOK_SECRET_<ACCOUNT>"
+enclii ops pods restart deployment/janua-api -n janua --apply --reason "Pick up the rotated Resend webhook signing secret"
 ```
 
 Break-glass equivalent:
@@ -187,4 +187,4 @@ by Resend or can be replayed.
 
 ---
 
-**Last Updated:** 2026-09-27
+**Last Updated:** 2026-11-24

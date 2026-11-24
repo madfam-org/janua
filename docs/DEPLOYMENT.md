@@ -751,7 +751,7 @@ post-promote reconcile is required:
 
 ```bash
 enclii ops apps diff janua-services -n argocd --json
-enclii ops apps sync janua-services -n argocd --apply --reason "promote <sha>"
+enclii ops apps sync janua-services -n argocd --apply --reason "post-promote reconcile of the production overlay"
 enclii ops pods diagnose janua-api -n janua --json
 curl -fsSI https://janua.dev/health
 ```

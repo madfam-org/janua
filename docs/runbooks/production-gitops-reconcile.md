@@ -155,7 +155,7 @@ returns `409 already_running`.
 
 ```bash
 # After stuck operation clears (or via break-glass workflow patch):
-enclii ops apps sync janua-services -n argocd --apply --reason "..."
+enclii ops apps sync janua-services -n argocd --apply --reason "retry sync after the stuck operation cleared"
 ```
 
 If sync loops on Kyverno or image pull, fix those first (below).
@@ -289,7 +289,7 @@ unavailable; use `enclii ops apps sync` from an authenticated operator session.
 ## Verification checklist (post-reconcile)
 
 - [ ] `enclii ops apps diff janua-services -n argocd` — target deployment `Synced`
-- [ ] `enclii ops pods diagnose <deployment> -n janua` — single Ready pod on expected digest
+- [ ] `enclii ops pods diagnose janua-api -n janua` (and the same for each other deployment the reconcile touched, for example `enclii ops pods diagnose janua-website -n janua`) — single Ready pod on expected digest
 - [ ] Public URL health (`https://janua.dev/health`, `https://api.janua.dev/health`)
 - [ ] For website: Tailwind utilities in CSS; `(marketing)` layout on `/pricing`
 - [ ] For website: `/legal/privacy` returns 200 (post Phase 2 UX)
@@ -304,4 +304,4 @@ unavailable; use `enclii ops apps sync` from an authenticated operator session.
 - [ghcr-pat-rotation.md](./secrets/ghcr-pat-rotation.md)
 - [AGENTS.md](../../AGENTS.md) — Enclii-first doctrine
 
-**Last updated:** 2026-06-15
+**Last updated:** 2026-11-24
