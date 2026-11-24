@@ -48,7 +48,9 @@ Nothing else changes: no other file, package, migration or setting.
    copy of the module.
 4. The built image has one added layer and differs from the base by that one
    file; migrations unchanged.
-5. Both images import the whole application; discovery is identical;
+5. Both images import the whole application and build the discovery document,
+   and the module that builds it does not name the changed module, so with
+   step 4 discovery cannot differ (the document itself is not printed);
    [`check_expires_in.py`](check_expires_in.py) finds the literal 3600 in both
    grants on the base and none on the hotfix, where a freshly minted token's
    announced lifetime equals its own `exp`.

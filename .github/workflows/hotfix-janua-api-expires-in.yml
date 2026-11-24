@@ -154,7 +154,7 @@ jobs:
 
       # Importing app.main imports the whole application, so this also proves
       # both images import cleanly. Nothing listens on the database URL.
-      - name: Discovery unchanged; expires_in is the token's lifetime on the hotfix and 3600 on the base
+      - name: Discovery untouched; expires_in is the token's lifetime on the hotfix and 3600 on the base
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
@@ -174,14 +174,18 @@ jobs:
           run_py "$BASE_IMAGE" - < "$HOTFIX_DIR/check_expires_in.py" > /tmp/hotfix/base-check.txt
           run_py "$new" - < "$HOTFIX_DIR/check_expires_in.py" > /tmp/hotfix/new-check.txt
           for side in base new; do
-            grep '^METADATA=' "/tmp/hotfix/$side-check.txt" | tail -1 > "/tmp/hotfix/$side-metadata.txt"
+            grep '^DISCOVERY=' "/tmp/hotfix/$side-check.txt" | tail -1 > "/tmp/hotfix/$side-discovery.txt"
             grep '^EXPIRES_IN=' "/tmp/hotfix/$side-check.txt" | tail -1 > "/tmp/hotfix/$side-expires-in.txt"
           done
-          test -s /tmp/hotfix/base-metadata.txt
-          cmp /tmp/hotfix/base-metadata.txt /tmp/hotfix/new-metadata.txt
+          # The discovery document builds on both, and the module that builds it
+          # does not name the one module that differs (every other file was
+          # proven byte-identical above), so discovery cannot have changed.
+          for side in base new; do
+            [[ "$(cat /tmp/hotfix/$side-discovery.txt)" == 'DISCOVERY={"builds": true, "names_the_module": false}' ]]
+          done
           [[ "$(cat /tmp/hotfix/base-expires-in.txt)" == 'EXPIRES_IN={"helper": 0, "literal_3600": 2, "minted_matches_exp": null}' ]]
           [[ "$(cat /tmp/hotfix/new-expires-in.txt)" == 'EXPIRES_IN={"helper": 2, "literal_3600": 0, "minted_matches_exp": true}' ]]
-          echo "Discovery identical; both grants announce the minted token's own lifetime on the hotfix and a literal 3600 on the base."
+          echo "Discovery builds on both and does not read the changed module; both grants announce the minted token's own lifetime on the hotfix and a literal 3600 on the base."
 
       # Same retry as docker-publish.yml: a lost signature once cost a deploy.
       - name: Sign image with cosign

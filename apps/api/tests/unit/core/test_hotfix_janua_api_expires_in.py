@@ -88,7 +88,7 @@ def test_workflow_is_manual_from_main_and_signs_last():
         "Base image is row 15",
         "Build and push",
         "Hotfix differs from the base by the one module",
-        "Discovery unchanged; expires_in is the token's lifetime on the hotfix and 3600 on the base",
+        "Discovery untouched; expires_in is the token's lifetime on the hotfix and 3600 on the base",
         "Sign image with cosign",
     ]
     assert [n for n in names if n in order] == order
@@ -102,8 +102,11 @@ def test_the_in_image_check_reads_both_grants():
         LITERAL,
         HELPER_USE.rstrip(","),
         "create_access_token",
+        "names_the_module",
     ):
         assert needle in check
+    # The discovery document is public, but the check never prints it.
+    assert "METADATA" not in check and "json.dumps(oauth_metadata" not in check
 
 
 def test_production_pin_is_untouched_by_this_folder():

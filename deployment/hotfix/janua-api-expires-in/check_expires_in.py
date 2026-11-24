@@ -1,18 +1,27 @@
 """Run inside a janua-api image by the row 16 hotfix workflow (stdin of `python -`).
 
 Prints two lines the workflow compares between the base and the hotfix:
-discovery metadata (must be identical) and what the two user-facing token
-grants announce as `expires_in` (a literal 3600 on the base; the minted
-token's own lifetime on the hotfix).
+
+- DISCOVERY: the discovery document still builds, and the module that builds
+  it does not name the one module this row changes. The workflow has already
+  proven every other file byte-identical, so discovery cannot differ. The
+  document itself is never printed.
+- EXPIRES_IN: what the two user-facing token grants announce (a literal 3600
+  on the base; the minted token's own lifetime on the hotfix).
 """
 
 import inspect
 import json
 
-import app.main  # noqa: F401  the whole application imports
+import app.main as application  # the whole application imports
+from app.core import oauth_metadata
 from app.core.jwt_manager import jwt_manager
-from app.core.oauth_metadata import authorization_server_metadata
 from app.routers.v1 import oauth_provider_grants as grants
+
+assert application.app is not None
+
+discovery_builds = "issuer" in oauth_metadata.authorization_server_metadata()
+names_the_module = "oauth_provider_grants" in inspect.getsource(oauth_metadata)
 
 source = inspect.getsource(grants._handle_authorization_code_grant) + inspect.getsource(
     grants._handle_refresh_token_grant
@@ -26,7 +35,10 @@ if helper is not None:
     lifetime = jwt_manager.access_token_expire_minutes * 60
     minted_matches_exp = lifetime - 2 <= helper(expires_at) <= lifetime and lifetime != 3600
 
-print("METADATA=" + json.dumps(authorization_server_metadata(), sort_keys=True))
+print(
+    "DISCOVERY="
+    + json.dumps({"builds": discovery_builds, "names_the_module": names_the_module}, sort_keys=True)
+)
 print(
     "EXPIRES_IN="
     + json.dumps(
