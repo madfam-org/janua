@@ -114,7 +114,6 @@ RESERVED_SCOPES = frozenset(
         "pravara-mes:nodes",
         "pravara-mes:passports",
         "pravara-mes:read",
-        "pravara-mes:terminal",
         "asset-shells:read",
         "asset-shells:publish-types",
         "asset-shells:publish-instances",
