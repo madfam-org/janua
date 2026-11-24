@@ -44,7 +44,7 @@ def _client_allowed_scopes(client: OAuthClient) -> set:
     no grant gives it one.
     """
     allowed = set(client.allowed_scopes or DEFAULT_CLIENT_SCOPES)
-    if not is_device_client_id(client.client_id):
+    if not is_device_client_id(getattr(client, "client_id", None)):
         allowed -= DEVICE_ONLY_SCOPES
     return allowed
 

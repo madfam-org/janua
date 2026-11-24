@@ -42,7 +42,6 @@ import secrets
 from dataclasses import dataclass
 from typing import Optional
 
-from app.core.reserved_oauth_boundaries import PRAVARA_TERMINAL_SCOPE
 
 # ---------------------------------------------------------------------------
 # Client kinds and their token lifetimes
@@ -100,10 +99,15 @@ class DeviceTemplate:
     description: str
 
 
-#: The Nauta Edge shop-floor terminal. Its scope is named by Pravara's lane and
-#: reserved in ``reserved_oauth_boundaries``: with a token of this template a
-#: terminal may read what Pravara opens to terminals, deliver what it recorded
-#: and report its own health. It never acts for a person.
+#: The scope of a shared shop-floor terminal's own token (audience
+#: ``pravara-api``), named by Pravara's lane. Reserved like every
+#: ``pravara-mes:<role>`` scope (``reserved_oauth_boundaries``, namespace rule)
+#: and, more strictly, device-only (``DEVICE_ONLY_SCOPES`` below).
+PRAVARA_TERMINAL_SCOPE = "pravara-mes:terminal"
+
+#: The Nauta Edge shop-floor terminal: with a token of this template a terminal
+#: may read what Pravara opens to terminals, deliver what it recorded and
+#: report its own health. It never acts for a person.
 NAUTA_EDGE_TERMINAL = DeviceTemplate(
     name="nauta-edge-terminal",
     audience="pravara-api",
@@ -259,6 +263,7 @@ __all__ = [
     "DEVICE_SECRET_BYTES",
     "DEVICE_TEMPLATES",
     "NAUTA_EDGE_TERMINAL",
+    "PRAVARA_TERMINAL_SCOPE",
     "RECENT_BOOT_IDS_KEPT",
     "TOKEN_TTL_SECONDS_BY_KIND",
     "USER_CODE_ALPHABET",
