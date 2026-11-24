@@ -542,9 +542,12 @@ detail is here.
   depend on Redis. The default `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` is 480
   (8 hours), so "rely on a short access-token lifetime" holds only where the
   deployment sets a shorter value. Owner ruling pending.
-- **OAuth access-token lifetime.** The `authorization_code` grant answers
-  `expires_in: 3600`, while the access token's `exp` comes from
-  `JWT_ACCESS_TOKEN_EXPIRE_MINUTES`. Relying parties should read `exp`.
+- **OAuth access-token lifetime (closed 2026-11-24).** The `authorization_code`
+  and `refresh_token` grants used to answer `expires_in: 3600` while the access
+  token's `exp` came from `JWT_ACCESS_TOKEN_EXPIRE_MINUTES`. Since janua#860
+  (production: hotfix row 16, `deployment/hotfix/janua-api-expires-in`) both
+  answer the token's real lifetime, 28800 by default. A relying party that
+  schedules its refresh from `expires_in` now refreshes about every 8 hours.
 - **OIDC `refresh_token` grant.** `POST /oauth/token` does not
   rotate-and-blacklist the presented refresh token and has no reuse detection.
   A revoked family is refused.
