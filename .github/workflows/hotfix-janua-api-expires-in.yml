@@ -1,0 +1,224 @@
+# Builds the owner-exception hotfix image of row 16: the image production runs
+# (row 15) plus janua#860, which makes the OAuth token answers announce the
+# access token's real lifetime in `expires_in`. One file:
+# apps/api/app/routers/v1/oauth_provider_grants.py at SOURCE. See
+# deployment/hotfix/janua-api-expires-in/README.md.
+name: Hotfix image (OAuth expires_in matches the access token's real expiry)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why build it now (shown in the run summary; required)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write # cosign keyless signing via OIDC
+
+concurrency:
+  group: hotfix-janua-api-expires-in
+  cancel-in-progress: false
+
+env:
+  # The digest production runs (row 15, the roles-filter hotfix of janua#858,
+  # pinned by janua#859, run 44972168106).
+  BASE_IMAGE: ghcr.io/madfam-org/janua-api@sha256:0b8b5cfd91e95a82ab4508c083e34edc364338a61df8b2af19a76babda521989
+  # The workflow that built and signed BASE_IMAGE.
+  BASE_SIGNER: https://github.com/madfam-org/janua/.github/workflows/hotfix-janua-api-roles-filter.yml@refs/heads/main
+  # Production's application code for this module (rows 14 and 15's source).
+  PREVIOUS: ae191e8669efad2a86f54e3513361969c2d75679
+  # janua#860's merge commit; apps/api/app on main must still be exactly this.
+  SOURCE: 2dc62eeb4d311b471ccb8e3889641e2ef46c983d
+  MODULE: routers/v1/oauth_provider_grants.py
+  HOTFIX_DIR: deployment/hotfix/janua-api-expires-in
+  DOCKERFILE: deployment/hotfix/janua-api-expires-in/Dockerfile
+  TARGET: ghcr.io/madfam-org/janua-api
+
+jobs:
+  build:
+    name: Build, verify and sign
+    runs-on: ${{ vars.ARC_BOOTSTRAP_COMPLETE == 'true' && 'madfam-runners-blue' || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    steps:
+      - name: Refuse anything but main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Build the hotfix from main only, where the Dockerfile and the change were reviewed."
+          exit 1
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # PREVIOUS and SOURCE must be reachable
+
+      - name: Dockerfile is the base plus the one module
+        run: |
+          set -euo pipefail
+          grep -qxF "FROM ${BASE_IMAGE}" "$DOCKERFILE" || { echo "::error::$DOCKERFILE does not start FROM ${BASE_IMAGE}."; exit 1; }
+          instructions=$(grep -vE '^\s*(#|$)' "$DOCKERFILE")
+          expected="FROM ${BASE_IMAGE}
+          COPY --chown=janua:python apps/api/app/${MODULE} /app/app/${MODULE}"
+          expected=$(printf '%s\n' "$expected" | sed 's/^ *//')
+          if [[ "$instructions" != "$expected" ]]; then
+            echo "::error::$DOCKERFILE must hold exactly the FROM and the one COPY:"
+            echo "$instructions"
+            exit 1
+          fi
+
+      - name: The shipped module is SOURCE's, and SOURCE is production's code plus janua#860
+        run: |
+          set -euo pipefail
+          git diff --quiet "$SOURCE" HEAD -- apps/api/app || {
+            echo "::error::apps/api/app on this main differs from SOURCE ($SOURCE); a later merge would ship unreviewed:"
+            git diff --stat "$SOURCE" HEAD -- apps/api/app
+            exit 1
+          }
+          git show "$SOURCE:apps/api/app/$MODULE" | cmp - "apps/api/app/$MODULE"
+          # Between production's code and SOURCE, only this module changed.
+          changed=$(git diff --name-only "$PREVIOUS" "$SOURCE" -- apps/api/app)
+          [[ "$changed" == "apps/api/app/$MODULE" ]] || {
+            echo "::error::Between PREVIOUS and SOURCE more than $MODULE changed under apps/api/app:"; echo "$changed"; exit 1; }
+          # And in it, only the two announcements and their helper.
+          [[ "$(git show "$PREVIOUS:apps/api/app/$MODULE" | grep -c 'expires_in=3600')" -eq 2 ]]
+          [[ "$(grep -c 'expires_in=3600' "apps/api/app/$MODULE" || true)" -eq 0 ]]
+          [[ "$(grep -c 'expires_in=_access_token_expires_in(access_expires_at),' "apps/api/app/$MODULE")" -eq 2 ]]
+          [[ "$(git diff --numstat "$PREVIOUS" "$SOURCE" -- "apps/api/app/$MODULE" | cut -f1,2)" == "$(printf '18\t4')" ]]
+          echo "The module is SOURCE's; against production's code only it changed: 18 lines added, 4 removed (janua#860)."
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+
+      # Proves the base is row 15: signed by row 15's workflow on main, and its
+      # copy of the module is production's (PREVIOUS).
+      - name: Base image is row 15
+        run: |
+          set -euo pipefail
+          cosign verify "$BASE_IMAGE" \
+            --certificate-identity "$BASE_SIGNER" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
+          docker pull --quiet "$BASE_IMAGE"
+          mkdir -p /tmp/hotfix/base
+          cid=$(docker create "$BASE_IMAGE")
+          docker cp "$cid:/app/app" /tmp/hotfix/base/app
+          docker cp "$cid:/app/alembic/versions" /tmp/hotfix/base/versions
+          docker rm "$cid" >/dev/null
+          git show "$PREVIOUS:apps/api/app/$MODULE" | cmp - "/tmp/hotfix/base/app/$MODULE"
+          echo "The base is signed by row 15's workflow and carries PREVIOUS's copy of the module."
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: ${{ env.TARGET }}:hotfix-expires-in-${{ github.sha }}
+          provenance: false
+          sbom: false
+
+      - name: Hotfix differs from the base by the one module
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          new="${TARGET}@${DIGEST}"
+          docker pull --quiet "$new"
+          base_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$BASE_IMAGE")
+          new_layers=$(docker image inspect -f '{{len .RootFS.Layers}}' "$new")
+          [[ "$new_layers" -eq $((base_layers + 1)) ]] || { echo "::error::Expected exactly one added layer ($base_layers -> $new_layers)."; exit 1; }
+          mkdir -p /tmp/hotfix/new
+          cid=$(docker create "$new")
+          docker cp "$cid:/app/app" /tmp/hotfix/new/app
+          docker cp "$cid:/app/alembic/versions" /tmp/hotfix/new/versions
+          docker rm "$cid" >/dev/null
+          changed=$(diff -rq -x __pycache__ /tmp/hotfix/base/app /tmp/hotfix/new/app | sort || true)
+          [[ "$changed" == "Files /tmp/hotfix/base/app/${MODULE} and /tmp/hotfix/new/app/${MODULE} differ" ]] || {
+            echo "::error::The hotfix must differ from the base by exactly $MODULE:"; echo "$changed"; exit 1; }
+          diff -r -x __pycache__ /tmp/hotfix/base/versions /tmp/hotfix/new/versions
+          cmp "/tmp/hotfix/new/app/$MODULE" "apps/api/app/$MODULE"
+          echo "One file differs from the base: $MODULE, now SOURCE's. Migrations unchanged."
+
+      # Importing app.main imports the whole application, so this also proves
+      # both images import cleanly. Nothing listens on the database URL.
+      - name: Discovery untouched; expires_in is the token's lifetime on the hotfix and 3600 on the base
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          run_py() {
+            docker run --rm -i --entrypoint python \
+              -e ENVIRONMENT=test \
+              -e DATABASE_URL='postgresql+asyncpg://verify:verify@127.0.0.1:5432/verify' \
+              -e REDIS_URL='redis://localhost:6379/0' \
+              -e SECRET_KEY=hotfix-verification-only \
+              -e JWT_SECRET_KEY=hotfix-verification-only \
+              -e CORS_ORIGINS=http://localhost:3000 \
+              -e JANUA_CUSTOM_DOMAIN=auth.madfam.io \
+              "$@"
+          }
+          new="${TARGET}@${DIGEST}"
+          run_py "$BASE_IMAGE" - < "$HOTFIX_DIR/check_expires_in.py" > /tmp/hotfix/base-check.txt
+          run_py "$new" - < "$HOTFIX_DIR/check_expires_in.py" > /tmp/hotfix/new-check.txt
+          for side in base new; do
+            grep '^DISCOVERY=' "/tmp/hotfix/$side-check.txt" | tail -1 > "/tmp/hotfix/$side-discovery.txt"
+            grep '^EXPIRES_IN=' "/tmp/hotfix/$side-check.txt" | tail -1 > "/tmp/hotfix/$side-expires-in.txt"
+          done
+          # The discovery document builds on both, and the module that builds it
+          # does not name the one module that differs (every other file was
+          # proven byte-identical above), so discovery cannot have changed.
+          for side in base new; do
+            [[ "$(cat /tmp/hotfix/$side-discovery.txt)" == 'DISCOVERY={"builds": true, "names_the_module": false}' ]]
+          done
+          [[ "$(cat /tmp/hotfix/base-expires-in.txt)" == 'EXPIRES_IN={"helper": 0, "literal_3600": 2, "minted_matches_exp": null}' ]]
+          [[ "$(cat /tmp/hotfix/new-expires-in.txt)" == 'EXPIRES_IN={"helper": 2, "literal_3600": 0, "minted_matches_exp": true}' ]]
+          echo "Discovery builds on both and does not read the changed module; both grants announce the minted token's own lifetime on the hotfix and a literal 3600 on the base."
+
+      # Same retry as docker-publish.yml: a lost signature once cost a deploy.
+      - name: Sign image with cosign
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IMAGE_REF="${TARGET}@${DIGEST}"
+          for attempt in 1 2 3; do
+            if cosign sign --yes "${IMAGE_REF}"; then
+              echo "Signed ${IMAGE_REF}"
+              exit 0
+            fi
+            wait=$((attempt * 15))
+            echo "::warning::cosign sign failed for ${IMAGE_REF}; retrying in ${wait}s..."
+            sleep "$wait"
+          done
+          echo "::error::cosign sign failed 3 times for ${IMAGE_REF}."
+          exit 1
+
+      - name: Summary
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          {
+            echo "## OAuth expires_in matches the token: hotfix image (row 16)"
+            echo ""
+            echo "- Digest: \`${DIGEST}\`"
+            echo "- Tag: \`${TARGET}:hotfix-expires-in-${GITHUB_SHA}\`"
+            echo "- Base: \`${BASE_IMAGE}\` (production, row 15, janua#859)"
+            echo "- Delta: \`apps/api/app/${MODULE}\` at \`${SOURCE}\` (janua#860)"
+            echo "- Reason: ${REASON}"
+            echo ""
+            echo "Nothing was pinned. Production changes only through the reviewed PR that sets this digest as the production janua-api pin."
+          } >> "$GITHUB_STEP_SUMMARY"
