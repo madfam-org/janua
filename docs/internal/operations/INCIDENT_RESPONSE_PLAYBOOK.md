@@ -1,6 +1,6 @@
 # Incident Response Playbook - Janua Platform
 
-**Last Updated:** 2025-09-10  
+**Last Updated:** 2026-11-24  
 **Version:** 1.0  
 **Owner:** Platform Team
 
@@ -134,10 +134,12 @@ gh workflow run rollback-prod.yml \
   -f reason="P1: <what is broken>" \
   -f rollback_ack=rollback
 #    Then make the cluster adopt it:
-enclii ops apps sync janua-services -n argocd --apply --reason "rollback <sha>"
+enclii ops apps sync janua-services -n argocd --apply --reason "post-rollback reconcile of the production overlay"
 
-# 3. Scale up if load issue — HPA lives in k8s/base/hpa-janua-api.yaml
-enclii service describe janua-api
+# 3. Scale up if load issue — HPA lives in k8s/base/hpa-janua-api.yaml.
+#    Replicas are declared there and shipped by a promote; no Enclii command
+#    scales a workload (no Enclii adapter: this is an adapter gap).
+#    Step 4's diagnose shows the current pod count and state.
 
 # 4. Restart
 enclii ops pods diagnose janua-api -n janua --json
@@ -646,7 +648,7 @@ gh workflow run rollback-prod.yml -f component=api -f reason="..." -f rollback_a
 redis-cli FLUSHALL
 
 # Force the cluster to reconcile the overlay
-enclii ops apps sync janua-services -n argocd --apply --reason "incident <id>"
+enclii ops apps sync janua-services -n argocd --apply --reason "incident: force reconcile of the production overlay"
 ```
 
 ### Communication Channels

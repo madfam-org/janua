@@ -274,11 +274,11 @@ organization**, named `<template>.<organization slug>`:
 Organization-bound clients also receive the organization's `product_tiers`.
 
 Provisioning in production goes through Enclii, as a platform admin, with no
-person holding a secret:
-
-```bash
-enclii secrets provision oidc --platform <edge> --reason "<why>"
-```
+person holding a secret: run `enclii secrets provision oidc` with `--platform`
+set to the client's edge name exactly as it appears in enclii's
+`config/ecosystem-oidc-provision.yaml`, and a `--reason` saying why the client
+is being created or rotated. `--dry-run` shows the plan first. The edge name is
+chosen per run, so no ready-to-paste command is written here.
 
 It creates the client (or rotates an existing client's secret) and files the
 pair into the consumer's Vault path through Switchyard secret intake. Values

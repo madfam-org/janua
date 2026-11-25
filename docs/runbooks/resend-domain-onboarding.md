@@ -82,26 +82,17 @@ dns-apply` lines. Exit code `2` means "exists, not verified yet" — expected he
 
 ### 2. Publish the records through Enclii
 
-Enclii-first: do not edit DNS in the Cloudflare dashboard. Copy the generated
-lines from step 1 verbatim. Their shape (values are per-domain — use the
-script's output, not these):
+Enclii-first: do not edit DNS in the Cloudflare dashboard. Run the three
+`enclii providers cloudflare dns-apply` commands that step 1 printed, verbatim:
+they carry this domain's values, so none of them is written out here. Each one
+publishes one record with `--type`, `--content`, `--proxied false`, `--apply`
+and a `--reason` naming the domain:
 
-```bash
-enclii providers cloudflare dns-apply resend._domainkey \
-  --type TXT --content '<the DKIM value from step 1>' \
-  --proxied false --apply \
-  --reason 'Resend sending-domain verification for <client-domain>'
-
-enclii providers cloudflare dns-apply send \
-  --type MX --content '10 feedback-smtp.us-east-1.amazonses.com' \
-  --proxied false --apply \
-  --reason 'Resend sending-domain verification for <client-domain>'
-
-enclii providers cloudflare dns-apply send \
-  --type TXT --content 'v=spf1 include:amazonses.com ~all' \
-  --proxied false --apply \
-  --reason 'Resend sending-domain verification for <client-domain>'
-```
+| Record name | Type | Content |
+|---|---|---|
+| `resend._domainkey` | TXT | the per-domain DKIM public key, as step 1 printed it |
+| `send` | MX | `10 feedback-smtp.us-east-1.amazonses.com` |
+| `send` | TXT | `v=spf1 include:amazonses.com ~all` |
 
 Three records, in Resend's own vocabulary:
 

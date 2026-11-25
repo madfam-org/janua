@@ -622,9 +622,12 @@ kubectl apply -f k8s/
 ```
 
 ### Enclii (MADFAM Infrastructure)
-```bash
-enclii deploy --service janua
-```
+
+Production does not deploy with `enclii deploy` (it has no `--service` flag, and
+it builds from a service file this repo does not use for production). Janua
+ships through the GHCR digest pipeline and the manual promote workflow, then a
+post-promote reconcile; see
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md#madfam-production-ghcr--digest--argocd).
 
 ### Domain Auto-Provisioning
 
