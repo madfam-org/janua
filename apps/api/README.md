@@ -369,12 +369,11 @@ For complete security documentation, see [Security Guide](docs/security/README.m
 
 Janua uses self-hosted infrastructure via MADFAM's Enclii DevOps solution on Hetzner bare metal.
 
-Production ships through the GHCR digest pipeline and the manual promote
-workflow, not through `enclii deploy` (which has no `--service` flag); see
-[`docs/DEPLOYMENT.md`](../../docs/DEPLOYMENT.md#madfam-production-ghcr--digest--argocd).
-
 ```bash
-# Legacy manual path via Docker (break-glass only)
+# Deploy via Enclii
+enclii deploy --service janua-api
+
+# Or manually via Docker
 ssh ssh.madfam.io 'cd /opt/solarpunk/janua && sudo docker-compose -f deployment/production/docker-compose.production.yml up -d janua-api'
 ```
 
