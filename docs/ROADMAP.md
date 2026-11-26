@@ -1,6 +1,6 @@
 # Janua Development Roadmap
 
-**Last Updated**: November 17, 2025  
+**Last Updated**: November 26, 2026  
 **Based On**: Strategic Positioning Audit (November 2025)
 
 This roadmap prioritizes features and improvements based on competitive differentiation, production readiness, and strategic positioning validation.
@@ -256,10 +256,12 @@ This roadmap prioritizes features and improvements based on competitive differen
 - [ ] Kubernetes (for scale)
 - [ ] Or partner with Railway/Render/Fly.io
 
-**Pricing Launch**:
-- [ ] Starter: $99/mo (10K MAU)
-- [ ] Professional: $299/mo (100K MAU)
-- [ ] Scale: $499/mo (500K MAU)
+**Pricing Launch**: superseded 2026-11-26. Published pricing is the free
+open-source tier plus Pro at MX$499 per month, IVA included (MX$430 + IVA),
+read from Dhanam's catalogue by `apps/website/lib/dhanam-catalog.ts`. The three
+USD tiers once planned here (Starter, Professional, Scale) were never launched.
+As of 2026-11-26 self-serve payment is not enabled; see
+[AGENTS.md → Commercial pipeline state](../AGENTS.md#commercial-pipeline-state-2026-11-26).
 
 **Success Metrics**:
 - 100+ waitlist signups
@@ -491,7 +493,6 @@ This roadmap prioritizes features and improvements based on competitive differen
 We build in public and welcome community input:
 
 - **GitHub Discussions**: https://github.com/madfam-org/janua/discussions
-- **Discord**: https://discord.gg/janua
 - **Roadmap Feedback**: roadmap@janua.dev
 - **Feature Requests**: Use GitHub Issues with `enhancement` label
 
@@ -545,6 +546,6 @@ the promotion hold stands (`deployment/hotfix/README.md`).
 
 ---
 
-**Last Updated**: May 30, 2026  
+**Last Updated**: November 26, 2026  
 **Next Review**: July 1, 2026  
 **Maintained By**: Janua Core Team

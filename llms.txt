@@ -142,6 +142,18 @@ Compact LLM context index for this repository.
   multi-org advisor because `org_id` is their own firm's.
   `docs/guides/ECOSYSTEM_INTEGRATION.md` → «People in several organizations».
 
+## Commercial pipeline state (2026-11-26)
+
+- No sitemap, `robots.txt`, JSON-LD or visitor analytics on janua.dev; the demo
+  is `janua.dev/demo`. Pricing is the free tier plus Pro (MX$499/month, IVA
+  included) from Dhanam's catalogue; self-serve payment is off and the
+  `JanuaBillingService` provider route is dormant.
+- Support is GitHub Issues/Discussions and support@madfam.io: no Discord, no
+  office hours, no response-time commitment (AGENTS.md → «Not Available»).
+  Detail per stage: AGENTS.md → «Commercial pipeline state (2026-11-26)»;
+  cross-repo source: the private internal-devops audit
+  `audits/2026-11-26-business-pipeline/README.md`.
+
 ## Production operations
 
 Routine production operations are Enclii-first. Use Enclii web, API, or CLI

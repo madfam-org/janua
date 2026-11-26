@@ -3,7 +3,7 @@
 **Endpoint**: `https://api.janua.dev/graphql`  
 **WebSocket**: `wss://api.janua.dev/graphql` (for subscriptions)  
 **Version**: 1.0.0-beta  
-**Last Updated**: November 16, 2025
+**Last Updated**: November 26, 2026
 
 ## Table of Contents
 
@@ -1298,10 +1298,10 @@ Features:
 ## Support
 
 - **Documentation**: https://docs.janua.dev/graphql
-- **Discord**: https://discord.gg/janua
+- **Questions**: [GitHub Discussions](https://github.com/madfam-org/janua/discussions) (Janua has no Discord, 2026-11-26)
 - **Email**: api@janua.dev
 
 ---
 
-**Last Updated**: November 16, 2025  
+**Last Updated**: November 26, 2026  
 **Version**: 1.0.0-beta

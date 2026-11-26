@@ -100,7 +100,7 @@ Janua is a self-hosted authentication platform built with FastAPI and modern web
 
 In the MADFAM ecosystem, Janua is **identity + credential federation, not money**. Per the operator's 2026-04-25 directive, Dhanam is the only service that holds Stripe keys; Janua may relay OAuth credentials for Conekta/Polar integration into Dhanam, but it never holds Stripe keys and never moves money on its own.
 
-The Conekta integration runs through `apps/api/app/services/billing_service.py` per ADR-001 (`internal-devops/decisions/adr-001-conekta-via-janua.md`): consumer apps call `JanuaBillingService` → Janua determines provider (Conekta MX / Polar intl / Stripe fallback) → relays normalized webhook events back to Dhanam. Conekta API keys live only in Janua's namespace; Dhanam never touches raw provider credentials for relayed payments.
+The Conekta integration lives in `apps/api/app/services/billing_service.py` per ADR-001 (`internal-devops/decisions/adr-001-conekta-via-janua.md`): as designed, consumer apps call `JanuaBillingService`, Janua picks the provider (Conekta MX / Polar intl / Stripe fallback) and relays normalized webhook events back to Dhanam. As of 2026-11-26 this route is dormant: Dhanam does not send checkout through Janua, and subscriptions are charged by Dhanam directly. The code path remains for a future decision. Conekta API keys live only in Janua's namespace; Dhanam never touches raw provider credentials for relayed payments.
 
 **Full monetization architecture**: `internal-devops/ecosystem/monetization-architecture-2026-04-26.md` is the canonical end-to-end reference for money flows, fan-out signing, CFDI pipeline, PMF gating, and operator-only blockers across the ecosystem.
 
@@ -231,7 +231,7 @@ Per [MADFAM Ecosystem Standard](https://github.com/madfam-org/solarpunk-foundry/
 | Admin | 4102 | janua-admin | admin.janua.dev |
 | Docs | 4103 | janua-docs | docs.janua.dev |
 | Website | 4104 | janua-website | janua.dev |
-| Demo | 4105 | janua-demo | demo.janua.dev |
+| Demo | 4105 | janua-demo | none: the demo is `janua.dev/demo` (`apps/website/app/demo/`); `demo.janua.dev` does not resolve (2026-11-26) |
 | Email Worker | 4110 | janua-worker-email | - |
 | WebSocket | 4120 | janua-ws | - |
 | Metrics | 4190 | janua-metrics | - |
@@ -262,6 +262,52 @@ Per [MADFAM Ecosystem Standard](https://github.com/madfam-org/solarpunk-foundry/
 - Managed hosting (self-host only)
 - Enterprise support contracts
 - SOC 2 compliance reports
+
+---
+
+## Commercial pipeline state (2026-11-26)
+
+What is true for Janua at each stage of the business pipeline on 2026-11-26.
+The cross-repo source is the audit record in the private `internal-devops`
+repository:
+[`audits/2026-11-26-business-pipeline/README.md`](https://github.com/madfam-org/internal-devops/blob/main/audits/2026-11-26-business-pipeline/README.md)
+(private; not readable from this public repository).
+
+- **Discovery.** `janua.dev` publishes `public/llms.txt` but no sitemap, no
+  `robots.txt` and no JSON-LD, and no visitor analytics is live
+  ([`apps/website/README.md` → Technical SEO](apps/website/README.md#technical-seo),
+  [→ Analytics Dashboard](apps/website/README.md#analytics-dashboard)). On
+  2026-11-26 the `janua.dev` edge answered AI crawlers 403, `llms.txt`
+  included. The demo is `janua.dev/demo`; `demo.janua.dev` does not resolve.
+- **Conversion and sales.** Published pricing is the free open-source tier
+  plus Pro at MX$499 per month, IVA included, read from Dhanam's catalogue by
+  `apps/website/lib/dhanam-catalog.ts`; the USD tiers once planned were never
+  launched ([`docs/ROADMAP.md` → March 2026](docs/ROADMAP.md#march-2026-janua-cloud-mvp)).
+  Self-serve payment is not enabled: a checkout link opens the booking page.
+  The `JanuaBillingService` provider route is dormant (see «MADFAM Ecosystem
+  Boundary» above).
+- **Fulfillment.** A purchase reaches Janua as a Dhanam webhook
+  («Dhanam Billing Integration» below, `apps/api/app/routers/v1/webhooks_dhanam.py`).
+  Dhanam does not retry a failed purchase-time notice, so a paid tier can be
+  missing from the buyer's identity with no alert. One grant is one
+  `(product, tier)` pair; bundles are not expressible
+  ([README → Role in the MADFAM monetization engine](README.md#role-in-the-madfam-monetization-engine)).
+- **Customer success.** Support is GitHub Issues, GitHub Discussions and
+  support@madfam.io, with no response-time commitment, no office hours and no
+  Discord or Slack ([README → Support](README.md#support),
+  [`docs/BETA_ONBOARDING_GUIDE.md` → Getting Help](docs/BETA_ONBOARDING_GUIDE.md#-getting-help));
+  enterprise support contracts are listed under «Not Available» above. Service
+  status is on `status.madfam.io`; ticketing and `status.janua.dev` are
+  unchecked roadmap items
+  ([`docs/ROADMAP.md` → June 2026](docs/ROADMAP.md#june-2026-enterprise-support-infrastructure)).
+- **Virality and expansion.** Janua is in private alpha and its documentation
+  makes no adoption claims. Code still does: the healthcare solutions page
+  (`apps/website/app/(marketing)/solutions/healthcare/page.tsx`) and the
+  landing CTA (`apps/website/components/sections/cta.tsx`) print "Trusted by"
+  lines, and the welcome email template
+  (`apps/api/app/templates/email/welcome.html`) says the platform is trusted by
+  thousands of organizations. Those are code changes for the owner; the audit
+  recommends removing the healthcare line first.
 
 ---
 
@@ -356,7 +402,7 @@ Janua integrates with Dhanam (billing platform) for subscription management via 
 **Products**: Open registration — any lowercase alphanumeric product name is accepted
 (zero-touch: new ecosystem services don't need Janua code changes).
 
-**Plan ID Format:** `{product}_{tier}` (e.g., `karafiel_pro`, `newservice_essentials`)
+**Plan ID Format:** `{product}_{tier}` (e.g., `karafiel_contador`, `tezca_academic`)
 
 **Client Registration:** `POST /api/v1/oauth/clients/register` — headless, idempotent
 client registration via `X-Internal-API-Key` header (for consumer bootstrap scripts).

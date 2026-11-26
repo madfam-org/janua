@@ -1044,7 +1044,6 @@ async function deleteSensitiveData() {
 - **GitHub**: [https://github.com/madfam-org/janua](https://github.com/madfam-org/janua)
 
 ### Community
-- **Discord**: [https://discord.gg/janua](https://discord.gg/janua)
 - **GitHub Discussions**: [https://github.com/madfam-org/janua/discussions](https://github.com/madfam-org/janua/discussions)
 
 ### Support
@@ -1053,5 +1052,5 @@ async function deleteSensitiveData() {
 
 ---
 
-**Last Updated**: November 16, 2025
+**Last Updated**: November 26, 2026
 **API Version**: 1.0.0

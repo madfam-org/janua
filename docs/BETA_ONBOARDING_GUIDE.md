@@ -1,7 +1,7 @@
 # Janua Beta Onboarding Guide
 
 **Version**: 1.0.0 (Beta)  
-**Last Updated**: November 16, 2025  
+**Last Updated**: November 26, 2026  
 **Status**: Ready for Beta Users
 
 ---
@@ -272,14 +272,15 @@ Please report bugs via:
 
 ### Support Channels
 
-**Priority Support (Beta Users)**:
-- **Email**: beta@janua.dev (Response within 4 hours during business hours)
-- **Office Hours**: Wednesdays 2-4pm EST (Zoom link in beta email)
-- **GitHub Discussions**: https://github.com/madfam-org/janua/discussions
+**Support (2026-11-26)**: GitHub Issues
+(https://github.com/madfam-org/janua/issues), GitHub Discussions
+(https://github.com/madfam-org/janua/discussions), or email to
+support@madfam.io. There is no response-time commitment, no office hours and
+no Discord or Slack (see the repository [README](../README.md#support)).
 
 **Resources**:
 - **Documentation**: https://docs.janua.dev
-- **API Status**: https://status.janua.dev
+- **Service status**: https://status.madfam.io (Janua is listed there; `status.janua.dev` is a roadmap item, not a running page)
 - **Changelog**: https://github.com/madfam-org/janua/blob/main/CHANGELOG.md
 
 ### Common Questions
@@ -375,7 +376,6 @@ Please share feedback on:
 
 - **Survey**: https://forms.janua.dev/beta-feedback
 - **Email**: beta@janua.dev
-- **Office Hours**: Wednesdays 2-4pm EST
 
 ### Incentives
 

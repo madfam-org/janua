@@ -1289,7 +1289,6 @@ appendfsync everysec
 - **Documentation**: https://docs.janua.dev
 - **API Reference**: https://api.janua.dev/docs
 - **GitHub Issues**: https://github.com/madfam-org/janua/issues
-- **Discord Community**: https://discord.gg/janua
 - **Email Support**: support@janua.dev
 - **Security Issues**: security@madfam.io
 
@@ -1314,4 +1313,4 @@ See [LICENSE](../LICENSE) for details.
 3. Configure [Backups](#backup--disaster-recovery)
 4. Test with [Troubleshooting Guide](#troubleshooting)
 
-**Questions?** Join our [Discord](https://discord.gg/janua) or email support@janua.dev
+**Questions?** Ask in [GitHub Discussions](https://github.com/madfam-org/janua/discussions) or email support@janua.dev. Janua has no Discord or Slack (2026-11-26).
