@@ -640,7 +640,7 @@ Import Tailwind CSS in your global styles:
 - **Documentation**: [https://docs.janua.dev](https://docs.janua.dev)
 - **API Reference**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **GitHub**: [https://github.com/madfam-org/janua](https://github.com/madfam-org/janua)
-- **Discord**: [https://discord.gg/janua](https://discord.gg/janua)
+- **Questions**: [GitHub Discussions](https://github.com/madfam-org/janua/discussions) (Janua has no Discord, 2026-11-26)
 - **Email**: support@janua.dev
 
 ---

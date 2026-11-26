@@ -24,7 +24,7 @@
 [![Status](https://img.shields.io/badge/status-private%20alpha-orange)](docs/enterprise/GA_CLAIM_MATRIX.md)
 [![Coverage](https://codecov.io/gh/madfam-org/janua/branch/main/graph/badge.svg)](https://codecov.io/gh/madfam-org/janua)
 
-**Website:** [janua.dev](https://janua.dev) | **Docs:** [docs.janua.dev](https://docs.janua.dev) | **Demo:** [demo.janua.dev](https://demo.janua.dev)
+**Website:** [janua.dev](https://janua.dev) | **Docs:** [docs.janua.dev](https://docs.janua.dev) | **Demo:** [janua.dev/demo](https://janua.dev/demo)
 
 ---
 

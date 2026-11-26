@@ -289,11 +289,11 @@ Blog content in MDX format...
 
 ### SEO Content
 
-- Programmatic SEO pages
-- Comparison pages
-- Alternative pages
-- Use case pages
-- Integration pages
+As of 2026-11-26 the site has no programmatic SEO, comparison or alternative
+pages. Its routes are the marketing pages under `app/(marketing)/` (home,
+about, blog, careers, contact, deploy, legal, pricing, solutions) plus the
+interactive demo under `app/demo/`. The blog is a placeholder page that says
+"Blog in progress" (`app/(marketing)/blog/page.tsx`).
 
 ## 🧪 Testing
 
@@ -328,25 +328,13 @@ yarn analyze
 yarn start
 ```
 
-### Vercel Configuration
+### Hosting
 
-```json
-// vercel.json
-{
-  "functions": {
-    "app/api/*": {
-      "maxDuration": 10
-    }
-  },
-  "redirects": [
-    {
-      "source": "/docs",
-      "destination": "https://docs.janua.dev",
-      "permanent": false
-    }
-  ]
-}
-```
+The site is not hosted on Vercel and the repository has no `vercel.json`. It is
+built from `Dockerfile.website` and runs as the `janua-website` service on
+MADFAM's Enclii platform; `enclii.yaml` at the repository root declares its
+domains (see the root [`AGENTS.md`](../../AGENTS.md), "Domain Auto-Provisioning").
+(2026-11-26)
 
 ## 🎨 Design System
 
@@ -372,10 +360,10 @@ yarn start
 
 ### Technical SEO
 
-- XML sitemap generation
-- Robots.txt configuration
+- As of 2026-11-26 the site ships no XML sitemap, no `robots.txt` and no
+  structured data (JSON-LD). The only machine-readable file it publishes is
+  `public/llms.txt`.
 - Canonical URLs
-- Structured data (JSON-LD)
 - Open Graph tags
 - Twitter Cards
 
@@ -391,12 +379,10 @@ yarn start
 
 ### Analytics Dashboard
 
-Tracking:
-- Page views and unique visitors
-- Conversion rates
-- Bounce rates
-- User flow
-- Campaign performance
+As of 2026-11-26 no visitor analytics is live on `janua.dev`: no page views,
+visitors, conversions or campaigns are measured. `app/layout.tsx` imports
+`@vercel/analytics` and a PostHog provider, but the site is not hosted on
+Vercel and no build passes `NEXT_PUBLIC_POSTHOG_KEY`, so neither sends data.
 
 ### Error Monitoring
 

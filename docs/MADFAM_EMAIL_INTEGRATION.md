@@ -350,7 +350,7 @@ curl -X POST https://api.janua.dev/api/v1/internal/email/send-template \
       "user_name": "John",
       "app_name": "Dhanam",
       "login_url": "https://app.dhan.am",
-      "support_email": "support@dhan.am"
+      "support_email": "support@madfam.io"
     },
     "source_app": "dhanam",
     "source_type": "auth"
